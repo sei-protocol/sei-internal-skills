@@ -7,7 +7,7 @@ The core loop is: a principal proposes a design, a council of agents reviews and
 ## Repository Structure
 
 ```
-.cursor/agents/         # Agent personas for Cursor IDE agentic workflows
+.claude/agents/         # Agent personas for Claude agentic workflows
 AGENTS.md               # Top-level agent orchestration hooks
 design/
   high-level/           # High-level design document (Tide Agent Council)

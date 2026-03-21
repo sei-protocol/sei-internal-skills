@@ -43,7 +43,7 @@ Runtime convention wins (runtimes are the consumers):
 
 ## How to Use These Agents
 
-Agent persona files live in `.cursor/agents/`. When working on a Tide component, invoke the relevant agent for domain-specific guidance:
+Agent persona files live in `.claude/agents/`. When working on a Tide component, invoke the relevant agent for domain-specific guidance:
 
 - **Smart contract work** → blockchain-developer
 - **Operator / CRD / controller work** → kubernetes-specialist
