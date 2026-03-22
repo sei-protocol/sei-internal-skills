@@ -109,10 +109,12 @@ Use exact types — no pseudotypes, no "TBD."
 ## State Model
 What state exists, where it lives (on-chain, CRD, ConfigMap, filesystem),
 how it transitions, and what the source of truth is.
+Use Mermaid `stateDiagram-v2` for state machines. No ASCII art.
 
 ## Internal Design
 How the component works internally. Enough for a mid-level engineer to implement.
-Pseudocode or sequence diagrams for non-trivial logic.
+Pseudocode or Mermaid diagrams (sequence, flowchart, state) for non-trivial logic.
+No ASCII art — always use Mermaid for visual representations.
 
 ## Error Handling
 Every error case: what causes it, how it's detected, how it's surfaced,
@@ -171,6 +173,21 @@ All configuration flows through one of:
 4. **Environment variables** — agent runtime config, set by the controller when creating Jobs
 
 No config files baked into container images. No environment-specific logic in application code.
+
+---
+
+## Diagram Conventions
+
+All visual representations in design documents must use **Mermaid** syntax. No ASCII art.
+
+| Diagram Type | Mermaid Syntax | Use For |
+|---|---|---|
+| State machines | `stateDiagram-v2` | Lifecycle phases, upgrade flows, CRD status transitions |
+| Sequences | `sequenceDiagram` | Cross-component interactions, request/response flows |
+| Flowcharts | `graph TD` or `graph LR` | Decision trees, architecture overviews |
+| Entity relationships | `erDiagram` | CRD field relationships, data models |
+
+Mermaid renders natively in GitHub, GitLab, and most documentation tooling. Every diagram must be in a fenced code block with the `mermaid` language tag.
 
 ---
 
