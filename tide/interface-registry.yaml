@@ -570,7 +570,7 @@ volume_mounts:
     size_limit: 1Gi  # Operator controls this
     description: "Temp directory for agent runtime"
 
-  git_token_path: /workspace/.tide/github-token  # Written by init container
+git_token_path: "/workspace/.tide/github-token"  # Written by init container
 
 # =============================================================================
 # KUBERNETES RESOURCES (Operator <-> manifests)
