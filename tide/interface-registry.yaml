@@ -1,0 +1,641 @@
+# Tide Interface Registry
+# ========================
+# Single source of truth for all cross-component interfaces.
+# Every agent reads this before writing specs or code.
+# When an interface changes, update this file FIRST, then update specs/code to match.
+#
+# Rules:
+#   - Provider owns the interface. Consumers adapt.
+#   - One-way doors are marked. These require human approval before changes.
+#   - Every entry has: provider, consumers, exact types, and whether it's a one-way door.
+
+version: "1.0"
+chain_id: 1329  # Sei EVM
+usdc_address: "0xe15fC38F6D8c56aF07bbCBe3BAf5708A2Bf42392"
+
+# =============================================================================
+# EVENT SIGNATURES (contracts -> Operator)
+# Provider: blockchain-developer | Consumer: kubernetes-specialist
+# ONE-WAY DOOR after deployment: changing these breaks all indexers
+# =============================================================================
+events:
+  proposal_created:
+    one_way_door: true
+    provider: blockchain-developer
+    consumer: kubernetes-specialist
+    contract: TideCouncil
+    signature: "ProposalCreated(uint256,address,bytes32,uint256,uint256[],uint8,uint40)"
+    topic0: null  # Compute from signature after finalization
+    params:
+      - name: proposalId
+        type: uint256
+        indexed: true   # topics[1]
+      - name: principal
+        type: address
+        indexed: true   # topics[2]
+      - name: designHash
+        type: bytes32
+        indexed: true   # topics[3]
+      - name: parentProposalId
+        type: uint256
+        indexed: false  # data
+      - name: participantTokenIds
+        type: uint256[]
+        indexed: false  # data
+      - name: quorum
+        type: uint8
+        indexed: false  # data
+      - name: expiresAt
+        type: uint40
+        indexed: false  # data
+        go_type: uint64  # Decoded to uint64 in Go
+
+  review_submitted:
+    one_way_door: true
+    provider: blockchain-developer
+    consumer: kubernetes-specialist
+    contract: TideCouncil
+    signature: "ReviewSubmitted(uint256,uint256,uint8,bytes32)"
+    topic0: null
+    params:
+      - name: proposalId
+        type: uint256
+        indexed: true   # topics[1]
+      - name: agentTokenId
+        type: uint256
+        indexed: true   # topics[2]
+        go_type: "*big.Int"  # Validated to fit uint64 before CRD population
+      - name: verdict
+        type: uint8
+        indexed: false  # data
+      - name: feedbackHash
+        type: bytes32
+        indexed: false  # data
+
+  proposal_approved:
+    one_way_door: true
+    provider: blockchain-developer
+    consumer: kubernetes-specialist
+    contract: TideCouncil
+    signature: "ProposalApproved(uint256,bytes32)"
+    topic0: null
+    params:
+      - name: proposalId
+        type: uint256
+        indexed: true   # topics[1]
+      - name: designHash
+        type: bytes32
+        indexed: true   # topics[2] — NOT in data section
+
+  proposal_rejected:
+    one_way_door: true
+    provider: blockchain-developer
+    consumer: kubernetes-specialist
+    contract: TideCouncil
+    signature: "ProposalRejected(uint256,bytes32)"
+    topic0: null
+    params:
+      - name: proposalId
+        type: uint256
+        indexed: true   # topics[1]
+      - name: designHash
+        type: bytes32
+        indexed: true   # topics[2]
+
+  proposal_expired:
+    one_way_door: true
+    provider: blockchain-developer
+    consumer: kubernetes-specialist
+    contract: TideCouncil
+    signature: "ProposalExpired(uint256)"
+    topic0: null
+    params:
+      - name: proposalId
+        type: uint256
+        indexed: true   # topics[1]
+
+  sandbox_provision_requested:
+    one_way_door: true
+    provider: blockchain-developer
+    consumer: kubernetes-specialist
+    contract: TideJobHook
+    signature: "SandboxProvisionRequested(uint256,address,address,uint256,uint256,uint256)"
+    topic0: null
+    params:
+      - name: jobId
+        type: uint256
+        indexed: true   # topics[1]
+      - name: provider
+        type: address
+        indexed: true   # topics[2]
+      - name: client
+        type: address
+        indexed: true   # topics[3]
+      - name: agentTokenId
+        type: uint256
+        indexed: false  # data
+      - name: budget
+        type: uint256
+        indexed: false  # data
+      - name: expiry
+        type: uint256
+        indexed: false  # data
+
+# =============================================================================
+# FUNCTION SIGNATURES (contracts <- runtimes)
+# Provider: blockchain-developer | Consumer: platform-engineer
+# ONE-WAY DOOR after deployment
+# =============================================================================
+functions:
+  submit_review:
+    one_way_door: true
+    provider: blockchain-developer
+    consumer: platform-engineer
+    contract: TideCouncil
+    name: submitReview
+    signature: "submitReview(uint256,uint8,bytes32,uint256,uint256,bytes)"
+    params:
+      - name: proposalId
+        type: uint256
+      - name: verdict
+        type: uint8
+      - name: feedbackHash
+        type: bytes32
+      - name: agentTokenId
+        type: uint256
+      - name: nonce
+        type: uint256
+      - name: signature
+        type: bytes
+
+  get_review_nonce:
+    one_way_door: true
+    provider: blockchain-developer
+    consumer: platform-engineer
+    contract: TideCouncil
+    name: getReviewNonce
+    signature: "getReviewNonce(uint256)"
+    params:
+      - name: agentTokenId
+        type: uint256
+    returns: uint256
+
+# =============================================================================
+# EIP-712 TYPES
+# Provider: blockchain-developer | Consumer: platform-engineer
+# ONE-WAY DOOR after wallets have signed with these
+# =============================================================================
+eip712:
+  domain:
+    one_way_door: true
+    name: "TideCouncil"
+    version: "1"
+    chain_id: 1329
+    verifying_contract: null  # Set after deployment
+
+  review_type:
+    one_way_door: true
+    type_string: "Review(uint256 proposalId,uint8 verdict,bytes32 feedbackHash,uint256 agentTokenId,uint256 nonce)"
+    fields:
+      - name: proposalId
+        type: uint256
+      - name: verdict
+        type: uint8
+      - name: feedbackHash
+        type: bytes32
+      - name: agentTokenId
+        type: uint256
+      - name: nonce
+        type: uint256
+
+# =============================================================================
+# ENVIRONMENT VARIABLES (Operator -> runtimes)
+# Provider: kubernetes-specialist | Consumer: platform-engineer
+# Naming convention: runtime names are canonical (runtimes are the consumers)
+# NOT a one-way door — can be changed by updating Operator and runtime together
+# =============================================================================
+env_vars:
+  # --- Required (Operator MUST set) ---
+  required:
+    - name: TIDE_PROPOSAL_ID
+      description: "On-chain proposal ID"
+      set_by: operator
+      consumed_by: [review-runtime]
+
+    - name: TIDE_DESIGN_HASH
+      description: "keccak256 of the design document"
+      set_by: operator
+      consumed_by: [review-runtime]
+
+    - name: TIDE_AGENT_TOKEN_ID
+      description: "Agent's ERC-8004 token ID"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_AGENT_NAME
+      description: "Agent short name (alpha, beta, gamma)"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_KMS_KEY_ID
+      description: "AWS KMS key ARN for EIP-712 signing. Named _KEY_ID because AWS KMS accepts ARNs as key IDs."
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_COUNCIL_ADDRESS
+      description: "TideCouncil contract address on Sei"
+      set_by: operator
+      consumed_by: [review-runtime]
+
+    - name: TIDE_ACP_ADDRESS
+      description: "ERC-8183 AgenticCommerce contract address"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
+    - name: TIDE_SEI_RPC_URL
+      description: "Sei EVM JSON-RPC endpoint"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_SEI_CHAIN_ID
+      description: "Sei chain ID (1329 mainnet, 713715 testnet)"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_GITHUB_APP_INSTALLATION_ID
+      description: "GitHub App installation ID for this agent"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_PROPOSALS_REPO
+      description: "GitHub repo for proposals (org/repo format)"
+      set_by: operator
+      consumed_by: [review-runtime]
+
+    - name: TIDE_RESULT_PATH
+      description: "Path to write AgentResult JSON. Default: /dev/termination-log"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+      default: "/dev/termination-log"
+
+    - name: TIDE_AWS_REGION
+      description: "AWS region for KMS calls"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_DESIGN_PATH
+      description: "Path to design doc within proposals repo"
+      set_by: operator
+      consumed_by: [review-runtime]
+
+    - name: TIDE_JOB_ID
+      description: "On-chain ERC-8183 job ID"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
+    - name: TIDE_UPSTREAM_REPO
+      description: "Source repo to clone for execution tasks"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
+    - name: TIDE_TASK_DESCRIPTION
+      description: "Task description for the coding agent"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
+  # --- Optional (Operator SHOULD set from ConfigMap, runtimes have defaults) ---
+  optional:
+    - name: TIDE_RUNTIME_MODE
+      description: "review or execution"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_LLM_MODEL
+      description: "LLM model identifier"
+      default: "claude-sonnet-4-20250514"
+      set_by: operator (from ConfigMap)
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_LLM_TOKEN_BUDGET
+      description: "Max total tokens for the task"
+      set_by: operator (from ConfigMap)
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_LLM_MAX_OUTPUT_TOKENS
+      description: "Max output tokens per LLM call"
+      default: "16384"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_LLM_MAX_INPUT_TOKENS
+      description: "Max input tokens per LLM call"
+      default: "100000"
+      set_by: operator
+      consumed_by: [review-runtime]
+
+    - name: TIDE_LLM_TEMPERATURE
+      description: "LLM temperature"
+      default: "0.3"
+      set_by: operator
+      consumed_by: [review-runtime]
+
+    - name: TIDE_REVIEW_TIMEOUT_SECONDS
+      description: "Soft timeout for review tasks"
+      default: "1800"
+      set_by: operator
+      consumed_by: [review-runtime]
+
+    - name: TIDE_EXECUTION_TIMEOUT_SECONDS
+      description: "Soft timeout for execution tasks"
+      default: "3000"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
+    - name: TIDE_MAX_ITERATIONS
+      description: "Max coding agent iterations"
+      set_by: operator (from ConfigMap)
+      consumed_by: [execution-runtime]
+
+    - name: TIDE_CODING_FRAMEWORK
+      description: "Coding agent framework (openhands, swe-agent)"
+      default: "openhands"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
+    - name: TIDE_LOG_LEVEL
+      description: "Logging verbosity"
+      default: "info"
+      set_by: operator (from ConfigMap)
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_PROVIDER_ADDRESS
+      description: "Agent's Sei wallet address"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_EXPIRES_AT
+      description: "Job/proposal expiry as RFC 3339 timestamp"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_UPSTREAM_BRANCH
+      description: "Branch to clone from upstream repo"
+      default: "main"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
+    - name: TIDE_UPSTREAM_COMMIT
+      description: "Pin to specific commit in upstream repo"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
+    - name: TIDE_PROPOSALS_REPO_BRANCH
+      description: "Branch in proposals repo"
+      default: "main"
+      set_by: operator
+      consumed_by: [review-runtime]
+
+    - name: TIDE_TEST_COMMAND
+      description: "Test command for execution tasks"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
+# =============================================================================
+# EXIT CODES (runtimes -> Operator)
+# Provider: platform-engineer | Consumer: kubernetes-specialist
+# NOT a one-way door
+# =============================================================================
+exit_codes:
+  - code: 0
+    meaning: "Success"
+    operator_action: "Mark job completed. Read AgentResult from termination message."
+    category: success
+
+  - code: 1
+    meaning: "Unrecoverable internal error (bug, panic)"
+    operator_action: "Mark job failed. Do not retry."
+    category: permanent_failure
+
+  - code: 2
+    meaning: "Soft timeout (80% of activeDeadlineSeconds)"
+    operator_action: "Mark job failed. May retry with extended deadline."
+    category: timeout
+
+  - code: 10
+    meaning: "Missing or invalid environment variable"
+    operator_action: "Mark job failed. Config error — do not retry without fixing config."
+    category: config_error
+
+  - code: 11
+    meaning: "Secret mount failure"
+    operator_action: "Mark job failed. Infrastructure error — retry after checking CSI driver."
+    category: config_error
+
+  - code: 20
+    meaning: "Git clone failure"
+    operator_action: "Mark job failed. Retry with backoff (GitHub may be down)."
+    category: transient_error
+
+  - code: 21
+    meaning: "Design doc or upstream commit not found"
+    operator_action: "Mark job failed. Do not retry — source data missing."
+    category: permanent_failure
+
+  - code: 22
+    meaning: "Design hash mismatch or task file not found"
+    operator_action: "Mark job failed. Do not retry — integrity check failed."
+    category: permanent_failure
+
+  - code: 30
+    meaning: "LLM API failure"
+    operator_action: "Mark job failed. Retry with backoff (API may be down)."
+    category: transient_error
+
+  - code: 31
+    meaning: "Token budget exceeded"
+    operator_action: "Mark job failed. May retry with higher budget."
+    category: resource_exhaustion
+
+  - code: 32
+    meaning: "Max iterations exceeded (execution only)"
+    operator_action: "Mark job failed. May retry with higher iteration limit."
+    category: resource_exhaustion
+
+  - code: 40
+    meaning: "Git push failure"
+    operator_action: "Retry with backoff."
+    category: transient_error
+
+  - code: 41
+    meaning: "PR creation failure (execution only)"
+    operator_action: "Retry with backoff."
+    category: transient_error
+
+  - code: 50
+    meaning: "KMS signing failure"
+    operator_action: "Retry with backoff. Check IAM/IRSA if persistent."
+    category: transient_error
+
+  - code: 51
+    meaning: "Sei RPC failure"
+    operator_action: "Retry with backoff."
+    category: transient_error
+
+  - code: 52
+    meaning: "Sei transaction reverted"
+    operator_action: "Mark job failed. Inspect revert reason. May need manual intervention."
+    category: permanent_failure
+
+  - code: 137
+    meaning: "OOMKilled"
+    operator_action: "Mark job failed. Consider increasing memory limits."
+    category: resource_exhaustion
+
+  - code: 143
+    meaning: "SIGTERM (activeDeadlineSeconds exceeded)"
+    operator_action: "Mark job failed. Timeout. Read partial AgentResult if available."
+    category: timeout
+
+# =============================================================================
+# COMPLETION SIGNALING (runtimes -> Operator)
+# Provider: platform-engineer | Consumer: kubernetes-specialist
+# =============================================================================
+completion_signaling:
+  primary:
+    mechanism: "Kubernetes termination message"
+    path: "/dev/termination-log"  # Controlled by TIDE_RESULT_PATH env var
+    max_size: "4KB"
+    format: "AgentResult JSON"
+    read_method: "pod.status.containerStatuses[].state.terminated.message via K8s API"
+    survives_pod_termination: true
+
+  secondary:
+    mechanism: "Status file (advisory, for live debugging only)"
+    path: "/workspace/.tide/status.json"
+    max_size: "64KB"
+    format: "Rich JSON with full review/execution details"
+    read_method: "kubectl exec or sidecar while pod is running"
+    survives_pod_termination: false  # emptyDir is garbage-collected
+
+  agent_result_schema:
+    fields:
+      - name: status
+        type: string
+        values: ["success", "failure", "timeout"]
+      - name: exit_code
+        type: integer
+      - name: deliverable_hash
+        type: string
+        description: "keccak256 of deliverable (commit SHA, PR ref, review hash)"
+      - name: error
+        type: string
+        description: "Human-readable error message (empty on success)"
+      - name: error_code
+        type: string
+        description: "Machine-readable error category"
+      - name: token_usage
+        type: object
+        fields: [input_tokens, output_tokens, total_tokens]
+      - name: timing
+        type: object
+        fields: [started_at, completed_at, duration_seconds]
+
+# =============================================================================
+# VOLUME MOUNTS (Operator -> runtimes)
+# Provider: kubernetes-specialist | Consumer: platform-engineer
+# =============================================================================
+volume_mounts:
+  - name: workspace
+    mount_path: /workspace
+    type: emptyDir
+    size_limit: 10Gi
+    description: "Agent working directory. Cloned source, outputs, status file."
+
+  - name: secrets
+    mount_path: /secrets
+    type: csi
+    read_only: true
+    description: "Secrets mounted via AWS Secrets Store CSI Driver"
+    files:
+      - github-app-key.pem
+      - anthropic-api-key
+      - agent-system-prompt.txt        # review runtime
+      - agent-execution-system-prompt.txt  # execution runtime
+      - tide-council-abi.json
+      - acp-abi.json
+
+  - name: tmp
+    mount_path: /tmp
+    type: emptyDir
+    size_limit: 1Gi  # Operator controls this
+    description: "Temp directory for agent runtime"
+
+  git_token_path: /workspace/.tide/github-token  # Written by init container
+
+# =============================================================================
+# KUBERNETES RESOURCES (Operator <-> manifests)
+# =============================================================================
+kubernetes:
+  namespaces:
+    system: tide-system
+    agents: tide-agents
+
+  service_accounts:
+    pattern: "tide-agent-{agent_name}"
+    examples: [tide-agent-alpha, tide-agent-beta, tide-agent-gamma]
+    note: "Per-agent SAs for IRSA scoping. Operator uses fmt.Sprintf."
+
+  labels:
+    pod_selector:
+      key: "app.kubernetes.io/component"
+      value: "agent"
+      used_by: "NetworkPolicy agent-egress-allow"
+    agent_id:
+      key: "tide.sei.io/agent-id"
+      value: "{agent-name}"
+    job_id:
+      key: "tide.sei.io/job-id"
+      value: "{erc8183-job-id}"
+    proposal_id:
+      key: "tide.sei.io/proposal-id"
+      value: "{proposal-id}"
+
+# =============================================================================
+# CROSS-COMPONENT INTERFACE MAP
+# Use this to determine which agents need to cross-review which specs
+# =============================================================================
+interface_boundaries:
+  - name: "On-chain events -> Event indexer"
+    provider: blockchain-developer
+    consumer: kubernetes-specialist
+    registry_sections: [events]
+    provider_spec: "design/milestones/m0-contracts/lld-tide-council.md"
+    consumer_spec: "design/milestones/m1-platform/lld-tide-operator.md"
+
+  - name: "Contract functions <- Runtimes"
+    provider: blockchain-developer
+    consumer: platform-engineer
+    registry_sections: [functions, eip712]
+    provider_spec: "design/milestones/m0-contracts/lld-tide-council.md"
+    consumer_spec: "design/milestones/m2-review/lld-agent-review-runtime.md"
+
+  - name: "Operator -> Runtime env vars"
+    provider: kubernetes-specialist
+    consumer: platform-engineer
+    registry_sections: [env_vars]
+    provider_spec: "design/milestones/m1-platform/lld-tide-operator.md"
+    consumer_spec: "design/milestones/m2-review/lld-agent-review-runtime.md"
+
+  - name: "Runtime -> Operator completion"
+    provider: platform-engineer
+    consumer: kubernetes-specialist
+    registry_sections: [exit_codes, completion_signaling]
+    provider_spec: "design/milestones/m2-review/lld-agent-review-runtime.md"
+    consumer_spec: "design/milestones/m1-platform/lld-tide-operator.md"
+
+  - name: "Operator <-> K8s manifests"
+    provider: kubernetes-specialist
+    consumer: platform-engineer
+    registry_sections: [kubernetes, volume_mounts]
+    provider_spec: "design/milestones/m1-platform/lld-tide-operator.md"
+    consumer_spec: "design/milestones/m1-platform/lld-k8s-manifests.md"
