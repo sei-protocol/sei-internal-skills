@@ -258,7 +258,7 @@ env_vars:
       consumed_by: [review-runtime, execution-runtime]
 
     - name: TIDE_SEI_CHAIN_ID
-      description: "Sei chain ID (1329 mainnet, 713715 testnet)"
+      description: "Sei chain ID (1329 mainnet, 1328 atlantic-2 testnet)"
       set_by: operator
       consumed_by: [review-runtime, execution-runtime]
 
