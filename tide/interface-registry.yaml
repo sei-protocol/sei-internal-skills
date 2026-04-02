@@ -262,6 +262,11 @@ env_vars:
       set_by: operator
       consumed_by: [review-runtime, execution-runtime]
 
+    - name: TIDE_GITHUB_APP_ID
+      description: "GitHub App ID for JWT generation (the iss claim)"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
     - name: TIDE_GITHUB_APP_INSTALLATION_ID
       description: "GitHub App installation ID for this agent"
       set_by: operator
@@ -378,6 +383,16 @@ env_vars:
       set_by: operator
       consumed_by: [review-runtime, execution-runtime]
 
+    - name: TIDE_WORKSPACE_REPO
+      description: "Agent workspace repo for execution (org/repo format)"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
+    - name: TIDE_DELIVERABLES_REPO
+      description: "Deliverables repo for PRs (org/repo format)"
+      set_by: operator
+      consumed_by: [execution-runtime]
+
     - name: TIDE_UPSTREAM_BRANCH
       description: "Branch to clone from upstream repo"
       default: "main"
@@ -399,6 +414,27 @@ env_vars:
       description: "Test command for execution tasks"
       set_by: operator
       consumed_by: [execution-runtime]
+
+    # --- MVP: GitHub webhook-driven workflow env vars ---
+    - name: TIDE_PR_NUMBER
+      description: "GitHub PR number (MVP: set by Tekton TriggerBinding from webhook)"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_PR_URL
+      description: "GitHub PR URL (MVP: set by Tekton TriggerBinding from webhook)"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_COMMENT_BODY
+      description: "GitHub comment body triggering this iteration (MVP: webhook-driven)"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
+
+    - name: TIDE_COMMENT_AUTHOR
+      description: "GitHub comment author login (MVP: webhook-driven)"
+      set_by: operator
+      consumed_by: [review-runtime, execution-runtime]
 
 # =============================================================================
 # EXIT CODES (runtimes -> Operator)
@@ -582,8 +618,8 @@ kubernetes:
 
   service_accounts:
     pattern: "tide-agent-{agent_name}"
-    examples: [tide-agent-alpha, tide-agent-beta, tide-agent-gamma]
-    note: "Per-agent SAs for IRSA scoping. Operator uses fmt.Sprintf."
+    examples: [tide-agent-blockchain-dev, tide-agent-k8s-specialist, tide-agent-platform-eng, tide-agent-coordinator, tide-agent-reviewer]
+    note: "Per-agent SAs for IRSA scoping. Canonical short names: blockchain-dev, k8s-specialist, platform-eng, coordinator, reviewer."
 
   labels:
     pod_selector:
