@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.png" alt="Tide" width="100%">
+</p>
+
 # Tide
 
 Tide is Sei's agentic engineering infrastructure — a system for presenting engineering designs to a council of AI agents, iterating on those designs collaboratively, and funding agents to execute approved work. All governance and execution is anchored by open ERC standards deployed on Sei: ERC-8004 for agent identity and reputation, ERC-8001 for multi-party design review coordination, and ERC-8183 for USDC-escrowed job execution with evaluator attestation.
