@@ -415,31 +415,37 @@ env_vars:
       set_by: operator
       consumed_by: [execution-runtime]
 
-    # --- MVP: GitHub webhook-driven workflow env vars ---
+    # --- MVP: GitHub event-driven workflow env vars ---
+    # Set by GHA workflow from github.event context (not by K8s operator)
     - name: TIDE_PR_NUMBER
-      description: "GitHub PR number (MVP: set by Tekton TriggerBinding from webhook)"
-      set_by: operator
-      consumed_by: [review-runtime, execution-runtime]
+      description: "GitHub PR number (set by GHA workflow from github.event)"
+      set_by: gha-workflow
+      consumed_by: [claude-code-headless]
 
     - name: TIDE_PR_URL
-      description: "GitHub PR URL (MVP: set by Tekton TriggerBinding from webhook)"
-      set_by: operator
-      consumed_by: [review-runtime, execution-runtime]
+      description: "GitHub PR URL (set by GHA workflow from github.event)"
+      set_by: gha-workflow
+      consumed_by: [claude-code-headless]
 
     - name: TIDE_COMMENT_BODY
-      description: "GitHub comment body triggering this iteration (MVP: webhook-driven)"
-      set_by: operator
-      consumed_by: [review-runtime, execution-runtime]
+      description: "GitHub comment body triggering this iteration"
+      set_by: gha-workflow
+      consumed_by: [claude-code-headless]
 
     - name: TIDE_COMMENT_AUTHOR
-      description: "GitHub comment author login (MVP: webhook-driven)"
-      set_by: operator
-      consumed_by: [review-runtime, execution-runtime]
+      description: "GitHub comment author login"
+      set_by: gha-workflow
+      consumed_by: [claude-code-headless]
 
 # =============================================================================
 # EXIT CODES (runtimes -> Operator)
 # Provider: platform-engineer | Consumer: kubernetes-specialist
 # NOT a one-way door
+#
+# NOTE: In the GHA path (Claude Code headless on self-hosted runners),
+# granular exit codes 10-52 are not surfaced to any consumer. GHA reports
+# step success/failure only. These codes apply to the K8s Job path
+# (Python runtimes with /dev/termination-log).
 # =============================================================================
 exit_codes:
   - code: 0
@@ -535,6 +541,12 @@ exit_codes:
 # =============================================================================
 # COMPLETION SIGNALING (runtimes -> Operator)
 # Provider: platform-engineer | Consumer: kubernetes-specialist
+#
+# NOTE: This section describes the K8s Job path (Python runtimes).
+# In the GHA path (Claude Code headless), completion is signaled via
+# GHA step exit code (0/non-0) and results are posted as PR comments
+# by Claude Code directly. The AgentResult JSON schema below applies
+# only to the K8s Job path.
 # =============================================================================
 completion_signaling:
   primary:
