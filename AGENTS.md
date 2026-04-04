@@ -12,6 +12,8 @@ This repository uses an AI agent council for design review and implementation. T
 | **network-specialist** | NetworkPolicies, ingress, DNS, service mesh, cloud networking, runner isolation | `manifests/base/runners/network-policy.yaml`, `manifests/base/network-policies.yaml` |
 | **security-specialist** | Threat modeling, adversarial design, crypto protocols, contract auditing, supply chain security | Cross-cutting — reviews all components |
 | **tee-specialist** | Nitro Enclaves, SGX/TDX, remote attestation, enclave-to-chain bridges, confidential computing | TEE integration, attestation verification contracts |
+| **product-engineer** | Distributed systems, blockchain, cloud — bridges product vision to technical architecture | End-to-end system design, on-chain/off-chain boundary decisions |
+| **product-manager** | MVP scoping, customer problems, web2-scale product discipline applied to novel blockchain use cases | PRDs, scope management, acceptance criteria, roadmap |
 
 ## Working Agreement
 
