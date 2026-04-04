@@ -10,6 +10,8 @@ This repository uses an AI agent council for design review and implementation. T
 | **kubernetes-specialist** | Go, controller-runtime, CRDs, EKS, event indexing | `design/milestones/m1-platform/lld-tide-operator.md` |
 | **platform-engineer** | Python, container runtimes, Kustomize, RBAC, observability | `design/milestones/m1-platform/lld-k8s-manifests.md`, `design/milestones/m2-review/`, `design/milestones/m3-execution/` |
 | **network-specialist** | NetworkPolicies, ingress, DNS, service mesh, cloud networking, runner isolation | `manifests/base/runners/network-policy.yaml`, `manifests/base/network-policies.yaml` |
+| **security-specialist** | Threat modeling, adversarial design, crypto protocols, contract auditing, supply chain security | Cross-cutting — reviews all components |
+| **tee-specialist** | Nitro Enclaves, SGX/TDX, remote attestation, enclave-to-chain bridges, confidential computing | TEE integration, attestation verification contracts |
 
 ## Working Agreement
 
