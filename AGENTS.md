@@ -9,6 +9,7 @@ This repository uses an AI agent council for design review and implementation. T
 | **blockchain-developer** | Solidity, Foundry, ERC standards, gas optimization, security | `design/milestones/m0-contracts/` |
 | **kubernetes-specialist** | Go, controller-runtime, CRDs, EKS, event indexing | `design/milestones/m1-platform/lld-tide-operator.md` |
 | **platform-engineer** | Python, container runtimes, Kustomize, RBAC, observability | `design/milestones/m1-platform/lld-k8s-manifests.md`, `design/milestones/m2-review/`, `design/milestones/m3-execution/` |
+| **network-specialist** | NetworkPolicies, ingress, DNS, service mesh, cloud networking, runner isolation | `manifests/base/runners/network-policy.yaml`, `manifests/base/network-policies.yaml` |
 
 ## Working Agreement
 
