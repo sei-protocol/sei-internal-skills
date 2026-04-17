@@ -9,6 +9,21 @@ user-invocable: false
 
 # OpenTelemetry
 
+## Guiding Principle: The Four Golden Signals
+
+Every instrumented service must answer four questions. These come from Google's SRE handbook and are the foundation for all instrumentation decisions:
+
+| Signal | Question | OTel Instrument |
+|--------|----------|-----------------|
+| **Latency** | How long do requests take? | `Float64Histogram` with unit `s`. The histogram gives you p50/p95/p99 AND request count (`_count`) in one instrument. |
+| **Traffic** | How much demand is the service handling? | Derived from the latency histogram's `_count`, or a standalone `Int64Counter` for non-request events. |
+| **Errors** | What is the error rate? | `Int64Counter` with error type attribute, or latency histogram filtered by `error.type` attribute. |
+| **Saturation** | How full is the service? | `Int64UpDownCounter` or `Observable Gauge` for in-flight work, queue depth, active connections. |
+
+**When designing metrics for a new service or feature, start with these four signals and work outward.** If a metric does not help answer one of these questions, question whether it belongs. Most services need fewer than 10 metrics to cover all four signals well.
+
+A latency histogram with an error type attribute can cover three of the four signals from a single instrument: latency (bucket distribution), traffic (`_count`), and errors (filter by `error.type`). Add one gauge for saturation and you have complete coverage.
+
 ## SDK Initialization
 
 Before any instrument can record data, a `MeterProvider` must be registered. Without this, `otel.Meter()` returns a no-op and all metrics are silently dropped.
