@@ -11,9 +11,11 @@
 
 Replace the EC2-based `sei-autobake` performance pipeline with a Kubernetes-native equivalent driven by a GitHub Actions workflow that creates an ephemeral `SeiNodeDeployment` (via the existing `sei-k8s-controller`) and runs `seiload` against it as a `Job`.
 
-**This is a lift-and-shift.** Same trigger shape, same profile, same report, same Slack post. We are swapping the orchestration substrate (Terraform + Ansible + SSM-on-EC2 → `kubectl` + K8s resources) and the compute substrate (EC2 AMIs building from source → pre-built container images). Nothing else.
+**This is a lift-and-shift.** Same trigger shape, same profile, same report, same Slack post. We are swapping the orchestration substrate (Terraform + Ansible + SSM-on-EC2 → `kubectl` + K8s resources) and the compute substrate (EC2 AMIs building from source → container images consumed from whatever machinery already exists). Nothing else.
 
-Regression detection, rolling baselines, dashboards, CRDs, PR status checks, and bisect tooling are **explicitly out of scope** for this MVP and tracked in the Deferred section. We will layer them on once the lift-and-shift is wired and running.
+The workflow, templates, and scripts live **in this repo (Tide)**, alongside other platform designs. They reuse Tide's existing in-cluster identity / credential plumbing to manage resources reproducibly — every per-run resource is declarative (YAML templates rendered with `envsubst`), named by run ID, owned by the parent `SeiNodeDeployment` so teardown cascades deterministically, and created with `kubectl apply` rather than imperative shell state.
+
+Regression detection, rolling baselines, dashboards, CRDs, PR status checks, bisect tooling, dedicated container image release pipelines, and the existing-alerts label fix are **explicitly out of scope** for MVP and listed in the Post-MVP Improvements section. We will layer them on once the lift-and-shift is wired and running.
 
 ---
 
@@ -25,11 +27,11 @@ Regression detection, rolling baselines, dashboards, CRDs, PR status checks, and
 |--------|-----------|-------|
 | `sei-k8s-controller` | `SeiNodeDeployment` CRD (v1alpha1) | Must be running in the target cluster with genesis ceremony support enabled. |
 | AWS EKS | Kubernetes API v1.28+ | Same cluster the Tide platform targets. |
-| `ghcr.io/sei-protocol/sei-chain` | Container image tagged by commit SHA + `main-latest` | **New** — see prerequisite P1 below. |
-| `ghcr.io/sei-protocol/sei-load` | Container image tagged by commit SHA + `main-latest` | **New** — see prerequisite P2 below. |
-| AWS S3 | `s3://sei-autobake-results/` | Stores the JSON report per run. IRSA on the Job's ServiceAccount. |
+| seid container image | Whatever image source the platform team already maintains (dev-tagged is fine) | Reuse existing machinery. A dedicated release pipeline is post-MVP. |
+| seiload container image | Same as above | Same. |
+| AWS S3 | `s3://sei-autobake-results/` (or existing Tide results bucket) | Stores the JSON report per run. IRSA on the Job's ServiceAccount. |
 | Slack | Incoming webhook to `#autobake-runs` (existing channel `C09D2P5GM7B`) | Same channel today's EC2 workflow posts to. Parity. |
-| GitHub Actions OIDC | `sts.amazonaws.com` audience | Federates runner identity into a scoped in-cluster ServiceAccount. |
+| Cluster credentials | Tide platform's existing in-cluster identity / OIDC plumbing | Reuse whatever mechanism the platform already grants to CI/automation workloads. Do not invent new auth. |
 
 ### Internal Components Consumed
 
@@ -38,11 +40,9 @@ Regression detection, rolling baselines, dashboards, CRDs, PR status checks, and
 | `sei-k8s-controller` planner (Init plan, genesis plan) | Watches `SeiNodeDeployment` → creates child `SeiNode`s, runs genesis ceremony, stamps `.status.phase=Ready` | No API changes required from this MVP. |
 | `sei-k8s-controller` status conventions | `.status.phase`, `.status.conditions[RolloutInProgress]` with `observedGeneration` | Already present; MVP polls these. |
 
-### Prerequisites (gate MVP delivery)
+### Prerequisite (the sole blocker on MVP delivery)
 
-- **P1 — Publish a `sei-chain` container image.** New workflow in `sei-protocol/sei-chain`: on merge to main, build and push `ghcr.io/sei-protocol/sei-chain:${sha}` + `:main-latest`. Separate tag variant for `mock_balances` build (`sei-chain-mockbal:${sha}`). This is the first workflow in the repo to produce a container artifact; full image policy (signing, SBOMs, promotion gates) is **deferred** — the MVP only needs an unsigned, SHA-tagged dev image.
-- **P2 — Publish a `sei-load` container image.** Same pattern in `sei-protocol/sei-load`. Profile JSON baked into the image (or mounted via ConfigMap — see §Interfaces below).
-- **P3 — Controller change: stable in-cluster RPC Service per `SeiNodeDeployment`.** See §Critical Controller Gap below. **This is the one structural requirement that must land in the controller before MVP ships.**
+- **P1 — Controller change: stable in-cluster RPC Service per `SeiNodeDeployment`.** See §Critical Controller Gap below. This must land in the `sei-k8s-controller` before MVP ships. Everything else the MVP needs (container images, credentials, alerting) can be satisfied by existing machinery and improved incrementally after MVP is running.
 
 ### Explicit Exclusions
 
@@ -140,29 +140,7 @@ No cluster-scoped permissions. No ability to touch anything outside the `autobak
 
 - **Primary**: Slack message to `#autobake-runs` with the same text/attachment shape today's workflow posts. Downstream consumers (humans) see no diff.
 - **Secondary**: S3 report at a stable path, GitHub Actions artifact (30-day retention).
-- **Tertiary**: standard chain metrics flow to Prometheus via the existing controller `ServiceMonitor` path — no new alerting rules in MVP; the existing alert fix (separate PR — see §Adjacent Work) restores what's already there.
-
----
-
-## Deferred (Phase 2)
-
-Explicit list with one-line reasons:
-
-- **Rolling baselines + regression detection.** Needs ~14 days of run history to be meaningful; wire after MVP ships and produces runs.
-- **Grafana dashboard + Slack digest bot.** Value-add, not parity. Layer after MVP.
-- **PR status checks on `sei-chain` PRs.** Pre-merge pipeline is a separate investment with its own budget/latency tradeoffs.
-- **`SeiLoadTestRun` / `SeiChainValidation` / `PerfBaseline` CRDs.** Premature abstraction; extract only once we've run this for a month and know what the abstractions need to cover.
-- **Bisect tooling beyond manual `workflow_dispatch` invocations.** Two dispatches + two dashboards are enough for MVP.
-- **Full container-image policy RFC** (signing, SBOMs, promotion). MVP uses unsigned SHA-tagged images.
-- **Heatseeker, snapshotter, state-syncer** K8s migrations. Independent work, independent teams.
-- **Removing `setup-loadtest-testnet/`.** Deleted after MVP operates cleanly for 2 weeks.
-- **Parallel-operation of EC2 and K8s autobake.** Explicitly rejected; see §Ship Order.
-
----
-
-## Adjacent Work (ship this week, independent of MVP)
-
-**Fix the three dead regression alerts on today's EC2 autobake.** File `sei-infra/monitoring/deploy/configs/alerts/sei-autobake/autobake_alerts.yaml` lines 48, 58, 68 reference `chain_id="sei-autobake-v2"` which does not match the metrics emitted (`chain_id="sei-autobake"`). Three one-character edits (`s/sei-autobake-v2/sei-autobake/`). Zero dependency on this MVP. Revives currently-silent alerts and validates the alerting path before we wire K8s metrics through it.
+- **Tertiary**: standard chain metrics flow to Prometheus via the existing controller `ServiceMonitor` path — no new alerting rules in MVP; the existing-alert label fix lands as a post-MVP improvement (see below).
 
 ---
 
@@ -170,25 +148,40 @@ Explicit list with one-line reasons:
 
 | Step | Owner | Blocks on |
 |------|-------|-----------|
-| 0. Fix `sei-autobake-v2` label bug in existing alerts | sei-infra maintainer | — (ship this week) |
-| 1. Publish `sei-chain` container image workflow (P1) | sei-chain maintainer | — |
-| 2. Publish `sei-load` container image workflow (P2) | sei-load maintainer | — |
-| 3. Ship cluster-internal RPC Service on `SeiNodeDeployment` (P3) | sei-k8s-controller maintainer | — |
-| 4. MVP workflow in sei-infra (`.github/workflows/k8s_autobake.yml` + templates) | platform team | P1, P2, P3 |
-| 5. Smoke-test via `workflow_dispatch`; inspect Slack output + cleanup | platform team | 4 |
-| 6. Flip cron: disable `continuous_deploy.yml` + `run_autobake_loadtest.yaml`; enable `k8s_autobake.yml` | platform team | 5 |
-| 7. Keep EC2 terraform deployable 2 weeks as rollback | platform team | 6 |
-| 8. Delete EC2 autobake terraform + cron | platform team | 7 + 2 clean weeks |
+| 1. Ship cluster-internal RPC Service on `SeiNodeDeployment` (P1) | sei-k8s-controller maintainer | — |
+| 2. Port the workflow + templates + scripts from sei-infra into this (Tide) repo; refactor for K8s resources | platform team | 1 |
+| 3. Smoke-test via `workflow_dispatch`; inspect Slack output + cleanup | platform team | 2 |
+| 4. Cut over: disable `continuous_deploy.yml` + `run_autobake_loadtest.yaml` in sei-infra; enable the Tide-hosted workflow | platform team | 3 |
+| 5. Keep EC2 terraform deployable 2 weeks as rollback | platform team | 4 |
+| 6. Delete EC2 autobake terraform + cron | platform team | 5 + 2 clean weeks |
 
-Steps 0–3 can run in parallel. Step 4 is the convergence.
+Step 1 is the only blocker on the rest. Everything downstream is consumer-side configuration.
+
+---
+
+## Post-MVP Improvements (each independent; land after MVP is running)
+
+Ordered by likely impact, not dependency.
+
+- **Fix the three dead regression alerts on today's (and future) autobake monitoring.** `sei-infra/monitoring/deploy/configs/alerts/sei-autobake/autobake_alerts.yaml:48,58,68` reference `chain_id="sei-autobake-v2"` which does not match the metrics emitted (`chain_id="sei-autobake"`). Three one-character edits. Independent; revive currently-silent alerts.
+- **Rolling baselines + regression detection.** Prometheus recording rules over 14d windows; delta-vs-baseline alerts with commit-compare URLs. Turns the lift-and-shifted output into a feedback loop that drives regressions down.
+- **Grafana dashboard + Slack digest bot.** Single pane of glass for "last N runs, is main green."
+- **Dedicated `sei-chain` container image release pipeline.** Replace whatever ad-hoc machinery the MVP consumes with SHA-tagged, policy-governed images (signing, SBOMs, promotion gates). Separate RFC.
+- **Dedicated `sei-load` container image release pipeline.** Same.
+- **PR status checks on `sei-chain` PRs.** Pre-merge validation; separate investment with its own budget/latency tradeoffs.
+- **Bisect tooling beyond manual `workflow_dispatch` invocations.** Once we need to bisect regularly.
+- **`SeiLoadTestRun` / `SeiChainValidation` / `PerfBaseline` CRD extraction.** Only after we've run the shell-scripted version for a month and know what the abstractions need to cover. Premature otherwise.
+- **Heatseeker, snapshotter, state-syncer K8s migrations.** Independent work, independent teams.
+- **Removing `setup-loadtest-testnet/`.** After MVP operates cleanly for 2 weeks.
 
 ---
 
 ## Open Questions
 
-1. **`mock_balances` variant.** Keep as a second container tag (P1) or fold into the genesis ceremony via `GenesisCeremonyConfig.Accounts`? MVP assumes second tag; cleaner path is a follow-up.
-2. **Cadence post-cutover.** Today's EC2 is weekly. K8s makes 4-per-day or per-commit feasible. Pick cadence before step 5 — it affects baseline density when Phase 2 work starts.
-3. **Namespace.** Single `autobake` ns with runs isolated by deployment name, or namespace-per-run? MVP recommends single; revisit if contention surfaces.
+1. **Which existing image source does the workflow consume?** Confirm with the platform/protocol team which seid and seiload container images exist today (dev-tagged is fine) and where they live. This determines the registry URL + pull-secret plumbing in the templates. Blocker on step 2.
+2. **`mock_balances` variant.** Today's EC2 autobake builds seid with `BUILD_TAGS=mock_balances` specifically for the `sei-autobake` chain. Does the existing image source already ship a mock-balances variant, or does MVP need to fund accounts via `GenesisCeremonyConfig.Accounts` instead? Resolving (1) probably answers this.
+3. **Cadence post-cutover.** Today's EC2 is weekly. K8s makes 4-per-day or per-commit feasible. Pick cadence before step 3 — affects baseline density when post-MVP regression detection lands.
+4. **Namespace.** Single `autobake` ns with runs isolated by deployment name, or namespace-per-run? MVP recommends single; revisit if contention surfaces.
 
 ---
 
@@ -196,7 +189,7 @@ Steps 0–3 can run in parallel. Step 4 is the convergence.
 
 Per constitution: call out deliberately.
 
-- **`status.rpcService.name` / `.ports.*` field names on `SeiNodeDeployment`.** Consumers will reference these in templates. Freeze at the controller change (P3); renames later require migration.
+- **`status.rpcService.name` / `.ports.*` field names on `SeiNodeDeployment`.** Consumers will reference these in templates. Freeze at the controller change (P1); renames later require migration.
 - **Container image tagging convention** (`:${sha}` + `:main-latest`). Downstream consumers will grow to depend on these.
 - **S3 report path shape** (`{chain}/{image-sha}/{run-id}/report.json`). Becomes the index for any future bisect tooling.
 
