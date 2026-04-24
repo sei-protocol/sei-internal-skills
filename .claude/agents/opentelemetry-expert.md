@@ -1,5 +1,5 @@
 ---
-name: opentelemetry
+name: opentelemetry-expert
 description: >-
   OpenTelemetry instrumentation expert. Use when instrumenting code with
   traces/metrics/logs, reviewing OTel SDK usage, designing telemetry pipelines,
