@@ -23,4 +23,4 @@ jobs:
         run: pip install pyyaml
 
       - name: Verify interfaces against registry
-        run: python .claude/skills/tide-council/scripts/verify_registry.py
+        run: python scripts/verify_registry.py

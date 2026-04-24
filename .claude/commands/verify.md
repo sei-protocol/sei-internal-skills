@@ -5,13 +5,17 @@ allowed-tools: Read, Bash, Glob, Grep
 
 # Verify Interface Consistency
 
-Check that all design specs and implementation code are consistent with the interface registry.
+Check that all design specs and implementation code are consistent with `tide/interface-registry.yaml`.
 
 ## Steps
 
-1. **Load the registry** from `tide/interface-registry.yaml`.
+1. **Run the automated checker first:**
+   ```bash
+   python scripts/verify_registry.py
+   ```
+   Covers the mechanical checks: env var names, ServiceAccount patterns, function names, file paths. Exit code: `0` = pass, `1` = mismatches (printed to stdout), `2` = registry missing or parse error. Capture the stdout — the failing cases go straight into the report.
 
-2. **For each interface boundary in the registry, check:**
+2. **Cover what the script doesn't.** For each interface boundary in the registry, verify:
 
 ### Event Signatures
 - Compute the expected keccak256 topic hash from the canonical signature in the registry
@@ -19,18 +23,9 @@ Check that all design specs and implementation code are consistent with the inte
 - Check if the Solidity contract emits events with the matching signature
 - Verify indexed field positions match between contract and Go decoder
 
-### Environment Variables
-- Check that every REQUIRED env var in the registry is set in the Operator's Job builder code
-- Check that every env var the runtimes read (via `os.Getenv` or equivalent) exists in the registry
-- Check naming consistency
-
 ### Exit Codes
 - Check that the runtime code can produce every exit code listed in the registry
 - Check that the Operator handles every exit code (at minimum: success, config error, transient error, OOM, SIGTERM)
-
-### Function Signatures
-- Check that runtime code calls contract functions with the exact signatures in the registry
-- Check parameter count and types
 
 ### K8s Resources
 - Check ServiceAccount names in manifests match what the Operator uses in Job templates
@@ -41,6 +36,6 @@ Check that all design specs and implementation code are consistent with the inte
    | Interface | Provider | Consumer | Status | Details |
    |-----------|----------|----------|--------|---------|
 
-4. **Summary:** Count of COMPATIBLE, MISMATCH, MISSING. List any one-way door interfaces that have changed since last verification.
+4. **Summary:** pass/fail of `verify_registry.py`, plus count of COMPATIBLE / MISMATCH / MISSING for the manual checks. List any one-way door interfaces that have changed since last verification.
 
 $ARGUMENTS

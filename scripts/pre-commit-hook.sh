@@ -2,15 +2,16 @@
 # Pre-commit hook for Tide interface registry enforcement.
 #
 # Install:
-#   cp .claude/skills/tide-council/scripts/pre-commit-hook.sh .git/hooks/pre-commit
+#   cp scripts/pre-commit-hook.sh .git/hooks/pre-commit
 #   chmod +x .git/hooks/pre-commit
 #
 # What it does:
 #   If any staged files touch the interface boundary (Go in pkg/, Python in runtimes/,
-#   or the registry itself), runs verify_registry.py to catch mismatches before commit.
+#   the registry itself, or K8s manifests), runs scripts/verify_registry.py to catch
+#   mismatches before commit.
 
 REPO_ROOT="$(git rev-parse --show-toplevel)"
-SCRIPT_DIR="$REPO_ROOT/.claude/skills/tide-council/scripts"
+SCRIPT_DIR="$REPO_ROOT/scripts"
 
 # Only run if interface-relevant files are staged
 STAGED_FILES=$(git diff --cached --name-only)

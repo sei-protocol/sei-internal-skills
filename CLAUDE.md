@@ -42,46 +42,37 @@ The single source of truth for all cross-component interfaces is `tide/interface
 - **K8s labels:** `tide.sei.io/{key}` prefix. Standard `app.kubernetes.io/component` for pod selection.
 - **Secrets:** AWS Secrets Store CSI Driver. Never baked into images. Never in etcd as K8s Secrets.
 
-## How to Use the Agent Council
+## Using the Council and Coral Skills
 
-**IMPORTANT: This project has a specialist agent council. When asked to design, implement, review, or verify any Tide component, you MUST use the agent workflow described below. Do not attempt to do design or implementation work directly — dispatch it to the appropriate specialist agents.**
+This repo's specialist roster lives in `.claude/agents/`. For design, review, or implementation work, invoke one of:
 
-### Workflow: Design, Review, Implement, Verify
+- **`/council`** — full-ceremony workflow for multi-component design, cross-review, or new-subsystem work. Runs scope-tier selection (Product / System / Component / Feature), dispatches specialists, gates one-way doors, manages `.council/workstream.yaml` checkpoints across sessions. Use when multiple components or interfaces are in scope.
+- **`/coral`** — lightweight expert iteration for a defined slice of work. Picks the right specialist(s) and iterates without scope-tier ceremony. Hands off to `/council` when the work outgrows it (≥3 components, interface changes, one-way doors, multi-session).
 
-When the user asks you to work on any Tide component, follow this process:
+Both skills will read `tide/interface-registry.yaml` as the authoritative interface source when working in this repo, and resolve any `.council/workstream.yaml` and `.council/escalations/` state before acting.
 
-1. **Read foundation files first:**
-   - `tide/interface-registry.yaml` — the single source of truth for all cross-component interfaces
-   - `design/constitution/constitution.md` — the governing principles
-   - `.tide/workstream.yaml` — if it exists, there's work in progress from a previous session
-   - `.tide/escalations/` — if files exist here, a specialist flagged a design problem
+### Specialists (at `.claude/agents/`)
 
-2. **Determine scope tier** (read `.claude/skills/tide-council/references/scope-tiers.md` for the full process per tier):
-   - **Product** — entirely new MVP/subsystem, multiple new components (days of work)
-   - **System** — feature touching multiple existing components and their interfaces (hours)
-   - **Component** — feature scoped to a single component (30min–few hours)
-   - **Feature** — design exists, interfaces defined, just write code (minutes–hour)
-   If the scope is ambiguous, ask the user one focused question to clarify.
+**Tide-specific** (not portable, stay in this repo):
+- `blockchain-developer` — TideCouncil + TideJobHook (Solidity, ERC-8001/8183/8004, Sei EVM)
+- `reviewer` — Tide interface cross-review
 
-3. **Dispatch specialist agents** using the Agent tool. Agent definitions are in `.claude/agents/`:
-   - `kubernetes-specialist` — Tide Operator (Go, controller-runtime, CRDs, event indexing, Job lifecycle)
-   - `platform-engineer` — K8s manifests, agent runtimes (Python, Claude API, EIP-712, GitHub Apps)
-   - `blockchain-developer` — TideCouncil, TideJobHook (Solidity, OpenZeppelin, Foundry, Sei EVM)
-   - `reviewer` — cross-review and interface verification between any two components
+**Portable** (general — synced to other repos and user-level via `scripts/sync-agents.sh`):
+- `kubernetes-specialist` — Go, controller-runtime, CRDs, event indexing, Job lifecycle
+- `platform-engineer` — K8s manifests, Python container runtimes, cloud auth
+- `solidity-developer` — general Solidity + Foundry + ERC standards
+- `network-specialist` — K8s + cloud networking, service mesh
+- `security-specialist`, `tee-specialist`, `product-engineer`, `product-manager`, `opentelemetry-expert`
 
-   Always include in every specialist dispatch: "Read `tide/interface-registry.yaml` before starting."
+**Sei-ecosystem**:
+- `sei-network-specialist` — Sei node networking (seid ports, CometBFT P2P, Waterway, Istio quirks)
 
-   Dispatch in parallel when work doesn't share interface boundaries. Sequentialize when there ARE dependencies — provider first, then consumer.
+See `AGENTS.md` for the full roster table and the Tide-specific agent context that augments portable agents when dispatched in this repo.
 
-4. **Cross-review** after any work touching interface boundaries: dispatch the `reviewer` agent with provider spec, consumer spec, and registry entries.
-
-5. **One-way door gate** — STOP and present to user for approval before finalizing: event signatures, storage layout, CRD spec field names, EIP-712 type hashes.
-
-6. **Session continuity** — for Product/System tier work, write `.tide/workstream.yaml` checkpoints after each phase (see `.claude/skills/tide-council/SKILL.md` for the YAML format).
-
-### Key Rules
+### Key Rules (enforced by both skills)
 - **Never skip the interface registry.** It is the single source of truth.
 - **Provider owns the interface.** Consumers adapt.
 - **YAGNI.** Only features tracing to Phase 0-2 business needs.
 - **Errors are interface.** Every error is part of the public contract.
+- **One-way door gate.** Event signatures, storage layout, CRD spec field names, EIP-712 type hashes require explicit user approval before finalizing.
 - **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the component in scope.
