@@ -8,35 +8,24 @@ Last verified: 2026-04-26.
 
 Engineers need a place to run benchmarks today without contaminating shared autobake state. The full personal-cells scaffold (quotas, NetworkPolicy, admission policies, Karpenter NodePool isolation) lands later. The interim shape ships only what's needed to be useful, *without* committing to anything cells will overwrite.
 
-## What ships today (per engineer, via `seictl onboard`)
+## What ships today (per engineer, via `seictl onboard --apply`)
+
+Two side effects, both performed by `seictl onboard`:
+
+**1. Platform repo PR** containing:
 
 ```
 clusters/harbor/engineers/<alias>/
   kustomization.yaml
   namespace.yaml             # eng-<alias> with cells-forward labels (below)
-  bench-seiload-sa.yaml      # ServiceAccount; Pod Identity wired in TF
+  bench-seiload-sa.yaml      # ServiceAccount (Pod Identity wired by AWS SDK, not in this PR)
 ```
 
-Plus one TF block per engineer in `terraform/aws/189176372795/eu-central-1/harbor/personal-cells.tf`:
+**2. AWS resources** created directly via AWS SDK (no Terraform):
 
-```hcl
-module "bench_seiload_eng_<alias>" {
-  source  = "registry.terraform.io/terraform-aws-modules/eks-pod-identity/aws"
-  version = ">= 2.4"
-  name    = "harbor-bench-seiload-eng-<alias>"
-  additional_policy_arns = {
-    seiload = aws_iam_policy.autobake_seiload.arn
-  }
-  associations = {
-    this = {
-      cluster_name    = module.eks.cluster_name
-      namespace       = "eng-<alias>"
-      service_account = "bench-seiload"
-    }
-  }
-  tags = local.tags
-}
-```
+- IAM policy `harbor-bench-seiload-eng-<alias>` — per-engineer scoped to `s3://harbor-sei-autobake-results/bench-<alias>-*/`
+- IAM role with the policy attached
+- EKS Pod Identity association binding `(eng-<alias>, bench-seiload)` to the role
 
 That's it. No quota. No NetworkPolicy. No admission policies. Bare minimum for benchmarks to function.
 

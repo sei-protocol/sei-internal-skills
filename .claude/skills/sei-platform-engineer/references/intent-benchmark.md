@@ -16,21 +16,20 @@ The pattern is derived from autobake's nightly `k8s_autobake.yml` workflow. Engi
 
 ### Required (skill always asks if not provided as flags)
 
-- `--image <ref>` — the seid image to test (e.g. `ghcr.io/sei-protocol/sei-chain:pr-1234` or `189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain:mock-<sha>`)
-- intent description — one sentence, goes into the chain ID slug; required, no default
+- `--image <ref>` — the seid image to test. Must be ECR (locked to `189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain:<tag>`).
+- `--name <name>` — short identifier for the benchmark, used in chain ID, labels, S3 path. Engineer types it directly; the skill derives a sensible default from the engineer's stated testing intent.
 
 ### Defaulted (skill only asks when defaults would surprise)
 
-- fleet size — `s` (4 validators), `m` (10), `l` (21). Default `s`.
-- duration — minutes. Default 30.
+- fleet size — `s` (4 validators / 1 RPC), `m` (10 / 2), `l` (21 / 4). Default `s`.
+- duration — Go duration string. Default `30m`.
 
 ### Auto-derived (never asked)
 
-- chain ID — `bench-<alias>-<slug>`
-- run ID — same as chain ID (PR-keyed; no separate run_id needed)
+- chain ID — `bench-<alias>-<name>`
 - image digest — resolved from tag at invocation time via `aws ecr describe-images`
-- seiload profile — `autobake/profiles/autobake_evm_transfer.json` default
-- S3 results prefix — derived per autobake convention (see below)
+- seiload profile — `autobake/profiles/autobake_evm_transfer.json` (embedded in seictl)
+- S3 results prefix — `s3://harbor-sei-autobake-results/<chain-id>/<image-sha-12>/<chain-id>/report.log`
 
 ## Fleet shape (autobake-derived)
 
@@ -38,8 +37,8 @@ The pattern is derived from autobake's nightly `k8s_autobake.yml` workflow. Engi
 
 Two SeiNodeDeployments + ConfigMap + Job:
 
-- **SND 1: validators** (chain ID = `bench-<alias>-<slug>`), fresh genesis ceremony, validator role
-- **SND 2: RPC nodes** (chain ID = `bench-<alias>-<slug>-rpc`), block-syncs from validators via label-based peer discovery
+- **SND 1: validators** (chain ID = `bench-<alias>-<name>`), fresh genesis ceremony, validator role
+- **SND 2: RPC nodes** (chain ID = `bench-<alias>-<name>-rpc`), block-syncs from validators via label-based peer discovery
 - **ConfigMap: seiload profile** rendered with chain ID + per-pod RPC endpoints
 - **Job: seiload runner** consumes the ConfigMap and writes report.log to S3
 
@@ -86,5 +85,5 @@ The skill (and seictl) won't:
 - Ask more than 3 questions per `bench up` invocation
 - Generate manifests the engineer can't see in `seictl bench up --dry-run`
 - Pick "smart" defaults that surprise (e.g. swap profile based on image tag regex)
-- Poll Flux or stream pod logs synchronously (`bench up` ends at "applied" — `seinode diagnose` and `bench list` cover follow-up)
+- Poll Flux or stream pod logs synchronously (`bench up` ends at "applied" — `bench list` covers follow-up; manual `kubectl` covers debug per `references/troubleshooting-seinode.md`)
 - Re-prompt for identity once captured

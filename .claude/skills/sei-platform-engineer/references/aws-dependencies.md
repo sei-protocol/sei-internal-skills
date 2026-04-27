@@ -2,7 +2,7 @@
 
 What the skill (and seictl) assume about AWS resources.
 
-Last verified: 2026-04-26 against `terraform/aws/189176372795/eu-central-1/harbor/`.
+Last verified: 2026-04-27 against `terraform/aws/189176372795/eu-central-1/harbor/` and sei-protocol/seictl#65 (LLD merged).
 
 ## Account & region
 
@@ -25,19 +25,17 @@ Last verified: 2026-04-26 against `terraform/aws/189176372795/eu-central-1/harbo
 
 ## Pod Identity associations
 
-EKS Pod Identity (not IRSA OIDC) is the auth mechanism on harbor. Each `(namespace, ServiceAccount)` tuple gets an explicit `aws_eks_pod_identity_association` in Terraform.
+EKS Pod Identity (not IRSA OIDC) is the auth mechanism on harbor.
 
-Existing:
+Existing (Terraform-managed in `terraform/aws/189176372795/eu-central-1/harbor/autobake.tf`):
 
 - `autobake/seid-node` → `harbor-autobake-seid-node` IAM policy (snapshot read, EC2 describe)
 - `autobake/autobake-seiload` → `harbor-autobake-seiload` IAM policy (S3 PutObject to results bucket)
 
-To be added per engineer (the one TF addition for v1):
+Per-engineer (created at onboard time via AWS SDK direct, **not** Terraform):
 
-- `eng-<alias>/bench-seiload` → reuses `harbor-autobake-seiload` policy
-  (lives in a new TF file: `terraform/aws/189176372795/eu-central-1/harbor/personal-cells.tf`)
-
-[outline: trust policy template, conditions like `aws:ResourceTag/owner` if scoping is added in cells]
+- `eng-<alias>/bench-seiload` → per-engineer scoped policy `harbor-bench-seiload-eng-<alias>`, scoped to `s3://harbor-sei-autobake-results/bench-<alias>-*/`. Shared policies are explicitly rejected as a security risk that doesn't scale.
+- `seictl onboard --apply` performs `iam:CreatePolicy`, `iam:CreateRole`, `iam:AttachRolePolicy`, `eks:CreatePodIdentityAssociation` in the engineer's SSO session.
 
 ## ECR
 
@@ -59,4 +57,4 @@ Image digest resolution flow (used by `seictl bench up` pre-flight, mirroring `k
 - GitHub Actions OIDC role for autobake nightly: `arn:aws:iam::189176372795:role/harbor-autobake-gha`
 - Engineer IAM principals (today: SSO-assigned roles like `arn:aws:iam::189176372795:role/sso-engineer-<alias>`) — mapped to k8s groups via `aws_eks_access_entry`
 
-When cells land, per-engineer IAM additions become a `for_each` over `local.engineers` in `personal-cells.tf` rather than a copy-paste-fork pattern.
+Engineer's SSO role currently has admin permissions (sufficient for `iam:CreatePolicy`, `iam:CreateRole`, `iam:AttachRolePolicy`, `eks:CreatePodIdentityAssociation`). When SSO permissions get scoped down, the onboard flow revisits.
