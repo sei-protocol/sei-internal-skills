@@ -54,7 +54,7 @@ When autobake updates these templates, seictl's embedded copies update on next r
 
 Bucket: `harbor-sei-autobake-results` (shared with nightly autobake; 90-day lifecycle already configured)
 
-Path: `s3://harbor-sei-autobake-results/<chain-id>/<image-sha-12>/<run-id>/report.log`
+Path: `s3://harbor-sei-autobake-results/<chain-id>/<image-sha-12>/<chain-id>/report.log`
 
 Engineer benchmark example: `s3://harbor-sei-autobake-results/bench-bdchatham-mempool-ttl/abc123def456/bench-bdchatham-mempool-ttl/report.log`
 

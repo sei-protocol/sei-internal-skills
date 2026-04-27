@@ -64,7 +64,6 @@ Engineers don't re-run `seictl onboard` when cells land. The platform-team's PR 
 ## What we explicitly defer
 
 - Auto-suspend of benchmark workloads after duration + grace
-- Per-engineer S3 prefix scoping in IAM (everyone shares `bench-seiload-policy` for now)
+- Automated offboarding on engineer departure (manual `iam:DeletePolicy`/`eks:DeletePodIdentityAssociation` + revert PR for v1)
 - Per-engineer ECR image scoping
 - Cross-cluster (dev, prod) cell support
-- Automated offboarding on engineer departure

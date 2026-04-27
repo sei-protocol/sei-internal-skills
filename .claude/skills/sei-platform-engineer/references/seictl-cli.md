@@ -101,6 +101,8 @@ type BenchUpResult struct {
     Manifests   []ManifestRef `json:"manifests"`
     AppliedAt   *time.Time    `json:"appliedAt,omitempty"`
 }
+
+type ManifestRef struct{ Kind, Name, Namespace, Action string } // action: "create"|"update"|"unchanged" for bench up; "deleted"|"not-found"|"still-terminating" for bench down
 ```
 
 Sizes: `s` = 4 validators / 1 RPC; `m` = 10 / 2; `l` = 21 / 4.
