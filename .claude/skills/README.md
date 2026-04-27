@@ -14,6 +14,9 @@ Claude Code discovers skills as direct subdirectories — nested folders are NOT
 ### Release Operations
 - **`chaos-suite/`** — Execute the full chaos test suite (runbook: sei-protocol/platform#169) against a dev or staging Sei cluster and collate results into a release summary. **Status: scaffold** — follows the template; scripts are placeholders pending authoring against the live runbook. Tracking issue: sei-protocol/platform#170.
 
+### Engineer Self-Service
+- **`sei-platform-engineer/`** — Engineer-facing interface to Sei platform infrastructure on the harbor EKS cluster. Translates natural-language intent (run a benchmark, onboard me, diagnose seinode) into `seictl` invocations. **Status: design draft** — SKILL.md is the contract; depends on seictl's cluster-facing commands (`bench`, `onboard`, `status`, `seinode`, `controller`, `context`) which are not yet implemented. Tracking issue: TBD on sei-protocol/seictl.
+
 ### Future Slots
 - _(planned)_ `release-verify/` — deploy-smoke + sanity checks after a release cut.
 - _(planned)_ Add skills here as the team codifies more processes.
