@@ -89,3 +89,17 @@ The user reviews the rendered body, adjusts one sentence, confirms. Issue is fil
 ## Coral / council attribution
 
 Issues filed via this handoff are otherwise indistinguishable from standalone-filed issues. There's no automatic "filed via /coral" label or footer — the body speaks for itself. If a session produced an issue, that's a normal artifact; the workflow trail is in git history (the branch the session was working on) and PRs, not in issue metadata.
+
+## Sibling skill: `/design`
+
+`/issue` and `/design` are sibling artifact-capture skills. From a single coral/council session:
+
+- **`/issue`** captures *next* work — a deferred slice, a phase 2.
+- **`/design`** captures *this* work — the synthesized design pass.
+
+Both can fire from the same handoff. When they do, thread the lineage:
+
+- The new issue's References section gets a `Design: <path>` line if the session also produced a design.
+- The design's frontmatter gets `Issue: #<n>` if the session also filed an issue (atypical — usually the issue exists *first* and the design is captured during a later pickup; but if both fire from one session, the design references the *new* issue).
+
+Most common pattern: an issue is filed in session 1, picked up in session 2 where a design pass runs and `/design` captures the LLD threading back to the issue. The two-skill flow at the same handoff (filing a new issue AND capturing its design simultaneously) is rarer but supported.
