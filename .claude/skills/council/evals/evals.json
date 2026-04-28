@@ -1,0 +1,33 @@
+{
+  "skill_name": "council",
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "I want the council to design a reputation-gated agent onboarding system. New agents should register on-chain via ERC-8004, get a KMS key provisioned, have their GitHub App created, and be admitted to the council only if they pass a trial review. The whole thing needs to be coordinated end-to-end — contracts, operator changes, a new onboarding runtime, and manifests.",
+      "expected_output": "Coordinator identifies this as PRODUCT tier (new subsystem with multiple new components). Produces a high-level design decomposing into: contract changes (ERC-8004 registration + trial logic), operator changes (new CRD for onboarding workflow), new onboarding runtime, manifest updates. Identifies interface boundaries and one-way doors (ERC-8004 registration is permanent). Dispatches specialists in provider-first order.",
+      "tier": "product",
+      "files": []
+    },
+    {
+      "id": 2,
+      "prompt": "We need to add support for job cancellation. The principal should be able to cancel a funded job, the TideJobHook needs a beforeAction handler for the cancel selector, the operator needs to watch for a new JobCancelled event, and the runtime needs to handle SIGTERM gracefully when the operator deletes the K8s Job. Walk me through the design for this.",
+      "expected_output": "Coordinator identifies this as SYSTEM tier (touches contracts, operator, and runtimes). Runs impact analysis showing 4 components affected with interface changes needed. Updates interface registry with new JobCancelled event signature. Dispatches blockchain-developer first (event signature is provider-side), then kubernetes-specialist (event consumer + Job deletion), then platform-engineer (SIGTERM handling). Cross-reviews all changed interfaces.",
+      "tier": "system",
+      "files": []
+    },
+    {
+      "id": 3,
+      "prompt": "The operator's event indexer currently polls every 12 seconds. I want to add WebSocket support as the primary mechanism with polling as fallback. This is all internal to the operator — the event signatures and interfaces don't change, just how we receive them. Design this for me.",
+      "expected_output": "Coordinator identifies this as COMPONENT tier (single component, no interface changes). Dispatches kubernetes-specialist to update the LLD with WebSocket-primary + polling-fallback design. Interface check confirms no boundary changes. Produces updated LLD section with reconnection logic, health probing, and fallback trigger conditions.",
+      "tier": "component",
+      "files": []
+    },
+    {
+      "id": 4,
+      "prompt": "The LLD for the review runtime's EIP-712 signing is done. Can you implement the sign_review() function in runtimes/review/signing.py? It should call AWS KMS to sign, recover the Sei address, and return the signature bytes. Follow what's in the LLD exactly.",
+      "expected_output": "Coordinator identifies this as FEATURE tier (design exists, just needs code). Reads the review runtime LLD and interface registry entries for EIP-712 and KMS. Dispatches platform-engineer to implement sign_review() following the spec. Runs pytest. Verifies the function signature matches what the operator expects to consume.",
+      "tier": "feature",
+      "files": []
+    }
+  ]
+}
