@@ -11,6 +11,9 @@ Claude Code discovers skills as direct subdirectories — nested folders are NOT
 ### Workflow (user-level, not here)
 - `/council` and `/coral` live at `~/.claude/skills/`. They orchestrate the specialist roster in `.claude/agents/` — council for full-ceremony multi-component design, coral for lightweight expert iteration. See the skills directly for details.
 
+### Workstream Bootstrap
+- **`issue/`** — Synthesize the current `/coral` or `/council` session into a standard-format GitHub issue that bootstraps the next pickup. Required body sections: Problem, Impact, Relevant experts. Coral / council should offer this skill at handoff moments (deferred slice, scope cut, end-of-session phase 2). Standalone use is supported for ad-hoc filings. **Status: ready** — invokable via `/issue` once Tide is the CWD or the skill directory is on Claude Code's discovery path.
+
 ### Release Operations
 - **`chaos-suite/`** — Execute the full chaos test suite (runbook: sei-protocol/platform#169) against a dev or staging Sei cluster and collate results into a release summary. **Status: scaffold** — follows the template; scripts are placeholders pending authoring against the live runbook. Tracking issue: sei-protocol/platform#170.
 
