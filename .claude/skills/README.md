@@ -9,8 +9,10 @@ Claude Code discovers skills as direct subdirectories — nested folders are NOT
 ## Catalog
 
 ### Workflow
-- **`coral/`** — Lightweight expert iteration. Tide ships a project-scope variant that knows about the `/issue` handoff (offers to bootstrap deferred slices and end-of-session phase 2 as a tracked issue). When CWD is Tide, this version takes precedence over the user-scope copy at `~/.claude/skills/coral/`. Outside Tide, the user-scope copy keeps working unchanged.
-- `/council` lives at `~/.claude/skills/` only — full-ceremony multi-component design, cross-review, scope-tier selection. May get a Tide-scope variant later if the `/issue` integration matures.
+Tide is the source-of-truth for these skills. `scripts/sync-skills.sh --target ~ --categories portable` pushes them out to user-scope (`~/.claude/skills/`) so they're discoverable everywhere, not only inside Tide. Run after pulling main, or whenever a teammate updates these skills upstream.
+
+- **`coral/`** — Lightweight expert iteration. Knows about the `/issue` handoff (offers to bootstrap deferred slices and end-of-session phase 2 as a tracked issue).
+- **`council/`** — Full-ceremony multi-component design, cross-review, scope-tier selection. The heavier sibling of coral; teammates will mostly use coral, but council is here for when work outgrows it.
 
 ### Workstream Bootstrap
 - **`issue/`** — Synthesize the current `/coral` or `/council` session into a standard-format GitHub issue that bootstraps the next pickup. Required body sections: Problem, Impact, Relevant experts. Coral / council should offer this skill at handoff moments (deferred slice, scope cut, end-of-session phase 2). Standalone use is supported for ad-hoc filings. **Status: ready** — invokable via `/issue` once Tide is the CWD or the skill directory is on Claude Code's discovery path.
@@ -36,9 +38,8 @@ Claude Code discovers skills as direct subdirectories — nested folders are NOT
 
 ## Cross-Repo Skills
 
-A skill in this repo can only be invoked when Claude Code is running with this repo as the working directory. If a procedural skill needs to operate against a different repo (e.g., `chaos-suite` operates on clusters referenced by the platform repo), either:
+A project-scope skill in this repo is only discoverable when Claude Code is running with this repo as CWD. To make a skill discoverable elsewhere, sync it out: `scripts/sync-skills.sh --target <path>` copies skills from Tide into the target's `.claude/skills/` directory. Sibling of `sync-agents.sh`; same conflict-and-`--force` semantics. Tide is the source-of-truth — downstream copies are derivable.
 
-- Invoke it from this repo and have it write output into the other repo via absolute path, OR
-- Duplicate the skill into the target repo.
+For procedural skills like `chaos-suite` that operate on remote infrastructure, you can also just run them from Tide and pass `--repo` / target paths to direct work elsewhere — no sync needed.
 
-User-level skills (`~/.claude/skills/`) are always discoverable regardless of CWD — use them for truly repo-agnostic skills, not for skills tied to a specific team process.
+The categories in `sync-skills.sh` (`portable`, `sei`, `tide-only`) decide where each skill goes when syncing. Update the lists in the script when a skill is added, renamed, or re-categorized.
