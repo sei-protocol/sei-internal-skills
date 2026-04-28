@@ -9,7 +9,7 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
    ```sh
    ./scripts/sync-skills.sh
    ```
-   This copies `coral`, `council`, and `issue` into `~/.claude/skills/` so they're available everywhere.
+   This copies `coral`, `council`, `design`, and `issue` into `~/.claude/skills/` so they're available everywhere.
 3. **Re-run after `git pull`** if these skills changed upstream. It's idempotent — safe to run any time.
 
 **Edit skills in Tide, never in `~/.claude/skills/`.** Local edits at user-scope get overwritten on next sync. To change a skill, edit it here and PR.
@@ -34,7 +34,10 @@ Edit these in Tide, never in `~/.claude/skills/` — your edits will be overwrit
 - **`council/`** — Full-ceremony multi-component design, cross-review, scope-tier selection. The heavier sibling of coral; teammates will mostly use coral, but council ships alongside so the coral → council handoff works from anywhere.
 
 ### Workstream Bootstrap
-- **`issue/`** — Synthesize the current `/coral` or `/council` session into a standard-format GitHub issue that bootstraps the next pickup. Required body sections: Problem, Impact, Relevant experts. Coral / council should offer this skill at handoff moments (deferred slice, scope cut, end-of-session phase 2). Standalone use is supported for ad-hoc filings. **Status: ready** — invokable via `/issue` once Tide is the CWD or the skill directory is on Claude Code's discovery path.
+Two complementary artifact-capture skills. Coral / council should offer them at handoff moments — `/issue` for **next** work, `/design` for **this** work's design pass. Both pre-fill from session context; user reviews and confirms.
+
+- **`issue/`** — Synthesize the current session into a standard-format GitHub issue that bootstraps the next pickup. Required body sections: Problem, Impact, Relevant experts. Fires when a deferred slice surfaces, the user cuts scope, or the session closes with an obvious phase 2.
+- **`design/`** — Capture the current session's design as a markdown doc under `docs/designs/` (or repo-specific path; Tide → `design/milestones/` or `design/high-level/`). ADR-flavored body with mermaid diagrams encouraged. Threads bidirectional lineage to the source issue (frontmatter `Issue: #n` forward; offers to update issue's References reverse). Fires when the deliverable IS a design (LLD, architecture sketch, system-tier decision).
 
 ### Release Operations
 - **`chaos-suite/`** — Execute the full chaos test suite (runbook: sei-protocol/platform#169) against a dev or staging Sei cluster and collate results into a release summary. **Status: scaffold** — follows the template; scripts are placeholders pending authoring against the live runbook. Tracking issue: sei-protocol/platform#170.
@@ -67,6 +70,6 @@ A project-scope skill in this repo is only discoverable when Claude Code is runn
 
 If a tracked file in the target differs from Tide's version, the skill is reported as a conflict and skipped — re-run with `--force` to overwrite. Target-only files (user customizations, runtime artifacts) are preserved.
 
-Sibling of `scripts/sync-agents.sh` — same shape, same flags. Categories: `portable` (`coral`, `council`, `issue`), `sei` (`chaos-suite`, `sei-platform-engineer`), `all`. Update the lists in the script when a skill is added, renamed, or re-categorized.
+Sibling of `scripts/sync-agents.sh` — same shape, same flags. Categories: `portable` (`coral`, `council`, `design`, `issue`), `sei` (`chaos-suite`, `sei-platform-engineer`), `all`. Update the lists in the script when a skill is added, renamed, or re-categorized.
 
 For procedural skills like `chaos-suite` that operate on remote infrastructure, you can also just run them from Tide and pass `--repo` / target paths to direct work elsewhere — no sync needed.

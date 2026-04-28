@@ -36,6 +36,7 @@ SKILLS_DIR="$(cd "$SCRIPT_DIR/../.claude/skills" && pwd)"
 PORTABLE=(
   coral
   council
+  design
   issue
 )
 

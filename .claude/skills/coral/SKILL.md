@@ -34,8 +34,12 @@ This is the right tool when work is **scoped and iterative**: one or two compone
    - The orchestrator's job is to pick the **least** that delivers, not the union of what specialists offered.
 
    Then present to user, take redirection, follow up.
-5. **Offer to bootstrap the next workstream as an issue.** When a deferred slice surfaces ("deferred — when X"), the user explicitly cuts scope ("not now, but file it"), or the session closes with an obvious phase 2, offer the **`/issue`** skill to capture the synthesized context as a tracked GitHub issue. Don't auto-file — the user opts in. When invoked, pre-fill from session context (Problem, Impact, Relevant experts, Proposed approach, Out of scope) rather than re-prompting fields the session already answered. See `.claude/skills/issue/references/coral-integration.md` (in repos where `/issue` is installed) for the full handoff contract.
-6. **Summarize at end.** What was done, what files changed, what's next. If an issue was filed via `/issue`, the URL is the "next workstream" pointer.
+5. **Offer artifact capture.** Two natural artifacts; either (or both) may apply:
+   - **`/design`** — when the deliverable IS a design (LLD, architecture sketch, system-tier decision). Captures the synthesized design under `docs/designs/` (or repo-specific path like Tide's `design/milestones/`) with mermaid diagrams. Pre-fill from session: Background, Goals, Non-goals, Design, Alternatives, Trade-offs, Open questions, References.
+   - **`/issue`** — when a deferred slice surfaces ("deferred — when X"), the user cuts scope ("not now, but file it"), or the session closes with an obvious phase 2. Captures synthesized context as a tracked GitHub issue. Pre-fill from session: Problem, Impact, Relevant experts, Proposed approach, Out of scope.
+
+   Don't auto-fire either — the user opts in. Both can fire from the same session: `/design` captures **this** work, `/issue` captures **next** work. When both fire, thread the lineage (design body links the issue if applicable; new issue's References gets a `Design: <path>` line). See `.claude/skills/design/references/coral-integration.md` and `.claude/skills/issue/references/coral-integration.md` for the handoff contracts.
+6. **Summarize at end.** What was done, what files changed, what's next. If a design was captured, its path is the "this work" pointer. If an issue was filed, its URL is the "next workstream" pointer.
 
 ## Handoff to Council
 

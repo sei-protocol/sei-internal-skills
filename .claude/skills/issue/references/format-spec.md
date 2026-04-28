@@ -76,7 +76,10 @@ PRs, prior issues, design docs, runbooks. Bullet list with descriptive labels (n
 - PR #135 — merged LLD
 - [LLD §11 — deferred entry](https://github.com/.../docs/foo.md#11-deferred)
 - `.tide/validator-migration.md` — internal runbook
+- Design: `design/milestones/seinode-mid-life-signing-key-drift-lld.md`
 ```
+
+When this issue gets picked up and a coral/council session produces a design via **`/design`**, the `Design: <path>` line should be added back here so the issue → design lineage is discoverable from either direction. The `/design` skill offers to do this automatically; otherwise add it manually after the design lands.
 
 ## Section selection cheat-sheet
 
