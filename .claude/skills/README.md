@@ -8,8 +8,9 @@ Claude Code discovers skills as direct subdirectories — nested folders are NOT
 
 ## Catalog
 
-### Workflow (user-level, not here)
-- `/council` and `/coral` live at `~/.claude/skills/`. They orchestrate the specialist roster in `.claude/agents/` — council for full-ceremony multi-component design, coral for lightweight expert iteration. See the skills directly for details.
+### Workflow
+- **`coral/`** — Lightweight expert iteration. Tide ships a project-scope variant that knows about the `/issue` handoff (offers to bootstrap deferred slices and end-of-session phase 2 as a tracked issue). When CWD is Tide, this version takes precedence over the user-scope copy at `~/.claude/skills/coral/`. Outside Tide, the user-scope copy keeps working unchanged.
+- `/council` lives at `~/.claude/skills/` only — full-ceremony multi-component design, cross-review, scope-tier selection. May get a Tide-scope variant later if the `/issue` integration matures.
 
 ### Workstream Bootstrap
 - **`issue/`** — Synthesize the current `/coral` or `/council` session into a standard-format GitHub issue that bootstraps the next pickup. Required body sections: Problem, Impact, Relevant experts. Coral / council should offer this skill at handoff moments (deferred slice, scope cut, end-of-session phase 2). Standalone use is supported for ad-hoc filings. **Status: ready** — invokable via `/issue` once Tide is the CWD or the skill directory is on Claude Code's discovery path.
