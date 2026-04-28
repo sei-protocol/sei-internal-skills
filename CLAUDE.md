@@ -51,6 +51,10 @@ This repo's specialist roster lives in `.claude/agents/`. For design, review, or
 
 Both skills will read `tide/interface-registry.yaml` as the authoritative interface source when working in this repo, and resolve any `.council/workstream.yaml` and `.council/escalations/` state before acting.
 
+### Handoff: Bootstrapping the Next Workstream as an Issue
+
+When a coral or council session produces a deferred slice, a scope cut, or an obvious "phase 2," the orchestrator should offer **`/issue`** (`.claude/skills/issue/`) to file a standard-format GitHub issue capturing the synthesized context. The skill pre-fills Problem / Impact / Relevant experts / Proposed approach / Out of scope from the session, so the next pickup walks into the same picture instead of re-deriving it. See `.claude/skills/issue/references/coral-integration.md` for the handoff contract — when to offer, what to pass, what not to fabricate.
+
 ### Specialists (at `.claude/agents/`)
 
 **Tide-specific** (not portable, stay in this repo):
