@@ -2,6 +2,20 @@
 
 Project-scoped skills for team processes. Each subdirectory is a self-contained skill (SKILL.md + scripts + references + evals).
 
+## First time here?
+
+1. **Inside Tide, no setup needed.** Claude Code auto-discovers everything in this directory.
+2. **To use these skills outside Tide** (e.g. `/coral` or `/issue` from another repo), run the sync once:
+   ```sh
+   ./scripts/sync-skills.sh
+   ```
+   This copies `coral`, `council`, and `issue` into `~/.claude/skills/` so they're available everywhere.
+3. **Re-run after `git pull`** if these skills changed upstream. It's idempotent — safe to run any time.
+
+**Edit skills in Tide, never in `~/.claude/skills/`.** Local edits at user-scope get overwritten on next sync. To change a skill, edit it here and PR.
+
+---
+
 **Authoring standard:** read [`SKILL-TEMPLATE.md`](./SKILL-TEMPLATE.md) before creating a new skill.
 
 Claude Code discovers skills as direct subdirectories — nested folders are NOT discovered. Logical grouping happens in this catalog, not in directory structure.
@@ -9,10 +23,15 @@ Claude Code discovers skills as direct subdirectories — nested folders are NOT
 ## Catalog
 
 ### Workflow
-Tide is the source-of-truth for these skills. `scripts/sync-skills.sh --target ~ --categories portable` pushes them out to user-scope (`~/.claude/skills/`) so they're discoverable everywhere, not only inside Tide. Run after pulling main, or whenever a teammate updates these skills upstream.
+
+Edit these in Tide, never in `~/.claude/skills/` — your edits will be overwritten on next sync. To use them outside Tide, run:
+
+```sh
+./scripts/sync-skills.sh
+```
 
 - **`coral/`** — Lightweight expert iteration. Knows about the `/issue` handoff (offers to bootstrap deferred slices and end-of-session phase 2 as a tracked issue).
-- **`council/`** — Full-ceremony multi-component design, cross-review, scope-tier selection. The heavier sibling of coral; teammates will mostly use coral, but council is here for when work outgrows it.
+- **`council/`** — Full-ceremony multi-component design, cross-review, scope-tier selection. The heavier sibling of coral; teammates will mostly use coral, but council ships alongside so the coral → council handoff works from anywhere.
 
 ### Workstream Bootstrap
 - **`issue/`** — Synthesize the current `/coral` or `/council` session into a standard-format GitHub issue that bootstraps the next pickup. Required body sections: Problem, Impact, Relevant experts. Coral / council should offer this skill at handoff moments (deferred slice, scope cut, end-of-session phase 2). Standalone use is supported for ad-hoc filings. **Status: ready** — invokable via `/issue` once Tide is the CWD or the skill directory is on Claude Code's discovery path.
@@ -38,8 +57,16 @@ Tide is the source-of-truth for these skills. `scripts/sync-skills.sh --target ~
 
 ## Cross-Repo Skills
 
-A project-scope skill in this repo is only discoverable when Claude Code is running with this repo as CWD. To make a skill discoverable elsewhere, sync it out: `scripts/sync-skills.sh --target <path>` copies skills from Tide into the target's `.claude/skills/` directory. Sibling of `sync-agents.sh`; same conflict-and-`--force` semantics. Tide is the source-of-truth — downstream copies are derivable.
+A project-scope skill in this repo is only discoverable when Claude Code is running with this repo as CWD. To make a skill discoverable elsewhere, sync it out:
+
+```sh
+./scripts/sync-skills.sh                    # daily: portable skills → ~/.claude/skills/
+./scripts/sync-skills.sh --categories all   # also sync sei skills (chaos-suite, sei-platform-engineer)
+./scripts/sync-skills.sh --target ~/work/sei-k8s-controller --force  # to another repo
+```
+
+If a tracked file in the target differs from Tide's version, the skill is reported as a conflict and skipped — re-run with `--force` to overwrite. Target-only files (user customizations, runtime artifacts) are preserved.
+
+Sibling of `scripts/sync-agents.sh` — same shape, same flags. Categories: `portable` (`coral`, `council`, `issue`), `sei` (`chaos-suite`, `sei-platform-engineer`), `all`. Update the lists in the script when a skill is added, renamed, or re-categorized.
 
 For procedural skills like `chaos-suite` that operate on remote infrastructure, you can also just run them from Tide and pass `--repo` / target paths to direct work elsewhere — no sync needed.
-
-The categories in `sync-skills.sh` (`portable`, `sei`, `tide-only`) decide where each skill goes when syncing. Update the lists in the script when a skill is added, renamed, or re-categorized.

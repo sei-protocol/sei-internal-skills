@@ -1,26 +1,30 @@
 #!/usr/bin/env bash
 # sync-skills.sh — copy Tide skill directories to a target .claude/skills/ directory.
 #
-# Sibling of sync-agents.sh. Tide is source-of-truth; this pushes outward to
-# user-scope (~/.claude/skills/) and to other repos so they stay current with
-# what's been authored in Tide.
+# Sibling of sync-agents.sh. Tide is the canonical home; this pushes outward to
+# user-scope (~/.claude/skills/) and other repos so they stay current.
+#
+# Daily flow (defaults):
+#   ./scripts/sync-skills.sh
+#   # equivalent to: ./scripts/sync-skills.sh --target ~ --categories portable
 #
 # Usage:
-#   sync-skills.sh --target <path> [--categories portable,sei,tide-only,all] [--dry-run] [--force]
+#   sync-skills.sh [--target <path>] [--categories portable,sei,all] [--dry-run] [--force]
 #
-# --target:      target directory (the script appends .claude/skills/)
-# --categories:  comma-separated list of categories (default: portable)
-#                available: portable, sei, tide-only, all
+# --target:      target directory (the script appends .claude/skills/). Default: $HOME.
+# --categories:  comma-separated list of categories. Default: portable.
+#                available: portable, sei, all
 # --dry-run:     print what would be copied without copying
 # --force:       overwrite existing target skills without prompting
 #
-# Source of truth: the portable / sei / tide-only lists below. Update the lists here
-# when skills are added, renamed, or re-categorized.
+# Source of truth: the portable / sei lists below. Update these when skills
+# are added, renamed, or re-categorized.
 #
 # Skills are directories (SKILL.md + references/ + ...), not single files. Sync
-# uses cp -R, so target-only files are preserved (i.e. user customizations in
-# the target tree are not deleted). If source and target differ on any shared
-# file, the skill is reported as a conflict and skipped unless --force is set.
+# uses cp -R, so target-only files are preserved (i.e. user customizations and
+# runtime artifacts like council/workspace/ in the target tree are not deleted).
+# If a tracked source file differs from its target counterpart, the skill is
+# reported as a conflict and skipped unless --force is set.
 
 set -euo pipefail
 
@@ -40,12 +44,9 @@ SEI=(
   sei-platform-engineer
 )
 
-TIDE_ONLY=(
-)
-
 # --- Argument parsing -------------------------------------------------------
 
-TARGET=""
+TARGET="$HOME"
 CATEGORIES="portable"
 DRY_RUN=false
 FORCE=false
@@ -72,12 +73,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ -z "$TARGET" ]]; then
-  echo "Error: --target is required" >&2
-  usage
-  exit 2
-fi
-
 # Expand ~ if present
 TARGET="${TARGET/#\~/$HOME}"
 TARGET_SKILLS="${TARGET%/}/.claude/skills"
@@ -88,10 +83,9 @@ declare -a SKILLS_TO_SYNC=()
 IFS=',' read -ra CAT_ARRAY <<< "$CATEGORIES"
 for cat in "${CAT_ARRAY[@]}"; do
   case "$cat" in
-    portable)  SKILLS_TO_SYNC+=(${PORTABLE[@]+"${PORTABLE[@]}"}) ;;
-    sei)       SKILLS_TO_SYNC+=(${SEI[@]+"${SEI[@]}"}) ;;
-    tide-only) SKILLS_TO_SYNC+=(${TIDE_ONLY[@]+"${TIDE_ONLY[@]}"}) ;;
-    all)       SKILLS_TO_SYNC+=(${PORTABLE[@]+"${PORTABLE[@]}"} ${SEI[@]+"${SEI[@]}"} ${TIDE_ONLY[@]+"${TIDE_ONLY[@]}"}) ;;
+    portable)  SKILLS_TO_SYNC+=("${PORTABLE[@]}") ;;
+    sei)       SKILLS_TO_SYNC+=("${SEI[@]}") ;;
+    all)       SKILLS_TO_SYNC+=("${PORTABLE[@]}" "${SEI[@]}") ;;
     *)
       echo "Unknown category: $cat" >&2
       exit 2 ;;
@@ -134,7 +128,8 @@ fi
 mkdir -p "$TARGET_SKILLS"
 
 COPIED=0
-SKIPPED=0
+IN_SYNC=0
+MISSING=0
 CONFLICTS=0
 
 # Compare source-skill against target-skill at the file level.
@@ -161,14 +156,14 @@ for skill in "${SKILLS_TO_SYNC[@]}"; do
 
   if [[ ! -d "$src" ]]; then
     echo "  ! source missing, skipping: $src" >&2
-    SKIPPED=$((SKIPPED+1))
+    MISSING=$((MISSING+1))
     continue
   fi
 
   if [[ -d "$dst" ]]; then
     if source_subset_of_target "$src" "$dst"; then
       # source content already present in target — nothing to do
-      SKIPPED=$((SKIPPED+1))
+      IN_SYNC=$((IN_SYNC+1))
       continue
     fi
     if ! $FORCE; then
@@ -187,7 +182,7 @@ for skill in "${SKILLS_TO_SYNC[@]}"; do
 done
 
 echo ""
-echo "Copied: $COPIED   Skipped (identical/missing): $SKIPPED   Conflicts: $CONFLICTS"
+echo "Copied: $COPIED   In sync: $IN_SYNC   Source missing: $MISSING   Conflicts: $CONFLICTS"
 
 if [[ $CONFLICTS -gt 0 ]]; then
   echo "Re-run with --force to overwrite conflicting skills." >&2
