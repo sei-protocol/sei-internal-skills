@@ -2,7 +2,7 @@
 
 What the skill (and seictl) assume about AWS resources.
 
-Last verified: 2026-04-27 against `terraform/aws/189176372795/eu-central-1/harbor/` and sei-protocol/seictl#65 (LLD merged).
+Last verified: 2026-04-28 against shipped `seictl onboard` (#81) and platform repo's `harbor-validation-results` schema (#72).
 
 ## Account & region
 
@@ -16,12 +16,13 @@ Last verified: 2026-04-27 against `terraform/aws/189176372795/eu-central-1/harbo
 
 | Bucket | Purpose | Lifecycle |
 |---|---|---|
-| `harbor-sei-autobake-results` | Benchmark results (nightly autobake + engineer benchmarks) | 90 days |
+| `harbor-validation-results` | Engineer benchmark results (and other validation artifacts) | Managed in platform repo |
+| `harbor-sei-autobake-results` | Nightly autobake-only results | 90 days |
 | `harbor-sei-snapshots` | Snapshot storage for SeiNode bootstrap | n/a (managed by snapshot-publisher) |
 | `harbor-sei-k8s-genesis-artifacts` | Genesis assembly storage | n/a |
 | `harbor-sei-shadow-results` | Shadow replayer output | n/a |
 
-[outline: Path conventions per bucket — refer to `intent-benchmark.md` for the autobake-derived path]
+`harbor-validation-results` uses the schema `<namespace>/<job>/<run>/...`. Engineer benchmarks live under `eng-<alias>/seiload/<bench-name>/`. See `intent-benchmark.md` §S3 results convention.
 
 ## Pod Identity associations
 
@@ -34,8 +35,8 @@ Existing (Terraform-managed in `terraform/aws/189176372795/eu-central-1/harbor/a
 
 Per-engineer (created at onboard time via AWS SDK direct, **not** Terraform):
 
-- `eng-<alias>/bench-seiload` → per-engineer scoped policy `harbor-bench-seiload-eng-<alias>`, scoped to `s3://harbor-sei-autobake-results/bench-<alias>-*/`. Shared policies are explicitly rejected as a security risk that doesn't scale.
-- `seictl onboard --apply` performs `iam:CreatePolicy`, `iam:CreateRole`, `iam:AttachRolePolicy`, `eks:CreatePodIdentityAssociation` in the engineer's SSO session.
+- `eng-<alias>/bench-seiload` → per-engineer scoped policy and role under IAM path `/seictl/`. Policy grants `s3:ListBucket` on `arn:aws:s3:::harbor-validation-results` (with prefix condition `eng-<alias>/*`) and `s3:PutObject` on `arn:aws:s3:::harbor-validation-results/eng-<alias>/*`. Trust policy is `pods.eks.amazonaws.com` with `sts:AssumeRole + sts:TagSession` (Pod Identity requires both) and confused-deputy conditions on `eks:cluster-name` + `kubernetes.io/namespace`. Shared policies are explicitly rejected as a security risk that doesn't scale.
+- `seictl onboard --apply` performs `iam:CreatePolicy`, `iam:CreateRole`, `iam:AttachRolePolicy`, `eks:CreatePodIdentityAssociation` in the engineer's SSO session. Idempotent: pre-existing resources are detected by ARN and reported as `action: "exists"` with no mutation; a Pod Identity association bound to a different role is a hard failure.
 
 ## ECR
 

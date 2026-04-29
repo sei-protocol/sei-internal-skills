@@ -63,7 +63,7 @@ The skill calls `seictl onboard --alias <alias> --apply` which:
 
 1. Validates the alias (lowercase, k8s-namespace-safe — `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`)
 2. Generates `clusters/harbor/engineers/<alias>/{kustomization,namespace,bench-seiload-sa}.yaml` in the platform repo working tree
-3. Branches `<alias>/onboard-<alias>`, commits, opens a PR via `gh`
+3. Branches `seictl/onboard-<alias>`, commits, opens a PR via `gh`
 4. Creates the IAM policy + Pod Identity association directly via AWS SDK in the engineer's SSO session — no Terraform
 
 Engineer reviews and merges the PR, Flux reconciles in ~60s, and the engineer's namespace exists.
@@ -75,7 +75,7 @@ See `references/pr-conventions.md` for branch + PR conventions.
 | Engineer says | Skill maps to |
 |---|---|
 | "Onboard me" / "set me up on harbor" / "I'm new" | `seictl onboard --alias <alias> [--apply]` |
-| "Run a benchmark against image X" / "spinup benchmark" / "benchmark this image" | Ask up to 3 questions → `seictl bench up --image <ref> --name <name> [--size s\|m\|l] [--duration <duration>] --apply` |
+| "Run a benchmark against image X" / "spinup benchmark" / "benchmark this image" | Ask up to 3 questions → `seictl bench up --image <ref> --name <name> [--size s\|m\|l] [--duration <minutes>] --apply` |
 | "Tear down my benchmark" / "stop benchmark X" | `seictl bench down --name <name>` |
 | "What benchmarks am I running" / "what's running" | `seictl bench list` |
 | "Where am I" / "what cluster am I on" / "who am I" | `seictl context` |
@@ -90,7 +90,7 @@ Engineer says "run a benchmark against image X." Skill ascertains the missing pa
 4. **Ask up to 3 questions**, in order, only when defaults would surprise:
    - "What are you testing? (one sentence — goes in PR title and chain ID name)"
    - "Fleet size: small (4 validators), medium (10), large (21)? [s]"
-   - "Duration in minutes? [30]"
+   - "Duration in minutes (1–240)? [30]"
 5. **Pre-flight echo** — show the engineer the resolved invocation: chain ID (`bench-<alias>-<name>`), image digest, fleet size, duration, S3 results path. Wait for confirmation on the first side-effecting call of the session.
 6. **Invoke** — `seictl bench up --image <ref> --name <name> --size <size> --duration <duration>`. seictl renders templates, applies via kubectl.
 7. **Report** — print the chain ID, S3 results path, and the `seictl bench list` follow-up command.
@@ -179,16 +179,17 @@ If `~/.seictl/engineer.json` exists but is malformed, halt and prompt the engine
 
 ---
 
-## Status: aligned with sei-protocol/seictl#65 (LLD merged)
+## Status: v1 surface shipped
 
-This SKILL.md is the contract. The seictl LLD that defines the underlying CLI shipped at sei-protocol/seictl#65. Implementation lands in seictl in vertical slices behind the LLD's exit-code matrix and JSON schemas:
+The five cluster verbs (`context`, `bench up`, `bench down`, `bench list`, `onboard`) all merged in sei-protocol/seictl during the cluster-cli LLD workstream:
 
-1. `internal/{clioutput,identity,validate}` foundation
-2. `seictl context` (locks the kube client wiring)
-3. `seictl bench up` (the headline)
-4. `seictl bench down/list`
-5. `seictl onboard` (with AWS SDK direct for IAM + Pod Identity)
+- LLD merged: #65
+- `bench up` apply path + envelope rename: #71, #72, #73
+- Go bump for cli-runtime adoption: #74
+- `kube.Client` reshape around `genericclioptions.ConfigFlags` + envtest coverage: #76, #77, #79
+- `bench down` + `bench list`: #78
+- `onboard`: #81 (per-engineer-scoped IAM; option-B per-engineer K8s identity tracked at #80)
 
-Each verb becomes operational as the corresponding seictl PR merges. The skill's verb table reflects the v1 surface; the references are aligned with the LLD's signatures and schemas.
+The verb table above reflects what `seictl --help` actually emits. References are aligned to the shipped envelope (`apiVersion: seictl.sei.io/v1`), exit-code matrix, and result types. When this file disagrees with `seictl --help`, the CLI wins.
 
 See `references/seictl-cli.md` for the canonical command surface.
