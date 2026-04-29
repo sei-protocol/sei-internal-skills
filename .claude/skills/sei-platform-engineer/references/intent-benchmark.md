@@ -2,7 +2,7 @@
 
 The skill's headline use case. Engineer says "run a benchmark against image X"; the skill maps it to `seictl bench up`.
 
-Last verified: 2026-04-26 against autobake's k8s_autobake.yml.
+Last verified: 2026-04-28 against shipped seictl v1 (`bench up`) and platform repo `harbor-validation-results` schema (PR #72).
 
 ## What a benchmark is
 
@@ -22,14 +22,14 @@ The pattern is derived from autobake's nightly `k8s_autobake.yml` workflow. Engi
 ### Defaulted (skill only asks when defaults would surprise)
 
 - fleet size — `s` (4 validators / 1 RPC), `m` (10 / 2), `l` (21 / 4). Default `s`.
-- duration — Go duration string. Default `30m`.
+- duration — integer minutes, range 1–240. Default `30`.
 
 ### Auto-derived (never asked)
 
 - chain ID — `bench-<alias>-<name>`
 - image digest — resolved from tag at invocation time via `aws ecr describe-images`
 - seiload profile — `autobake/profiles/autobake_evm_transfer.json` (embedded in seictl)
-- S3 results prefix — `s3://harbor-sei-autobake-results/<chain-id>/<image-sha-12>/<chain-id>/report.log`
+- S3 results path — `s3://harbor-validation-results/<namespace>/<job>/<run>/report.log` (per platform repo's `harbor-validation-results` schema; see §S3 below)
 
 ## Fleet shape (autobake-derived)
 
@@ -52,13 +52,17 @@ When autobake updates these templates, seictl's embedded copies update on next r
 
 ## S3 results convention
 
-Bucket: `harbor-sei-autobake-results` (shared with nightly autobake; 90-day lifecycle already configured)
+Bucket: `harbor-validation-results` (the platform repo's unified validation-results bucket; lifecycle policy managed there)
 
-Path: `s3://harbor-sei-autobake-results/<chain-id>/<image-sha-12>/<chain-id>/report.log`
+Path: `s3://harbor-validation-results/<namespace>/<job>/<run>/report.log`
 
-Engineer benchmark example: `s3://harbor-sei-autobake-results/bench-bdchatham-mempool-ttl/abc123def456/bench-bdchatham-mempool-ttl/report.log`
+- `<namespace>` — engineer's namespace (`eng-<alias>`)
+- `<job>` — the seiload Job name within the bench
+- `<run>` — bench `--name`
 
-The `bench-` chain ID prefix partitions engineer results from `autobake-` nightly results. `aws s3 ls s3://harbor-sei-autobake-results/bench-<alias>-` returns just that engineer's runs.
+Engineer benchmark example: `s3://harbor-validation-results/eng-bdchatham/seiload/mempool-ttl/report.log`
+
+Per-engineer results are partitioned at the namespace level. `aws s3 ls s3://harbor-validation-results/eng-<alias>/` returns just that engineer's runs. The IAM policy `seictl onboard` provisions scopes the engineer's PutObject permission to this prefix.
 
 ## Pre-flight (in order)
 
