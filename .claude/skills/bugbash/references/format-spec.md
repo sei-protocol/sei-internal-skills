@@ -43,9 +43,9 @@ Every finding follows this exact structure. Section order is fixed; section head
 
 #### Experts involved
 
-- **Finder:** <agent-name>
+- **Finder:** <agent-name> _(or `<agent-A> + <agent-B>` when merged across lenses during the orchestrator's merge phase — see `loop-mechanics.md#phase-2-merge-orchestrator`)_
 - **Challenger:** <agent-name> — verdict: <confirm | downgrade from X | refute (note: refuted findings are NOT logged here)>
-- **Severity:** Critical | High | Medium | Low
+- **Severity:** Critical | High | Medium | Low _(assigned by the challenger, calibrated by the orchestrator against `severity-rubric.md` — never assigned by the finder)_
 
 ### Scenario
 
