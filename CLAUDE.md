@@ -48,6 +48,7 @@ This repo's specialist roster lives in `.claude/agents/`. For design, review, or
 
 - **`/council`** — full-ceremony workflow for multi-component design, cross-review, or new-subsystem work. Runs scope-tier selection (Product / System / Component / Feature), dispatches specialists, gates one-way doors, manages `.council/workstream.yaml` checkpoints across sessions. Use when multiple components or interfaces are in scope.
 - **`/coral`** — lightweight expert iteration for a defined slice of work. Picks the right specialist(s) and iterates without scope-tier ceremony. Hands off to `/council` when the work outgrows it (≥3 components, interface changes, one-way doors, multi-session).
+- **`/bugbash`** — long-running, read-only adversarial review of an existing component before launch. Loops discovery + challenger passes by the expert slate against a named target (`/bugbash SeiNode controller`) until experts converge on a launch verdict; appends findings to `docs/bugbash/<target>.md`. Inspired by the RALPHY loop, reframed for hardening. Use when a system works on the happy path and needs to be pressure-tested for logical errors, validation gaps, race conditions, and operational risk before shipping.
 
 Both skills will read `tide/interface-registry.yaml` as the authoritative interface source when working in this repo, and resolve any `.council/workstream.yaml` and `.council/escalations/` state before acting.
 
