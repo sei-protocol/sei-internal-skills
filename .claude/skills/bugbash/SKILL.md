@@ -65,15 +65,17 @@ Record the slate in `.bugbash/<target>.yaml` under `experts:`. Once chosen, the 
 
 ### 3. Run a Pass
 
-A pass has three phases. See `references/loop-mechanics.md` for the full mechanics.
+A pass has four phases. See `references/loop-mechanics.md` for the full mechanics.
 
-**3a. Discovery (parallel).** Dispatch every expert in the slate in parallel with the same brief: "Read `<target path>`. Adversarially review for logical errors, validation gaps, race conditions, error-handling holes, operational risk, deployment safety (graceful rollout, restart survival, no stuck state across release cuts), and bottlenecks within your domain. Output findings only — no proposed fixes yet, no severity. Cite file:line for each. Do NOT propose code edits — read-only."
+**3a. Discovery (parallel).** Dispatch every expert in the slate in parallel with the same brief: "Read `<target path>`. Adversarially review for logical errors, validation gaps, race conditions, error-handling holes, operational risk, deployment safety (graceful rollout, restart survival, no stuck state across release cuts), and bottlenecks within your domain. Output **up to 5 candidate findings** — prioritize the most important within your domain over breadth. Output findings only — no proposed fixes, no severity, no impact dramatization. State observations as plainly as possible: title, file:line, what goes wrong on what path. Do NOT use words like 'critical' or 'silent broken-window' in your framing — the challenger phase assigns severity. Do NOT propose code edits — read-only."
 
-Each specialist returns a list of candidate findings. Append to a working set in `.bugbash/<target>.yaml` under `pass-N.candidates:`.
+Each specialist returns up to 5 candidates. Append the union to a working set in `.bugbash/<target>.yaml` under `pass-N.candidates:`.
 
-**3b. Challenger (sequential per finding).** For each candidate finding, dispatch a *different* expert from the slate as challenger with the brief: "Try to refute this finding. Is it actually a bug? Already mitigated upstream? Out of scope for this target? Lower severity than it looks? Write a one-paragraph verdict: confirm / refute / downgrade." Confirmed findings advance; refuted ones are dropped (recorded in state with reason); downgraded ones advance with reduced severity.
+**3b. Merge (orchestrator).** Before the challenger phase, the orchestrator deduplicates the candidate set. Real findings overlap across expert lenses — e.g., a non-defensive template renderer surfaces as both a "future-template footgun" (k8s lens) and a "${VAR} injection vector" (security lens), but it's one finding. Walk every pair of candidates and merge when they share a root cause or cite the same file:line, attributing both finder experts on the merged candidate. The challenger then evaluates the merged finding once instead of N times. See `references/loop-mechanics.md#orchestrator-merge` for the merge rubric.
 
-**3c. Triage and write.** For each surviving finding, the orchestrator assigns severity per `references/severity-rubric.md`, drafts the entry per `references/format-spec.md`, and appends to `docs/bugbash/<target>.md`. Update `.bugbash/<target>.yaml`: increment pass counter, record finding IDs, update convergence counter (see step 4).
+**3c. Challenger (parallel).** Each merged candidate is challenged by a *different* expert from the slate (never one of the finders), dispatched in parallel with the brief: "Try to refute this finding. Is it actually a bug? Already mitigated upstream? Out of scope for this target? Lower severity than it looks? Write a one-paragraph verdict: confirm / refute / downgrade. If you confirm or downgrade, propose a severity per `references/severity-rubric.md`." Confirmed and downgraded findings advance; refuted ones are dropped and recorded in state with the challenger's reasoning.
+
+**3d. Triage and write.** For each surviving finding, the orchestrator calibrates the challenger's proposed severity against `references/severity-rubric.md` (adjust if the rubric suggests otherwise), drafts the entry per `references/format-spec.md`, and appends to `docs/bugbash/<target>.md`. Update `.bugbash/<target>.yaml`: increment pass counter, record finding IDs, update convergence counter (see step 4).
 
 ### 4. Convergence Test
 
