@@ -30,6 +30,7 @@ PORTABLE=(
   product-engineer
   product-manager
   opentelemetry-expert
+  sre-engineer
 )
 
 SEI=(
