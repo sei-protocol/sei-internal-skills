@@ -29,6 +29,7 @@ Adversarially review the target for, within your domain:
 - Race conditions and ordering hazards
 - Error-handling holes (silent failures, swallowed errors, partial state on failure)
 - Operational risk (resource exhaustion, retry budgets, eviction handling)
+- Deployment safety (graceful rollout, in-flight work survives pod restart, no stuck state across release cuts, safe rollback, leader-election handoff without split-brain)
 - Bottlenecks (lock contention, serial operations that should be parallel)
 - Interface violations (provider/consumer mismatches against the registry)
 

@@ -67,7 +67,7 @@ Record the slate in `.bugbash/<target>.yaml` under `experts:`. Once chosen, the 
 
 A pass has three phases. See `references/loop-mechanics.md` for the full mechanics.
 
-**3a. Discovery (parallel).** Dispatch every expert in the slate in parallel with the same brief: "Read `<target path>`. Adversarially review for logical errors, validation gaps, race conditions, error-handling holes, operational risk, and bottlenecks within your domain. Output findings only — no proposed fixes yet, no severity. Cite file:line for each. Do NOT propose code edits — read-only."
+**3a. Discovery (parallel).** Dispatch every expert in the slate in parallel with the same brief: "Read `<target path>`. Adversarially review for logical errors, validation gaps, race conditions, error-handling holes, operational risk, deployment safety (graceful rollout, restart survival, no stuck state across release cuts), and bottlenecks within your domain. Output findings only — no proposed fixes yet, no severity. Cite file:line for each. Do NOT propose code edits — read-only."
 
 Each specialist returns a list of candidate findings. Append to a working set in `.bugbash/<target>.yaml` under `pass-N.candidates:`.
 
