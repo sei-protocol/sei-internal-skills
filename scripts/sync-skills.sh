@@ -34,6 +34,7 @@ SKILLS_DIR="$(cd "$SCRIPT_DIR/../.claude/skills" && pwd)"
 # --- Category lists (source of truth) ---------------------------------------
 
 PORTABLE=(
+  bugbash
   coral
   council
   design
