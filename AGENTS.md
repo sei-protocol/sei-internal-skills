@@ -17,8 +17,9 @@ This repository hosts specialist agent personas in `.claude/agents/`. Portable a
 | `tee-specialist` | Portable | General TEE + attestation. |
 | `product-engineer` | Portable | General product-engineering. |
 | `product-manager` | Portable | General PM. |
-| `opentelemetry-expert` | Portable | General OpenTelemetry. |
-| `sre-engineer` | Portable | Google SRE-flavored: SLOs/SLIs, dashboards, alerts, runbooks (human + agent-callable), post-mortems. Closes the loop by filing `/issue` work when a runbook needs missing tooling. Boundaries with OTel (instrumentation), platform (contract surface), kubernetes-specialist (controller signals), and security (detection vs response) negotiated in the agent file. |
+| `opentelemetry-expert` | Portable | Application-side OpenTelemetry SDK instrumentation. Backend operations (Prometheus/Thanos/Loki/Tempo/Alloy/Grafana) → `observability-platform-engineer`. |
+| `observability-platform-engineer` | Portable | Telemetry backend as a system: Prometheus/Thanos/Loki/Tempo/Alloy/Promtail/Grafana operations, PromQL/LogQL authorship, mixin vendoring, ingester/compactor/store-gateway sizing. Boundaries with sre-engineer (SLO/tier vs expression), opentelemetry-expert (emit vs receive), platform-engineer (manifest plumbing vs values contents), kubernetes-specialist (CRD authorship vs consumption), network-specialist (federation networking), security-specialist (scrub rule definition vs implementation) negotiated in the agent file. |
+| `sre-engineer` | Portable | Google SRE-flavored: SLOs/SLIs, dashboards, alerts, runbooks (human + agent-callable), post-mortems. Closes the loop by filing `/issue` work when a runbook needs missing tooling. Boundaries with OTel (instrumentation), observability-platform-engineer (expression + storage), platform (contract surface), kubernetes-specialist (controller signals), and security (detection vs response) negotiated in the agent file. |
 
 ## Working Agreement
 
