@@ -102,6 +102,22 @@ tide/
 
 Per-milestone scope, deliverables, and done-criteria live in each milestone's README under `design/milestones/`.
 
+## Setup
+
+One-line install: clone, then
+
+```sh
+make bootstrap
+```
+
+This runs:
+- `make sync-agents` — installs Tide's portable agents into `~/.claude/agents/` so they're reachable from any cwd
+- `make update-agent-permissions` — installs the canonical read-only allow-list (`gh` reads, GitHub WebFetch) into `./.claude/settings.json`
+
+The canonical permission set is **strictly read-only by design**. Mutating patterns (`gh issue create`, `gh pr merge`, `aws delete-*`, `kubectl apply`, etc.) are rejected by `make verify-agent-permissions`, which CI runs on every PR that touches the permission files. Local additions for your own workflow go in `.claude/settings.local.json` (gitignored).
+
+Run `make` with no args to list all targets.
+
 ## Where to start
 
 | If you're... | Start here |
@@ -110,7 +126,7 @@ Per-milestone scope, deliverables, and done-criteria live in each milestone's RE
 | **Designing a new component** | `design/constitution/constitution.md` → relevant milestone in `design/milestones/` |
 | **Reviewing or implementing from a spec** | The LLD in `design/milestones/<milestone>/` + `tide/interface-registry.yaml` |
 | **Adding a new agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
-| **Wiring a sibling repo to use these agents** | `scripts/sync-agents.sh --target <path>` |
+| **Wiring a sibling repo to use these agents** | `scripts/sync-agents.sh --target <path>` (or `make sync-agents` for `~/`) |
 | **Understanding the system end-to-end** | `design/high-level/tide-agent-council.md` |
 
 ## Documentation map

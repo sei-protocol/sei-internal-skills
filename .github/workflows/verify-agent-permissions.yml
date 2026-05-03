@@ -1,0 +1,18 @@
+name: Verify Agent Permissions
+
+on:
+  pull_request:
+    paths:
+      - '.claude/settings.json'
+      - 'scripts/agent-permissions.json'
+      - 'scripts/verify-agent-permissions.sh'
+      - 'scripts/update-agent-permissions.sh'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify agent permissions
+        run: make verify-agent-permissions
