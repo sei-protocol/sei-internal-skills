@@ -69,7 +69,7 @@ When a coral or council session produces a deferred slice, a scope cut, or an ob
 - `platform-engineer` — K8s manifests, Python container runtimes, cloud auth
 - `solidity-developer` — general Solidity + Foundry + ERC standards
 - `network-specialist` — K8s + cloud networking, service mesh
-- `security-specialist`, `tee-specialist`, `product-engineer`, `product-manager`, `opentelemetry-expert`, `observability-platform-engineer`, `sre-engineer`
+- `security-specialist`, `tee-specialist`, `product-engineer`, `product-manager`, `opentelemetry-expert`, `observability-platform-engineer`, `k8s-capacity-management`, `sre-engineer`
 
 **Sei-ecosystem**:
 - `sei-network-specialist` — Sei node networking (seid ports, CometBFT P2P, Waterway, Istio quirks)

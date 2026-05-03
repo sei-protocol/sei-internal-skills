@@ -31,6 +31,7 @@ PORTABLE=(
   product-manager
   opentelemetry-expert
   observability-platform-engineer
+  k8s-capacity-management
   sre-engineer
 )
 

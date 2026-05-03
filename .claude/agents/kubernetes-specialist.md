@@ -40,6 +40,9 @@ Repo-specific responsibilities, interface contracts, and code locations live in 
 - Event signatures are one-way doors after indexers depend on them.
 - CRD spec field names are one-way doors after controllers depend on them.
 
+## Out of Scope
+- Workload right-sizing (request/limit values), Karpenter NodePool design, DaemonSet overhead reservation, PriorityClass selection, HPA/VPA/KEDA tuning, and scheduling primitives (topologySpreadConstraints, affinity, taints/tolerations) → `k8s-capacity-management`. You own controller code, CRD schemas, and reconcile logic; that agent owns the capacity math and scheduling design that controllers and their workloads operate within.
+
 ## Working Agreement
 If the repo has a governing document, follow it. Runtime conventions usually win for env var naming (runtimes are consumers). Flag one-way doors for human approval before finalizing.
 

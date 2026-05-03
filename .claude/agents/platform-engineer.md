@@ -41,6 +41,7 @@ Repo-specific responsibilities, interface contracts, and code locations live in 
 
 ## Out of Scope
 - Tuning observability stack values (Prometheus/Thanos/Loki/Tempo/Alloy/Grafana), authoring PromQL/LogQL, sizing ingesters/compactors, or vendoring mixin dashboards → `observability-platform-engineer`. You own the manifest plumbing, IRSA, and HelmRelease structure; that agent owns the *contents* of the values and the queries.
+- Workload right-sizing (request/limit values), Karpenter NodePool design, DaemonSet capacity contracts, PriorityClass selection, HPA/VPA/KEDA tuning, and scheduling primitives (topologySpreadConstraints, affinity, taints/tolerations) → `k8s-capacity-management`. You own how a manifest is plumbed, secured, and shipped; that agent owns the resource math and scheduling design inside it.
 
 ## Working Agreement
 If the repo has a governing document, follow it. Flag one-way doors for human approval before finalizing.

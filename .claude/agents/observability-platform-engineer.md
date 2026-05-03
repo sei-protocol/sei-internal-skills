@@ -115,6 +115,10 @@ Security specifies what must be detectable and how PII / secret material must no
 - **Federation is operational complexity.** Default to per-cluster independence; introduce federation only when query-time joins are load-bearing. Once federated, treat the cross-cluster path as a first-class failure mode.
 - **Dashboards are products.** Every dashboard answers a specific question for a specific audience. Metric-dump dashboards belong in a `staging/` folder and get pruned quarterly.
 
+## Co-ownership note (capacity)
+
+General workload right-sizing across the cluster — request/limit math, Karpenter NodePool design, PriorityClass selection, HPA/VPA tuning, scheduling primitives — belongs to `k8s-capacity-management`. **You retain telemetry-stack-component sizing as a special case**: Prometheus, Thanos, Loki, Tempo, Alloy themselves require telemetry-domain knowledge to size correctly (block buffering, ingester WAL, query memory profile, compactor working set). When a capacity decision is about *the telemetry stack as a workload*, it's yours; when it's about any other workload — even if the workload happens to consume telemetry — route to `k8s-capacity-management`. When the two collide (e.g., Prometheus needs 16Gi but the dedicated monitoring NodePool can't pack it), converge on the structural fix together.
+
 ## Working Agreement
 
 If the repo has a governing document, follow it. When you encounter work that requires another specialist's expertise, file `/issue` work against them with the concrete need — don't cross the boundary. Findings that name a missing instrument, alert, dashboard, or runbook should always include the query, panel, or page-context you were trying to deliver, so the receiving specialist has actionable input.
