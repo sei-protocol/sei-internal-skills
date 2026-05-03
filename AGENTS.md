@@ -137,12 +137,14 @@ Full persona is Tide-specific. See `.claude/agents/blockchain-developer.md`. Doe
 
 Checklist items are Tide-specific. See `.claude/agents/reviewer.md`. Does NOT sync to other repos. The `/council` skill's own cross-review prompt is the fallback for repos without a dedicated reviewer.
 
-## Sync Script
+## Install
 
-`scripts/sync-agents.sh` copies portable agents to other `.claude/agents/` directories.
+The fastest path is `make bootstrap` from the repo root, which runs `make sync-agents` and `make update-agent-permissions`. See the README's Setup section for the full flow.
+
+For sibling-repo or finer-grained installs, call the underlying scripts directly:
 
 ```bash
-# Mirror portable agents to user-level (available in any CWD)
+# Mirror portable agents to user-level (available in any CWD) — same as `make sync-agents`
 ./scripts/sync-agents.sh --target ~/
 
 # Copy portable + sei agents to a sibling repo
@@ -154,7 +156,7 @@ Checklist items are Tide-specific. See `.claude/agents/reviewer.md`. Does NOT sy
 
 Categories: `portable` (default), `sei`, `tide-only`, `all`.
 
-The script is non-destructive by default — it refuses to overwrite existing files in the target unless `--force` is passed. Use `--force` when rolling out updates after editing an agent in Tide.
+The script is non-destructive by default — it refuses to overwrite existing files in the target unless `--force` is passed. `make sync-agents` passes `--force` so subsequent runs pick up Tide updates cleanly. Run the script directly without `--force` if you want to be prompted on conflicts.
 
 ## How to Use These Agents
 
