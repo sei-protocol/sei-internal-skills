@@ -6,7 +6,7 @@ Last verified: 2026-05-04 against [Tide#25] (architectural synopsis) and the har
 
 ## The architectural model in three lines
 
-1. **`seictl` is a render layer with two terminal actions.** `--apply` drives kubectl directly (used by automated callers like the release-test CronJob). For engineer-facing flows, the skill renders only and lets git+Flux do the apply. Same render code, two terminal actions.
+1. **`seictl` is a render layer.** For engineer-facing flows, the skill calls `seictl ...` (no `--apply`) and captures the rendered YAML; git+Flux do the apply. `--apply` is reserved for automated in-cluster callers (release-test CronJob, CI/CD); the skill never takes that path for an engineer.
 2. **Branches aren't the isolation boundary, paths are.** Each engineer has one persistent branch `eng-${alias}-workspace`. Within it, each task lives at its own path under `clusters/harbor/eng/${alias}/<task-name>/`. Per-task PRs are unnecessary friction; per-task directories are sufficient isolation.
 3. **Flux watches the branch, not main.** Onboarding provisions a per-engineer Flux `GitRepository` + `Kustomization` pointing at the workspace branch. Direct push, no PR loop. PR only at *promotion* (workspace → main, rare and deliberate).
 
@@ -88,13 +88,23 @@ Stop and report (don't auto-remediate):
 - **Flux reconcile timeout.** If `lastAppliedRevision` doesn't match the pushed commit within 90s, halt and surface `kubectl describe kustomization eng-${alias}-workspace -n flux-system` for the engineer to inspect.
 - **Manifest collision at the task path.** The path already exists with content. Don't silently overwrite — halt, surface the path, and ask whether to choose a new task name or `git rm` the existing one first.
 
-## Why this is the engineer-facing path (and `--apply` isn't)
+## Why GitOps for engineers, and why `--apply` isn't even on the table
 
-`--apply` is the right shape for **automated callers** — release-test CronJobs, CI/CD pipelines, anything that runs in-cluster and doesn't need a human-readable audit trail. The release-test orchestrator at `clusters/harbor/nightly/release/` is the canonical example: the CronJob runs `seictl chain up --apply`, captures the JSON envelope, applies a downstream Job. Fast, atomic, no git dependency.
+GitOps is not "the recommended option" — it's the only path the skill takes for engineer-facing intents. `--apply` is for automated callers only. The split:
 
-`--to-pr` (or today's manual git equivalent) is the right shape for **engineer-facing flows** — daily-driver experiments, benchmark spinups, demo provisioning. The git history *is* the audit trail. The workspace branch *is* the engineer's playground. PR only at promotion.
+**`--apply` is for non-human callers in-cluster** — release-test CronJobs, CI/CD pipelines, anything that runs as a Job inside the cluster, doesn't need a human-readable audit trail, and benefits from skipping the git+Flux loop. The release-test orchestrator at `clusters/harbor/nightly/release/` is the canonical example: a CronJob runs `seictl chain up --apply`, captures the JSON envelope, applies a downstream Job. Fast, atomic, no git dependency. Right shape *for that audience*.
 
-Both modes share the same render code; only the terminal action differs.
+**GitOps is for engineers** — daily-driver experiments, benchmark spinups, demo provisioning, any time a human is in the loop. Why:
+
+- The git history *is* the audit trail. Every chain, RPC fleet, and load run is a commit on a known branch at a known path. `kubectl get` doesn't tell you who launched a SeiNodeDeployment last Thursday or with what image; `git log clusters/harbor/eng/` does.
+- Flux owns reconciliation. If the engineer's manifests drift, Flux re-asserts them. `--apply` produces no signal when drift happens.
+- Teardown is `git rm` — one mechanism in, one mechanism out, both visible in git. With `--apply`, the engineer has to remember which `seictl bench down` matches which `bench up`.
+- Promotion (workspace → main PR) is only available for things on a branch. `--apply` produces nothing promotable.
+- Multi-engineer forensics (cluster headroom incidents, cross-team conflicts) lean on `git log` across `clusters/harbor/eng/`. `--apply` runs are invisible until the cluster surfaces them as resource pressure.
+
+**The skill does not invoke `--apply` for engineer-facing intents.** It renders, writes to the workspace branch, commits, pushes — period. The legacy escape-hatch procedure exists for the rare case where an engineer explicitly wants no git trail (CI debug, one-shot throwaway), and the skill steers them to GitOps first before honoring the request.
+
+Both modes share the same render code; only the terminal action differs. The skill's terminal action is `git push`, not `kubectl apply`.
 
 ## Promotion: workspace → main
 

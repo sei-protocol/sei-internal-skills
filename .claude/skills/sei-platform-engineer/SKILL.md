@@ -38,17 +38,27 @@ You operate against the **harbor cluster** (eu-central-1 EKS). It runs the **sei
 - `eng-<your-alias>` namespace, governed by the personal-cells security posture (quotas, NetworkPolicy, admission). Onboarding is a one-time PR.
 - Active workloads land on a per-engineer workspace branch (`eng-<alias>-workspace`) at task-specific paths under `clusters/harbor/eng/<alias>/`. Flux reconciles the branch.
 
-**Two execution modes coexist:**
-- **`--apply` (automated)** — `seictl ... --apply` runs kubectl directly. Used by the release-test CronJob, CI/CD, anything in-cluster. Fast, atomic, no git dependency.
-- **GitOps (engineer-facing, daily driver)** — `seictl ...` (no `--apply`) renders manifests; the skill writes them to `clusters/harbor/eng/<alias>/<task>/` on the engineer's workspace branch, commits, pushes. Flux reconciles within ~60s. The git history *is* the audit trail.
+### House style: GitOps is the default. `--apply` is for automated callers only.
 
-Same render layer, two terminal actions. The skill's headline flow is GitOps; `--apply` shows up only when the engineer explicitly asks for it (or for the legacy `bench up` benchmark-only flow that pre-dates the workspace-branch model).
+**The skill renders YAML and pushes it to the engineer's workspace branch. The platform reconciles. The skill never invokes `seictl ... --apply` for an engineer-facing intent.**
+
+Why this is the strong opinion:
+
+- The git history *is* the audit trail. Every chain, RPC fleet, and load run is a commit on a known branch at a known path. `kubectl apply` leaves no equivalent record.
+- Flux owns reconciliation. If the engineer's manifests drift, Flux re-asserts them. With `--apply`, drift goes unnoticed until the next manual reconcile.
+- Teardown is `git rm`. One mechanism in, one mechanism out — both visible in git.
+- The same workspace branch is the substrate for promotion to shared infra (workspace → main PR). `--apply` produces nothing promotable.
+- Cluster headroom incidents are easier to forensic — `git log clusters/harbor/eng/` tells you exactly who did what when, across all engineers.
+
+**`--apply` is reserved for automated callers** — the release-test CronJob at `clusters/harbor/nightly/release/`, CI/CD pipelines, anything that runs in-cluster, doesn't need a human-readable audit trail, and benefits from the speed of skipping the git+Flux loop. **The skill itself doesn't take this path.** If an engineer explicitly asks for `--apply`, the skill first asks whether the GitOps flow would serve the same need; only proceeds if the engineer confirms they want no git history (rare; e.g., a one-shot CI debug session).
+
+Same render layer, two terminal actions. **The skill's terminal action is `git push`, not `kubectl apply`.**
 
 **Branches aren't the isolation boundary, paths are.** One persistent branch per engineer, never deleted. Each task is its own directory. PR only at *promotion* (workspace → main, rare and deliberate).
 
 **The split:**
 - **Long-lived infra** (namespace, RBAC, ServiceAccounts, per-engineer Flux `GitRepository` + `Kustomization`) — Flux-managed via the platform repo. Onboarding adds the engineer's namespace and workspace-watcher via PR.
-- **Ephemeral workloads** (chain validators, RPC fleet, seiload Job) — written to the engineer's workspace branch. Tear down via `git rm` on the task path + push.
+- **Ephemeral workloads** (chain validators, RPC fleet, seiload Job) — rendered by `seictl`, written to the engineer's workspace branch, reconciled by Flux. Tear down via `git rm` on the task path + push.
 
 See `references/ephemeral-chain-flow.md` for the architectural model (branch convention, path scheme, what's pending), `references/harbor-cluster.md` for cluster facts, `references/interim-namespace-strategy.md` for the cells-forward labels we use today.
 
@@ -78,17 +88,20 @@ See `references/pr-conventions.md` for branch + PR conventions.
 
 ## What you can do
 
+Every chain/RPC/bench intent maps to the **GitOps flow**: render with `seictl` (no `--apply`), write to the engineer's workspace path, commit, push. Flux reconciles. The skill does not invoke `--apply` for engineer-facing intents — see "House style" above.
+
 | Engineer says | Skill maps to |
 |---|---|
-| "Onboard me" / "set me up on harbor" / "I'm new" | `seictl onboard --alias <alias> [--apply]` |
-| "Spin up a chain of N validators with image X" / "give me an ephemeral chain" / "start a chain" | GitOps flow (see Procedure: spinup ephemeral chain): `seictl chain up` (render-only) → write to `clusters/harbor/eng/<alias>/<task>/` → commit → push to `eng-<alias>-workspace` |
-| "Add an RPC fleet to chain X" / "I need RPC nodes" | `seictl rpc up --against <chain-id>` (render-only) → same workspace path |
-| "Load chain X with profile Y" / "hit it with traffic" | `seictl bench up --against <chain-id> --profile <profile>` (render-only) → same workspace path |
-| "Run a benchmark against image X" / "spinup benchmark" / "benchmark this image" | Legacy single-shot: ask up to 3 questions → `seictl bench up --image <ref> --name <name> [--size s\|m\|l] [--duration <minutes>] --apply`. Use this when the engineer wants a short-lived combined chain+load run with no GitOps trail. |
-| "Tear down my chain/bench at path X" / "wipe task Y" | `git rm -r clusters/harbor/eng/<alias>/<task>/` → commit → push (Flux reconciles the deletion) |
-| "Tear down my benchmark" / "stop benchmark X" (legacy `--apply` path) | `seictl bench down --name <name>` |
-| "What's running on my workspace" / "what tasks do I have" | `git ls-tree --name-only HEAD clusters/harbor/eng/<alias>/` on the workspace branch + `seictl bench list` for the legacy --apply path |
+| "Onboard me" / "set me up on harbor" / "I'm new" | `seictl onboard --alias <alias> [--apply]` (this is the one place `--apply` is used — it provisions the workspace itself) |
+| "Spin up a chain of N validators with image X" / "give me an ephemeral chain" / "start a chain" | **GitOps flow** (see Procedure: spinup ephemeral chain): `seictl chain up` (render-only) → write to `clusters/harbor/eng/<alias>/<task>/` → commit → push to `eng-<alias>-workspace`. Flux applies. |
+| "Add an RPC fleet to chain X" / "I need RPC nodes" | `seictl rpc up --against <chain-id>` (render-only) → same workspace path → commit → push. |
+| "Load chain X with profile Y" / "hit it with traffic" | `seictl bench up --against <chain-id> --profile <profile>` (render-only) → same workspace path → commit → push. |
+| "Run a benchmark against image X" / "spinup benchmark" / "benchmark this image" | **GitOps flow.** The skill renders `seictl chain up` + `seictl bench up` together, writes both to the same task directory, commits, pushes. The skill *does not* invoke `bench up --apply` here — see escape hatch below. |
+| "Tear down my chain/bench at path X" / "wipe task Y" | `git rm -r clusters/harbor/eng/<alias>/<task>/` → commit → push. Flux reconciles the deletion. |
+| "What's running on my workspace" / "what tasks do I have" | `git ls-tree --name-only HEAD clusters/harbor/eng/<alias>/` on the workspace branch (authoritative) + `kubectl get seinodedeployment -n eng-<alias>` (live cluster view). |
 | "Where am I" / "what cluster am I on" / "who am I" | `seictl context` |
+
+**Escape hatch — direct `--apply` (rare, requires explicit engineer confirmation):** if an engineer specifically asks to bypass git for a one-shot debug/CI session and confirms they understand there will be no audit trail, the skill *may* fall through to `seictl bench up --apply`. The skill must first offer the GitOps path and ask "are you sure you want to skip the workspace branch?" — only proceed on explicit yes. The skill does not volunteer this path; it only honors it when the engineer asks twice.
 
 ## Procedure: spinup ephemeral chain (the headline — GitOps flow)
 
@@ -111,20 +124,22 @@ Engineer says "spin up a chain of 4 validators with seid sha=abc, then load it w
 
 See `references/ephemeral-chain-flow.md` for the full architectural detail.
 
-## Procedure: spinup benchmark (legacy single-shot, `--apply` path)
+## Procedure: direct `--apply` benchmark (escape hatch, not the default)
 
-Engineer says "run a benchmark against image X" without context about the workspace branch. The legacy `bench up --apply` path produces a fresh chain + RPC fleet + load runner in one shot, applied directly via kubectl, with no git trail. Use this when the engineer explicitly wants a fast, ephemeral, no-GitOps run — or when they're not yet onboarded with the workspace-branch extension.
+The skill's default for "run a benchmark" is the GitOps flow above — render `seictl chain up` + `seictl bench up` (no `--apply`), write both to the engineer's workspace path, push. **This `--apply` procedure exists only for the rare case where an engineer explicitly opts out of git** — typically a CI debug session, or a one-shot run they don't want in the workspace branch's history. The skill does not volunteer this path. It only takes it when the engineer asks twice.
+
+**Steer first.** Before running any of the steps below, the skill asks: "I can do this through the GitOps flow on your workspace branch (audit trail, Flux reconciles, `git rm` to tear down) — do you want that, or do you specifically need a direct-apply run with no git history?" If the engineer wants GitOps, route to the headline procedure above. **Only proceed below on explicit confirmation that GitOps is not what they want.**
 
 1. **Identity check** — verify `~/.seictl/engineer.json` exists. If not, route through First Run above.
 2. **Cluster check** — invoke `seictl context` and verify cluster is `harbor`. Refuse on prod.
 3. **Image resolution** — engineer provided an image ref. seictl resolves to immutable digest internally; surface failures cleanly.
 4. **Ask up to 3 questions**, in order, only when defaults would surprise:
-   - "What are you testing? (one sentence — goes in PR title and chain ID name)"
+   - "What are you testing? (one sentence — goes in chain ID name)"
    - "Fleet size: small (4 validators), medium (10), large (21)? [s]"
    - "Duration in minutes (1–240)? [30]"
-5. **Pre-flight echo** — show the engineer the resolved invocation: chain ID (`bench-<alias>-<name>`), image digest, fleet size, duration, S3 results path. Wait for confirmation on the first side-effecting call of the session.
+5. **Pre-flight echo** — show the engineer the resolved invocation: chain ID (`bench-<alias>-<name>`), image digest, fleet size, duration, S3 results path, **and a reminder that this run will not appear in the workspace branch's git history**. Wait for confirmation.
 6. **Invoke** — `seictl bench up --image <ref> --name <name> --size <size> --duration <duration> --apply`. seictl renders templates, applies via kubectl.
-7. **Report** — print the chain ID, S3 results path, and the `seictl bench list` follow-up command.
+7. **Report** — print the chain ID, S3 results path, and the `seictl bench list` + `seictl bench down` follow-up commands.
 
 See `references/intent-benchmark.md` for the full conversation tree, default selection rationale, and the autobake-derived templates that drive the fleet shape.
 
