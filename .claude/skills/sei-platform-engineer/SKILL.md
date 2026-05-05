@@ -32,7 +32,7 @@ These are the *steady state* requirements. The skill doesn't assume the engineer
 - `gh` authenticated for any verb that opens a PR (`gh auth status` → ok)
 - Identity file `~/.seictl/config.json` (created by `seictl onboard` on first run)
 - Engineer's namespace `eng-<alias>` reconciled by Flux (depends on onboarding PR being merged)
-- Workspace branch `eng-<alias>-workspace` exists with a per-engineer Flux Kustomization watching it (manual today; pending the [Tide#25] onboard extension)
+- Workspace branch `eng-<alias>-workspace` exists (created in-band by pre-flight gate 8 if missing) with a per-engineer Flux Kustomization watching it (Kustomization is a one-time platform-team handoff)
 - AWS credentials with read access to `189176372795.dkr.ecr.us-east-2.amazonaws.com` for image digest resolution
 
 ## Pre-flight (run at session start, before any side-effecting action)
@@ -50,7 +50,7 @@ Run the gates in order. Halt on the first failure; later gates depend on earlier
 | 5 | Platform repo clone in CWD, on main, fresh | `<cwd>/seictl-platform/` is a `sei-protocol/platform` clone, on `main`, at or behind `origin/main` (or `$SEI_PLATFORM_REPO` is set and points at a clone matching that shape) | **Default behavior: clone fresh into `<cwd>/seictl-platform/`** rather than searching for existing clones. If the directory doesn't exist, run `git clone git@github.com:sei-protocol/platform.git <cwd>/seictl-platform` — fully in-band, no halt. If it exists and is on main, run `git fetch origin && git pull --ff-only origin main`. If `$SEI_PLATFORM_REPO` is set, honor that path absolutely as an override. The engineer's primary platform checkout is **never** discovered or modified — keeps WIP isolated and the agent's working state self-contained per session. |
 | 6 | Identity file present | `~/.seictl/config.json` parses + has `alias` + `namespace` (file mode 0600, parent dir 0700 — seictl refuses loose perms) | Route to **First Run** below — capture alias only (namespace is derived as `eng-<alias>`), run `seictl onboard --apply` from the gate-5 clone to open the namespace + IAM provisioning PR. |
 | 7 | Namespace reconciled | `kubectl get namespace eng-<alias>` returns 0 | Onboarding PR not merged or Flux hasn't reconciled yet. Surface the PR URL; offer to poll until the namespace appears (~60s post-merge). |
-| 8 | Workspace branch ready (GitOps only) | `git ls-remote origin eng-<alias>-workspace` returns a ref | Pending [Tide#25] item 2 (onboard extension). Surface the manual bootstrap (`git checkout -b eng-<alias>-workspace && git push`, then ask platform team for the Flux Kustomization); halt the GitOps flow. |
+| 8 | Workspace branch ready (GitOps only) | `git ls-remote origin eng-<alias>-workspace` returns a ref | **Create the branch in-band** from the gate-5 clone: `git checkout main && git pull --ff-only && git checkout -b eng-<alias>-workspace`, seed `clusters/harbor/eng/<alias>/.gitkeep`, commit, `git push -u origin eng-<alias>-workspace`. No halt. Note: the per-engineer Flux Kustomization watching this branch is a separate one-time platform-team handoff — if manifests later don't reconcile, surface that gap then; pre-flight doesn't gate on it. |
 
 Once all eight pass, cache the pass for the session — subsequent verbs skip the gates unless a halt condition (SSO expiry, kubectl context drift, clone drift) triggers a targeted re-check.
 

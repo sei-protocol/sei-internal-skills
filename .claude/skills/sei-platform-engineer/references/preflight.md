@@ -162,25 +162,28 @@ Once a clone is selected (existing or freshly created):
 
 **Verifies:** `git ls-remote origin eng-<alias>-workspace` returns a ref.
 
-**Why:** the GitOps headline procedure pushes manifests to this branch. If it doesn't exist, the push fails and the engineer can't use the GitOps flow.
+**Why:** the GitOps headline procedure pushes manifests to this branch. If it doesn't exist, the push fails and the GitOps flow can't deliver.
 
-**Recovery (in-band, manual until [Tide#25] item 2 ships):** the planned `seictl onboard` extension provisions the workspace branch + per-engineer Flux Kustomization automatically. Until that lands, surface the manual sequence:
+**Recovery (in-band — agent creates the branch directly):** the branch creation is fully within the agent's scope; no platform-team handoff required. From the gate-5 clone:
 
 ```sh
-# In the engineer's local platform repo checkout
-git checkout main
-git pull
-git checkout -b eng-<alias>-workspace
-mkdir -p clusters/harbor/eng/<alias>
-touch clusters/harbor/eng/<alias>/.gitkeep
-git add clusters/harbor/eng/<alias>/.gitkeep
-git commit -m "chore: bootstrap eng-<alias> workspace"
-git push origin eng-<alias>-workspace
+git -C <gate-5-clone> checkout main
+git -C <gate-5-clone> pull --ff-only origin main
+git -C <gate-5-clone> checkout -b eng-<alias>-workspace
+mkdir -p <gate-5-clone>/clusters/harbor/eng/<alias>
+touch <gate-5-clone>/clusters/harbor/eng/<alias>/.gitkeep
+git -C <gate-5-clone> add clusters/harbor/eng/<alias>/.gitkeep
+git -C <gate-5-clone> commit -m "chore: bootstrap eng-<alias> workspace"
+git -C <gate-5-clone> push -u origin eng-<alias>-workspace
 ```
 
-Then ask the platform team to add a Flux Kustomization watching the branch. (When the seictl onboard extension ships, this whole gate's recovery becomes one command.)
+The `.gitkeep` seed prevents the directory from going missing in git and gives Flux something to reconcile (instead of an empty path). Continue without halting.
 
-**Halt mode:** if gate 8 fails, the GitOps flow is unavailable but pre-flight gates 1–7 still pass. Offer the legacy `--apply` escape hatch *only if the engineer explicitly requests it* (per the steer-first rule in SKILL.md). Don't volunteer `--apply` here — surface the manual workspace bootstrap above and let the engineer choose.
+**About the Flux Kustomization:** the per-engineer `Kustomization` CR in `flux-system` that watches this branch is a separate, one-time platform-team handoff (engineers don't have RBAC to create cluster-scoped CRs in `flux-system`). Pre-flight does **not** gate on the Kustomization's existence — branch creation alone is enough to unblock the GitOps procedure's render+push steps. If a downstream procedure step polls for Flux reconciliation and times out, that's where to surface the Kustomization gap and route to platform team. Don't preempt it in pre-flight.
+
+**Edge case — branch already exists locally but not on origin:** push it (`git push -u origin eng-<alias>-workspace`). Don't create a new local branch over it.
+
+**Edge case — branch exists on origin but not locally in the gate-5 clone (warm cache after a previous session created it elsewhere):** fetch and check it out: `git fetch origin && git checkout eng-<alias>-workspace`. Continue.
 
 ## Caching pre-flight within a session
 
@@ -218,7 +221,7 @@ For a literal "fresh laptop" engineer, the first session looks like:
 12. Surface the PR URL and halt. "Merge this; ping me when done."
 13. Engineer merges, says "merged."
 14. Poll gate 7 until the namespace appears (~60s). Gate 7 passes.
-15. Gate 8 fails (no workspace branch). Surface the manual bootstrap (until the seictl onboard extension ships), halt.
+15. Gate 8 fails (no workspace branch). **Recovery is in-band** — create `eng-<alias>-workspace` from main in the gate-5 clone, seed `clusters/harbor/eng/<alias>/.gitkeep`, push. No halt. (The per-engineer Flux Kustomization is a one-time platform-team handoff that surfaces if/when downstream reconcile times out — not gated here.)
 16. Engineer runs the bootstrap, asks platform team to add the per-engineer Flux Kustomization.
 17. All eight gates pass. "You're on the rails. Try `spin up a chain of 4 validators with image X`."
 
