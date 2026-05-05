@@ -44,7 +44,7 @@ Run the gates in order. Halt on the first failure; later gates depend on earlier
 | # | Gate | Detect with | If missing → |
 |---|---|---|---|
 | 1 | `seictl` on PATH | `command -v seictl` returns 0 (or `seictl help` exits 0 — `--version` isn't a flag) | Surface `brew install sei-protocol/tap/seictl` (or release URL); halt. |
-| 2 | AWS SSO session active for `sei` profile | `aws sts get-caller-identity --profile sei` returns 0 | Surface `aws sso login --profile sei`; halt. **Always pass `--profile sei` (or `AWS_PROFILE=sei`) — the engineer's default profile may not have credentials even when the `sei` profile is active.** |
+| 2 | AWS SSO session active for `sei` profile | `aws sts get-caller-identity --profile sei` returns 0 | Surface `aws sso login --profile sei`; halt. **Always pass `--profile sei` to `aws` calls and prepend `AWS_PROFILE=sei` to every `seictl` invocation** (seictl reads from env, no `--profile` flag — without the prefix it'll exit code 40 `aws-unavailable` even when SSO is active). The engineer's default profile may not have credentials even when the `sei` profile is. |
 | 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` | Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei` directly, re-check, continue. |
 | 4 | kubectl can reach harbor | `kubectl auth can-i list namespaces --context=harbor` returns `yes` | EKS access entry not granted. Not something `seictl onboard` provisions today. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
 | 5 | Platform repo clone in CWD, on main, fresh | `<cwd>/seictl-platform/` is a `sei-protocol/platform` clone, on `main`, at or behind `origin/main` (or `$SEI_PLATFORM_REPO` is set and points at a clone matching that shape) | **Default behavior: clone fresh into `<cwd>/seictl-platform/`** rather than searching for existing clones. If the directory doesn't exist, run `git clone git@github.com:sei-protocol/platform.git <cwd>/seictl-platform` — fully in-band, no halt. If it exists and is on main, run `git fetch origin && git pull --ff-only origin main`. If `$SEI_PLATFORM_REPO` is set, honor that path absolutely as an override. The engineer's primary platform checkout is **never** discovered or modified — keeps WIP isolated and the agent's working state self-contained per session. |
@@ -116,6 +116,8 @@ See `references/pr-conventions.md` for branch + PR conventions.
 ## What you can do
 
 Every chain/RPC/bench intent maps to the **GitOps flow**: render with `seictl` (no `--apply`), write to the engineer's workspace path, commit, push. Flux reconciles. The skill does not invoke `--apply` for engineer-facing intents — see "House style" above.
+
+**Convention for every `seictl` example below:** prepend `AWS_PROFILE=sei`. The flag is omitted in the table for readability, but the actual invocation is always `AWS_PROFILE=sei seictl <verb> ...`.
 
 | Engineer says | Skill maps to |
 |---|---|

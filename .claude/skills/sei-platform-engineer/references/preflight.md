@@ -43,13 +43,23 @@ Halt until `seictl --version` succeeds.
 
 **Verifies:** `aws sts get-caller-identity --profile sei` returns 0 with an `Arn` field.
 
-**Always pass `--profile sei` (or set `AWS_PROFILE=sei` in the environment for the call).** The engineer's default profile may not have credentials configured even when the `sei` profile is active and logged in — running bare `aws sts get-caller-identity` will fail with `Unable to locate credentials` and looks like a halt condition when it actually isn't. Apply the same rule to *every* AWS CLI invocation downstream: `aws eks update-kubeconfig ... --profile sei`, `aws ecr describe-images ... --profile sei`, etc. The `sei` profile is the canonical name for harbor's AWS account.
+**Always pass `--profile sei` (for `aws` calls) or prepend `AWS_PROFILE=sei` (for `seictl` calls).** The engineer's default profile may not have credentials configured even when the `sei` profile is active and logged in — running bare `aws sts get-caller-identity` fails with `Unable to locate credentials`, and bare `seictl <verb>` exits code 40 `aws-unavailable` even when SSO is fine. Apply the rule to *every* AWS-touching invocation downstream:
+
+- `aws eks update-kubeconfig ... --profile sei`
+- `aws ecr describe-images ... --profile sei`
+- `AWS_PROFILE=sei seictl onboard ...` (seictl has no `--profile` flag; it reads from env)
+- `AWS_PROFILE=sei seictl context`
+- `AWS_PROFILE=sei seictl chain up ...` (etc.)
+
+The `sei` profile is the canonical name for harbor's AWS account.
 
 **Why:** harbor's EKS auth, ECR image pulls, and the IAM provisioning that `seictl onboard` performs all require live AWS credentials *under the sei profile*. SSO sessions expire (default 12h); refreshing is a one-liner.
 
 **Recovery (out-of-band):** `aws sso login --profile sei`. If the engineer's `~/.aws/config` doesn't have a `sei` profile yet (truly fresh laptop), surface `aws configure sso` and route them through profile setup, with the SSO start URL and the `sei` profile name pre-populated.
 
-**Edge case — `Unable to locate credentials`:** a `--profile`-less call landed somewhere. Re-issue with `--profile sei` explicitly. This is the most common false-negative on gate 2 — the engineer is logged into `sei` but the agent invoked the bare command.
+**Edge case — `Unable to locate credentials`:** a `--profile`-less `aws` call landed somewhere. Re-issue with `--profile sei` explicitly. This is the most common false-negative on gate 2 — the engineer is logged into `sei` but the agent invoked the bare command.
+
+**Edge case — `seictl` exit code 40 / `aws-unavailable`:** seictl couldn't resolve AWS credentials. Cause is almost always a missing `AWS_PROFILE=sei` prefix. seictl has no `--profile` flag; it reads from env. Re-run with `AWS_PROFILE=sei seictl <verb> ...`. The error message itself surfaces this hint, but the agent should never let the friction surface in the first place — every `seictl` invocation gets the prefix.
 
 **Edge case — expired session mid-run:** SSO can expire between verbs (default 12h). Halt conditions catch this (any AWS call returns `ExpiredToken`); re-run gate 2 and resume.
 
@@ -204,7 +214,7 @@ For a literal "fresh laptop" engineer, the first session looks like:
 8. Engineer pings the channel, gets the access entry. Comes back, says "ok try again."
 9. Gate 5 fails (no `<cwd>/seictl-platform/` clone). **Recovery is in-band** — clone fresh into `<cwd>/seictl-platform`, check out main, fetch. No halt.
 10. Gate 5 now passes — the dedicated clone is the agent's working copy for the rest of the session. The engineer's primary platform checkout (if any) is never touched.
-11. Gate 6 fails (no identity file). Enter First Run: prompt for alias (default from `$USER`); `seictl onboard --apply` writes `~/.seictl/config.json` (alias + namespace=eng-<alias>, mode 0600) and runs from the gate-5 clone. PR is opened.
+11. Gate 6 fails (no identity file). Enter First Run: prompt for alias (default from `$USER`); run `AWS_PROFILE=sei seictl onboard --apply` (the `AWS_PROFILE=sei` prefix is mandatory — see gate 2). It writes `~/.seictl/config.json` (alias + namespace=eng-<alias>, mode 0600) and opens the PR from the gate-5 clone.
 12. Surface the PR URL and halt. "Merge this; ping me when done."
 13. Engineer merges, says "merged."
 14. Poll gate 7 until the namespace appears (~60s). Gate 7 passes.
