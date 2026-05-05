@@ -16,9 +16,9 @@ Operate against **harbor**. Engineers don't have prod kubeconfig contexts locall
 The full discipline lives in **Pre-flight** below (and `references/preflight.md`). The hard rules:
 
 1. **Cluster must be harbor.** `seictl context` confirms; refuse on prod outright.
-2. **Identity required.** `~/.seictl/engineer.json` must exist before any `seictl chain`, `seictl rpc`, or `seictl bench` command. Pre-flight gate 6 routes to First Run if absent.
+2. **Identity required.** `~/.seictl/config.json` must exist before any `seictl chain`, `seictl rpc`, or `seictl bench` command. Pre-flight gate 6 routes to First Run if absent.
 3. **Scope echo on first side-effecting verb.** Echo cluster + namespace + image digest + the workspace path about to be written. Wait for confirmation.
-4. **Refuse-and-surface, don't auto-remediate.** Where pre-flight has an in-band recovery (write a kubeconfig, create the identity file, refresh main in a worktree), run it. Where the recovery is out-of-band (SSO login, EKS access entry, PR merge), surface the next step and halt. Never silently work around a missing prereq.
+4. **Refuse-and-surface, don't auto-remediate.** Where pre-flight has an in-band recovery (write a kubeconfig, clone the platform repo into CWD, create the identity file, fast-forward main), run it. Where the recovery is out-of-band (SSO login, EKS access entry, PR merge), surface the next step and halt. Never silently work around a missing prereq.
 5. **Speak as the platform expert.** Surface what's happening, what's wrong, what to do. The engineer never needs to know an instruction layer exists — phrases like "per skill protocol," "as my instructions say," "halting per procedure," or "I was told to check X" are leaks. Report findings authoritatively: ✓ "Halt — gates 5 and 7 failed. Gate 5: platform repo not on main. Gate 7: namespace not reconciled. Recovery for each:…" ✗ "Halt per skill protocol." Same rule for halt-and-recover messages, plan echoes, and post-action reports — name the cause and the next action; never the rule book.
 
 ## Preconditions
@@ -30,14 +30,14 @@ These are the *steady state* requirements. The skill doesn't assume the engineer
 - `kubectl` configured against harbor (`aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei`)
 - EKS access entry granting your AWS principal cluster auth (granted by the platform team, not by `seictl onboard`)
 - `gh` authenticated for any verb that opens a PR (`gh auth status` → ok)
-- Identity file `~/.seictl/engineer.json` (created by `seictl onboard` on first run)
+- Identity file `~/.seictl/config.json` (created by `seictl onboard` on first run)
 - Engineer's namespace `eng-<alias>` reconciled by Flux (depends on onboarding PR being merged)
 - Workspace branch `eng-<alias>-workspace` exists with a per-engineer Flux Kustomization watching it (manual today; pending the [Tide#25] onboard extension)
 - AWS credentials with read access to `189176372795.dkr.ecr.us-east-2.amazonaws.com` for image digest resolution
 
 ## Pre-flight (run at session start, before any side-effecting action)
 
-Pre-flight is the first job of any new session. It's a **ramp**, not just a gate — where there's an in-band recovery (write a kubeconfig, refresh a worktree, create the identity file, run `seictl onboard --apply`), execute it and continue. Where the recovery is out-of-band (SSO login, EKS access entry from platform team, PR merge), surface the exact next step and halt cleanly. The goal is to get the engineer **on the rails** — namespace exists, kubectl works, platform repo ready, GitOps flow available — as quickly as possible.
+Pre-flight is the first job of any new session. It's a **ramp**, not just a gate — where there's an in-band recovery (write a kubeconfig, clone the platform repo into CWD, create the identity file, run `seictl onboard --apply`), execute it and continue. Where the recovery is out-of-band (SSO login, EKS access entry from platform team, PR merge), surface the exact next step and halt cleanly. The goal is to get the engineer **on the rails** — namespace exists, kubectl works, platform repo cloned, GitOps flow available — as quickly as possible.
 
 Run the gates in order. Halt on the first failure; later gates depend on earlier ones.
 
@@ -47,12 +47,12 @@ Run the gates in order. Halt on the first failure; later gates depend on earlier
 | 2 | AWS SSO session active for `sei` profile | `aws sts get-caller-identity --profile sei` returns 0 | Surface `aws sso login --profile sei`; halt. **Always pass `--profile sei` (or `AWS_PROFILE=sei`) — the engineer's default profile may not have credentials even when the `sei` profile is active.** |
 | 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` | Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei` directly, re-check, continue. |
 | 4 | kubectl can reach harbor | `kubectl auth can-i list namespaces --context=harbor` returns `yes` | EKS access entry not granted. Not something `seictl onboard` provisions today. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
-| 5 | Platform repo worktree on main, fresh | `$SEI_PLATFORM_REPO` (or fallback) is a `sei-protocol/platform` clone with a clean worktree on `main` at or behind `origin/main` | If the repo isn't located, surface the clone command and halt. If on main but dirty, halt and ask the engineer to stash/commit. If on a different branch with WIP, create an isolated worktree (`git worktree add ~/.seictl/worktrees/platform-main main`) and operate from there — never trample the engineer's primary checkout. If main is stale, run `git fetch origin && git pull --ff-only origin main` in the worktree, then continue. |
-| 6 | Identity file present | `~/.seictl/engineer.json` parses + has `alias` + `name` | Route to **First Run** below — capture alias + name, write the identity file, run `seictl onboard --apply` from the gate-5 worktree to open the namespace + IAM provisioning PR. |
+| 5 | Platform repo clone in CWD, on main, fresh | `<cwd>/seictl-platform/` is a `sei-protocol/platform` clone, on `main`, at or behind `origin/main` (or `$SEI_PLATFORM_REPO` is set and points at a clone matching that shape) | **Default behavior: clone fresh into `<cwd>/seictl-platform/`** rather than searching for existing clones. If the directory doesn't exist, run `git clone git@github.com:sei-protocol/platform.git <cwd>/seictl-platform` — fully in-band, no halt. If it exists and is on main, run `git fetch origin && git pull --ff-only origin main`. If `$SEI_PLATFORM_REPO` is set, honor that path absolutely as an override. The engineer's primary platform checkout is **never** discovered or modified — keeps WIP isolated and the agent's working state self-contained per session. |
+| 6 | Identity file present | `~/.seictl/config.json` parses + has `alias` + `namespace` (file mode 0600, parent dir 0700 — seictl refuses loose perms) | Route to **First Run** below — capture alias only (namespace is derived as `eng-<alias>`), run `seictl onboard --apply` from the gate-5 clone to open the namespace + IAM provisioning PR. |
 | 7 | Namespace reconciled | `kubectl get namespace eng-<alias>` returns 0 | Onboarding PR not merged or Flux hasn't reconciled yet. Surface the PR URL; offer to poll until the namespace appears (~60s post-merge). |
 | 8 | Workspace branch ready (GitOps only) | `git ls-remote origin eng-<alias>-workspace` returns a ref | Pending [Tide#25] item 2 (onboard extension). Surface the manual bootstrap (`git checkout -b eng-<alias>-workspace && git push`, then ask platform team for the Flux Kustomization); halt the GitOps flow. |
 
-Once all eight pass, cache the pass for the session — subsequent verbs skip the gates unless a halt condition (SSO expiry, kubectl context drift, worktree drift) triggers a targeted re-check.
+Once all eight pass, cache the pass for the session — subsequent verbs skip the gates unless a halt condition (SSO expiry, kubectl context drift, clone drift) triggers a targeted re-check.
 
 For deep detail per gate (recovery commands, edge cases, the full new-engineer walk-through, mid-session drift handling), see `references/preflight.md`.
 
@@ -90,18 +90,19 @@ See `references/ephemeral-chain-flow.md` for the architectural model (branch con
 
 ## First Run (the recovery for pre-flight gate 6)
 
-When pre-flight gate 6 fails (`~/.seictl/engineer.json` missing), enter First Run. By this point gates 1–5 have already passed — seictl, SSO, kubeconfig, access entry, and a clean platform repo worktree on main are all in place — so the onboarding PR can be opened and the cluster will accept it.
+When pre-flight gate 6 fails (`~/.seictl/config.json` missing), enter First Run. By this point gates 1–5 have already passed — seictl, SSO, kubeconfig, access entry, and a clean platform repo clone in CWD on main are all in place — so the onboarding PR can be opened and the cluster will accept it.
 
 ```
-sei-platform-engineer: First time — let's set up your identity.
+First time — let's set up your identity.
 Alias [defaults from $USER]:
-Name [defaults from `git config user.name`]:
-Saved to ~/.seictl/engineer.json.
+Saved to ~/.seictl/config.json (alias + namespace=eng-<alias>, mode 0600).
 
 Generating onboarding PR for clusters/harbor/engineers/<alias>/...
 ```
 
-The skill calls `seictl onboard --alias <alias> --apply` which:
+Only the alias is captured — namespace defaults to `eng-<alias>` per onboarding convention. The file is `~/.seictl/config.json` (alias + namespace fields, file mode 0600 enforced by seictl).
+
+Calling `seictl onboard --alias <alias> --apply` which:
 
 1. Validates the alias (lowercase, k8s-namespace-safe — `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`)
 2. Generates `clusters/harbor/engineers/<alias>/{kustomization,namespace,bench-seiload-sa}.yaml` in the platform repo working tree
@@ -192,7 +193,7 @@ Stop and report to the user if:
 
 - **kubectl context drifts mid-session** — engineer switched contexts in another terminal. Re-confirm before any side effect.
 - **`seictl` exits non-zero with an unexpected error code** — surface stderr. Do not retry silently.
-- **Identity file becomes invalid** — corrupted JSON or missing fields. Halt and prompt the engineer to fix or re-create `~/.seictl/engineer.json`.
+- **Identity file becomes invalid** — corrupted JSON or missing fields. Halt and prompt the engineer to fix or re-create `~/.seictl/config.json`.
 - **Engineer's onboarding PR isn't merged but they're trying to spin up a chain or bench** — namespace doesn't exist yet. Stop and report. Don't auto-create.
 - **Image digest resolution fails** — image not in ECR or auth missing. Stop and surface the recovery command.
 - **Image not yet in ECR** — sei-chain CI may be behind. Surface the explicit retry command per the autobake race-guard pattern; don't loop silently.
@@ -267,9 +268,9 @@ Use the `fewer-permission-prompts` skill against a real session transcript once 
 
 ## State management
 
-No per-run state is maintained here — `seictl` owns it. Operation is stateless between invocations: every cluster-facing verb starts with a fresh `seictl context` call to establish ground truth. The engineer's identity lives at `~/.seictl/engineer.json` (managed by `seictl`), and active resources live in the cluster (queryable by `seictl bench list`).
+No per-run state is maintained here — `seictl` owns it. Operation is stateless between invocations: every cluster-facing verb starts with a fresh `seictl context` call to establish ground truth. The engineer's identity lives at `~/.seictl/config.json` (managed by `seictl`), and active resources live in the cluster (queryable by `seictl bench list`).
 
-If `~/.seictl/engineer.json` exists but is malformed, halt and prompt the engineer to fix or re-create the file. Don't try to repair.
+If `~/.seictl/config.json` exists but is malformed, halt and prompt the engineer to fix or re-create the file. Don't try to repair.
 
 ---
 

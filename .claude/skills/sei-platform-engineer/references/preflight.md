@@ -6,15 +6,15 @@ Last verified: 2026-05-04 against shipped seictl v1, harbor EKS cluster (eu-cent
 
 ## Why pre-flight is a ramp, not just a gate
 
-A pre-flight that just rejects on missing prereqs gives engineers an error and walks away. The value here is in being the rails — running pre-flight should *land the engineer in the ready state*, not just diagnose the gap. Where the recovery is in reach (kubeconfig write, worktree refresh, identity-file create, onboarding PR), execute it and continue. Where the recovery is out-of-band (SSO login in another terminal, EKS access entry from the platform team, PR merge), surface the exact next step and halt cleanly.
+A pre-flight that just rejects on missing prereqs gives engineers an error and walks away. The value here is in being the rails — running pre-flight should *land the engineer in the ready state*, not just diagnose the gap. Where the recovery is in reach (kubeconfig write, fresh clone in CWD, identity-file create, onboarding PR), execute it and continue. Where the recovery is out-of-band (SSO login in another terminal, EKS access entry from the platform team, PR merge), surface the exact next step and halt cleanly.
 
 The end state pre-flight delivers:
 
 - `seictl` on PATH
 - AWS SSO session active
 - `harbor` kubectl context present and authorized
-- Platform repo locatable, on a clean worktree pointing at `main`, fresh with origin
-- `~/.seictl/engineer.json` populated
+- Platform repo cloned into `<cwd>/seictl-platform/` (or `$SEI_PLATFORM_REPO`), on `main`, fresh with origin
+- `~/.seictl/config.json` populated
 - `eng-<alias>` namespace exists and is reconciled by Flux
 - `eng-<alias>-workspace` branch exists with a per-engineer Flux Kustomization watching it
 
@@ -85,63 +85,56 @@ Halt until the access entry lands. The platform team typically turns this around
 
 **Edge case — read-only access vs full access:** some engineers may have a read-only access entry (can `get` / `list` / `describe` but not `create`). Gate 4 only verifies *some* kubectl reach. Side-effecting verbs (`seictl onboard --apply`) will fail later with `Forbidden`; surface that as a separate gap when it surfaces.
 
-### Gate 5: platform repo worktree on main, fresh
+### Gate 5: platform repo clone in CWD, on main, fresh
 
-**Verifies:** the `sei-protocol/platform` repo is locatable on disk, has a worktree pointing at `main` with a clean working tree, and that worktree is at or behind `origin/main` (fast-forwardable).
+**Verifies:** `<cwd>/seictl-platform/` is a `sei-protocol/platform` clone, on `main`, at or behind `origin/main` (fast-forwardable). Or `$SEI_PLATFORM_REPO` is set and resolves to a clone matching that shape.
 
-**Why:** every engineer-facing flow that touches git — onboarding (which generates a namespace+RBAC PR), GitOps chain spinup (which writes manifests to the workspace branch) — needs a clean main-checked-out workspace to branch from. The engineer's primary checkout often has WIP on a different branch; trampling that is unacceptable. A separate worktree gives a clean, isolated workspace without disturbing the primary.
+**Why:** every engineer-facing flow that touches git — onboarding (which generates a namespace+RBAC PR), GitOps chain spinup (which writes manifests to the workspace branch) — needs a clean main-checked-out workspace to branch from. **Default to creating a fresh clone in the current working directory rather than searching for and operating on the engineer's existing checkouts.** The engineer's primary platform checkout often has WIP on a different branch; the agent should never discover or modify it. A dedicated session-scoped clone in CWD keeps state self-contained, predictable, and disposable.
 
 **Detection (in order):**
 
-1. Locate the repo: prefer `$SEI_PLATFORM_REPO` if set; fall back to `~/sei-workspace/platform`, then `~/platform`. The first existing path that resolves to a `sei-protocol/platform` clone wins.
-2. Confirm it's a git repo with the expected origin remote (`git -C <path> remote get-url origin` returns a URL containing `sei-protocol/platform`).
-3. Look for a worktree on `main`: parse `git -C <path> worktree list --porcelain` for an entry with `branch refs/heads/main`. If the primary checkout is on main *and* clean, that counts. Otherwise, look for `~/.seictl/worktrees/platform-main` (the canonical isolated-worktree location).
-4. Confirm the worktree's `main` is fast-forward with `origin/main`: `git -C <worktree> fetch origin && git -C <worktree> merge-base --is-ancestor main origin/main`.
+1. If `$SEI_PLATFORM_REPO` is set, honor that path as an explicit override (skip steps 2-3 and use it directly).
+2. Check `<cwd>/seictl-platform/` — does it exist as a valid clone of `sei-protocol/platform`? Verify with `git -C <cwd>/seictl-platform remote get-url origin` returning a URL containing `sei-protocol/platform`.
+3. If it doesn't exist, that's a recovery path (clone fresh) — not a halt.
 
-**Recovery (in-band where possible):**
+Once a clone is selected (existing or freshly created):
 
-- **Repo not located.** Surface:
+4. Confirm `main` is checked out: `git -C <clone> rev-parse --abbrev-ref HEAD` returns `main`. If a different branch is checked out, run `git -C <clone> checkout main` (the dedicated clone has no WIP to protect).
+5. Confirm `main` is fast-forward with `origin/main`: `git -C <clone> fetch origin && git -C <clone> merge-base --is-ancestor main origin/main`.
+
+**Recovery (in-band, no halts in the common case):**
+
+- **`<cwd>/seictl-platform/` doesn't exist.** Clone it directly:
   ```sh
-  git clone git@github.com:sei-protocol/platform.git ~/sei-workspace/platform
-  # Or set SEI_PLATFORM_REPO to point at an existing clone
+  git clone git@github.com:sei-protocol/platform.git <cwd>/seictl-platform
   ```
-  Halt until the clone exists.
+  This is fully in-band — the dedicated clone is the agent's working copy, not the engineer's primary. No confirmation needed.
 
-- **Repo located, but no worktree on main.** Create the canonical isolated worktree:
-  ```sh
-  git -C <repo> worktree add ~/.seictl/worktrees/platform-main main
-  ```
-  Continue using that worktree as the platform-repo path for subsequent steps.
+- **Clone exists but is on a non-main branch.** Run `git -C <cwd>/seictl-platform checkout main` directly. Since this clone is agent-managed, no WIP-protection concerns.
 
-- **Primary checkout is on main but dirty.** Don't override engineer state. Either fall through to creating an isolated worktree (preferred — leaves the primary alone), or halt and surface:
-  > Your primary platform checkout is on main with uncommitted changes. Stash or commit before continuing, or set `$SEI_PLATFORM_REPO` to a different clone.
+- **Main is stale.** Run `git -C <cwd>/seictl-platform fetch origin && git -C <cwd>/seictl-platform pull --ff-only origin main`. Continue.
 
-- **Worktree main is stale.** Run `git -C <worktree> pull --ff-only origin main`. Continue.
+- **Local main has unpushed commits diverging from `origin/main`.** This shouldn't happen on the agent's dedicated clone (no one else commits there). If it does, halt and surface the divergence — investigate before continuing.
 
-- **Local main has unpushed commits diverging from `origin/main`.** Halt and surface:
-  > Local main is ahead of origin/main by N commits. Investigate before continuing — onboarding will branch off main and your local commits would land in the onboarding PR.
+- **`$SEI_PLATFORM_REPO` is set but the path doesn't resolve to a valid clone.** Halt and surface the discrepancy — don't silently fall back to creating a CWD clone (the engineer's intent was explicit; honor it or stop).
 
-**Edge case — engineer prefers a non-default repo location:** respect `$SEI_PLATFORM_REPO` absolutely. If the env var is set but the path doesn't resolve to a valid clone, surface the discrepancy and halt — don't silently fall back.
+**Edge case — engineer wants a single shared clone instead of one per CWD:** set `$SEI_PLATFORM_REPO=<path>` to a stable location (e.g., `~/seictl-platform`). The env var overrides the CWD-clone default and the same clone is reused across sessions. Trade-off: shared state across sessions; pick whichever fits the workflow.
 
-**Edge case — multiple worktrees on main:** if `git worktree list` shows main checked out in two places (the primary + an isolated worktree), prefer the isolated worktree (`~/.seictl/worktrees/platform-main`) for any agent-driven operations. The primary belongs to the engineer.
+**Edge case — engineer's CWD is itself the platform repo:** unlikely (the agent typically runs from a workspace dir, not inside the platform repo), but if it happens, `<cwd>/seictl-platform` would create a nested clone, which is fine — the dedicated clone is independent of the surrounding repo's state. The engineer can `gitignore` the directory or remove it after the session.
 
-**Edge case — the canonical isolated worktree exists but points at a different branch:** prune and recreate.
-```sh
-git -C <repo> worktree remove ~/.seictl/worktrees/platform-main
-git -C <repo> worktree add ~/.seictl/worktrees/platform-main main
-```
+**Edge case — `<cwd>/seictl-platform` is dirty (uncommitted changes from a prior interrupted session):** halt and surface what's there. The agent doesn't auto-clean a clone that may have in-flight work; let the engineer inspect and `git stash` or `rm -rf` as appropriate.
 
 ### Gate 6: identity file exists
 
-**Verifies:** `~/.seictl/engineer.json` exists, parses as JSON, has `alias` and `name` fields, and `alias` matches the regex `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`.
+**Verifies:** `~/.seictl/config.json` exists, parses as JSON, has `alias` and `namespace` fields, `alias` matches the regex `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`, file mode is `0600` (parent dir `0700` — seictl refuses to read on looser perms).
 
-**Why:** every per-engineer artifact (namespace, workspace branch, S3 prefix, IAM role) keys off the alias. The identity file is the canonical source.
+**Why:** every per-engineer artifact (namespace, workspace branch, S3 prefix, IAM role) keys off the alias. The identity file is the canonical source. The `namespace` field is the operating namespace seictl uses for cluster-facing verbs — by convention `eng-<alias>` for engineer cells, but writeable verbatim so non-engineer flows (nightly, CI) can drop a shim with whatever namespace they target.
 
-**Recovery (in-band, partially):** route to **First Run**. The skill prompts for alias + name (defaulting from `$USER` and `git config user.name`), writes `~/.seictl/engineer.json`, then runs `seictl onboard --apply`. Onboarding opens a PR for the namespace + RBAC manifests; the engineer must merge it. The skill surfaces the PR URL and halts pending merge — Flux reconcile happens automatically once merged (~60s).
+**Recovery (in-band, partially):** route to **First Run**. Prompt for alias only (default from `$USER`); namespace is derived as `eng-<alias>` by `seictl onboard`. `seictl onboard --apply` writes the config file with mode 0600 and opens a PR for the namespace + RBAC manifests; the engineer must merge it. Surface the PR URL and halt pending merge — Flux reconcile happens automatically once merged (~60s).
 
 **Edge case — corrupted identity file:** the file exists but doesn't parse, or has an invalid alias. Halt and prompt the engineer to inspect / delete / recreate. Don't try to repair.
 
-**Edge case — alias mismatch with namespace:** if `~/.seictl/engineer.json` says `alias=foo` but `kubectl get namespace eng-foo` returns NotFound while `kubectl get namespace eng-bar` exists, something has drifted. Halt and surface both states; let the engineer decide.
+**Edge case — alias mismatch with namespace:** if `~/.seictl/config.json` says `alias=foo` but `kubectl get namespace eng-foo` returns NotFound while `kubectl get namespace eng-bar` exists, something has drifted. Halt and surface both states; let the engineer decide.
 
 ### Gate 7: namespace reconciled
 
@@ -149,7 +142,7 @@ git -C <repo> worktree add ~/.seictl/worktrees/platform-main main
 
 **Why:** every workload the engineer creates lands in their namespace. If the namespace doesn't exist, every subsequent kubectl call fails.
 
-**Recovery (out-of-band, then automatic):** if the onboarding PR hasn't been merged, surface the PR URL (captured in `~/.seictl/engineer.json` or recoverable via `gh pr list --search seictl/onboard-<alias>`) and halt. Once merged, Flux reconciles in ~60s — offer to poll until the namespace appears.
+**Recovery (out-of-band, then automatic):** if the onboarding PR hasn't been merged, surface the PR URL (captured in `~/.seictl/config.json` or recoverable via `gh pr list --search seictl/onboard-<alias>`) and halt. Once merged, Flux reconciles in ~60s — offer to poll until the namespace appears.
 
 **Edge case — onboarding PR was merged but Flux is unhealthy:** check `kubectl get kustomization -A | grep harbor-validation-shared-rules` (or whichever Kustomization owns `clusters/harbor/engineers/`) for `Ready=True`. If reconcile is failing, surface the Kustomization name + status and halt.
 
@@ -192,7 +185,7 @@ Common drift modes:
 - **SSO expires (most frequent).** Re-run gate 2; if recovery succeeds, resume the in-flight verb.
 - **kubectl context switched in another terminal.** Re-run gate 3 + gate 4. If the engineer is now on a different cluster, refuse the in-flight verb and ask them to switch back.
 - **EKS access entry revoked.** Gate 4 fails. Unusual mid-session — surface and halt.
-- **Platform repo worktree state changed (e.g., main pulled in another window, dirty tree).** Re-run gate 5; recovery is auto-fetch + ff or worktree refresh.
+- **Platform repo clone drift (someone touched the dedicated clone in another window, or it went stale).** Re-run gate 5; recovery is auto-fetch + ff merge against `origin/main`.
 - **Namespace deleted by another engineer / Flux re-reconcile.** Gate 7 fails. Surface and halt; the engineer decides whether to re-onboard or escalate.
 
 In every case, the recovery is to re-run the relevant gate and resume. Don't silently work around drift.
@@ -209,9 +202,9 @@ For a literal "fresh laptop" engineer, the first session looks like:
 6. Gate 3 fails (no kubeconfig). Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei` directly. Continue.
 7. Gate 4 fails (no access entry). Surface "ask platform team in #harbor-onboarding," halt.
 8. Engineer pings the channel, gets the access entry. Comes back, says "ok try again."
-9. Gate 5 fails (no platform repo). Surface `git clone git@github.com:sei-protocol/platform.git ~/sei-workspace/platform`, halt.
-10. Engineer clones, says "ok." Gate 5 re-runs: now locates the repo. Primary checkout is on main, clean — gate 5 passes (no isolated worktree needed yet). If the primary had been on a different branch with WIP, would create `~/.seictl/worktrees/platform-main` instead and use that.
-11. Gate 6 fails (no identity file). Enter First Run: prompt for alias + name, write `~/.seictl/engineer.json`, run `seictl onboard --apply` from the gate-5 worktree. PR is opened.
+9. Gate 5 fails (no `<cwd>/seictl-platform/` clone). **Recovery is in-band** — clone fresh into `<cwd>/seictl-platform`, check out main, fetch. No halt.
+10. Gate 5 now passes — the dedicated clone is the agent's working copy for the rest of the session. The engineer's primary platform checkout (if any) is never touched.
+11. Gate 6 fails (no identity file). Enter First Run: prompt for alias (default from `$USER`); `seictl onboard --apply` writes `~/.seictl/config.json` (alias + namespace=eng-<alias>, mode 0600) and runs from the gate-5 clone. PR is opened.
 12. Surface the PR URL and halt. "Merge this; ping me when done."
 13. Engineer merges, says "merged."
 14. Poll gate 7 until the namespace appears (~60s). Gate 7 passes.
@@ -219,7 +212,7 @@ For a literal "fresh laptop" engineer, the first session looks like:
 16. Engineer runs the bootstrap, asks platform team to add the per-engineer Flux Kustomization.
 17. All eight gates pass. "You're on the rails. Try `spin up a chain of 4 validators with image X`."
 
-Total elapsed wall-clock: typically one platform-team turnaround (gate 4) plus one PR merge (gate 6–7). On a second session the entire pre-flight runs in <5s — gate 5 in particular is just `git -C <worktree> fetch + ff merge`.
+Total elapsed wall-clock: typically one platform-team turnaround (gate 4) plus one PR merge (gate 6–7). On a second session in the same CWD, gate 5 is just `git -C <cwd>/seictl-platform fetch + ff merge` (~1s); a different CWD triggers a fresh clone (~5s). Pre-flight overall in the warm case: <5s.
 
 ## What pre-flight is *not* responsible for
 
