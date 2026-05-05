@@ -6,7 +6,7 @@ Last verified: 2026-05-04 against [Tide#25] (architectural synopsis) and the har
 
 ## The architectural model in three lines
 
-1. **`seictl` is a render layer.** For engineer-facing flows, the skill calls `seictl ...` (no `--apply`) and captures the rendered YAML; git+Flux do the apply. `--apply` is reserved for automated in-cluster callers (release-test CronJob, CI/CD); the skill never takes that path for an engineer.
+1. **`seictl` is a render layer.** For engineer-facing flows, call `seictl ...` (no `--apply`) and capture the rendered YAML; git+Flux do the apply. `--apply` is reserved for automated in-cluster callers (release-test CronJob, CI/CD); never take that path for an engineer.
 2. **Branches aren't the isolation boundary, paths are.** Each engineer has one persistent branch `eng-${alias}-workspace`. Within it, each task lives at its own path under `clusters/harbor/eng/${alias}/<task-name>/`. Per-task PRs are unnecessary friction; per-task directories are sufficient isolation.
 3. **Flux watches the branch, not main.** Onboarding provisions a per-engineer Flux `GitRepository` + `Kustomization` pointing at the workspace branch. Direct push, no PR loop. PR only at *promotion* (workspace → main, rare and deliberate).
 
@@ -30,7 +30,7 @@ flowchart LR
 |---|---|
 | Branch name | `eng-${alias}-workspace` (one per engineer, persistent, never deleted) |
 | Watcher | Flux `GitRepository` + `Kustomization` provisioned by `seictl onboard` |
-| Push policy | Direct push by the engineer (or by the skill on their behalf). No PR. |
+| Push policy | Direct push by the engineer (or on their behalf). No PR. |
 | Promotion | When something graduates to shared infra (e.g., a long-running test profile), open a PR from `eng-${alias}-workspace` → `main`. This is rare. |
 | Cleanup | `git rm` the path when a task is done. Flux reconciles the deletion. |
 
@@ -61,11 +61,11 @@ The task name is the isolation key. `clusters/harbor/eng/bdchatham/bench-mempool
 | `seictl onboard` extension to provision per-engineer Flux `GitRepository` + `Kustomization` | **pending** ([Tide#25] item 2) |
 | Grafana dashboard with `sei.io/chain-id` filter | **pending** ([Tide#25] item 4) |
 
-Until `--to-pr` ships, the skill performs the same shape using existing primitives: `seictl <verb>` (render only) → `git` to commit + push on the workspace branch → `gh` for any read-only inspection. **The skill should never invoke `seictl chain up --to-pr` until that flag is shipped.** When it ships, the skill collapses two manual steps (write file, git commit/push) into one tool call and this reference is updated.
+Until `--to-pr` ships, perform the same shape using existing primitives: `seictl <verb>` (render only) → `git` to commit + push on the workspace branch → `gh` for any read-only inspection. **Never invoke `seictl chain up --to-pr` until that flag is shipped.** When it ships, two manual steps (write file, git commit/push) collapse into one tool call and this reference is updated.
 
 ## Flow: spinup ephemeral chain (today's primitives)
 
-The procedure the skill follows when an engineer says something like "start a chain of 4 validators with seid sha=abc and load it with the profile we used last week."
+The procedure to follow when an engineer says something like "start a chain of 4 validators with seid sha=abc and load it with the profile we used last week."
 
 1. **Identity + cluster check.** `seictl context` — confirm cluster is `harbor` and engineer identity is loaded. Refuse on prod.
 2. **Workspace branch check.** Engineer's local platform repo checkout has `eng-${alias}-workspace` branch checked out (or fetched + checked out). If absent, halt and route through `seictl onboard` extension (pending) or surface the manual `git checkout -b eng-${alias}-workspace` step.
@@ -90,7 +90,7 @@ Stop and report (don't auto-remediate):
 
 ## Why GitOps for engineers, and why `--apply` isn't even on the table
 
-GitOps is not "the recommended option" — it's the only path the skill takes for engineer-facing intents. `--apply` is for automated callers only. The split:
+GitOps is not "the recommended option" — it's the only path for engineer-facing intents. `--apply` is for automated callers only. The split:
 
 **`--apply` is for non-human callers in-cluster** — release-test CronJobs, CI/CD pipelines, anything that runs as a Job inside the cluster, doesn't need a human-readable audit trail, and benefits from skipping the git+Flux loop. The release-test orchestrator at `clusters/harbor/nightly/release/` is the canonical example: a CronJob runs `seictl chain up --apply`, captures the JSON envelope, applies a downstream Job. Fast, atomic, no git dependency. Right shape *for that audience*.
 
@@ -102,7 +102,7 @@ GitOps is not "the recommended option" — it's the only path the skill takes fo
 - Promotion (workspace → main PR) is only available for things on a branch. `--apply` produces nothing promotable.
 - Multi-engineer forensics (cluster headroom incidents, cross-team conflicts) lean on `git log` across `clusters/harbor/eng/`. `--apply` runs are invisible until the cluster surfaces them as resource pressure.
 
-**The skill does not invoke `--apply` for engineer-facing intents.** It renders, writes to the workspace branch, commits, pushes — period. The legacy escape-hatch procedure exists for the rare case where an engineer explicitly wants no git trail (CI debug, one-shot throwaway), and the skill steers them to GitOps first before honoring the request.
+**Never invoke `--apply` for engineer-facing intents.** Render, write to the workspace branch, commit, push — period. The legacy escape-hatch procedure exists for the rare case where an engineer explicitly wants no git trail (CI debug, one-shot throwaway); steer them to GitOps first before honoring the request.
 
 Both modes share the same render code; only the terminal action differs. The skill's terminal action is `git push`, not `kubectl apply`.
 
@@ -114,7 +114,7 @@ This is the only PR loop in the engineer flow. It's deliberate, rare, and review
 
 ## References
 
-- [Tide#25] — architectural synopsis that produced this flow (the skill embeds the gist; the issue carries the full discussion).
+- [Tide#25] — architectural synopsis that produced this flow (the gist is embedded here; the issue carries the full discussion).
 - [seictl#124] — in-cluster auth fallback (lets seictl run from K8s Jobs; load-bearing for the release-test parallel).
 - [seictl#127] — `keys generate` subcommand for ephemeral admin keypair (related enhancement).
 - `clusters/harbor/nightly/release/` (sei-protocol/platform) — proof-of-concept that seictl can be driven by a non-human caller. The CronJob shape is what the engineer flow mirrors with `git push` substituted for `kubectl apply`.

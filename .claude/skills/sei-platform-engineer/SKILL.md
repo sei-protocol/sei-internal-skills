@@ -5,20 +5,20 @@ description: "Engineer-facing interface to Sei platform infrastructure on the ha
 
 # sei-platform-engineer
 
-Engineer-facing interface to Sei platform infrastructure on the **harbor** EKS cluster. You describe what you want; the skill translates intent into `seictl` invocations. You don't need to know that SeiNode/SeiNodeDeployment CRDs exist, what Kustomize is, or where snapshots live in S3 — `seictl` knows. The skill maps engineer intent to the right invocation.
+Engineer-facing interface to Sei platform infrastructure on the **harbor** EKS cluster. The engineer describes what they want; intent translates into `seictl` invocations and GitOps writes. The engineer doesn't need to know that SeiNode/SeiNodeDeployment CRDs exist, what Kustomize is, or where snapshots live in S3 — `seictl` knows.
 
-This is the conversational layer over `seictl` (sei-protocol/seictl). When MCP graduation happens, the same procedures become tool calls; the skill content is the contract today.
+This is the conversational layer over `seictl` (sei-protocol/seictl). When MCP graduation happens, the same procedures become tool calls; the content here is the contract today.
 
 ## Guardrails
 
-This skill operates against **harbor**. Engineers don't have prod kubeconfig contexts locally — the auth boundary enforces the separation, the skill doesn't duplicate it.
+Operate against **harbor**. Engineers don't have prod kubeconfig contexts locally — the auth boundary enforces the separation, no duplication needed here.
 
-The full discipline lives in **Pre-flight** below (and `references/preflight.md`). Summary of the hard rules:
+The full discipline lives in **Pre-flight** below (and `references/preflight.md`). The hard rules:
 
 1. **Cluster must be harbor.** `seictl context` confirms; refuse on prod outright.
-2. **Identity required.** `~/.seictl/engineer.json` must exist before any `seictl chain`, `seictl rpc`, or `seictl bench` command. Pre-flight gate 5 routes to First Run if absent.
-3. **Scope echo on first side-effecting verb.** Echo cluster + namespace + image digest + the workspace path the skill is about to write to. Wait for confirmation.
-4. **Refuse-and-surface, don't auto-remediate.** Where pre-flight can run a recovery in-band (writing a kubeconfig, creating an identity file), it does. Where the recovery is out-of-band (SSO login, EKS access entry, PR merge), it surfaces the next step and halts. The skill never silently works around a missing prereq.
+2. **Identity required.** `~/.seictl/engineer.json` must exist before any `seictl chain`, `seictl rpc`, or `seictl bench` command. Pre-flight gate 6 routes to First Run if absent.
+3. **Scope echo on first side-effecting verb.** Echo cluster + namespace + image digest + the workspace path about to be written. Wait for confirmation.
+4. **Refuse-and-surface, don't auto-remediate.** Where pre-flight has an in-band recovery (write a kubeconfig, create the identity file, refresh main in a worktree), run it. Where the recovery is out-of-band (SSO login, EKS access entry, PR merge), surface the next step and halt. Never silently work around a missing prereq.
 
 ## Preconditions
 
@@ -36,7 +36,7 @@ These are the *steady state* requirements. The skill doesn't assume the engineer
 
 ## Pre-flight (run at session start, before any side-effecting action)
 
-Pre-flight is the skill's first job in any new session. It's a **ramp**, not just a gate — where the recovery is in the skill's reach (write a kubeconfig, create the identity file, run `seictl onboard --apply`), the skill executes it and continues. Where the recovery is out-of-band (SSO login, EKS access entry from platform team, PR merge), the skill surfaces the exact next step and halts cleanly. The goal is to get the engineer **on the rails** — namespace exists, kubectl works, GitOps flow available — as quickly as possible.
+Pre-flight is the first job of any new session. It's a **ramp**, not just a gate — where there's an in-band recovery (write a kubeconfig, refresh a worktree, create the identity file, run `seictl onboard --apply`), execute it and continue. Where the recovery is out-of-band (SSO login, EKS access entry from platform team, PR merge), surface the exact next step and halt cleanly. The goal is to get the engineer **on the rails** — namespace exists, kubectl works, platform repo ready, GitOps flow available — as quickly as possible.
 
 Run the gates in order. Halt on the first failure; later gates depend on earlier ones.
 
@@ -44,13 +44,14 @@ Run the gates in order. Halt on the first failure; later gates depend on earlier
 |---|---|---|---|
 | 1 | `seictl` on PATH | `seictl --version` returns 0 | Surface `brew install sei-protocol/tap/seictl` (or release URL); halt. |
 | 2 | AWS SSO session active | `aws sts get-caller-identity` returns 0 | Surface `aws sso login --profile sei`; halt. |
-| 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` | **Skill runs** `aws eks update-kubeconfig --name harbor --region eu-central-1` directly, then re-checks and continues. |
+| 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` | Run `aws eks update-kubeconfig --name harbor --region eu-central-1` directly, re-check, continue. |
 | 4 | kubectl can reach harbor | `kubectl auth can-i list namespaces --context=harbor` returns `yes` | EKS access entry not granted. Not something `seictl onboard` provisions today. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
-| 5 | Identity file present | `~/.seictl/engineer.json` parses + has `alias` + `name` | Route to **First Run** below — captures alias + name, writes the identity file, runs `seictl onboard --apply` to open the namespace + IAM provisioning PR. |
-| 6 | Namespace reconciled | `kubectl get namespace eng-<alias>` returns 0 | Onboarding PR not merged or Flux hasn't reconciled yet. Surface the PR URL; offer to poll until the namespace appears (~60s post-merge). |
-| 7 | Workspace branch ready (GitOps only) | `git ls-remote origin eng-<alias>-workspace` returns a ref | Pending [Tide#25] item 2 (onboard extension). Surface the manual bootstrap (`git checkout -b eng-<alias>-workspace && git push`, then ask platform team for the Flux Kustomization); halt the GitOps flow. |
+| 5 | Platform repo worktree on main, fresh | `$SEI_PLATFORM_REPO` (or fallback) is a `sei-protocol/platform` clone with a clean worktree on `main` at or behind `origin/main` | If the repo isn't located, surface the clone command and halt. If on main but dirty, halt and ask the engineer to stash/commit. If on a different branch with WIP, create an isolated worktree (`git worktree add ~/.seictl/worktrees/platform-main main`) and operate from there — never trample the engineer's primary checkout. If main is stale, run `git fetch origin && git pull --ff-only origin main` in the worktree, then continue. |
+| 6 | Identity file present | `~/.seictl/engineer.json` parses + has `alias` + `name` | Route to **First Run** below — capture alias + name, write the identity file, run `seictl onboard --apply` from the gate-5 worktree to open the namespace + IAM provisioning PR. |
+| 7 | Namespace reconciled | `kubectl get namespace eng-<alias>` returns 0 | Onboarding PR not merged or Flux hasn't reconciled yet. Surface the PR URL; offer to poll until the namespace appears (~60s post-merge). |
+| 8 | Workspace branch ready (GitOps only) | `git ls-remote origin eng-<alias>-workspace` returns a ref | Pending [Tide#25] item 2 (onboard extension). Surface the manual bootstrap (`git checkout -b eng-<alias>-workspace && git push`, then ask platform team for the Flux Kustomization); halt the GitOps flow. |
 
-Once all seven pass, cache the pass for the session — subsequent verbs skip the gates unless a halt condition (SSO expiry, kubectl context drift) triggers a targeted re-check.
+Once all eight pass, cache the pass for the session — subsequent verbs skip the gates unless a halt condition (SSO expiry, kubectl context drift, worktree drift) triggers a targeted re-check.
 
 For deep detail per gate (recovery commands, edge cases, the full new-engineer walk-through, mid-session drift handling), see `references/preflight.md`.
 
@@ -74,9 +75,9 @@ Why this is the strong opinion:
 - The same workspace branch is the substrate for promotion to shared infra (workspace → main PR). `--apply` produces nothing promotable.
 - Cluster headroom incidents are easier to forensic — `git log clusters/harbor/eng/` tells you exactly who did what when, across all engineers.
 
-**`--apply` is reserved for automated callers** — the release-test CronJob at `clusters/harbor/nightly/release/`, CI/CD pipelines, anything that runs in-cluster, doesn't need a human-readable audit trail, and benefits from the speed of skipping the git+Flux loop. **The skill itself doesn't take this path.** If an engineer explicitly asks for `--apply`, the skill first asks whether the GitOps flow would serve the same need; only proceeds if the engineer confirms they want no git history (rare; e.g., a one-shot CI debug session).
+**`--apply` is reserved for automated callers** — the release-test CronJob at `clusters/harbor/nightly/release/`, CI/CD pipelines, anything that runs in-cluster, doesn't need a human-readable audit trail, and benefits from the speed of skipping the git+Flux loop. **Don't take this path for engineer-facing intents.** If an engineer explicitly asks for `--apply`, first ask whether the GitOps flow would serve the same need; only proceed if they confirm they want no git history (rare; e.g., a one-shot CI debug session).
 
-Same render layer, two terminal actions. **The skill's terminal action is `git push`, not `kubectl apply`.**
+Same render layer, two terminal actions. **The terminal action for engineer-facing intents is `git push`, not `kubectl apply`.**
 
 **Branches aren't the isolation boundary, paths are.** One persistent branch per engineer, never deleted. Each task is its own directory. PR only at *promotion* (workspace → main, rare and deliberate).
 
@@ -86,9 +87,9 @@ Same render layer, two terminal actions. **The skill's terminal action is `git p
 
 See `references/ephemeral-chain-flow.md` for the architectural model (branch convention, path scheme, what's pending), `references/harbor-cluster.md` for cluster facts, `references/interim-namespace-strategy.md` for the cells-forward labels we use today.
 
-## First Run (the recovery for pre-flight gate 5)
+## First Run (the recovery for pre-flight gate 6)
 
-When pre-flight gate 5 fails (`~/.seictl/engineer.json` missing), the skill enters First Run. By this point gates 1–4 have already passed — seictl, SSO, kubeconfig, and access entry are all in place — so the engineer can actually open a PR and the cluster will accept it.
+When pre-flight gate 6 fails (`~/.seictl/engineer.json` missing), enter First Run. By this point gates 1–5 have already passed — seictl, SSO, kubeconfig, access entry, and a clean platform repo worktree on main are all in place — so the onboarding PR can be opened and the cluster will accept it.
 
 ```
 sei-platform-engineer: First time — let's set up your identity.
@@ -125,7 +126,7 @@ Every chain/RPC/bench intent maps to the **GitOps flow**: render with `seictl` (
 | "What's running on my workspace" / "what tasks do I have" | `git ls-tree --name-only HEAD clusters/harbor/eng/<alias>/` on the workspace branch (authoritative) + `kubectl get seinodedeployment -n eng-<alias>` (live cluster view). |
 | "Where am I" / "what cluster am I on" / "who am I" | `seictl context` |
 
-**Escape hatch — direct `--apply` (rare, requires explicit engineer confirmation):** if an engineer specifically asks to bypass git for a one-shot debug/CI session and confirms they understand there will be no audit trail, the skill *may* fall through to `seictl bench up --apply`. The skill must first offer the GitOps path and ask "are you sure you want to skip the workspace branch?" — only proceed on explicit yes. The skill does not volunteer this path; it only honors it when the engineer asks twice.
+**Escape hatch — direct `--apply` (rare, requires explicit engineer confirmation):** if an engineer specifically asks to bypass git for a one-shot debug/CI session and confirms they understand there will be no audit trail, falling through to `seictl bench up --apply` is permitted. First offer the GitOps path and ask "are you sure you want to skip the workspace branch?" — only proceed on explicit yes. Don't volunteer this path; honor it only when the engineer asks twice.
 
 ## Procedure: spinup ephemeral chain (the headline — GitOps flow)
 
@@ -133,7 +134,7 @@ Engineer says "spin up a chain of 4 validators with seid sha=abc, then load it w
 
 **Read `references/ephemeral-chain-flow.md` first.** It carries the architectural model: per-engineer workspace branch, path-based task isolation, the render/write/push/reconcile shape, and what's pending vs shipped today. The procedure below is the operational restatement.
 
-1. **Pre-flight** — if not already passed this session, run all seven gates (see Pre-flight section above and `references/preflight.md`). Halt on first gate failure with the recovery surfaced. Past this point, the engineer is on the rails: cluster reachable, namespace exists, workspace branch present.
+1. **Pre-flight** — if not already passed this session, run all eight gates (see Pre-flight section above and `references/preflight.md`). Halt on first gate failure with the recovery surfaced. Past this point, the engineer is on the rails: cluster reachable, platform repo on main, namespace exists, workspace branch present.
 2. **Local checkout on workspace branch** — engineer's local platform repo working tree is on `eng-<alias>-workspace`. If on a different branch with a dirty tree, halt and ask the engineer to stash or commit first. If on a clean different branch, run `git checkout eng-<alias>-workspace && git pull --ff-only origin eng-<alias>-workspace` and continue.
 3. **Task name** — derive from the engineer's stated intent (one English sentence) or ask one question. Lowercase, k8s-namespace-safe. Becomes the path segment and the chain-id suffix.
 4. **Render the chain** — `seictl chain up --image <ref> --validators N --name <task-name>` (no `--apply`). Capture the JSON envelope. Extract `data.manifests[]` and write each manifest to `clusters/harbor/eng/<alias>/<task-name>/`.
@@ -144,7 +145,7 @@ Engineer says "spin up a chain of 4 validators with seid sha=abc, then load it w
 9. **Wait for pods** — `kubectl get pods -n eng-<alias> -l sei.io/chain-id=<chain-id>` until all SND pods are Ready.
 10. **Report** — print: chain-id, namespace, Grafana dashboard URL filtered by `sei.io/chain-id=<chain-id>` (target shape; the dashboard's chain-id-filter is pending per [Tide#25] item 4 — surface the unfiltered URL and the label until it lands), the teardown command (`git rm -r clusters/harbor/eng/<alias>/<task-name>/` + commit + push).
 
-**What's pending and what to do meanwhile.** The convenience flag `seictl chain up --to-pr` (which would collapse steps 4 + 7 into one call) is on the seictl roadmap but not shipped. **Don't invoke `--to-pr` until it's released** — the skill performs the render → write → commit → push manually using `seictl` (render-only) + `git`. When `--to-pr` ships, this procedure compresses; until then the manual shape is the contract.
+**What's pending and what to do meanwhile.** The convenience flag `seictl chain up --to-pr` (which would collapse steps 4 + 7 into one call) is on the seictl roadmap but not shipped. **Don't invoke `--to-pr` until it's released** — perform render → write → commit → push manually using `seictl` (render-only) + `git`. When `--to-pr` ships, this procedure compresses; until then the manual shape is the contract.
 
 See `references/ephemeral-chain-flow.md` for the full architectural detail.
 
@@ -152,9 +153,9 @@ See `references/ephemeral-chain-flow.md` for the full architectural detail.
 
 The skill's default for "run a benchmark" is the GitOps flow above — render `seictl chain up` + `seictl bench up` (no `--apply`), write both to the engineer's workspace path, push. **This `--apply` procedure exists only for the rare case where an engineer explicitly opts out of git** — typically a CI debug session, or a one-shot run they don't want in the workspace branch's history. The skill does not volunteer this path. It only takes it when the engineer asks twice.
 
-**Steer first.** Before running any of the steps below, the skill asks: "I can do this through the GitOps flow on your workspace branch (audit trail, Flux reconciles, `git rm` to tear down) — do you want that, or do you specifically need a direct-apply run with no git history?" If the engineer wants GitOps, route to the headline procedure above. **Only proceed below on explicit confirmation that GitOps is not what they want.**
+**Steer first.** Before running any of the steps below, ask the engineer: "I can do this through the GitOps flow on your workspace branch (audit trail, Flux reconciles, `git rm` to tear down) — do you want that, or do you specifically need a direct-apply run with no git history?" If the engineer wants GitOps, route to the headline procedure above. **Only proceed below on explicit confirmation that GitOps is not what they want.**
 
-1. **Pre-flight** — if not already passed this session, run gates 1–6 (gate 7 / workspace branch is not required for the `--apply` path). Halt on failure.
+1. **Pre-flight** — if not already passed this session, run gates 1–7 (gate 8 / workspace branch is not required for the `--apply` path; gate 5 / platform repo is also not strictly required for `--apply`, but run it for halt-condition completeness). Halt on failure.
 2. **Image resolution** — engineer provided an image ref. seictl resolves to immutable digest internally; surface failures cleanly.
 3. **Ask up to 3 questions**, in order, only when defaults would surprise:
    - "What are you testing? (one sentence — goes in chain ID name)"
@@ -168,7 +169,7 @@ See `references/intent-benchmark.md` for the full conversation tree, default sel
 
 ## Procedure: troubleshooting (manual; no `seictl diagnose` verb in v1)
 
-Engineer says "X is stuck" or "diagnose seinode foo." There's no automated `seictl seinode diagnose` in v1 — the skill walks the engineer through the manual `kubectl`-driven flow documented in `references/troubleshooting-seinode.md`.
+Engineer says "X is stuck" or "diagnose seinode foo." There's no automated `seictl seinode diagnose` in v1 — walk the engineer through the manual `kubectl`-driven flow documented in `references/troubleshooting-seinode.md`.
 
 1. Read `.status.phase`: `kubectl get seinode <name> -o jsonpath='{.status.phase}'`
 2. Branch on phase:
@@ -265,7 +266,7 @@ Use the `fewer-permission-prompts` skill against a real session transcript once 
 
 ## State management
 
-This skill doesn't maintain its own per-run state — `seictl` does. The skill is stateless between invocations: every cluster-facing verb starts with a fresh `seictl context` call to establish ground truth. The engineer's identity lives at `~/.seictl/engineer.json` (managed by `seictl`), and active resources live in the cluster (queryable by `seictl bench list`).
+No per-run state is maintained here — `seictl` owns it. Operation is stateless between invocations: every cluster-facing verb starts with a fresh `seictl context` call to establish ground truth. The engineer's identity lives at `~/.seictl/engineer.json` (managed by `seictl`), and active resources live in the cluster (queryable by `seictl bench list`).
 
 If `~/.seictl/engineer.json` exists but is malformed, halt and prompt the engineer to fix or re-create the file. Don't try to repair.
 
