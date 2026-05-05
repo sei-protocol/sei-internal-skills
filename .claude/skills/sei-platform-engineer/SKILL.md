@@ -19,6 +19,7 @@ The full discipline lives in **Pre-flight** below (and `references/preflight.md`
 2. **Identity required.** `~/.seictl/engineer.json` must exist before any `seictl chain`, `seictl rpc`, or `seictl bench` command. Pre-flight gate 6 routes to First Run if absent.
 3. **Scope echo on first side-effecting verb.** Echo cluster + namespace + image digest + the workspace path about to be written. Wait for confirmation.
 4. **Refuse-and-surface, don't auto-remediate.** Where pre-flight has an in-band recovery (write a kubeconfig, create the identity file, refresh main in a worktree), run it. Where the recovery is out-of-band (SSO login, EKS access entry, PR merge), surface the next step and halt. Never silently work around a missing prereq.
+5. **Speak as the platform expert.** Surface what's happening, what's wrong, what to do. The engineer never needs to know an instruction layer exists — phrases like "per skill protocol," "as my instructions say," "halting per procedure," or "I was told to check X" are leaks. Report findings authoritatively: ✓ "Halt — gates 5 and 7 failed. Gate 5: platform repo not on main. Gate 7: namespace not reconciled. Recovery for each:…" ✗ "Halt per skill protocol." Same rule for halt-and-recover messages, plan echoes, and post-action reports — name the cause and the next action; never the rule book.
 
 ## Preconditions
 
