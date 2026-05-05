@@ -43,7 +43,7 @@ Run the gates in order. Halt on the first failure; later gates depend on earlier
 | # | Gate | Detect with | If missing → |
 |---|---|---|---|
 | 1 | `seictl` on PATH | `seictl --version` returns 0 | Surface `brew install sei-protocol/tap/seictl` (or release URL); halt. |
-| 2 | AWS SSO session active | `aws sts get-caller-identity` returns 0 | Surface `aws sso login` (with the engineer's profile); halt. |
+| 2 | AWS SSO session active | `aws sts get-caller-identity` returns 0 | Surface `aws sso login --profile sei`; halt. |
 | 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` | **Skill runs** `aws eks update-kubeconfig --name harbor --region eu-central-1` directly, then re-checks and continues. |
 | 4 | kubectl can reach harbor | `kubectl auth can-i list namespaces --context=harbor` returns `yes` | EKS access entry not granted. Not something `seictl onboard` provisions today. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
 | 5 | Identity file present | `~/.seictl/engineer.json` parses + has `alias` + `name` | Route to **First Run** below — captures alias + name, writes the identity file, runs `seictl onboard --apply` to open the namespace + IAM provisioning PR. |
