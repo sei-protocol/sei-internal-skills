@@ -86,7 +86,7 @@ kubectl exec <name>-0 -c seid -- aws sts get-caller-identity
 If this fails, the Pod Identity association is missing or wrong. Check via AWS:
 
 ```sh
-aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias>
+aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --profile sei
 ```
 
 For peer discovery: `kubectl exec <name>-0 -c seid -- aws ec2 describe-instances --filters Name=tag:<key>,Values=<value> --region eu-central-1`. If empty, the tag query is wrong (verify `spec.peers.ec2Tags` in the SeiNode spec) or no instances are tagged.

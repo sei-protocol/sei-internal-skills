@@ -62,7 +62,7 @@ Path: `s3://harbor-validation-results/<namespace>/<job>/<run>/report.log`
 
 Engineer benchmark example: `s3://harbor-validation-results/eng-bdchatham/seiload/mempool-ttl/report.log`
 
-Per-engineer results are partitioned at the namespace level. `aws s3 ls s3://harbor-validation-results/eng-<alias>/` returns just that engineer's runs. The IAM policy `seictl onboard` provisions scopes the engineer's PutObject permission to this prefix.
+Per-engineer results are partitioned at the namespace level. `aws s3 ls s3://harbor-validation-results/eng-<alias>/ --profile sei` returns just that engineer's runs. The IAM policy `seictl onboard` provisions scopes the engineer's PutObject permission to this prefix.
 
 ## Pre-flight (in order)
 

@@ -25,8 +25,8 @@ The full discipline lives in **Pre-flight** below (and `references/preflight.md`
 These are the *steady state* requirements. The skill doesn't assume the engineer arrives in this state — Pre-flight (next section) walks them there. List exists for reference.
 
 - `seictl` v1.x installed and on `$PATH` (see [seictl install docs](https://github.com/sei-protocol/seictl#installation))
-- AWS SSO session active for the harbor account (`aws sts get-caller-identity` returns 0)
-- `kubectl` configured against harbor (`aws eks update-kubeconfig --name harbor --region eu-central-1`)
+- AWS SSO session active for the **`sei`** profile (`aws sts get-caller-identity --profile sei` returns 0). Always pass `--profile sei` to AWS CLI invocations — the engineer's default profile may have no credentials.
+- `kubectl` configured against harbor (`aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei`)
 - EKS access entry granting your AWS principal cluster auth (granted by the platform team, not by `seictl onboard`)
 - `gh` authenticated for any verb that opens a PR (`gh auth status` → ok)
 - Identity file `~/.seictl/engineer.json` (created by `seictl onboard` on first run)
@@ -42,9 +42,9 @@ Run the gates in order. Halt on the first failure; later gates depend on earlier
 
 | # | Gate | Detect with | If missing → |
 |---|---|---|---|
-| 1 | `seictl` on PATH | `seictl --version` returns 0 | Surface `brew install sei-protocol/tap/seictl` (or release URL); halt. |
-| 2 | AWS SSO session active | `aws sts get-caller-identity` returns 0 | Surface `aws sso login --profile sei`; halt. |
-| 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` | Run `aws eks update-kubeconfig --name harbor --region eu-central-1` directly, re-check, continue. |
+| 1 | `seictl` on PATH | `command -v seictl` returns 0 (or `seictl help` exits 0 — `--version` isn't a flag) | Surface `brew install sei-protocol/tap/seictl` (or release URL); halt. |
+| 2 | AWS SSO session active for `sei` profile | `aws sts get-caller-identity --profile sei` returns 0 | Surface `aws sso login --profile sei`; halt. **Always pass `--profile sei` (or `AWS_PROFILE=sei`) — the engineer's default profile may not have credentials even when the `sei` profile is active.** |
+| 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` | Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei` directly, re-check, continue. |
 | 4 | kubectl can reach harbor | `kubectl auth can-i list namespaces --context=harbor` returns `yes` | EKS access entry not granted. Not something `seictl onboard` provisions today. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
 | 5 | Platform repo worktree on main, fresh | `$SEI_PLATFORM_REPO` (or fallback) is a `sei-protocol/platform` clone with a clean worktree on `main` at or behind `origin/main` | If the repo isn't located, surface the clone command and halt. If on main but dirty, halt and ask the engineer to stash/commit. If on a different branch with WIP, create an isolated worktree (`git worktree add ~/.seictl/worktrees/platform-main main`) and operate from there — never trample the engineer's primary checkout. If main is stale, run `git fetch origin && git pull --ff-only origin main` in the worktree, then continue. |
 | 6 | Identity file present | `~/.seictl/engineer.json` parses + has `alias` + `name` | Route to **First Run** below — capture alias + name, write the identity file, run `seictl onboard --apply` from the gate-5 worktree to open the namespace + IAM provisioning PR. |

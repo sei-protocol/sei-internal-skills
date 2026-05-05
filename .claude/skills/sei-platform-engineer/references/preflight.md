@@ -24,7 +24,7 @@ That's the floor for the GitOps headline procedure. Below this floor, no procedu
 
 ### Gate 1: `seictl` installed
 
-**Verifies:** `seictl --version` returns 0 with a v1.x version string.
+**Verifies:** `seictl` is on `$PATH`. Use `command -v seictl` (POSIX, returns the resolved path if present, non-zero if not) — `seictl --version` is **not** a real flag and will fail noisily even when the binary is present. As a secondary confirmation that the binary actually runs, `seictl help` (or `seictl` with no args) lists the command surface.
 
 **Why:** every cluster-facing verb is a `seictl` invocation. Without it, nothing else matters.
 
@@ -39,17 +39,21 @@ brew install sei-protocol/tap/seictl
 
 Halt until `seictl --version` succeeds.
 
-### Gate 2: AWS SSO session active
+### Gate 2: AWS SSO session active for the `sei` profile
 
-**Verifies:** `aws sts get-caller-identity` returns 0 with an `Arn` field.
+**Verifies:** `aws sts get-caller-identity --profile sei` returns 0 with an `Arn` field.
 
-**Why:** harbor's EKS auth, ECR image pulls, and the IAM provisioning that `seictl onboard` performs all require live AWS credentials. SSO sessions expire (default 12h); refreshing is a one-liner.
+**Always pass `--profile sei` (or set `AWS_PROFILE=sei` in the environment for the call).** The engineer's default profile may not have credentials configured even when the `sei` profile is active and logged in — running bare `aws sts get-caller-identity` will fail with `Unable to locate credentials` and looks like a halt condition when it actually isn't. Apply the same rule to *every* AWS CLI invocation downstream: `aws eks update-kubeconfig ... --profile sei`, `aws ecr describe-images ... --profile sei`, etc. The `sei` profile is the canonical name for harbor's AWS account.
 
-**Recovery (out-of-band):** `aws sso login --profile sei`. `sei` is the canonical profile name for harbor's AWS account. If the engineer's `~/.aws/config` doesn't have a `sei` profile yet (truly fresh laptop), surface `aws configure sso` and route them through profile setup, with the SSO start URL and the `sei` profile name pre-populated.
+**Why:** harbor's EKS auth, ECR image pulls, and the IAM provisioning that `seictl onboard` performs all require live AWS credentials *under the sei profile*. SSO sessions expire (default 12h); refreshing is a one-liner.
+
+**Recovery (out-of-band):** `aws sso login --profile sei`. If the engineer's `~/.aws/config` doesn't have a `sei` profile yet (truly fresh laptop), surface `aws configure sso` and route them through profile setup, with the SSO start URL and the `sei` profile name pre-populated.
+
+**Edge case — `Unable to locate credentials`:** a `--profile`-less call landed somewhere. Re-issue with `--profile sei` explicitly. This is the most common false-negative on gate 2 — the engineer is logged into `sei` but the agent invoked the bare command.
 
 **Edge case — expired session mid-run:** SSO can expire between verbs (default 12h). Halt conditions catch this (any AWS call returns `ExpiredToken`); re-run gate 2 and resume.
 
-**Edge case — different `AWS_PROFILE` in the shell:** if the engineer's shell has `AWS_PROFILE` set to something other than `sei`, `seictl context` will surface an unexpected `awsAccount`. Re-run gate 2 with `AWS_PROFILE=sei` explicitly (`AWS_PROFILE=sei aws sts get-caller-identity` and onward).
+**Edge case — different `AWS_PROFILE` in the shell:** if the engineer's shell has `AWS_PROFILE` set to something other than `sei`, `seictl context` will surface an unexpected `awsAccount`. Re-run gate 2 (and downstream AWS calls) with `AWS_PROFILE=sei` explicitly.
 
 ### Gate 3: harbor kubeconfig context exists
 
@@ -60,12 +64,12 @@ Halt until `seictl --version` succeeds.
 **Recovery (in-band):**
 
 ```sh
-aws eks update-kubeconfig --name harbor --region eu-central-1
+aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei
 ```
 
-This writes the harbor context into `~/.kube/config` (idempotent — re-running is safe). The skill executes this directly on a fresh laptop, then re-checks the gate and continues.
+`--profile sei` is required (same rule as gate 2 — bare `aws` calls may not have credentials even when the `sei` profile is logged in). This writes the harbor context into `~/.kube/config` (idempotent — re-running is safe). Execute directly on a fresh laptop, then re-check the gate and continue.
 
-**Edge case — engineer prefers a non-default kubeconfig path:** respect `$KUBECONFIG`. The `update-kubeconfig` command writes to whichever file `$KUBECONFIG` points at (or `~/.kube/config` if unset). The skill doesn't override.
+**Edge case — engineer prefers a non-default kubeconfig path:** respect `$KUBECONFIG`. The `update-kubeconfig` command writes to whichever file `$KUBECONFIG` points at (or `~/.kube/config` if unset). Don't override.
 
 ### Gate 4: kubectl can reach harbor (EKS access entry granted)
 
@@ -75,7 +79,7 @@ This writes the harbor context into `~/.kube/config` (idempotent — re-running 
 
 **Recovery (out-of-band):** the platform team grants the access entry. This is *not* something `seictl onboard` does today — onboarding creates IAM policy + Pod Identity association for in-cluster workloads, which is different from user-level kubectl auth. Surface:
 
-> Your AWS principal can't list resources on harbor. This means the EKS access entry isn't in place yet. Ask the platform team to add you — file a one-line request in `#harbor-onboarding` with your AWS principal ARN (visible in `aws sts get-caller-identity`).
+> Your AWS principal can't list resources on harbor. This means the EKS access entry isn't in place yet. Ask the platform team to add you — file a one-line request in `#harbor-onboarding` with your AWS principal ARN (visible in `aws sts get-caller-identity --profile sei`).
 
 Halt until the access entry lands. The platform team typically turns this around same-day.
 
@@ -202,7 +206,7 @@ For a literal "fresh laptop" engineer, the first session looks like:
 3. Engineer installs seictl, says "ok try again."
 4. Gate 1 passes. Gate 2 might fail (no SSO). Surface `aws sso login --profile sei`, halt.
 5. Engineer runs SSO login. Continue.
-6. Gate 3 fails (no kubeconfig). Run `aws eks update-kubeconfig --name harbor --region eu-central-1` directly. Continue.
+6. Gate 3 fails (no kubeconfig). Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei` directly. Continue.
 7. Gate 4 fails (no access entry). Surface "ask platform team in #harbor-onboarding," halt.
 8. Engineer pings the channel, gets the access entry. Comes back, says "ok try again."
 9. Gate 5 fails (no platform repo). Surface `git clone git@github.com:sei-protocol/platform.git ~/sei-workspace/platform`, halt.
