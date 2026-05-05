@@ -57,9 +57,8 @@ The task name is the isolation key. `clusters/harbor/eng/bdchatham/bench-mempool
 | Render-only mode (no `--apply`) emits JSON envelope with `data.manifests[]` | shipped |
 | `seictl onboard` provisions namespace + RBAC + IAM | shipped (per-engineer-scoped, [seictl#81]) |
 | In-cluster auth fallback (seictl runs from K8s Jobs) | shipped ([seictl#124]) |
+| `seictl onboard` provisions per-engineer Flux `GitRepository` + `Kustomization` + `flux-reconciler` SA/RoleBinding, plus pushes `eng-<alias>-workspace` branch with `.gitkeep` seed | shipped ([seictl#131], v0.0.40) — onboarding is a single PR end-to-end, no platform-team handoff |
 | `seictl chain up --to-pr` / `--to-branch` (combined render + write-to-branch + commit + push) | **pending** ([Tide#25] item 1) |
-| Workspace branch creation (`eng-<alias>-workspace`) | **agent-owned** — pre-flight gate 8 creates it in-band; seictl doesn't need to own this |
-| Per-engineer Flux `Kustomization` watching the workspace branch | **one-time platform-team handoff** (cluster-scoped CR; engineers lack RBAC) |
 | Grafana dashboard with `sei.io/chain-id` filter | **pending** ([Tide#25] item 4) |
 
 Until `--to-pr` ships, perform the same shape using existing primitives: `seictl <verb>` (render only) → `git` to commit + push on the workspace branch → `gh` for any read-only inspection. **Never invoke `seictl chain up --to-pr` until that flag is shipped.** When it ships, two manual steps (write file, git commit/push) collapse into one tool call and this reference is updated.
