@@ -70,7 +70,7 @@ Per-engineer results are partitioned at the namespace level. `aws s3 ls s3://har
 
 1. `gh auth status` — fail if unauthenticated (only relevant if the run also triggers an onboarding PR)
 2. Platform repo locatable (env `SEI_PLATFORM_REPO` or fallback path)
-3. `~/.seictl/engineer.json` exists and parses
+3. `~/.seictl/config.json` exists and parses
 4. kubectl context = `harbor`
 5. ECR image manifest resolves (with autobake's race-guard retry: 3 attempts, 60s sleep — sei-chain CI may be behind)
 6. Engineer's namespace (`eng-<alias>`) exists in-cluster (Flux-reconciled from prior PR)
