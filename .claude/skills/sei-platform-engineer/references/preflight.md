@@ -44,11 +44,11 @@ Halt until `seictl --version` succeeds.
 
 **Why:** harbor's EKS auth, ECR image pulls, and the IAM provisioning that `seictl onboard` performs all require live AWS credentials. SSO sessions expire (default 12h); refreshing is a one-liner.
 
-**Recovery (out-of-band):** `aws sso login` with the appropriate profile. The engineer's profile name varies — common patterns are `harbor`, `sei-platform`, or the AWS account number. If the engineer's profile is unknown, surface `aws configure sso` and route them through profile setup.
+**Recovery (out-of-band):** `aws sso login --profile sei`. `sei` is the canonical profile name for harbor's AWS account. If the engineer's `~/.aws/config` doesn't have a `sei` profile yet (truly fresh laptop), surface `aws configure sso` and route them through profile setup, with the SSO start URL and the `sei` profile name pre-populated.
 
-**Edge case — expired session mid-run:** SSO can expire between verbs. Halt conditions catch this (any AWS call returns `ExpiredToken`); the skill re-runs gate 2 and resumes.
+**Edge case — expired session mid-run:** SSO can expire between verbs (default 12h). Halt conditions catch this (any AWS call returns `ExpiredToken`); the skill re-runs gate 2 and resumes.
 
-**Edge case — multiple profiles:** if the engineer's shell has `AWS_PROFILE` set to a non-harbor account, `seictl context` will surface a non-harbor `awsAccount`. The skill should re-run gate 2 with the harbor profile explicitly.
+**Edge case — different `AWS_PROFILE` in the shell:** if the engineer's shell has `AWS_PROFILE` set to something other than `sei`, `seictl context` will surface an unexpected `awsAccount`. The skill should re-run gate 2 with `AWS_PROFILE=sei` explicitly (`AWS_PROFILE=sei aws sts get-caller-identity` and onward).
 
 ### Gate 3: harbor kubeconfig context exists
 
@@ -152,7 +152,7 @@ For a literal "fresh laptop" engineer, the skill's first session looks like:
 1. Engineer says something like "set me up on harbor" or "I'm new."
 2. Pre-flight gate 1 fails (no seictl). Skill surfaces install command, halts.
 3. Engineer installs seictl, says "ok try again."
-4. Pre-flight gate 1 passes. Gate 2 might fail (no SSO). Skill surfaces `aws sso login`, halts.
+4. Pre-flight gate 1 passes. Gate 2 might fail (no SSO). Skill surfaces `aws sso login --profile sei`, halts.
 5. Engineer runs SSO login. Continue.
 6. Gate 3 fails (no kubeconfig). Skill runs `aws eks update-kubeconfig --name harbor --region eu-central-1` directly. Continue.
 7. Gate 4 fails (no access entry). Skill surfaces "ask platform team in #harbor-onboarding," halts.
