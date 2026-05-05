@@ -46,7 +46,7 @@ Per-engineer (created at onboard time via AWS SDK direct, **not** Terraform):
 
 Image digest resolution flow (used by `seictl bench up` pre-flight, mirroring `k8s_autobake.yml`):
 
-1. `aws ecr describe-images --repository-name sei/sei-chain --region us-east-2 --image-ids imageTag=<tag>`
+1. `aws ecr describe-images --repository-name sei/sei-chain --region us-east-2 --image-ids imageTag=<tag> --profile sei` (when run from an engineer's machine; seictl handles its own auth internally and doesn't need the flag)
 2. Extract `imageDetails[0].imageDigest`
 3. Short digest = `sha256:` stripped, first 12 chars
 4. Race-guard retry: 3 attempts, 60s sleep — sei-chain CI sometimes pushes after the benchmark is requested
