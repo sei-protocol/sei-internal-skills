@@ -25,14 +25,14 @@ The full discipline lives in **Pre-flight** below (and `references/preflight.md`
 
 These are the *steady state* requirements. The skill doesn't assume the engineer arrives in this state — Pre-flight (next section) walks them there. List exists for reference.
 
-- `seictl` v1.x installed and on `$PATH` (see [seictl install docs](https://github.com/sei-protocol/seictl#installation))
+- `seictl` **≥ v0.0.40** installed and on `$PATH` (see [seictl install docs](https://github.com/sei-protocol/seictl#installation)). v0.0.40 is the minimum that ships per-engineer Flux wiring + workspace-branch creation as part of `seictl onboard --apply`. Earlier versions onboard the namespace + IAM but leave Flux + workspace-branch as a manual platform-team handoff.
 - AWS SSO session active for the **`sei`** profile (`aws sts get-caller-identity --profile sei` returns 0). Always pass `--profile sei` to AWS CLI invocations — the engineer's default profile may have no credentials.
 - `kubectl` configured against harbor (`aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei`)
 - EKS access entry granting your AWS principal cluster auth (granted by the platform team, not by `seictl onboard`)
 - `gh` authenticated for any verb that opens a PR (`gh auth status` → ok)
 - Identity file `~/.seictl/config.json` (created by `seictl onboard` on first run)
 - Engineer's namespace `eng-<alias>` reconciled by Flux (depends on onboarding PR being merged)
-- Workspace branch `eng-<alias>-workspace` exists (created in-band by pre-flight gate 8 if missing) with a per-engineer Flux Kustomization watching it (Kustomization is a one-time platform-team handoff)
+- Workspace branch `eng-<alias>-workspace` exists with a per-engineer Flux `Kustomization` watching it — both created by `seictl onboard --apply` (≥ v0.0.40); no platform-team handoff
 - AWS credentials with read access to `189176372795.dkr.ecr.us-east-2.amazonaws.com` for image digest resolution
 
 ## Pre-flight (run at session start, before any side-effecting action)
@@ -43,14 +43,14 @@ Run the gates in order. Halt on the first failure; later gates depend on earlier
 
 | # | Gate | Detect with | If missing → |
 |---|---|---|---|
-| 1 | `seictl` on PATH | `command -v seictl` returns 0 (or `seictl help` exits 0 — `--version` isn't a flag) | Surface `brew install sei-protocol/tap/seictl` (or release URL); halt. |
+| 1 | `seictl ≥ v0.0.40` on PATH | `command -v seictl` returns 0 + feature-detect: `seictl onboard --help 2>&1 \| grep -qi workspace` (the `workspace` mention only exists in v0.0.40+) | If absent: surface `brew install sei-protocol/tap/seictl`. If present but feature-detect fails: surface `brew upgrade seictl` (binary is older than v0.0.40 and won't generate the Flux wiring). Halt either way. |
 | 2 | AWS SSO session active for `sei` profile | `aws sts get-caller-identity --profile sei` returns 0 | Surface `aws sso login --profile sei`; halt. **Always pass `--profile sei` to `aws` calls and prepend `AWS_PROFILE=sei` to every `seictl` invocation** (seictl reads from env, no `--profile` flag — without the prefix it'll exit code 40 `aws-unavailable` even when SSO is active). The engineer's default profile may not have credentials even when the `sei` profile is. |
 | 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` | Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei` directly, re-check, continue. |
 | 4 | kubectl can reach harbor | `kubectl auth can-i list namespaces --context=harbor` returns `yes` | EKS access entry not granted. Not something `seictl onboard` provisions today. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
 | 5 | Platform repo clone in CWD, on main, fresh | `<cwd>/seictl-platform/` is a `sei-protocol/platform` clone, on `main`, at or behind `origin/main` (or `$SEI_PLATFORM_REPO` is set and points at a clone matching that shape) | **Default behavior: clone fresh into `<cwd>/seictl-platform/`** rather than searching for existing clones. If the directory doesn't exist, run `git clone git@github.com:sei-protocol/platform.git <cwd>/seictl-platform` — fully in-band, no halt. If it exists and is on main, run `git fetch origin && git pull --ff-only origin main`. If `$SEI_PLATFORM_REPO` is set, honor that path absolutely as an override. The engineer's primary platform checkout is **never** discovered or modified — keeps WIP isolated and the agent's working state self-contained per session. |
 | 6 | Identity file present | `~/.seictl/config.json` parses + has `alias` + `namespace` (file mode 0600, parent dir 0700 — seictl refuses loose perms) | Route to **First Run** below — capture alias only (namespace is derived as `eng-<alias>`), run `seictl onboard --apply` from the gate-5 clone to open the namespace + IAM provisioning PR. |
 | 7 | Namespace reconciled | `kubectl get namespace eng-<alias>` returns 0 | Onboarding PR not merged or Flux hasn't reconciled yet. Surface the PR URL; offer to poll until the namespace appears (~60s post-merge). |
-| 8 | Workspace branch ready (GitOps only) | `git ls-remote origin eng-<alias>-workspace` returns a ref | **Create the branch in-band** from the gate-5 clone: `git checkout main && git pull --ff-only && git checkout -b eng-<alias>-workspace`, seed `clusters/harbor/eng/<alias>/.gitkeep`, commit, `git push -u origin eng-<alias>-workspace`. No halt. Note: the per-engineer Flux Kustomization watching this branch is a separate one-time platform-team handoff — if manifests later don't reconcile, surface that gap then; pre-flight doesn't gate on it. |
+| 8 | Workspace branch + Flux Kustomization both reconciled (GitOps only) | `git ls-remote origin eng-<alias>-workspace` returns a ref **and** `kubectl get kustomization eng-<alias>-workspace -n flux-system` returns Ready=True | If either is missing, the onboarding PR hasn't been merged yet (or has been merged but Flux hasn't reconciled). Both are created by `seictl onboard --apply` and land together when the PR merges. Surface the onboarding PR URL (captured in `~/.seictl/config.json` or `gh pr list --search seictl/onboard-<alias>`); offer to poll until both appear (~60s post-merge). Don't try to create either yourself — the onboarding PR is the source of truth. |
 
 Once all eight pass, cache the pass for the session — subsequent verbs skip the gates unless a halt condition (SSO expiry, kubectl context drift, clone drift) triggers a targeted re-check.
 
@@ -98,18 +98,34 @@ Alias [defaults from $USER]:
 Saved to ~/.seictl/config.json (alias + namespace=eng-<alias>, mode 0600).
 
 Generating onboarding PR for clusters/harbor/engineers/<alias>/...
+PR opened: https://github.com/sei-protocol/platform/pull/<N>
+Workspace branch eng-<alias>-workspace pushed to origin (with .gitkeep seed).
+
+Once the PR merges, your namespace + IAM + Flux wiring all come online together.
+After that, push manifests to eng-<alias>-workspace and Flux reconciles them
+into eng-<alias>.
 ```
 
 Only the alias is captured — namespace defaults to `eng-<alias>` per onboarding convention. The file is `~/.seictl/config.json` (alias + namespace fields, file mode 0600 enforced by seictl).
 
-Calling `seictl onboard --alias <alias> --apply` which:
+Calling `AWS_PROFILE=sei seictl onboard --alias <alias> --apply` which:
 
 1. Validates the alias (lowercase, k8s-namespace-safe — `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`)
-2. Generates `clusters/harbor/engineers/<alias>/{kustomization,namespace,bench-seiload-sa}.yaml` in the platform repo working tree
-3. Branches `seictl/onboard-<alias>`, commits, opens a PR via `gh`
-4. Creates the IAM policy + Pod Identity association directly via AWS SDK in the engineer's SSO session — no Terraform
+2. Generates the engineer's full onboarding bundle under `clusters/harbor/engineers/<alias>/`:
+   - `namespace.yaml` (the `eng-<alias>` Namespace)
+   - `bench-seiload-sa.yaml` (the workload SA for sei-load runs)
+   - `flux-gitrepository.yaml` (Flux `GitRepository` watching `eng-<alias>-workspace`, reuses the cluster's `flux-system` deploy-key secret)
+   - `flux-kustomization.yaml` (Flux `Kustomization` reconciling `clusters/harbor/eng/<alias>/` into `eng-<alias>` as the `flux-reconciler` SA)
+   - `flux-rbac.yaml` (`flux-reconciler` SA + `RoleBinding` to `admin` ClusterRole — namespace-scoped, so Flux can reconcile anything in `eng-<alias>` and nothing outside it)
+   - `kustomization.yaml` (aggregates the above)
+3. Pushes `eng-<alias>-workspace` branch to origin with seeded `clusters/harbor/eng/<alias>/.gitkeep` (so Flux's first reconcile post-merge finds the path).
+4. Branches `seictl/onboard-<alias>`, commits the bundle, opens a PR via `gh`.
+5. Creates the IAM policy + Pod Identity association directly via AWS SDK in the engineer's SSO session — no Terraform.
+6. Returns an `OnboardResult` envelope with `data.workspaceBranch` populated. Echo this back to the engineer in the post-onboard summary.
 
-Engineer reviews and merges the PR, Flux reconciles in ~60s, and the engineer's namespace exists.
+Engineer reviews and merges the PR. Flux reconciles in ~60s and **everything comes online together**: namespace, RBAC, IAM, GitRepository watching the workspace branch, Kustomization watching the workspace path. The engineer can immediately push to `eng-<alias>-workspace` and Flux applies their manifests.
+
+**Security boundary the engineer should know about**: the `flux-reconciler` SA in `eng-<alias>` is RoleBinding-scoped to `admin` *in that namespace only*. Anything pushed to `eng-<alias>-workspace` targeting `eng-<alias>` reconciles. Anything targeting another namespace (e.g. `metadata.namespace: kube-system`) reconciles with `Forbidden` and Flux surfaces the error on the Kustomization's status. Workspace branches bypass PR review by design; the namespace boundary is the safety net.
 
 See `references/pr-conventions.md` for branch + PR conventions.
 

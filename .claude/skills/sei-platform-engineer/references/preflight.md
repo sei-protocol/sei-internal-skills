@@ -10,34 +10,44 @@ A pre-flight that just rejects on missing prereqs gives engineers an error and w
 
 The end state pre-flight delivers:
 
-- `seictl` on PATH
+- `seictl` ≥ v0.0.40 on PATH (the version that generates Flux wiring + workspace branch as part of onboard)
 - AWS SSO session active
 - `harbor` kubectl context present and authorized
 - Platform repo cloned into `<cwd>/seictl-platform/` (or `$SEI_PLATFORM_REPO`), on `main`, fresh with origin
 - `~/.seictl/config.json` populated
 - `eng-<alias>` namespace exists and is reconciled by Flux
-- `eng-<alias>-workspace` branch exists with a per-engineer Flux Kustomization watching it
+- `eng-<alias>-workspace` branch exists, reconciled by a per-engineer Flux `Kustomization` (both created by `seictl onboard --apply`; no platform-team handoff)
 
 That's the floor for the GitOps headline procedure. Below this floor, no procedure can proceed safely.
 
 ## The eight gates
 
-### Gate 1: `seictl` installed
+### Gate 1: `seictl ≥ v0.0.40` installed
 
-**Verifies:** `seictl` is on `$PATH`. Use `command -v seictl` (POSIX, returns the resolved path if present, non-zero if not) — `seictl --version` is **not** a real flag and will fail noisily even when the binary is present. As a secondary confirmation that the binary actually runs, `seictl help` (or `seictl` with no args) lists the command surface.
+**Verifies:** `seictl` is on `$PATH` *and* is at least v0.0.40 (the version that generates per-engineer Flux wiring + workspace-branch creation in `onboard --apply`).
 
-**Why:** every cluster-facing verb is a `seictl` invocation. Without it, nothing else matters.
+Two-part check:
 
-**Recovery (out-of-band):** install via the seictl release page. Surface:
+1. `command -v seictl` returns 0 (POSIX-portable PATH check; `seictl --version` is **not** a real flag).
+2. Feature-detect the v0.0.40 capability: `seictl onboard --help 2>&1 | grep -qi workspace` succeeds. The `workspace` mention only exists in v0.0.40+ onboard help output. If it's absent, the binary is older than v0.0.40 and `seictl onboard --apply` won't generate the Flux wiring or push the workspace branch.
 
-```sh
-# macOS
-brew install sei-protocol/tap/seictl
-# Or download release binary directly
-# https://github.com/sei-protocol/seictl/releases/latest
-```
+**Why:** every cluster-facing verb is a `seictl` invocation, and the post-v0.0.40 onboarding contract is what the rest of the skill assumes. An older binary appears to onboard successfully but leaves Flux + workspace-branch as a manual platform-team handoff — which the agent then can't reason about correctly.
 
-Halt until `seictl --version` succeeds.
+**Recovery (out-of-band):**
+
+- **`command -v` fails (binary not installed):**
+  ```sh
+  brew install sei-protocol/tap/seictl
+  # Or grab the release binary directly:
+  # https://github.com/sei-protocol/seictl/releases/latest
+  ```
+- **Binary present but feature-detect fails (older than v0.0.40):**
+  ```sh
+  brew upgrade seictl
+  # Or re-run the release-binary install above with the latest tag.
+  ```
+
+Halt until both checks pass.
 
 ### Gate 2: AWS SSO session active for the `sei` profile
 
@@ -158,32 +168,33 @@ Once a clone is selected (existing or freshly created):
 
 **Edge case — namespace exists but quota/NetworkPolicy not applied:** the personal-cells security posture (quotas, NetworkPolicy, admission) is layered on by the cells project; on early namespaces these may lag. Gate 7 only checks namespace existence, not policy lamination — if a workload later fails admission, the halt conditions catch it.
 
-### Gate 8: workspace branch ready (GitOps flow only)
+### Gate 8: workspace branch + Flux Kustomization both reconciled (GitOps flow only)
 
-**Verifies:** `git ls-remote origin eng-<alias>-workspace` returns a ref.
+**Verifies:** two things together:
 
-**Why:** the GitOps headline procedure pushes manifests to this branch. If it doesn't exist, the push fails and the GitOps flow can't deliver.
+1. `git ls-remote origin eng-<alias>-workspace` returns a ref.
+2. `kubectl get kustomization eng-<alias>-workspace -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'` returns `True`.
 
-**Recovery (in-band — agent creates the branch directly):** the branch creation is fully within the agent's scope; no platform-team handoff required. From the gate-5 clone:
+Both are created by `seictl onboard --apply` (≥ v0.0.40) — they land together when the onboarding PR merges. If either is missing, onboarding either hasn't run, hasn't merged, or Flux hasn't reconciled the merged manifests yet.
+
+**Why:** the GitOps headline procedure pushes manifests to this branch and depends on Flux applying them. Both halves of the wiring are needed: the branch (so the push has somewhere to land) and the Kustomization (so the push gets reconciled). Pre-v0.0.40 the branch was an agent in-band creation and the Kustomization was a platform-team handoff — neither is true anymore. Both are now seictl's responsibility, materialized through the onboarding PR.
+
+**Recovery (out-of-band, then automatic):** the onboarding PR is the single source. Surface its URL (recoverable from `~/.seictl/config.json` if seictl persists it, otherwise from `gh pr list --search seictl/onboard-<alias>`):
+
+> Your onboarding PR isn't merged yet. Once you merge it, your namespace, Flux GitRepository + Kustomization, and workspace branch all come online together. I'll poll for ~60s after merge and continue when Flux reports Ready.
+
+Offer to poll. Don't try to create the branch or the Kustomization yourself — both are part of the onboarding PR's reconciled state, and an agent-side workaround would diverge from what the PR ultimately produces.
+
+**Edge case — branch exists but Kustomization isn't Ready=True (or NotFound):** something on the platform-repo side has gone wrong with reconciliation — likely the per-engineer Kustomization manifest didn't merge, or Flux is failing to apply it. Surface:
 
 ```sh
-git -C <gate-5-clone> checkout main
-git -C <gate-5-clone> pull --ff-only origin main
-git -C <gate-5-clone> checkout -b eng-<alias>-workspace
-mkdir -p <gate-5-clone>/clusters/harbor/eng/<alias>
-touch <gate-5-clone>/clusters/harbor/eng/<alias>/.gitkeep
-git -C <gate-5-clone> add clusters/harbor/eng/<alias>/.gitkeep
-git -C <gate-5-clone> commit -m "chore: bootstrap eng-<alias> workspace"
-git -C <gate-5-clone> push -u origin eng-<alias>-workspace
+kubectl describe kustomization eng-<alias>-workspace -n flux-system
+flux logs -n flux-system --since=5m | grep eng-<alias>
 ```
 
-The `.gitkeep` seed prevents the directory from going missing in git and gives Flux something to reconcile (instead of an empty path). Continue without halting.
+Halt until a human investigates.
 
-**About the Flux Kustomization:** the per-engineer `Kustomization` CR in `flux-system` that watches this branch is a separate, one-time platform-team handoff (engineers don't have RBAC to create cluster-scoped CRs in `flux-system`). Pre-flight does **not** gate on the Kustomization's existence — branch creation alone is enough to unblock the GitOps procedure's render+push steps. If a downstream procedure step polls for Flux reconciliation and times out, that's where to surface the Kustomization gap and route to platform team. Don't preempt it in pre-flight.
-
-**Edge case — branch already exists locally but not on origin:** push it (`git push -u origin eng-<alias>-workspace`). Don't create a new local branch over it.
-
-**Edge case — branch exists on origin but not locally in the gate-5 clone (warm cache after a previous session created it elsewhere):** fetch and check it out: `git fetch origin && git checkout eng-<alias>-workspace`. Continue.
+**Edge case — Kustomization Ready=True but the branch was force-pushed elsewhere:** Flux re-reconciles to the new HEAD on next interval. Operating normally; just note that prune will delete anything no longer present.
 
 ## Caching pre-flight within a session
 
@@ -217,13 +228,11 @@ For a literal "fresh laptop" engineer, the first session looks like:
 8. Engineer pings the channel, gets the access entry. Comes back, says "ok try again."
 9. Gate 5 fails (no `<cwd>/seictl-platform/` clone). **Recovery is in-band** — clone fresh into `<cwd>/seictl-platform`, check out main, fetch. No halt.
 10. Gate 5 now passes — the dedicated clone is the agent's working copy for the rest of the session. The engineer's primary platform checkout (if any) is never touched.
-11. Gate 6 fails (no identity file). Enter First Run: prompt for alias (default from `$USER`); run `AWS_PROFILE=sei seictl onboard --apply` (the `AWS_PROFILE=sei` prefix is mandatory — see gate 2). It writes `~/.seictl/config.json` (alias + namespace=eng-<alias>, mode 0600) and opens the PR from the gate-5 clone.
+11. Gate 6 fails (no identity file). Enter First Run: prompt for alias (default from `$USER`); run `AWS_PROFILE=sei seictl onboard --apply` (the `AWS_PROFILE=sei` prefix is mandatory — see gate 2). It writes `~/.seictl/config.json` (alias + namespace=eng-<alias>, mode 0600), generates the full onboarding bundle (namespace + RBAC + Flux GitRepository + Flux Kustomization + flux-reconciler SA/RoleBinding), pushes `eng-<alias>-workspace` to origin with seeded `.gitkeep`, and opens the PR. Echo `data.workspaceBranch` from the envelope back to the engineer.
 12. Surface the PR URL and halt. "Merge this; ping me when done."
 13. Engineer merges, says "merged."
-14. Poll gate 7 until the namespace appears (~60s). Gate 7 passes.
-15. Gate 8 fails (no workspace branch). **Recovery is in-band** — create `eng-<alias>-workspace` from main in the gate-5 clone, seed `clusters/harbor/eng/<alias>/.gitkeep`, push. No halt. (The per-engineer Flux Kustomization is a one-time platform-team handoff that surfaces if/when downstream reconcile times out — not gated here.)
-16. Engineer runs the bootstrap, asks platform team to add the per-engineer Flux Kustomization.
-17. All eight gates pass. "You're on the rails. Try `spin up a chain of 4 validators with image X`."
+14. Poll gates 7 + 8 — namespace + IAM + Flux `GitRepository` + `Kustomization` all reconcile from the same merge (the workspace branch was already pushed in step 11). Both `kubectl get namespace eng-<alias>` and `kubectl get kustomization eng-<alias>-workspace -n flux-system` reach Ready ~60s post-merge.
+15. All eight gates pass. "You're on the rails. Try `spin up a chain of 4 validators with image X`."
 
 Total elapsed wall-clock: typically one platform-team turnaround (gate 4) plus one PR merge (gate 6–7). On a second session in the same CWD, gate 5 is just `git -C <cwd>/seictl-platform fetch + ff merge` (~1s); a different CWD triggers a fresh clone (~5s). Pre-flight overall in the warm case: <5s.
 
