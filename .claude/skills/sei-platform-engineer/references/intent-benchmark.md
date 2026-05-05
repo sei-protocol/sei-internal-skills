@@ -1,6 +1,6 @@
 # Intent: benchmark
 
-The skill's headline use case. Engineer says "run a benchmark against image X"; the skill maps it to `seictl bench up`.
+The legacy direct-`--apply` benchmark path. Engineer says "run a benchmark against image X" *and* explicitly opts out of the GitOps flow; the procedure maps the intent to `seictl bench up --apply`. Default is GitOps (see `ephemeral-chain-flow.md`); this path is the escape hatch.
 
 Last verified: 2026-04-28 against shipped seictl v1 (`bench up`) and platform repo `harbor-validation-results` schema (PR #72).
 
@@ -17,7 +17,7 @@ The pattern is derived from autobake's nightly `k8s_autobake.yml` workflow. Engi
 ### Required (skill always asks if not provided as flags)
 
 - `--image <ref>` — the seid image to test. Must be ECR (locked to `189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain:<tag>`).
-- `--name <name>` — short identifier for the benchmark, used in chain ID, labels, S3 path. Engineer types it directly; the skill derives a sensible default from the engineer's stated testing intent.
+- `--name <name>` — short identifier for the benchmark, used in chain ID, labels, S3 path. Engineer types it directly; a sensible default is derived from the engineer's stated testing intent.
 
 ### Defaulted (skill only asks when defaults would surprise)
 
