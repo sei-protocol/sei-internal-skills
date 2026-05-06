@@ -158,21 +158,9 @@ Within ~60s of merge:
 | `ServiceAccount <alias>` | `eng-<alias>` | The Flux reconciler identity for this tenant. |
 | `Role <alias>` + `RoleBinding <alias>` | `eng-<alias>` | Permission surface for the tenant SA. |
 | `Kustomization <alias>` | `eng-<alias>` | Watches `harbor-engineering-workspace`@`./engineers/<alias>`, reconciles every 5m, runs as `serviceAccountName: <alias>`. |
-| `ServiceAccount workload-service-account` | `eng-<alias>` | For in-namespace workloads. Pod Identity wiring is **not yet attached** (deferred — see below). |
+| `ServiceAccount workload-service-account` | `eng-<alias>` | For in-namespace workloads. |
 
 The engineer can immediately run `seictl nd apply` against `eng-<alias>` (their EKS access entry — separate from the workload SA — authorizes the kubectl write).
-
-## What's NOT in the base layer (deferred)
-
-- **IAM Pod Identity wiring.** `workload-service-account` ships as a stub. There's no `eks.amazonaws.com/role-arn` annotation, no Pod Identity association. Workloads that need AWS access (S3 reads for snapshot restore, ECR pulls beyond the cluster's default pull SA, etc.) currently can't authenticate via the workload SA. Tracked at sei-protocol/platform#426 — Pattern C (per-purpose IRSA roles + wildcard OIDC trust). When this lands, the base layer adds the annotation; existing tenants pick it up on the next Flux reconcile.
-
-  **What to surface on the onboarding PR body:** "AWS access from workloads is not wired yet — if you need S3/ECR access from a SeiNode or Job in your namespace, flag it on the PR and we'll fast-track the per-purpose IRSA role you need."
-
-- **NetworkPolicy.** Personal-cells NetworkPolicy is part of the cells project, not yet shipped. The namespace is unrestricted at the network layer today.
-
-- **ResourceQuota.** Same answer; comes with cells.
-
-These layers add later as a base-layer change without re-touching the engineer's overlay.
 
 ## The agent's job
 
@@ -208,13 +196,13 @@ For a new engineer (pre-flight gate 5 fails because `eng-<alias>` doesn't exist)
 ```markdown
 ## What
 
-Onboards `<alias>` as a tenant on harbor under the multi-tenancy pattern (sei-protocol/platform#415, #427).
+Onboards `<alias>` as a tenant on harbor.
 
 Adds:
 - `clusters/harbor/engineers/<alias>/kustomization.yaml` — references `../base`, configMapGenerator + replacements substitute `tenant` → `<alias>`.
 - One-line append to `clusters/harbor/engineers/kustomization.yaml` aggregator.
 
-Mirrors the fromtherain pilot pattern verbatim — only the `alias=<alias>` literal differs.
+Mirrors the most recent prior onboarding PR verbatim — only the `alias=<alias>` literal differs.
 
 ## What reconciles on merge
 
@@ -225,16 +213,6 @@ Within ~60s of merge, Flux materializes:
 - `ServiceAccount workload-service-account` (for in-namespace workloads).
 
 After merge I can immediately run `seictl nd apply` against `eng-<alias>`.
-
-## Deferred — flag if you need it
-
-IAM Pod Identity wiring on `workload-service-account` is **not yet in the base** (tracked at #426). If I'm running workloads that need AWS access (S3 snapshot restore, etc.), call it out on this PR and we'll fast-track the per-purpose IRSA role.
-
-## References
-
-- sei-protocol/platform#427 — fromtherain pilot, the canonical example this PR mirrors.
-- sei-protocol/platform#415 — harbor multi-tenancy LLD.
-- sei-protocol/platform#426 — Pattern C IRSA wiring (deferred).
 ```
 
 ## Subsequent onboardings
@@ -247,4 +225,3 @@ When the second engineer onboards, the agent should suggest the engineer review 
 
 - **Non-engineer tenants** (CI bot, nightly orchestrator, shared workloads) — those use a different pattern under `clusters/harbor/<bucket>/`, not under `engineers/`. The agent doesn't onboard those; platform team does.
 - **Cluster-wide changes** (CRD updates, controller config, Flux infrastructure) — separate PR shapes, not this template.
-- **Existing engineer who needs IAM** — open a new PR adding the per-purpose IRSA wiring per #426 once Pattern C is live; not a re-run of onboarding.

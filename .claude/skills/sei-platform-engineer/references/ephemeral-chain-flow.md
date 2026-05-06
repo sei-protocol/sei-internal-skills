@@ -66,16 +66,9 @@ Auto-wired on the rendered CR:
 - `spec.template.metadata.labels.sei.io/chain: <chain-id>`
 - **`spec.template.spec.peers[0].label.selector.sei.io/chain: <chain-id>`** — the controller selects all SNDs in the namespace tagged with the same chain-id. So pointing the rpc fleet at the genesis chain is "use the same `--chain-id`."
 
-This is the load-bearing piece of `nd` v1: passing the same `--chain-id` to both presets is enough to wire the rpc fleet to the genesis validators. No `--set spec.template.spec.peers...` plumbing.
+This is the load-bearing piece: passing the same `--chain-id` to both presets is enough to wire the rpc fleet to the genesis validators. No `--set spec.template.spec.peers...` plumbing.
 
-### Deferred presets
-
-Tracked but not in v1 (un-defer triggers per sei-protocol/Tide#25):
-
-- `archive` — defer until a script asks. Today's archive nodes are Flux-managed hand-rolled YAML in `prod/protocol/*/archive.yaml`.
-- `validator` (single-SeiNode) — defer until `seictl node` exists.
-- `pacific-rpc-fork` — defer pending real consumer.
-- Composite presets (`genesis-chain-evm`) — rejected. Compose via `--set` instead.
+If an engineer asks for anything other than `genesis-chain` or `rpc` (archive node, single validator, fork-test), `nd apply` can't serve it — surface that and offer the hand-rolled-SND alternative.
 
 ## Override and composition
 
@@ -150,7 +143,7 @@ Stop and report (don't auto-remediate):
 - **Watch exits with `metav1.Status.reason=Timeout`.** Don't loop. Surface the last NDJSON line's `.status.plan.tasks[]` for the engineer to inspect.
 - **Watch exits on terminal `Failed` phase.** Surface `.status.plan.failedTaskDetail.error` and the failing task name. Do not auto-retry — Failed means the controller gave up; the cause is structural.
 - **Image digest resolution fails** — image not in registry or auth missing. Stop and surface the recovery command.
-- **Image not yet in registry** — sei-chain CI may be behind. Surface the explicit retry command per the autobake race-guard pattern; don't loop silently.
+- **Image not in registry** — sei-chain CI may be behind. Surface the explicit retry command per the autobake race-guard pattern; don't loop silently.
 
 ## Why direct apply, not GitOps
 
@@ -161,20 +154,12 @@ The skill's old daily-driver flow (pre-#133) pushed manifests to a per-engineer 
 - **Teardown is `seictl nd delete`.** One command, idempotent, mirrors apply. With the workspace-branch flow, teardown was `git rm + commit + push + wait for Flux prune` — four steps where one suffices.
 - **The engineer's namespace is the isolation boundary.** The workspace branch added a layer (per-engineer Flux watcher + per-task path) that wasn't pulling weight beyond what RBAC + namespace already provided.
 
-For long-lived workloads that *should* be in git (a benchmark fleet running for a week, a shared archive node), engineers push to `harbor-engineering-workspace` directly — that path exists for that reason. The agent doesn't drive it in v1.
+For long-lived workloads that *should* be in git (a benchmark fleet running for a week, a shared archive node), engineers push to `harbor-engineering-workspace` directly — that path exists for that reason. The agent doesn't drive it.
 
 ## When the agent should NOT use direct apply
 
-Out of scope for v1, surface to the engineer if it comes up:
+Surface to the engineer if it comes up:
 
 - **Long-lived shared resources** that should live in git for review. Engineers PR to `harbor-engineering-workspace` themselves.
 - **Cross-namespace work.** The agent operates only in `eng-<alias>`.
 - **CRD changes, sei-k8s-controller config changes, cluster-wide Flux updates.** Those go through `sei-protocol/platform` PRs; not in this skill's scope.
-
-## References
-
-- sei-protocol/Tide#25 — architectural synopsis that produced the post-#133 design.
-- sei-protocol/seictl#133 — the `cluster/` teardown.
-- sei-protocol/seictl#137, #141, #142, #146 — the `nd` verb tree (apply, get/list/delete, watch, peer auto-wire).
-- sei-protocol/platform#427 — fromtherain pilot tenant; canonical onboarding example.
-- `nodedeployment/presets/genesis-chain.yaml`, `nodedeployment/presets/rpc.yaml` (sei-protocol/seictl) — the embedded preset YAML.

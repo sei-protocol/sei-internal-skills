@@ -4,7 +4,7 @@
 > Run `kubectl explain seinode.spec --recursive` for the source of truth.
 > File an issue at sei-protocol/sei-k8s-controller/issues if you spot drift.
 
-Last verified: 2026-04-26 against sei-k8s-controller `<version-pending>`.
+Last verified: 2026-05-05. Source of truth: `kubectl explain seinode.spec --recursive --context=harbor` and `sei-protocol/sei-k8s-controller/api/v1alpha1/seinode_types.go`.
 
 ## What it is
 
@@ -26,11 +26,7 @@ The controller reconciles each `SeiNode` into:
 - `Running` — task plan complete, steady-state polling
 - `Failed` — terminal; operator must delete and recreate
 
-[outline: phase transition diagram in mermaid]
-
 ## Spec fields you'll touch (operator's view)
-
-[outline]
 
 The 6 fields engineers actually edit:
 
@@ -42,8 +38,6 @@ The 6 fields engineers actually edit:
 - `spec.overrides` — TOML config patches applied via seictl `config patch`
 
 ## Status fields you'll read when debugging
-
-[outline]
 
 The 4 fields engineers actually read:
 

@@ -140,7 +140,7 @@ jq -r .message err.json  # → human-readable
 
 ### Exit codes
 
-`0` on success, `1` on every failure. Discrimination is via `metav1.Status.reason`, not the exit code. This is intentional — the design open-question on granular exit codes (64/65/70/75) was deferred; the binary code keeps the contract simple and the discriminator is structured on stderr where consumers already parse it.
+`0` on success, `1` on every failure. Discrimination is via `metav1.Status.reason` on stderr, not the exit code.
 
 ### Provenance
 
@@ -157,7 +157,7 @@ When `seictl nd apply` succeeds, the post-apply CR carries:
 
 Commands never `cd`, never modify `~/.kube/config`, never set env vars in the calling shell. Every kubectl call is explicit about context and namespace.
 
-## Presets shipped in v1
+## Presets
 
 Two presets, embedded in the seictl binary at `nodedeployment/presets/*.yaml`:
 
@@ -207,15 +207,4 @@ When `--chain-id <id>` is set, the renderer auto-wires:
 
 **The auto-wire is what makes "chain + RPC fleet on the same `--chain-id`" a one-shot.** Without it the agent would have to hand-craft a `--set spec.template.spec.peers...` payload per call.
 
-## Deferred presets (not in v1)
-
-Tracked in the post-#133 design (sei-protocol/Tide#25) but not shipped:
-
-- `archive` — full archive node. Defer until a script asks for it (today's archive nodes are Flux-managed hand-rolled manifests in `prod/protocol/*/archive.yaml`).
-- `validator` (single-SeiNode) — defer until `seictl node` exists. Engineers needing one-off validators can hand-roll today.
-- `pacific-rpc-fork` — defer pending real consumer.
-- Composite presets (`genesis-chain-evm`) — rejected. Engineers compose via discrete flags + `--set`, not preset-of-presets.
-
-## MCP graduation notes
-
-Each subcommand maps to one MCP tool. Tool names will flatten: `nd_apply`, `nd_get`, `nd_list`, `nd_delete`, `nd_watch`. Tool descriptions come from `seictl nd <verb> --help`. The native CR shape on stdout makes the MCP-side schema trivially `SeiNodeDeployment` itself (or `SeiNodeDeploymentList`) — no separate envelope schema to evolve.
+`seictl nd apply --preset` accepts only `genesis-chain` or `rpc`. If an engineer asks for any other preset, the request can't be served by `nd apply` — surface that and ask whether they want to hand-roll the SND YAML instead.

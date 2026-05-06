@@ -170,5 +170,4 @@ Total elapsed wall-clock: typically one platform-team turnaround (gate 4) plus o
 - **Provisioning the EKS access entry** (gate 4). That's a platform-team action. Pre-flight detects, surfaces, halts.
 - **Granting AWS SSO permissions** (gate 2). The engineer's IdP / IAM Identity Center role determines what SSO returns. Pre-flight only verifies the session is live.
 - **Validating image refs** (`seictl nd apply` does this when invoked — image not in registry surfaces as a `metav1.Status` on stderr). Pre-flight only confirms the registry is reachable; per-image digest resolution is a procedure step.
-- **IAM Pod Identity wiring** for the engineer's workload SA. The base layer doesn't ship this in v1 — it's tracked at sei-protocol/platform#426 (Pattern C per-purpose roles). Workloads needing AWS access flag it on the onboarding PR.
 - **Cluster headroom checks.** That's a procedure step in the chain-spinup flow, not a pre-flight gate.

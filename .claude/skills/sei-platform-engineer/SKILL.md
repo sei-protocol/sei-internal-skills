@@ -34,7 +34,7 @@ You operate against the **harbor cluster** (eu-central-1 EKS). It runs the **sei
 | `sei-protocol/platform` | Tenant registration. The onboarding PR adds `clusters/harbor/engineers/<alias>/kustomization.yaml` here, creating the namespace + RBAC + workload SA + a Flux watcher pointed at the workspace repo. **One PR per engineer, ever.** |
 | `sei-protocol/harbor-engineering-workspace` | Long-lived engineer workloads. Each engineer has `engineers/<alias>/` here, and the Flux watcher in their namespace reconciles whatever lands at that path. Out of scope for v1 of this skill — `seictl nd apply` covers ephemeral testing without needing a git push. |
 
-**Default for engineer-facing intents: `seictl nd apply` — direct server-side apply against `eng-<alias>`.** The engineer's namespace is RBAC-bounded; the CR carries its own provenance via labels and annotations; `kubectl get snd -n eng-<alias>` is the authoritative live view. Watch, list, delete all operate the same way. The skill does not push manifests to `harbor-engineering-workspace` in v1 — if an engineer wants a long-lived workload there, they drive that repo themselves.
+**Default for engineer-facing intents: `seictl nd apply` — direct server-side apply against `eng-<alias>`.** The engineer's namespace is RBAC-bounded; the CR carries its own provenance via labels and annotations; `kubectl get snd -n eng-<alias>` is the authoritative live view. Watch, list, delete all operate the same way. The skill does not push manifests to `harbor-engineering-workspace` — if an engineer wants a long-lived workload there, they drive that repo themselves.
 
 See `references/onboarding-pr.md` for the one-time tenant-registration flow, `references/ephemeral-chain-flow.md` for the headline daily-driver procedure, `references/seictl-cli.md` for the `nd` verb tree, `references/harbor-cluster.md` for cluster facts.
 
@@ -71,9 +71,8 @@ Generated PR body. Branch: onboard/<alias>. PR will add:
 ```
 
 Open the PR via `gh pr create`. The PR body should:
-- Cite the fromtherain PR (#427) as the canonical example.
+- Cite the most recent prior onboarding PR as the diff template.
 - List what reconciles when merged: namespace `eng-<alias>`, RBAC role + binding, `workload-service-account`, Flux Kustomization watching `harbor-engineering-workspace` at `./engineers/<alias>`.
-- Note that **IAM Pod Identity wiring is not yet in the base layer** (tracked at sei-protocol/platform#426 — Pattern C per-purpose roles). Engineers needing AWS access from workloads should flag it on the PR.
 
 Surface the PR URL and halt:
 
@@ -81,7 +80,7 @@ Surface the PR URL and halt:
 
 Engineer reviews and merges. Flux reconciles in ~60s, gate 5 passes, the engineer can immediately run `seictl nd apply` against `eng-<alias>`.
 
-See `references/onboarding-pr.md` for the full PR shape, what the base layer provides, and the deferred IAM piece.
+See `references/onboarding-pr.md` for the full PR shape and what the base layer provides.
 
 ## What you can do
 
@@ -121,9 +120,9 @@ Engineer says "spin up a chain of 4 validators with seid sha=abc, then add an RP
 
 **Idiom for orchestrator scripts.** The 2-step apply+watch is itself the agentic value-add — humans skip the apply→poll loop because the agent runs it as a transaction. For non-agent callers (CI, nightly), `seictl nd watch` subsumes `kubectl wait --for=jsonpath=…` and is the right tool to chain.
 
-## Procedure: troubleshooting (manual; no `seictl diagnose` verb in v1)
+## Procedure: troubleshooting (manual)
 
-Engineer says "X is stuck" or "diagnose snd foo." There's no automated diagnose verb — walk the engineer through the manual flow documented in `references/troubleshooting-seinode.md`.
+Engineer says "X is stuck" or "diagnose snd foo." `seictl` has no diagnose verb — walk the engineer through the manual `kubectl`-driven flow documented in `references/troubleshooting-seinode.md`.
 
 1. Read `.status.phase`: `seictl nd get <name> -n eng-<alias> -o jsonpath='{.status.phase}'`
 2. Branch on phase:
@@ -144,7 +143,7 @@ Stop and report to the user if:
 - **kubectl context drifts mid-session** — engineer switched contexts in another terminal. Re-confirm before any side effect.
 - **`seictl nd <verb>` exits non-zero** — surface the `metav1.Status` on stderr (`jq -r .reason && jq -r .message`). Do not retry silently.
 - **Image digest resolution fails** — image not in ECR/GHCR or auth missing. Stop and surface the recovery command.
-- **Image not yet in registry** — sei-chain CI may be behind. Surface the explicit retry command per the autobake race-guard pattern; don't loop silently.
+- **Image not in registry** — sei-chain CI may be behind. Surface the explicit retry command per the autobake race-guard pattern; don't loop silently.
 - **`seictl nd watch` exits with `metav1.Status.reason=Timeout`** — chain hasn't reached the requested phase within `--timeout` (default 15m). Halt; surface `.status.plan.tasks[]` from the last NDJSON line for the engineer to inspect.
 - **`seictl nd watch` exits on terminal Failed phase** — `.status.plan.failedTaskDetail.error` is on stderr; surface it and the failed task name. Don't auto-retry.
 - **SND name collision in the namespace** — `seictl nd apply` fails with conflict (CR already exists with different ownership). Halt, surface the existing object's age, and ask whether to choose a new name or `seictl nd delete` the existing one first.
@@ -154,7 +153,7 @@ Stop and report to the user if:
 | File | Scope |
 |---|---|
 | `preflight.md` | **Read this first on a new session or when an engineer is fresh.** Five-gate ramp from "fresh laptop" to "ready to apply," per-gate recovery, mid-session drift handling, full new-engineer walk-through |
-| `onboarding-pr.md` | **Read this if the engineer is new.** The one-time tenant-registration PR shape. Canonical example: `clusters/harbor/engineers/fromtherain/kustomization.yaml`. What the base layer provides, what's deferred (IAM Pod Identity wiring) |
+| `onboarding-pr.md` | **Read this if the engineer is new.** The one-time tenant-registration PR shape. Canonical example: `clusters/harbor/engineers/fromtherain/kustomization.yaml`. What the base layer provides |
 | `ephemeral-chain-flow.md` | **Read this if the engineer asks for a chain.** Preset taxonomy (`genesis-chain`, `rpc`), what each preset wires automatically, watch protocol, exit-code conventions |
 | `seictl-cli.md` | Canonical `seictl nd` verb tree (regenerated from `seictl nd --help` periodically) |
 | `seinode-crd.md` | Operations-load-bearing fields on `SeiNode` |

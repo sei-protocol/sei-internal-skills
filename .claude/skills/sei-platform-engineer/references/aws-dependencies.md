@@ -33,13 +33,7 @@ Existing (Terraform-managed in `terraform/aws/189176372795/eu-central-1/harbor/a
 - `autobake/seid-node` → `harbor-autobake-seid-node` IAM policy (snapshot read, EC2 describe)
 - `autobake/autobake-seiload` → `harbor-autobake-seiload` IAM policy (S3 PutObject to results bucket)
 
-Per-engineer (deferred — tracked at sei-protocol/platform#426):
-
-- `eng-<alias>/workload-service-account` ships from the base layer as a stub — no `eks.amazonaws.com/role-arn` annotation, no Pod Identity association.
-- The intended target is **Pattern C**: per-purpose IAM roles (e.g., `harbor-snapshot-reader`, `harbor-results-writer`) with wildcard OIDC trust matching `eng-*/<purpose>` ServiceAccount patterns. An engineer who needs S3 read/write attaches the appropriate role to their workload SA via a follow-up PR.
-- Until Pattern C lands, in-namespace workloads needing AWS access either run with no AWS access or use a one-off Pod Identity association created by the platform team. Flag it on the onboarding PR.
-
-Engineer-side AWS access (from the engineer's laptop, not from a workload Pod) uses the engineer's SSO role directly — not the workload SA.
+`eng-<alias>/workload-service-account` has no Pod Identity association — workloads in engineer namespaces have no AWS access via the workload SA. Engineer-side AWS access (from the laptop, not from a Pod) uses the engineer's SSO role directly.
 
 ## ECR
 
@@ -57,8 +51,6 @@ Image digest resolution flow (used when the agent surfaces a digest in the plan 
 `seictl nd apply` itself does not enforce ECR-only images — `--image` accepts any ref the apiserver and downstream pull secrets can resolve. Pre-flight `--image` validation is the agent's responsibility, not the CLI's.
 
 ## IAM principals
-
-[outline]
 
 - GitHub Actions OIDC role for autobake nightly: `arn:aws:iam::189176372795:role/harbor-autobake-gha`
 - Engineer IAM principals (today: SSO-assigned roles like `arn:aws:iam::189176372795:role/sso-engineer-<alias>`) — mapped to k8s groups via `aws_eks_access_entry`

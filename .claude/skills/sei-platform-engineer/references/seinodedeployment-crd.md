@@ -4,7 +4,7 @@
 > Run `kubectl explain seinodedeployment.spec --recursive` for the source of truth.
 > File an issue at sei-protocol/sei-k8s-controller/issues if you spot drift.
 
-Last verified: 2026-04-26 against sei-k8s-controller `<version-pending>`.
+Last verified: 2026-05-05. Source of truth: `kubectl explain seinodedeployment.spec --recursive --context=harbor` and `sei-protocol/sei-k8s-controller/api/v1alpha1/seinodedeployment_types.go`.
 
 ## What it is
 
@@ -13,8 +13,6 @@ A `SeiNodeDeployment` (`sei.io/v1alpha1`) manages a **fleet** of `SeiNode`s — 
 Used by `seictl nd apply` to materialize the validators or RPC fleet from a preset.
 
 ## Spec fields you'll touch
-
-[outline]
 
 The 5 fields engineers actually edit (or seictl renders):
 

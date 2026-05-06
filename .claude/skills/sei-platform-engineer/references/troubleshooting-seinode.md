@@ -1,8 +1,8 @@
 # Troubleshooting SeiNode (manual)
 
-> **No `seictl diagnose` verb in v1.** This file documents the manual `kubectl`-driven flow. When recurring failure patterns surface enough to be worth automating, codify them as `seictl seinode diagnose` in v1.1.
+`seictl` doesn't ship a diagnose verb — this file documents the manual `kubectl`-driven flow.
 
-Last verified: 2026-04-27 against sei-k8s-controller (cluster-wide watch confirmed in `cmd/main.go:118-125`).
+Last verified: 2026-05-05.
 
 ## Decision tree by phase
 
@@ -91,4 +91,4 @@ aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<al
 
 For peer discovery: `kubectl exec <name>-0 -c seid -- aws ec2 describe-instances --filters Name=tag:<key>,Values=<value> --region eu-central-1`. If empty, the tag query is wrong (verify `spec.peers.ec2Tags` in the SeiNode spec) or no instances are tagged.
 
-Cilium egress denies are rare on harbor today (no default-deny NetPol in v1) but become relevant when cells land. Check `kubectl get ciliumnetworkpolicy -n eng-<alias>` if cells are active.
+If a `CiliumNetworkPolicy` is active in the namespace, check `kubectl get ciliumnetworkpolicy -n eng-<alias>` for egress denies.
