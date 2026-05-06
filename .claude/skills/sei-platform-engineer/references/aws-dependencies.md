@@ -2,7 +2,7 @@
 
 What the skill (and seictl) assume about AWS resources.
 
-Last verified: 2026-04-28 against shipped `seictl onboard` (#81) and platform repo's `harbor-validation-results` schema (#72).
+Last verified: 2026-05-05 against the harbor multi-tenancy onboarding pattern (sei-protocol/platform#427) and `seictl nd` v0.0.43+ (post-#133 verb tree).
 
 ## Account & region
 
@@ -22,21 +22,26 @@ Last verified: 2026-04-28 against shipped `seictl onboard` (#81) and platform re
 | `harbor-sei-k8s-genesis-artifacts` | Genesis assembly storage | n/a |
 | `harbor-sei-shadow-results` | Shadow replayer output | n/a |
 
-`harbor-validation-results` uses the schema `<namespace>/<job>/<run>/...`. Engineer benchmarks live under `eng-<alias>/seiload/<bench-name>/`. See `intent-benchmark.md` §S3 results convention.
+`harbor-validation-results` uses the schema `<namespace>/<job>/<run>/...`. Engineer-driven runs (when an engineer composes a chain + a hand-rolled seiload Job) land under `eng-<alias>/seiload/<run-name>/`. The nightly autobake orchestrator and the release-test CronJob both write to this bucket as well, under their own namespace prefixes.
 
 ## Pod Identity associations
 
-EKS Pod Identity (not IRSA OIDC) is the auth mechanism on harbor.
+EKS Pod Identity is the auth mechanism on harbor. All Pod Identity associations are Terraform-managed.
 
-Existing (Terraform-managed in `terraform/aws/189176372795/eu-central-1/harbor/autobake.tf`):
+Per `eng-<alias>` namespace (created by the engineer's onboarding `terraform/.../harbor/engineers/<alias>.tf`):
 
-- `autobake/seid-node` → `harbor-autobake-seid-node` IAM policy (snapshot read, EC2 describe)
-- `autobake/autobake-seiload` → `harbor-autobake-seiload` IAM policy (S3 PutObject to results bucket)
+- `eng-<alias>/seid-node` → `aws_iam_policy.seid_node` (snapshot read, genesis r/w, `ec2:DescribeInstances` for peer discovery).
+- `eng-<alias>/engineer-service-account` → `aws_iam_policy.engineer` (S3 `PutObject` and `ListBucket` on `harbor-validation-results/${aws:PrincipalTag/kubernetes-namespace}/*` — auto-scoped per namespace via Pod Identity session tag — plus ECR auth and `sei/sei-chain` image read).
 
-Per-engineer (created at onboard time via AWS SDK direct, **not** Terraform):
+Pre-existing platform Pod Identity associations:
 
-- `eng-<alias>/bench-seiload` → per-engineer scoped policy and role under IAM path `/seictl/`. Policy grants `s3:ListBucket` on `arn:aws:s3:::harbor-validation-results` (with prefix condition `eng-<alias>/*`) and `s3:PutObject` on `arn:aws:s3:::harbor-validation-results/eng-<alias>/*`. Trust policy is `pods.eks.amazonaws.com` with `sts:AssumeRole + sts:TagSession` (Pod Identity requires both) and confused-deputy conditions on `eks:cluster-name` + `kubernetes.io/namespace`. Shared policies are explicitly rejected as a security risk that doesn't scale.
-- `seictl onboard --apply` performs `iam:CreatePolicy`, `iam:CreateRole`, `iam:AttachRolePolicy`, `eks:CreatePodIdentityAssociation` in the engineer's SSO session. Idempotent: pre-existing resources are detected by ARN and reported as `action: "exists"` with no mutation; a Pod Identity association bound to a different role is a hard failure.
+- `nightly/seid-node` → `aws_iam_policy.seid_node`.
+- `nightly/workload-service-account` → `aws_iam_policy.nightly_workload`.
+- `pacific-1/seid-node` → `aws_iam_policy.seid_node`.
+- `autobake/seid-node` → `harbor-autobake-seid-node` IAM policy.
+- `autobake/autobake-seiload` → `harbor-autobake-seiload` IAM policy.
+
+Engineer-side AWS access (from the engineer's laptop, not from a Pod) uses the engineer's SSO role directly.
 
 ## ECR
 
@@ -44,18 +49,18 @@ Per-engineer (created at onboard time via AWS SDK direct, **not** Terraform):
 |---|---|
 | `189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain` | The seid image autobake + benchmarks consume |
 
-Image digest resolution flow (used by `seictl bench up` pre-flight, mirroring `k8s_autobake.yml`):
+Image digest resolution flow (used when the agent surfaces a digest in the plan echo before `seictl nd apply`):
 
-1. `aws ecr describe-images --repository-name sei/sei-chain --region us-east-2 --image-ids imageTag=<tag> --profile sei` (when run from an engineer's machine; seictl handles its own auth internally and doesn't need the flag)
+1. `aws ecr describe-images --repository-name sei/sei-chain --region us-east-2 --image-ids imageTag=<tag> --profile sei`
 2. Extract `imageDetails[0].imageDigest`
 3. Short digest = `sha256:` stripped, first 12 chars
-4. Race-guard retry: 3 attempts, 60s sleep — sei-chain CI sometimes pushes after the benchmark is requested
+4. Race-guard retry: 3 attempts, 60s sleep — sei-chain CI sometimes pushes after a request lands. Don't loop silently; surface the retry to the engineer.
+
+`seictl nd apply` itself does not enforce ECR-only images — `--image` accepts any ref the apiserver and downstream pull secrets can resolve. Pre-flight `--image` validation is the agent's responsibility, not the CLI's.
 
 ## IAM principals
-
-[outline]
 
 - GitHub Actions OIDC role for autobake nightly: `arn:aws:iam::189176372795:role/harbor-autobake-gha`
 - Engineer IAM principals (today: SSO-assigned roles like `arn:aws:iam::189176372795:role/sso-engineer-<alias>`) — mapped to k8s groups via `aws_eks_access_entry`
 
-Engineer's SSO role currently has admin permissions (sufficient for `iam:CreatePolicy`, `iam:CreateRole`, `iam:AttachRolePolicy`, `eks:CreatePodIdentityAssociation`). When SSO permissions get scoped down, the onboard flow revisits.
+Engineer's SSO role currently has admin permissions in the cluster account, which is sufficient for read-side ECR + S3 access from the laptop. When SSO permissions get scoped down, the access-entry surface and any laptop-side AWS reads revisit. The onboarding PR shape itself doesn't depend on the SSO role's IAM permissions — it only writes to the platform repo.

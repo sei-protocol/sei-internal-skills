@@ -1,8 +1,8 @@
 # seictl CLI surface
 
-Canonical command reference. **`seictl --help` is the source of truth** — when this file disagrees, the CLI wins.
+Canonical command reference for the engineer-facing surface. **`seictl nd --help` is the source of truth** — when this file disagrees, the CLI wins.
 
-Last verified: 2026-04-28 against sei-protocol/seictl v1 surface (PRs #71/72/73/74/76/77/78/79/81 merged).
+Last verified: 2026-05-05 against sei-protocol/seictl v0.0.43+ (post-#133 nd verb tree, peer auto-wire from #146).
 
 ## Top-level commands
 
@@ -14,227 +14,197 @@ Last verified: 2026-04-28 against sei-protocol/seictl v1 surface (PRs #71/72/73/
 | `seictl serve` | local | Run the in-pod sidecar HTTP server |
 | `seictl await` | local | Wait condition |
 | `seictl report` | local | Analyze shadow chain comparison data |
-| `seictl context` | cluster | Cluster + identity ground truth |
-| `seictl onboard` | cluster | Provision a new engineer's harbor footprint |
-| `seictl bench up` | cluster | Render or apply a benchmark workload |
-| `seictl bench down` | cluster | Tear down a benchmark by name |
-| `seictl bench list` | cluster | Owner-scoped list of running benchmarks |
+| `seictl nodedeployment` (alias `nd`) | cluster | Manage `SeiNodeDeployment` CRs via embedded presets |
 
-The skill only invokes commands flagged "cluster" above. The "local" commands aren't in the skill's interface today.
+The skill only invokes the `nodedeployment` subtree above. The `local` commands are out of scope for engineer-facing intents.
 
-## Cluster-facing commands (skill scope)
+The pre-#133 cluster verbs (`context`, `onboard`, `bench up/down/list`) are gone — replaced by the preset-driven `nd` tree below. If a reference to those names surfaces in older docs, it's stale.
 
-Every cluster command accepts `--kubeconfig <path>` (also `$KUBECONFIG`) and `--context <name>` to select the kube target. Omitted, they fall back to the standard kube client-go discovery chain. These aren't repeated per-verb below.
+## `seictl nodedeployment` (alias `nd`)
 
-### `seictl context`
+Five verbs: `apply`, `get`, `list`, `delete`, `watch`. Every verb operates against `seinodedeployments.sei.io/v1alpha1` and follows kubectl-shaped flag conventions.
 
-```
-seictl context [--kubeconfig <path>] [--context <name>]
-```
+**Common flags on every verb:**
 
-Side-effect-free. AWS reads are best-effort — an expired SSO session yields a result with empty AWS fields rather than failing, so `context` can diagnose the SSO state itself.
+- `--kubeconfig <path>` (also `$KUBECONFIG`) — colon-merge honored. Defaults to `$HOME/.kube/config` or in-cluster auth.
+- `--namespace <ns>` / `-n <ns>` — target namespace. Falls back to the kubeconfig context's default namespace, then the in-cluster ServiceAccount's namespace.
 
-```go
-type ContextResult struct {
-    KubeContext     string    `json:"kubeContext"`
-    Cluster         string    `json:"cluster"`
-    Server          string    `json:"server"`
-    Namespace       string    `json:"namespace"`
-    AWSAccount      string    `json:"awsAccount"`
-    AWSRegion       string    `json:"awsRegion"`
-    AWSPrincipalARN string    `json:"awsPrincipalArn"`
-    Engineer        *Engineer `json:"engineer,omitempty"`
-}
-type Engineer struct{ Alias, Name string }
-```
+The skill always passes `-n eng-<alias>` explicitly.
 
-The Claude skill calls this at the start of any session to confirm cluster, identity, and AWS principal.
-
-### `seictl onboard`
+### `seictl nd apply`
 
 ```
-seictl onboard --alias <alias> [--name <name>]
-               [--platform-repo <path>] [--no-pr] [--apply]
+seictl nd apply <name>
+                --preset <genesis-chain | rpc>
+                [--chain-id <id>] [--image <ref>] [--replicas N]
+                [--set <dotted.path>=<value>] [--set ...]
+                [--dry-run]
+                [-n <ns>] [--kubeconfig <path>]
 ```
 
-Default behavior is dry-run; `--apply` performs both side effects:
+Loads the named preset, applies discrete-flag and `--set` overrides, and **server-side-applies** the result to the cluster. With `--dry-run`, the apiserver validates and returns the would-be-applied CR without persisting.
 
-1. Generates `clusters/harbor/engineers/<alias>/{kustomization,namespace,bench-seiload-sa}.yaml` in the platform repo, branches `seictl/onboard-<alias>`, opens a PR via `gh`.
-2. Creates IAM policy + Pod Identity association directly via AWS SDK (`iam:CreatePolicy`, `iam:CreateRole`, `iam:AttachRolePolicy`, `eks:CreatePodIdentityAssociation`). No Terraform.
+**Layering, lowest precedence first:**
 
-```go
-type OnboardResult struct {
-    Alias          string         `json:"alias"`
-    IdentityPath   string         `json:"identityPath"`
-    GeneratedFiles []string       `json:"generatedFiles"`
-    Branch         string         `json:"branch,omitempty"`
-    PRURL          string         `json:"prUrl,omitempty"`
-    AWSResources   []AWSResource  `json:"awsResources"`
-    DryRun         bool           `json:"dryRun"`
-}
-type AWSResource struct {
-    Kind   string `json:"kind"`   // "IAMPolicy" | "IAMRole" | "PodIdentityAssociation"
-    ARN    string `json:"arn"`
-    Action string `json:"action"` // "create" | "exists" | "would-create"
-}
-```
+1. Preset YAML (embedded in the seictl binary).
+2. Discrete flags (`--chain-id`, `--image`, `--replicas`).
+3. `--set <dotted.path>=<value>`. Strategic-merge: maps merge per-key, lists replace wholesale. Wins on collision with discrete flags.
 
-Engineer's IAM principal is derived from `aws sts get-caller-identity` and cross-checked against the alias regex. **No `--principal-arn` flag.**
+**Required:** `<name>` (positional) and `--preset`. Both v1 presets (`genesis-chain` and `rpc`) require `--chain-id` and `--image` after layering — if either is missing in the rendered CR, the apiserver rejects the apply with `metav1.Status.reason=Invalid`.
 
-`--no-pr` runs IAM + manifest generation but skips the GitHub PR step — useful when the platform repo is dirty or the engineer wants to inspect generated files first. The IAM resources still get provisioned with `--apply`.
+**Output (success):** the post-apply `SeiNodeDeployment` CR on stdout as JSON. Same shape as `kubectl get snd <name> -o json`.
 
-Idempotent: pre-existing IAM resources / Pod Identity association / open PR for the branch are detected and reported as `action: "exists"` with no mutation. A pre-existing Pod Identity association bound to a different role is a hard failure; manual remediation required.
+**Output (failure):** `metav1.Status` on stderr. Non-zero exit. Discriminate with `jq -r .reason` (e.g., `Invalid`, `Forbidden`, `NotFound`, `AlreadyExists`).
 
-### `seictl bench up`
+**Stderr provenance line (always):** `seictl: applying SeiNodeDeployment <ns>/<name> to <api-server>` (or `applying (dry-run)`). Useful for orchestrator scripts that want to log the resolved target.
+
+### `seictl nd get`
 
 ```
-seictl bench up --image <ref> --name <name>
-                [--size s|m|l] [--duration <minutes>] [--apply]
+seictl nd get <name> [-o yaml | json | name | jsonpath=<template>]
+              [-n <ns>] [--kubeconfig <path>]
 ```
 
-Required: `--image`, `--name`. Defaults: size `s`, duration `30` (minutes, range 1–240), namespace = `eng-<alias>` from identity.
+Read-only. Returns the CR as `kubectl get snd <name> -o <format>` would — yaml is the default.
 
-`--duration` is an **integer in minutes**, not a Go duration string.
+**Output formats:**
+- `yaml` (default): full CR as YAML.
+- `json`: full CR as JSON.
+- `name`: `seinodedeployment.sei.io/<name>` only.
+- `jsonpath=<template>`: kubectl-style JSONPath. Example: `-o jsonpath='{.status.endpoints.evmJsonRpc[0]}'`.
 
-Default behavior is dry-run; `--apply` performs server-side apply.
+**Failure:** `metav1.Status` on stderr (`reason=NotFound` if the CR doesn't exist; `Forbidden` if RBAC denies).
 
-```go
-type BenchUpResult struct {
-    ChainID      string        `json:"chainId"`         // "bench-<alias>-<name>"
-    Name         string        `json:"name"`
-    Namespace    string        `json:"namespace"`
-    ImageRef     string        `json:"imageRef"`
-    ImageDigest  string        `json:"imageDigest"`     // resolved sha256:...
-    Size         string        `json:"size"`
-    Validators   int           `json:"validators"`
-    RPCNodes     int           `json:"rpcNodes"`
-    Duration     string        `json:"duration"`        // formatted, e.g. "30m"
-    ResultsS3URI string        `json:"resultsS3Uri"`
-    DryRun       bool          `json:"dryRun"`
-    Manifests    []ManifestRef `json:"manifests"`
-    AppliedAt    *time.Time    `json:"appliedAt,omitempty"`
-}
-
-type ManifestRef struct {
-    Kind, Name, Namespace, Action string
-    // action for bench up: "create" | "update" | "unchanged"
-    // action for bench down: "deleted" | "not-found" | "still-terminating"
-}
-```
-
-Sizes: `s` = 4 validators / 1 RPC; `m` = 10 / 2; `l` = 21 / 4.
-
-Chain ID: `bench-<alias>-<name>` (engineer benchmarks); RPC SND is `bench-<alias>-<name>-rpc`. Distinct from autobake's nightly `autobake-<run-id>`.
-
-S3 results path (per platform repo's `harbor-validation-results` schema):
-`s3://harbor-validation-results/<namespace>/<job>/<run>/report.log` where `<namespace>` is `eng-<alias>`, `<job>` is the seiload Job name, `<run>` is the bench `--name`.
-
-Action attribution uses `.metadata.generation` (a `Patch` that bumps `generation` is a real spec change → `update`; otherwise `unchanged`). ResourceVersion is unsound here because controllers continuously write status.
-
-### `seictl bench down`
+### `seictl nd list`
 
 ```
-seictl bench down --name <name> [--namespace <ns>] [-n <ns>]
+seictl nd list [--all-namespaces|-A] [--selector <label-selector>]
+               [-o yaml | json | name | jsonpath=<template>]
+               [-n <ns>] [--kubeconfig <path>]
 ```
 
-Label-selected delete with `metav1.DeletePropagationForeground`. No dry-run flag — down is bounded and idempotent (re-run is fine if interrupted). No `--wait`/`--timeout` in v1; the command returns once Delete calls have been issued. Engineer uses `seictl bench list` to observe convergence.
+Returns a `SeiNodeDeploymentList`. `-A` overrides `-n` and lists across all namespaces. `--selector` (`-l`) accepts standard label selectors (e.g., `-l sei.io/chain=foo,sei.io/role=validator`).
 
-```go
-type BenchDownResult struct {
-    Name      string        `json:"name"`
-    ChainID   string        `json:"chainId"`
-    Namespace string        `json:"namespace"`
-    Resources []ManifestRef `json:"resources"` // action: "deleted"|"not-found"|"still-terminating"
-    DeletedAt *time.Time    `json:"deletedAt,omitempty"`
-}
-```
+**Failure:** `metav1.Status` on stderr.
 
-If a finalizer keeps a resource around longer than expected: `bench list` will continue showing it. Engineer uses `kubectl` independently if they want to investigate; seictl doesn't redirect to other tools.
-
-### `seictl bench list`
+### `seictl nd delete`
 
 ```
-seictl bench list [--all-namespaces|-A] [--namespace <ns>|-n <ns>]
+seictl nd delete <name>
+                 [--cascade foreground | background | orphan]
+                 [-n <ns>] [--kubeconfig <path>]
 ```
 
-Owner-scoped via labels (`sei.io/engineer=<alias>` on managed resources; `app.kubernetes.io/part-of=seictl-bench` on the seiload Job). Aggregates by chain ID; validators and RPC SND are reported under one summary, with role-based ready/desired counts.
+Issues a Delete against the named CR. Default propagation is `foreground` (waits for child Pods/Services/HTTPRoutes to be deleted before the SND itself is removed). `background` returns immediately and lets the controller clean up async. `orphan` leaves children behind.
 
-```go
-type BenchListResult struct {
-    Items []BenchSummary `json:"items"`
-}
-type BenchSummary struct {
-    ChainID           string `json:"chainId"`
-    Name              string `json:"name"`
-    Namespace         string `json:"namespace"`
-    Owner             string `json:"owner"`
-    Phase             string `json:"phase"`
-    ValidatorsReady   int    `json:"validatorsReady"`
-    ValidatorsDesired int    `json:"validatorsDesired"`
-    RPCReady          int    `json:"rpcReady"`
-    RPCDesired        int    `json:"rpcDesired"`
-    LoadJobPhase      string `json:"loadJobPhase"`
-    AgeSeconds        int64  `json:"ageSeconds"`
-    ImageDigest       string `json:"imageDigest"`
-}
+**Output (success):** `seinodedeployment.sei.io/<name> deleted` on stdout. Exit 0.
+
+**Failure:** `metav1.Status` on stderr (`reason=NotFound` if the CR is already gone).
+
+### `seictl nd watch`
+
+```
+seictl nd watch <name>
+                --until <phase>
+                [--timeout <duration>]
+                [-n <ns>] [--kubeconfig <path>]
 ```
 
-## Common patterns
+Streams every event for the named SND as one NDJSON line on stdout. **Exits 0** when `.status.phase == --until` (exact match). **Exits 1** on:
 
-### Output format
+- `--timeout` exceeded (default `15m`) → `metav1.Status.reason=Timeout` on stderr.
+- Terminal `Failed` phase → stderr lifts `.status.plan.failedTaskDetail.error` for the failing task.
+- Transient API failure → `metav1.Status` on stderr with the transport error.
 
-JSON envelope on stdout, structured logs on stderr. **No `--format` flag in v1** — JSON is the only emission. If a `text` format ships later, it'll be additive behind a flag, not a default change.
+The `--until` flag is **required**. Common values: `Ready`, `Initializing`, `Running`. Matching is exact; a misspelling never matches and the watch will time out.
 
-### Output envelope
+**Subsumes `kubectl wait --for=jsonpath='{.status.phase}'=Ready`** with the additional benefit that NDJSON gives the orchestrator the full event log instead of a binary "ready / timed out."
 
-Every cluster command wraps its result in a Kubernetes-style TypeMeta envelope:
+**Idiom for the agent:** `apply` then `watch --until=Ready` is the headline 2-step. The watch returns the final NDJSON line as the canonical "post-Ready CR" — extract endpoints from it without a follow-up `get`.
 
-```go
-type Envelope struct {
-    APIVersion string          `json:"apiVersion"` // always "seictl.sei.io/v1"
-    Kind       string          `json:"kind"`       // see Kinds below
-    Data       json.RawMessage `json:"data,omitempty"`
-    Error      *ErrorBody      `json:"error,omitempty"`
-}
-type ErrorBody struct {
-    Code     int    `json:"code"`
-    Category string `json:"category"`
-    Message  string `json:"message"`
-    Detail   string `json:"detail,omitempty"`
-}
+## Conventions across the surface
+
+### Output shape
+
+Native `SeiNodeDeployment` (or `SeiNodeDeploymentList`) shape on stdout. **No envelope.** Same as `kubectl get snd -o <format>`. The skill's consumers can pipe directly into `jq` or `yq` without unwrapping a `data:` field.
+
+### Errors
+
+Errors on stderr as `metav1.Status` (kind: Status, apiVersion: v1, status: Failure). Discrimination via `.reason` (e.g., `Invalid`, `Forbidden`, `NotFound`, `AlreadyExists`, `Timeout`, `InternalError`). Non-zero exit code on every failure.
+
+```sh
+seictl nd apply foo --preset genesis-chain --chain-id bar -n eng-x 2>err.json
+jq -r .reason err.json   # → "Invalid" / "Forbidden" / etc.
+jq -r .message err.json  # → human-readable
 ```
-
-Kinds: `ContextResult`, `OnboardResult`, `BenchUpResult`, `BenchDownResult`, `BenchListResult`. Breaking changes ship as `seictl.sei.io/v2` alongside v1, not as mutations to v1.
 
 ### Exit codes
 
-Eight codes total. The granular cause lives in `error.category` — exit codes are families.
+`0` on success, `1` on every failure. Discrimination is via `metav1.Status.reason` on stderr, not the exit code.
 
-| Code | Family | Meaning |
-|---|---|---|
-| 0 | | Success |
-| 2 | usage | Usage error |
-| 3 | not-found | Resource not found |
-| 4 | cluster | Cluster unreachable |
-| 5 | rbac | Permission denied |
-| 10 | bench | Bench failure (specific cause in `error.category`) |
-| 20 | onboard | Onboard failure (specific cause in `error.category`) |
-| 40 | identity | Identity failure (specific cause in `error.category`) |
+### Provenance
 
-Category strings for v1:
+When `seictl nd apply` succeeds, the post-apply CR carries:
 
-- **bench:** `image-policy`, `image-resolution`, `validation`, `namespace-policy`, `apply-failed`, `name-collision`, `finalizer-stuck`, `template-render`
-- **onboard:** `alias-invalid`, `platform-repo-missing`, `working-tree-dirty`, `gh-unauthenticated`, `pr-create-failed`, `aws-create-failed`
-- **identity:** `malformed`, `missing`, `kubeconfig-parse`, `perms-loose`, `aws-unavailable`
+- `metadata.annotations.seictl.sei.io/preset: <preset-name>` — which preset shaped it.
+- `metadata.annotations.seictl.sei.io/version: v0.0.<n>` — which seictl shipped it.
+- `metadata.labels.sei.io/chain: <chain-id>` (also stamped on `spec.template.metadata.labels` for the resulting Pods).
+- `metadata.labels.sei.io/role: validator|node` (per preset).
 
-### Read-only by default
-
-`bench up` and `onboard` default to dry-run. Nothing is applied without `--apply`. Safe to expose as MCP tools later without auth gymnastics.
+`kubectl get snd -o yaml` surfaces these naturally — useful for `git log`-style provenance even though there's no git in the loop.
 
 ### No ambient state
 
-Commands never `cd`, never modify `~/.kube/config`, never set env vars in the calling shell. Every kubectl invocation is explicit about context and namespace. Discovery cache lives at `~/.kube/cache/discovery/` (managed by client-go's `genericclioptions.ConfigFlags`, shared with kubectl).
+Commands never `cd`, never modify `~/.kube/config`, never set env vars in the calling shell. Every kubectl call is explicit about context and namespace.
 
-## MCP graduation notes
+## Presets
 
-Each subcommand maps to one MCP tool. The MCP server flattens names (`bench_up`, `bench_down`, etc.) — no `cluster_` infix to strip. Tool descriptions come from `seictl <cmd> --help`. JSON schemas above are the v2 MCP tool contracts; stable through MCP graduation.
+Two presets, embedded in the seictl binary at `nodedeployment/presets/*.yaml`:
+
+### `genesis-chain`
+
+Chain validators that run a fresh genesis ceremony.
+
+```yaml
+apiVersion: sei.io/v1alpha1
+kind: SeiNodeDeployment
+spec:
+  replicas: 4
+  template:
+    spec:
+      validator: {}
+  genesis: {}
+  updateStrategy:
+    type: InPlace
+```
+
+Layered with `--chain-id` and `--image`, the `genesis` block populates and `spec.template.spec.chainId` + `image` get set. Auto-wired template labels: `sei.io/chain=<chain-id>`, `sei.io/role=validator`.
+
+**Default replicas: 4.** Override with `--replicas` or `--set spec.replicas=N`.
+
+### `rpc`
+
+Full-node fleet that peers to an existing chain by label selector.
+
+```yaml
+apiVersion: sei.io/v1alpha1
+kind: SeiNodeDeployment
+spec:
+  replicas: 2
+  template:
+    spec:
+      fullNode: {}
+  updateStrategy:
+    type: InPlace
+```
+
+When `--chain-id <id>` is set, the renderer auto-wires:
+
+- Template labels: `sei.io/chain=<id>`, `sei.io/role=node`.
+- `spec.template.spec.peers[0].label.selector.sei.io/chain=<id>` — points the fleet at any SND in the namespace tagged with the same chain ID.
+
+**Default replicas: 2.** Override with `--replicas` or `--set spec.replicas=N`.
+
+**The auto-wire is what makes "chain + RPC fleet on the same `--chain-id`" a one-shot.** Without it the agent would have to hand-craft a `--set spec.template.spec.peers...` payload per call.
+
+`seictl nd apply --preset` accepts only `genesis-chain` or `rpc`. If an engineer asks for any other preset, the request can't be served by `nd apply` — surface that and ask whether they want to hand-roll the SND YAML instead.
