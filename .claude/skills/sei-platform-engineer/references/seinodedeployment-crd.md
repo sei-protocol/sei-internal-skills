@@ -10,7 +10,7 @@ Last verified: 2026-04-26 against sei-k8s-controller `<version-pending>`.
 
 A `SeiNodeDeployment` (`sei.io/v1alpha1`) manages a **fleet** of `SeiNode`s — N replicas of a `SeiNodeTemplate` plus fleet-level concerns: shared networking (HTTPRoute, Services), genesis ceremonies (fresh or fork-based), monitoring (ServiceMonitor), and deployment strategies (in-place, blue-green, hard-fork).
 
-Used by `seictl bench up` to spin the validators and RPC fleet for a benchmark.
+Used by `seictl nd apply` to materialize the validators or RPC fleet from a preset.
 
 ## Spec fields you'll touch
 
@@ -26,15 +26,16 @@ The 5 fields engineers actually edit (or seictl renders):
 
 ## Status fields you'll read when debugging
 
-[outline]
+The fields the agent reads (most via `seictl nd get -o jsonpath` or `seictl nd watch` NDJSON):
 
-The 5 conditions and fields engineers actually read:
-
-- `.status.phase` — `Pending` → `Initializing` → `Ready` → `Upgrading` / `Degraded` / `Failed` / `Terminating`
-- `.status.conditions[type=NodesReady]` — child SeiNodes status.readyReplicas == replicas
-- `.status.conditions[type=RouteReady]` — HTTPRoute hostname resolves in DNS
-- `.status.conditions[type=GenesisCeremonyComplete]` — genesis.json assembled
-- `.status.plan[*]` — group-level plan state for genesis assembly + rollout
+- `.status.phase` — `Pending` → `Initializing` → `Ready` → `Upgrading` / `Degraded` / `Failed` / `Terminating`. The `--until` argument to `seictl nd watch` matches this exactly.
+- `.status.conditions[type=NodesReady]` — child SeiNodes `status.readyReplicas == replicas`.
+- `.status.conditions[type=RouteReady]` — HTTPRoute hostname resolves in DNS.
+- `.status.conditions[type=GenesisCeremonyComplete]` — genesis.json assembled.
+- `.status.plan[*]` — group-level plan state for genesis assembly + rollout. On terminal `Failed`, `.status.plan.failedTaskDetail.error` carries the cause and is lifted to stderr by `seictl nd watch`.
+- `.status.endpoints.*` — controller-published service URLs. Today: `tendermintRpc[]`, `tendermintRest[]`, `evmJsonRpc[]`, `evmWs[]`. Each is an array even if there's only one entry.
+- `.status.perPodServices[]` — per-pod headless Service handles for callers that need pod-targeted connectivity (seiload's WebSocket block collector, gRPC streaming, etc.). Each entry has `name`, `namespace`, `ports.{evmHttp, evmWs, ...}`.
+- `.status.internalService` — the aggregate ClusterIP Service handle backing `.status.endpoints.*`.
 
 ## Everything else
 
