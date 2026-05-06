@@ -26,14 +26,22 @@ Last verified: 2026-05-05 against the harbor multi-tenancy onboarding pattern (s
 
 ## Pod Identity associations
 
-EKS Pod Identity (not IRSA OIDC) is the auth mechanism on harbor.
+EKS Pod Identity is the auth mechanism on harbor. All Pod Identity associations are Terraform-managed.
 
-Existing (Terraform-managed in `terraform/aws/189176372795/eu-central-1/harbor/autobake.tf`):
+Per `eng-<alias>` namespace (created by the engineer's onboarding `terraform/.../harbor/engineers/<alias>.tf`):
 
-- `autobake/seid-node` → `harbor-autobake-seid-node` IAM policy (snapshot read, EC2 describe)
-- `autobake/autobake-seiload` → `harbor-autobake-seiload` IAM policy (S3 PutObject to results bucket)
+- `eng-<alias>/seid-node` → `aws_iam_policy.seid_node` (snapshot read, genesis r/w, `ec2:DescribeInstances` for peer discovery).
+- `eng-<alias>/engineer-service-account` → `aws_iam_policy.engineer` (S3 `PutObject` and `ListBucket` on `harbor-validation-results/${aws:PrincipalTag/kubernetes-namespace}/*` — auto-scoped per namespace via Pod Identity session tag — plus ECR auth and `sei/sei-chain` image read).
 
-`eng-<alias>/workload-service-account` has no Pod Identity association — workloads in engineer namespaces have no AWS access via the workload SA. Engineer-side AWS access (from the laptop, not from a Pod) uses the engineer's SSO role directly.
+Pre-existing platform Pod Identity associations:
+
+- `nightly/seid-node` → `aws_iam_policy.seid_node`.
+- `nightly/workload-service-account` → `aws_iam_policy.nightly_workload`.
+- `pacific-1/seid-node` → `aws_iam_policy.seid_node`.
+- `autobake/seid-node` → `harbor-autobake-seid-node` IAM policy.
+- `autobake/autobake-seiload` → `harbor-autobake-seiload` IAM policy.
+
+Engineer-side AWS access (from the engineer's laptop, not from a Pod) uses the engineer's SSO role directly.
 
 ## ECR
 

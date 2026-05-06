@@ -7,7 +7,7 @@ Last verified: 2026-05-05 against shipped seictl v0.0.43+ (`nd` verb tree, peer 
 ## The architectural model in three lines
 
 1. **`seictl nd apply` is the headline verb.** Server-side-applies a `SeiNodeDeployment` CR derived from a preset + flags to the engineer's namespace. The CR carries its own provenance (annotations + labels), so `kubectl get snd -n eng-<alias> -o yaml` is the audit trail.
-2. **The engineer's namespace is the isolation boundary.** RBAC, NetworkPolicy, and `workload-service-account` all scope to `eng-<alias>` — set up by the one-time onboarding PR. No cross-engineer interference.
+2. **The engineer's namespace is the isolation boundary.** RBAC, NetworkPolicy, and the namespace's three ServiceAccounts (`<alias>` Flux reconciler, `engineer-service-account` for engineer workloads, `seid-node` for SeiNode pods) all scope to `eng-<alias>`. No cross-engineer interference.
 3. **`seictl nd watch --until=Ready` is the agentic value-add.** The 2-step apply+watch collapses the human "apply, then poll, then check status" loop into one transaction. Watch streams NDJSON; the last event before exit-0 is the post-Ready CR.
 
 ```mermaid
@@ -145,16 +145,7 @@ Stop and report (don't auto-remediate):
 - **Image digest resolution fails** — image not in registry or auth missing. Stop and surface the recovery command.
 - **Image not in registry** — sei-chain CI may be behind. Surface the explicit retry command per the autobake race-guard pattern; don't loop silently.
 
-## Why direct apply, not GitOps
-
-The skill's old daily-driver flow (pre-#133) pushed manifests to a per-engineer workspace branch and waited for Flux. The new flow applies directly. The reasoning reversed because:
-
-- **The CR itself is the audit trail.** `kubectl get snd <name> -o yaml` shows preset, version, image, chain-id, owner — same provenance the workspace-branch git history was carrying. With native CR shape on stdout, there's nothing the agent layers on top.
-- **`watch` is sharper than Flux poll.** The engineer doesn't want to wait 60s for a Flux reconcile interval — they want immediate streaming events with a clean exit code at Ready. `kubectl wait --for=jsonpath=...` and Flux's `lastAppliedRevision` poll were both indirect; `seictl nd watch` reads the controller's own status field.
-- **Teardown is `seictl nd delete`.** One command, idempotent, mirrors apply. With the workspace-branch flow, teardown was `git rm + commit + push + wait for Flux prune` — four steps where one suffices.
-- **The engineer's namespace is the isolation boundary.** The workspace branch added a layer (per-engineer Flux watcher + per-task path) that wasn't pulling weight beyond what RBAC + namespace already provided.
-
-For long-lived workloads that *should* be in git (a benchmark fleet running for a week, a shared archive node), engineers push to `harbor-engineering-workspace` directly — that path exists for that reason. The agent doesn't drive it.
+For long-lived workloads that should live in git (a benchmark fleet running for a week, a shared archive node), engineers push to `harbor-engineering-workspace` directly. The agent does not drive that path.
 
 ## When the agent should NOT use direct apply
 

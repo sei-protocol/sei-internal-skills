@@ -1,227 +1,155 @@
 # Onboarding PR (the one-time tenant registration)
 
-A new engineer's onboarding is a single PR against `sei-protocol/platform` adding one file:
+A new engineer's onboarding is one PR against `sei-protocol/platform` adding three files. After the PR merges, run a targeted `terraform apply`. Both pieces complete in under five minutes.
 
-```
-clusters/harbor/engineers/<alias>/kustomization.yaml
-```
+Last verified: 2026-05-06 against sei-protocol/platform#432 (the fromtherain pilot — the canonical example).
 
-The file references the shared base layer (`../base`) and uses a configMapGenerator + replacements block to template the `tenant` placeholder in the base into the engineer's `<alias>`. When the PR merges, Flux reconciles the tenant in ~60s and the engineer's namespace, RBAC, workload service account, and Flux watcher all come online together.
+## Files in the PR
 
-Last verified: 2026-05-05 against sei-protocol/platform#427 (the fromtherain pilot — the canonical example) and the multi-tenancy design in `docs/designs/harbor-multi-tenancy-lld.md`.
+| Path | Action |
+|---|---|
+| `clusters/harbor/engineers/<alias>/kustomization.yaml` | New. Per-engineer overlay. Mirrors the most recent prior onboarding PR; only the `alias=<alias>` literal differs. |
+| `clusters/harbor/engineers/kustomization.yaml` | Modified. Adds `- <alias>` to `resources`. |
+| `terraform/aws/189176372795/eu-central-1/harbor/engineers/<alias>.tf` | New. Two `eks-pod-identity` module instances. Mirrors the prior engineer's file with substring replacement of the alias throughout. |
 
-## The canonical example: fromtherain (PR #427)
+## Per-engineer overlay (file 1)
 
-`clusters/harbor/engineers/fromtherain/kustomization.yaml`:
+References `../base`, sets `alias=<alias>` via `configMapGenerator`, runs `replacements:` to substitute the `tenant` placeholder for the alias across the rendered base. Selectors:
 
-```yaml
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
+- `ServiceAccount` → `metadata.name` aliased; rejects `engineer-service-account` and `seid-node` so those names stay literal.
+- `Role name: tenant` and `RoleBinding name: tenant` → name + subjects + roleRef aliased. Positive selector keeps `engineer-admin` `RoleBinding` untouched.
+- `Kustomization` (Flux) → `metadata.name` and `spec.serviceAccountName` aliased.
+- `Namespace` → `tide.sei.io/owner` and `toolkit.fluxcd.io/tenant` labels aliased.
+- `ServiceAccount name: engineer-service-account` and `name: seid-node` → `tide.sei.io/owner` label aliased.
 
-resources:
-  - ../base
+A second `replacements:` block substitutes `eng-tenant` → `eng-<alias>` (delimiter `-`, index 1) for namespace fields, and `engineers/tenant` → `engineers/<alias>` (delimiter `/`, index 2) for the Flux Kustomization's `spec.path`.
 
-configMapGenerator:
-  - name: tenant-info
-    literals:
-      - alias=fromtherain
-    options:
-      annotations:
-        config.kubernetes.io/local-config: "true"
-      disableNameSuffixHash: true
+Fetch the canonical content with `gh pr diff 432 --repo sei-protocol/platform -- clusters/harbor/engineers/fromtherain/kustomization.yaml` and substring-replace `fromtherain` → `<alias>`.
 
-replacements:
-  - source:
-      kind: ConfigMap
-      name: tenant-info
-      fieldPath: data.alias
-    targets:
-      - select:
-          kind: ServiceAccount
-        reject:
-          - name: workload-service-account
-        fieldPaths:
-          - metadata.name
-      - select:
-          kind: Role
-        fieldPaths:
-          - metadata.name
-      - select:
-          kind: RoleBinding
-        fieldPaths:
-          - metadata.name
-          - subjects.0.name
-          - roleRef.name
-      - select:
-          kind: Kustomization
-          group: kustomize.toolkit.fluxcd.io
-        fieldPaths:
-          - metadata.name
-          - spec.serviceAccountName
-      - select:
-          kind: Namespace
-        fieldPaths:
-          - metadata.labels.[tide.sei.io/owner]
-          - metadata.labels.[toolkit.fluxcd.io/tenant]
-      - select:
-          kind: ServiceAccount
-          name: workload-service-account
-        fieldPaths:
-          - metadata.labels.[tide.sei.io/owner]
-  - source:
-      kind: ConfigMap
-      name: tenant-info
-      fieldPath: data.alias
-    targets:
-      - select:
-          kind: Namespace
-        fieldPaths:
-          - metadata.name
-          - metadata.labels.[app.kubernetes.io/name]
-        options:
-          delimiter: "-"
-          index: 1
-      - select:
-          kind: ServiceAccount
-        fieldPaths:
-          - metadata.namespace
-        options:
-          delimiter: "-"
-          index: 1
-      - select:
-          kind: Role
-        fieldPaths:
-          - metadata.namespace
-        options:
-          delimiter: "-"
-          index: 1
-      - select:
-          kind: RoleBinding
-        fieldPaths:
-          - metadata.namespace
-          - subjects.0.namespace
-        options:
-          delimiter: "-"
-          index: 1
-      - select:
-          kind: Kustomization
-          group: kustomize.toolkit.fluxcd.io
-        fieldPaths:
-          - metadata.namespace
-          - spec.targetNamespace
-        options:
-          delimiter: "-"
-          index: 1
-      - select:
-          kind: Kustomization
-          group: kustomize.toolkit.fluxcd.io
-        fieldPaths:
-          - spec.path
-        options:
-          delimiter: "/"
-          index: 2
-```
+## Aggregator update (file 2)
 
-Plus an aggregator one level up at `clusters/harbor/engineers/kustomization.yaml` listing the new tenant directory:
+`clusters/harbor/engineers/kustomization.yaml` lists every onboarded engineer:
 
 ```yaml
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - fromtherain
+  - <prior-alias-1>
+  - <prior-alias-2>
+  - <alias>
 ```
 
-The PR adds the tenant's directory + appends one line to the aggregator. Two files touched.
+Append `<alias>` to `resources`. Alphabetical if the existing list is sorted.
 
-## What the base layer ships
+## Per-engineer Terraform (file 3)
+
+Two `module "eng_<alias>_seid_node_pod_identity"` and `module "eng_<alias>_engineer_pod_identity"` blocks at `terraform/aws/189176372795/eu-central-1/harbor/engineers/<alias>.tf`. Each:
+
+- `source = "registry.terraform.io/terraform-aws-modules/eks-pod-identity/aws"`, `version = ">= 2.4"`.
+- `name = "${var.name_prefix}-eng-<alias>-<purpose>"`.
+- `additional_policy_arns` → either `seid_node = var.iam_policy_seid_node_arn` or `engineer = var.iam_policy_engineer_arn`.
+- `associations.this = { cluster_name = var.cluster_name, namespace = "eng-<alias>", service_account = "<sa-name>" }`.
+- `tags = var.tags`.
+
+Fetch canonical with `gh pr diff 432 --repo sei-protocol/platform -- terraform/aws/189176372795/eu-central-1/harbor/engineers/fromtherain.tf` and substring-replace `fromtherain` → `<alias>`.
+
+The wrapper `terraform/.../harbor/engineers.tf` and the submodule's `engineers/variables.tf` already exist; this PR does not touch them.
+
+## Base layer (already in place)
 
 `clusters/harbor/engineers/base/`:
 
 | File | Provides |
 |---|---|
-| `kustomization.yaml` | Aggregates the rest. |
-| `namespace.yaml` | `eng-tenant` Namespace with cells-forward labels (`tide.sei.io/cell-type=personal`, `tide.sei.io/owner=tenant`, `toolkit.fluxcd.io/tenant=tenant`, `app.kubernetes.io/managed-by=flux`, `app.kubernetes.io/name=eng-tenant`). |
-| `rbac.yaml` | ServiceAccount `tenant`, namespace-scoped Role with the tenant's permission surface (snd/sn CRUD, derived resources read-only, events/configmaps/jobs CRUD, Flux Kustomization+GitRepository read+patch), RoleBinding `tenant`. |
-| `sync.yaml` | Flux `Kustomization` `tenant` watching `harbor-engineering-workspace` GitRepository at `./engineers/tenant`. The reconciler runs as the `tenant` ServiceAccount; cross-namespace writes are denied by RBAC. |
-| `workload-service-account.yaml` | `workload-service-account` ServiceAccount with `tide.sei.io/cell-type=personal` and `tide.sei.io/owner=tenant`. Used by in-namespace workloads (SeiNode pods, Jobs). |
+| `namespace.yaml` | `eng-tenant` Namespace with `tide.sei.io/cell-type=personal`, `tide.sei.io/owner=tenant`, `toolkit.fluxcd.io/tenant=tenant`, `app.kubernetes.io/managed-by=flux`, `app.kubernetes.io/name=eng-tenant`. |
+| `rbac.yaml` | `tenant` Role (snd/sn CRUD, derived resources read-only, jobs/configmaps/events CRUD, Flux resources read+patch); `tenant` `RoleBinding` (binds `tenant` SA to `tenant` Role); `engineer-admin` `RoleBinding` (binds `engineer-service-account` to built-in `admin` `ClusterRole`). |
+| `sync.yaml` | Flux `Kustomization` `tenant` watching `harbor-engineering-workspace` GitRepository at `./engineers/tenant`. |
+| `engineer-service-account.yaml` | `engineer-service-account` ServiceAccount with `tide.sei.io/cell-type=personal` and `tide.sei.io/owner=tenant` labels. |
+| `seid-node-sa.yaml` | `seid-node` ServiceAccount with the same labels. |
 
-The `tenant` placeholder is what the per-tenant overlay's `replacements:` substitutes for the engineer's alias. The base is `eng-tenant` everywhere; the overlay rewrites it to `eng-<alias>`.
+Shared Terraform at `terraform/aws/189176372795/eu-central-1/harbor/`:
 
-## What reconciles when the PR merges
+- `engineers-shared.tf` — `aws_iam_policy.engineer` (`s3:PutObject` and `s3:ListBucket` on `harbor-validation-results/${aws:PrincipalTag/kubernetes-namespace}/*`, ECR auth, `sei/sei-chain` image read).
+- `sei-k8s-controller.tf` — `aws_iam_policy.seid_node` (snapshot read, genesis r/w, `ec2:DescribeInstances`).
+- `engineers.tf` — `module "engineers"` wrapper passing `cluster_name`, `name_prefix`, `iam_policy_seid_node_arn`, `iam_policy_engineer_arn`, `tags` into the submodule.
 
-Within ~60s of merge:
+## What reconciles on PR merge
+
+Within ~60s, Flux materializes:
 
 | Resource | Where | Notes |
 |---|---|---|
 | `Namespace eng-<alias>` | cluster-scoped | Cells-forward labels, tagged for Flux multi-tenancy. |
-| `ServiceAccount <alias>` | `eng-<alias>` | The Flux reconciler identity for this tenant. |
-| `Role <alias>` + `RoleBinding <alias>` | `eng-<alias>` | Permission surface for the tenant SA. |
-| `Kustomization <alias>` | `eng-<alias>` | Watches `harbor-engineering-workspace`@`./engineers/<alias>`, reconciles every 5m, runs as `serviceAccountName: <alias>`. |
-| `ServiceAccount workload-service-account` | `eng-<alias>` | For in-namespace workloads. |
+| `ServiceAccount <alias>` | `eng-<alias>` | Flux reconciler identity. |
+| `Role <alias>` + `RoleBinding <alias>` | `eng-<alias>` | Reconciler permission surface. |
+| `ServiceAccount engineer-service-account` | `eng-<alias>` | Engineer-launched workloads. |
+| `RoleBinding engineer-admin` | `eng-<alias>` | Binds `engineer-service-account` to `admin` `ClusterRole`. Namespace-scoped. |
+| `ServiceAccount seid-node` | `eng-<alias>` | SeiNode StatefulSet pods. |
+| Flux `Kustomization <alias>` | `eng-<alias>` | Watches `harbor-engineering-workspace`@`./engineers/<alias>`, reconciles every 5m, runs as `serviceAccountName: <alias>`. |
 
-The engineer can immediately run `seictl nd apply` against `eng-<alias>` (their EKS access entry — separate from the workload SA — authorizes the kubectl write).
+## What reconciles on terraform apply
+
+After merge, run from `terraform/aws/189176372795/eu-central-1/harbor/`:
+
+```sh
+AWS_PROFILE=sei terraform plan -target=module.engineers -out=tfplan
+AWS_PROFILE=sei terraform apply tfplan
+```
+
+`Plan: 6 to add, 0 to change, 0 to destroy`. Apply confirms `Resources: 6 added`. The six resources:
+
+- `module.engineers.module.eng_<alias>_seid_node_pod_identity.{aws_iam_role.this[0], aws_iam_role_policy_attachment.this["seid_node"], aws_eks_pod_identity_association.this["this"]}` — binds `(harbor, eng-<alias>, seid-node)` to `aws_iam_policy.seid_node`.
+- `module.engineers.module.eng_<alias>_engineer_pod_identity.{aws_iam_role.this[0], aws_iam_role_policy_attachment.this["engineer"], aws_eks_pod_identity_association.this["this"]}` — binds `(harbor, eng-<alias>, engineer-service-account)` to `aws_iam_policy.engineer`.
+
+Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-namespace=eng-<alias>` in the assumed-role session; S3 writes auto-scope to `harbor-validation-results/eng-<alias>/*`. SeiNode pods running as `seid-node` get snapshot read + peer discovery via `aws_iam_policy.seid_node`.
 
 ## The agent's job
 
-For a new engineer (pre-flight gate 5 fails because `eng-<alias>` doesn't exist):
-
-1. **Capture the alias.**
-   - Default: `$USER` lowercased.
-   - Validate: matches `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$` (DNS-1123 label, k8s-namespace-safe).
-   - If the engineer wants something different from `$USER`, they say so.
-
-2. **Render the kustomization.yaml.**
-   - Take the fromtherain example above and substitute `fromtherain` → `<alias>` in the `literals:` line and the `kind: Kustomization` `name:` (no — actually only the `alias=` literal changes; the rest stays as-is, because the *replacements* drive substitution from the configMap value into all the placeholders elsewhere).
-   - Concretely: copy the fromtherain `kustomization.yaml` verbatim, change exactly one line (`- alias=fromtherain` → `- alias=<alias>`).
-
-3. **Update the aggregator.**
-   - Append `- <alias>` to `clusters/harbor/engineers/kustomization.yaml`'s `resources:` list. Maintain alphabetical order if the existing file is sorted.
-
-4. **Branch and commit.**
-   - Branch name: `onboard/<alias>` (matches the convention).
-   - Commit message (conventional): `feat(harbor/engineers): onboard <alias>`.
-
-5. **Open the PR.**
-   - Title: `feat(harbor/engineers): onboard <alias>`.
-   - Body: see template below.
-   - Use `gh pr create --repo sei-protocol/platform --base main`.
-
-6. **Surface the URL and halt.**
-   - Engineer reviews and merges. Flux reconciles in ~60s.
-   - Pre-flight gate 5 polls for `kubectl get namespace eng-<alias>`; once it returns 0, the engineer is on the rails.
+1. **Capture the alias.** Default `$USER` lowercased. Validate against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`.
+2. **Fetch the diff template.** `gh pr list --repo sei-protocol/platform --search "feat(harbor/engineers): onboard" --state merged --limit 1` returns the most recent prior onboarding PR. `gh pr diff <num>` gives the three-file content.
+3. **Render the three files locally** in a fresh clone of `sei-protocol/platform`. Substring-replace the prior alias with `<alias>` throughout. Branch: `feat/engineers-<alias>-onboard`.
+4. **Open the PR.** Title: `feat(harbor/engineers): onboard <alias>`. Body: see template below. `gh pr create --repo sei-protocol/platform --base main`.
+5. **Surface and halt:**
+   > Onboarding PR opened: `<url>`. After merge, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=sei terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations.
+6. **After merge,** poll `kubectl get namespace eng-<alias> --context harbor` until it returns 0.
+7. **Run the targeted apply.** `terraform plan -target=module.engineers -out=tfplan` then `terraform apply tfplan`. Confirm `Resources: 6 added`.
+8. **Verify** `aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --region eu-central-1 --profile sei` returns two associations (one for `seid-node`, one for `engineer-service-account`).
 
 ## PR body template
 
 ```markdown
-## What
-
 Onboards `<alias>` as a tenant on harbor.
 
-Adds:
-- `clusters/harbor/engineers/<alias>/kustomization.yaml` — references `../base`, configMapGenerator + replacements substitute `tenant` → `<alias>`.
-- One-line append to `clusters/harbor/engineers/kustomization.yaml` aggregator.
+## Files
 
-Mirrors the most recent prior onboarding PR verbatim — only the `alias=<alias>` literal differs.
+| Path | Action |
+|---|---|
+| `clusters/harbor/engineers/<alias>/kustomization.yaml` | New. |
+| `clusters/harbor/engineers/kustomization.yaml` | Modified. |
+| `terraform/.../harbor/engineers/<alias>.tf` | New. |
 
 ## What reconciles on merge
 
-Within ~60s of merge, Flux materializes:
-- `Namespace eng-<alias>` with cells-forward labels.
-- `ServiceAccount <alias>` + `Role <alias>` + `RoleBinding <alias>` (Flux reconciler identity, namespace-scoped).
-- `Kustomization <alias>` watching `harbor-engineering-workspace`@`./engineers/<alias>`.
-- `ServiceAccount workload-service-account` (for in-namespace workloads).
+- Namespace `eng-<alias>` with cells-forward labels.
+- `ServiceAccount <alias>` + `Role <alias>` + `RoleBinding <alias>` (Flux reconciler).
+- `ServiceAccount engineer-service-account` + `RoleBinding engineer-admin` (binds to `admin` `ClusterRole`).
+- `ServiceAccount seid-node`.
+- Flux `Kustomization <alias>` watching `harbor-engineering-workspace` at `./engineers/<alias>`.
 
-After merge I can immediately run `seictl nd apply` against `eng-<alias>`.
+## What reconciles on terraform apply
+
+`AWS_PROFILE=sei terraform apply -target=module.engineers`
+
+Plan: 6 to add, 0 to change, 0 to destroy. Six resources binding `eng-<alias>/seid-node` and `eng-<alias>/engineer-service-account` to their respective IAM policies via Pod Identity.
+
+## Verification
+
+- `kubectl get sa -n eng-<alias> --context harbor` lists `engineer-service-account`, `<alias>`, `seid-node`.
+- `aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --region eu-central-1 --profile sei` returns two associations.
 ```
-
-## Subsequent onboardings
-
-Each engineer is one PR. Each PR is two files (the per-engineer kustomization + the aggregator update). Each merge reconciles in ~60s. The base layer stays stable; onboarding cost stays linear.
-
-When the second engineer onboards, the agent should suggest the engineer review the most recent prior onboarding PR (e.g., the fromtherain PR) as the diff template — same shape, only the alias literal differs.
 
 ## When NOT to use this flow
 
-- **Non-engineer tenants** (CI bot, nightly orchestrator, shared workloads) — those use a different pattern under `clusters/harbor/<bucket>/`, not under `engineers/`. The agent doesn't onboard those; platform team does.
-- **Cluster-wide changes** (CRD updates, controller config, Flux infrastructure) — separate PR shapes, not this template.
+- Non-engineer tenants (CI bot, nightly orchestrator, shared workloads) — different pattern under `clusters/harbor/<bucket>/`.
+- Cluster-wide changes (CRD updates, controller config, Flux infrastructure) — separate PR shape.

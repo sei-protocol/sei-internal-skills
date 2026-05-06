@@ -127,7 +127,7 @@ Wait ~60s and re-check. If still missing, inspect the parent kustomization's sta
 
 **Edge case — namespace exists but RBAC isn't wired:** the base layer's `rbac.yaml` should have landed with the namespace. If `kubectl auth can-i` fails on workloads despite the namespace existing, check `kubectl get role,rolebinding -n eng-<alias>` — both should reference `<alias>` (post-replacement). If the role is missing or empty, the kustomization may have failed to apply the base; surface that and halt.
 
-**Edge case — namespace exists but `workload-service-account` doesn't:** same answer. The base layer ships it. If absent, the kustomization didn't fully reconcile.
+**Edge case — namespace exists but the SAs don't:** same answer. The base layer ships `engineer-service-account` and `seid-node` alongside the renamed `<alias>` reconciler SA. If any are absent, the kustomization didn't fully reconcile.
 
 ## Caching pre-flight within a session
 

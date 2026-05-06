@@ -25,16 +25,22 @@ The hard rules:
 
 You operate against the **harbor cluster** (eu-central-1 EKS). It runs the **sei-k8s-controller** which watches `SeiNode` and `SeiNodeDeployment` CRs and reconciles them into StatefulSets, PVCs, Services, and HTTPRoutes.
 
-**Where you work:** `eng-<alias>` namespace, registered to the engineer via a one-time PR against `sei-protocol/platform`. The namespace is the isolation boundary — RBAC, NetworkPolicy, and workload-service-account are scoped to it.
+**Where you work:** `eng-<alias>` namespace, registered to the engineer via a one-time PR against `sei-protocol/platform`. The namespace is the isolation boundary.
 
-**Two repos play different roles:**
+**Three ServiceAccounts in `eng-<alias>`, each scoped to one purpose:**
 
-| Repo | Role |
-|---|---|
-| `sei-protocol/platform` | Tenant registration. The onboarding PR adds `clusters/harbor/engineers/<alias>/kustomization.yaml` here, creating the namespace + RBAC + workload SA + a Flux watcher pointed at the workspace repo. **One PR per engineer, ever.** |
-| `sei-protocol/harbor-engineering-workspace` | Long-lived engineer workloads. Each engineer has `engineers/<alias>/` here, and the Flux watcher in their namespace reconciles whatever lands at that path. Out of scope for v1 of this skill — `seictl nd apply` covers ephemeral testing without needing a git push. |
+| SA | Runs as | k8s authority | AWS authority (via Pod Identity) |
+|---|---|---|---|
+| `<alias>` | Flux reconciler for the engineer's path in `harbor-engineering-workspace` | Narrow namespace-scoped Role: snd/sn/jobs/configmaps CRUD, derived resources read-only | None |
+| `engineer-service-account` | Engineer-launched workloads (seiload Jobs, scripts, custom tooling) | Namespace-admin via `RoleBinding` to built-in `admin` `ClusterRole` | `aws_iam_policy.engineer`: `s3:PutObject` on `harbor-validation-results/eng-<alias>/*` (auto-scoped via session tag), ECR auth + sei-chain image read |
+| `seid-node` | SeiNode StatefulSet pods (sei-k8s-controller-managed) | None (default SA permissions) | `aws_iam_policy.seid_node`: snapshot read, genesis r/w, EC2 `DescribeInstances` |
 
-**Default for engineer-facing intents: `seictl nd apply` — direct server-side apply against `eng-<alias>`.** The engineer's namespace is RBAC-bounded; the CR carries its own provenance via labels and annotations; `kubectl get snd -n eng-<alias>` is the authoritative live view. Watch, list, delete all operate the same way. The skill does not push manifests to `harbor-engineering-workspace` — if an engineer wants a long-lived workload there, they drive that repo themselves.
+**Two repos:**
+
+- `sei-protocol/platform` — tenant registration (one-time PR per engineer) and platform-wide infrastructure.
+- `sei-protocol/harbor-engineering-workspace` — long-lived engineer workloads at `engineers/<alias>/`, reconciled by the Flux watcher in `eng-<alias>`. Engineers drive this repo themselves; the agent does not.
+
+**Default for engineer-facing intents:** `seictl nd apply` against `eng-<alias>`. The CR carries its own provenance via labels and annotations; `kubectl get snd -n eng-<alias>` is the authoritative live view. Watch, list, delete operate the same way.
 
 See `references/onboarding-pr.md` for the one-time tenant-registration flow, `references/ephemeral-chain-flow.md` for the headline daily-driver procedure, `references/seictl-cli.md` for the `nd` verb tree, `references/harbor-cluster.md` for cluster facts.
 
@@ -56,31 +62,31 @@ For deep detail per gate (recovery commands, edge cases, the full new-engineer w
 
 ## First Run (the recovery for pre-flight gate 5)
 
-When pre-flight gate 5 fails (`eng-<alias>` namespace doesn't exist), enter First Run. By this point gates 1–4 have passed — seictl, SSO, kubeconfig, and EKS access entry are all in place — so the onboarding PR can be opened and the cluster will accept it once merged.
+When pre-flight gate 5 fails (`eng-<alias>` namespace doesn't exist), enter First Run. Gates 1–4 have passed — seictl, SSO, kubeconfig, and EKS access entry are in place.
 
-Onboarding is a **single PR** against `sei-protocol/platform` adding one file: `clusters/harbor/engineers/<alias>/kustomization.yaml`. The file follows the canonical pattern (see `clusters/harbor/engineers/fromtherain/kustomization.yaml` as the live reference) — it `resources: [../base]` and uses a configMapGenerator + replacements block to template the `tenant` placeholder in the shared base layer to the engineer's alias.
+Onboarding is one PR against `sei-protocol/platform` adding three files. After merge, run a targeted `terraform apply`. Both pieces complete in under five minutes.
 
-```
-First time — let's register your tenant on harbor.
-Alias [defaults from $USER, lowercase]: <alias>
-Validating: matches [a-z]([a-z0-9-]{0,28}[a-z0-9])? — ok.
+**Files the PR adds:**
 
-Generated PR body. Branch: onboard/<alias>. PR will add:
-  clusters/harbor/engineers/<alias>/
-    kustomization.yaml   (resources: [../base], replacements: tenant→<alias>)
-```
+| Path | Action |
+|---|---|
+| `clusters/harbor/engineers/<alias>/kustomization.yaml` | New. Per-engineer overlay. Mirrors the most recent prior onboarding PR; only the `alias=<alias>` literal differs. |
+| `clusters/harbor/engineers/kustomization.yaml` | Modified. Adds `- <alias>` to `resources`. |
+| `terraform/aws/189176372795/eu-central-1/harbor/engineers/<alias>.tf` | New. Two `eks-pod-identity` module instances for the engineer's `seid-node` and `engineer-service-account` SAs. Mirror the prior engineer's file with substring replacement of the alias. |
 
-Open the PR via `gh pr create`. The PR body should:
-- Cite the most recent prior onboarding PR as the diff template.
-- List what reconciles when merged: namespace `eng-<alias>`, RBAC role + binding, `workload-service-account`, Flux Kustomization watching `harbor-engineering-workspace` at `./engineers/<alias>`.
+**Procedure:**
 
-Surface the PR URL and halt:
+1. Capture the alias. Default to `$USER` lowercased; validate against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`.
+2. Fetch the most recent prior onboarding PR via `gh pr list --repo sei-protocol/platform --search "feat(harbor/engineers): onboard"` — that PR is the diff template. Branch: `feat/engineers-<alias>-onboard`.
+3. Render the three files (`gh pr diff` on the prior PR + substring replace on the alias).
+4. Open the PR. Title: `feat(harbor/engineers): onboard <alias>`.
+5. Surface the PR URL and halt:
+   > Onboarding PR opened: `<url>`. After merge, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=sei terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations.
+6. After merge, poll `kubectl get namespace eng-<alias>` until it returns 0.
+7. Run `terraform plan -target=module.engineers -out=tfplan` and confirm `Plan: 6 to add, 0 to change, 0 to destroy`. Apply with `terraform apply tfplan`. `Resources: 6 added` confirms.
+8. Gate 5 passes. The engineer can run `seictl nd apply` against `eng-<alias>`. Pods running as `engineer-service-account` get S3 write to their own namespace prefix; SeiNode pods running as `seid-node` get snapshot read + peer discovery.
 
-> Onboarding PR opened: <url>. Once merged, your namespace + RBAC + Flux watcher come online together (~60s post-merge). I'll poll for the namespace and continue when it's ready.
-
-Engineer reviews and merges. Flux reconciles in ~60s, gate 5 passes, the engineer can immediately run `seictl nd apply` against `eng-<alias>`.
-
-See `references/onboarding-pr.md` for the full PR shape and what the base layer provides.
+See `references/onboarding-pr.md` for the complete file content, base-layer details, and PR body template.
 
 ## What you can do
 
