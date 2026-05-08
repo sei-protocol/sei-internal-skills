@@ -46,7 +46,7 @@ Two complementary artifact-capture skills. Coral / council should offer them at 
 - **`chaos-suite/`** — Execute the full chaos test suite (runbook: sei-protocol/platform#169) against a dev or staging Sei cluster and collate results into a release summary. **Status: scaffold** — follows the template; scripts are placeholders pending authoring against the live runbook. Tracking issue: sei-protocol/platform#170.
 
 ### Engineer Self-Service
-- **`sei-platform-engineer/`** — Engineer-facing interface to Sei platform infrastructure on the harbor EKS cluster. Translates natural-language intent (run a benchmark, onboard me, diagnose seinode) into `seictl` invocations. **Status: design draft** — SKILL.md is the contract; depends on seictl's cluster-facing commands (`bench`, `onboard`, `status`, `seinode`, `controller`, `context`) which are not yet implemented. Tracking issue: TBD on sei-protocol/seictl.
+- **`harbor-dev/`** — Engineer-facing interface to the harbor EKS cluster. Translates natural-language intent (spin up an ephemeral chain, attach an RPC fleet, run a bench, onboard me, tear it down) into `seictl nd` invocations and PR-based GitOps deliveries against `sei-protocol/harbor-engineering-workspace`. Built on `seictl` v0.0.43+.
 
 ### Future Slots
 - _(planned)_ `release-verify/` — deploy-smoke + sanity checks after a release cut.
@@ -67,12 +67,12 @@ A project-scope skill in this repo is only discoverable when Claude Code is runn
 
 ```sh
 ./scripts/sync-skills.sh                    # daily: portable skills → ~/.claude/skills/
-./scripts/sync-skills.sh --categories all   # also sync sei skills (chaos-suite, sei-platform-engineer)
+./scripts/sync-skills.sh --categories all   # also sync sei skills (chaos-suite, harbor-dev)
 ./scripts/sync-skills.sh --target ~/work/sei-k8s-controller --force  # to another repo
 ```
 
 If a tracked file in the target differs from Tide's version, the skill is reported as a conflict and skipped — re-run with `--force` to overwrite. Target-only files (user customizations, runtime artifacts) are preserved.
 
-Sibling of `scripts/sync-agents.sh` — same shape, same flags. Categories: `portable` (`bugbash`, `coral`, `council`, `design`, `issue`), `sei` (`chaos-suite`, `sei-platform-engineer`), `all`. Update the lists in the script when a skill is added, renamed, or re-categorized.
+Sibling of `scripts/sync-agents.sh` — same shape, same flags. Categories: `portable` (`bugbash`, `coral`, `council`, `design`, `issue`), `sei` (`chaos-suite`, `harbor-dev`), `all`. Update the lists in the script when a skill is added, renamed, or re-categorized.
 
 For procedural skills like `chaos-suite` that operate on remote infrastructure, you can also just run them from Tide and pass `--repo` / target paths to direct work elsewhere — no sync needed.

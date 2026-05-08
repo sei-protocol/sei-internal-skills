@@ -1,9 +1,9 @@
 ---
-name: sei-platform-engineer
+name: harbor-dev
 description: "Engineer-facing interface to Sei platform infrastructure on the harbor EKS cluster. Translates natural-language intent into `seictl nd` invocations against the engineer's namespace — spin up an ephemeral chain, attach an RPC fleet, watch it reach Ready, tear it down. For new engineers, opens the one-time onboarding PR against sei-protocol/platform that registers the tenant. Trigger on 'spin up a chain', 'start a chain', 'ephemeral chain', 'give me N validators', 'add an RPC fleet', 'attach RPC nodes', 'tear down my chain', 'what's running in my namespace', 'onboard me', 'set me up on harbor'. NOT for sei-k8s-controller code changes. NOT for autobake nightly cron changes. NOT for chaos testing (use chaos-suite). For multi-component design work, use /council or /coral."
 ---
 
-# sei-platform-engineer
+# harbor-dev
 
 Engineer-facing interface to Sei platform infrastructure on the **harbor** EKS cluster. The engineer describes what they want; intent translates into `seictl nd` invocations against their namespace. The engineer doesn't need to remember the SeiNodeDeployment field set, what kustomize replacements look like, or which preset wires the rpc peer selector — `seictl` and this skill carry that.
 
