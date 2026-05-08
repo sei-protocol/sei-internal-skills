@@ -122,6 +122,7 @@ Every engineer-facing intent maps to a `seictl nd` verb against `eng-<alias>`. *
 | "Show me chain X" / "what's the status of X" | `seictl nd get <name> -n eng-<alias>` (full CR including `.status.phase`, `.status.endpoints`, `.status.perPodServices`). |
 | "Tear down chain X" / "wipe X" | `git rm -r engineers/<alias>/<task>/` **and** remove `<task>` from `engineers/<alias>/kustomization.yaml`'s `resources:` list (Kustomize fails to render with a missing-resource entry). Commit → push → merge. Flux prunes the SND on next reconcile, which cascades to child SeiNodes / pods / PVCs per k8s deletion propagation. |
 | "Run a load test against chain X" / "bench it" / "stress test chain X" | **PR-based bench** (see Procedure: spin up a load test). Live-fetch chain rpc per-pod URLs, substitute into the profile JSON, render Job + ConfigMap from the templates in `references/sei-load-bench.md`, open a PR against `harbor-engineering-workspace` at `engineers/<alias>/bench-<RUN_ID>/`. Merge → Flux applies → seiload runs → uploader sidecar pushes results to S3. |
+| "Compare PR 3399 to main on sei-chain" / "bench A against B" / "diff the perf of these two commits" | **PR-based comparative bench** (see Procedure: comparative bench). Renders two ephemeral chains (each running its own seid image) + two sei-load Jobs (identical profile + duration) into a single PR. After merge, watches both chains in parallel, polls both Jobs to terminal, fetches both reports from S3, and surfaces a side-by-side metrics table (TPS / latency / success rate / errors). Lives at `engineers/<alias>/compare-<COMPARE_RUN_ID>/`. |
 | "Where am I" / "what cluster am I on" / "who am I" | `kubectl config current-context` + `aws sts get-caller-identity --profile <chosen>` (the gate-2 profile). (No dedicated `seictl context` verb in this surface.) |
 
 **Override and composition:**
@@ -177,7 +178,30 @@ Engineer says "load chain X with seiload" or "bench against PR 3399 of sei-load.
 8. **Render the manifests** — Job + ConfigMap + kustomization.yaml in `engineers/<alias>/bench-<RUN_ID>/`. Append `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `resources:` list.
 9. **Commit + push** — branch `feat/eng-<alias>-bench-<RUN_ID>`. Message: `feat(eng/<alias>): bench <RUN_ID> against <chain-id> (image=<digest-prefix>)`.
 10. **Open the PR** against `sei-protocol/harbor-engineering-workspace`. Surface URL: "Merge to start the bench. Job runs `<DURATION>` minutes; results land at `s3://harbor-validation-results/eng-<alias>/<profile>/<RUN_ID>/report.log`."
-11. **Report observation recipes** — `kubectl logs -n eng-<alias> -l sei.io/bench-name=<RUN_ID> -c seiload -f` for live tail; `kubectl get job -n eng-<alias> seiload-<RUN_ID> -o jsonpath='{.status.conditions[?(@.type=="Complete" || @.type=="Failed")].type}={.status.conditions[?(@.type=="Complete" || @.type=="Failed")].status}'` for terminal check (returns `Complete=True` on success or `Failed=True` on `activeDeadlineSeconds` / `backoffLimit` exhaustion — empty until the Job reaches a terminal condition); teardown via `git rm -r engineers/<alias>/bench-<RUN_ID>/` and remove the entry from `engineers/<alias>/kustomization.yaml`'s `resources:`.
+11. **Report observation recipes** — `kubectl logs -n eng-<alias> -l sei.io/bench-name=<RUN_ID> -c seiload -f` for live tail; for terminal check use `kubectl get job -n eng-<alias> seiload-<RUN_ID> -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}' \| grep -E '^(Complete\|Failed)=True$'` (kubectl jsonpath filter expressions don't support `\|\|`, so iterate + grep on the host side; `Complete=True` on success or `Failed=True` on `activeDeadlineSeconds` / `backoffLimit` exhaustion); teardown via `git rm -r engineers/<alias>/bench-<RUN_ID>/` and remove the entry from `engineers/<alias>/kustomization.yaml`'s `resources:`.
+
+## Procedure: comparative bench (two images, side-by-side)
+
+Engineer says "compare PR 3399 to main on sei-chain" or "bench latest sei-chain against commit b7b4868." Renders two ephemeral chains (each running its own seid image) + two sei-load Jobs (identical profile + duration + replica counts) into a single PR. After merge, both chains spin up in parallel; both benches run in parallel; both reports land in S3 paired by `<COMPARE_RUN_ID>`. The agent fetches both, extracts canonical metrics, and surfaces a side-by-side table.
+
+**Read `references/comparative-bench.md` first.** It carries the four-subdir layout, naming convention, post-merge parallel-watch pattern, S3 fetch + metric-extraction recipe, fallback rendering, and halt conditions specific to the comparative shape.
+
+1. **Pre-flight** — five gates from `preflight.md`. Halt on first failure.
+2. **Resolve both images** — image A (engineer's input — PR / commit / branch) and image B (baseline — engineer-supplied; no silent default). Per `references/image-resolution.md` for both. Halt if either is missing in registry; do not render half a comparison.
+3. **Resolve compare-tag** — Linear ticket → `<imageA-tag>-vs-<imageB-tag>` → explicit `--tag`. Validate the chain-tag length budget (≤24 chars, since the longest auto-suffix is `-a-rpc`).
+4. **Resolve `<COMPARE_RUN_ID>`** — same shape as single-bench. Branch is `feat/eng-<alias>-compare-<compare-tag>-*`; reuse on match, else mint.
+5. **Resolve profile + duration** — defaults `nightly_evm_transfer` / 10 min. Both sides use identical values; the skill enforces this.
+6. **Verify no SND name collisions** — four planned names (`<chain-tag>-{a,b}` + `<chain-tag>-{a,b}-rpc`) must all be `NotFound` in `eng-<alias>`.
+7. **Plan echo & confirm** — both image digests + source refs, both chain-ids, profile, duration, `<COMPARE_RUN_ID>`, target workspace path, both expected S3 keys, total estimated runtime (`<DURATION> + ~6 min`).
+8. **Render the four sub-dirs** (chain-a, chain-b, bench-a, bench-b) per the templates in `references/comparative-bench.md`. Append `compare-<COMPARE_RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `resources:` if not already present.
+9. **Verify config parity** — read both rendered bench ConfigMaps back, diff the substituted JSONs; abort the render if they differ on anything except `seiChainId` and `endpoints`.
+10. **Commit + push** — branch `feat/eng-<alias>-compare-<COMPARE_RUN_ID>`. Message: `feat(eng/<alias>): compare <imageA-tag> vs <imageB-tag> (<COMPARE_RUN_ID>)`.
+11. **Open the PR** — surface URL: "Merge to start. Both chains spin up in parallel (~5 min), both benches run for `<DURATION>` minutes, then I'll fetch the reports and surface the comparison."
+12. **After merge — watch chains in parallel** — `seictl nd watch <chain-tag>-a` and `<chain-tag>-b` concurrently (`--until=Ready --timeout=15m`). Halt the whole comparison if either reaches Failed; the comparison is invalid against half a setup.
+13. **Watch RPC fleets in parallel** — same shape against `<chain-tag>-a-rpc` and `<chain-tag>-b-rpc`.
+14. **Poll both bench Jobs to terminal** — single loop that checks both `seiload-<COMPARE_RUN_ID>-{a,b}` for `Complete=True` or `Failed=True`. Deadline: `<DURATION> * 60 + 660` seconds.
+15. **Fetch + render** — pull both reports via in-cluster `kubectl run` under `engineer-service-account` (the engineer's local SSO profile lacks `s3:GetObject` on the prefix). Locate sei-load's summary block in each report; surface both summaries verbatim under a delta table that highlights canonical metrics (TPS, P50/P99 latency, success rate, tx counts) with `better` / `worse` verdicts. On summary-block miss, fall back to last-50-lines format with both S3 paths.
+16. **Teardown guidance** — `git rm -r engineers/<alias>/compare-<COMPARE_RUN_ID>/` and remove the entry from `engineers/<alias>/kustomization.yaml`'s `resources:`. Flux prunes the four SNDs + two Jobs; child pods/PVCs cascade.
 
 ## Procedure: troubleshooting (manual)
 
@@ -210,6 +234,10 @@ Stop and report to the user if:
 - **Workspace-repo task path collision** — `engineers/<alias>/<task>/` already exists. Don't silently overwrite. Halt and ask whether to reuse the dir (and add new files alongside the existing ones) or pick a different `<task>` name.
 - **Chain rpc SND not Ready when rendering a bench.** The bench requires per-pod RPC URLs, which populate only after the rpc SND reconciles. Halt and offer to poll (`seictl nd watch <chain-id>-rpc --until=Ready -n eng-<alias>`) before continuing.
 - **Per-pod RPC URLs absent despite phase=Ready.** Pre-Service-population race. Sleep 30s and retry once; halt with the SND's full status if still empty.
+- **Comparative bench: one side reaches Ready, the other Failed.** The comparison is invalid against half a setup. Surface the failed side's `.status.plan.failedTaskDetail.error`; offer to teardown the Ready side via `git rm` against just that sub-dir + commit. Don't run the bench against half a comparison.
+- **Comparative bench: config parity check fails post-render.** The two substituted profile JSONs differ on a field other than `seiChainId` / `endpoints`. Halt before push; the rendered manifests would produce a non-comparable result.
+- **Comparative bench: chain-tag exceeds the 24-char budget** when the `-{a,b}-rpc` suffix is added. Surface the overflow and ask the engineer to pick a shorter tag.
+- **Comparative bench: S3 GetObject fails on a report.** `NoSuchKey` means the upload sidecar didn't run — surface `kubectl logs -n eng-<alias> -l sei.io/compare-name=<COMPARE_RUN_ID>,sei.io/compare-side=<a|b> -c upload-results` to diagnose. `AccessDenied` means the engineer's profile lacks `s3:GetObject` (the engineer SA's IAM policy already covers it; the active profile is wrong).
 - **PR push rejected (non-fast-forward)** — engineer or another agent pushed to the same branch. Don't force-push. Halt; surface `git pull --rebase origin <branch>` and let the engineer resolve.
 
 ## Reference index
@@ -224,6 +252,7 @@ Stop and report to the user if:
 | `seinodedeployment-crd.md` | Operations-load-bearing fields on `SeiNodeDeployment`, including `.status.phase`, `.status.endpoints`, `.status.perPodServices`, `.status.plan` |
 | `cluster-inspection-recipes.md` | **Canonical structured-extraction recipes.** Use these directly instead of inferring jsonpath at runtime — RPC endpoints (recipe #1, also resolves "target RPC, not validator"), phase + readiness, failed task, image drift, per-pod services, Flux Kustomization Ready |
 | `sei-load-bench.md` | **Read this if the engineer asks for a load test or bench.** Job + ConfigMap templates with substitution markers, live profile-JSON substitution recipe, two-container upload pattern (seiload + amazon/aws-cli sidecar with `shareProcessNamespace`), S3 archival convention, run-id determinism on re-render |
+| `comparative-bench.md` | **Read this if the engineer asks to compare two images.** Four-subdir layout (chain-a / chain-b / bench-a / bench-b), naming convention, per-side profile substitution, parallel post-merge watch sequence, S3 fetch + canonical-metric extraction with raw-tail fallback, comparison-output table format |
 | `image-resolution.md` | **Canonical image-resolution recipes** for sei-chain (ECR) and sei-load (GHCR). PR/commit/branch input → full SHA → expected tag → registry probe → trigger + watch the build workflow if missing |
 | `troubleshooting-seinode.md` | Phase-by-phase symptom → cause → inspection decision tree |
 | `harbor-cluster.md` | CNI (Cilium), Istio + Gateway API, DNS, Flux topology, EKS access entries |
