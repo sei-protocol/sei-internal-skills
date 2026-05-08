@@ -92,11 +92,15 @@ spec:
       containers:
         - name: seiload
           image: <SEILOAD_IMAGE>
-          command: ["/bin/sh", "-c"]
+          command: ["/bin/bash", "-c"]
           args:
             - |
-              set -eu
+              set -euo pipefail
               # Trap exit so the uploader unblocks even on failure.
+              # Bash + pipefail means seiload's exit code propagates through tee —
+              # if seiload crashes, the container exits non-zero, the Job
+              # reports Failed (not Complete), and the agent's status poll
+              # sees the right signal.
               trap 'echo done > /shared/done' EXIT
               seiload \
                 --config /etc/seiload/profile.json \

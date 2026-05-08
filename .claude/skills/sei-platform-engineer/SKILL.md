@@ -40,7 +40,7 @@ You operate against the **harbor cluster** (eu-central-1 EKS). It runs the **sei
 - `sei-protocol/platform` — tenant registration (one-time PR per engineer) and platform-wide infrastructure.
 - `sei-protocol/harbor-engineering-workspace` — long-lived engineer workloads at `engineers/<alias>/`, reconciled by the Flux watcher in `eng-<alias>`. Engineers drive this repo themselves; the agent does not.
 
-**Default for engineer-facing intents:** `seictl nd apply` against `eng-<alias>`. The CR carries its own provenance via labels and annotations; `kubectl get snd -n eng-<alias>` is the authoritative live view. Watch, list, delete operate the same way.
+**Default for engineer-facing intents — render → PR → Flux applies.** The team is GitOps-opinionated: every engineer side effect on the cluster goes through a PR against `sei-protocol/harbor-engineering-workspace`, never direct apply. The agent renders the SND CR via `seictl nd apply --dry-run` (output captured as JSON, converted to YAML via `yq -P`), writes it to `engineers/<alias>/<task>/snd-<id>.yaml`, opens the PR, surfaces the URL, and halts. The engineer reviews and merges; Flux reconciles within ~60s. After merge, the agent watches via `seictl nd watch <id> --until=Ready -n eng-<alias>` to report when pods are healthy. The CR carries its own provenance via labels and annotations; `kubectl get snd -n eng-<alias>` is the authoritative live view post-merge. Direct `seictl nd apply` (server-side apply, no PR) is an explicit escape hatch — see "Escape hatch" in the procedure below; never the default.
 
 See `references/onboarding-pr.md` for the one-time tenant-registration flow, `references/ephemeral-chain-flow.md` for the headline daily-driver procedure, `references/seictl-cli.md` for the `nd` verb tree, `references/harbor-cluster.md` for cluster facts.
 
@@ -50,7 +50,7 @@ Pre-flight is a sequenced ramp from "fresh laptop" to "ready to apply against en
 
 | # | Gate | Detect with | If missing → |
 |---|---|---|---|
-| 1 | `seictl ≥ v0.0.43` on PATH | `command -v seictl` returns 0; `seictl nodedeployment --help` exits 0 (the `nodedeployment` verb tree only exists in v0.0.41+, peer auto-wire in v0.0.43+) | `brew install sei-protocol/tap/seictl` (fresh) or `brew upgrade seictl` (older). Halt. |
+| 1 | `seictl ≥ v0.0.43` on PATH | `command -v seictl` returns 0; `seictl nodedeployment --help` exits 0 (the `nodedeployment` verb tree only exists in v0.0.41+, peer auto-wire in v0.0.43+) | Recommended: prebuilt binary from GitHub releases (per platform: `curl -LO https://github.com/sei-protocol/seictl/releases/latest/download/seictl_Darwin_arm64.tar.gz` (or `_Darwin_x86_64`/`_Linux_x86_64`/`_Linux_arm64`/`_Linux_armv7`), `tar -xzf` then `sudo mv seictl /usr/local/bin/`). Build-from-source fallback (when newer than latest release): `git clone git@github.com:sei-protocol/seictl.git && cd seictl && make build && sudo mv build/seictl /usr/local/bin/`. **Not** via `brew` (no tap exists) and **not** via `go install` (the repo's go.mod requires source-tree build flags). Halt until `command -v seictl` succeeds. |
 | 2 | AWS SSO session active for the engineer's chosen profile | `aws sts get-caller-identity --profile <profile>` returns 0, where `<profile>` is resolved per the profile-detection flow below. After resolution, **echo the assumed identity** (`Arn` from the response) so the engineer sees what's about to act on the cluster. | If session is expired: surface `aws sso login --profile <profile>`; halt. If no profile is configured: surface `aws configure sso`; halt. See "Profile detection" below for the resolution flow. |
 | 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` (or the EKS ARN form) | Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>` directly (using the profile resolved at gate 2); re-check; continue. |
 | 4 | kubectl can reach harbor with engineer-side reach | `kubectl auth can-i list seinodedeployments -n eng-<alias> --context=harbor` returns `yes` | EKS access entry not granted, or scoped read-only. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
@@ -100,7 +100,7 @@ Onboarding is one PR against `sei-protocol/platform` adding three files. After m
    > Onboarding PR opened: `<url>`. After merge, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` = the AWS profile resolved at gate 2.)
 6. After merge, poll `kubectl get namespace eng-<alias>` until it returns 0.
 7. Run `terraform plan -target=module.engineers -out=tfplan` and confirm `Plan: 6 to add, 0 to change, 0 to destroy`. Apply with `terraform apply tfplan`. `Resources: 6 added` confirms.
-8. Gate 5 passes. The engineer can run `seictl nd apply` against `eng-<alias>`. Pods running as `engineer-service-account` get S3 write to their own namespace prefix; SeiNode pods running as `seid-node` get snapshot read + peer discovery.
+8. Gate 5 passes. The engineer is on the rails — chain spinup and bench requests now render via the skill, land in `harbor-engineering-workspace` PRs, and reconcile via Flux on merge. Pods running as `engineer-service-account` get S3 write to their own namespace prefix; SeiNode pods running as `seid-node` get snapshot read + peer discovery.
 
 See `references/onboarding-pr.md` for the complete file content, base-layer details, and PR body template.
 
@@ -111,12 +111,12 @@ Every engineer-facing intent maps to a `seictl nd` verb against `eng-<alias>`. *
 | Engineer says | Skill maps to |
 |---|---|
 | "Onboard me" / "set me up on harbor" / "I'm new" | First Run — open the platform-repo PR (see above + `references/onboarding-pr.md`). |
-| "Spin up a chain of N validators with image X" / "start a chain" / "give me an ephemeral chain" | `seictl nd apply <name> --preset genesis-chain --chain-id <id> --image <ref> [--replicas N] -n eng-<alias>` then `seictl nd watch <name> --until=Ready -n eng-<alias>`. |
-| "Add an RPC fleet to chain X" / "attach RPC nodes" | `seictl nd apply <name> --preset rpc --chain-id <same-id> --image <ref> [--replicas N] -n eng-<alias>` then `seictl nd watch <name> --until=Ready -n eng-<alias>`. The `rpc` preset auto-wires `peers[0].label.selector.sei.io/chain=<chain-id>`, so the same `--chain-id` as the genesis chain gets the fleet pointing at it. |
+| "Spin up a chain of N validators with image X" / "start a chain" / "give me an ephemeral chain" | **PR-based** (see Procedure: spin up an ephemeral chain). Render via `seictl nd apply --dry-run -n eng-<alias>` (JSON to stdout) → `yq -P` to YAML → write to `engineers/<alias>/<task>/snd-<chain-id>.yaml` in `harbor-engineering-workspace` → commit → push → open PR. After merge, Flux applies; `seictl nd watch <id> --until=Ready -n eng-<alias>` reports liveness. |
+| "Add an RPC fleet to chain X" / "attach RPC nodes" | Same render → PR shape with `--preset rpc --chain-id <same-id>`. Land in the same task dir as a sibling file (`snd-<id>-rpc.yaml`). Either as additional commits to an open chain PR or a follow-up PR. The `rpc` preset auto-wires `peers[0].label.selector.sei.io/chain=<chain-id>`, so the same `--chain-id` as the genesis chain gets the fleet pointing at it. |
 | "What's running in my namespace" / "what chains do I have" | `seictl nd list -n eng-<alias>` (yaml default; `-o name` for short, `-o jsonpath=...` for one-shot field reads). |
 | "Show me chain X" / "what's the status of X" | `seictl nd get <name> -n eng-<alias>` (full CR including `.status.phase`, `.status.endpoints`, `.status.perPodServices`). |
 | "Load chain X with seiload" / "run a bench against X" / "stress test X" | **PR-based bench** (see Procedure: spin up a load test). Skill renders Job + ConfigMap from the templates in `references/sei-load-bench.md` substituting chain-id, image, profile, duration. Opens a PR against `harbor-engineering-workspace` at `engineers/<alias>/<bench-name>/`. Merge → Flux applies → Job runs → results land in S3. |
-| "Tear down chain X" / "wipe X" | `seictl nd delete <name> -n eng-<alias>` (default `--cascade=foreground`; passes through to k8s deletion propagation). |
+| "Tear down chain X" / "wipe X" | `git rm engineers/<alias>/<task>/snd-<chain-id>.yaml` (and the rpc sibling, if present) → commit → push → merge. Flux prunes the SND on next reconcile, which cascades to child SeiNodes / pods / PVCs per k8s deletion propagation. Same shape as bench teardown — git is the audit trail for both create and delete. |
 | "Where am I" / "what cluster am I on" / "who am I" | `kubectl config current-context` + `aws sts get-caller-identity --profile <chosen>` (the gate-2 profile). (No dedicated `seictl context` verb in this surface.) |
 
 **Override and composition:**
@@ -125,9 +125,9 @@ Every engineer-facing intent maps to a `seictl nd` verb against `eng-<alias>`. *
 - `--set <dotted.path>=<value>` (repeatable) does strategic-merge overrides on the SND spec; wins over discrete flags on collision. Maps merge per-key, lists replace wholesale. Example: `--set spec.template.spec.image=ghcr.io/...:abc123`.
 - `--dry-run` on `apply` runs server-side-apply in dry-run mode and emits the would-be-applied CR without persisting. Right shape for "show me what this would do" before committing.
 
-## Procedure: spin up an ephemeral chain (the headline)
+## Procedure: spin up an ephemeral chain (the headline — PR-based)
 
-Engineer says "spin up a chain of 4 validators with seid sha=abc, then add an RPC fleet." This is the daily-driver flow. The skill calls `seictl nd apply` (server-side apply) twice, watches each to Ready, then reports endpoints.
+Engineer says "spin up a chain of 4 validators with seid sha=abc, then add an RPC fleet." This is the daily-driver flow. The skill renders SND CRs via `seictl nd apply --dry-run`, writes them to `engineers/<alias>/<task>/` in `harbor-engineering-workspace`, opens a PR. Engineer merges → Flux applies → agent watches each SND to Ready → reports endpoints.
 
 **Read `references/ephemeral-chain-flow.md` first.** It carries the architectural context — preset taxonomy, what each preset wires automatically, the watch protocol, exit-code conventions. The procedure below is the operational restatement.
 
@@ -140,15 +140,21 @@ Engineer says "spin up a chain of 4 validators with seid sha=abc, then add an RP
    5. **None of the above** → ask **one** question for an explicit tag. Don't silently fall back to a timestamp — anonymous IDs in Grafana / logs / cluster state can't be tied back to the work they served.
 
    The resolved ID becomes both the SND name and `--chain-id`. Lowercase, k8s-namespace-safe (regex `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`). For "chain X with RPC," the genesis SND is `<id>` and the RPC SND is `<id>-rpc`.
-3. **Resolve image digest** — engineer provides a ref. Surface the resolved digest in the plan echo so the engineer sees what they're about to run.
-4. **Plan echo & confirm** — on the first side-effecting call of the session, show the engineer: cluster (harbor), namespace (`eng-<alias>`), preset, SND name, chain-id, image digest, replica count. Wait for confirmation.
-5. **Apply the genesis chain** — `seictl nd apply <id> --preset genesis-chain --chain-id <id> --image <ref> [--replicas N] -n eng-<alias>`. Server-side-applies; emits the post-apply CR on stdout as JSON.
-6. **Watch genesis to Ready** — `seictl nd watch <id> --until=Ready --timeout=15m -n eng-<alias>`. NDJSON stream of SND events; exits 0 when `.status.phase=Ready`. Halt on non-zero (`metav1.Status` on stderr — `jq -r .reason` discriminates Timeout vs terminal Failed phase vs API failure).
-7. **Apply the RPC fleet (if requested)** — `seictl nd apply <id>-rpc --preset rpc --chain-id <id> --image <ref> [--replicas N] -n eng-<alias>`. The `rpc` preset auto-wires `peers[0].label.selector.sei.io/chain=<id>`, so the same `--chain-id` gets it pointing at the validators.
-8. **Watch RPC to Ready** — `seictl nd watch <id>-rpc --until=Ready --timeout=15m -n eng-<alias>`.
-9. **Report** — use the canonical inspection recipes from `references/cluster-inspection-recipes.md` rather than inferring jsonpath at runtime. Recipe #1 returns the chain's RPC endpoints (target these for any load tools — never validators). Recipe #4 lists the chain's full SND set (validator + RPC) with phase + readiness in one shot. Plus teardown commands: `seictl nd delete <id>-rpc -n eng-<alias>` then `seictl nd delete <id> -n eng-<alias>`.
+3. **Resolve image** — sei-chain (`seid`) image. **Required input** (PR / commit / branch / explicit `--image`); never silently default. Resolve to a full SHA and verify the image is in registry per `references/image-resolution.md`. Surface the resolved digest in the plan echo so the engineer sees what they're about to run.
+4. **Render** — `seictl nd apply <id> --preset genesis-chain --chain-id <id> --image <ref> [--replicas N] -n eng-<alias> --dry-run` emits the post-apply CR as JSON on stdout. Pipe through `yq -P` to convert to YAML. Repeat for the RPC fleet (if requested) with `--preset rpc --chain-id <same-id>` against name `<id>-rpc`.
+5. **Plan echo & confirm** — on the first side-effecting call of the session, show the engineer: cluster (harbor), namespace (`eng-<alias>`), task path under workspace repo, SND names, chain-id, image digest, replica count, what's about to be committed and pushed. Wait for confirmation.
+6. **Write to workspace repo** — fresh clone of `sei-protocol/harbor-engineering-workspace` (or reuse a session-scoped clone). Write to `engineers/<alias>/<task>/snd-<id>.yaml` (and `snd-<id>-rpc.yaml` if RPC). Update `engineers/<alias>/<task>/kustomization.yaml` listing both as resources. Append `<task>` to `engineers/<alias>/kustomization.yaml`'s `resources:` list if not already present.
+7. **Commit + push** — branch `feat/eng-<alias>-<task>`. Commit message: `feat(eng/<alias>): spin up <task> — chain-id=<id>, image=<digest-prefix>`. Push.
+8. **Open the PR** — title: `feat(eng/<alias>): spin up <task>`; body lists chain-id, image digest, preset(s), expected endpoints. `gh pr create --repo sei-protocol/harbor-engineering-workspace --base main`.
+9. **Surface and halt** — engineer reviews and merges. Surface the PR URL with: "after merge, Flux reconciles in ~60s; ping me to watch the SND to Ready and report endpoints."
+10. **After merge — watch** — `seictl nd watch <id> --until=Ready --timeout=15m -n eng-<alias>` for genesis, then the same for `<id>-rpc`. NDJSON stream of SND events; exits 0 when `.status.phase=Ready`. Halt on non-zero (`metav1.Status` on stderr — `jq -r .reason` discriminates Timeout vs terminal Failed phase vs API failure).
+11. **Report** — use the canonical inspection recipes from `references/cluster-inspection-recipes.md` rather than inferring jsonpath at runtime. Recipe #1 returns the chain's RPC endpoints (target these for any load tools — never validators). Recipe #4 lists the chain's full SND set (validator + RPC) with phase + readiness in one shot. Plus teardown: `git rm engineers/<alias>/<task>/` → commit → push → merge (Flux prunes the SNDs and cascades the deletion to pods/PVCs).
 
-**Idiom for orchestrator scripts.** The 2-step apply+watch is itself the agentic value-add — humans skip the apply→poll loop because the agent runs it as a transaction. For non-agent callers (CI, nightly), `seictl nd watch` subsumes `kubectl wait --for=jsonpath=…` and is the right tool to chain.
+### Escape hatch: direct `seictl nd apply` (rare; engineer asks twice)
+
+If an engineer specifically asks to bypass the PR loop for a one-shot debug session and confirms they understand the result won't be in git history, fall through to direct apply: `seictl nd apply <id> --preset genesis-chain --chain-id <id> --image <ref> -n eng-<alias>` (server-side applies; emits the post-apply CR on stdout). Then `seictl nd watch <id> --until=Ready -n eng-<alias>`.
+
+**Steer first.** Before running, ask: "I can do this through the GitOps PR flow (audit trail, Flux reconciles, `git rm` to tear down) — do you want that, or do you specifically need a direct-apply run with no git history?" Only proceed below on explicit confirmation. The agent does not volunteer this path.
 
 ## Procedure: spin up a load test (PR-based)
 
@@ -167,7 +173,7 @@ Engineer says "load chain X with seiload" or "run a bench against PR 3399 of sei
 9. **Surface and halt** — engineer reviews the rendered manifests, merges the PR. After merge, Flux applies (~60s). Skill can offer to poll `kubectl get job seiload-<run-id> -n eng-<alias> -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}'` until True (or surface `kubectl logs -l sei.io/bench-name=<run-id> -c seiload -f` for live tailing).
 10. **Report** — the S3 key the result lands at, live-observation recipes (`kubectl logs ... -c seiload -f` and `... -c upload-results`), and teardown (`git rm -r engineers/<alias>/<bench-name>/`).
 
-**Why PR-based for bench but direct apply for chain spinup**: chain spinup uses `seictl nd apply`'s server-side-apply because the SND CRD has rich render-time logic in seictl. Bench is vanilla K8s with no CRD; the agent does the templating, and the GitOps PR is the audit trail (engineer reviews the rendered Job before any pod runs, prunes via `git rm` later). When the team eventually shifts chain spinup to PR-based (broader GitOps direction), this procedure stays identical in shape.
+**Same shape as chain spinup.** Both engineer-facing flows are PR-based now: chain spinup renders SND CRs via `seictl nd apply --dry-run`; bench renders Job + ConfigMap via skill templates (no CRD path). Either way, the artifact lands in `engineers/<alias>/<task>/` in the workspace repo, an engineer-reviewable PR opens, Flux applies on merge, the agent watches and reports.
 
 ## Procedure: troubleshooting (manual)
 
@@ -195,7 +201,9 @@ Stop and report to the user if:
 - **Image not in registry** — sei-chain CI may be behind. Surface the explicit retry command per the autobake race-guard pattern; don't loop silently.
 - **`seictl nd watch` exits with `metav1.Status.reason=Timeout`** — chain hasn't reached the requested phase within `--timeout` (default 15m). Halt; surface `.status.plan.tasks[]` from the last NDJSON line for the engineer to inspect.
 - **`seictl nd watch` exits on terminal Failed phase** — `.status.plan.failedTaskDetail.error` is on stderr; surface it and the failed task name. Don't auto-retry.
-- **SND name collision in the namespace** — `seictl nd apply` fails with conflict (CR already exists with different ownership). Halt, surface the existing object's age, and ask whether to choose a new name or `seictl nd delete` the existing one first.
+- **SND name collision in the namespace** — `kubectl get snd <name> -n eng-<alias>` returns an existing CR while the engineer's PR proposes a new one. Halt before opening the PR; surface the existing object's age and labels, and ask whether to pick a different chain-id, or `git rm` the existing object's manifest from the workspace repo first.
+- **Workspace-repo task path collision** — `engineers/<alias>/<task>/` already exists with content from a prior bench/chain. Don't silently overwrite. Halt and ask whether to reuse the dir (and add new files alongside the existing ones) or pick a different `<task>` name.
+- **PR push rejected (non-fast-forward)** — engineer or another agent pushed to the same branch. Don't force-push. Halt; surface `git pull --rebase origin <branch>` and let the engineer resolve.
 
 ## Reference index
 
@@ -250,11 +258,12 @@ Pre-approve in `.claude/settings.local.json` (user-specific, not committed):
 
 **Leave interactive** (never pre-approve):
 
-- `seictl nd apply` — server-side-applies a CR; requires explicit confirmation per session.
-- `seictl nd delete` — destroys a CR + propagates deletion to children; requires explicit confirmation.
-- `gh pr create` — opens the onboarding PR; requires explicit confirmation.
+- `seictl nd apply` (without `--dry-run`) — direct server-side apply; the escape-hatch path. Requires explicit confirmation per session.
+- `seictl nd delete` — destroys a CR + propagates deletion to children; requires explicit confirmation. (Default teardown is `git rm` against the workspace-repo manifest, not this verb.)
+- `gh pr create` — opens onboarding / chain / bench PRs; requires explicit confirmation per PR.
+- `git push` — pushes engineer-task branches to `harbor-engineering-workspace`; requires explicit confirmation.
 
-`seictl nd apply --dry-run` is safe to expose if a session uses it heavily, but defaults to interactive so the engineer sees the rendered CR before any apply.
+`seictl nd apply --dry-run` is safe to pre-approve since it's render-only (returns the would-be-applied CR, no cluster mutation). Add `Bash(seictl nd apply * --dry-run:*)` to the allow list if a session does heavy rendering.
 
 Use the `fewer-permission-prompts` skill against a real session transcript once the skill is in active use.
 

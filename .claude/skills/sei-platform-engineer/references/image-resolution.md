@@ -58,10 +58,13 @@ RUN_ID=$(gh run list -R sei-protocol/sei-load --workflow=containerize.yaml \
 # For unpushed commits / no existing run: dispatch manually.
 if [ -z "${RUN_ID}" ]; then
   gh workflow run containerize.yaml -R sei-protocol/sei-load -f sha=${SHA}
-  # Dispatched runs take a beat to register; pause and re-list.
+  # Dispatched runs take a beat to register; pause then list, filtering by
+  # SHA — `--limit 1` alone could grab another run triggered concurrently.
   sleep 3
   RUN_ID=$(gh run list -R sei-protocol/sei-load --workflow=containerize.yaml \
-    --json databaseId,event --limit 1 -q '.[0].databaseId')
+    --json databaseId,headSha --limit 10 \
+    | jq -r --arg sha "${SHA}" '.[] | select(.headSha == $sha) | .databaseId' \
+    | head -1)
 fi
 
 # --- Watch ---
@@ -100,8 +103,11 @@ RUN_ID=$(gh run list -R sei-protocol/sei-chain --workflow=ecr.yml \
 if [ -z "${RUN_ID}" ]; then
   gh workflow run ecr.yml -R sei-protocol/sei-chain -f ref=${SHA}
   sleep 3
+  # Filter by SHA — concurrent runs are possible during the sleep window.
   RUN_ID=$(gh run list -R sei-protocol/sei-chain --workflow=ecr.yml \
-    --json databaseId --limit 1 -q '.[0].databaseId')
+    --json databaseId,headSha --limit 10 \
+    | jq -r --arg sha "${SHA}" '.[] | select(.headSha == $sha) | .databaseId' \
+    | head -1)
 fi
 
 # --- Watch ---
@@ -126,19 +132,17 @@ IMAGE="189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain:${SHA}"
 
 For named release tags (`v*` on sei-load, `release/**` on sei-chain), use the tag directly without resolving — both registries publish the symbolic tag pointing at the underlying digest.
 
-## Default ("known-good") image when the engineer doesn't specify
+## Image input is required — never default silently
 
-When no PR / commit / branch is supplied, default to the digest currently running in nightly. Both are pinned in `clusters/harbor/nightly/load/cronjob.yaml` env:
+Don't ship "the default is the nightly pin" as a fallback. The whole point of an engineer-driven bench is to validate a specific change; a silent default to nightly's image makes the engineer believe they're testing their work when they're actually benching unrelated code. **Always prompt** for a PR / commit / branch / explicit `--image` if the engineer's intent doesn't already supply one. If the engineer says "I don't care, just use the latest" — accept that as `--branch main` (resolved to a specific SHA at render time and surfaced in the plan-echo so they see exactly what's running).
 
-- `SEID_IMAGE` — `189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain:mock-<sha>` (or non-mock variant)
-- `SEILOAD_IMAGE` — `ghcr.io/sei-protocol/sei-load:sha-<sha>`
-
-Echo the default to the engineer in the plan-echo so they can override with `--commit` / `--pr` / `--image` if the nightly pin doesn't match what they want to test against.
+For reference (e.g., when the engineer asks "what's nightly running?"), the current nightly pins are in `clusters/harbor/nightly/load/cronjob.yaml`:
 
 ```sh
-# Read the current nightly pins (when working with a fresh clone of the platform repo)
 grep -A1 'SEID_IMAGE\|SEILOAD_IMAGE' clusters/harbor/nightly/load/cronjob.yaml
 ```
+
+That's a comparison input, not a default.
 
 ## Halt conditions
 
