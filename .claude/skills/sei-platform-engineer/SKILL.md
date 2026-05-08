@@ -38,7 +38,7 @@ You operate against the **harbor cluster** (eu-central-1 EKS). It runs the **sei
 **Two repos:**
 
 - `sei-protocol/platform` — tenant registration (one-time PR per engineer) and platform-wide infrastructure.
-- `sei-protocol/harbor-engineering-workspace` — long-lived engineer workloads at `engineers/<alias>/`, reconciled by the Flux watcher in `eng-<alias>`. Engineers drive this repo themselves; the agent does not.
+- `sei-protocol/harbor-engineering-workspace` — engineer workloads at `engineers/<alias>/<task>/`, reconciled by the per-engineer Flux Kustomization. The agent opens task PRs here on the engineer's behalf for chain spinup; engineers also push directly when the workload is theirs to author manually (long-lived archive nodes, shared profiles).
 
 **Default for engineer-facing intents — render → PR → Flux applies.** The team is GitOps-opinionated: every engineer side effect on the cluster goes through a PR against `sei-protocol/harbor-engineering-workspace`, never direct apply. The agent renders the SND CR via `seictl nd apply --dry-run` (output captured as JSON, converted to YAML via `yq -P`), writes it to `engineers/<alias>/<task>/snd-<id>.yaml`, opens the PR, surfaces the URL, and halts. The engineer reviews and merges; Flux reconciles within ~60s. After merge, the agent watches via `seictl nd watch <id> --until=Ready -n eng-<alias>` to report when pods are healthy. The CR carries its own provenance via labels and annotations; `kubectl get snd -n eng-<alias>` is the authoritative live view post-merge. Direct `seictl nd apply` (server-side apply, no PR) is an explicit escape hatch — see "Escape hatch" in the procedure below; never the default.
 
@@ -62,17 +62,17 @@ For deep detail per gate (recovery commands, edge cases, the full new-engineer w
 
 ### Profile detection (gate 2)
 
-Don't hardcode a profile name; engineers configure their own. Detection flow:
+Don't hardcode a profile name; engineers configure their own.
 
 1. **If `$AWS_PROFILE` is set in the environment**, respect it as an explicit choice. Validate via `aws sts get-caller-identity --profile $AWS_PROFILE`. Echo the resolved Arn.
-2. **Otherwise list the configured profiles** with `aws configure list-profiles` and present the choice to the engineer:
-   > I'll use this AWS profile to authenticate kubectl + observe your harbor cluster resources. Which profile?
-   > - `sei` (suggested if present)
-   > - `<other>`
-   > - `<other>`
-3. **If only one profile is configured**, use it directly and echo `"Using AWS profile <name> (only one configured)"`.
-4. **If `sei` is among multiple profiles**, default the prompt to `sei` but accept any value.
-5. **If no profiles are configured**, surface `aws configure sso` and halt.
+2. **Otherwise list the configured profiles** with `aws configure list-profiles` and branch on the count:
+   - **Zero profiles** → surface `aws configure sso` and halt.
+   - **Exactly one profile** → use it. Echo `"Using AWS profile <name> (only one configured)"`.
+   - **Multiple profiles** → present the choice. Default-suggest `sei` if it's among them.
+     > I'll use this AWS profile to authenticate kubectl + observe your harbor cluster resources. Which profile?
+     > - `sei` (suggested)
+     > - `<other>`
+     > - `<other>`
 
 The chosen profile is the session's profile — every downstream `aws ...` invocation runs with `--profile <chosen>`. Persist the choice for the session (e.g., shell-prefix every Bash call with `AWS_PROFILE=<chosen>` if not exported in the parent shell).
 
@@ -94,13 +94,18 @@ Onboarding is one PR against `sei-protocol/platform` adding three files. After m
 
 1. **Prompt for the alias** — don't silently use `$USER`. Default the prompt to `$USER` lowercased. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias>` — if it returns 0, the alias is taken; halt with "this alias is taken; pick another or contact the platform team if it's yours." Don't attempt partial-state recovery (that's a separate runbook). Continue only when the alias is free.
 2. Fetch the most recent prior onboarding PR via `gh pr list --repo sei-protocol/platform --search "feat(harbor/engineers): onboard"` — that PR is the diff template. Branch: `feat/engineers-<alias>-onboard`.
-3. Render the three files (`gh pr diff` on the prior PR + substring replace on the alias).
-4. Open the PR. Title: `feat(harbor/engineers): onboard <alias>`.
-5. Surface the PR URL and halt:
-   > Onboarding PR opened: `<url>`. After merge, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` = the AWS profile resolved at gate 2.)
-6. After merge, poll `kubectl get namespace eng-<alias>` until it returns 0.
-7. Run `terraform plan -target=module.engineers -out=tfplan` and confirm `Plan: 6 to add, 0 to change, 0 to destroy`. Apply with `terraform apply tfplan`. `Resources: 6 added` confirms.
-8. Gate 5 passes. Chain-spinup requests render via the skill, land in `harbor-engineering-workspace` PRs, and reconcile via Flux on merge. Pods running as `engineer-service-account` get S3 write to their own namespace prefix; SeiNode pods running as `seid-node` get snapshot read + peer discovery.
+3. Render the three platform-repo files (`gh pr diff` on the prior PR + substring replace on the alias).
+4. Open the **platform-repo PR**. Title: `feat(harbor/engineers): onboard <alias>`.
+5. Open the **workspace-repo sibling PR** against `sei-protocol/harbor-engineering-workspace`: branch `feat/onboard-<alias>`, scaffold `engineers/<alias>/kustomization.yaml` with `resources: []`. Without this, the per-engineer Flux Kustomization fails reconcile post-merge with `path not found: ./engineers/<alias>`.
+6. Surface both PR URLs and halt:
+   > Onboarding opened in two PRs:
+   > - Platform: `<platform-url>`
+   > - Workspace: `<workspace-url>`
+   >
+   > Merge the workspace PR first (or both within seconds). After the platform PR merges, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` = the AWS profile resolved at gate 2.)
+7. After merge, poll `kubectl get namespace eng-<alias>` until it returns 0.
+8. Run `terraform plan -target=module.engineers -out=tfplan` and confirm `Plan: 6 to add, 0 to change, 0 to destroy`. Apply with `terraform apply tfplan`. `Resources: 6 added` confirms.
+9. Gate 5 passes. Chain-spinup requests render via the skill, land in `harbor-engineering-workspace` PRs, and reconcile via Flux on merge. Pods running as `engineer-service-account` get S3 write to their own namespace prefix; SeiNode pods running as `seid-node` get snapshot read + peer discovery.
 
 See `references/onboarding-pr.md` for the complete file content, base-layer details, and PR body template.
 
@@ -115,7 +120,7 @@ Every engineer-facing intent maps to a `seictl nd` verb against `eng-<alias>`. *
 | "Add an RPC fleet to chain X" / "attach RPC nodes" | Same render → PR shape with `--preset rpc --chain-id <same-id>`. Land in the same task dir as a sibling file (`snd-<id>-rpc.yaml`). Either as additional commits to an open chain PR or a follow-up PR. The `rpc` preset auto-wires `peers[0].label.selector.sei.io/chain=<chain-id>`, so the same `--chain-id` as the genesis chain gets the fleet pointing at it. |
 | "What's running in my namespace" / "what chains do I have" | `seictl nd list -n eng-<alias>` (yaml default; `-o name` for short, `-o jsonpath=...` for one-shot field reads). |
 | "Show me chain X" / "what's the status of X" | `seictl nd get <name> -n eng-<alias>` (full CR including `.status.phase`, `.status.endpoints`, `.status.perPodServices`). |
-| "Tear down chain X" / "wipe X" | `git rm engineers/<alias>/<task>/snd-<chain-id>.yaml` (and the rpc sibling, if present) → commit → push → merge. Flux prunes the SND on next reconcile, which cascades to child SeiNodes / pods / PVCs per k8s deletion propagation. |
+| "Tear down chain X" / "wipe X" | `git rm -r engineers/<alias>/<task>/` **and** remove `<task>` from `engineers/<alias>/kustomization.yaml`'s `resources:` list (Kustomize fails to render with a missing-resource entry). Commit → push → merge. Flux prunes the SND on next reconcile, which cascades to child SeiNodes / pods / PVCs per k8s deletion propagation. |
 | "Where am I" / "what cluster am I on" / "who am I" | `kubectl config current-context` + `aws sts get-caller-identity --profile <chosen>` (the gate-2 profile). (No dedicated `seictl context` verb in this surface.) |
 
 **Override and composition:**
@@ -147,7 +152,7 @@ Engineer says "spin up a chain of 4 validators with seid sha=abc, then add an RP
 8. **Open the PR** — title: `feat(eng/<alias>): spin up <task>`; body lists chain-id, image digest, preset(s), expected endpoints. `gh pr create --repo sei-protocol/harbor-engineering-workspace --base main`.
 9. **Surface and halt** — engineer reviews and merges. Surface the PR URL with: "after merge, Flux reconciles in ~60s; ping me to watch the SND to Ready and report endpoints."
 10. **After merge — watch** — `seictl nd watch <id> --until=Ready --timeout=15m -n eng-<alias>` for genesis, then the same for `<id>-rpc`. NDJSON stream of SND events; exits 0 when `.status.phase=Ready`. Halt on non-zero (`metav1.Status` on stderr — `jq -r .reason` discriminates Timeout vs terminal Failed phase vs API failure).
-11. **Report** — use the canonical inspection recipes from `references/cluster-inspection-recipes.md` rather than inferring jsonpath at runtime. Recipe #1 returns the chain's RPC endpoints (target these for any load tools — never validators). Recipe #4 lists the chain's full SND set (validator + RPC) with phase + readiness in one shot. Plus teardown: `git rm engineers/<alias>/<task>/` → commit → push → merge (Flux prunes the SNDs and cascades the deletion to pods/PVCs).
+11. **Report** — use the canonical inspection recipes from `references/cluster-inspection-recipes.md` rather than inferring jsonpath at runtime. Recipe #1 returns the chain's RPC endpoints (target these for any load tools — never validators). Recipe #4 lists the chain's full SND set (validator + RPC) with phase + readiness in one shot. Plus teardown: `git rm -r engineers/<alias>/<task>/` and remove the `<task>` entry from `engineers/<alias>/kustomization.yaml`'s `resources:` list, then commit → push → merge (Flux prunes the SNDs and cascades the deletion to pods/PVCs).
 
 ### Escape hatch: direct `seictl nd apply` (rare; engineer asks twice)
 

@@ -49,13 +49,15 @@ RUN_ID=$(gh run list -R sei-protocol/sei-chain --workflow=ecr.yml \
   | head -1)
 
 # --- Trigger if no run exists ---
+# `workflow_dispatch` runs report `headSha = default-branch HEAD`, not the
+# input SHA — filtering by `headSha == $sha` won't find dispatched runs.
+# Filter by event type and pick the most recent.
 if [ -z "${RUN_ID}" ]; then
   gh workflow run ecr.yml -R sei-protocol/sei-chain -f ref=${SHA}
   sleep 3
   RUN_ID=$(gh run list -R sei-protocol/sei-chain --workflow=ecr.yml \
-    --json databaseId,headSha --limit 10 \
-    | jq -r --arg sha "${SHA}" '.[] | select(.headSha == $sha) | .databaseId' \
-    | head -1)
+    --event=workflow_dispatch --json databaseId,createdAt --limit 5 \
+    | jq -r 'sort_by(.createdAt) | reverse | .[0].databaseId')
 fi
 
 # --- Watch ---
