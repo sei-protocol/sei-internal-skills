@@ -46,27 +46,43 @@ brew upgrade seictl
 
 Halt until both checks pass.
 
-### Gate 2: AWS SSO session active for the `sei` profile
+### Gate 2: AWS SSO session active for the engineer's chosen profile
 
-**Verifies:** `aws sts get-caller-identity --profile sei` returns 0 with an `Arn` field.
+**Verifies:** `aws sts get-caller-identity --profile <profile>` returns 0 with an `Arn` field, where `<profile>` is the engineer's chosen AWS profile (resolved per the detection flow below). After resolution, **echo the resolved Arn back to the engineer** — they should see what's about to act on the cluster.
 
-**Always pass `--profile sei` to AWS calls.** The engineer's default profile may not have credentials configured even when the `sei` profile is active — bare `aws sts get-caller-identity` fails with `Unable to locate credentials`. Apply the rule to every AWS-touching invocation:
+#### Profile detection flow
 
-- `aws eks update-kubeconfig … --profile sei`
-- `aws ecr describe-images … --profile sei`
-- `aws s3 ls … --profile sei`
+Engineers configure their own profiles; don't hardcode `sei` (or any other name). Resolution sequence:
 
-The `sei` profile is the canonical name for harbor's AWS account.
+1. **`$AWS_PROFILE` is set in the environment** → respect it as an explicit choice. Validate via `aws sts get-caller-identity --profile $AWS_PROFILE` and continue. Echo:
+   > Using `AWS_PROFILE=<value>` (from environment) — resolved as: `<arn>`.
 
-**Why:** harbor's EKS auth and ECR image pulls require live AWS credentials *under the sei profile*. SSO sessions expire (default 12h); refreshing is one command.
+2. **`$AWS_PROFILE` is unset** → list configured profiles with `aws configure list-profiles`:
 
-**Recovery (out-of-band):** `aws sso login --profile sei`. If the engineer's `~/.aws/config` doesn't have a `sei` profile yet (truly fresh laptop), surface `aws configure sso` and route them through profile setup.
+   - **Zero profiles** → surface `aws configure sso` (run through profile setup). Halt until at least one profile exists.
+   - **Exactly one profile** → use it directly. Echo:
+     > Using AWS profile `<name>` (only one configured) — resolved as: `<arn>`.
+   - **Multiple profiles** → present the list and ask the engineer to choose. Default the prompt to `sei` if it's among them (the most common harbor-account profile name); otherwise no default. Frame the prompt clearly:
+     > I'll use this AWS profile to authenticate kubectl + observe your harbor cluster resources. Which profile?
+     > - `sei` (suggested)
+     > - `<other-1>`
+     > - `<other-2>`
 
-**Edge case — `Unable to locate credentials`:** a `--profile`-less `aws` call landed somewhere. Re-issue with `--profile sei` explicitly. Most common false-negative on this gate.
+3. **Once chosen**, the profile name is the session's profile. Every downstream AWS-touching invocation runs with `--profile <chosen>` — `aws eks update-kubeconfig …`, `aws ecr describe-images …`, `aws s3 …`. If the parent shell doesn't already export `AWS_PROFILE`, prepend `AWS_PROFILE=<chosen>` to Bash invocations to keep the choice consistent.
 
-**Edge case — expired session mid-run:** SSO can expire between verbs (default 12h). Halt conditions catch this (any AWS call returns `ExpiredToken`); re-run gate 2 and resume.
+The whole point: the engineer chose what's authenticating — they should be able to point at it in the echo.
 
-**Edge case — different `AWS_PROFILE` in the shell:** if the engineer's shell has `AWS_PROFILE` set to something other than `sei`, downstream `aws` calls may surprise. Re-run gate 2 with `--profile sei` explicitly.
+#### Why this gate exists
+
+harbor's EKS auth and ECR image pulls require live AWS credentials. SSO sessions expire (default 12h); refreshing is one command. Sessions that *look* alive (configured profile, recent login) but don't have the right *role* surface as `Forbidden` later — gate 4 catches that on the kubectl side; AWS-side permission gaps surface naturally per-operation.
+
+**Recovery (out-of-band):** `aws sso login --profile <chosen>`. If `~/.aws/config` is empty (truly fresh laptop), `aws configure sso` and route them through profile setup.
+
+**Edge case — `Unable to locate credentials`:** a `--profile`-less `aws` call landed somewhere downstream. Every AWS-touching invocation needs `--profile <chosen>` explicit on the command (or `AWS_PROFILE=<chosen>` in the environment). Most common false-negative on this gate.
+
+**Edge case — expired session mid-run:** SSO can expire between verbs. Halt conditions catch this (any AWS call returns `ExpiredToken`); re-run gate 2 and resume.
+
+**Edge case — engineer's chosen profile lacks harbor permissions:** the resolved `Arn` is from a non-harbor account, or kubectl-reach (gate 4) returns Forbidden despite a valid session. Surface the Arn from the gate-2 echo and prompt the engineer to either pick a different profile or re-engage the platform team for an access-entry update.
 
 ### Gate 3: harbor kubeconfig context exists
 
@@ -77,10 +93,10 @@ The `sei` profile is the canonical name for harbor's AWS account.
 **Recovery (in-band):**
 
 ```sh
-aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei
+aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>
 ```
 
-This writes the harbor context into `~/.kube/config` (or whatever `$KUBECONFIG` points at). Idempotent — re-running is safe. Execute directly on a fresh laptop, then re-check the gate and continue.
+`<chosen>` is the profile resolved at gate 2 — never literal `sei` (engineers configure their own). This writes the harbor context into `~/.kube/config` (or whatever `$KUBECONFIG` points at). Idempotent — re-running is safe. Execute directly on a fresh laptop, then re-check the gate and continue.
 
 **Edge case — engineer prefers a non-default kubeconfig path:** respect `$KUBECONFIG`. The `update-kubeconfig` command writes to whichever file `$KUBECONFIG` points at (or `~/.kube/config` if unset). Don't override.
 
@@ -92,7 +108,7 @@ This writes the harbor context into `~/.kube/config` (or whatever `$KUBECONFIG` 
 
 **Recovery (out-of-band):** the platform team grants the access entry. Surface:
 
-> Your AWS principal can't list seinodedeployments in `eng-<alias>` on harbor. This means the EKS access entry isn't in place yet. Ask the platform team to add you — file a one-line request in `#harbor-onboarding` with your AWS principal ARN (visible in `aws sts get-caller-identity --profile sei`).
+> Your AWS principal can't list seinodedeployments in `eng-<alias>` on harbor. This means the EKS access entry isn't in place yet. Ask the platform team to add you — file a one-line request in `#harbor-onboarding` with your AWS principal ARN (the same one gate 2 echoed when it resolved your profile).
 
 Halt until the access entry lands. Same-day turnaround typically.
 
@@ -153,9 +169,9 @@ For a literal "fresh laptop" engineer, the first session looks like:
 1. Engineer says something like "set me up on harbor" or "I'm new."
 2. Pre-flight gate 1 fails (no seictl). Surface install command, halt.
 3. Engineer installs seictl, says "ok try again."
-4. Gate 1 passes. Gate 2 might fail (no SSO). Surface `aws sso login --profile sei`, halt.
+4. Gate 1 passes. Gate 2 detection runs (list profiles via `aws configure list-profiles`; if `$AWS_PROFILE` is set, respect it; if multiple are configured, ask the engineer to pick — frame the prompt around "this profile authenticates kubectl + observes your harbor cluster"). Once chosen, validate via `aws sts get-caller-identity --profile <chosen>` — failure surfaces `aws sso login --profile <chosen>`, halt. Echo the resolved Arn.
 5. Engineer runs SSO login. Continue.
-6. Gate 3 fails (no kubeconfig). Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei` directly. Continue.
+6. Gate 3 fails (no kubeconfig). Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>` directly (using the gate-2 profile). Continue.
 7. Gate 4 fails (no access entry). Surface "ask platform team in #harbor-onboarding," halt.
 8. Engineer pings the channel, gets the access entry. Comes back, says "ok try again."
 9. Gate 5 fails (namespace doesn't exist). Enter First Run: prompt for alias (default from `$USER`), validate the regex, generate the PR body following the fromtherain pattern, open the PR via `gh pr create`. Surface the PR URL and halt. "Merge this; ping me when done."

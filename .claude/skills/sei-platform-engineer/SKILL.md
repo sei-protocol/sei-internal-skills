@@ -51,14 +51,30 @@ Pre-flight is a sequenced ramp from "fresh laptop" to "ready to apply against en
 | # | Gate | Detect with | If missing → |
 |---|---|---|---|
 | 1 | `seictl ≥ v0.0.43` on PATH | `command -v seictl` returns 0; `seictl nodedeployment --help` exits 0 (the `nodedeployment` verb tree only exists in v0.0.41+, peer auto-wire in v0.0.43+) | `brew install sei-protocol/tap/seictl` (fresh) or `brew upgrade seictl` (older). Halt. |
-| 2 | AWS SSO session active for `sei` profile | `aws sts get-caller-identity --profile sei` returns 0 | Surface `aws sso login --profile sei`; halt. **Always pass `--profile sei` to AWS CLI invocations** — the engineer's default profile may not have credentials. |
-| 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` (or the EKS ARN form) | Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile sei` directly; re-check; continue. |
+| 2 | AWS SSO session active for the engineer's chosen profile | `aws sts get-caller-identity --profile <profile>` returns 0, where `<profile>` is resolved per the profile-detection flow below. After resolution, **echo the assumed identity** (`Arn` from the response) so the engineer sees what's about to act on the cluster. | If session is expired: surface `aws sso login --profile <profile>`; halt. If no profile is configured: surface `aws configure sso`; halt. See "Profile detection" below for the resolution flow. |
+| 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` (or the EKS ARN form) | Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>` directly (using the profile resolved at gate 2); re-check; continue. |
 | 4 | kubectl can reach harbor with engineer-side reach | `kubectl auth can-i list seinodedeployments -n eng-<alias> --context=harbor` returns `yes` | EKS access entry not granted, or scoped read-only. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
 | 5 | Namespace `eng-<alias>` reconciled | `kubectl get namespace eng-<alias>` returns 0 | The engineer hasn't been onboarded yet, or the onboarding PR hasn't merged. Route to **First Run** below to open the PR; otherwise surface the open PR URL and offer to poll until the namespace appears (~60s post-merge). |
 
 Once all five pass, cache the pass for the session — subsequent verbs skip the gates unless a halt condition (SSO expiry, kubectl context drift) triggers a targeted re-check.
 
 For deep detail per gate (recovery commands, edge cases, the full new-engineer walk-through, mid-session drift handling), see `references/preflight.md`.
+
+### Profile detection (gate 2)
+
+Don't hardcode a profile name; engineers configure their own. Detection flow:
+
+1. **If `$AWS_PROFILE` is set in the environment**, respect it as an explicit choice. Validate via `aws sts get-caller-identity --profile $AWS_PROFILE`. Echo the resolved Arn.
+2. **Otherwise list the configured profiles** with `aws configure list-profiles` and present the choice to the engineer:
+   > I'll use this AWS profile to authenticate kubectl + observe your harbor cluster resources. Which profile?
+   > - `sei` (suggested if present)
+   > - `<other>`
+   > - `<other>`
+3. **If only one profile is configured**, use it directly and echo `"Using AWS profile <name> (only one configured)"`.
+4. **If `sei` is among multiple profiles**, default the prompt to `sei` but accept any value.
+5. **If no profiles are configured**, surface `aws configure sso` and halt.
+
+The chosen profile is the session's profile — every downstream `aws ...` invocation runs with `--profile <chosen>`. Persist the choice for the session (e.g., shell-prefix every Bash call with `AWS_PROFILE=<chosen>` if not exported in the parent shell).
 
 ## First Run (the recovery for pre-flight gate 5)
 
@@ -76,12 +92,12 @@ Onboarding is one PR against `sei-protocol/platform` adding three files. After m
 
 **Procedure:**
 
-1. Capture the alias. Default to `$USER` lowercased; validate against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`.
+1. **Prompt for the alias** — don't silently use `$USER`. Default the prompt to `$USER` lowercased. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias>` — if it returns 0, the alias is taken; halt with "this alias is taken; pick another or contact the platform team if it's yours." Don't attempt partial-state recovery (that's a separate runbook). Continue only when the alias is free.
 2. Fetch the most recent prior onboarding PR via `gh pr list --repo sei-protocol/platform --search "feat(harbor/engineers): onboard"` — that PR is the diff template. Branch: `feat/engineers-<alias>-onboard`.
 3. Render the three files (`gh pr diff` on the prior PR + substring replace on the alias).
 4. Open the PR. Title: `feat(harbor/engineers): onboard <alias>`.
 5. Surface the PR URL and halt:
-   > Onboarding PR opened: `<url>`. After merge, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=sei terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations.
+   > Onboarding PR opened: `<url>`. After merge, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` = the AWS profile resolved at gate 2.)
 6. After merge, poll `kubectl get namespace eng-<alias>` until it returns 0.
 7. Run `terraform plan -target=module.engineers -out=tfplan` and confirm `Plan: 6 to add, 0 to change, 0 to destroy`. Apply with `terraform apply tfplan`. `Resources: 6 added` confirms.
 8. Gate 5 passes. The engineer can run `seictl nd apply` against `eng-<alias>`. Pods running as `engineer-service-account` get S3 write to their own namespace prefix; SeiNode pods running as `seid-node` get snapshot read + peer discovery.
@@ -100,7 +116,7 @@ Every engineer-facing intent maps to a `seictl nd` verb against `eng-<alias>`. *
 | "What's running in my namespace" / "what chains do I have" | `seictl nd list -n eng-<alias>` (yaml default; `-o name` for short, `-o jsonpath=...` for one-shot field reads). |
 | "Show me chain X" / "what's the status of X" | `seictl nd get <name> -n eng-<alias>` (full CR including `.status.phase`, `.status.endpoints`, `.status.perPodServices`). |
 | "Tear down chain X" / "wipe X" | `seictl nd delete <name> -n eng-<alias>` (default `--cascade=foreground`; passes through to k8s deletion propagation). |
-| "Where am I" / "what cluster am I on" / "who am I" | `kubectl config current-context` + `aws sts get-caller-identity --profile sei`. (No dedicated `seictl context` verb in this surface.) |
+| "Where am I" / "what cluster am I on" / "who am I" | `kubectl config current-context` + `aws sts get-caller-identity --profile <chosen>` (the gate-2 profile). (No dedicated `seictl context` verb in this surface.) |
 
 **Override and composition:**
 
@@ -115,14 +131,21 @@ Engineer says "spin up a chain of 4 validators with seid sha=abc, then add an RP
 **Read `references/ephemeral-chain-flow.md` first.** It carries the architectural context — preset taxonomy, what each preset wires automatically, the watch protocol, exit-code conventions. The procedure below is the operational restatement.
 
 1. **Pre-flight** — if not already passed this session, run all five gates. Halt on first failure with the recovery surfaced.
-2. **Resolve naming** — derive a chain ID from the engineer's intent (one English sentence), or ask one question. Lowercase, k8s-namespace-safe (regex `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`). Becomes both the SND name and `--chain-id`. For "chain X with RPC," the genesis SND is `<id>` and the RPC SND is `<id>-rpc`.
+2. **Resolve naming** — derive a chain ID from caller context, in priority order:
+   1. **Explicit `--tag <slug>`** the engineer passes, if any.
+   2. **Linear ticket** mentioned in the request → `harbor-<ticket-slug>` (e.g., `harbor-plt-327`).
+   3. **sei-chain PR number** mentioned → `harbor-pr-<n>` (e.g., `harbor-pr-3399`).
+   4. **commit SHA substring** mentioned → `harbor-<sha[:7]>` (e.g., `harbor-b7b4868`).
+   5. **None of the above** → ask **one** question for an explicit tag. Don't silently fall back to a timestamp — anonymous IDs in Grafana / logs / cluster state can't be tied back to the work they served.
+
+   The resolved ID becomes both the SND name and `--chain-id`. Lowercase, k8s-namespace-safe (regex `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`). For "chain X with RPC," the genesis SND is `<id>` and the RPC SND is `<id>-rpc`.
 3. **Resolve image digest** — engineer provides a ref. Surface the resolved digest in the plan echo so the engineer sees what they're about to run.
 4. **Plan echo & confirm** — on the first side-effecting call of the session, show the engineer: cluster (harbor), namespace (`eng-<alias>`), preset, SND name, chain-id, image digest, replica count. Wait for confirmation.
 5. **Apply the genesis chain** — `seictl nd apply <id> --preset genesis-chain --chain-id <id> --image <ref> [--replicas N] -n eng-<alias>`. Server-side-applies; emits the post-apply CR on stdout as JSON.
 6. **Watch genesis to Ready** — `seictl nd watch <id> --until=Ready --timeout=15m -n eng-<alias>`. NDJSON stream of SND events; exits 0 when `.status.phase=Ready`. Halt on non-zero (`metav1.Status` on stderr — `jq -r .reason` discriminates Timeout vs terminal Failed phase vs API failure).
 7. **Apply the RPC fleet (if requested)** — `seictl nd apply <id>-rpc --preset rpc --chain-id <id> --image <ref> [--replicas N] -n eng-<alias>`. The `rpc` preset auto-wires `peers[0].label.selector.sei.io/chain=<id>`, so the same `--chain-id` gets it pointing at the validators.
 8. **Watch RPC to Ready** — `seictl nd watch <id>-rpc --until=Ready --timeout=15m -n eng-<alias>`.
-9. **Report** — `seictl nd get <id>-rpc -n eng-<alias> -o jsonpath='{.status.endpoints.evmJsonRpc[0]}'` (and `tendermintRpc`, `evmWs` as relevant); `kubectl get pods -n eng-<alias> -l sei.io/chain=<id>` for fleet health; teardown commands (`seictl nd delete <id>-rpc -n eng-<alias>` then `seictl nd delete <id> -n eng-<alias>`).
+9. **Report** — use the canonical inspection recipes from `references/cluster-inspection-recipes.md` rather than inferring jsonpath at runtime. Recipe #1 returns the chain's RPC endpoints (target these for any load tools — never validators). Recipe #4 lists the chain's full SND set (validator + RPC) with phase + readiness in one shot. Plus teardown commands: `seictl nd delete <id>-rpc -n eng-<alias>` then `seictl nd delete <id> -n eng-<alias>`.
 
 **Idiom for orchestrator scripts.** The 2-step apply+watch is itself the agentic value-add — humans skip the apply→poll loop because the agent runs it as a transaction. For non-agent callers (CI, nightly), `seictl nd watch` subsumes `kubectl wait --for=jsonpath=…` and is the right tool to chain.
 
@@ -130,7 +153,7 @@ Engineer says "spin up a chain of 4 validators with seid sha=abc, then add an RP
 
 Engineer says "X is stuck" or "diagnose snd foo." `seictl` has no diagnose verb — walk the engineer through the manual `kubectl`-driven flow documented in `references/troubleshooting-seinode.md`.
 
-1. Read `.status.phase`: `seictl nd get <name> -n eng-<alias> -o jsonpath='{.status.phase}'`
+1. Read `.status.phase` via recipe #2 in `references/cluster-inspection-recipes.md`. If the SND is in `Failed` or stuck `Initializing`, recipe #3 returns the failed task name + error directly — don't try to re-derive the path.
 2. Branch on phase:
    - **Pending** → check sei-k8s-controller pods + leader lease in `sei-system`
    - **Initializing** → read `.status.plan` for the failing PlannedTask; map task name to root cause (snapshot-restore → S3 / Pod Identity, configure-genesis → genesis URL, discover-peers → label selector, mark-ready → seid health)
@@ -164,6 +187,7 @@ Stop and report to the user if:
 | `seictl-cli.md` | Canonical `seictl nd` verb tree (regenerated from `seictl nd --help` periodically) |
 | `seinode-crd.md` | Operations-load-bearing fields on `SeiNode` |
 | `seinodedeployment-crd.md` | Operations-load-bearing fields on `SeiNodeDeployment`, including `.status.phase`, `.status.endpoints`, `.status.perPodServices`, `.status.plan` |
+| `cluster-inspection-recipes.md` | **Canonical structured-extraction recipes.** Use these directly instead of inferring jsonpath at runtime — RPC endpoints (recipe #1, also resolves "target RPC, not validator"), phase + readiness, failed task, image drift, per-pod services, Flux Kustomization Ready |
 | `troubleshooting-seinode.md` | Phase-by-phase symptom → cause → inspection decision tree |
 | `harbor-cluster.md` | CNI (Cilium), Istio + Gateway API, DNS, Flux topology, EKS access entries |
 | `aws-dependencies.md` | S3 buckets (snapshots, genesis, results), Pod Identity status, ECR conventions |

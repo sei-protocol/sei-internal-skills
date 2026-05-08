@@ -51,7 +51,7 @@ Engineer-side AWS access (from the engineer's laptop, not from a Pod) uses the e
 
 Image digest resolution flow (used when the agent surfaces a digest in the plan echo before `seictl nd apply`):
 
-1. `aws ecr describe-images --repository-name sei/sei-chain --region us-east-2 --image-ids imageTag=<tag> --profile sei`
+1. `aws ecr describe-images --repository-name sei/sei-chain --region us-east-2 --image-ids imageTag=<tag> --profile <chosen>` (`<chosen>` = the engineer's AWS profile from pre-flight gate 2)
 2. Extract `imageDetails[0].imageDigest`
 3. Short digest = `sha256:` stripped, first 12 chars
 4. Race-guard retry: 3 attempts, 60s sleep — sei-chain CI sometimes pushes after a request lands. Don't loop silently; surface the retry to the engineer.
