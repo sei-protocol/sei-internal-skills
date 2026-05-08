@@ -32,16 +32,17 @@ Before writing any manifest:
 
 ## `<RUN_ID>` derivation and re-render determinism
 
-`<RUN_ID> = <bench-tag>-<UTC-timestamp>` on first render. Branch name is `feat/eng-<alias>-bench-<RUN_ID>`. On any re-render against the same engineer + bench-tag, the agent reuses `<RUN_ID>` from the branch:
+`<RUN_ID> = <bench-tag>-<UTC-timestamp>` on first render. Branch name is `feat/eng-<alias>-bench-<RUN_ID>`. On any re-render against the same engineer + bench-tag, the agent reuses `<RUN_ID>` from the existing branch. `gh pr list --head` requires an exact branch name, so filter via `--json` + `jq` startswith:
 
 ```sh
 EXISTING=$(gh pr list --repo sei-protocol/harbor-engineering-workspace \
-  --head "feat/eng-<alias>-bench-<bench-tag>-" --state open \
-  --json headRefName --jq '.[0].headRefName')
+  --state open --json headRefName \
+  --jq ".[] | select(.headRefName | startswith(\"feat/eng-${ALIAS}-bench-${BENCH_TAG}-\")) | .headRefName" \
+  | head -1)
 if [ -n "${EXISTING}" ]; then
-  RUN_ID="${EXISTING#feat/eng-<alias>-bench-}"   # strip prefix
+  RUN_ID="${EXISTING#feat/eng-${ALIAS}-bench-}"
 else
-  RUN_ID="<bench-tag>-$(date -u +%Y%m%d-%H%M%S)"
+  RUN_ID="${BENCH_TAG}-$(date -u +%Y%m%d-%H%M%S)"
 fi
 ```
 
@@ -71,21 +72,19 @@ data:
     <PROFILE_JSON_SUBSTITUTED>
 ```
 
-`<PROFILE_JSON_SUBSTITUTED>` is the verbatim content of `clusters/harbor/nightly/load/profiles/<profile>.json` with **two** substitutions applied:
-
-- `__SEI_CHAIN_ID__` → `<CHAIN_ID>`
-- `__RPC_ENDPOINTS__` → comma-separated quoted per-pod RPC URLs, e.g. `"http://chain-x-rpc-0.eng-bdchatham.svc:8545","http://chain-x-rpc-1.eng-bdchatham.svc:8545"`
+`<PROFILE_JSON_SUBSTITUTED>` is the content of `clusters/harbor/nightly/load/profiles/<profile>.json` with `seiChainId` set to the chain-id and `endpoints` set to the per-pod RPC URLs. Use `jq --argjson` rather than `sed` — robust against URL special characters and produces guaranteed-valid JSON:
 
 ```sh
 RPC_ENDPOINTS=$(seictl nd get <chain-id>-rpc -n eng-<alias> -o json \
-  | jq -r '.status.endpoints.evmJsonRpc[1:] | map("\"" + . + "\"") | join(",")')
+  | jq -c '.status.endpoints.evmJsonRpc[1:]')
 
 PROFILE_RAW=$(gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/load/profiles/<profile>.json \
   --jq .content | base64 -d)
 
-PROFILE_SUBSTITUTED=$(echo "${PROFILE_RAW}" \
-  | sed "s|__SEI_CHAIN_ID__|<chain-id>|g" \
-  | sed "s|__RPC_ENDPOINTS__|${RPC_ENDPOINTS}|g")
+PROFILE_SUBSTITUTED=$(echo "${PROFILE_RAW}" | jq \
+  --arg cid "<chain-id>" \
+  --argjson eps "${RPC_ENDPOINTS}" \
+  '.seiChainId = $cid | .endpoints = $eps')
 ```
 
 Indent `<PROFILE_JSON_SUBSTITUTED>` four spaces in the rendered ConfigMap (block scalar `|` syntax).
@@ -109,7 +108,7 @@ metadata:
     sei.io/image-sha: <IMAGE_SHA>
 spec:
   backoffLimit: 0
-  activeDeadlineSeconds: <JOB_DEADLINE_SECONDS>   # = (<DURATION_MINUTES> * 60) + 600
+  activeDeadlineSeconds: <JOB_DEADLINE_SECONDS>   # = (<DURATION_MINUTES> * 60) + 660
   template:
     metadata:
       labels:
@@ -155,14 +154,33 @@ spec:
           args:
             - |
               set -uo pipefail
+              # Detect seiload's process via /proc rather than pgrep — pgrep
+              # isn't installed in amazon/aws-cli. shareProcessNamespace: true
+              # exposes seiload's /proc/<pid>/comm in this sidecar's view.
+              # /proc/<pid>/comm is the basename of the executable (max 15
+              # chars); for seiload's distroless ENTRYPOINT it's literally
+              # "seiload".
+              seiload_running() {
+                grep -q '^seiload$' /proc/[0-9]*/comm 2>/dev/null
+              }
+
+              # Container start order isn't guaranteed in a multi-container
+              # Pod. Wait up to 60s for seiload to appear before checking
+              # whether it's exited.
+              APPEAR_DEADLINE=$((SECONDS + 60))
+              until seiload_running; do
+                if [ "${SECONDS}" -ge "${APPEAR_DEADLINE}" ]; then
+                  echo "seiload never appeared; uploading empty report"
+                  break
+                fi
+                sleep 1
+              done
+
               # Bound how long the uploader runs even if seiload never exits.
               # Pod's activeDeadlineSeconds is the outer bound; this is inner.
               MAX_WAIT=$(( <DURATION_MINUTES> * 60 + 540 ))
               ELAPSED=0
-              # Wait for seiload's process to disappear. shareProcessNamespace: true
-              # makes seiload's PID visible. pgrep itself doesn't match (matches on
-              # full args via -f).
-              while pgrep -f /usr/bin/seiload >/dev/null 2>&1; do
+              while seiload_running; do
                 if [ "${ELAPSED}" -ge "${MAX_WAIT}" ]; then
                   echo "uploader timeout after ${MAX_WAIT}s; uploading whatever's available"
                   break
@@ -170,10 +188,17 @@ spec:
                 sleep 5
                 ELAPSED=$((ELAPSED + 5))
               done
+
+              # Brief flush window: kubelet writes the last buffered stdout
+              # to disk after the container exits, with a small lag on
+              # abnormal exit (SIGKILL, OOM). 2s is generous for the
+              # post-exit flush.
+              sleep 2
+
               # Pull seiload's captured stdout from the kubernetes API via the
-              # Pod's in-cluster service-account token. Kubelet has the logs by
-              # this point (even on SIGKILL'd seiload), so we capture partial
-              # output on a crashed bench.
+              # Pod's in-cluster service-account token. Kubelet retains logs
+              # in /var/log/pods/... after container exit (until Pod GC), so
+              # we capture partial output on a crashed bench.
               TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
               NS=$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace)
               POD=$(hostname)
@@ -205,7 +230,7 @@ The agent also appends `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml
 
 ## Why this upload pattern
 
-- **`shareProcessNamespace: true`** lets the sidecar see seiload's process via `pgrep`. When seiload exits — successfully, on error, or via SIGKILL from `activeDeadlineSeconds` — pgrep returns empty and the sidecar moves to upload.
+- **`shareProcessNamespace: true`** lets the sidecar see seiload's process by scanning `/proc/<pid>/comm`. When seiload exits — successfully, on error, or via SIGKILL from `activeDeadlineSeconds` — the comm scan returns empty and the sidecar moves to upload.
 - **Logs via kubernetes API** — kubelet captures stdout in `/var/log/pods/...` regardless of how the container exited. The sidecar's `engineer-service-account` token has `pods/log get` (via the namespace-admin RoleBinding). Partial logs are uploaded on crash; nothing is silently lost.
 - **Bounded `MAX_WAIT`** — the sidecar can't hang past `<DURATION_MINUTES> * 60 + 540` seconds, well inside the Job's `activeDeadlineSeconds`. If seiload truly wedges, the sidecar uploads whatever's there and exits; the Job completes (Failed if seiload is still running, Complete if both containers exited cleanly).
 - **No `ttlSecondsAfterFinished`** — Flux's `prune: true` on the per-engineer Kustomization re-creates Jobs cleaned up by TTL, causing them to re-run every reconcile interval. `git rm` against the workspace repo is the only cleanup mechanism.
@@ -227,7 +252,7 @@ The agent appends `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `
 ## Procedure
 
 1. **Pre-flight** — five gates from `preflight.md`. Halt on first failure.
-2. **Resolve target chain** — engineer specifies the chain-id. Verify the rpc SND exists and is `Ready` (`seictl nd get <chain-id>-rpc -n eng-<alias> -o jsonpath='{.status.phase}'` returns `Ready`). Halt + offer to poll if not.
+2. **Resolve target chain** — engineer specifies the chain-id. Verify the rpc SND exists and is `Ready` (`seictl nd get <chain-id>-rpc -n eng-<alias> -o jsonpath='{.status.phase}'` returns `Ready`). On `NotFound`, halt — the chain needs an rpc SND first. On non-Ready, halt and offer to poll.
 3. **Resolve sei-load image** per `references/image-resolution.md` — required input, no silent default.
 4. **Resolve profile** — default `nightly_evm_transfer`. Read profile JSON via `gh api ... --jq .content | base64 -d`.
 5. **Resolve `<RUN_ID>`** — check for an existing PR branch matching `feat/eng-<alias>-bench-<bench-tag>-*`; reuse on match, else mint `<bench-tag>-<UTC-timestamp>`.
@@ -236,12 +261,14 @@ The agent appends `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `
 8. **Render the manifests** — substitute placeholders into the Job + ConfigMap + kustomization.yaml. Append `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `resources:` if not already present.
 9. **Commit + push** — branch `feat/eng-<alias>-bench-<RUN_ID>`. Message: `feat(eng/<alias>): bench <RUN_ID> against <chain-id> (image=<digest-prefix>)`.
 10. **Open the PR** against `sei-protocol/harbor-engineering-workspace`. Surface the URL and halt: "Merge to start the bench. After Flux reconciles (~60s), the Job runs for `<DURATION>` minutes; results land at `s3://harbor-validation-results/eng-<alias>/<profile>/<RUN_ID>/report.log`."
-11. **Report observation recipes** — `kubectl logs -n eng-<alias> -l sei.io/bench-name=<RUN_ID> -c seiload -f` for live tail; `kubectl get job -n eng-<alias> seiload-<RUN_ID> -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}'` for completion check; teardown via `git rm -r engineers/<alias>/bench-<RUN_ID>/` and remove the entry from `engineers/<alias>/kustomization.yaml`'s `resources:`.
+11. **Report observation recipes** — `kubectl logs -n eng-<alias> -l sei.io/bench-name=<RUN_ID> -c seiload -f` for live tail; `kubectl get job -n eng-<alias> seiload-<RUN_ID> -o jsonpath='{.status.conditions[?(@.type=="Complete" || @.type=="Failed")].type}={.status.conditions[?(@.type=="Complete" || @.type=="Failed")].status}'` for terminal check (`Complete=True` on success, `Failed=True` on `activeDeadlineSeconds` / `backoffLimit` exhaustion; empty until the Job reaches a terminal condition); teardown via `git rm -r engineers/<alias>/bench-<RUN_ID>/` and remove the entry from `engineers/<alias>/kustomization.yaml`'s `resources:`.
 
 ## Halt conditions
 
+- **Chain rpc SND not found.** `seictl nd get <chain-id>-rpc -n eng-<alias>` returns `NotFound` (and `seictl nd watch` exits non-zero with the same `metav1.Status` reason). The chain has a genesis SND but no rpc SND yet — the engineer must apply one first via `seictl nd apply <chain-id>-rpc --preset rpc --chain-id <chain-id>` (PR-based or direct). Halt; do not attempt to render the bench.
 - **Chain rpc SND not Ready** at render time. Per-pod URLs aren't populated. Surface the phase + offer to poll (`seictl nd watch <chain-id>-rpc --until=Ready`) before continuing.
 - **Per-pod URLs absent** even though phase is Ready. Likely a pre-Service-population race. Sleep 30s and retry once; halt with the SND's full status if still empty.
+- **Parent `engineers/<alias>/kustomization.yaml` missing.** The per-engineer Flux Kustomization has nothing to aggregate the new `bench-<RUN_ID>/` task dir into; merging the PR is a no-op for Flux. Onboarding (or a prior teardown sequence) didn't ship the parent kustomization. Halt; surface that the engineer's onboarding PR is incomplete or the parent file was removed manually.
 - **Profile JSON not in platform repo.** Surface available profiles (`gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/load/profiles --jq '.[].name'`); ask the engineer to pick.
 - **Bench-name collision** — `engineers/<alias>/bench-<RUN_ID>/` already exists with a closed PR. Halt and ask whether to bump the bench-tag or reuse.
 - **Sei-load image build workflow fails.** Surface `gh run view <id> --log-failed -R sei-protocol/sei-load`; don't retry blindly.
