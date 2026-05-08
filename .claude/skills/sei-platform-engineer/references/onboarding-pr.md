@@ -90,12 +90,14 @@ Within ~60s, Flux materializes:
 
 ## What reconciles on terraform apply
 
-After merge, run from `terraform/aws/189176372795/eu-central-1/harbor/`:
+After merge, run from `terraform/aws/189176372795/eu-central-1/harbor/` with the AWS profile resolved at pre-flight gate 2:
 
 ```sh
-AWS_PROFILE=sei terraform plan -target=module.engineers -out=tfplan
-AWS_PROFILE=sei terraform apply tfplan
+AWS_PROFILE=<chosen> terraform plan -target=module.engineers -out=tfplan
+AWS_PROFILE=<chosen> terraform apply tfplan
 ```
+
+`<chosen>` is the engineer's AWS profile (resolved by pre-flight gate 2 — never literal `sei`; engineers configure their own).
 
 `Plan: 6 to add, 0 to change, 0 to destroy`. Apply confirms `Resources: 6 added`. The six resources:
 
@@ -106,15 +108,15 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
 
 ## The agent's job
 
-1. **Capture the alias.** Default `$USER` lowercased. Validate against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`.
+1. **Prompt for the alias.** Default the prompt to `$USER` lowercased — don't silently use it. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias> --context harbor`: if the namespace already exists, the alias is taken — halt with "pick another, or contact the platform team if it's yours." Don't attempt partial-state recovery (separate runbook). Continue only when the alias is free.
 2. **Fetch the diff template.** `gh pr list --repo sei-protocol/platform --search "feat(harbor/engineers): onboard" --state merged --limit 1` returns the most recent prior onboarding PR. `gh pr diff <num>` gives the three-file content.
 3. **Render the three files locally** in a fresh clone of `sei-protocol/platform`. Substring-replace the prior alias with `<alias>` throughout. Branch: `feat/engineers-<alias>-onboard`.
 4. **Open the PR.** Title: `feat(harbor/engineers): onboard <alias>`. Body: see template below. `gh pr create --repo sei-protocol/platform --base main`.
 5. **Surface and halt:**
-   > Onboarding PR opened: `<url>`. After merge, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=sei terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations.
+   > Onboarding PR opened: `<url>`. After merge, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` is the AWS profile resolved at pre-flight gate 2 — never literal `sei`.)
 6. **After merge,** poll `kubectl get namespace eng-<alias> --context harbor` until it returns 0.
 7. **Run the targeted apply.** `terraform plan -target=module.engineers -out=tfplan` then `terraform apply tfplan`. Confirm `Resources: 6 added`.
-8. **Verify** `aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --region eu-central-1 --profile sei` returns two associations (one for `seid-node`, one for `engineer-service-account`).
+8. **Verify** `aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --region eu-central-1 --profile <chosen>` returns two associations (one for `seid-node`, one for `engineer-service-account`).
 
 ## PR body template
 
@@ -139,14 +141,14 @@ Onboards `<alias>` as a tenant on harbor.
 
 ## What reconciles on terraform apply
 
-`AWS_PROFILE=sei terraform apply -target=module.engineers`
+`AWS_PROFILE=<chosen> terraform apply -target=module.engineers` (`<chosen>` = the AWS profile resolved at pre-flight gate 2)
 
 Plan: 6 to add, 0 to change, 0 to destroy. Six resources binding `eng-<alias>/seid-node` and `eng-<alias>/engineer-service-account` to their respective IAM policies via Pod Identity.
 
 ## Verification
 
 - `kubectl get sa -n eng-<alias> --context harbor` lists `engineer-service-account`, `<alias>`, `seid-node`.
-- `aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --region eu-central-1 --profile sei` returns two associations.
+- `aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --region eu-central-1 --profile <chosen>` returns two associations.
 ```
 
 ## When NOT to use this flow
