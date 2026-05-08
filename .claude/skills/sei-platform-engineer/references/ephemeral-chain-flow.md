@@ -140,7 +140,7 @@ Engineer says: "spin up a chain of 4 validators with seid sha=abc, then add an R
     - `.status.endpoints.tendermintRpc[0]` — Tendermint RPC URL
     - `.status.endpoints.tendermintRest[0]` — Tendermint REST URL
     - Plus per-pod URLs from `.status.perPodServices[]` if the engineer needs pod-targeted connectivity (seiload's WebSocket block collector, etc.).
-14. **Report teardown** — `git rm engineers/<alias>/<task>/` → commit → push → merge. Flux prunes the SNDs on next reconcile, cascading to child pods/PVCs per k8s deletion propagation.
+14. **Report teardown** — `git rm -r engineers/<alias>/<task>/` **and** remove the `<task>` entry from `engineers/<alias>/kustomization.yaml`'s `resources:` list (Kustomize fails to render with an orphan reference). Commit → push → merge. Flux prunes the SNDs on next reconcile, cascading to child pods/PVCs per k8s deletion propagation.
 
 ## Halt conditions specific to this flow
 
