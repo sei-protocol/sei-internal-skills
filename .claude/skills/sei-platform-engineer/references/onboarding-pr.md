@@ -141,7 +141,7 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
    > Merge the workspace PR first (or merge both within seconds of each other). After merge of the platform PR, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` is the AWS profile resolved at pre-flight gate 2 — never literal `sei`.)
 7. **After merge,** poll `kubectl get namespace eng-<alias> --context harbor` until it returns 0.
 8. **Run the targeted apply.** `terraform plan -target=module.engineers -out=tfplan` then `terraform apply tfplan`. Confirm `Resources: 6 added`.
-9. **Verify** `aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --region eu-central-1 --profile <chosen>` returns two associations (one for `seid-node`, one for `engineer-service-account`). Verify the engineer's Flux Kustomization is Ready: `kubectl get kustomization eng-<alias> -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'` returns `True`.
+9. **Verify** `aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --region eu-central-1 --profile <chosen>` returns two associations (one for `seid-node`, one for `engineer-service-account`). Verify the engineer's Flux Kustomization is Ready: `kubectl get kustomization <alias> -n eng-<alias> -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'` returns `True`.
 
 ## PR body template
 

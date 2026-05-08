@@ -143,24 +143,24 @@ kubectl get sn <name> -n eng-<alias> \
 
 ### 8. Flux Kustomization Ready state — "is the engineer fully wired?"
 
-Used during onboarding verification (post-merge of the platform-repo PR) and during incident triage when a workspace push isn't reconciling.
+The per-engineer Flux Kustomization lives at `<alias>` in the `eng-<alias>` namespace (not `flux-system`). Used during onboarding verification (post-merge of the platform-repo PR) and during incident triage when a workspace push isn't reconciling.
 
 ```sh
 # Is the engineer's Flux Kustomization Ready?
-kubectl get kustomization eng-<alias> -n flux-system \
+kubectl get kustomization <alias> -n eng-<alias> \
   -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
 # → True | False | (empty if NotFound — the onboarding PR hasn't merged or didn't ship the Kustomization)
 
 # What's the last applied revision? Compare to the engineer's HEAD on the workspace branch.
-kubectl get kustomization eng-<alias> -n flux-system \
+kubectl get kustomization <alias> -n eng-<alias> \
   -o jsonpath='{.status.lastAppliedRevision}'
 
 # Why is it not Ready? (message field is populated on Ready=False)
-kubectl get kustomization eng-<alias> -n flux-system \
+kubectl get kustomization <alias> -n eng-<alias> \
   -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}'
 ```
 
-If `kubectl get kustomization eng-<alias>` returns `NotFound`, the onboarding PR hasn't merged or the per-engineer Flux wiring wasn't included. Don't try to create the Kustomization yourself — surface to the engineer + platform team.
+If `kubectl get kustomization <alias> -n eng-<alias>` returns `NotFound`, the onboarding PR hasn't merged or the per-engineer Flux wiring wasn't included. Don't try to create the Kustomization yourself — surface to the engineer + platform team.
 
 ## When a recipe doesn't match observed output
 

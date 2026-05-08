@@ -62,17 +62,17 @@ For deep detail per gate (recovery commands, edge cases, the full new-engineer w
 
 ### Profile detection (gate 2)
 
-Don't hardcode a profile name; engineers configure their own. Detection flow:
+Don't hardcode a profile name; engineers configure their own.
 
 1. **If `$AWS_PROFILE` is set in the environment**, respect it as an explicit choice. Validate via `aws sts get-caller-identity --profile $AWS_PROFILE`. Echo the resolved Arn.
-2. **Otherwise list the configured profiles** with `aws configure list-profiles` and present the choice to the engineer:
-   > I'll use this AWS profile to authenticate kubectl + observe your harbor cluster resources. Which profile?
-   > - `sei` (suggested if present)
-   > - `<other>`
-   > - `<other>`
-3. **If only one profile is configured**, use it directly and echo `"Using AWS profile <name> (only one configured)"`.
-4. **If `sei` is among multiple profiles**, default the prompt to `sei` but accept any value.
-5. **If no profiles are configured**, surface `aws configure sso` and halt.
+2. **Otherwise list the configured profiles** with `aws configure list-profiles` and branch on the count:
+   - **Zero profiles** → surface `aws configure sso` and halt.
+   - **Exactly one profile** → use it. Echo `"Using AWS profile <name> (only one configured)"`.
+   - **Multiple profiles** → present the choice. Default-suggest `sei` if it's among them.
+     > I'll use this AWS profile to authenticate kubectl + observe your harbor cluster resources. Which profile?
+     > - `sei` (suggested)
+     > - `<other>`
+     > - `<other>`
 
 The chosen profile is the session's profile — every downstream `aws ...` invocation runs with `--profile <chosen>`. Persist the choice for the session (e.g., shell-prefix every Bash call with `AWS_PROFILE=<chosen>` if not exported in the parent shell).
 
