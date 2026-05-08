@@ -111,12 +111,37 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
 1. **Prompt for the alias.** Default the prompt to `$USER` lowercased — don't silently use it. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias> --context harbor`: if the namespace already exists, the alias is taken — halt with "pick another, or contact the platform team if it's yours." Don't attempt partial-state recovery (separate runbook). Continue only when the alias is free.
 2. **Fetch the diff template.** `gh pr list --repo sei-protocol/platform --search "feat(harbor/engineers): onboard" --state merged --limit 1` returns the most recent prior onboarding PR. `gh pr diff <num>` gives the three-file content.
 3. **Render the three files locally** in a fresh clone of `sei-protocol/platform`. Substring-replace the prior alias with `<alias>` throughout. Branch: `feat/engineers-<alias>-onboard`.
-4. **Open the PR.** Title: `feat(harbor/engineers): onboard <alias>`. Body: see template below. `gh pr create --repo sei-protocol/platform --base main`.
-5. **Surface and halt:**
-   > Onboarding PR opened: `<url>`. After merge, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` is the AWS profile resolved at pre-flight gate 2 — never literal `sei`.)
-6. **After merge,** poll `kubectl get namespace eng-<alias> --context harbor` until it returns 0.
-7. **Run the targeted apply.** `terraform plan -target=module.engineers -out=tfplan` then `terraform apply tfplan`. Confirm `Resources: 6 added`.
-8. **Verify** `aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --region eu-central-1 --profile <chosen>` returns two associations (one for `seid-node`, one for `engineer-service-account`).
+4. **Open the platform-repo PR.** Title: `feat(harbor/engineers): onboard <alias>`. Body: see template below. `gh pr create --repo sei-protocol/platform --base main`.
+5. **Open the workspace-repo scaffolding PR (sibling).** Without this, the engineer's per-engineer Flux Kustomization fails reconcile post-merge with `kustomization path not found: ./engineers/<alias>` — the bug pattern that broke amir for ~7 hours after onboarding (see platform#446 / harbor-engineering-workspace#1). Open against `sei-protocol/harbor-engineering-workspace`:
+
+   ```sh
+   # In a fresh clone of sei-protocol/harbor-engineering-workspace
+   git checkout -b feat/onboard-<alias> main
+   mkdir -p engineers/<alias>
+   cat > engineers/<alias>/kustomization.yaml <<'EOF'
+   apiVersion: kustomize.config.k8s.io/v1beta1
+   kind: Kustomization
+   resources: []
+   EOF
+   git add engineers/<alias>/kustomization.yaml
+   git commit -m "feat(engineers): scaffold workspace dir for <alias>"
+   git push -u origin feat/onboard-<alias>
+   gh pr create --repo sei-protocol/harbor-engineering-workspace --base main \
+     --title "feat(engineers): scaffold workspace dir for <alias>" \
+     --body "Sibling to sei-protocol/platform#<onboarding-pr-num>. Empty resources list — the engineer fills this in via subsequent task PRs (chain spinups, benches). Required so the per-engineer Flux Kustomization can reconcile cleanly on first apply."
+   ```
+
+   Both PRs land independently of each other; the platform-repo PR shouldn't merge before the workspace-repo PR is at least open. Surface both URLs.
+
+6. **Surface and halt:**
+   > Onboarding opened in two PRs:
+   > - Platform: `<platform-pr-url>`
+   > - Workspace: `<workspace-pr-url>`
+   >
+   > Merge the workspace PR first (or merge both within seconds of each other). After merge of the platform PR, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` is the AWS profile resolved at pre-flight gate 2 — never literal `sei`.)
+7. **After merge,** poll `kubectl get namespace eng-<alias> --context harbor` until it returns 0.
+8. **Run the targeted apply.** `terraform plan -target=module.engineers -out=tfplan` then `terraform apply tfplan`. Confirm `Resources: 6 added`.
+9. **Verify** `aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<alias> --region eu-central-1 --profile <chosen>` returns two associations (one for `seid-node`, one for `engineer-service-account`). Verify the engineer's Flux Kustomization is Ready: `kubectl get kustomization eng-<alias> -n flux-system -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'` returns `True`.
 
 ## PR body template
 
