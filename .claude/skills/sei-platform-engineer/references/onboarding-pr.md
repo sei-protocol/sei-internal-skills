@@ -112,7 +112,7 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
 2. **Fetch the diff template.** `gh pr list --repo sei-protocol/platform --search "feat(harbor/engineers): onboard" --state merged --limit 1` returns the most recent prior onboarding PR. `gh pr diff <num>` gives the three-file content.
 3. **Render the three files locally** in a fresh clone of `sei-protocol/platform`. Substring-replace the prior alias with `<alias>` throughout. Branch: `feat/engineers-<alias>-onboard`.
 4. **Open the platform-repo PR.** Title: `feat(harbor/engineers): onboard <alias>`. Body: see template below. `gh pr create --repo sei-protocol/platform --base main`.
-5. **Open the workspace-repo scaffolding PR (sibling).** Without this, the engineer's per-engineer Flux Kustomization fails reconcile post-merge with `kustomization path not found: ./engineers/<alias>` — the bug pattern that broke amir for ~7 hours after onboarding (see platform#446 / harbor-engineering-workspace#1). Open against `sei-protocol/harbor-engineering-workspace`:
+5. **Open the workspace-repo scaffolding PR (sibling).** Without this, the engineer's per-engineer Flux Kustomization fails reconcile post-merge with `kustomization path not found: ./engineers/<alias>`. The platform-repo PR alone isn't enough — the workspace dir must also exist before Flux first reconciles. Open against `sei-protocol/harbor-engineering-workspace`:
 
    ```sh
    # In a fresh clone of sei-protocol/harbor-engineering-workspace

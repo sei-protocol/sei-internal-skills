@@ -2,7 +2,7 @@
 
 The skill's daily-driver flow for engineers spinning up an ephemeral Sei chain on harbor — typically for testing a build, reproducing a bug, validating a release candidate, or driving a load run. Engineer says one English sentence; the agent renders the SND CRs via `seictl nd apply --dry-run`, opens a PR against `sei-protocol/harbor-engineering-workspace`, and watches the chain to Ready after Flux applies on merge.
 
-Last verified: 2026-05-08 against shipped seictl v0.0.43+ (`nd` verb tree, peer auto-wire from PR #146), the multi-tenant `eng-<alias>` namespace shape from sei-protocol/platform#427, and the GitOps-opinionated direction confirmed against fromtherain (platform#453) + amir (platform#446) cells.
+Last verified: 2026-05-08 against shipped seictl v0.0.43+ (`nd` verb tree, peer auto-wire) and the multi-tenant `eng-<alias>` namespace shape in `sei-protocol/platform`'s `clusters/harbor/engineers/base/`.
 
 ## The architectural model in three lines
 
@@ -100,7 +100,7 @@ Native `SeiNodeDeployment` CR on stdout as JSON. Same shape as `kubectl get snd 
 
 - `Invalid` — the rendered CR fails apiserver schema validation. Check `--set` paths for typos.
 - `Forbidden` — RBAC denies the apply. Likely the engineer's access entry is read-only; pre-flight gate 4 normally catches this earlier.
-- `AlreadyExists` — name collision with an existing SND owned by something else (e.g., a hand-rolled YAML). Choose a new name or `seictl nd delete` the existing one first.
+- `AlreadyExists` — name collision with an existing SND. If the existing SND is Flux-owned (rendered from another workspace-repo manifest), `git rm` that manifest first; calling `seictl nd delete` on a Flux-owned SND races the next reconcile. If the existing SND is hand-rolled (no Flux owner), `seictl nd delete` it or pick a new chain-id.
 
 ### `seictl nd watch` — success
 

@@ -100,7 +100,7 @@ Onboarding is one PR against `sei-protocol/platform` adding three files. After m
    > Onboarding PR opened: `<url>`. After merge, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` = the AWS profile resolved at gate 2.)
 6. After merge, poll `kubectl get namespace eng-<alias>` until it returns 0.
 7. Run `terraform plan -target=module.engineers -out=tfplan` and confirm `Plan: 6 to add, 0 to change, 0 to destroy`. Apply with `terraform apply tfplan`. `Resources: 6 added` confirms.
-8. Gate 5 passes. The engineer is on the rails — chain spinup and bench requests now render via the skill, land in `harbor-engineering-workspace` PRs, and reconcile via Flux on merge. Pods running as `engineer-service-account` get S3 write to their own namespace prefix; SeiNode pods running as `seid-node` get snapshot read + peer discovery.
+8. Gate 5 passes. Chain-spinup requests render via the skill, land in `harbor-engineering-workspace` PRs, and reconcile via Flux on merge. Pods running as `engineer-service-account` get S3 write to their own namespace prefix; SeiNode pods running as `seid-node` get snapshot read + peer discovery.
 
 See `references/onboarding-pr.md` for the complete file content, base-layer details, and PR body template.
 
@@ -115,8 +115,7 @@ Every engineer-facing intent maps to a `seictl nd` verb against `eng-<alias>`. *
 | "Add an RPC fleet to chain X" / "attach RPC nodes" | Same render → PR shape with `--preset rpc --chain-id <same-id>`. Land in the same task dir as a sibling file (`snd-<id>-rpc.yaml`). Either as additional commits to an open chain PR or a follow-up PR. The `rpc` preset auto-wires `peers[0].label.selector.sei.io/chain=<chain-id>`, so the same `--chain-id` as the genesis chain gets the fleet pointing at it. |
 | "What's running in my namespace" / "what chains do I have" | `seictl nd list -n eng-<alias>` (yaml default; `-o name` for short, `-o jsonpath=...` for one-shot field reads). |
 | "Show me chain X" / "what's the status of X" | `seictl nd get <name> -n eng-<alias>` (full CR including `.status.phase`, `.status.endpoints`, `.status.perPodServices`). |
-| "Load chain X with seiload" / "run a bench against X" / "stress test X" | **PR-based bench** (see Procedure: spin up a load test). Skill renders Job + ConfigMap from the templates in `references/sei-load-bench.md` substituting chain-id, image, profile, duration. Opens a PR against `harbor-engineering-workspace` at `engineers/<alias>/<bench-name>/`. Merge → Flux applies → Job runs → results land in S3. |
-| "Tear down chain X" / "wipe X" | `git rm engineers/<alias>/<task>/snd-<chain-id>.yaml` (and the rpc sibling, if present) → commit → push → merge. Flux prunes the SND on next reconcile, which cascades to child SeiNodes / pods / PVCs per k8s deletion propagation. Same shape as bench teardown — git is the audit trail for both create and delete. |
+| "Tear down chain X" / "wipe X" | `git rm engineers/<alias>/<task>/snd-<chain-id>.yaml` (and the rpc sibling, if present) → commit → push → merge. Flux prunes the SND on next reconcile, which cascades to child SeiNodes / pods / PVCs per k8s deletion propagation. |
 | "Where am I" / "what cluster am I on" / "who am I" | `kubectl config current-context` + `aws sts get-caller-identity --profile <chosen>` (the gate-2 profile). (No dedicated `seictl context` verb in this surface.) |
 
 **Override and composition:**
@@ -156,25 +155,6 @@ If an engineer specifically asks to bypass the PR loop for a one-shot debug sess
 
 **Steer first.** Before running, ask: "I can do this through the GitOps PR flow (audit trail, Flux reconciles, `git rm` to tear down) — do you want that, or do you specifically need a direct-apply run with no git history?" Only proceed below on explicit confirmation. The agent does not volunteer this path.
 
-## Procedure: spin up a load test (PR-based)
-
-Engineer says "load chain X with seiload" or "run a bench against PR 3399 of sei-load." Sei-load runs as a vanilla K8s `Job` (no CRD), so this flow doesn't go through `seictl nd`. Instead, the skill renders the Job + ConfigMap from the templates in `references/sei-load-bench.md` and opens a PR against `sei-protocol/harbor-engineering-workspace`. Engineer merges → Flux applies → Job runs → results upload to S3.
-
-**Read `references/sei-load-bench.md` first.** It carries the manifest templates, the upload-sidecar pattern, the S3 key convention, and the chain-id → RPC URL derivation. The procedure below is the operational restatement.
-
-1. **Pre-flight** — if not already passed this session, run all five gates. Halt on first failure with the recovery surfaced.
-2. **Resolve target chain** — engineer specifies which chain (the genesis-chain SND name). Verify it exists in `eng-<alias>` via `kubectl get snd <chain-id> -n eng-<alias>` (or accept that the bench PR may sit until the chain PR lands; surface that to the engineer if so). The bench's RPC URL is derived: `http://<chain-id>-rpc-internal.eng-<alias>.svc:8545` — no live lookup needed.
-3. **Resolve sei-load image** — see `references/image-resolution.md`. Engineer says "PR 3399" / "commit abc1234" / "the latest on main", or omits → default to nightly's pinned `SEILOAD_IMAGE`. The agent resolves to a full SHA, constructs `ghcr.io/sei-protocol/sei-load:sha-<full-sha>`, verifies (or triggers + watches the build workflow), then uses the resulting image.
-4. **Resolve profile** — default `evm_transfer`; override via `--profile <name>`. Read the profile JSON from the platform repo: `gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/load/profiles/<profile>.json --jq .content | base64 -d`.
-5. **Derive `<bench-name>`** — `<bench-tag>-<UTC-timestamp>` per `references/sei-load-bench.md`. Bench-tag follows the same precedence as chain-IDs.
-6. **Plan echo & confirm** — chain-id, RPC URL, sei-load image (resolved digest), profile, duration, `<bench-name>`, expected S3 key (`s3://harbor-validation-results/eng-<alias>/<profile>/<bench-name>/report.log`). Wait for confirmation.
-7. **Render the manifests** — substitute placeholders into the Job + ConfigMap templates. Write to `engineers/<alias>/<bench-name>/{seiload-job.yaml,seiload-configmap.yaml,kustomization.yaml}` in a fresh clone of `harbor-engineering-workspace`.
-8. **Open the PR** — title `feat(eng/<alias>): bench <bench-name> against <chain-id>`; body lists the resolved inputs + S3 key. Surface the URL.
-9. **Surface and halt** — engineer reviews the rendered manifests, merges the PR. After merge, Flux applies (~60s). Skill can offer to poll `kubectl get job seiload-<run-id> -n eng-<alias> -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}'` until True (or surface `kubectl logs -l sei.io/bench-name=<run-id> -c seiload -f` for live tailing).
-10. **Report** — the S3 key the result lands at, live-observation recipes (`kubectl logs ... -c seiload -f` and `... -c upload-results`), and teardown (`git rm -r engineers/<alias>/<bench-name>/`).
-
-**Same shape as chain spinup.** Both engineer-facing flows are PR-based now: chain spinup renders SND CRs via `seictl nd apply --dry-run`; bench renders Job + ConfigMap via skill templates (no CRD path). Either way, the artifact lands in `engineers/<alias>/<task>/` in the workspace repo, an engineer-reviewable PR opens, Flux applies on merge, the agent watches and reports.
-
 ## Procedure: troubleshooting (manual)
 
 Engineer says "X is stuck" or "diagnose snd foo." `seictl` has no diagnose verb — walk the engineer through the manual `kubectl`-driven flow documented in `references/troubleshooting-seinode.md`.
@@ -202,7 +182,7 @@ Stop and report to the user if:
 - **`seictl nd watch` exits with `metav1.Status.reason=Timeout`** — chain hasn't reached the requested phase within `--timeout` (default 15m). Halt; surface `.status.plan.tasks[]` from the last NDJSON line for the engineer to inspect.
 - **`seictl nd watch` exits on terminal Failed phase** — `.status.plan.failedTaskDetail.error` is on stderr; surface it and the failed task name. Don't auto-retry.
 - **SND name collision in the namespace** — `kubectl get snd <name> -n eng-<alias>` returns an existing CR while the engineer's PR proposes a new one. Halt before opening the PR; surface the existing object's age and labels, and ask whether to pick a different chain-id, or `git rm` the existing object's manifest from the workspace repo first.
-- **Workspace-repo task path collision** — `engineers/<alias>/<task>/` already exists with content from a prior bench/chain. Don't silently overwrite. Halt and ask whether to reuse the dir (and add new files alongside the existing ones) or pick a different `<task>` name.
+- **Workspace-repo task path collision** — `engineers/<alias>/<task>/` already exists. Don't silently overwrite. Halt and ask whether to reuse the dir (and add new files alongside the existing ones) or pick a different `<task>` name.
 - **PR push rejected (non-fast-forward)** — engineer or another agent pushed to the same branch. Don't force-push. Halt; surface `git pull --rebase origin <branch>` and let the engineer resolve.
 
 ## Reference index
@@ -216,8 +196,7 @@ Stop and report to the user if:
 | `seinode-crd.md` | Operations-load-bearing fields on `SeiNode` |
 | `seinodedeployment-crd.md` | Operations-load-bearing fields on `SeiNodeDeployment`, including `.status.phase`, `.status.endpoints`, `.status.perPodServices`, `.status.plan` |
 | `cluster-inspection-recipes.md` | **Canonical structured-extraction recipes.** Use these directly instead of inferring jsonpath at runtime — RPC endpoints (recipe #1, also resolves "target RPC, not validator"), phase + readiness, failed task, image drift, per-pod services, Flux Kustomization Ready |
-| `sei-load-bench.md` | **Read this if the engineer asks for a load test or bench.** Hardcoded Job + ConfigMap templates (vanilla K8s, no CRD), upload-sidecar pattern, S3 archival convention, RPC-URL derivation, PR target |
-| `image-resolution.md` | **Canonical image-resolution recipes** for sei-chain (ECR) and sei-load (GHCR). PR/commit/branch input → full SHA → expected tag → registry probe → trigger + watch the build workflow if missing |
+| `image-resolution.md` | **Canonical image-resolution recipe** for sei-chain (ECR). PR/commit/branch input → full SHA → expected tag → registry probe → trigger + watch the build workflow if missing |
 | `troubleshooting-seinode.md` | Phase-by-phase symptom → cause → inspection decision tree |
 | `harbor-cluster.md` | CNI (Cilium), Istio + Gateway API, DNS, Flux topology, EKS access entries |
 | `aws-dependencies.md` | S3 buckets (snapshots, genesis, results), Pod Identity status, ECR conventions |
@@ -260,7 +239,7 @@ Pre-approve in `.claude/settings.local.json` (user-specific, not committed):
 
 - `seictl nd apply` (without `--dry-run`) — direct server-side apply; the escape-hatch path. Requires explicit confirmation per session.
 - `seictl nd delete` — destroys a CR + propagates deletion to children; requires explicit confirmation. (Default teardown is `git rm` against the workspace-repo manifest, not this verb.)
-- `gh pr create` — opens onboarding / chain / bench PRs; requires explicit confirmation per PR.
+- `gh pr create` — opens onboarding and chain-spinup PRs; requires explicit confirmation per PR.
 - `git push` — pushes engineer-task branches to `harbor-engineering-workspace`; requires explicit confirmation.
 
 `seictl nd apply --dry-run` is safe to pre-approve since it's render-only (returns the would-be-applied CR, no cluster mutation). Add `Bash(seictl nd apply * --dry-run:*)` to the allow list if a session does heavy rendering.
@@ -273,15 +252,4 @@ No per-run state is maintained here. Operation is stateless between invocations:
 
 ---
 
-## Status: post-#133 nd surface shipped
-
-The `nd` verb tree shipped in sei-protocol/seictl after the `cluster/` teardown:
-
-- LLD: #135 (Accepted)
-- `cluster/` teardown: #133
-- `nd apply` + presets + scaffolding: #137
-- `nd get` / `list` / `delete`: #141
-- `nd watch` (NDJSON): #142
-- Auto-wire chain labels + rpc peer selector: #146 (v0.0.43+)
-
-The verb table above reflects what `seictl nd --help` actually emits in v0.0.43+. Reference files are aligned to the shipped output shape (native CR on stdout, `metav1.Status` on stderr, NDJSON for watch). When this file disagrees with `seictl nd --help`, the CLI wins.
+The verb table above reflects what `seictl nd --help` emits in v0.0.43+. Reference files are aligned to the shipped output shape (native CR on stdout, `metav1.Status` on stderr, NDJSON for watch). When this file disagrees with `seictl nd --help`, the CLI wins.
