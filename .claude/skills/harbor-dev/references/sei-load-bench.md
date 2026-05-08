@@ -62,7 +62,7 @@ metadata:
   namespace: eng-<ALIAS>
   labels:
     app.kubernetes.io/name: seiload
-    app.kubernetes.io/managed-by: sei-platform-engineer
+    app.kubernetes.io/managed-by: harbor-dev
     app.kubernetes.io/part-of: seictl-bench
     app.kubernetes.io/component: load
     sei.io/chain-id: <CHAIN_ID>
@@ -99,7 +99,7 @@ metadata:
   namespace: eng-<ALIAS>
   labels:
     app.kubernetes.io/name: seiload
-    app.kubernetes.io/managed-by: sei-platform-engineer
+    app.kubernetes.io/managed-by: harbor-dev
     app.kubernetes.io/part-of: seictl-bench
     app.kubernetes.io/component: load
     sei.io/chain-id: <CHAIN_ID>
@@ -113,7 +113,7 @@ spec:
     metadata:
       labels:
         app.kubernetes.io/name: seiload
-        app.kubernetes.io/managed-by: sei-platform-engineer
+        app.kubernetes.io/managed-by: harbor-dev
         app.kubernetes.io/part-of: seictl-bench
         app.kubernetes.io/component: load
         sei.io/chain-id: <CHAIN_ID>

@@ -43,7 +43,7 @@ PORTABLE=(
 
 SEI=(
   chaos-suite
-  sei-platform-engineer
+  harbor-dev
 )
 
 # --- Argument parsing -------------------------------------------------------

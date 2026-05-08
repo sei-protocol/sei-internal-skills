@@ -12,7 +12,7 @@ Last verified: 2026-05-08 against shipped seictl v0.0.43+ (`nd` verb tree, peer 
 
 ```mermaid
 flowchart LR
-  E[Engineer: natural language] --> A[sei-platform-engineer skill]
+  E[Engineer: natural language] --> A[harbor-dev skill]
   A -->|seictl nd apply<br/>--dry-run| Y[rendered SND YAML]
   Y -->|git commit + push| B[(engineers/&lt;alias&gt;/&lt;task&gt;/<br/>in harbor-engineering-workspace)]
   B -->|PR| PR[reviewable PR]
