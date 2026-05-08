@@ -33,18 +33,39 @@ Two-part check:
 
 **Recovery (out-of-band):**
 
+Recommended path: prebuilt binary from the GitHub releases page. Per-platform tarballs at `https://github.com/sei-protocol/seictl/releases/latest`. Pick the right asset:
+
 ```sh
-# Fresh:
-brew install sei-protocol/tap/seictl
+# macOS (Apple Silicon)
+curl -LO https://github.com/sei-protocol/seictl/releases/latest/download/seictl_Darwin_arm64.tar.gz
+tar -xzf seictl_Darwin_arm64.tar.gz
+sudo mv seictl /usr/local/bin/
 
-# Older binary:
-brew upgrade seictl
+# macOS (Intel)
+curl -LO https://github.com/sei-protocol/seictl/releases/latest/download/seictl_Darwin_x86_64.tar.gz
+tar -xzf seictl_Darwin_x86_64.tar.gz
+sudo mv seictl /usr/local/bin/
 
-# Or grab the release binary directly:
-# https://github.com/sei-protocol/seictl/releases/latest
+# Linux (x86_64)
+curl -LO https://github.com/sei-protocol/seictl/releases/latest/download/seictl_Linux_x86_64.tar.gz
+tar -xzf seictl_Linux_x86_64.tar.gz
+sudo mv seictl /usr/local/bin/
+
+# Linux (ARM64) / (ARMv7) — same shape with seictl_Linux_arm64.tar.gz / seictl_Linux_armv7.tar.gz
 ```
 
-Halt until both checks pass.
+Build-from-source fallback — needed when the engineer requires a commit newer than the latest release:
+
+```sh
+git clone git@github.com:sei-protocol/seictl.git
+cd seictl
+make build
+sudo mv build/seictl /usr/local/bin/
+```
+
+**Don't** use `brew` (no tap exists for `sei-protocol/seictl`). **Don't** use `go install` directly — seictl's go.mod requires source-tree build-args that bare `go install` doesn't pass. `make install` is also `go install` under the hood; same caveat. Use `make build` then move the binary.
+
+Halt until both checks (PATH + `nodedeployment --help`) pass.
 
 ### Gate 2: AWS SSO session active for the engineer's chosen profile
 

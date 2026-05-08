@@ -1,0 +1,95 @@
+# Image resolution
+
+Canonical recipe for translating an engineer's request — "PR 3399", "commit abc1234", "the latest on main" — into a pinned, verifiable `seid` image. The agent never invents a tag; either the build workflow produces it or the resolve fails.
+
+Last verified: 2026-05-08 against `sei-protocol/sei-chain` `.github/workflows/ecr.yml`.
+
+## sei-chain image conventions
+
+| | Value |
+|---|---|
+| Registry | `189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain` |
+| Tag format | `<ref-or-sha>` (regular build), `mock-<ref-or-sha>` (mock_balances build) |
+| Auto-built on | push to `main`, push to `release/**` |
+| Manual dispatch | `workflow_dispatch` with required `ref` input + optional `tag` |
+
+The `mock-<sha>` variant (`GO_BUILD_TAGS=mock_balances`) is published from the same workflow run as the regular tag — once the run completes, both tags are in ECR.
+
+## Resolution flow
+
+1. **Resolve to a full commit SHA** from the engineer's input.
+2. **Construct the expected image tag** per the convention above.
+3. **Probe the registry.** If the tag pulls cleanly, proceed.
+4. **If absent** (`AccessDenied` / `ImageNotFoundException`), find or trigger the build workflow run.
+5. **Watch the run to completion**, then re-probe.
+
+```sh
+# --- Resolve ---
+# From a PR
+SHA=$(gh pr view <pr-number> -R sei-protocol/sei-chain --json headRefOid -q .headRefOid)
+
+# From a short or full commit
+SHA=$(gh api repos/sei-protocol/sei-chain/commits/<short-or-full> --jq .sha)
+
+# From a branch tip
+SHA=$(gh api repos/sei-protocol/sei-chain/commits/<branch> --jq .sha)
+
+IMAGE="189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain:${SHA}"
+MOCK_IMAGE="189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain:mock-${SHA}"
+
+# --- Probe ---
+aws ecr describe-images --profile <chosen> --region us-east-2 \
+  --repository-name sei/sei-chain --image-ids imageTag=${SHA} \
+  --query 'imageDetails[0].imageDigest' --output text 2>/dev/null
+
+# --- Find existing run for this SHA ---
+RUN_ID=$(gh run list -R sei-protocol/sei-chain --workflow=ecr.yml \
+  --json databaseId,headSha --limit 20 \
+  | jq -r --arg sha "${SHA}" '.[] | select(.headSha == $sha) | .databaseId' \
+  | head -1)
+
+# --- Trigger if no run exists ---
+if [ -z "${RUN_ID}" ]; then
+  gh workflow run ecr.yml -R sei-protocol/sei-chain -f ref=${SHA}
+  sleep 3
+  RUN_ID=$(gh run list -R sei-protocol/sei-chain --workflow=ecr.yml \
+    --json databaseId,headSha --limit 10 \
+    | jq -r --arg sha "${SHA}" '.[] | select(.headSha == $sha) | .databaseId' \
+    | head -1)
+fi
+
+# --- Watch ---
+gh run watch ${RUN_ID} -R sei-protocol/sei-chain --exit-status
+# After watch returns 0, the image is in ECR; re-probe.
+```
+
+`<chosen>` is the AWS profile resolved at pre-flight gate 2.
+
+## Branch and tag inputs
+
+"The latest on main":
+
+```sh
+SHA=$(gh api repos/sei-protocol/sei-chain/commits/main --jq .sha)
+IMAGE="189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain:${SHA}"
+```
+
+For named release tags (`release/**`), the symbolic tag points at the underlying digest — use it directly without resolving.
+
+## Image input is required — never default silently
+
+The whole point of an engineer-driven chain is to validate a specific change. A silent default to nightly's pin makes the engineer believe they're testing their work when they're actually running unrelated code. **Always prompt** for a PR / commit / branch / explicit `--image` if the engineer's intent doesn't supply one. "Just use the latest" maps to `--branch main`, resolved to a specific SHA at render time and surfaced in the plan-echo.
+
+The current nightly pin is a comparison input, not a default — readable from the platform repo when the engineer asks "what's nightly running?":
+
+```sh
+grep -A1 SEID_IMAGE clusters/harbor/nightly/load/cronjob.yaml
+```
+
+## Halt conditions
+
+- **Workflow run fails** (`gh run watch ... --exit-status` returns non-zero). Surface `gh run view <id> --log-failed -R sei-protocol/sei-chain` for triage; halt.
+- **Image still absent from ECR after a successful run.** Sleep 30s and re-probe once. If still missing, halt — something's wrong with the publish step.
+- **`gh workflow run` errors with permissions.** Engineer's `gh auth status` doesn't grant `workflow` scope. Surface `gh auth refresh -h github.com -s workflow` and halt.
+- **`aws ecr describe-images` returns `AccessDenied`.** The engineer's SSO role lacks `ecr:DescribeImages` on `arn:aws:ecr:us-east-2:189176372795:repository/sei/sei-chain`. Surface the path: contact the platform team to add the permission to the engineer's SSO permission set.
+- **PR is on a fork.** Head SHA exists but auto-build didn't run (fork-PR builds are gated). Manual dispatch on the head SHA still works.
