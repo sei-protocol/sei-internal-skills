@@ -162,6 +162,41 @@ kubectl get kustomization <alias> -n eng-<alias> \
 
 If `kubectl get kustomization <alias> -n eng-<alias>` returns `NotFound`, the onboarding PR hasn't merged or the per-engineer Flux wiring wasn't included. Don't try to create the Kustomization yourself — surface to the engineer + platform team.
 
+## Bench observation recipes (named)
+
+Three recipes used by the bench Procedure (single + comparative). Referenced by name from `SKILL.md` step 11 and from `references/sei-load-bench.md`. Each is the exact command, what it shows, and the failure mode.
+
+### `bench:live-tail` — stream seiload output while the Job runs
+
+```sh
+kubectl logs -n eng-<alias> -l sei.io/bench-name=<RUN_ID> -c seiload -f
+```
+
+Returns: streaming stdout of the seiload container. Terminates when the Job pod terminates. Use during the active `<DURATION>` window when the engineer wants to watch generation rate, error rate, or RPC latency drift in real time.
+
+If `kubectl logs` returns `No resources found`, the bench Job hasn't been scheduled yet — Flux may not have reconciled the merged PR, or the parent kustomization is broken. Cross-check with recipe #8 (Flux Kustomization Ready state).
+
+### `bench:terminal-check` — has the Job hit a terminal state?
+
+```sh
+kubectl get job -n eng-<alias> seiload-<RUN_ID> \
+  -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}' \
+  | grep -E '^(Complete|Failed)=True$'
+```
+
+Returns: `Complete=True` on success, `Failed=True` on `activeDeadlineSeconds` or `backoffLimit` exhaustion, empty if still running. **The host-side `grep` is necessary because kubectl jsonpath filter expressions don't support `||`** — iterate `.status.conditions[*]` and filter on the host. Use after the expected `<DURATION>` window to confirm terminal state before fetching results.
+
+### `bench:teardown` — remove a bench from the engineer's workspace
+
+```sh
+git rm -r engineers/<alias>/bench-<RUN_ID>/
+# Then edit engineers/<alias>/kustomization.yaml to remove the `bench-<RUN_ID>` entry
+# from `resources:` — Kustomize fails to render with a missing-resource entry.
+git commit + push
+```
+
+After the PR merges, Flux prunes the Job + ConfigMap on next reconcile. PVCs / Pods cascade per k8s deletion propagation. The `<RUN_ID>` task dir is removed from the engineer's workspace tree.
+
 ## When a recipe doesn't match observed output
 
 The SND status surface is a public contract (per the type comments in `sei-protocol/sei-k8s-controller`'s `api/v1alpha1/`), but it does evolve. If a recipe's jsonpath returns nothing on a live SND that's clearly populated, in priority order:
