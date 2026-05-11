@@ -122,16 +122,18 @@ else
 fi
 
 # B2, B3 — Guardrails / Halt sections (warn-level since some shapes legitimately omit)
-if grep -qE '^## Guardrails' "$SKILL_MD"; then
+# Case-insensitive: matches '## Guardrails', '## guardrails', etc.
+if grep -qiE '^## Guardrails' "$SKILL_MD"; then
   emit "B2" "warn" "SKILL.md has Guardrails stanza" "pass" "" "B2"
 else
-  emit "B2" "warn" "SKILL.md has Guardrails stanza" "fail" "no '## Guardrails' heading found (block for procedural/discipline shapes)" "B2"
+  emit "B2" "warn" "SKILL.md has Guardrails stanza" "fail" "no '## Guardrails' heading found (case-insensitive match)" "B2"
 fi
 
-if grep -qE '^## Halt Conditions?' "$SKILL_MD"; then
+# Case-insensitive: matches '## Halt Conditions', '## Halt conditions', '## Halt Condition', etc.
+if grep -qiE '^## Halt Conditions?' "$SKILL_MD"; then
   emit "B3" "warn" "SKILL.md has Halt Conditions section" "pass" "" "B3"
 else
-  emit "B3" "warn" "SKILL.md has Halt Conditions section" "fail" "no '## Halt Conditions' heading found (block for procedural/discipline shapes)" "B3"
+  emit "B3" "warn" "SKILL.md has Halt Conditions section" "fail" "no '## Halt Conditions' heading found (case-insensitive match)" "B3"
 fi
 
 # B4 — numbered procedure with bolded step names

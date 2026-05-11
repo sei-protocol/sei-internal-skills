@@ -49,8 +49,8 @@ D4, D6, D7 are semantic — they go to the subagent.
 | Catalog ID | Check |
 |------------|-------|
 | B1 | `wc -l SKILL.md` ≤ 500 |
-| B2 | `grep -E '^## Guardrails'` returns ≥1 match (skipped for non-procedural/non-discipline shapes) |
-| B3 | `grep -E '^## Halt Conditions?'` returns ≥1 match (skipped for non-procedural/non-discipline shapes) |
+| B2 | `grep -iE '^## Guardrails'` returns ≥1 match — case-insensitive, matches `## guardrails` too (skipped for non-procedural/non-discipline shapes) |
+| B3 | `grep -iE '^## Halt Conditions?'` returns ≥1 match — case-insensitive, matches `## Halt conditions` too (skipped for non-procedural/non-discipline shapes) |
 | B4 | `grep -cE '^[0-9]+\. \*\*'` ≥ 3 (procedural shape) |
 
 ### References
