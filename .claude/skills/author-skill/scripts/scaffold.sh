@@ -2,7 +2,7 @@
 # scaffold.sh — Create the directory tree for a new skill.
 #
 # Usage:
-#   scaffold.sh --name <kebab-case-name> --scope <project|user> --shape <discipline|technique|pattern|reference|procedural>
+#   scaffold.sh --name <kebab-case-name> --scope <project|user> --shape <discipline|technique|pattern|reference|procedural> [--draft-dir <path>] [--dry-run]
 #
 # Behavior:
 #   - Resolves target path:
@@ -15,6 +15,12 @@
 #       procedural                                    → full (Tide SKILL-TEMPLATE.md)
 #   - Populates stubs for SKILL.md (from drafted state) and evals.json.
 #   - Echoes the resolved path on success (exit 0).
+#
+# --dry-run mode:
+#   Runs all validation (name, scope, shape, target-non-empty, protected-list)
+#   and prints the manifest of directories and files that WOULD be created,
+#   without writing anything. Exit code matches what the real run would have:
+#   0 if validation passes, non-zero on validation failure.
 
 set -euo pipefail
 
@@ -22,17 +28,19 @@ NAME=""
 SCOPE=""
 SHAPE=""
 DRAFT_DIR=""   # path to state/run-<ts>/draft/ — used to copy the prepared SKILL.md and evals.json into place
+DRY_RUN=0
 
-PROTECTED=("coral" "council" "design" "issue" "bugbash" "author-skill" "chaos-suite" "harbor-dev")
+PROTECTED=("coral" "council" "design" "issue" "bugbash" "author-skill" "audit-skill" "chaos-suite" "harbor-dev")
 
 die() { printf 'scaffold.sh: %s\n' "$1" >&2; exit "${2:-1}"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --name)   NAME="$2"; shift 2 ;;
-    --scope)  SCOPE="$2"; shift 2 ;;
-    --shape)  SHAPE="$2"; shift 2 ;;
+    --name)      NAME="$2"; shift 2 ;;
+    --scope)     SCOPE="$2"; shift 2 ;;
+    --shape)     SHAPE="$2"; shift 2 ;;
     --draft-dir) DRAFT_DIR="$2"; shift 2 ;;
+    --dry-run)   DRY_RUN=1; shift ;;
     *) die "unknown flag: $1" 1 ;;
   esac
 done
@@ -73,6 +81,73 @@ if [[ -d "$TARGET" ]] && [[ -n "$(ls -A "$TARGET" 2>/dev/null || true)" ]]; then
   die "target already exists and is non-empty: $TARGET" 2
 fi
 
+# Validate shape early (used by both dry-run preview and real scaffold)
+case "$SHAPE" in
+  procedural|discipline|technique|pattern|reference) ;;
+  *) die "--shape must be one of: discipline, technique, pattern, reference, procedural" 1 ;;
+esac
+
+# --- Compute the manifest of dirs and files that would be created ---
+DIRS=("$TARGET" "$TARGET/references")
+FILES=()
+case "$SHAPE" in
+  procedural)
+    DIRS+=("$TARGET/scripts" "$TARGET/evals" "$TARGET/state")
+    FILES+=("$TARGET/state/.gitkeep" "$TARGET/scripts/README.md")
+    ;;
+  discipline|technique|pattern|reference)
+    DIRS+=("$TARGET/evals")
+    ;;
+esac
+
+# Files from --draft-dir (if provided)
+if [[ -n "$DRAFT_DIR" ]]; then
+  [[ -d "$DRAFT_DIR" ]] || die "draft dir does not exist: $DRAFT_DIR" 1
+  [[ -f "$DRAFT_DIR/SKILL.md" ]]   && FILES+=("$TARGET/SKILL.md (from $DRAFT_DIR/SKILL.md)")
+  [[ -f "$DRAFT_DIR/evals.json" ]] && FILES+=("$TARGET/evals/evals.json (from $DRAFT_DIR/evals.json)")
+  if [[ -d "$DRAFT_DIR/references" ]]; then
+    for ref in "$DRAFT_DIR/references"/*.md; do
+      [[ -f "$ref" ]] || continue
+      FILES+=("$TARGET/references/$(basename "$ref") (from $ref)")
+    done
+  fi
+fi
+
+# Stub files emitted only if not copied from draft
+[[ ! "${FILES[*]:-}" =~ "$TARGET/SKILL.md" ]] && FILES+=("$TARGET/SKILL.md (stub)")
+case "$SHAPE" in
+  procedural)
+    [[ ! "${FILES[*]:-}" =~ "$TARGET/evals/evals.json" ]] && FILES+=("$TARGET/evals/evals.json (stub)")
+    ;;
+  discipline|technique|pattern|reference)
+    [[ -d "$TARGET/evals" || " ${DIRS[*]} " == *" $TARGET/evals "* ]] && \
+      [[ ! "${FILES[*]:-}" =~ "$TARGET/evals/evals.json" ]] && \
+      FILES+=("$TARGET/evals/evals.json (stub)")
+    ;;
+esac
+
+# --- Dry-run mode: print manifest and exit ---
+if [[ "$DRY_RUN" == "1" ]]; then
+  printf 'DRY RUN — would scaffold the following:\n\n'
+  printf '  Skill:   %s\n' "$NAME"
+  printf '  Scope:   %s\n' "$SCOPE"
+  printf '  Shape:   %s\n' "$SHAPE"
+  printf '  Target:  %s\n' "$TARGET"
+  if [[ -n "$DRAFT_DIR" ]]; then
+    printf '  Draft:   %s\n' "$DRAFT_DIR"
+  fi
+  printf '\n  Directories:\n'
+  for d in "${DIRS[@]}"; do
+    printf '    + %s\n' "$d"
+  done
+  printf '\n  Files:\n'
+  for f in "${FILES[@]}"; do
+    printf '    + %s\n' "$f"
+  done
+  printf '\n  (no files written; re-run without --dry-run to apply)\n'
+  exit 0
+fi
+
 # --- Create directory tree ---
 mkdir -p "$TARGET/references"
 
@@ -90,14 +165,10 @@ EOF
     # Flat Obra-style: SKILL.md + references/ only. Evals optional but recommended.
     mkdir -p "$TARGET/evals"
     ;;
-  *)
-    die "--shape must be one of: discipline, technique, pattern, reference, procedural" 1
-    ;;
 esac
 
 # --- Populate from draft ---
 if [[ -n "$DRAFT_DIR" ]]; then
-  [[ -d "$DRAFT_DIR" ]] || die "draft dir does not exist: $DRAFT_DIR" 1
   [[ -f "$DRAFT_DIR/SKILL.md" ]]   && cp "$DRAFT_DIR/SKILL.md"   "$TARGET/SKILL.md"
   [[ -f "$DRAFT_DIR/evals.json" ]] && cp "$DRAFT_DIR/evals.json" "$TARGET/evals/evals.json"
   # Copy any reference files the draft prepared.

@@ -4,18 +4,21 @@ Deterministic steps used by the procedure. Each script is debuggable standalone 
 
 ## `scaffold.sh`
 
-Creates the directory tree for a new skill at the resolved scope (project or user). Refuses to overwrite an existing non-empty directory. Refuses if the name collides with a protected canonical skill (coral, council, design, issue, bugbash, author-skill, chaos-suite, harbor-dev).
+Creates the directory tree for a new skill at the resolved scope (project or user). Refuses to overwrite an existing non-empty directory. Refuses if the name collides with a protected canonical skill (coral, council, design, issue, bugbash, author-skill, audit-skill, chaos-suite, harbor-dev).
 
 ```bash
 ./scaffold.sh --name terraform-review \
               --scope project \
               --shape technique \
-              --draft-dir /path/to/state/run-<ts>/draft
+              --draft-dir /path/to/state/run-<ts>/draft \
+              [--dry-run]
 ```
 
+**`--dry-run`** runs all validation (kebab-case name, scope, shape, target-non-empty, protected-list, draft dir existence) and prints the manifest of directories and files that WOULD be created — without writing anything. Exit code matches what the real run would have: `0` on validation pass, non-zero on validation failure. Useful for previewing before applying, especially when wiring `--draft-dir`.
+
 Exit codes:
-- `0` — success; resolved path printed to stdout.
-- `1` — bad args / missing flags.
+- `0` — success; resolved path printed to stdout (or dry-run manifest).
+- `1` — bad args / missing flags / draft dir not found.
 - `2` — target exists and is non-empty.
 - `3` — name collision with protected canonical skill.
 

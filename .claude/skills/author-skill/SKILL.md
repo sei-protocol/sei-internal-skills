@@ -70,7 +70,9 @@ Each step names what it produces and where (`state/run-<ISO-timestamp>/...`).
 
 10. **Generate evals.** Minimum: one happy-path eval and one halt-condition eval. The pressure scenarios that survived REFACTOR convert directly to evals (the prompt + the expected compliance behavior). Write to `state/run-<ts>/draft/evals.json`. See `references/eval-format.md`.
 
-11. **Scaffold the skill on disk.** Call `scripts/scaffold.sh --name <name> --scope <project|user> --shape <shape>`. The script creates the directory tree under `<repo>/.claude/skills/<name>/` (or `~/.claude/skills/<name>/` with `--scope user`), populates SKILL.md / references/ / scripts/ / evals/ / state/.gitkeep, and refuses to overwrite an existing non-empty directory. Show the user the path before writing.
+11. **Scaffold the skill on disk.** Call `scripts/scaffold.sh --name <name> --scope <project|user> --shape <shape> --draft-dir <state/run-<ts>/draft>`. The script creates the directory tree under `<repo>/.claude/skills/<name>/` (or `~/.claude/skills/<name>/` with `--scope user`), populates SKILL.md / references/ / scripts/ / evals/ / state/.gitkeep from the draft, and refuses to overwrite an existing non-empty directory.
+
+    **Preview first with `--dry-run`.** Before the real apply, run with `--dry-run` to print the manifest of directories and files that will be created. Show this to the user; on confirmation, re-run without the flag to apply. This matches the pattern in `scripts/add-catalog-entry.sh` and `scripts/sync-check.sh` and gives the user a final review gate before the scaffold lands.
 
 12. **Add to the catalog.** Call `scripts/add-catalog-entry.sh --name <name> --section <Workflow|Workstream Bootstrap|Hardening|Release Operations|Engineer Self-Service|Future Slots>`. The script proposes the catalog line and the section; the user confirms before the edit lands. Reuses the format already in `.claude/skills/README.md`.
 
