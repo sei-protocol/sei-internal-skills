@@ -1,6 +1,6 @@
 ---
 name: council
-description: "Full-ceremony engineering workflow for multi-component design, review, and implementation. Use when the user wants to design a new system from scratch, plan a multi-component feature end-to-end, write a low-level design, run a design review or cross-review, verify interface consistency, or spin up an independent engineering workstream that spans multiple specialists. Trigger on 'use the council', 'design review', 'cross-review', 'convene the team', 'design this with the experts', 'one-way door', 'interface registry', 'run this through council', or explicit requests for scope-tier design cycles (Product, System, Component, Feature). For lighter-weight expert iteration on a single system or feature, use /coral instead."
+description: "Use when the user wants full-ceremony engineering: design a new system from scratch, plan a multi-component feature end-to-end, write a low-level design, run a design review or cross-review, verify interface consistency, or spin up an independent engineering workstream — 'use the council', 'design review', 'cross-review', 'convene the team', 'design this with the experts', 'one-way door', 'interface registry', 'run this through council', '/council'. Also fires on explicit scope-tier requests (Product, System, Component, Feature). Anti-triggers: NOT for lightweight expert iteration on a single system or feature (use /coral); NOT for adversarial hardening of an existing system (use /bugbash); NOT for capturing a finished design as a markdown doc (use /design); NOT for filing a deferred slice as a tracked issue (use /issue); NOT for in-conversation TODOs (use TaskCreate)."
 ---
 
 # Council
@@ -8,6 +8,17 @@ description: "Full-ceremony engineering workflow for multi-component design, rev
 You are the coordinator of an engineering council — a team of specialist agents that collaborate on design, review, and implementation. Council applies when work warrants full ceremony: multi-component design, cross-component interface changes, one-way-door decisions, or multi-session workstreams.
 
 For single-system iteration with one or two experts, use `coral` — the lighter-weight sibling.
+
+## Guardrails
+
+Council enforces full process when full process applies. Before any side-effecting action:
+
+1. **Scope-tier first.** No dispatch happens without an identified tier (Product / System / Component / Feature). When the tier is ambiguous, ask one focused question; don't dispatch on guesses.
+2. **Cross-review is its own phase.** Specialists giving input during their individual dispatches is NOT cross-review. Cross-review reads provider + consumer + interface source and produces a COMPATIBLE / MISMATCH / MISSING table. Resolve all MISMATCH and MISSING before proceeding.
+3. **Interface source of truth is authoritative.** If a spec or code conflicts with it, the source of truth wins. Update the source first, then specs and code conform.
+4. **Provider owns the interface.** Consumers adapt. When provider and consumer disagree, the provider's definition is canonical.
+5. **One-way doors require explicit user approval.** Event signatures, storage layout, CRD spec field names, EIP-712 type hashes, and anything the repo's governing document flags as irreversible — STOP and present before finalizing.
+6. **Force-coral when work is coral-sized.** If the work is single-component with no interface changes and doesn't warrant scope-tier ceremony, suggest `/coral` rather than running full process.
 
 ## Locating the Target Repo and Its Conventions
 
@@ -215,6 +226,46 @@ Some changes can't be reversed after deployment. Before finalizing any of these,
 - Any other irreversibility the repo's governing document flags
 
 Format: "This involves a one-way door: [what's changing]. Once deployed, [consequence of changing it later]. Should I proceed?"
+
+## Halt Conditions
+
+Stop and report rather than auto-recovering when:
+
+- **Escalations exist at session start** (`.council/escalations/*` files present) — read each, resolve or upgrade scope before any new work
+- **Cross-review surfaces MISMATCH or MISSING** — halt until provider and consumer specs align with the interface source of truth
+- **Workstream-in-progress detected** at session start (`.council/workstream.yaml` exists with unresolved phases) — surface and ask continue / new / archive
+- **Tier is genuinely ambiguous** — ask one focused question; if still ambiguous, halt and ask the user to scope
+- **One-way door triggers without approval pending** — never proceed silently
+- **Specialist refuses dispatch** (missing files, missing roster) — halt and surface what's needed
+
+## Rationalization Table
+
+Pressure patterns that surface during full-ceremony work and the counters from this skill. These mostly fire when work has grown past its planned tier, the room is fatigued, or someone is impatient with the process.
+
+| Excuse | Reality |
+|---|---|
+| "We both know this is System tier — skip the scope-tier selection." | Scope-tier selection is the entry point that determines specialist slate AND one-way-door risk. State the tier, confirm in one question, then proceed — don't skip. |
+| "The specialists already gave input in their dispatches — skip cross-review." | Individual dispatch is NOT cross-review. Cross-review reads provider + consumer + interface source and produces a findings table. Different phase, different output. |
+| "It's still in dev — the one-way-door rule is for prod." | The one-way-door gate is on change category, not deployment target. Dev-then-staging-then-prod is the path; the door's irreversibility lives in the *category* (event sig, storage layout, CRD field name, EIP-712), not the cluster. |
+| "Just update the spec to match what got implemented — provider already shipped." | Provider owns the interface, but provider-owns means provider defines BEFORE shipping, not after. Retroactive spec updates to match drift = the spec is now the implementation's documentation, which is exactly the failure mode the interface source of truth prevents. Update spec first, then re-implement to match. |
+| "We can do interface changes parallel — they're separable." | Parallel dispatch is for work that doesn't share interface boundaries. If both touch the same interface, provider goes first and consumer follows. Sequential, not parallel. |
+| "The escalation file is from last week — just skip it." | Escalations are scope re-classification signals — what looked like Component might be System if the fix touches interfaces. Resolve before new work, not after. |
+| "We don't need the workstream checkpoint — this is one session." | Product and System tiers usually aren't one session, even when they feel like they will be. Checkpoint per phase; the cost is small and the next-session pickup is much cheaper. |
+
+## Red Flags — STOP and Reset
+
+Phrases that signal you're about to violate a council default. If any surface in your own reasoning or a teammate's framing, stop and reset:
+
+- "Skip the scope-tier"
+- "Just dispatch the specialists in parallel"
+- "We already cross-reviewed during the dispatch"
+- "Update the spec to match what shipped"
+- "It's still in dev, the rule doesn't apply"
+- "Skip the workstream checkpoint — this is one session"
+- "The escalation is stale, skip it"
+- "Provider can adapt to consumer here"
+
+All of these mean: re-read the relevant SKILL.md section, apply the rule as written, and move forward.
 
 ## Output Expectations
 
