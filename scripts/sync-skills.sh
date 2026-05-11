@@ -39,6 +39,7 @@ PORTABLE=(
   council
   design
   issue
+  author-skill
 )
 
 SEI=(
