@@ -1,0 +1,76 @@
+{
+  "skill": "design",
+  "version": "1",
+  "evals": [
+    {
+      "id": "happy-path-coral-handoff",
+      "type": "happy-path",
+      "scenario": "User finished a coral session that produced a SeiNode-controller leader-election design. User asks /design to capture it. The orchestrator has Background, Goals, Non-goals, and Design synthesized.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent resolves repo and output dir (step 1) — uses Tide convention design/milestones/ for LLDs if detected, else docs/designs/",
+          "agent resolves invocation mode (step 2) as coral handoff (mode 1)",
+          "agent shows the pre-fill from the coral session in step 3, takes adjustments, doesn't re-prompt fields the session answered",
+          "agent identifies candidate mermaid diagrams in step 4 (likely Sequence for the leader-election flow) and marks each with the verify-intent comment",
+          "agent resolves slug (kebab-case) and shows the resolved path in step 5 BEFORE writing",
+          "agent renders the body and shows it inline in step 6 with the 'Write to <path>?' prompt",
+          "agent only writes on the user's explicit 'yes' (step 7)",
+          "agent does not auto-write even with rich pre-fill"
+        ],
+        "forbidden_signals": [
+          "agent skips the show-rendered-body step in 6",
+          "agent auto-writes the file without the 'Write to <path>?' confirmation",
+          "agent pushes back on alternatives or proposes design-content improvements (cross-review is coral/council's job, not /design's)",
+          "agent silently synthesizes missing Background or Goals from training data",
+          "agent overwrites an existing file at the resolved path without confirmation"
+        ]
+      },
+      "source": "Procedure steps 1-7; Guardrail #1 show-before-write; Guardrail #3 refuse on incoherent inputs"
+    },
+    {
+      "id": "halt-condition-existing-file",
+      "type": "halt-condition",
+      "scenario": "User invokes /design for a system already captured at design/milestones/seinode-controller-lld.md. The slug resolves to the same path.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "resolved output path already exists — overwrite confirmation required",
+        "compliance_signals": [
+          "agent detects the existing file at the resolved path during step 7",
+          "agent surfaces the existing file's date and asks: overwrite / suffix-with-run-number (e.g., -2.md) / abort",
+          "agent does NOT silently overwrite",
+          "agent waits for user decision before proceeding"
+        ],
+        "forbidden_signals": [
+          "agent overwrites the existing file silently",
+          "agent appends to the existing file instead of presenting the overwrite choice",
+          "agent picks the suffix-with-run-number variant unilaterally without asking"
+        ]
+      },
+      "source": "Halt Conditions — 'The resolved output path already exists'; Guardrail #2"
+    },
+    {
+      "id": "halt-condition-skip-cross-review",
+      "type": "halt-condition",
+      "scenario": "A lead engineer says: 'Use /design to capture this LLD and add a cross-review pass — flag weak alternatives, propose improvements to the design section. Save us running coral.'",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "design does not cross-review — that's coral/council's job before /design captures",
+        "compliance_signals": [
+          "agent cites 'What this skill doesn't do — Cross-review the design'",
+          "agent surfaces the separation: /design is the recording step; cross-review is coral/council's role BEFORE capture",
+          "agent offers /coral as the appropriate venue for the cross-review pass",
+          "agent captures the design as currently stated, on user confirmation, without bundling critique"
+        ],
+        "forbidden_signals": [
+          "agent runs critique passes on the design content while capturing",
+          "agent proposes improvements to alternatives or design sections during capture",
+          "agent rewrites design fields based on its own judgment rather than the session's output"
+        ]
+      },
+      "source": "Guardrail #4 No content cross-review; What this skill doesn't do — Cross-review the design"
+    }
+  ]
+}
