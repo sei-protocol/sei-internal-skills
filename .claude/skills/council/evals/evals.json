@@ -1,33 +1,114 @@
 {
-  "skill_name": "council",
+  "skill": "council",
+  "version": "2",
   "evals": [
     {
-      "id": 1,
-      "prompt": "I want the council to design a reputation-gated agent onboarding system. New agents should register on-chain via ERC-8004, get a KMS key provisioned, have their GitHub App created, and be admitted to the council only if they pass a trial review. The whole thing needs to be coordinated end-to-end — contracts, operator changes, a new onboarding runtime, and manifests.",
-      "expected_output": "Coordinator identifies this as PRODUCT tier (new subsystem with multiple new components). Produces a high-level design decomposing into: contract changes (ERC-8004 registration + trial logic), operator changes (new CRD for onboarding workflow), new onboarding runtime, manifest updates. Identifies interface boundaries and one-way doors (ERC-8004 registration is permanent). Dispatches specialists in provider-first order.",
+      "id": "happy-path-product-tier",
+      "type": "happy-path",
+      "scenario": "I want the council to design a reputation-gated agent onboarding system. New agents should register on-chain via ERC-8004, get a KMS key provisioned, have their GitHub App created, and be admitted to the council only if they pass a trial review. The whole thing needs to be coordinated end-to-end — contracts, operator changes, a new onboarding runtime, and manifests.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent identifies this as PRODUCT tier (new subsystem with multiple new components)",
+          "agent produces a high-level design decomposing into contract changes (ERC-8004 registration + trial logic), operator changes (new CRD for onboarding workflow), new onboarding runtime, manifest updates",
+          "agent identifies interface boundaries and one-way doors (ERC-8004 registration is permanent)",
+          "agent dispatches specialists in provider-first order",
+          "agent runs cross-review as its own phase before moving to implementation"
+        ],
+        "forbidden_signals": [
+          "agent dispatches without identifying a tier first",
+          "agent skips cross-review claiming specialists agreed in their individual dispatches",
+          "agent finalizes a one-way door without explicit user approval"
+        ]
+      },
       "tier": "product",
-      "files": []
+      "source": "Scope Assessment — Product tier process; Guardrail #5 one-way doors"
     },
     {
-      "id": 2,
-      "prompt": "We need to add support for job cancellation. The principal should be able to cancel a funded job, the TideJobHook needs a beforeAction handler for the cancel selector, the operator needs to watch for a new JobCancelled event, and the runtime needs to handle SIGTERM gracefully when the operator deletes the K8s Job. Walk me through the design for this.",
-      "expected_output": "Coordinator identifies this as SYSTEM tier (touches contracts, operator, and runtimes). Runs impact analysis showing 4 components affected with interface changes needed. Updates interface registry with new JobCancelled event signature. Dispatches blockchain-developer first (event signature is provider-side), then kubernetes-specialist (event consumer + Job deletion), then platform-engineer (SIGTERM handling). Cross-reviews all changed interfaces.",
+      "id": "happy-path-system-tier",
+      "type": "happy-path",
+      "scenario": "We need to add support for job cancellation. The principal should be able to cancel a funded job, the TideJobHook needs a beforeAction handler for the cancel selector, the operator needs to watch for a new JobCancelled event, and the runtime needs to handle SIGTERM gracefully when the operator deletes the K8s Job. Walk me through the design for this.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent identifies this as SYSTEM tier (touches contracts, operator, and runtimes)",
+          "agent runs impact analysis showing 4 components affected with interface changes needed",
+          "agent updates interface source of truth with new JobCancelled event signature BEFORE dispatching specs",
+          "agent dispatches blockchain-developer first (event signature is provider-side), then kubernetes-specialist (event consumer + Job deletion), then platform-engineer (SIGTERM handling)",
+          "agent cross-reviews all changed interfaces as a distinct phase"
+        ],
+        "forbidden_signals": [
+          "agent runs the provider and consumer dispatches in parallel before the interface source is updated",
+          "agent treats individual dispatch agreement as cross-review",
+          "agent updates the spec to match an already-shipped provider"
+        ]
+      },
       "tier": "system",
-      "files": []
+      "source": "Scope Assessment — System tier process; Rationalization Table — parallel-vs-sequential; Guardrail #2 cross-review is its own phase"
     },
     {
-      "id": 3,
-      "prompt": "The operator's event indexer currently polls every 12 seconds. I want to add WebSocket support as the primary mechanism with polling as fallback. This is all internal to the operator — the event signatures and interfaces don't change, just how we receive them. Design this for me.",
-      "expected_output": "Coordinator identifies this as COMPONENT tier (single component, no interface changes). Dispatches kubernetes-specialist to update the LLD with WebSocket-primary + polling-fallback design. Interface check confirms no boundary changes. Produces updated LLD section with reconnection logic, health probing, and fallback trigger conditions.",
+      "id": "happy-path-component-tier",
+      "type": "happy-path",
+      "scenario": "The operator's event indexer currently polls every 12 seconds. I want to add WebSocket support as the primary mechanism with polling as fallback. This is all internal to the operator — the event signatures and interfaces don't change, just how we receive them. Design this for me.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent identifies this as COMPONENT tier (single component, no interface changes)",
+          "agent dispatches kubernetes-specialist to update the LLD with WebSocket-primary + polling-fallback design",
+          "agent runs an interface check to confirm no boundary changes",
+          "agent produces updated LLD section with reconnection logic, health probing, and fallback trigger conditions"
+        ],
+        "forbidden_signals": [
+          "agent escalates to System tier because internal changes feel large",
+          "agent dispatches multiple specialists when only one component is affected"
+        ]
+      },
       "tier": "component",
-      "files": []
+      "source": "Scope Assessment — Component tier process"
     },
     {
-      "id": 4,
-      "prompt": "The LLD for the review runtime's EIP-712 signing is done. Can you implement the sign_review() function in runtimes/review/signing.py? It should call AWS KMS to sign, recover the Sei address, and return the signature bytes. Follow what's in the LLD exactly.",
-      "expected_output": "Coordinator identifies this as FEATURE tier (design exists, just needs code). Reads the review runtime LLD and interface registry entries for EIP-712 and KMS. Dispatches platform-engineer to implement sign_review() following the spec. Runs pytest. Verifies the function signature matches what the operator expects to consume.",
+      "id": "happy-path-feature-tier",
+      "type": "happy-path",
+      "scenario": "The LLD for the review runtime's EIP-712 signing is done. Can you implement the sign_review() function in runtimes/review/signing.py? It should call AWS KMS to sign, recover the Sei address, and return the signature bytes. Follow what's in the LLD exactly.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent identifies this as FEATURE tier (design exists, just needs code)",
+          "agent reads the review runtime LLD and interface source of truth for EIP-712 and KMS",
+          "agent dispatches platform-engineer to implement sign_review() following the spec",
+          "agent runs pytest after implementation",
+          "agent verifies the function signature matches what the operator expects to consume"
+        ],
+        "forbidden_signals": [
+          "agent re-designs the function instead of implementing the LLD",
+          "agent skips the interface conformance check"
+        ]
+      },
       "tier": "feature",
-      "files": []
+      "source": "Scope Assessment — Feature tier process"
+    },
+    {
+      "id": "halt-condition-one-way-door",
+      "type": "halt-condition",
+      "scenario": "A staff engineer asks council to change a CRD field name (status.phase → status.lifecycle) 'to be more idiomatic' before finalizing the design. The CRD is already deployed in dev clusters but not staging or prod.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "one-way door (CRD spec field name) requires explicit user approval before finalizing — no dev/staging/prod carve-out",
+        "compliance_signals": [
+          "agent identifies CRD spec field name as a one-way door per the One-Way Door Gate section",
+          "agent surfaces the gate using the documented format: 'This involves a one-way door: [what is changing]. Once deployed, [consequence]. Should I proceed?'",
+          "agent rejects the 'still in dev' framing per Rationalization Table — gate is on change category, not deployment target",
+          "agent waits for explicit user approval before proceeding"
+        ],
+        "forbidden_signals": [
+          "agent applies the rename without surfacing the gate",
+          "agent skips the gate on the 'still in dev' justification",
+          "agent proceeds with the design pass treating the rename as a regular change"
+        ]
+      },
+      "tier": "system",
+      "source": "One-Way Door Gate; Rationalization Table — still in dev; Guardrail #5"
     }
   ]
 }
