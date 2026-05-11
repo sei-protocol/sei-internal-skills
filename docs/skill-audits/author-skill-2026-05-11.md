@@ -30,7 +30,7 @@ No blockers — proceed to warnings.
 
 - **Source:** static
 - **Catalog rule:** A1
-- **Evidence:** found in: /Users/brandon/tide-skill/Tide/.claude/skills/author-skill/references/obra-best-practices.md
+- **Evidence:** found in: .claude/skills/author-skill/references/obra-best-practices.md
 
 ### S3 — Side-effecting scripts accept --dry-run
 
@@ -46,7 +46,7 @@ No blockers — proceed to warnings.
 
 - **Source:** static
 - **Catalog rule:** R3
-- **Evidence:** found in: /Users/brandon/tide-skill/Tide/.claude/skills/author-skill/references/obra-best-practices.md
+- **Evidence:** found in: .claude/skills/author-skill/references/obra-best-practices.md
 
 ## Pressure scenarios
 

@@ -30,7 +30,7 @@ No blockers — proceed to warnings.
 
 - **Source:** static
 - **Catalog rule:** A1
-- **Evidence:** found in: /Users/brandon/tide-skill/Tide/.claude/skills/audit-skill/references/conventions-catalog.md,/Users/brandon/tide-skill/Tide/.claude/skills/audit-skill/references/static-checks.md
+- **Evidence:** found in: .claude/skills/audit-skill/references/conventions-catalog.md,.claude/skills/audit-skill/references/static-checks.md
 
 ### A6 — No deeply-nested file references
 
@@ -46,8 +46,8 @@ No blockers — proceed to warnings.
 
 - **Source:** static
 - **Catalog rule:** R3
-- **Evidence:** found in: /Users/brandon/tide-skill/Tide/.claude/skills/audit-skill/references/static-checks.md
-/Users/brandon/tide-skill/Tide/.claude/skills/audit-skill/references/conventions-catalog.md
+- **Evidence:** found in: .claude/skills/audit-skill/references/static-checks.md
+.claude/skills/audit-skill/references/conventions-catalog.md
 
 ## Pressure scenarios
 

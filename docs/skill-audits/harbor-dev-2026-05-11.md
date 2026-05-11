@@ -39,7 +39,7 @@ Top blockers:
 
 - **Source:** static
 - **Catalog rule:** E1
-- **Evidence:** missing /Users/brandon/tide-skill/Tide/.claude/skills/harbor-dev/evals/evals.json
+- **Evidence:** missing .claude/skills/harbor-dev/evals/evals.json
 
 ## Warn findings
 
@@ -49,7 +49,7 @@ Top blockers:
 
 - **Source:** static
 - **Catalog rule:** A1
-- **Evidence:** found in: /Users/brandon/tide-skill/Tide/.claude/skills/harbor-dev/SKILL.md,/Users/brandon/tide-skill/Tide/.claude/skills/harbor-dev/references/aws-dependencies.md,/Users/brandon/tide-skill/Tide/.claude/skills/harbor-dev/references/comparative-bench.md
+- **Evidence:** found in: .claude/skills/harbor-dev/SKILL.md,.claude/skills/harbor-dev/references/aws-dependencies.md,.claude/skills/harbor-dev/references/comparative-bench.md
 
 ### A1 — Time-sensitive content in skill files
 

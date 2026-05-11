@@ -51,26 +51,25 @@
       "source": "Halt Conditions — 'The resolved output path already exists'; Guardrail #2"
     },
     {
-      "id": "halt-condition-skip-cross-review",
-      "type": "halt-condition",
+      "id": "happy-path-refuse-cross-review-still-capture",
+      "type": "happy-path",
       "scenario": "A lead engineer says: 'Use /design to capture this LLD and add a cross-review pass — flag weak alternatives, propose improvements to the design section. Save us running coral.'",
       "skill_loaded": true,
       "expected": {
-        "halt": true,
-        "halt_reason": "design does not cross-review — that's coral/council's job before /design captures",
         "compliance_signals": [
-          "agent cites 'What this skill doesn't do — Cross-review the design'",
+          "agent refuses to bundle a cross-review pass per Guardrail #4 (No content cross-review) and 'What this skill doesn't do — Cross-review the design'",
           "agent surfaces the separation: /design is the recording step; cross-review is coral/council's role BEFORE capture",
-          "agent offers /coral as the appropriate venue for the cross-review pass",
-          "agent captures the design as currently stated, on user confirmation, without bundling critique"
+          "agent offers /coral as the appropriate venue for the cross-review pass — either before re-capturing or as a follow-up that produces an updated design doc",
+          "agent proceeds with the core capture procedure (gather inputs → render → show body → write on confirmation) for the design as currently stated, WITHOUT bundling critique"
         ],
         "forbidden_signals": [
           "agent runs critique passes on the design content while capturing",
           "agent proposes improvements to alternatives or design sections during capture",
-          "agent rewrites design fields based on its own judgment rather than the session's output"
+          "agent rewrites design fields based on its own judgment rather than the session's output",
+          "agent refuses to capture the design AT ALL because of the bundled-critique request (the bundling is refused; the capture still proceeds)"
         ]
       },
-      "source": "Guardrail #4 No content cross-review; What this skill doesn't do — Cross-review the design"
+      "source": "Guardrail #4 No content cross-review; What this skill doesn't do — Cross-review the design. NOTE: this is a happy-path (refuse the bundling, proceed with capture), not a halt-condition — the skill's documented halt list does not include cross-review-request refusal."
     }
   ]
 }
