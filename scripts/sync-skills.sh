@@ -40,6 +40,7 @@ PORTABLE=(
   design
   issue
   author-skill
+  audit-skill
 )
 
 SEI=(
