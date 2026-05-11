@@ -1,11 +1,11 @@
 ---
 name: coral
-description: "Lightweight expert iteration workflow. Use when the user has a specific system, feature, or problem and wants to iterate on it with the right expert(s) from the current repo. No scope-tier ceremony, no cross-review rounds, no workstream file — just smart expert dispatch and iteration. Trigger on 'huddle', 'coral', 'pull in the [specialist]', 'iterate on this with [expert]', 'let's work on X with [expert]', 'use the experts', 'work with the team on this', or when the user wants quick expert input on a defined slice of work. For sustained multi-component design work with formal process, use /council instead — coral will flag when the work grows beyond its scope."
+description: "Use when the user has a specific system, feature, or problem and wants quick expert iteration with the right specialist(s) on a defined slice — 'huddle', 'coral', 'pull in the [specialist]', 'iterate on this with [expert]', 'let's work on X with [expert]', 'use the experts', 'work with the team on this', '/coral'. Anti-triggers: NOT for sustained multi-component design work with formal process (use /council); NOT for adversarial review of running systems (use /bugbash); NOT for capturing a session's design (use /design); NOT for one-off in-conversation TODOs (use TaskCreate). Coral flags handoff to /council when work crosses ≥3 components, ≥2 interface boundaries, hits one-way doors, or spans multiple sessions."
 ---
 
 # Coral
 
-Lightweight expert iteration. When the user has a defined slice of work and wants the right expert(s) on it, coral picks the smallest set of specialists that match and iterates with them. No tier selection, no cross-review rounds, no workstream file.
+Lightweight specialist iteration. When the user has a defined slice of work and wants the right specialist(s) on it, coral picks the smallest set of specialists that match and iterates with them. No tier selection, no cross-review rounds, no workstream file.
 
 This is the right tool when work is **scoped and iterative**: one or two components, no irreversible design decisions in play, a single session. When it isn't, hand off to `council`.
 
@@ -13,12 +13,12 @@ This is the right tool when work is **scoped and iterative**: one or two compone
 
 1. CWD is the target repo unless the user says otherwise.
 2. Read `CLAUDE.md` if present — repo conventions and any roster guidance.
-3. Read `.claude/agents/*.md` — the specialist agents available for dispatch. If absent, ask which experts to use or offer to proceed without a formal roster.
+3. Read `.claude/agents/*.md` — the specialist agents available for dispatch. If absent, ask which specialists to use or offer to proceed without a formal roster.
 
 ## Core Loop
 
-1. **Read the ask.** What's the specific slice?
-2. **Pick experts.**
+1. **Read the ask.** Produce a one-line slice statement that names the work, its boundaries, and what "done" looks like. Use this slice statement throughout dispatch and synthesis as the anchor — if a specialist drifts off-slice, the statement is what you bring them back to.
+2. **Pick specialists.**
    - Exactly one match → single dispatch.
    - Two cleanly separable concerns → parallel dispatch.
    - Three+ or tangled concerns → this is probably council work. See Handoff.
@@ -27,7 +27,7 @@ This is the right tool when work is **scoped and iterative**: one or two compone
    - The specific slice
    - Which files to read first
    - What output you want (answer, spec, code, review)
-   - **Framing:** specialist outputs are *expansion suggestions* — the maximum each expert would argue for in their domain. The orchestrator picks the minimum that delivers. Brief experts to give you the "what's the most you'd argue for," not "what's required."
+   - **Framing:** specialist outputs are *expansion suggestions* — the maximum each specialist would argue for in their domain. The orchestrator picks the minimum that delivers. Brief specialists to give you the "what's the most you'd argue for," not "what's required."
 4. **Synthesize with a YAGNI pass.** Before producing the deliverable:
    - Identify the smallest subset that ships value.
    - Everything else gets an explicit "deferred — when X" line in the deliverable. Not silent omission.
@@ -43,13 +43,13 @@ This is the right tool when work is **scoped and iterative**: one or two compone
 
 ## Handoff to Council
 
-Coral is deliberately narrow. Flag and ask (never auto-escalate) when any of these appear:
+Coral is deliberately narrow. Flag and ask (never auto-hand-off) when any of these appear:
 
 - Work is touching ≥3 components, or ≥2 interface boundaries
 - A one-way door comes up (event signatures, storage layout, CRD field names, EIP-712 types, or anything the repo's CLAUDE.md flags as irreversible)
 - Work is clearly going to span multiple sessions
 - User says "this is bigger than I thought" / "let's do this properly" / "we should design this"
-- Cross-review across components becomes necessary, not just single-expert consult
+- Cross-review across components becomes necessary, not just single-specialist consult
 
 Format: "This feels like it's grown past coral — [reason]. Hand off to /council, or keep iterating here?"
 
@@ -60,12 +60,12 @@ See `references/handoff-to-council.md` for detection criteria in detail.
 - No scope-tier process
 - No mandatory cross-review
 - No workstream checkpoint file (coral sessions complete in one sitting)
-- No formal escalation files — if an expert says "the design is wrong," relay it to the user immediately
+- No formal escalation files — if a specialist says "the design is wrong," relay it to the user immediately
 - No interface registry updates
 
 ## Output Expectations
 
-1. What the expert(s) said or did
+1. What the specialist(s) said or did
 2. Files changed, if any
 3. What the user should follow up on
 
@@ -73,8 +73,8 @@ Keep it terse. Coral is the fast path.
 
 ## Dispatching Tips
 
-- Minimum context to experts. Over-briefing dilutes their specialty.
-- Sequentialize only when one expert's output feeds another's task.
-- If an expert asks for info you don't have, go to the user rather than guessing.
-- Trust domain judgment. If the expert says "this pattern is wrong for the stack," relay it instead of overriding.
+- Minimum context to specialists. Over-briefing dilutes their specialty.
+- Sequentialize only when one specialist's output feeds another's task.
+- If a specialist asks for info you don't have, go to the user rather than guessing.
+- Trust domain judgment. If the specialist says "this pattern is wrong for the stack," relay it instead of overriding.
 - **Specialists give max scope; you pick min scope.** When a brief produces three deep, opinionated outputs, the synthesis temptation is to include all of it. Resist. Cut to MVP, mark the rest deferred with the trigger condition that would un-defer it.
