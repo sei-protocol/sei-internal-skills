@@ -1,6 +1,6 @@
 ---
 name: design
-description: "Capture a design as a structured markdown document under docs/designs/ (or the repo's design folder). Companion to /issue — when an issue gets picked up and a coral/council session produces a design, /design captures the artifact and threads bidirectional lineage back to the source issue. Trigger on 'design this', 'capture this design', 'write up the design', 'design doc for issue #X', 'turn this into a design', '/design'. Coral and council should offer this skill when the deliverable IS a design (LLD, architecture sketch, system design) — distinct from /issue which captures NEXT work. Produces an ADR-flavored body (Background / Goals / Non-goals / Design / Alternatives / Trade-offs / Open questions / References) with mermaid diagrams encouraged. Anti-triggers: NOT for filing a new issue (use /issue); NOT for code review write-ups; NOT for postmortems."
+description: "Use when a coral/council session, an issue pickup, or a standalone authoring pass produces a design (LLD, architecture sketch, system-tier decision) that should land as a durable markdown doc — 'design this', 'capture this design', 'write up the design', 'design doc for issue #X', 'turn this into a design', '/design'. Companion to /issue — captures the design while /issue captures the next workstream. Anti-triggers: NOT for filing a new issue (use /issue); NOT for code review write-ups; NOT for postmortems; NOT for cross-reviewing a design (coral/council do that BEFORE /design captures); NOT for maintaining the doc's status over time (status transitions are manual edits)."
 ---
 
 # Design
@@ -8,6 +8,16 @@ description: "Capture a design as a structured markdown document under docs/desi
 Captures a design — LLD, architecture sketch, system design pass — as a structured markdown document. The point is to make design context durable: the doc is the artifact someone reviews, references in PRs, and rediscovers six months later.
 
 The shape is fixed: Background, Goals, Non-goals, Design (with mermaid diagrams), Alternatives, Trade-offs, Open questions, References. See `references/format-spec.md`.
+
+## Guardrails
+
+This skill writes one markdown file (the design doc) and optionally posts one gh issue comment (the lineage thread). Before any write:
+
+1. **Show-before-write.** Render the full body and the resolved path; ask "Write to `<path>`?" — never auto-write, even from a coral handoff with rich pre-fill.
+2. **Don't overwrite without confirmation.** If a file already exists at the resolved path, halt and ask: overwrite, suffix with a run number (`<slug>-2.md`), or abort.
+3. **Refuse on incoherent inputs.** If Title, Background, Goals, or Design are empty after gathering, halt and surface what's missing — `/design` is the recording step, not a generator that fills in blanks from training data.
+4. **No content cross-review.** `/design` records what the session decided; it does not push back on alternatives, propose improvements, or critique the design content. That work belongs to coral/council *before* `/design` captures.
+5. **No status maintenance.** `/design` writes Status: `Draft` on first capture. Updates to "Under review", "Accepted", "Superseded" are manual edits or a separate workflow — `/design` does not schedule, remind, or auto-update.
 
 ## Three invocation modes
 
@@ -76,9 +86,12 @@ Direct user invocation when there's no active workstream or upstream issue — e
 
 3. **Gather inputs.** Required: **Title**, **Background**, **Goals**, **Design**. Optional: **Non-goals**, **Alternatives**, **Trade-offs**, **Open questions**, **References**, **Status** (defaults to `Draft`), **Authors** (defaults to git user.name).
 
+   Mode-specific:
    - **Coral handoff path:** show the pre-fill, take adjustments. Don't re-prompt fields the session answered.
    - **From-issue path:** show what was inherited from the issue, take adjustments, prompt for the design-specific sections (Goals, Alternatives, Trade-offs, Open questions).
    - **Standalone path:** prompt for each. Push back on framings like "design X" without context — Background should answer "why does this design exist?"
+
+   **Output of this step:** a complete input set with all required fields filled. If any required field is empty after gathering, halt and surface what's missing per Guardrail #3.
 
 4. **Mermaid diagrams.** During the **Design** section, identify candidate diagrams from the synthesized context:
    - **Sequence** — when an interaction across components matters (request flow, handoff order).
@@ -86,23 +99,29 @@ Direct user invocation when there's no active workstream or upstream issue — e
    - **State** — when an object goes through lifecycle states.
    - **ERD-like flowchart** — when storage layout or data shape matters.
 
-   Generate plausible mermaid based on session context. Mark each diagram with a comment: `<!-- verify this matches your intent -->`. The user reviews and adjusts before finalizing.
+   Generate plausible mermaid based on session context. Mark each diagram with a comment: `<!-- verify this matches your intent -->`. The user reviews and adjusts; this step is **done** when the user confirms each generated diagram (or explicitly drops it) before proceeding to the slug resolution. See `references/mermaid-patterns.md` for snippets.
 
-   See `references/mermaid-patterns.md` for snippets.
+5. **Resolve slug and path.** Convert title to kebab-case for the filename. Repo-specific suffix conventions: Tide LLDs use `<slug>-lld.md`. Default: `<slug>.md`. Combine with the output dir from step 1 to produce the resolved path. Show the user the resolved path before continuing.
 
-5. **Resolve slug.** Convert title to kebab-case for the filename. Repo-specific suffix conventions: Tide LLDs use `<slug>-lld.md`. Default: `<slug>.md`. Show the user the resolved path before writing.
+6. **Render and show the body.** Use the section order in `references/format-spec.md`. Skip empty optional sections rather than emitting placeholder headers. Frontmatter (Status / Date / Issue / Authors) is required. **Output of this step:** the full rendered body displayed inline plus the prompt "Write to `<path>`?" — never auto-write per Guardrail #1.
 
-6. **Render the body.** Use the section order in `references/format-spec.md`. Skip empty optional sections rather than emitting placeholder headers. Frontmatter (Status / Date / Issue / Authors) is required.
+7. **Write the file on confirmation.** On the user's "yes": create parent directories if needed; check for existing file at the resolved path and halt per Guardrail #2 if found; write the body.
 
-7. **Show the rendered body.** Ask: "Write to `<path>`?" Don't auto-write.
-
-8. **Write the file.** Confirm the path; create parent directories if needed.
-
-9. **Issue lineage (if --issue mode or coral session referenced an issue).** Offer to comment on the issue:
+8. **Issue lineage (if --issue mode or coral session referenced an issue).** Offer to comment on the issue:
    ```
    Design captured: <relative-path-from-repo-root>
    ```
    See `references/issue-integration.md` for the full lineage flow including bidirectional updates.
+
+## Halt Conditions
+
+Stop and report rather than auto-recovering when:
+
+- Required inputs are missing after step 3 — surface what's empty and ask the user to fill them. `/design` is the recording step; it doesn't synthesize content from training data.
+- The resolved output path already exists (step 7) — show the existing file's date and ask: overwrite, suffix-with-run-number, or abort.
+- `--issue <n>` mode but `gh` CLI is not installed or not authenticated — halt and surface the setup needed.
+- The output dir can't be created (permissions, missing parent in a non-git path) — halt and surface.
+- User says "no" to the "Write to `<path>`?" prompt in step 6 — that's a valid halt. Stop, don't retry.
 
 ## What this skill doesn't do
 
