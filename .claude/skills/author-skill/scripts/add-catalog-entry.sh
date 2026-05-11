@@ -86,6 +86,9 @@ awk -v ins_after="$INSERT_AFTER" -v entry="$ENTRY" '
   { print }
   NR == ins_after { print entry }
 ' "$README" > "$TMP"
-mv "$TMP" "$README"
+# Stream contents into the existing file so its mode (and inode) are preserved.
+# mv from a mktemp tempfile would clobber the destination's permissions.
+cat "$TMP" > "$README"
+rm -f "$TMP"
 
 printf 'Added catalog entry for %s under "%s" in %s\n' "$NAME" "$SECTION" "$README"

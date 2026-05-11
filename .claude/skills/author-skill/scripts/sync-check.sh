@@ -81,5 +81,8 @@ if [[ "$DRY_RUN" == "1" ]]; then
   exit 0
 fi
 
-mv "$TMP" "$SYNC"
+# Stream contents into the existing file so its mode (and inode) are preserved.
+# mv from a mktemp tempfile would clobber the destination's permissions on macOS/Linux.
+cat "$TMP" > "$SYNC"
+rm -f "$TMP"
 printf 'Added %s to %s=( ... ) in %s\n' "$NAME" "$ARRAY_NAME" "$SYNC"
