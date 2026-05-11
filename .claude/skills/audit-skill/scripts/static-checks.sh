@@ -318,11 +318,32 @@ if [[ -f "$SYNC" ]]; then
   fi
 fi
 
-# --- Anti-patterns ---
-# Word boundary on 'currently' so we don't match concurrently/recurrently/currents.
-# 'as of <year>' and 'in the latest version' don't need \b — they're already specific.
-if grep -qriE 'as of [0-9]{4}|in the latest version|\bcurrently\b' "$SKILL_MD" "$SKILL_DIR/references" 2>/dev/null; then
-  hits=$(grep -liE 'as of [0-9]{4}|in the latest version|\bcurrently\b' "$SKILL_MD" "$SKILL_DIR/references"/*.md 2>/dev/null | head -3 | tr '\n' ',' | sed 's/,$//')
+# A1 — no time-sensitive content. Skips two false-positive shapes:
+#   1. lines inside fenced code blocks (```) — code examples may contain literal
+#      "currently" / dates that don't claim time-sensitivity in skill prose
+#   2. lines containing template-placeholder slots like [phase] or <alias> —
+#      these are templates the skill emits at runtime, not claims about content
+#
+# Word boundary on 'currently' is via character-class flanking (POSIX awk has
+# no \b). 'as of <year>' and 'in the latest version' don't need flanking.
+A1_FILES=()
+for f in "$SKILL_MD" "$SKILL_DIR/references"/*.md; do
+  [[ -f "$f" ]] || continue
+  if awk '
+    /^```/ { in_code = !in_code; next }
+    in_code { next }
+    /\[[a-z][^]]*\]/ { next }   # bracket placeholder, e.g. [phase]
+    /<[a-z][^>]*>/ { next }      # angle placeholder, e.g. <alias>
+    { low = tolower($0) }
+    low ~ /as of [0-9][0-9][0-9][0-9]/         { print; exit }
+    low ~ /in the latest version/              { print; exit }
+    low ~ /(^|[^a-z])currently([^a-z]|$)/      { print; exit }
+  ' "$f" 2>/dev/null | grep -q .; then
+    A1_FILES+=("$f")
+  fi
+done
+if (( ${#A1_FILES[@]} > 0 )); then
+  hits=$(IFS=,; printf '%s' "${A1_FILES[*]:0:3}")
   emit "A1" "warn" "No time-sensitive content" "fail" "found in: $(rel "$hits")" "A1"
 else
   emit "A1" "warn" "No time-sensitive content" "pass" "" "A1"
