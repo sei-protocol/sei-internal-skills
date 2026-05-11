@@ -97,7 +97,7 @@ D4, D6, D7 are semantic — they go to the subagent.
 
 | Catalog ID | Check |
 |------------|-------|
-| A1 | grep for `as of [0-9]{4}`, `in the latest version`, `\bcurrently\b` in SKILL.md + references (case-insensitive). Word boundary on `currently` so substrings like `concurrently` / `recurrently` / `currents` don't false-positive. |
+| A1 | Per-file awk scan for `as of [0-9]{4}` / `in the latest version` / `\bcurrently\b` (case-insensitive). Skips matches inside fenced code blocks (between ``` lines) and on lines containing bracket / angle-bracket template-placeholder slots (`[phase]`, `<alias>`) — those are templates the skill emits at runtime, not claims about content. Word boundary on `currently` is via character-class flanking (POSIX awk has no `\b`). |
 | A2 | grep for `\\\\` (Windows backslash) in path-like strings: e.g., `\w+\\\\\w+` |
 | A3 | grep for `@skills/` in any markdown (overlap with R3) |
 
