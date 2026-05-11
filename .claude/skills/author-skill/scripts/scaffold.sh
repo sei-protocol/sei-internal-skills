@@ -106,10 +106,15 @@ if [[ -n "$DRAFT_DIR" ]]; then
   [[ -f "$DRAFT_DIR/SKILL.md" ]]   && FILES+=("$TARGET/SKILL.md (from $DRAFT_DIR/SKILL.md)")
   [[ -f "$DRAFT_DIR/evals.json" ]] && FILES+=("$TARGET/evals/evals.json (from $DRAFT_DIR/evals.json)")
   if [[ -d "$DRAFT_DIR/references" ]]; then
-    for ref in "$DRAFT_DIR/references"/*.md; do
+    # Match the real apply (`cp -R "$DRAFT_DIR/references/." "$TARGET/references/"`):
+    # enumerate ALL files under the draft references/ tree, not just *.md.
+    # Otherwise the dry-run preview omits non-md refs (json, yaml, images, etc.)
+    # that the real apply would silently copy — making the preview inaccurate.
+    while IFS= read -r ref; do
       [[ -f "$ref" ]] || continue
-      FILES+=("$TARGET/references/$(basename "$ref") (from $ref)")
-    done
+      rel_path="${ref#$DRAFT_DIR/references/}"
+      FILES+=("$TARGET/references/$rel_path (from $ref)")
+    done < <(find "$DRAFT_DIR/references" -type f 2>/dev/null)
   fi
 fi
 

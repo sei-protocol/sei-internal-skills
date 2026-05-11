@@ -51,6 +51,24 @@ emit() {
 SKILL_NAME="$(basename "$SKILL_DIR")"
 SKILL_MD="$SKILL_DIR/SKILL.md"
 
+# Resolve REPO_ROOT once up front so evidence paths can be emitted as
+# repo-relative. Falls back to empty string if the skill isn't under a git
+# repo, in which case paths stay absolute (no leak — the script is being
+# run against an out-of-tree skill).
+REPO_ROOT="$(cd "$SKILL_DIR" && git rev-parse --show-toplevel 2>/dev/null || echo "")"
+
+# rel <path> — strip REPO_ROOT prefix from a path (and the trailing slash).
+# Used in evidence strings so committed audit reports don't leak the
+# developer's absolute home directory. Pass a single string or a comma-
+# separated list; works on each.
+rel() {
+  if [[ -z "$REPO_ROOT" ]]; then
+    printf '%s' "$1"
+  else
+    printf '%s' "${1//$REPO_ROOT\//}"
+  fi
+}
+
 # --- Description checks (parse the YAML frontmatter) ---
 # Extract everything between the first two '---' lines, then grab the 'description:' value.
 DESC="$(awk '
@@ -121,19 +139,21 @@ else
   emit "B1" "block" "SKILL.md under 500 lines" "fail" "$SKILL_MD_LINES lines (over by $((SKILL_MD_LINES - 500)))" "B1"
 fi
 
-# B2, B3 — Guardrails / Halt sections (warn-level since some shapes legitimately omit)
-# Case-insensitive: matches '## Guardrails', '## guardrails', etc.
+# B2, B3 — Guardrails / Halt sections (warn-level since some shapes legitimately omit;
+# block-level for procedural/discipline shapes — the shape-conditional severity is the
+# load-bearing context for triaging the finding).
+# Case-insensitive: matches '## Guardrails', '## guardrails', '## Halt Conditions',
+# '## Halt conditions', '## Halt Condition', etc.
 if grep -qiE '^## Guardrails' "$SKILL_MD"; then
   emit "B2" "warn" "SKILL.md has Guardrails stanza" "pass" "" "B2"
 else
-  emit "B2" "warn" "SKILL.md has Guardrails stanza" "fail" "no '## Guardrails' heading found (case-insensitive match)" "B2"
+  emit "B2" "warn" "SKILL.md has Guardrails stanza" "fail" "no '## Guardrails' heading found (block for procedural/discipline shapes)" "B2"
 fi
 
-# Case-insensitive: matches '## Halt Conditions', '## Halt conditions', '## Halt Condition', etc.
 if grep -qiE '^## Halt Conditions?' "$SKILL_MD"; then
   emit "B3" "warn" "SKILL.md has Halt Conditions section" "pass" "" "B3"
 else
-  emit "B3" "warn" "SKILL.md has Halt Conditions section" "fail" "no '## Halt Conditions' heading found (case-insensitive match)" "B3"
+  emit "B3" "warn" "SKILL.md has Halt Conditions section" "fail" "no '## Halt Conditions' heading found (block for procedural/discipline shapes)" "B3"
 fi
 
 # B4 — numbered procedure with bolded step names
@@ -151,7 +171,7 @@ if [[ -d "$SKILL_DIR/references" ]]; then
   if [[ -z "$nested" ]]; then
     emit "R1" "block" "References one-level-deep" "pass" "" "R1"
   else
-    emit "R1" "block" "References one-level-deep" "fail" "nested: $nested" "R1"
+    emit "R1" "block" "References one-level-deep" "fail" "nested: $(rel "$nested")" "R1"
   fi
 
   # R2 — large files have TOC
@@ -177,7 +197,7 @@ if [[ -d "$SKILL_DIR/references" ]]; then
   if [[ -z "$force_loads" ]]; then
     emit "R3" "info" "No @skills force-load syntax" "pass" "" "R3"
   else
-    emit "R3" "info" "No @skills force-load syntax" "fail" "found in: $force_loads" "R3"
+    emit "R3" "info" "No @skills force-load syntax" "fail" "found in: $(rel "$force_loads")" "R3"
   fi
 fi
 
@@ -251,11 +271,10 @@ if [[ -f "$EVALS_JSON" ]]; then
     emit "E1" "block" "evals.json is parseable" "fail" "JSON parse error" "E1"
   fi
 else
-  emit "E1" "block" "evals.json exists" "fail" "missing $EVALS_JSON" "E1"
+  emit "E1" "block" "evals.json exists" "fail" "missing $(rel "$EVALS_JSON")" "E1"
 fi
 
 # --- State checks ---
-REPO_ROOT="$(cd "$SKILL_DIR" && git rev-parse --show-toplevel 2>/dev/null || echo "")"
 GITIGNORE_OK=0
 if [[ -n "$REPO_ROOT" ]] && [[ -f "$REPO_ROOT/.gitignore" ]]; then
   if grep -qE "\.claude/skills/\*/state/?|^state/" "$REPO_ROOT/.gitignore"; then
@@ -286,7 +305,7 @@ if [[ -f "$CATALOG" ]]; then
   if grep -qE "\`${SKILL_NAME}/\`" "$CATALOG"; then
     emit "C1" "block" "Skill listed in catalog README" "pass" "" "C1"
   else
-    emit "C1" "block" "Skill listed in catalog README" "fail" "no entry for ${SKILL_NAME}/ in $CATALOG" "C1"
+    emit "C1" "block" "Skill listed in catalog README" "fail" "no entry for ${SKILL_NAME}/ in $(rel "$CATALOG")" "C1"
   fi
 fi
 
@@ -304,7 +323,7 @@ fi
 # 'as of <year>' and 'in the latest version' don't need \b — they're already specific.
 if grep -qriE 'as of [0-9]{4}|in the latest version|\bcurrently\b' "$SKILL_MD" "$SKILL_DIR/references" 2>/dev/null; then
   hits=$(grep -liE 'as of [0-9]{4}|in the latest version|\bcurrently\b' "$SKILL_MD" "$SKILL_DIR/references"/*.md 2>/dev/null | head -3 | tr '\n' ',' | sed 's/,$//')
-  emit "A1" "warn" "No time-sensitive content" "fail" "found in: $hits" "A1"
+  emit "A1" "warn" "No time-sensitive content" "fail" "found in: $(rel "$hits")" "A1"
 else
   emit "A1" "warn" "No time-sensitive content" "pass" "" "A1"
 fi
