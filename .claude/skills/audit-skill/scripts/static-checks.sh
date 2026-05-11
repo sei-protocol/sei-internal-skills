@@ -300,8 +300,10 @@ if [[ -f "$SYNC" ]]; then
 fi
 
 # --- Anti-patterns ---
-if grep -qriE 'as of [0-9]{4}|in the latest version|currently' "$SKILL_MD" "$SKILL_DIR/references" 2>/dev/null; then
-  hits=$(grep -liE 'as of [0-9]{4}|in the latest version|currently' "$SKILL_MD" "$SKILL_DIR/references"/*.md 2>/dev/null | head -3 | tr '\n' ',' | sed 's/,$//')
+# Word boundary on 'currently' so we don't match concurrently/recurrently/currents.
+# 'as of <year>' and 'in the latest version' don't need \b — they're already specific.
+if grep -qriE 'as of [0-9]{4}|in the latest version|\bcurrently\b' "$SKILL_MD" "$SKILL_DIR/references" 2>/dev/null; then
+  hits=$(grep -liE 'as of [0-9]{4}|in the latest version|\bcurrently\b' "$SKILL_MD" "$SKILL_DIR/references"/*.md 2>/dev/null | head -3 | tr '\n' ',' | sed 's/,$//')
   emit "A1" "warn" "No time-sensitive content" "fail" "found in: $hits" "A1"
 else
   emit "A1" "warn" "No time-sensitive content" "pass" "" "A1"

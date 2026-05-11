@@ -118,6 +118,42 @@ If they insist on the bulk override:
 
 The override changes the default; it does not remove the safety.
 
+## Multi-Skill Session Fatigue (P7.B defense)
+
+Surfaced as a partial-fail in audit-skill's own self-audit (PR #49 docs/skill-audits/audit-skill-2026-05-11.md). The pressure scenario: at 8pm on audit 5 of 7, with the same D1/eval-source warnings recurring across skills, the temptation to bulk-accept on "we've already reviewed the pattern five times" was real. The skill's bulk-apply override path catches the *first* form of this (asking to skip per-diff review for a single skill); this section catches the second form (cumulative fatigue across multiple skills in one session).
+
+### The rationalization
+
+> "I've reviewed the same D1 fix on four skills already. The fifth one is the same pattern. I can skim instead of carefully reading the diff."
+
+The risk: pattern-recognized warnings feel safe to bulk-accept, but cross-skill the diffs differ in subtle ways (different anti-trigger phrasings, different evals shape, different terminology to consolidate). Skim-accepting drops these subtle differences, and the audit's value collapses.
+
+### The counter
+
+When applying findings across multiple skills in a single session, the orchestrator should:
+
+1. **Surface the per-session apply count** in every confirm prompt past the third apply. Format: `[session apply #N — fatigue note: consider a break or splitting the work after N=10]`.
+2. **At N ≥ 10**, recommend taking a break or splitting the remaining work into a separate session. The recommendation surfaces; the user decides.
+3. **At N ≥ 15**, refuse to default to "apply" — every apply requires explicit "confirm" regardless of any prior bulk-override. The override doesn't carry across this many applies.
+
+### Rationalization counters
+
+| Excuse | Reality |
+|---|---|
+| "We've reviewed the same pattern five times — I can skim this one." | The pattern is similar; the per-skill specifics (anti-triggers, evals, terminology) differ. Pattern-recognized accept loses the differences. |
+| "It's late and I just want to finish the cycle." | Cycle completion is not a safety override. Splitting the work into the next session preserves the audit's value. |
+| "The diff looks the same as the previous skill's diff." | "Looks the same" is the failure mode — diffs that look the same but apply to different contexts produce different results. |
+| "The pattern review I did earlier covers this case." | The session apply log records prior reviews; the current diff is its own decision. |
+
+Red flags during long remediation sessions:
+
+- "I'll just trust the pattern at this point"
+- "I'll come back and audit-check these tomorrow"
+- "We're 4 skills in, let me batch the rest"
+- "I'm not going to find anything new at this stage"
+
+If any of these surface, take a break or split the work. Don't override into them.
+
 ## Audit log
 
 Every script call, every subagent dispatch, every confirm-or-deny gate writes a line to `state/run-<ts>/audit.log`:
