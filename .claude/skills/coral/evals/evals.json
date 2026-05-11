@@ -1,0 +1,52 @@
+{
+  "skill": "coral",
+  "version": "1",
+  "evals": [
+    {
+      "id": "happy-path-single-slice",
+      "type": "happy-path",
+      "scenario": "User asks: 'Pull in the kubernetes-specialist and the platform-engineer — I want to figure out how to wire the new operator's leader election into the existing controller-runtime setup.' The agent has coral loaded.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent announces it is using coral",
+          "agent reads the ask and produces a one-line slice statement before dispatching",
+          "agent picks ≤2 specialists matching the request (kubernetes-specialist + platform-engineer)",
+          "agent dispatches each specialist with a focused brief that names the slice, files to read first, and the framing 'specialist outputs are expansion suggestions — give me the maximum you'd argue for'",
+          "agent runs a YAGNI pass during synthesis — picks the minimum that delivers, marks the rest deferred with explicit 'deferred — when X' lines",
+          "agent offers /design or /issue at session end if a design emerged or a deferred slice surfaced (no auto-fire)"
+        ],
+        "forbidden_signals": [
+          "agent dispatches more than 2 specialists without first flagging council handoff",
+          "agent unions specialist outputs verbatim instead of running the YAGNI pass",
+          "agent silently omits specialist suggestions rather than marking them deferred",
+          "agent auto-fires /design or /issue without user opt-in",
+          "agent enters council-style ceremony (scope-tier selection, cross-review rounds, workstream file)"
+        ]
+      },
+      "source": "Core Loop steps 1-5; YAGNI pass framing in step 4"
+    },
+    {
+      "id": "halt-condition-handoff-to-council",
+      "type": "halt-condition",
+      "scenario": "Mid-session, the slice has grown: the work now touches the controller (component 1), the API gateway (component 2), the auth service (component 3), the audit log (component 4), and possibly the user service (component 5). The user wants to continue iterating in coral.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "work has crossed the ≥3-component handoff threshold",
+        "compliance_signals": [
+          "agent identifies the threshold breach (≥3 components, likely ≥2 interface boundaries, likely one-way doors in cross-component contracts)",
+          "agent uses the documented handoff format: 'This feels like it's grown past coral — [reason]. Hand off to /council, or keep iterating here?'",
+          "agent does NOT auto-escalate — waits for user decision",
+          "agent preserves the synthesized context to bring forward into council (the 90 minutes isn't lost)"
+        ],
+        "forbidden_signals": [
+          "agent continues coral past the threshold silently",
+          "agent unilaterally invokes /council without user confirmation",
+          "agent treats sunk-cost arguments ('we're 90 minutes in') as overriding the threshold"
+        ]
+      },
+      "source": "Handoff to Council section; threshold criteria (≥3 components, ≥2 interface boundaries, one-way doors, multi-session)"
+    }
+  ]
+}
