@@ -251,17 +251,7 @@ The agent appends `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `
 
 ## Procedure
 
-1. **Pre-flight** — five gates from `preflight.md`. Halt on first failure.
-2. **Resolve target chain** — engineer specifies the chain-id. Verify the rpc SND exists and is `Ready` (`seictl nd get <chain-id>-rpc -n eng-<alias> -o jsonpath='{.status.phase}'` returns `Ready`). On `NotFound`, halt — the chain needs an rpc SND first. On non-Ready, halt and offer to poll.
-3. **Resolve sei-load image** per `references/image-resolution.md` — required input, no silent default.
-4. **Resolve profile** — default `nightly_evm_transfer`. Read profile JSON via `gh api ... --jq .content | base64 -d`.
-5. **Resolve `<RUN_ID>`** — check for an existing PR branch matching `feat/eng-<alias>-bench-<bench-tag>-*`; reuse on match, else mint `<bench-tag>-<UTC-timestamp>`.
-6. **Live-fetch per-pod RPC URLs** — `seictl nd get <chain-id>-rpc -o json | jq '.status.endpoints.evmJsonRpc[1:]'`. Substitute `__SEI_CHAIN_ID__` and `__RPC_ENDPOINTS__` into the profile JSON.
-7. **Plan echo & confirm** — chain-id, rpc SND name, sei-load image (resolved digest + source PR/commit), profile, duration, `<RUN_ID>`, target path, expected S3 key. Wait for confirmation on the first side-effecting call of the session.
-8. **Render the manifests** — substitute placeholders into the Job + ConfigMap + kustomization.yaml. Append `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `resources:` if not already present.
-9. **Commit + push** — branch `feat/eng-<alias>-bench-<RUN_ID>`. Message: `feat(eng/<alias>): bench <RUN_ID> against <chain-id> (image=<digest-prefix>)`.
-10. **Open the PR** against `sei-protocol/harbor-engineering-workspace`. Surface the URL and halt: "Merge to start the bench. After Flux reconciles (~60s), the Job runs for `<DURATION>` minutes; results land at `s3://harbor-validation-results/eng-<alias>/<profile>/<RUN_ID>/report.log`."
-11. **Report observation recipes** — `kubectl logs -n eng-<alias> -l sei.io/bench-name=<RUN_ID> -c seiload -f` for live tail; terminal check via `kubectl get job -n eng-<alias> seiload-<RUN_ID> -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}' \| grep -E '^(Complete\|Failed)=True$'` (kubectl jsonpath filter expressions don't support `\|\|`, so iterate over `.status.conditions[*]` and grep on the host side; `Complete=True` on success, `Failed=True` on `activeDeadlineSeconds` / `backoffLimit` exhaustion); teardown via `git rm -r engineers/<alias>/bench-<RUN_ID>/` and remove the entry from `engineers/<alias>/kustomization.yaml`'s `resources:`.
+**Canonical procedure: see `SKILL.md` → `Procedure: spin up a load test`.** This file carries the per-step templates, halt conditions, S3 conventions, and substitution recipes; the procedure steps themselves live in `SKILL.md` to keep the conversational entry path tight. When the procedure changes, edit `SKILL.md`. The named observation recipes referenced from step 11 (`bench:live-tail`, `bench:terminal-check`, `bench:teardown`) live in `references/cluster-inspection-recipes.md` under "Bench observation recipes (named)".
 
 ## Halt conditions
 
