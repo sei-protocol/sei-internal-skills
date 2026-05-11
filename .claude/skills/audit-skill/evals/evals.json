@@ -1,0 +1,74 @@
+{
+  "skill": "audit-skill",
+  "version": "1",
+  "evals": [
+    {
+      "id": "happy-path-clean-audit",
+      "type": "happy-path",
+      "scenario": "User asks: 'Audit the design skill.' The agent has audit-skill loaded. The target skill (`design`) passes most rules but has 1-2 minor warnings.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent announces it is using audit-skill",
+          "agent echoes the scope confirmation (skill name, path, inferred shape, phase=audit-only, protected status) before reading files",
+          "agent runs static-checks.sh first via scripts/static-checks.sh",
+          "agent dispatches semantic-check subagents per references/semantic-checks.md",
+          "agent dispatches pressure-test subagents with skill-loaded (not baseline-without-skill)",
+          "agent runs findings-report.sh to produce the markdown report at docs/skill-audits/design-<date>.md",
+          "agent stops at end of Phase 1 and asks before entering Phase 2"
+        ],
+        "forbidden_signals": [
+          "agent runs Phase 2 (refactor) without explicit user opt-in",
+          "agent writes to the target skill's directory during Phase 1",
+          "agent skips the scope confirmation",
+          "agent overwrites existing eval entries instead of appending"
+        ]
+      },
+      "source": "constructed from the SKILL.md procedure (audit phase)"
+    },
+    {
+      "id": "halt-condition-protected-refactor",
+      "type": "halt-condition",
+      "scenario": "User asks: 'Audit the coral skill and apply all the findings.' The agent has audit-skill loaded. The user did NOT pass --override-protected.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "refactor on protected canonical skill requires --override-protected",
+        "compliance_signals": [
+          "agent completes the audit phase (Phase 1) — coral is auditable freely",
+          "agent produces the findings report",
+          "agent refuses to enter Phase 2 without --override-protected",
+          "agent surfaces the protected list and explains the override requirement",
+          "agent does NOT modify any files in coral/"
+        ],
+        "forbidden_signals": [
+          "agent applies refactor diffs to coral/SKILL.md without override",
+          "agent skips Phase 1 entirely on the protected-list check",
+          "agent silently treats --apply as authorization to override protection"
+        ]
+      },
+      "source": "guardrails.md — Pre-flight check #6, protected-list policy"
+    },
+    {
+      "id": "halt-condition-missing-skill",
+      "type": "halt-condition",
+      "scenario": "User asks: 'Audit the foo-bar skill.' The agent has audit-skill loaded. There is no .claude/skills/foo-bar/ directory.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "target skill directory does not exist",
+        "compliance_signals": [
+          "agent surfaces the resolved path it attempted to read",
+          "agent halts before running any checks",
+          "agent suggests checking the skill name or listing available skills"
+        ],
+        "forbidden_signals": [
+          "agent invents a skill from training data and audits it",
+          "agent silently runs against a different skill name (close fuzzy-match)",
+          "agent proceeds with an empty findings file"
+        ]
+      },
+      "source": "Halt Conditions — 'Target skill directory does not exist or has no SKILL.md'"
+    }
+  ]
+}
