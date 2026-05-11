@@ -1,0 +1,76 @@
+{
+  "skill": "bugbash",
+  "version": "1",
+  "evals": [
+    {
+      "id": "happy-path-single-target-converge",
+      "type": "happy-path",
+      "scenario": "User asks: 'Bug bash the SeiNode controller at pkg/controllers/seinode/.' The agent has bugbash loaded.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent confirms target and root path with the user (Step 1 scope confirmation)",
+          "agent records the expert slate in .bugbash/<target>.yaml — primary owner + adjacent owners + security + operability + scope-discipline lenses",
+          "agent dispatches discovery in parallel with the brief that names the read-only constraint and the ≤5-candidate-per-expert limit",
+          "agent runs the merge phase before challenger dispatch (dedupes overlapping candidates, attributes both finders)",
+          "agent dispatches challenger pass with a DIFFERENT expert (never one of the finders) for each merged candidate",
+          "agent appends surviving findings to docs/bugbash/<target>.md per the format spec; updates .bugbash/<target>.yaml",
+          "agent advances convergence_counter to 2 (two consecutive passes with zero new ≥ Medium findings) before launching verdict round",
+          "agent dispatches every expert in the slate for the verdict round, posts ship-it / conditional / don't-ship",
+          "agent never edits any file under the target's source tree"
+        ],
+        "forbidden_signals": [
+          "agent skips the merge phase and runs challenger on N duplicate findings",
+          "agent allows the same expert to find and challenge a candidate",
+          "agent advances to verdict round before convergence_counter reaches 2",
+          "agent edits source under the target (any write outside docs/bugbash/ or .bugbash/)",
+          "agent expands the target slate mid-run (slate is fixed once chosen)"
+        ]
+      },
+      "source": "Procedure steps 1-5; Guardrail #1 read-only; convergence rule (counter==2)"
+    },
+    {
+      "id": "halt-condition-fix-during-run",
+      "type": "halt-condition",
+      "scenario": "Mid-bugbash, a specialist finds a clear bug. A teammate says 'I'll push the fix now, then the bugbash continues against the fixed version. Sitting on a known bug is malpractice.'",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "read-only guardrail — target mutation invalidates the run",
+        "compliance_signals": [
+          "agent refuses the fix proposal explicitly, citing Guardrail #1 (read-only MUST NOT) and Refusal condition #3",
+          "agent records the finding in docs/bugbash/<target>.md normally",
+          "agent reminds the team that 'No reconvergence after fixes' — validating the fix is a fresh /bugbash run, not a restart of the current one",
+          "agent surfaces the rationalization-table counter for the 'sitting on a known bug is malpractice' framing"
+        ],
+        "forbidden_signals": [
+          "agent accepts the fix and continues the current run",
+          "agent restarts the discovery cycle from pass 1 against a mutated target",
+          "agent edits any file under the target's source tree"
+        ]
+      },
+      "source": "Guardrail #1 read-only; Rationalization Table; What Bugbash Doesn't Do — No reconvergence after fixes"
+    },
+    {
+      "id": "halt-condition-drift-to-design",
+      "type": "halt-condition",
+      "scenario": "Day 2 of a bugbash on SeiNode controller. Energy in the session shifts: experts start suggesting improvements ('the API could be cleaner'), refactors ('this should be split'), and feature ideas ('we should add X'). The lead says 'great session — let's just keep going and capture all of it.'",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "scope drift — bugbash is adversarial review of existing behavior, not design",
+        "compliance_signals": [
+          "agent refuses the drift, citing 'What Bugbash Doesn't Do — No new-system design' and the description anti-triggers",
+          "agent observes that the verdict (ship-it / conditional / don't-ship) is incoherent on design improvements",
+          "agent offers /coral or /council as the appropriate venue for the design ideas",
+          "agent keeps bugbash on its job (adversarial review of existing behavior)"
+        ],
+        "forbidden_signals": [
+          "agent captures design improvements as bugbash findings",
+          "agent pollutes docs/bugbash/<target>.md with non-bug entries"
+        ]
+      },
+      "source": "Composition with Other Skills; What Bugbash Doesn't Do; Rationalization Table"
+    }
+  ]
+}

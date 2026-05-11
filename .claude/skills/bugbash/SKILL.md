@@ -1,6 +1,6 @@
 ---
 name: bugbash
-description: "Long-running, read-only adversarial review of an existing system by the council of experts. Loops discovery + challenger passes against a named target component until experts converge on a launch verdict, accumulating findings in a structured markdown log under docs/bugbash/. Inspired by the RALPHY loop, reframed for hardening rather than greenfield work. Trigger on 'bug bash', 'bugbash', 'pressure-test the X', 'red-team the X', 'harden the X before launch', 'find bugs in the X', 'adversarial review of X', '/bugbash'. NOT for greenfield design (use /council). NOT for collaborative iteration on a feature in progress (use /coral). NOT for PR review (use /review). NOT for security-only single-pass review (use /security-review — bugbash is broader and looped). NOT for production incident triage."
+description: "Use when an existing system works on the happy path but needs adversarial hardening before launch — 'bug bash', 'bugbash', 'pressure-test the X', 'red-team the X', 'harden the X before launch', 'find bugs in the X', 'adversarial review of X', '/bugbash'. Anti-triggers: NOT for greenfield design (use /council); NOT for collaborative iteration on a feature in progress (use /coral); NOT for PR review (use /review); NOT for security-only single-pass review (use /security-review — bugbash is broader and looped); NOT for production incident triage. Inspired by the RALPHY loop, reframed for hardening rather than greenfield work."
 ---
 
 # Bugbash
@@ -116,6 +116,35 @@ Stop and report rather than auto-recovering when:
 - The convergence counter never advances past 0 across 5+ passes — the target may be too broad. Report and suggest narrowing.
 - An expert posts don't-ship at the verdict round. Report the blocker; do not retry the verdict round automatically.
 - The user interrupts mid-pass. State is in `.bugbash/<target>.yaml`; next invocation offers resume.
+
+## Rationalization Table
+
+Pressure patterns that surface during long-running bugbashes and their counters. These mostly fire when the loop is long, the room is tired, or the launch deadline is close — the moments when the read-only / convergence-mechanical / scope-disciplined defaults feel like overhead.
+
+| Excuse | Reality |
+|---|---|
+| "We have enough findings — the launch decision is clear, stop now." | Convergence is mechanical (counter==2 plus verdict round). The expert slate owns the verdict, not the requester. "Enough material to decide" and "the loop has converged" are different things. |
+| "Just one more pass and we'll be done." | Convergence is two consecutive passes with zero new ≥ Medium findings, not a feeling. One more pass might surface a new finding that resets the counter — which is the point. |
+| "Let me push the fix now — sitting on a known bug is malpractice." | Read-only is non-negotiable. Target mutation invalidates the run (the findings log no longer describes a single coherent thing). Record the finding, finish bugbash, then patch and start a fresh `/bugbash` to validate. |
+| "Accept the fix, restart the discovery cycle against the fixed version." | No reconvergence after fixes — that's a fresh `/bugbash` run, not the current one continued. Reconvergence rules out the "patch-and-rerun-the-same-loop" anti-pattern. |
+| "The team wants improvements / refactors / feature ideas captured here too." | Bugbash is adversarial review of *existing behavior*, not design or ideation. Hand off to `/coral` or `/council` for the design ideas; keep the findings log on its job. The verdict (ship-it / conditional / don't-ship) is incoherent on "the API could be cleaner." |
+| "Let me expand the target mid-run — we're already in the code." | Slate is fixed once chosen; widening the target invalidates convergence and over-runs the experts' context. Run a separate `/bugbash` for the adjacent target. |
+| "We don't need the challenger pass for this one — it's obviously a bug." | Discovery + challenger is the merge-and-refute step. "Obviously a bug" is the framing the challenger pass exists to test. Always run the challenger. |
+
+## Red Flags — STOP and Reset
+
+Phrases that signal you're about to violate one of the bugbash defaults. If any of these surface in your own reasoning or a teammate's framing, stop and reset to the documented rule:
+
+- "We have enough" / "the verdict is clear"
+- "Just one more pass"
+- "I'll just fix this one"
+- "Let me restart the cycle against the fixed version"
+- "We should also capture these improvements"
+- "Let me expand the target"
+- "We don't need the challenger pass for this one"
+- "It's still in dev, the rule doesn't really apply"
+
+All of these mean: re-read the relevant SKILL.md section, apply the rule as written, and move forward. If the rule is genuinely wrong for this context, that's a SKILL.md edit through a PR — not a one-off override during a run.
 
 ## State Management
 
