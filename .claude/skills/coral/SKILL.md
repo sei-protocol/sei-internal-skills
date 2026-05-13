@@ -78,3 +78,11 @@ Keep it terse. Coral is the fast path.
 - If a specialist asks for info you don't have, go to the user rather than guessing.
 - Trust domain judgment. If the specialist says "this pattern is wrong for the stack," relay it instead of overriding.
 - **Specialists give max scope; you pick min scope.** When a brief produces three deep, opinionated outputs, the synthesis temptation is to include all of it. Resist. Cut to MVP, mark the rest deferred with the trigger condition that would un-defer it.
+
+## Multi-cycle iteration
+
+Coral often runs multiple times against the same target — PR revisions, post-review fixes, validation rounds. That's expected and valuable:
+
+- **Each cycle sees moved code.** Later rounds catch what earlier rounds couldn't because the diff has stabilized enough to read carefully. The "shipping CRITICAL bug" is more often a round-2 find than round-1.
+- **When specialists disagree, reason from first principles.** Two deep outputs pulling in opposite directions is a real signal — don't pick by seniority or recency. State the tradeoff plainly and choose.
+- **When a finding looks like a misread, verify before applying.** Specialists work from excerpts; sometimes they call out code that doesn't exist anymore. Read the file, check the test, and push back if the finding is wrong. Apply only what the code actually needs.
