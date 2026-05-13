@@ -41,6 +41,7 @@ PORTABLE=(
   issue
   author-skill
   audit-skill
+  root-cause
 )
 
 SEI=(
