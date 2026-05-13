@@ -1,0 +1,49 @@
+{
+  "$schema": "https://anthropic.com/schemas/skill-evals/v1",
+  "skill": "root-cause",
+  "evals": [
+    {
+      "id": "happy-path-cross-component",
+      "purpose": "Verify the skill runs its full procedure on a cross-component Sei-platform incident — establishes the effect, dispatches parallel blinded experts, retrieves real signals, and produces a multi-cause conclusion with falsification records.",
+      "scenario": "User invokes /root-cause: \"Help me understand why eth_call p99 latency on the four-validator chain in eng-bdchatham spiked from 80ms to 2.1s starting at 14:32 UTC. The chain is still serving requests but slowly. Logs and prometheus are available for the last 24h.\"",
+      "expected_behavior": [
+        "Step 1: Restates the effect in measurable terms (signal, onset, baseline, blast radius). Does not skip to hypotheses.",
+        "Step 2: Reads .claude/agents/ in the calling repo and selects a multi-expert slate (kubernetes-specialist + sei-network-specialist + observability-platform-engineer at minimum). Names which agent is assigned red-team.",
+        "Step 3: Dispatches specialists in a single message (parallel), with blinded briefs (no specialist sees another's hypothesis). Each brief asks for the top-3 hypothesis table with mechanism + falsification observation + retrieval command — not for analysis.",
+        "Step 4: After hypothesis collection, retrieves the signal-ladder commands (kubectl describe, kubectl logs --previous, seid status, /net_info, prometheus RED queries scoped to the incident window) and records each with literal command + verbatim output + interpretation + status.",
+        "Step 5: Builds a causal chain across surviving hypotheses with temporality, mechanism, consistency, and counterfactual (only if testable).",
+        "Step 6: Produces a ranked multi-cause conclusion (≥2 contributing factors with confidence levels), mechanism in one paragraph, evidence list, falsification record per hypothesis, remaining uncertainty, recommended next actions conditioned on signals.",
+        "Does NOT use red-flag phrases without provenance ('probably', 'I'd expect', passive voice on data) when referring to system state.",
+        "Does NOT collapse output to a single root cause.",
+        "Does NOT propose a fix as the conclusion; recommendations are conditional next actions."
+      ],
+      "halt_acceptable": false
+    },
+    {
+      "id": "halt-mitigation-as-cause",
+      "purpose": "Verify the skill refuses to accept 'we restarted it and it worked, so the cause was X' as a conclusion. Tests refusal condition #3 (mitigation treated as cause).",
+      "scenario": "User invokes /root-cause: \"The sei-k8s-controller was failing reconciles for an hour this morning. We restarted the controller pod and it started working again. So the cause was a stuck controller process. Help me write that up.\"",
+      "expected_behavior": [
+        "Skill does NOT accept 'stuck controller process' as a root cause based on the restart evidence.",
+        "Skill explicitly names the refusal: 'A restart is evidence the system is restartable, not that the cause is understood.'",
+        "Skill demands the prior-instance logs (kubectl logs --previous) and the reconcile-loop metrics during the impacted window.",
+        "Skill generates ≥2 alternative hypotheses for what could have wedged the controller (leader-election deadlock, work-queue backlog, watch-cache desync, finalizer loop, etc.) and assigns each a falsification observation.",
+        "Skill states that without evidence from the previous instance, the conclusion is 'unverified — controller wedged, mechanism unknown, will reoccur if the trigger reappears' rather than committing to a fabricated cause.",
+        "Skill recommends adding monitoring/logging to make the next occurrence diagnosable, but does NOT present that recommendation as a root-cause finding."
+      ],
+      "halt_acceptable": true
+    },
+    {
+      "id": "halt-tide-out-of-scope",
+      "purpose": "Verify the skill refuses to fire on Tide (the on-chain agentic harness), per the explicit out-of-scope clause.",
+      "scenario": "User invokes /root-cause: \"The TideJobHook escrow contract is rejecting valid job claims on Sei EVM. Help me root-cause this.\"",
+      "expected_behavior": [
+        "Skill recognizes that 'TideJobHook' / 'on-chain escrow' / 'Tide' is the on-chain agentic harness explicitly listed as out of scope.",
+        "Skill halts and surfaces the scope mismatch: 'root-cause covers sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, and platform/K8s. Tide on-chain coordination is out of scope.'",
+        "Skill suggests an appropriate alternative (e.g., /coral with blockchain-developer + solidity-developer + security-specialist) rather than proceeding with a wrong-domain investigation.",
+        "Skill does NOT silently proceed and produce a low-confidence finding."
+      ],
+      "halt_acceptable": true
+    }
+  ]
+}

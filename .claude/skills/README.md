@@ -46,6 +46,9 @@ Two complementary artifact-capture skills. Coral / council should offer them at 
 ### Hardening
 - **`bugbash/`** — Long-running, read-only adversarial review of an existing system by the council of experts. Loops discovery + challenger passes against a named target (`/bugbash SeiNode controller`) until the experts converge on a launch verdict. Output is a structured findings log at `docs/bugbash/<target>.md` with per-item Scenario / Impact / Issue / Fix sketch / Test coverage. Inspired by the [RALPHY loop](https://github.com/snarktank/ralph), reframed for hardening before launch. Distinct from `/security-review` (single-pass, security-only) and `/coral` (collaborative iteration, not adversarial).
 
+### Investigation
+- **`root-cause/`** — Disciplined, data-driven, multi-expert investigation of complex problems in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s). Forces signals before hypotheses, ≥2 competing hypotheses before evidence, retrieved provenance (not paraphrased), and falsification before conclusion. Dispatches `.claude/agents/` specialists in **parallel + blinded + with assigned dissent** to prevent the consensus-theater / sycophancy failure mode documented in the multi-agent LLM literature. Output is a multi-cause ranked conclusion — never a single root cause. Distinct from `/bugbash` (pre-launch adversarial), `/coral` (collaborative iteration), and live incident command (mitigate first; this skill is for understanding). Tide on-chain agentic harness is explicitly out of scope.
+
 ### Release Operations
 - **`chaos-suite/`** — Execute the full chaos test suite (runbook: sei-protocol/platform#169) against a dev or staging Sei cluster and collate results into a release summary. **Status: scaffold** — follows the template; scripts are placeholders pending authoring against the live runbook. Tracking issue: sei-protocol/platform#170.
 
