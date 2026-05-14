@@ -2,8 +2,6 @@
 
 `seictl` doesn't ship a diagnose verb — this file documents the manual `kubectl`-driven flow.
 
-Last verified: 2026-05-05.
-
 ## Decision tree by phase
 
 Read `.status.phase` first: `kubectl get seinode <name> -o jsonpath='{.status.phase}'`.
@@ -44,15 +42,48 @@ Symptoms after Ready:
 
 ### Phase: Failed (terminal)
 
-Once `.status.phase == Failed`, the controller stops reconciling. Action:
+Once `.status.phase == Failed`, the controller stops reconciling — Failed is terminal, including across controller image upgrades. Recovery is delete-and-recreate so the parent SND rebuilds the SeiNode with the current pod template:
 
 ```sh
 kubectl get seinode <name> -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}'
+# read the message; if structural, recreate:
+kubectl delete seinode <name> -n eng-<alias>
 ```
 
-Read the message, decide retry (delete + recreate) or escalate.
+The SND owner watcher recreates the SeiNode within seconds. PVC retention: `sei.io/seinode-finalizer` keeps the PVC alive across the delete; the recreated SeiNode reuses the existing data.
 
-PVC retention: deleting a Failed SeiNode does **not** delete its PVC (`sei.io/seinode-finalizer` blocks until manually released). Recreating with the same name reuses existing data.
+## SND plan stuck — "plan in progress, skipping SeiNode mutations"
+
+Symptom: child SeiNodes are missing or in an unexpected state, controller logs show `plan in progress, skipping SeiNode mutations` for the SND. Typically caused by an SND-level plan that can't advance (e.g., `assemble-and-upload-genesis` can't find an assembler because child SeiNodes were deleted mid-plan).
+
+Recovery — delete the SND so Flux re-applies it from the workspace repo on next reconcile:
+
+```sh
+kubectl delete snd <name> -n eng-<alias>
+```
+
+Flux reconciles in ~60s and the controller rebuilds the plan from scratch.
+
+## apply-statefulset fails: rollingUpdate not allowed for OnDelete
+
+Symptom: controller logs show
+
+```
+applying statefulset: StatefulSet.apps "<name>" is invalid:
+  spec.updateStrategy.rollingUpdate: Invalid value: {"Partition":0,"MaxUnavailable":null}:
+  only allowed for updateStrategy 'RollingUpdate'
+```
+
+Cause: a legacy StatefulSet has a stale `rollingUpdate` field from an earlier controller version that used `type: RollingUpdate`. The current controller sets `type: OnDelete` but doesn't claim ownership of `rollingUpdate`, so SSA leaves the stale field and the merged result is invalid.
+
+Recovery — patch the StatefulSet to drop the stale field:
+
+```sh
+kubectl patch sts -n eng-<alias> <name> --type=merge \
+  -p='{"spec":{"updateStrategy":{"type":"OnDelete","rollingUpdate":null}}}'
+```
+
+Metadata-only patch; pods are not restarted. The controller's next reconcile applies the new template successfully, then `replace-pod` rolls pods normally.
 
 ## Cross-cutting issues
 
