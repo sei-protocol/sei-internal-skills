@@ -2,14 +2,12 @@
 
 Side-by-side bench of two `seid` images against identical sei-load configuration. Engineer says "compare PR 3399 to main on sei-chain" or "bench latest sei-chain against commit b7b4868" — the agent renders two ephemeral chains (each running its own image), two sei-load Jobs (identical profile, duration, RPC fleet), opens one PR. After merge: both chains reach `Ready` in parallel, both benches run in parallel, both reports land in S3 paired by `<RUN_ID>`. The agent fetches both, extracts canonical metrics, and surfaces a side-by-side table.
 
-Last verified: 2026-05-08 against `references/sei-load-bench.md` (single-bench substrate this builds on), `references/ephemeral-chain-flow.md` (chain-spinup substrate), and the `engineer-service-account` IAM policy (`s3:PutObject` + `s3:GetObject` on `harbor-validation-results/eng-<alias>/*`).
-
 ## Substrate facts
 
 - **Each `seid` image runs its own chain.** A chain is the binary it executes; you cannot bench two binaries against one chain. Comparative bench therefore spins up two genesis SNDs + two RPC SNDs, side `a` and side `b`.
 - **Both benches must use identical sei-load configuration.** Different profiles or durations turn the comparison into noise. The skill enforces parity: one resolved profile, one duration, one sei-load image, applied to both Jobs.
-- **Resource budget is ~2x a single bench.** Two ephemeral chains in one namespace = ~2x (4 validators + 2 RPC) seid pods + 2 sei-load Jobs. The cluster handles this fine on Karpenter scaling; no per-namespace gate today, but worth flagging for engineers used to single-bench footprint.
-- **Result fetch runs in-cluster, not from the engineer's laptop.** The engineer's local AWS profile (resolved at preflight gate 2) doesn't have `s3:GetObject` on `harbor-validation-results/*` — only the in-cluster `engineer-service-account` does (via Pod Identity, scoped to `eng-<alias>/*` by session tag). The agent fetches both reports by running a one-shot `kubectl run` with `serviceAccountName: engineer-service-account`, then prints the report contents. See "Fetch + render the comparison" below.
+- **Resource budget is ~2x a single bench.** Two ephemeral chains in one namespace = ~2x (4 validators + 2 RPC) seid pods + 2 sei-load Jobs. The cluster handles this fine on Karpenter scaling; no per-namespace resource gate, but worth flagging for engineers used to single-bench footprint.
+- **Result fetch runs in-cluster, not from the engineer's laptop.** The engineer's local AWS profile (resolved at preflight gate 3) doesn't have `s3:GetObject` on `harbor-validation-results/*` — only the in-cluster `engineer-service-account` does (via Pod Identity, scoped to `eng-<alias>/*` by session tag). The agent fetches both reports by running a one-shot `kubectl run` with `serviceAccountName: engineer-service-account`, then prints the report contents. See "Fetch + render the comparison" below.
 - **`<COMPARE_RUN_ID>` is the join key.** Same string in: branch name, both bench `<RUN_ID>`s, the four manifest dirs, the S3 prefix. The two side reports differ only by the `/a/` vs `/b/` segment.
 
 ## Inputs the agent gathers
@@ -333,8 +331,6 @@ kubectl run "fetch-${COMPARE_RUN_ID}" \
 
 The agent splits stdout on the `===== SIDE-A =====` / `===== SIDE-B =====` markers to recover each report. `--rm` cleans up the Pod after exit; `--quiet` suppresses kubectl's `pod ... deleted` line so the parser sees only the report content.
 
-**Required IAM policy update.** Today's `aws_iam_policy.engineer` (terraform `engineers-shared.tf`) covers `s3:PutObject` on the prefix but not `s3:GetObject`. The fetch will return `AccessDenied` until that statement is added. This is a separate platform change — see the halt-condition note below.
-
 ### Metric extraction
 
 Sei-load emits a **result summary block** at the end of its stdout — TPS, latencies, transaction counts, error breakdown, all in a single coherent block. The agent doesn't have to parse the whole log or invent extraction heuristics; it locates the summary block per side and presents both directly. The summary's canonical fields cover everything the comparison needs:
@@ -431,7 +427,7 @@ Reports:
   - **Note:** `bench-<a-or-b>` references chain-side-specific RPC URLs (substituted at render-time), so removing only `bench-<a-or-b>` while keeping `chain-<a-or-b>` doesn't make the bench retryable against a fresh chain — re-deriving the URLs requires a fresh render. Teardown the chain *and* the bench together when the chain failed.
 - **One bench `Complete` and the other `Failed`.** Still fetch both reports — the failed side's report is partial but informative. Surface the `Failed` reason from the Job condition (`activeDeadlineSeconds` / `backoffLimit` exhaustion) alongside the comparison table; flag that the comparison is degraded.
 - **Failed + still-running.** If side A reaches `Failed=True` while side B is still running, keep polling B to its terminal state — partial-pair results inform the engineer about whether the failure was image-specific or load-pattern-specific. Don't kill B early.
-- **In-cluster fetch returns `AccessDenied`.** The `engineer-service-account` IAM policy doesn't have `s3:GetObject` on `harbor-validation-results/eng-<alias>/*`. The skill's design depends on it; today's policy doesn't include it (see "Required IAM policy update" above). Surface the platform-side path (terraform change to `aws_iam_policy.engineer`); halt the fetch and offer the engineer a fallback — pull the reports manually from a workstation that has the right grant, or wait for the IAM update to land.
+- **In-cluster fetch returns `AccessDenied`.** Pod Identity session tag mismatch or namespace-prefix mismatch on the bucket key — the `engineer-service-account` policy scopes `s3:GetObject` to `harbor-validation-results/${aws:PrincipalTag/kubernetes-namespace}/*` via the Pod Identity session tag, so the resolved namespace must match the bucket prefix. Inspect `aws sts get-caller-identity` from inside the Pod and verify the bucket key starts with `eng-<alias>/`.
 - **In-cluster fetch returns `NoSuchKey`.** The upload sidecar didn't run on the failing side. Surface `kubectl logs -n eng-<alias> -l sei.io/compare-name=<COMPARE_RUN_ID>,sei.io/compare-side=<a|b> -c upload-results` to diagnose. Common cause: side terminated via `activeDeadlineSeconds` before the sidecar reached its `aws s3 cp` step.
 - **Bench config parity check fails** — the two substituted profile JSONs differ on a field other than `seiChainId` / `endpoints`. Halt before push; the rendered manifests would produce a non-comparable result. Surface the diff and ask the engineer to retry (usually a transient issue with the RPC fleet's `.status.endpoints` not yet populating side B when side A was substituted).
 - **PR push rejected** — same handling as single-bench; `git pull --rebase` and let the engineer resolve.

@@ -2,8 +2,6 @@
 
 Canonical recipes for translating an engineer's request — "PR 3399", "commit abc1234", "the latest on main" — into a pinned, verifiable container image. The agent never invents a tag; either the build workflow produces it or the resolve fails.
 
-Last verified: 2026-05-08 against `sei-protocol/sei-chain` `.github/workflows/ecr.yml` and `sei-protocol/sei-load` `.github/workflows/containerize.yaml`.
-
 ## Repos and conventions
 
 | Repo | Used for | Registry | Tag format | Auto-built on |
@@ -74,7 +72,7 @@ gh run watch ${RUN_ID} -R sei-protocol/sei-chain --exit-status
 # After watch returns 0, the image is in ECR; re-probe.
 ```
 
-`<chosen>` is the AWS profile resolved at pre-flight gate 2.
+`<chosen>` is the AWS profile resolved at pre-flight gate 3.
 
 ## Branch and tag inputs
 

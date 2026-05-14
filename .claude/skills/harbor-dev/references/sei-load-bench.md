@@ -2,8 +2,6 @@
 
 Engineer-driven load tests run as a `Job` + `ConfigMap` pair under the engineer's namespace. Sei-load is vanilla K8s (no CRD), so the rendering lives in this skill rather than `seictl nd`. The agent fills in the placeholders, opens a PR against `sei-protocol/harbor-engineering-workspace`, and the engineer's per-engineer Flux Kustomization reconciles the Job on merge.
 
-Last verified: 2026-05-08 against `clusters/harbor/nightly/load/seiload-job.yaml`, `clusters/harbor/nightly/load/orchestrate.sh`, the `engineer-service-account` IAM policy (S3 PutObject on `harbor-validation-results/eng-<alias>/*`), and `sei-protocol/sei-load`'s distroless image (`gcr.io/distroless/base`).
-
 ## Substrate facts the manifest depends on
 
 - **Sei-load image is distroless** — no shell, no `aws-cli`, no `bash`. Main container can't run a wrapper script. Upload happens from a separate sidecar.

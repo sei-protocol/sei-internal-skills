@@ -97,7 +97,7 @@ Native `SeiNodeDeployment` CR on stdout as JSON. Same shape as `kubectl get snd 
 `metav1.Status` on stderr; non-zero exit. Common reasons:
 
 - `Invalid` — the rendered CR fails apiserver schema validation. Check `--set` paths for typos.
-- `Forbidden` — RBAC denies the apply. Likely the engineer's access entry is read-only; pre-flight gate 4 normally catches this earlier.
+- `Forbidden` — RBAC denies the apply. Likely the engineer's access entry is read-only; pre-flight gate 5 normally catches this earlier.
 - `AlreadyExists` — name collision with an existing SND. If the existing SND is Flux-owned (rendered from another workspace-repo manifest), `git rm` that manifest first; calling `seictl nd delete` on a Flux-owned SND races the next reconcile. If the existing SND is hand-rolled (no Flux owner), `seictl nd delete` it or pick a new chain-id.
 
 ### `seictl nd watch` — success

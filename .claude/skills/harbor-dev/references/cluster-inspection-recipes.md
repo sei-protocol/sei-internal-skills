@@ -2,8 +2,6 @@
 
 Canonical invocations for extracting structured data from harbor-cluster resources. Use these directly instead of inferring `-o yaml` and parsing free-form output. Each recipe is the exact command + the field it returns + the failure mode if the resource isn't in the expected shape.
 
-Last verified: 2026-05-08 against `sei-protocol/sei-k8s-controller` `api/v1alpha1/seinodedeployment_types.go` (`SeiNodeDeploymentStatus`, `Endpoints`, `PerPodServiceStatus`, `InternalServiceStatus`, `TaskPlan`).
-
 When in doubt about a field, check the live shape:
 
 ```sh

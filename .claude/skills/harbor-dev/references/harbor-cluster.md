@@ -2,8 +2,6 @@
 
 Cluster facts the skill assumes.
 
-Last verified: 2026-05-05 against `clusters/harbor/` in sei-protocol/platform.
-
 ## At a glance
 
 | Property | Value |

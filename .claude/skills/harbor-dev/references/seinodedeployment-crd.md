@@ -4,8 +4,6 @@
 > Run `kubectl explain seinodedeployment.spec --recursive` for the source of truth.
 > File an issue at sei-protocol/sei-k8s-controller/issues if you spot drift.
 
-Last verified: 2026-05-05. Source of truth: `kubectl explain seinodedeployment.spec --recursive --context=harbor` and `sei-protocol/sei-k8s-controller/api/v1alpha1/seinodedeployment_types.go`.
-
 ## What it is
 
 A `SeiNodeDeployment` (`sei.io/v1alpha1`) manages a **fleet** of `SeiNode`s — N replicas of a `SeiNodeTemplate` plus fleet-level concerns: shared networking (HTTPRoute, Services), genesis ceremonies (fresh or fork-based), monitoring (ServiceMonitor), and deployment strategies (in-place, blue-green, hard-fork).
@@ -31,7 +29,7 @@ The fields the agent reads (most via `seictl nd get -o jsonpath` or `seictl nd w
 - `.status.conditions[type=RouteReady]` — HTTPRoute hostname resolves in DNS.
 - `.status.conditions[type=GenesisCeremonyComplete]` — genesis.json assembled.
 - `.status.plan[*]` — group-level plan state for genesis assembly + rollout. On terminal `Failed`, `.status.plan.failedTaskDetail.error` carries the cause and is lifted to stderr by `seictl nd watch`.
-- `.status.endpoints.*` — controller-published service URLs. Today: `tendermintRpc[]`, `tendermintRest[]`, `evmJsonRpc[]`, `evmWs[]`. Each is an array even if there's only one entry.
+- `.status.endpoints.*` — controller-published service URLs: `tendermintRpc[]`, `tendermintRest[]`, `evmJsonRpc[]`, `evmWs[]`. Each is an array even if there's only one entry.
 - `.status.perPodServices[]` — per-pod headless Service handles for callers that need pod-targeted connectivity (seiload's WebSocket block collector, gRPC streaming, etc.). Each entry has `name`, `namespace`, `ports.{evmHttp, evmWs, ...}`.
 - `.status.internalService` — the aggregate ClusterIP Service handle backing `.status.endpoints.*`.
 

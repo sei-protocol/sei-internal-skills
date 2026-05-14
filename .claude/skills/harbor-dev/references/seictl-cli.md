@@ -2,8 +2,6 @@
 
 Canonical command reference for the engineer-facing surface. **`seictl nd --help` is the source of truth** — when this file disagrees, the CLI wins.
 
-Last verified: 2026-05-05 against sei-protocol/seictl v0.0.43+ (post-#133 nd verb tree, peer auto-wire from #146).
-
 ## Top-level commands
 
 | Command | Domain | What it does |

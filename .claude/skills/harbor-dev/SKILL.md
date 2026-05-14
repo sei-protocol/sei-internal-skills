@@ -76,9 +76,9 @@ Don't hardcode a profile name; engineers configure their own.
 
 The chosen profile is the session's profile — every downstream `aws ...` invocation runs with `--profile <chosen>`. Persist the choice for the session (e.g., shell-prefix every Bash call with `AWS_PROFILE=<chosen>` if not exported in the parent shell).
 
-## First Run (the recovery for pre-flight gate 5)
+## First Run (the recovery for pre-flight gate 6)
 
-When pre-flight gate 5 fails (`eng-<alias>` namespace doesn't exist), enter First Run. Gates 1–4 have passed — seictl, SSO, kubeconfig, and EKS access entry are in place.
+When pre-flight gate 6 fails (`eng-<alias>` namespace doesn't exist), enter First Run. Gates 1–5 have passed — seictl, yq, SSO, kubeconfig, and EKS access entry are in place.
 
 Onboarding is one PR against `sei-protocol/platform` adding three files. After merge, run a targeted `terraform apply`. Both pieces complete in under five minutes.
 
