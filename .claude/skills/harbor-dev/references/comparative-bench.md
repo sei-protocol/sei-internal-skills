@@ -2,8 +2,6 @@
 
 Side-by-side bench of two `seid` images against identical sei-load configuration. Engineer says "compare PR 3399 to main on sei-chain" or "bench latest sei-chain against commit b7b4868" — the agent renders two ephemeral chains (each running its own image), two sei-load Jobs (identical profile, duration, RPC fleet), opens one PR. After merge: both chains reach `Ready` in parallel, both benches run in parallel, both reports land in S3 paired by `<RUN_ID>`. The agent fetches both, extracts canonical metrics, and surfaces a side-by-side table.
 
-Last verified: 2026-05-08 against `references/sei-load-bench.md` (single-bench substrate this builds on), `references/ephemeral-chain-flow.md` (chain-spinup substrate), and the `engineer-service-account` IAM policy (`s3:PutObject` + `s3:GetObject` on `harbor-validation-results/eng-<alias>/*`).
-
 ## Substrate facts
 
 - **Each `seid` image runs its own chain.** A chain is the binary it executes; you cannot bench two binaries against one chain. Comparative bench therefore spins up two genesis SNDs + two RPC SNDs, side `a` and side `b`.

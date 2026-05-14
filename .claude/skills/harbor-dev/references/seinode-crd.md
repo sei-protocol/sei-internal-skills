@@ -4,8 +4,6 @@
 > Run `kubectl explain seinode.spec --recursive` for the source of truth.
 > File an issue at sei-protocol/sei-k8s-controller/issues if you spot drift.
 
-Last verified: 2026-05-05. Source of truth: `kubectl explain seinode.spec --recursive --context=harbor` and `sei-protocol/sei-k8s-controller/api/v1alpha1/seinode_types.go`.
-
 ## What it is
 
 A `SeiNode` (`sei.io/v1alpha1`) describes a single Sei blockchain node — its image, role (validator / fullnode / archive / replayer), peer discovery strategy, storage, and bootstrap method.

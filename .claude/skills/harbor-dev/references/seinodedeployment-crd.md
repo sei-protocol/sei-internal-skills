@@ -4,8 +4,6 @@
 > Run `kubectl explain seinodedeployment.spec --recursive` for the source of truth.
 > File an issue at sei-protocol/sei-k8s-controller/issues if you spot drift.
 
-Last verified: 2026-05-05. Source of truth: `kubectl explain seinodedeployment.spec --recursive --context=harbor` and `sei-protocol/sei-k8s-controller/api/v1alpha1/seinodedeployment_types.go`.
-
 ## What it is
 
 A `SeiNodeDeployment` (`sei.io/v1alpha1`) manages a **fleet** of `SeiNode`s — N replicas of a `SeiNodeTemplate` plus fleet-level concerns: shared networking (HTTPRoute, Services), genesis ceremonies (fresh or fork-based), monitoring (ServiceMonitor), and deployment strategies (in-place, blue-green, hard-fork).
