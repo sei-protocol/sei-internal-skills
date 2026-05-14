@@ -50,7 +50,11 @@ kubectl get seinode <name> -o jsonpath='{.status.conditions[?(@.type=="Ready")].
 kubectl delete seinode <name> -n eng-<alias>
 ```
 
-The SND owner watcher recreates the SeiNode within seconds. PVC retention: `sei.io/seinode-finalizer` keeps the PVC alive across the delete; the recreated SeiNode reuses the existing data.
+The SND owner watcher recreates the SeiNode within seconds.
+
+**PVC behavior** — verify before deleting on stateful nodes:
+- For **imported** PVCs (`spec.import` set on the SeiNode): the PVC is preserved; the recreated SeiNode reuses existing data.
+- For **controller-managed** PVCs (no `spec.import`): the controller's `handleNodeDeletion` path deletes the PVC during teardown. Delete-and-recreate **wipes data**. Safe for ephemeral chains being recreated from genesis; not safe for archive nodes or any chain with state worth preserving.
 
 ## SND plan stuck — "plan in progress, skipping SeiNode mutations"
 
@@ -63,6 +67,8 @@ kubectl delete snd <name> -n eng-<alias>
 ```
 
 Flux reconciles in ~60s and the controller rebuilds the plan from scratch.
+
+**Only safe with `spec.deletionPolicy: Delete`** (the default). If the SND has `deletionPolicy: Retain`, deleting orphans the child SeiNodes and their networking — the Flux re-apply creates a fresh SND that may collide with the orphaned resources. Check first with `kubectl get snd <name> -o jsonpath='{.spec.deletionPolicy}'`.
 
 ## apply-statefulset fails: rollingUpdate not allowed for OnDelete
 
