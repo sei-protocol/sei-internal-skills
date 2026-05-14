@@ -2,8 +2,6 @@
 
 What the skill (and seictl) assume about AWS resources.
 
-Last verified: 2026-05-05 against the harbor multi-tenancy onboarding pattern (sei-protocol/platform#427) and `seictl nd` v0.0.43+ (post-#133 verb tree).
-
 ## Account & region
 
 | Property | Value |
@@ -30,7 +28,7 @@ EKS Pod Identity is the auth mechanism on harbor. All Pod Identity associations 
 
 Per `eng-<alias>` namespace (created by the engineer's onboarding `terraform/.../harbor/engineers/<alias>.tf`):
 
-- `eng-<alias>/seid-node` → `aws_iam_policy.seid_node` (snapshot read, genesis r/w, `ec2:DescribeInstances` for peer discovery).
+- `eng-<alias>/seid-node` → `aws_iam_policy.seid_node_engineer` (snapshot read, genesis r/w).
 - `eng-<alias>/engineer-service-account` → `aws_iam_policy.engineer` (S3 `PutObject` and `ListBucket` on `harbor-validation-results/${aws:PrincipalTag/kubernetes-namespace}/*` — auto-scoped per namespace via Pod Identity session tag — plus ECR auth and `sei/sei-chain` image read).
 
 Pre-existing platform Pod Identity associations:
