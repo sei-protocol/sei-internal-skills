@@ -49,7 +49,7 @@ Engineer-side AWS access (from the engineer's laptop, not from a Pod) uses the e
 
 Image digest resolution flow (used when the agent surfaces a digest in the plan echo before `seictl nd apply`):
 
-1. `aws ecr describe-images --repository-name sei/sei-chain --region us-east-2 --image-ids imageTag=<tag> --profile <chosen>` (`<chosen>` = the engineer's AWS profile from pre-flight gate 2)
+1. `aws ecr describe-images --repository-name sei/sei-chain --region us-east-2 --image-ids imageTag=<tag> --profile <chosen>` (`<chosen>` = the engineer's AWS profile from pre-flight gate 3)
 2. Extract `imageDetails[0].imageDigest`
 3. Short digest = `sha256:` stripped, first 12 chars
 4. Race-guard retry: 3 attempts, 60s sleep — sei-chain CI sometimes pushes after a request lands. Don't loop silently; surface the retry to the engineer.
@@ -59,6 +59,6 @@ Image digest resolution flow (used when the agent surfaces a digest in the plan 
 ## IAM principals
 
 - GitHub Actions OIDC role for autobake nightly: `arn:aws:iam::189176372795:role/harbor-autobake-gha`
-- Engineer IAM principals (today: SSO-assigned roles like `arn:aws:iam::189176372795:role/sso-engineer-<alias>`) — mapped to k8s groups via `aws_eks_access_entry`
+- Engineer IAM principals — SSO-assigned roles (e.g., `arn:aws:iam::189176372795:role/sso-engineer-<alias>`), mapped to k8s groups via `aws_eks_access_entry`.
 
-Engineer's SSO role currently has admin permissions in the cluster account, which is sufficient for read-side ECR + S3 access from the laptop. When SSO permissions get scoped down, the access-entry surface and any laptop-side AWS reads revisit. The onboarding PR shape itself doesn't depend on the SSO role's IAM permissions — it only writes to the platform repo.
+The onboarding PR shape doesn't depend on the SSO role's IAM permissions — it only writes to the platform repo.

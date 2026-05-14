@@ -72,7 +72,7 @@ gh run watch ${RUN_ID} -R sei-protocol/sei-chain --exit-status
 # After watch returns 0, the image is in ECR; re-probe.
 ```
 
-`<chosen>` is the AWS profile resolved at pre-flight gate 2.
+`<chosen>` is the AWS profile resolved at pre-flight gate 3.
 
 ## Branch and tag inputs
 

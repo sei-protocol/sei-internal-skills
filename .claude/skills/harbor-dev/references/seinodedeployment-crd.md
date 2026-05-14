@@ -29,7 +29,7 @@ The fields the agent reads (most via `seictl nd get -o jsonpath` or `seictl nd w
 - `.status.conditions[type=RouteReady]` — HTTPRoute hostname resolves in DNS.
 - `.status.conditions[type=GenesisCeremonyComplete]` — genesis.json assembled.
 - `.status.plan[*]` — group-level plan state for genesis assembly + rollout. On terminal `Failed`, `.status.plan.failedTaskDetail.error` carries the cause and is lifted to stderr by `seictl nd watch`.
-- `.status.endpoints.*` — controller-published service URLs. Today: `tendermintRpc[]`, `tendermintRest[]`, `evmJsonRpc[]`, `evmWs[]`. Each is an array even if there's only one entry.
+- `.status.endpoints.*` — controller-published service URLs: `tendermintRpc[]`, `tendermintRest[]`, `evmJsonRpc[]`, `evmWs[]`. Each is an array even if there's only one entry.
 - `.status.perPodServices[]` — per-pod headless Service handles for callers that need pod-targeted connectivity (seiload's WebSocket block collector, gRPC streaming, etc.). Each entry has `name`, `namespace`, `ports.{evmHttp, evmWs, ...}`.
 - `.status.internalService` — the aggregate ClusterIP Service handle backing `.status.endpoints.*`.
 
