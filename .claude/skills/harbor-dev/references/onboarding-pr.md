@@ -90,14 +90,17 @@ Within ~60s, Flux materializes:
 
 ## What reconciles on terraform apply
 
-After merge, run from `terraform/aws/189176372795/eu-central-1/harbor/` with the AWS profile resolved at pre-flight gate 2:
+After merge, run from `terraform/aws/189176372795/eu-central-1/harbor/` with the AWS profile resolved at pre-flight gate 3:
 
 ```sh
+AWS_PROFILE=<chosen> terraform init
 AWS_PROFILE=<chosen> terraform plan -target=module.engineers -out=tfplan
 AWS_PROFILE=<chosen> terraform apply tfplan
 ```
 
-`<chosen>` is the engineer's AWS profile (resolved by pre-flight gate 2 — never literal `sei`; engineers configure their own).
+`<chosen>` is the engineer's AWS profile (resolved by pre-flight gate 3 — never literal `sei`; engineers configure their own).
+
+Run `terraform init` (no `-upgrade` flag) to fetch providers and modules; `-upgrade` would silently bump the provider lockfile and is not what this flow wants. Always `plan -out=tfplan` then `apply tfplan` — never direct `terraform apply` (skips plan review). Run from a single worktree at the platform repo's main branch — terraform state lives in S3 (`sei-platform-terraform-state`); concurrent worktrees on different commits won't corrupt state but can produce confusing plan diffs.
 
 `Plan: 6 to add, 0 to change, 0 to destroy`. Apply confirms `Resources: 6 added`. The six resources:
 
@@ -117,9 +120,9 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
    > - Platform: `<platform-pr-url>`
    > - Workspace: `<workspace-pr-url>`
    >
-   > Merge the workspace PR first (or merge both within seconds of each other). After merge of the platform PR, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` is the AWS profile resolved at pre-flight gate 2 — never literal `sei`.)
-6. **After merge,** poll `kubectl get namespace eng-<alias> --context harbor` until it returns 0.
-7. **Run the targeted apply.** `terraform plan -target=module.engineers -out=tfplan` then `terraform apply tfplan`. Confirm `Resources: 6 added`.
+   > Merge the workspace PR first (or merge both within seconds of each other). After merge of the platform PR, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then from `terraform/aws/189176372795/eu-central-1/harbor/` run `AWS_PROFILE=<chosen> terraform init && terraform plan -target=module.engineers -out=tfplan && terraform apply tfplan` to land the Pod Identity associations. (`<chosen>` is the AWS profile resolved at pre-flight gate 3 — never literal `sei`.)
+6. **After merge,** poll `kubectl get namespace eng-<alias>` until it returns 0.
+7. **Run terraform.** From `terraform/aws/189176372795/eu-central-1/harbor/` at the platform repo's main branch: `AWS_PROFILE=<chosen> terraform init` (no `-upgrade` flag), then `AWS_PROFILE=<chosen> terraform plan -target=module.engineers -out=tfplan`, then `AWS_PROFILE=<chosen> terraform apply tfplan`. Confirm `Resources: 6 added`.
 8. **Verify** `aws eks list-pod-identity-associations --cluster-name harbor --query 'associations[?namespace==`eng-<alias>`]' --region eu-central-1 --profile <chosen>` returns two associations (one for `seid-node`, one for `engineer-service-account`). Verify the engineer's Flux Kustomization is Ready: `kubectl get kustomization <alias> -n eng-<alias> -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'` returns `True`.
 
 ## PR body template
@@ -145,7 +148,7 @@ Onboards `<alias>` as a tenant on harbor.
 
 ## What reconciles on terraform apply
 
-`AWS_PROFILE=<chosen> terraform apply -target=module.engineers` (`<chosen>` = the AWS profile resolved at pre-flight gate 2)
+`AWS_PROFILE=<chosen> terraform init && terraform plan -target=module.engineers -out=tfplan && terraform apply tfplan` (`<chosen>` = the AWS profile resolved at pre-flight gate 3)
 
 Plan: 6 to add, 0 to change, 0 to destroy. Six resources binding `eng-<alias>/seid-node` and `eng-<alias>/engineer-service-account` to their respective IAM policies via Pod Identity.
 
