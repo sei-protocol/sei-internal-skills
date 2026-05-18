@@ -93,7 +93,7 @@ Onboarding is one PR against `sei-protocol/platform` adding three files. After m
 **Procedure:**
 
 1. **Prompt for the alias** — don't silently use `$USER`. Default the prompt to `$USER` lowercased. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias>` — if it returns 0, the alias is taken; halt with "this alias is taken; pick another or contact the platform team if it's yours." Don't attempt partial-state recovery (that's a separate runbook). Continue only when the alias is free.
-2. Fetch the most recent prior onboarding PR via `gh pr list --repo sei-protocol/platform --search "feat(harbor/engineers): onboard"` — that PR is the diff template. Branch: `feat/engineers-<alias>-onboard`.
+2. Use [sei-protocol/platform#587](https://github.com/sei-protocol/platform/pull/587) (the fromtherain re-onboard) as the diff template — `gh pr diff 587 --repo sei-protocol/platform`. Branch: `feat/engineers-<alias>-onboard`.
 3. Render the three platform-repo files (`gh pr diff` on the prior PR + substring replace on the alias).
 4. Open the **platform-repo PR**. Title: `feat(harbor/engineers): onboard <alias>`.
 5. Open the **workspace-repo sibling PR** against `sei-protocol/harbor-engineering-workspace`: branch `feat/onboard-<alias>`, scaffold `engineers/<alias>/kustomization.yaml` with `resources: []`. Without this, the per-engineer Flux Kustomization fails reconcile post-merge with `path not found: ./engineers/<alias>`.
@@ -130,6 +130,32 @@ Every engineer-facing intent maps to a `seictl nd` verb against `eng-<alias>`. *
 - Discrete flags (`--chain-id`, `--image`, `--replicas`) override preset defaults.
 - `--set <dotted.path>=<value>` (repeatable) does strategic-merge overrides on the SND spec; wins over discrete flags on collision. Maps merge per-key, lists replace wholesale. Example: `--set spec.template.spec.image=ghcr.io/...:abc123`.
 - `--dry-run` on `apply` runs server-side-apply in dry-run mode and emits the would-be-applied CR without persisting. Right shape for "show me what this would do" before committing.
+
+## Post-merge reconciliation
+
+Force-reconcile proactively after a relevant PR merges; don't wait for Flux's natural poll.
+
+**Trigger:** any PR merge the agent helped open against `sei-protocol/platform` or `sei-protocol/harbor-engineering-workspace`, OR when the engineer says "merged" / "I merged X". Don't wait for the engineer to ask.
+
+**Preferred:**
+
+```sh
+flux --context harbor reconcile kustomization flux-system --with-source -n flux-system
+```
+
+**Fallback** (only when `flux` isn't available):
+
+```sh
+kubectl --context harbor -n flux-system annotate kustomization flux-system \
+  reconcile.fluxcd.io/requestedAt="$(date +%s)" --overwrite
+```
+
+**Verify** the merge commit SHA landed before proceeding to verbs that depend on the new state:
+
+```sh
+kubectl --context harbor -n flux-system get kustomization flux-system \
+  -o jsonpath='{.status.lastAppliedRevision}'
+```
 
 ## Procedure: spin up an ephemeral chain (the headline — PR-based)
 
