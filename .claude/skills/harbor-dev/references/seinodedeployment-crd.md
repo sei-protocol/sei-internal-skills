@@ -18,7 +18,7 @@ The 5 fields engineers actually edit (or seictl renders):
 - `spec.template` — `SeiNodeTemplate` (stamped N times, same shape as `SeiNode.spec`)
 - `spec.template.spec.overrides` — flat map of dotted TOML keys (`config.toml`/`app.toml`/`client.toml`) merged onto mode defaults at config-apply.
 - `spec.genesis` — optional genesis ceremony config (chainId, validators, fork support)
-- `spec.genesis.overrides` — flat map of dotted JSON keys merged onto the assembled `genesis.json` **before gentx generation**. Sidecar applies them in the `assemble-and-upload-genesis` task. Use for chain params (`app_state.staking.params.unbonding_time`, `consensus_params.block.max_gas`, etc.). Set via `seictl nd apply --set spec.genesis.overrides.<dotted.path>=<value>`.
+- `spec.genesis.overrides` — dotted-JSON keys merged onto `genesis.json` before gentx (chain params: `app_state.staking.params.unbonding_time`, `consensus_params.block.max_gas`).
 - `spec.networking` — HTTPRoute, ClusterIP Service, AuthorizationPolicy
 - `spec.updateStrategy` — `InPlace` / `BlueGreen` / `HardFork`
 

@@ -18,7 +18,7 @@ The end state pre-flight delivers:
 
 That's the floor for `seictl nd apply`. Below this floor, no procedure can proceed safely.
 
-## The six gates
+## The gates
 
 ### Gate 1: `seictl ≥ v0.0.43` installed
 
