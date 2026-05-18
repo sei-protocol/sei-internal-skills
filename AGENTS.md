@@ -139,7 +139,9 @@ Checklist items are Tide-specific. See `.claude/agents/reviewer.md`. Does NOT sy
 
 ## Install
 
-The fastest path is `make bootstrap` from the repo root, which runs `make sync-agents` and `make update-agent-permissions`. See the README's Setup section for the full flow.
+The fastest path is `make bootstrap` from the repo root, which runs `make sync-agents`, `make sync-skills`, and `make update-agent-permissions`. See the README's Setup section for the full flow.
+
+Skills live in `.claude/skills/` and travel the same way agents do — Tide is the canonical home, and `sync-skills.sh` pushes them out to user-scope (`~/.claude/skills/`) and sibling repos.
 
 For sibling-repo or finer-grained installs, call the underlying scripts directly:
 
@@ -147,16 +149,23 @@ For sibling-repo or finer-grained installs, call the underlying scripts directly
 # Mirror portable agents to user-level (available in any CWD) — same as `make sync-agents`
 ./scripts/sync-agents.sh --target ~/
 
+# Mirror portable skills to user-level — same as `make sync-skills`
+./scripts/sync-skills.sh --target ~/
+
 # Copy portable + sei agents to a sibling repo
 ./scripts/sync-agents.sh --target ~/tide-workspace/platform --categories portable,sei
 
+# Copy sei skills (chaos-suite, harbor-dev) to user-level
+./scripts/sync-skills.sh --target ~/ --categories sei
+
 # See what would be copied
 ./scripts/sync-agents.sh --target ~/ --dry-run
+./scripts/sync-skills.sh --target ~/ --dry-run
 ```
 
 Categories: `portable` (default), `sei`, `tide-only`, `all`.
 
-The script is non-destructive by default — it refuses to overwrite existing files in the target unless `--force` is passed. `make sync-agents` passes `--force` so subsequent runs pick up Tide updates cleanly. Run the script directly without `--force` if you want to be prompted on conflicts.
+Both scripts are non-destructive by default — they refuse to overwrite existing files in the target unless `--force` is passed. The Make targets pass `--force` so subsequent runs pick up Tide updates cleanly. Run the scripts directly without `--force` if you want to be prompted on conflicts.
 
 ## How to Use These Agents
 
