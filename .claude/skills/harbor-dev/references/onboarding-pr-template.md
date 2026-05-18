@@ -128,6 +128,20 @@ replacements:
         options:
           delimiter: "/"
           index: 2
+      - select:
+          kind: ClusterRoleBinding
+        fieldPaths:
+          - metadata.name
+        options:
+          delimiter: "-"
+          index: 5
+      - select:
+          kind: ClusterRoleBinding
+        fieldPaths:
+          - subjects.0.namespace
+        options:
+          delimiter: "-"
+          index: 1
 ```
 
 ## File 2: `clusters/harbor/engineers/kustomization.yaml` (platform repo, modified)
