@@ -18,7 +18,7 @@ The 5 fields engineers actually edit (or seictl renders):
 - `spec.template` — `SeiNodeTemplate` (stamped N times, same shape as `SeiNode.spec`)
 - `spec.template.spec.overrides` — flat map of dotted TOML keys (`config.toml`/`app.toml`/`client.toml`) merged onto mode defaults at config-apply.
 - `spec.genesis` — optional genesis ceremony config (chainId, validators, fork support)
-- `spec.genesis.overrides` — dotted-JSON keys merged onto `genesis.json` before gentx (chain params: `app_state.staking.params.unbonding_time`, `consensus_params.block.max_gas`).
+- `spec.genesis.overrides` — flat map with dotted cosmos-module-path KEYS, merged into `app_state` before gentx. First key segment must be a module (`staking`, `bank`, `gov`, ...) — `app_state.` prefix is wrong, and `consensus_params.*` isn't reachable. Example: `"staking.params.unbonding_time": "600s"`. Cannot be emitted via seictl `--set`; render with seictl, then patch the YAML with `yq` (see `seictl-cli.md`).
 - `spec.networking` — HTTPRoute, ClusterIP Service, AuthorizationPolicy
 - `spec.updateStrategy` — `InPlace` / `BlueGreen` / `HardFork`
 
