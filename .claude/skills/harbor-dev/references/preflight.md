@@ -10,6 +10,7 @@ The end state pre-flight delivers:
 
 - `seictl` ≥ v0.0.43 on PATH (the version that ships peer auto-wire)
 - `yq` on PATH (the render path pipes `seictl nd apply --dry-run` through it)
+- `flux` CLI on PATH (used to force-reconcile harbor after a merge instead of waiting on the natural poll interval)
 - AWS SSO session active under the engineer's chosen profile
 - `harbor` kubectl context present **and current**
 - kubectl can list `seinodedeployments` in `eng-<alias>` (proof of EKS access entry + RBAC)
@@ -88,6 +89,28 @@ sudo chmod +x /usr/local/bin/yq
 ```
 
 Halt until `command -v yq` returns 0.
+
+### Gate 2b: `flux` CLI installed
+
+**Verifies:** `flux` is on `$PATH`.
+
+```sh
+command -v flux
+```
+
+**Why:** the post-merge reconcile pattern (`flux reconcile kustomization flux-system --with-source -n flux-system`) is the fast path from "PR merged" to "manifests applied in cluster." Without `flux`, the fallback is `kubectl annotate kustomization flux-system reconcile.fluxcd.io/requestedAt=$(date +%s) --overwrite -n flux-system`, which works but doesn't fetch the latest source revision in the same call.
+
+**Recovery (in-band):**
+
+```sh
+# macOS
+brew install fluxcd/tap/flux
+
+# Linux (any arch) — install script
+curl -s https://fluxcd.io/install.sh | sudo bash
+```
+
+`flux` reuses kubectl's kubeconfig + current context; no separate auth setup. Halt until `command -v flux` returns 0.
 
 ### Gate 3: AWS SSO session active for the engineer's chosen profile
 

@@ -2,6 +2,8 @@
 
 A new engineer's onboarding is one PR against `sei-protocol/platform` adding three files plus a sibling PR against `sei-protocol/harbor-engineering-workspace` adding one file. After both PRs merge, run a targeted `terraform apply`. Both pieces complete in under five minutes.
 
+**Canonical reference PR:** [sei-protocol/platform#587](https://github.com/sei-protocol/platform/pull/587) — the fromtherain re-onboard. Use this as the diff template for new engineers; the shape is current with the latest base-template additions (including the templated rbac-proxy ClusterRoleBinding).
+
 Literal file shapes live in [`onboarding-pr-template.md`](./onboarding-pr-template.md). Substitute `fromtherain` → `<alias>` throughout.
 
 ## Files in the PR

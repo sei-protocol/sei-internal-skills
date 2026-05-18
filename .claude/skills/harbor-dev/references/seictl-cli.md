@@ -180,6 +180,30 @@ Layered with `--chain-id` and `--image`, the `genesis` block populates and `spec
 
 **Default replicas: 4.** Override with `--replicas` or `--set spec.replicas=N`.
 
+**Genesis params** (chain-level, applied to `genesis.json` before gentx):
+
+```
+--set spec.genesis.overrides.<dotted.path>=<value>
+```
+
+Repeatable. Keys are dotted JSON paths into `genesis.json`. Examples:
+
+```
+--set spec.genesis.overrides.app_state.staking.params.unbonding_time=60s
+--set spec.genesis.overrides.consensus_params.block.max_gas=10000000
+```
+
+There is no dedicated `--genesis-override` flag — only `--set`. Distinct from `--override`, which targets `spec.template.spec.overrides` (per-node config.toml/app.toml, applied at config-apply time).
+
+**Funded accounts at genesis** (`--genesis-account <address>:<balance>`, repeatable, requires `--preset genesis-chain`):
+
+```
+--genesis-account sei1abc...:1000000000000usei
+--genesis-account 0xDEAD...:1000000000000000000000usei,500uatom
+```
+
+Address can be bech32 (`sei1...`) or 0x-hex. Balance accepts the standard Cosmos coin format — one or more `<int><denom>` entries, comma-separated. Appends entries to `spec.genesis.accounts`. `--set spec.genesis.accounts[N]...` overrides on collision.
+
 ### `rpc`
 
 Full-node fleet that peers to an existing chain by label selector.
