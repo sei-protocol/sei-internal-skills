@@ -8,7 +8,7 @@ A pre-flight that just rejects on missing prereqs gives engineers an error and w
 
 The end state pre-flight delivers:
 
-- `seictl` ≥ v0.0.43 on PATH (the version that ships peer auto-wire)
+- `seictl` ≥ v0.0.51 on PATH (the version that ships `--genesis-override`; peer auto-wire is from v0.0.43)
 - `yq` on PATH (the render path pipes `seictl nd apply --dry-run` through it)
 - `flux` CLI on PATH (used to force-reconcile harbor after a merge instead of waiting on the natural poll interval)
 - AWS SSO session active under the engineer's chosen profile
@@ -20,14 +20,14 @@ That's the floor for `seictl nd apply`. Below this floor, no procedure can proce
 
 ## The gates
 
-### Gate 1: `seictl ≥ v0.0.43` installed
+### Gate 1: `seictl ≥ v0.0.51` installed
 
-**Verifies:** `seictl` is on `$PATH` and supports the `nodedeployment` verb tree with peer auto-wire.
+**Verifies:** `seictl` is on `$PATH` and supports the `nodedeployment` verb tree with peer auto-wire and `--genesis-override`.
 
 Two-part check:
 
 1. `command -v seictl` returns 0.
-2. `seictl nodedeployment --help` exits 0. The `nodedeployment` verb tree ships in v0.0.41+; peer auto-wire (`spec.template.spec.peers[0].label.selector.sei.io/chain` populated automatically when `--chain-id` is set on the `rpc` preset) is v0.0.43+. Without v0.0.43, the rpc fleet won't peer to the genesis chain on a single `--chain-id`, and the agent has to plumb `--set` overrides — friction that's avoidable.
+2. `seictl nodedeployment apply --help` exits 0 and the help text includes `--genesis-override`. The `nodedeployment` verb tree ships in v0.0.41+; peer auto-wire (`spec.template.spec.peers[0].label.selector.sei.io/chain` populated automatically when `--chain-id` is set on the `rpc` preset) is v0.0.43+; `--genesis-override` is v0.0.51+. Without v0.0.51, genesis-param injection requires manual YAML editing — friction that's avoidable.
 
 **Why:** every engineer-facing verb is a `seictl nd …` invocation, and the auto-wire is what makes "spin up chain + RPC fleet on the same chain-id" a one-shot. Older binaries silently drop the wiring.
 
