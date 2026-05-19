@@ -7,7 +7,7 @@ description: "Use when an engineer needs ephemeral Sei chains, RPC fleets, bench
 
 Engineer-facing interface to Sei platform infrastructure on the **harbor** EKS cluster. The engineer describes what they want; intent translates into `seictl nd` invocations against their namespace. The engineer doesn't need to remember the SeiNodeDeployment field set, what kustomize replacements look like, or which preset wires the rpc peer selector — `seictl` and this skill carry that.
 
-This is the conversational layer over `seictl nodedeployment` (sei-protocol/seictl, v0.0.43+). It mirrors `kubectl`-shaped semantics — apply, get, list, watch, delete — driven by preset names instead of hand-rolled YAML.
+This is the conversational layer over `seictl nodedeployment` (sei-protocol/seictl, v0.0.51+). It mirrors `kubectl`-shaped semantics — apply, get, list, watch, delete — driven by preset names instead of hand-rolled YAML.
 
 ## Guardrails
 
@@ -50,7 +50,7 @@ Pre-flight is a sequenced ramp from "fresh laptop" to "ready to apply against en
 
 | # | Gate | Detect with | If missing → |
 |---|---|---|---|
-| 1 | `seictl ≥ v0.0.43` on PATH | `command -v seictl` returns 0; `seictl nodedeployment --help` exits 0 (the `nodedeployment` verb tree only exists in v0.0.41+, peer auto-wire in v0.0.43+) | See `references/preflight.md#install-seictl` for the platform-specific install pipeline (prebuilt binaries from GitHub releases; build-from-source fallback when newer than latest release). **Not** via `brew` (no tap) and **not** via `go install` (source-tree build flags required). Halt until `command -v seictl` succeeds. |
+| 1 | `seictl ≥ v0.0.51` on PATH | `command -v seictl` returns 0; `seictl nodedeployment --help` exits 0 and lists `--genesis-override` (added v0.0.51 alongside peer auto-wire from v0.0.43+) | See `references/preflight.md#install-seictl` for the platform-specific install pipeline (prebuilt binaries from GitHub releases; build-from-source fallback when newer than latest release). **Not** via `brew` (no tap) and **not** via `go install` (source-tree build flags required). Halt until `command -v seictl` succeeds. |
 | 2 | AWS SSO session active for the engineer's chosen profile | `aws sts get-caller-identity --profile <profile>` returns 0, where `<profile>` is resolved per the profile-detection flow below. After resolution, **echo the assumed identity** (`Arn` from the response) so the engineer sees what's about to act on the cluster. | If session is expired: surface `aws sso login --profile <profile>`; halt. If no profile is configured: surface `aws configure sso`; halt. See "Profile detection" below for the resolution flow. |
 | 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` (or the EKS ARN form) | Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>` directly (using the profile resolved at gate 2); re-check; continue. |
 | 4 | kubectl can reach harbor with engineer-side reach | `kubectl auth can-i list seinodedeployments -n eng-<alias> --context=harbor` returns `yes` | EKS access entry not granted, or scoped read-only. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
@@ -335,4 +335,4 @@ No per-run state is maintained here. Operation is stateless between invocations:
 
 ---
 
-The verb table above reflects what `seictl nd --help` emits in v0.0.43+. Reference files are aligned to the shipped output shape (native CR on stdout, `metav1.Status` on stderr, NDJSON for watch). When this file disagrees with `seictl nd --help`, the CLI wins.
+The verb table above reflects what `seictl nd --help` emits in v0.0.51+. Reference files are aligned to the shipped output shape (native CR on stdout, `metav1.Status` on stderr, NDJSON for watch). When this file disagrees with `seictl nd --help`, the CLI wins.

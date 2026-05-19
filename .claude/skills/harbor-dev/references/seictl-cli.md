@@ -180,35 +180,22 @@ Layered with `--chain-id` and `--image`, the `genesis` block populates and `spec
 
 **Default replicas: 4.** Override with `--replicas` or `--set spec.replicas=N`.
 
-**Genesis params** (chain-level, applied to `genesis.json` before gentx):
+**Genesis params** (`--genesis-override <module.field[.field...]>=<value>`, repeatable, requires `--preset genesis-chain`):
 
-`spec.genesis.overrides` is a flat `map[string]<JSON>` where each key is a dotted cosmos-module path: `<module>.<field>[.<field>...]`. The first segment must be a cosmos module that exists in `app_state` (`staking`, `bank`, `gov`, `mint`, `slashing`, etc.). The leaf value can be any JSON.
-
-**`seictl --set` cannot emit this shape** — it splits dotted paths into nested maps, but the sidecar's `applyGenesisOverrides` requires the dots to live INSIDE the key string. Workflow: render the SND with seictl, then patch the YAML directly (or via `yq`) to inject the flat keys.
-
-Render-then-patch with yq:
-
-```sh
-seictl nd apply <name> --preset genesis-chain --chain-id <id> --image <ref> -n eng-<alias> --dry-run \
-  | yq -P 'del(.metadata.managedFields, .metadata.uid, .metadata.resourceVersion, .metadata.creationTimestamp, .metadata.generation)' \
-  | yq -P '.spec.genesis.overrides."staking.params.unbonding_time" = "600s"' \
-  > snd-<id>.yaml
+```
+--genesis-override staking.params.unbonding_time=600s
+--genesis-override bank.params.default_send_enabled=true
+--genesis-override gov.params.voting_period_seconds=120
+--genesis-override mint.params.inflation='{"min":0.05,"max":0.2}'
 ```
 
-Working examples (note: keys are quoted because they contain dots; values are JSON-typed — strings need quoting in YAML):
+Each entry writes a flat dotted-key into `spec.genesis.overrides`. The first segment is a cosmos module that exists in `app_state` (`staking`, `bank`, `gov`, `mint`, `slashing`, etc.). Values parse as JSON when they parse (numbers, bools, objects, arrays); otherwise as raw strings. To force a numeric-looking value to render as string, wrap in JSON quotes: `--genesis-override foo.bar='"42"'`.
 
-```yaml
-spec:
-  genesis:
-    overrides:
-      "staking.params.unbonding_time": "600s"
-      "bank.params.default_send_enabled": true
-      "gov.params.voting_period": "120s"
-```
+Single-segment keys (`--genesis-override staking=...`) and empty values are rejected at apply time.
 
-**Not supported via this path:** `consensus_params.*` (CometBFT consensus params, sibling to `app_state` in `genesis.json`, not under any cosmos module). If you need to change `block.max_gas`, `validator.pub_key_types`, etc., it's not currently reachable through `spec.genesis.overrides` — file a follow-up or use a different mechanism.
+**Not reachable via this flag:** `consensus_params.*` (CometBFT consensus params, sibling to `app_state` in `genesis.json`, not under any cosmos module). If you need to change `block.max_gas`, `validator.pub_key_types`, etc., it's not currently reachable through `spec.genesis.overrides`.
 
-Distinct from `--override`, which targets `spec.template.spec.overrides` (per-node `config.toml`/`app.toml`, applied at config-apply time) and DOES work via the seictl CLI.
+Distinct from `--override`, which targets `spec.template.spec.overrides` (per-node `config.toml`/`app.toml`, applied at config-apply time).
 
 **Funded accounts at genesis** (`--genesis-account <address>:<balance>`, repeatable, requires `--preset genesis-chain`):
 
