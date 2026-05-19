@@ -180,7 +180,7 @@ Layered with `--chain-id` and `--image`, the `genesis` block populates and `spec
 
 **Default replicas: 4.** Override with `--replicas` or `--set spec.replicas=N`.
 
-**Genesis params** (`--genesis-override <module.field[.field...]>=<value>`, repeatable, requires `--preset genesis-chain`, available since v0.0.51):
+**Genesis params** (`--genesis-override <module.field[.field...]>=<value>`, repeatable, requires `--preset genesis-chain`):
 
 ```
 --genesis-override staking.params.unbonding_time=600s
@@ -191,7 +191,7 @@ Layered with `--chain-id` and `--image`, the `genesis` block populates and `spec
 
 Each entry writes a flat dotted-key into `spec.genesis.overrides`. The first segment is a cosmos module that exists in `app_state` (`staking`, `bank`, `gov`, `mint`, `slashing`, etc.). Values parse as JSON when they parse (numbers, bools, objects, arrays); otherwise as raw strings. To force a numeric-looking value to render as string, wrap in JSON quotes: `--genesis-override foo.bar='"42"'`.
 
-Local key-shape validation runs at apply time — single-segment keys (`--genesis-override staking=...`) and empty values are rejected up front rather than after the SND has stalled retrying the assemble-genesis task.
+Single-segment keys (`--genesis-override staking=...`) and empty values are rejected at apply time.
 
 **Not reachable via this flag:** `consensus_params.*` (CometBFT consensus params, sibling to `app_state` in `genesis.json`, not under any cosmos module). If you need to change `block.max_gas`, `validator.pub_key_types`, etc., it's not currently reachable through `spec.genesis.overrides`.
 

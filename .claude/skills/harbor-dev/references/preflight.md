@@ -8,7 +8,7 @@ A pre-flight that just rejects on missing prereqs gives engineers an error and w
 
 The end state pre-flight delivers:
 
-- `seictl` ≥ v0.0.51 on PATH (the version that ships `--genesis-override`; peer auto-wire is from v0.0.43)
+- `seictl` ≥ v0.0.51 on PATH (the version that ships `--genesis-override`)
 - `yq` on PATH (the render path pipes `seictl nd apply --dry-run` through it)
 - `flux` CLI on PATH (used to force-reconcile harbor after a merge instead of waiting on the natural poll interval)
 - AWS SSO session active under the engineer's chosen profile
