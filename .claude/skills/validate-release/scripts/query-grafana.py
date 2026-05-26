@@ -43,7 +43,8 @@ QUERIES = {
     "block_time_p95":    'chaos_suite:block_time_p95:rate2m{{chain_id="{cid}"}}',
     "tps":               'chaos_suite:tps:rate1m{{chain_id="{cid}"}}',
     "mempool_size":      'chaos_suite:mempool_size:max{{chain_id="{cid}"}}',
-    # Used by compute-stats for reliable halt detection (rate==0 = no blocks)
+    # Used by compute-stats for halt detection (rate<0.01 = effectively no new blocks)
+    # Backed by tendermint_consensus_latest_block_height
     "block_height_delta": 'chaos_suite:block_height_delta:rate2m{{chain_id="{cid}"}}',
 }
 

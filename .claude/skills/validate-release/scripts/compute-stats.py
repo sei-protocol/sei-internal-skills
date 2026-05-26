@@ -26,7 +26,7 @@ OUTCOMES = ("PASS", "DEGRADED", "HALT+RECOVER", "FAIL")
 def stats_from_window(window: dict) -> dict:
     """Extract per-metric stats from a single window dict."""
     result = {}
-    for metric in ("block_time_p50", "block_time_p95", "tps", "mempool_size"):
+    for metric in ("block_time_p50", "block_time_p95", "tps", "mempool_size", "block_height_delta"):
         m = window.get(metric, {})
         if not isinstance(m, dict) or m.get("no_data"):
             result[metric] = {"avg": None, "min": None, "max": None, "count": 0}
@@ -76,7 +76,8 @@ def classify_outcome(
     # Recording rules carry stale values forward (Prometheus 5m staleness),
     # so count >= 2 even during a real halt. Rate==0 reliably means no blocks.
     bt_height_rate = chaos_stats.get("block_height_delta", {}).get("avg")
-    halted = (bt_height_rate is not None and bt_height_rate == 0) or bt_chaos_count < HALT_BLOCK_COUNT_THRESHOLD
+    # <0.01 blocks/sec = effectively halted; strict ==0 would miss a single late block in the window
+    halted = (bt_height_rate is not None and bt_height_rate < 0.01) or bt_chaos_count < HALT_BLOCK_COUNT_THRESHOLD
     if halted:
         if recovery_seconds is not None and recovery_seconds < chaos_duration * CLEAN_RECOVERY_MULTIPLIER:
             return "HALT+RECOVER"
