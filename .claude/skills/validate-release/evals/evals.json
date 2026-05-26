@@ -1,0 +1,88 @@
+[
+  {
+    "id": "happy-path-full-suite",
+    "description": "Full suite with 13/13 reports and valid Grafana token produces a Notion page and notifies the user.",
+    "input": "/validate-release abc1234-20260527",
+    "env": {
+      "GRAFANA_TOKEN": "<valid>",
+      "GRAFANA_BASE_URL": "https://grafana.prod.platform.sei.io",
+      "GRAFANA_DASHBOARD_UID": "nightly",
+      "NOTION_DATABASE_ID": "<valid>",
+      "AWS_PROFILE": "sei"
+    },
+    "mocks": {
+      "s3://harbor-validation-results/nightly/chaos-*/abc1234-20260527/report.json": "fixtures/seiload-report.json",
+      "GET /api/org": {"status": 200, "body": {"name": "Sei Platform"}},
+      "GET /api/dashboards/uid/nightly": "fixtures/dashboard.json",
+      "GET /api/datasources/proxy/uid/prometheus-prod/api/v1/query_range": "fixtures/prometheus-response.json",
+      "GET /render/d-solo/nightly": {"status": 200, "body": "fixtures/panel.png"},
+      "mcp__claude_ai_Notion__notion-create-pages": {"status": "ok", "url": "https://notion.so/test-page"}
+    },
+    "assertions": [
+      "skill calls check-grafana.sh and it exits 0",
+      "skill echoes SUITE_ID + scenario count before dispatching agent",
+      "platform-release-manager agent is dispatched with run_in_background=true",
+      "collect-reports.py is called with --suite-id abc1234-20260527",
+      "query-grafana.py is called",
+      "render-panels.py is called",
+      "upload-images.py is called",
+      "notion-create-pages is called once",
+      "user is notified with Notion URL",
+      "state/run-<ts>/audit.log is written"
+    ]
+  },
+  {
+    "id": "halt-missing-grafana-token",
+    "description": "Skill refuses to proceed when GRAFANA_TOKEN is not set.",
+    "input": "/validate-release abc1234-20260527",
+    "env": {
+      "GRAFANA_TOKEN": "",
+      "NOTION_DATABASE_ID": "<valid>",
+      "AWS_PROFILE": "sei"
+    },
+    "assertions": [
+      "skill calls check-grafana.sh",
+      "check-grafana.sh exits 1",
+      "skill prints the service account setup instructions",
+      "skill does NOT call collect-reports.py",
+      "skill does NOT call notion-create-pages",
+      "no state directory is created"
+    ]
+  },
+  {
+    "id": "halt-zero-reports",
+    "description": "Skill halts when SUITE_ID resolves to zero S3 reports.",
+    "input": "/validate-release missing-suite-id",
+    "env": {
+      "GRAFANA_TOKEN": "<valid>",
+      "NOTION_DATABASE_ID": "<valid>",
+      "AWS_PROFILE": "sei"
+    },
+    "mocks": {
+      "s3://harbor-validation-results/nightly/chaos-*/missing-suite-id/report.json": null
+    },
+    "assertions": [
+      "resolve-suite-id.py exits 1 with message about zero reports",
+      "skill surfaces the error to the user",
+      "skill does NOT dispatch the background agent"
+    ]
+  },
+  {
+    "id": "partial-suite-user-confirm",
+    "description": "When fewer than 13 but more than 4 reports exist, skill asks for confirmation before generating a partial report.",
+    "input": "/validate-release partial-suite-id",
+    "env": {
+      "GRAFANA_TOKEN": "<valid>",
+      "NOTION_DATABASE_ID": "<valid>",
+      "AWS_PROFILE": "sei"
+    },
+    "mocks": {
+      "s3_report_count": 8
+    },
+    "assertions": [
+      "skill informs user: 8/13 scenarios found",
+      "skill asks whether to generate partial report",
+      "skill does NOT dispatch agent without user confirmation"
+    ]
+  }
+]

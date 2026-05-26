@@ -51,6 +51,7 @@ Two complementary artifact-capture skills. Coral / council should offer them at 
 
 ### Release Operations
 - **`chaos-suite/`** — Execute the full chaos test suite (runbook: sei-protocol/platform#169) against a dev or staging Sei cluster and collate results into a release summary. **Status: scaffold** — follows the template; scripts are placeholders pending authoring against the live runbook. Tracking issue: sei-protocol/platform#170.
+- **`validate-release/`** — Collect results from a completed chaos suite run, query Grafana for per-scenario metrics (block time, TPS, success rate), render dashboard panels, and produce an executive-quality release validation report pushed to Notion via MCP. Dispatches `platform-release-manager` as a background agent. Trigger: `/validate-release [SUITE_ID]`.
 
 ### Engineer Self-Service
 - **`harbor-dev/`** — Engineer-facing interface to the harbor EKS cluster. Translates natural-language intent (spin up an ephemeral chain, attach an RPC fleet, run a bench, onboard me, tear it down) into `seictl nd` invocations and PR-based GitOps deliveries against `sei-protocol/harbor-engineering-workspace`. Built on `seictl` v0.0.43+.
