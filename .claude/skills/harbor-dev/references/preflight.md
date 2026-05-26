@@ -125,7 +125,7 @@ Engineers configure their own profiles; don't hardcode `sei` (or any other name)
 
 2. **`$AWS_PROFILE` is unset** → list configured profiles with `aws configure list-profiles`:
 
-   - **Zero profiles** → surface `aws configure sso` (run through profile setup). Halt until at least one profile exists.
+   - **Zero profiles** → walk the engineer through profile setup using the canonical Sei SSO session below (don't make them guess the start URL/region). Halt until at least one profile exists.
    - **Exactly one profile** → use it directly. Echo:
      > Using AWS profile `<name>` (only one configured) — resolved as: `<arn>`.
    - **Multiple profiles** → present the list and ask the engineer to choose. Default the prompt to `sei` if it's among them (the most common harbor-account profile name); otherwise no default. Frame the prompt clearly:
@@ -142,7 +142,20 @@ The whole point: the engineer chose what's authenticating — they should be abl
 
 harbor's EKS auth and ECR image pulls require live AWS credentials. SSO sessions expire (default 12h); refreshing is one command. Sessions that *look* alive (configured profile, recent login) but don't have the right *role* surface as `Forbidden` later — gate 5 catches that on the kubectl side; AWS-side permission gaps surface naturally per-operation.
 
-**Recovery (out-of-band):** `aws sso login --profile <chosen>`. If `~/.aws/config` is empty (truly fresh laptop), `aws configure sso` and route them through profile setup.
+**Recovery (out-of-band):** `aws sso login --profile <chosen>`. If `~/.aws/config` is empty (truly fresh laptop), route them through profile setup using the canonical Sei SSO session below.
+
+#### Canonical Sei SSO session
+
+A fresh-laptop engineer shouldn't have to guess the start URL or Identity Center region. Drop this `sso-session` block into `~/.aws/config`:
+
+```ini
+[sso-session sei]
+sso_start_url = https://d-916729b434.awsapps.com/start
+sso_region = us-west-1
+sso_registration_scopes = sso:account:access
+```
+
+Then run `aws configure sso --sso-session sei` — it reuses this session and prompts for the account and role: select account **`189176372795`** (the Sei/harbor account) and your granted role. It writes a `[profile …]` that references the session. Log in any time after with `aws sso login --sso-session sei`. Note `sso_region` (`us-west-1`, where Identity Center lives) is distinct from the resulting profile's `region` (the harbor cluster's region, `eu-central-1`) — they are not the same value.
 
 **Edge case — `Unable to locate credentials`:** a `--profile`-less `aws` call landed somewhere downstream. Every AWS-touching invocation needs `--profile <chosen>` explicit on the command (or `AWS_PROFILE=<chosen>` in the environment). Most common false-negative on this gate.
 
