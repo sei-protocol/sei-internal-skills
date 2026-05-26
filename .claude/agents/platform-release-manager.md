@@ -39,24 +39,28 @@ Write all outputs to `state/run-<ts>/` as provided by the invoking skill.
 
 ### 2. Per-scenario analysis
 
-For each of the 13 scenarios, compute:
+**Do not derive statistics yourself.** Run `compute-stats.py` (step 2b below) to get deterministic numbers, then narrate them.
 
-**Quantitative deltas** (compare baseline window vs. chaos window):
-- Block time: baseline avg → chaos avg → recovery avg (express as Δ or ×)
-- TPS: baseline → chaos → recovery
-- Tx success rate: baseline → chaos → recovery
-- Mempool: baseline peak → chaos peak
+**Step 2a — Collect metrics**: Run `scripts/query-grafana.py --suite-id <ID> --out state/run-<ts>/metrics/`
 
-**Outcome classification**:
-- `PASS`: chain produced blocks throughout, metrics recovered to baseline within 2× chaos duration
-- `HALT+RECOVER`: chain halted (expected for >1/3 disruption), resumed cleanly, zero data loss
-- `DEGRADED`: measurable impact, chain continued, full recovery
-- `FAIL`: unexpected behavior, chain did not recover, or metrics diverged
+**Step 2b — Compute verdicts**: Run `scripts/compute-stats.py --metrics-dir state/run-<ts>/metrics/ --out state/run-<ts>/verdicts/`
 
-**Narrative generation**: Write three paragraphs per scenario:
-1. **Summary** — one sentence: what was done and what happened
-2. **Key Signals** — data-driven narrative using the computed deltas. Quote specific numbers. Explain what each metric movement means.
-3. **Release Significance** — why this test outcome matters for the release. Connect to BFT theory. What failure mode does this rule out?
+This emits `state/run-<ts>/verdicts/<scenario>/verdict.json` for each scenario with:
+- `outcome`: deterministic PASS/DEGRADED/HALT+RECOVER/FAIL (code-computed)
+- `deltas`: exact ratio of chaos vs baseline for each metric
+- `recovery_seconds`: seconds to return to ≤110% baseline (null if not recovered)
+- `noise_flag`: true when fewer than 6 samples — note this in the narrative
+
+**Step 2c — Narrative generation**: For each scenario, read `verdict.json` and write:
+1. **Summary** — one sentence stating the outcome and the injected fault
+2. **Key Signals** — quote the exact numbers from `verdict.json`. Express deltas as "block_time_p50 rose from Xs (baseline) to Ys (chaos), a Z× increase; recovered in Tm." If `noise_flag` is true, add: "Note: only N samples in the chaos window — delta is indicative, not precise."
+3. **Release Significance** — why this outcome matters for the release. Apply BFT theory explicitly when relevant.
+
+**Outcome interpretation** (already applied by compute-stats.py — narrate, don't reclassify):
+- `PASS`: chain absorbed the fault without meaningful degradation
+- `DEGRADED`: >20% block time increase; chain continued; recovery confirmed
+- `HALT+RECOVER`: chain halted (expected when >1/3 validators affected by BFT threshold); resumed cleanly
+- `FAIL`: halted and did not self-recover, or unexpected divergence
 
 ### 3. Executive Summary synthesis
 

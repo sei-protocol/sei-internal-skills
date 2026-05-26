@@ -12,6 +12,7 @@ Each script handles one logical step. All are standalone — run them directly f
 | `query-grafana.py` | Query Grafana data API for per-scenario time series | `--suite-id <id> --out <dir>` |
 | `render-panels.py` | Render TPS/block-time/errors panel PNGs per scenario | `--suite-id <id> --out <dir>` |
 | `upload-images.py` | Upload PNGs to S3, return presigned URLs | `--dir <dir> --suite-id <id>` |
+| `compute-stats.py` | Deterministic outcome classification and delta computation from window JSONs | `--metrics-dir <dir> --out <dir>` |
 | `push-notion.py` | Create Notion page from assembled report data | `--suite-id <id> --state-dir <dir>` |
 
 ## Common env vars

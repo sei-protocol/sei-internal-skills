@@ -86,11 +86,12 @@ Tell the user: **"Generating report for suite `<SUITE_ID>`. I'll notify you when
 The `platform-release-manager` agent runs:
 
 1. `scripts/collect-reports.py --suite-id <ID> --out state/run-<ts>/reports/` — downloads all 13 seiload JSON reports from S3.
-2. `scripts/query-grafana.py --suite-id <ID> --out state/run-<ts>/metrics/` — queries the Grafana data API for each scenario's time window (baseline / chaos / recovery); extracts key time series.
-3. `scripts/render-panels.py --suite-id <ID> --out state/run-<ts>/panels/` — renders TPS, block-time, and error-rate panel PNGs per scenario.
-4. `scripts/upload-images.py --dir state/run-<ts>/panels/ --suite-id <ID>` — uploads PNGs to S3, returns presigned URLs (7-day expiry).
-5. Analysis and report assembly (agent reasoning step — see `references/analysis-guide.md`).
-6. `scripts/push-notion.py --suite-id <ID> --state-dir state/run-<ts>/` — creates the Notion page using the MCP tool.
+2. `scripts/query-grafana.py --suite-id <ID> --out state/run-<ts>/metrics/` — queries Grafana's datasource proxy (recording-rule-backed scalars) for each scenario's time window; returns consistent stats dicts.
+3. `scripts/compute-stats.py --metrics-dir state/run-<ts>/metrics/ --out state/run-<ts>/verdicts/` — deterministic outcome classification and delta computation; emits `verdict.json` per scenario with `outcome`, `deltas`, `recovery_seconds`, `noise_flag`.
+4. `scripts/render-panels.py --suite-id <ID> --metrics-dir state/run-<ts>/metrics/ --out state/run-<ts>/panels/` — renders TPS, block-time, and error-rate panel PNGs scoped to each scenario's chaos window.
+5. `scripts/upload-images.py --dir state/run-<ts>/panels/ --suite-id <ID>` — uploads PNGs to S3, returns presigned URLs (7-day expiry).
+6. Report assembly — agent narrates `verdict.json` outputs (no arithmetic); see `references/analysis-guide.md`.
+7. `scripts/push-notion.py --suite-id <ID> --state-dir state/run-<ts>/` — assembles Notion payload from verdicts + image URLs; triggers `mcp__claude_ai_Notion__notion-create-pages`.
 
 ### Step 3 — Notify
 
