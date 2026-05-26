@@ -16,13 +16,32 @@ Before proceeding:
 1. **Token check** — verify `GRAFANA_TOKEN` is set and valid with `scripts/check-grafana.sh`. If the token is missing or expired, surface the service-account setup instructions and stop.
 2. **Notion check** — verify the Notion MCP is authenticated (`/mcp` → claude.ai Notion) and `NOTION_DATABASE_ID` is set.
 3. **Data check** — verify the SUITE_ID has at least one S3 report before starting full collection. A suite with zero reports should halt, not produce an empty page.
-4. **Refusal conditions** — refuse to run if:
+4. **Scope confirmation** — before dispatching the background agent, echo the target and wait for explicit user confirmation:
+   ```
+   Suite:     <SUITE_ID>
+   seid SHA:  <sha7>
+   Reports:   <N>/13 found in S3
+   Notion DB: <NOTION_DATABASE_ID>
+   Type 'confirm' to proceed, or anything else to abort.
+   ```
+5. **Refusal conditions** — refuse to run if:
    - `GRAFANA_TOKEN` is unset or returns 401
    - Notion MCP is not authenticated
    - `NOTION_DATABASE_ID` is unset
    - SUITE_ID resolves to zero S3 reports
 
 See `references/guardrails.md` for the detailed safety model.
+
+## Permissions (pre-approved happy-path)
+
+Add to `.claude/settings.json` under `permissions.allow`:
+```json
+"Bash(aws s3 ls *)",
+"Bash(aws s3 cp *harbor-validation-results*)",
+"Bash(aws s3 presign *)",
+"Bash(python3 .claude/skills/validate-release/scripts/*.py *)",
+"Bash(bash .claude/skills/validate-release/scripts/check-grafana.sh)"
+```
 
 ## Preconditions
 

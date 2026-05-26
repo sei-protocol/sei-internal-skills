@@ -100,7 +100,7 @@ def derive_windows(suite_id, chain_id_prefix):
     # Fallback: use the date from SUITE_ID
     date_str = suite_id.split("-", 1)[-1]  # e.g. "20260527" from "abc1234-20260527"
     try:
-        d = datetime.strptime(date_str, "%Y%m%d").replace(hour=1)  # suite fires at 01:00 UTC
+        d = datetime.strptime(date_str, "%Y%m%d").replace(hour=0)  # suite fires at 01:00 UTC
         epoch = int(d.timestamp())
         return {
             "baseline": (epoch - 300,           epoch),

@@ -46,6 +46,7 @@ def render(panel_id, chain_id, start_ms, end_ms, width=800, height=300):
         f"?orgId=1&panelId={panel_id}"
         f"&from={start_ms}&to={end_ms}"
         f"&var-chain_id={chain_id}"
+        f"&var-benchmark_namespaces=nightly"
         f"&width={width}&height={height}&theme=dark"
     )
     resp = requests.get(url, headers={"Authorization": f"Bearer {TOKEN}"}, timeout=60)
