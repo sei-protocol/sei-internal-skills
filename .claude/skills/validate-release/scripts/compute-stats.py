@@ -72,8 +72,12 @@ def classify_outcome(
     bt_chaos_count = chaos_stats.get("block_time_p50", {}).get("count", 0)
     bt_chaos_avg = chaos_stats.get("block_time_p50", {}).get("avg")
 
-    # HALT: chain stopped producing blocks during chaos
-    if bt_chaos_count < HALT_BLOCK_COUNT_THRESHOLD:
+    # HALT: use block height delta rather than recording-rule sample count.
+    # Recording rules carry stale values forward (Prometheus 5m staleness),
+    # so count >= 2 even during a real halt. Rate==0 reliably means no blocks.
+    bt_height_rate = chaos_stats.get("block_height_delta", {}).get("avg")
+    halted = (bt_height_rate is not None and bt_height_rate == 0) or bt_chaos_count < HALT_BLOCK_COUNT_THRESHOLD
+    if halted:
         if recovery_seconds is not None and recovery_seconds < chaos_duration * CLEAN_RECOVERY_MULTIPLIER:
             return "HALT+RECOVER"
         return "FAIL"  # halted and did not recover cleanly
