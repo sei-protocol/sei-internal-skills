@@ -26,7 +26,7 @@ OUTCOMES = ("PASS", "DEGRADED", "HALT+RECOVER", "FAIL")
 def stats_from_window(window: dict) -> dict:
     """Extract per-metric stats from a single window dict."""
     result = {}
-    for metric in ("block_time_p50", "block_time_p95", "tps", "mempool_size", "block_height_delta"):
+    for metric in ("block_time_p50", "block_time_p95", "tps", "tx_success_rate", "mempool_size", "block_height_delta"):
         m = window.get(metric, {})
         if not isinstance(m, dict) or m.get("no_data"):
             result[metric] = {"avg": None, "min": None, "max": None, "count": 0}
@@ -132,10 +132,11 @@ def compute_verdict(scenario_dir: Path) -> dict:
         "chaos": c,
         "recovery": r,
         "deltas": {
-            "block_time_p50": delta("block_time_p50"),
-            "block_time_p95": delta("block_time_p95"),
-            "tps":            delta("tps"),
-            "mempool_size":   delta("mempool_size"),
+            "block_time_p50":   delta("block_time_p50"),
+            "block_time_p95":   delta("block_time_p95"),
+            "tps":              delta("tps"),
+            "tx_success_rate":  delta("tx_success_rate"),
+            "mempool_size":     delta("mempool_size"),
         },
         "recovery_seconds": round(recovery_seconds, 1) if recovery_seconds is not None else None,
         "chaos_duration_seconds": chaos_dur,

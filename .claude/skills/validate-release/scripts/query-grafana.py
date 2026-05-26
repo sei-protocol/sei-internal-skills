@@ -39,12 +39,14 @@ SCENARIOS = [
 
 # Recording-rule-backed queries — agent reads scalars, not raw histograms.
 QUERIES = {
-    "block_time_p50":    'chaos_suite:block_time_p50:rate2m{{chain_id="{cid}"}}',
-    "block_time_p95":    'chaos_suite:block_time_p95:rate2m{{chain_id="{cid}"}}',
-    "tps":               'chaos_suite:tps:rate1m{{chain_id="{cid}"}}',
-    "mempool_size":      'chaos_suite:mempool_size:max{{chain_id="{cid}"}}',
-    # Used by compute-stats for halt detection (rate<0.01 = effectively no new blocks)
-    # Backed by tendermint_consensus_latest_block_height
+    "block_time_p50":     'chaos_suite:block_time_p50:rate2m{{chain_id="{cid}"}}',
+    "block_time_p95":     'chaos_suite:block_time_p95:rate2m{{chain_id="{cid}"}}',
+    # Exact committed TPS from sei_chain_app_tx_count_total (result="success")
+    "tps":                'chaos_suite:tps:rate1m{{chain_id="{cid}"}}',
+    # Fraction of txs that committed; drops under chaos
+    "tx_success_rate":    'chaos_suite:tx_success_rate:rate1m{{chain_id="{cid}"}}',
+    "mempool_size":       'chaos_suite:mempool_size:max{{chain_id="{cid}"}}',
+    # Used by compute-stats for halt detection (rate<0.01 = no new blocks)
     "block_height_delta": 'chaos_suite:block_height_delta:rate2m{{chain_id="{cid}"}}',
 }
 
