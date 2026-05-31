@@ -1,0 +1,67 @@
+name: pr-quality
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: pr-quality-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    # Skip on fork PRs — `pull_request` from a fork has a read-only token, so
+    # `pull-requests: write` is not honored. Posting a comment would silently
+    # fail. Switching to `pull_request_target` is a security footgun (the fork's
+    # workflow code would run with write tokens). v1 explicitly skips forks.
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Verify required secrets
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [[ -z "${ANTHROPIC_API_KEY:-}" ]]; then
+            echo "ANTHROPIC_API_KEY secret missing; skipping pr-quality run"
+            exit 0
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run pr-quality skill via claude-code-action
+        uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Apply the .claude/skills/pr-quality/ skill against this PR.
+            Follow the procedure in SKILL.md exactly. Do not invent rules
+            beyond the v1 registry. Do not post a comment when findings
+            count is zero. Do not future-proof.
+          claude_args: |
+            {
+              "model": "claude-opus-4-7",
+              "max_tokens": 8000
+            }
+        env:
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_REPO: ${{ github.repository }}
+          STATE_DIR: ${{ github.workspace }}/pr-quality-state/run-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+
+      - name: Upload pr-quality artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pr-quality-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: pr-quality-state/
+          retention-days: 14
+          if-no-files-found: ignore

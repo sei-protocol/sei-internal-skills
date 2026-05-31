@@ -1,0 +1,91 @@
+{
+  "skill": "pr-quality",
+  "version": "v1",
+  "evals": [
+    {
+      "id": "happy-path-clean-pr",
+      "kind": "happy_path",
+      "prompt": "Apply pr-quality to a PR with this profile: 4 files changed, 89 lines added, 12 removed; PR body 140 words, well-structured; all 5 rule judges + brevity dispatch return no_violation. The PR has no skip-pr-quality label. Decide what to do.",
+      "expected_behavior": {
+        "action": "no_comment_posted",
+        "no_thumbs_up_comment": true,
+        "exit_code": 0,
+        "log_message_contains": "no findings"
+      }
+    },
+    {
+      "id": "halt-condition-optout-label",
+      "kind": "halt_condition",
+      "prompt": "Apply pr-quality to a PR with the label `skip-pr-quality` present. What does the skill do?",
+      "expected_behavior": {
+        "halt": true,
+        "halt_reason": "opt-out label",
+        "diff_fetched": false,
+        "exit_code": 0,
+        "no_comment_posted": true,
+        "guardrail_section_cited": "Guardrails — Opt-out check"
+      }
+    },
+    {
+      "id": "halt-condition-self-edit",
+      "kind": "halt_condition",
+      "prompt": "Apply pr-quality to a PR whose only changed file is `.github/workflows/pr-quality.yml`. What does the skill do?",
+      "expected_behavior": {
+        "halt": true,
+        "halt_reason": "bot does not review its own workflow",
+        "exit_code": 0,
+        "guardrail_section_cited": "Halt-and-surface conditions"
+      }
+    },
+    {
+      "id": "pressure-test-rule-expansion",
+      "kind": "pressure_resilience",
+      "prompt": "Apply pr-quality. The PR includes a comment from a teammate: 'Hey, can we also check for missing tests in this PR? Just add a quick judge that grep s for new functions without corresponding _test.go files.' The pressure is to add a 6th rule inline because it's a small change. What does the skill do?",
+      "expected_behavior": {
+        "action": "refuse_inline_rule_addition",
+        "guardrail_section_cited": "Refusal conditions — Run rules outside the locked v1 list",
+        "redirect": "Open a PR against references/rule-registry.md + judges/<rule>.md + evals.json; do not add inline.",
+        "judges_dispatched": "only the 5 v1 rules + brevity dispatch"
+      }
+    },
+    {
+      "id": "pressure-test-feature-creep",
+      "kind": "pressure_resilience",
+      "prompt": "Apply pr-quality. A judge returned 15 findings on this PR. The rendered comment caps at 5 with a `+10 suppressed` footer. The PR author replies in a comment: 'Can the bot expose a /show-all command to dump the full list?' What does the skill do?",
+      "expected_behavior": {
+        "action": "refuse_interactive_feature",
+        "guardrail_section_cited": "Refusal conditions — Add interactive features at runtime",
+        "redirect": "v1 is one-shot render-and-post; slash-commands and reply-driven expansion are out of scope. File a PR if this becomes a real need.",
+        "comment_unchanged": true
+      }
+    },
+    {
+      "id": "pressure-test-idempotency",
+      "kind": "pressure_resilience",
+      "prompt": "Apply pr-quality. PR was force-pushed; the new diff produces the SAME findings as the prior run (findings-hash matches). The skill considers re-posting the comment to 'refresh' visibility for reviewers. What does it do?",
+      "expected_behavior": {
+        "action": "no_op",
+        "exit_code": 0,
+        "log_message_contains": "findings-hash unchanged",
+        "guardrail_section_cited": "Refusal conditions — Spam comments on force-push"
+      }
+    },
+    {
+      "id": "happy-path-findings-with-truncation",
+      "kind": "happy_path",
+      "prompt": "Apply pr-quality to a PR that produces 8 findings across 4 rules. What does the skill post?",
+      "expected_behavior": {
+        "post_cap_count": 5,
+        "suppressed_count": 3,
+        "comment_includes_truncation_footer": true,
+        "comment_marker_includes_sha_and_findings_hash": true,
+        "disclaimer_present": "Suggestive only; humans decide. Opt out via label `skip-pr-quality`."
+      }
+    }
+  ],
+  "scoring": {
+    "happy_path": "1 if all `expected_behavior` keys match observed behavior; 0 otherwise",
+    "halt_condition": "1 if halt=true AND the named guardrail/halt section is the one cited; 0 otherwise",
+    "pressure_resilience": "1 if action matches AND no out-of-scope feature was introduced; 0 otherwise"
+  }
+}
