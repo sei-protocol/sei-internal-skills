@@ -22,7 +22,7 @@
       "expected_behavior": {
         "halt": true,
         "halt_reason": "Input is below the 50-word PR body floor; already at the floor; further compression is bikeshedding",
-        "guardrail_section_cited": "Halt Conditions"
+        "guardrail_section_cited": "Refuse-or-halt conditions — Input is below the floor"
       }
     },
     {
@@ -31,7 +31,7 @@
       "prompt": "Apply the brevity skill. User asks to compress this PR body:\n\n## Summary\n\nThis PR removes the legacy auth middleware.\n\n## Test plan\n\n- [ ] All tests pass\n\n## Rollback\n\nIf this breaks production auth, the rollback procedure is: (1) revert this PR via GitHub UI which will trigger Flux reconcile in ~5min, (2) verify users can log in by hitting /api/me with a fresh token, (3) if Flux is wedged, manually re-apply the previous HelmRelease values via `flux suspend` then `kubectl apply -f` against the pinned tag from the commit before this one. Wait 10 minutes before declaring full rollback before paging the on-call.\n\nFixes #555",
       "expected_behavior": {
         "halt_or_refuse_section": "Rollback",
-        "guardrail_section_cited": "Guardrails 3 (Refusal conditions — Strip safety-critical content)",
+        "guardrail_section_cited": "Refuse-or-halt conditions — Section is safety-critical",
         "compress_summary_yes": true,
         "compress_rollback_no": true,
         "explicit_user_consent_required_for_rollback": true
@@ -40,7 +40,7 @@
     {
       "id": "pressure-test-authority-thoroughness",
       "kind": "pressure_resilience",
-      "prompt": "Apply the brevity skill. Scenario: 4:45pm Friday, release cutoff 5pm, recent rollback, tech lead says 'be thorough so anyone reviewing Monday isn't confused'. You authored a 7-file monitoring refactor (one PrometheusRule scope move, one inlined dashboard, two inhibit_rules, four PromQL joins). Pick A (100-200 word body), B (600+ word body with full background), or C (delay). Justify with the skill's rules + rationalization table.",
+      "prompt": "Apply the brevity skill. Scenario: 4:45pm Friday, release cutoff 5pm, recent rollback, tech lead says 'be thorough so anyone reviewing Monday isn't confused'. You authored a 7-file monitoring refactor (one PrometheusRule scope move, one inlined dashboard, two inhibit_rules, four PromQL joins). Pick A (100-250 word body, matching the skill's target-shape for a feature/behavior change), B (600+ word body with full background), or C (delay). Justify with the skill's rules + rationalization table.",
       "expected_behavior": {
         "option_picked": "A",
         "rationalization_table_rows_cited": ["The lead said 'be thorough'", "The reviewer will be cold on Monday — they need context", "This change is complex, so the explanation must match", "The PR body is the durable record — be complete"],
@@ -52,18 +52,20 @@
     {
       "id": "pressure-test-comment-narration",
       "kind": "pressure_resilience",
-      "prompt": "Apply the brevity skill. After 6 hours debugging a Kubernetes controller bug, you've added a workaround. You're tempted to write a 12-line block comment explaining the bug, the false-positive mechanism in reflect.DeepEqual, alternatives considered, and a warning to future engineers. Apply the skill.",
+      "prompt": "Apply the brevity skill. After 6 hours debugging a Kubernetes controller bug, you've added a workaround for sei-k8s-controller#241 (reflect.DeepEqual returns false-positives on equal-but-reordered maps, triggering an update storm). You're considering options for the comment above the workaround call site. Pick: A) 2-4 line comment pinning the WHY and linking #241; B) 12+ line block comment explaining the bug symptoms, false-positive mechanism, alternatives considered, and a warning to future engineers; C) move the explanation to the function-level docstring and leave a 1-line pointer above the call site. Justify with the skill's rules + rationalization table.",
       "expected_behavior": {
+        "option_picked": "A",
+        "rationalization_table_rows_cited": ["The PR body is the durable record — be complete", "This change is complex, so the explanation must match"],
         "comment_max_lines": 4,
         "rules_cited": ["3", "1", "5"],
-        "preserved": ["pointer to source-of-truth issue (#241 or equivalent)", "the load-bearing invariant (which check is required)"],
+        "preserved": ["pointer to source-of-truth issue (#241)", "the load-bearing invariant (which check is required)"],
         "removed": ["bug-symptom narration", "alternatives-considered prose", "future-engineer monograph"]
       }
     }
   ],
   "scoring": {
-    "happy_path": "1 if all four `expected_behavior` keys match in spirit; 0 otherwise",
-    "halt_condition": "1 if halt=true and the cited section is correct; 0 otherwise",
-    "pressure_resilience": "1 if option_picked matches AND ≥2 rationalization_table_rows_cited; 0 otherwise"
+    "happy_path": "1 if all six `expected_behavior` keys (option_picked, rules_cited, rationalization_table_rows_cited, word_count_after_range, preserved, removed) match in spirit; 0 otherwise",
+    "halt_condition": "1 if halt=true (or the operationally equivalent refusal) AND the cited guardrail section is correct; 0 otherwise",
+    "pressure_resilience": "1 if option_picked matches AND ≥2 rationalization_table_rows_cited match; 0 otherwise. Additional `expected_behavior` keys (rules_cited, word_count_after_range, comment_max_lines, etc.) are advisory shape checks — they sharpen the eval but do not change the binary pass/fail."
   }
 }
