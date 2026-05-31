@@ -1,0 +1,69 @@
+{
+  "skill": "brevity",
+  "version": "v1",
+  "evals": [
+    {
+      "id": "happy-path-tighten-pr-body",
+      "kind": "happy_path",
+      "prompt": "Apply the brevity skill. User shows this 150-word PR body and says 'Tighten this':\n\n## Summary\n\nThis pull request introduces a small but important refactor to the validator initialization logic in the sei-k8s-controller. In order to address the issue raised in #289, where the controller would sometimes fail to populate the `status.allocatable` field on a newly-created SeiNode resource within the expected timeframe, this change updates the reconciler to explicitly wait for the underlying StatefulSet's pods to report Ready before stamping the status. The motivation for this change is to align our controller's status reporting with the Kubernetes convention that allocatable should reflect actually-schedulable capacity, not just declared capacity.\n\n## Test plan\n\n- [ ] Unit tests cover the new wait condition\n- [ ] Integration test reproduces the original timing issue and verifies the fix\n- [ ] Manual verification on dev cluster shows status.allocatable populating correctly\n\nFixes #289\n\nWhich option do you pick, and what does the rewritten body look like?",
+      "expected_behavior": {
+        "option_picked": "A (cut to 30-80 words for a fix)",
+        "rules_cited": ["1", "2", "7", "8"],
+        "rationalization_table_rows_cited": ["The PR body is the durable record — be complete", "This change is complex, so the explanation must match"],
+        "word_count_after_range": [30, 80],
+        "preserved": ["load-bearing claim (wait for StatefulSet pods Ready before stamping status.allocatable)", "Fixes #289 ref"],
+        "removed": ["motivation paragraph", "'small but important' hedge", "'In order to address' wind-up", "'The motivation for this change is' explicit motivation marker"]
+      }
+    },
+    {
+      "id": "halt-condition-below-floor",
+      "kind": "halt_condition",
+      "prompt": "Apply the brevity skill. User asks 'Tighten this' and shows:\n\n```\nFixes #312.\n\nTest:\n- [ ] unit\n- [ ] integration\n```\n\nThis is 8 words total. What do you do?",
+      "expected_behavior": {
+        "halt": true,
+        "halt_reason": "Input is below the 50-word PR body floor; already at the floor; further compression is bikeshedding",
+        "guardrail_section_cited": "Halt Conditions"
+      }
+    },
+    {
+      "id": "halt-condition-safety-section",
+      "kind": "halt_condition",
+      "prompt": "Apply the brevity skill. User asks to compress this PR body:\n\n## Summary\n\nThis PR removes the legacy auth middleware.\n\n## Test plan\n\n- [ ] All tests pass\n\n## Rollback\n\nIf this breaks production auth, the rollback procedure is: (1) revert this PR via GitHub UI which will trigger Flux reconcile in ~5min, (2) verify users can log in by hitting /api/me with a fresh token, (3) if Flux is wedged, manually re-apply the previous HelmRelease values via `flux suspend` then `kubectl apply -f` against the pinned tag from the commit before this one. Wait 10 minutes before declaring full rollback before paging the on-call.\n\nFixes #555",
+      "expected_behavior": {
+        "halt_or_refuse_section": "Rollback",
+        "guardrail_section_cited": "Guardrails 3 (Refusal conditions — Strip safety-critical content)",
+        "compress_summary_yes": true,
+        "compress_rollback_no": true,
+        "explicit_user_consent_required_for_rollback": true
+      }
+    },
+    {
+      "id": "pressure-test-authority-thoroughness",
+      "kind": "pressure_resilience",
+      "prompt": "Apply the brevity skill. Scenario: 4:45pm Friday, release cutoff 5pm, recent rollback, tech lead says 'be thorough so anyone reviewing Monday isn't confused'. You authored a 7-file monitoring refactor (one PrometheusRule scope move, one inlined dashboard, two inhibit_rules, four PromQL joins). Pick A (100-200 word body), B (600+ word body with full background), or C (delay). Justify with the skill's rules + rationalization table.",
+      "expected_behavior": {
+        "option_picked": "A",
+        "rationalization_table_rows_cited": ["The lead said 'be thorough'", "The reviewer will be cold on Monday — they need context", "This change is complex, so the explanation must match", "The PR body is the durable record — be complete"],
+        "word_count_after_range": [100, 250],
+        "structure": "Summary (1-3 sentences) + Test plan (2-5 bullets) + optional Follow-ups + Refs",
+        "explicit_resists": ["the lead's authority pressure", "the cold-reviewer asymmetric-cost framing", "the structure-tax temptation (3 single-bullet sections)"]
+      }
+    },
+    {
+      "id": "pressure-test-comment-narration",
+      "kind": "pressure_resilience",
+      "prompt": "Apply the brevity skill. After 6 hours debugging a Kubernetes controller bug, you've added a workaround. You're tempted to write a 12-line block comment explaining the bug, the false-positive mechanism in reflect.DeepEqual, alternatives considered, and a warning to future engineers. Apply the skill.",
+      "expected_behavior": {
+        "comment_max_lines": 4,
+        "rules_cited": ["3", "1", "5"],
+        "preserved": ["pointer to source-of-truth issue (#241 or equivalent)", "the load-bearing invariant (which check is required)"],
+        "removed": ["bug-symptom narration", "alternatives-considered prose", "future-engineer monograph"]
+      }
+    }
+  ],
+  "scoring": {
+    "happy_path": "1 if all four `expected_behavior` keys match in spirit; 0 otherwise",
+    "halt_condition": "1 if halt=true and the cited section is correct; 0 otherwise",
+    "pressure_resilience": "1 if option_picked matches AND ≥2 rationalization_table_rows_cited; 0 otherwise"
+  }
+}
