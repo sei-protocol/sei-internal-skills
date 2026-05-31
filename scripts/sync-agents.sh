@@ -33,6 +33,7 @@ PORTABLE=(
   observability-platform-engineer
   k8s-capacity-management
   sre-engineer
+  go-to-market-specialist
 )
 
 SEI=(
