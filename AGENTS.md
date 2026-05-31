@@ -32,6 +32,8 @@ All design work follows the constitution at `design/constitution/constitution.md
 4. **Errors Are Interface** — every error condition is documented
 5. **Tests Prove Interfaces** — concrete test specs for every interface
 
+**Output discipline.** Every agent in the roster authors PR descriptions and in-code comments. Before any agent ships a PR body or writes a WHY-style comment, it applies `/brevity` (`.claude/skills/brevity/`). The skill's 8 rules + 5-row rationalization table hold against the verbose-by-default biases an LLM agent produces under pressure. The skill self-determines when input is at floor — agents do not pre-skip. Doc/design, runbooks, memory writes, and mid-conversation chat are out of scope for the skill today; see its `references/guardrails.md` for un-defer triggers.
+
 ## Cross-Component Interfaces
 
 The most critical contracts between components. The **provider owns** the interface; consumers adapt.

@@ -25,6 +25,7 @@ The single source of truth for all cross-component interfaces is `tide/interface
 - **Completion signaling:** `/dev/termination-log` is primary (survives pod termination). `status.json` is advisory only.
 - **Exit codes:** Granular codes (10-52) from runtimes. Operator groups them for retry/fail decisions.
 - **Commit style:** Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`). Reference the component in scope.
+- **Brevity discipline:** Apply `/brevity` (`.claude/skills/brevity/`) before writing PR bodies or in-code comments. The skill self-determines floor; agents do not pre-skip.
 
 ## Key File Locations
 - `design/constitution/constitution.md` — governing document for all design work
