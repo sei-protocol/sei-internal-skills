@@ -1,13 +1,13 @@
 # Primary sources
 
-Verbatim quotes from the canon — Bezos shareholder letters, Bryar & Carr's *Working Backwards*, Dave Limp, Bill Carr, AWS Executive Insights. These ground the skill against drift; when later iterations of this skill are tempted to soften, the canon is what they re-read.
+Verbatim quotes from the canon — Amazon shareholder letters, Bryar & Carr's *Working Backwards*, Dave Limp, Bill Carr, AWS Executive Insights. These ground the skill against drift; when later iterations of this skill are tempted to soften, the canon is what they re-read.
 
 ## Source tiers
 
 **Tier 1 — Amazon / Amazon alumni primary:**
-- Bryar & Carr, *Working Backwards* (St. Martin's, 2021). Bryar: Bezos's TA/CoS from 1998. Carr: VP Digital Media. Combined 27 years at Amazon.
-- Bezos 2017 shareholder letter: https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders
-- Bezos S-Team email, June 9, 2004 ("No PowerPoint…"), reproduced in https://www.cnbc.com/2018/04/23/what-jeff-bezos-learned-from-requiring-6-page-memos-at-amazon.html
+- Bryar & Carr, *Working Backwards* (St. Martin's, 2021). Bryar: Amazon S-Team TA/CoS from 1998. Carr: VP Digital Media. Combined 27 years at Amazon.
+- Amazon 2017 shareholder letter: https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders
+- Amazon S-Team email, June 9, 2004 ("No PowerPoint…"), reproduced in https://www.cnbc.com/2018/04/23/what-jeff-bezos-learned-from-requiring-6-page-memos-at-amazon.html
 - Dave Limp (SVP Devices) on the practice: https://amazonchronicles.substack.com/p/working-backwards-dave-limp-on-amazons
 - AWS Executive Insights, "Product Management at Amazon": https://aws.amazon.com/executive-insights/content/product-management-at-amazon/
 - Bill Carr LinkedIn (Oct 2024): https://www.linkedin.com/posts/bill-carr_in-the-mid-2000s-amazon-developed-the-working-activity-7394107910051516416-no5e
@@ -28,36 +28,36 @@ Verbatim quotes from the canon — Bezos shareholder letters, Bryar & Carr's *Wo
 
 ### On narratives (why no slides)
 
-**Q1 — Bezos on why narratives.**
+**Q1 — Amazon on why narratives.**
 > "We don't do PowerPoint (or any other slide-oriented) presentations at Amazon. Instead, we write narratively structured six-page memos. We silently read one at the start of each meeting in a kind of 'study hall.'"
-— Bezos, 2017 Letter to Shareholders
+— Amazon's 2017 Letter to Shareholders
 
-**Q2 — Bezos on what memos force.**
+**Q2 — Amazon on what memos force.**
 > "The narrative structure of a good memo forces better thought and better understanding of what's more important than what, and how things are related. Powerpoint-style presentations somehow give permission to gloss over ideas, flatten out any sense of relative importance, and ignore the interconnectedness of ideas."
-— Bezos, June 9, 2004 S-Team email
+— Amazon S-Team email, June 9, 2004
 
-**Q2b — Bezos on the cost difference.**
+**Q2b — Amazon on the cost difference.**
 > "The reason writing a good four-page memo is harder than writing a 20-page PowerPoint is because the narrative structure of a good memo forces better thought and better understanding of what's more important than what, and how things are related."
-— Bezos, Forum on Leadership, 2018
+— Amazon at the Forum on Leadership, 2018
 
 ### On the cost of quality
 
-**Q3 — Bezos on the cost of a great memo.**
+**Q3 — Amazon on the cost of a great memo.**
 > "The great memos are written and re-written, shared with colleagues who are asked to improve the work, set aside for a couple of days, and then edited again with a fresh mind. They simply can't be done in a day or two."
 > "When a memo isn't great, it's not the writer's inability to recognize the high standard, but instead a wrong expectation on scope: they mistakenly believe a high-standards, six-page memo can be written in one or two days or even a few hours, when really it might take a week or more!"
-— Bezos, 2017 Letter
+— Amazon's 2017 Letter
 
-**The handstand metaphor.** Bezos illustrates this with a story: an Amazon employee wants to learn a handstand in two weeks; the coach says six months of daily practice. People fail not because they can't recognize quality, but because they budgeted hours when they needed weeks.
+**The handstand metaphor.** The 2017 letter illustrates this with a story: an Amazon employee wants to learn a handstand in two weeks; the coach says six months of daily practice. People fail not because they can't recognize quality, but because they budgeted hours when they needed weeks.
 
 ### On the document as the meeting
 
-**Q3b — Bezos on the meeting.**
+**Q3b — Amazon on the meeting.**
 > "I like a crisp document and a messy meeting."
-— Bezos, recounted in BusinessToday, 2023
+— Amazon leadership, recounted in BusinessToday, 2023
 
 The document does the precision work. The meeting is for unstructured pushback and decision.
 
-**Q3c — Bezos's reading discipline** (paraphrased from *Working Backwards*; not a verbatim quote). Bezos reads memos assuming each sentence is wrong until proven otherwise. He challenges the content, not the writer's motive.
+**Q3c — Amazon's executive reading discipline** (paraphrased from *Working Backwards*; not a verbatim quote). Amazon's S-Team reads memos assuming each sentence is wrong until proven otherwise. The critique addresses the content, not the writer's motive.
 
 ### On the PR/FAQ structure
 
@@ -136,10 +136,10 @@ The exec question that surfaces most in the discussion phase: **"So what?"** (pe
 
 ## The 2004 origins
 
-On June 9, 2004 Bezos emailed the S-Team:
+On June 9, 2004 an Amazon S-Team email banned slide presentations:
 > "We don't do PowerPoint (or any other slide-oriented) presentations at Amazon."
 
-He elaborated:
+The same email elaborated:
 > "The narrative structure of a good memo forces better thought and better understanding of what's more important than what, and how things are related. Powerpoint-style presentations somehow give permission to gloss over ideas, flatten out any sense of relative importance, and ignore the interconnectedness of ideas."
 
 The PRFAQ as a named, structured artifact emerged from this period. The Kindle is the most-cited origin point: the team realized they needed to write the launch press release first, and if no one would jump out of their chair to buy what it described, the product wasn't ready.

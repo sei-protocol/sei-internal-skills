@@ -106,7 +106,7 @@ Canonical topic list (12–20 questions, opportunistically expanded based on con
 
 ## Reading ceremony
 
-The PRFAQ is the meeting input. Not slides. Not a pitch. Bezos's mechanics:
+The PRFAQ is the meeting input. Not slides. Not a pitch. Amazon's reading mechanics:
 
 - Document is **distributed at the start of the meeting**, not pre-read. Prevents "I skimmed it"; equalizes context.
 - ~20 minutes silent reading for a 6-page memo (Julian Dunn codifies 10–12 for shorter docs, 20–30 for full PRFAQ).
@@ -115,7 +115,7 @@ The PRFAQ is the meeting input. Not slides. Not a pitch. Bezos's mechanics:
 - Discussion is **truth-seeking, not selling** — "improving vs. deciding."
 - Common exec question: "So what?"
 
-> "I like a crisp document and a messy meeting." — Bezos, recounted in BusinessToday
+> "I like a crisp document and a messy meeting." — Amazon leadership, recounted in BusinessToday
 
 > "As soon as we agree on that document, the decision is made. That project is green-lighted. The next step is to find a single threaded leader to run that project." — Dave Limp, Amazon Chronicles
 
@@ -142,4 +142,4 @@ MVP-style "what could we cut" thinking lives in the internal FAQ — but the cut
 - Dave Limp on Amazon Chronicles: https://amazonchronicles.substack.com/p/working-backwards-dave-limp-on-amazons
 - Bill Carr, LinkedIn Oct 2024: https://www.linkedin.com/posts/bill-carr_in-the-mid-2000s-amazon-developed-the-working-activity-7394107910051516416-no5e
 - Julian Dunn (review-meeting clock): https://www.juliandunn.net/2022/09/09/demystifying-the-pr-faq/
-- Bezos 2017 shareholder letter: https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders
+- Amazon 2017 shareholder letter: https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders

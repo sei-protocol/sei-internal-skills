@@ -2,7 +2,7 @@
 
 Amazon's PRFAQ voice — short sentences, plain language, concrete nouns, customer-first, declarative. The two failure modes the voice prevents: corporate-speak that hides muddled thinking, and adjective-rich prose that substitutes connotation for evidence.
 
-> "The reason writing a good four-page memo is harder than writing a 20-page PowerPoint is because the narrative structure of a good memo forces better thought and better understanding of what's more important than what, and how things are related." — Bezos, Forum on Leadership, 2018
+> "The reason writing a good four-page memo is harder than writing a 20-page PowerPoint is because the narrative structure of a good memo forces better thought and better understanding of what's more important than what, and how things are related." — Amazon at the Forum on Leadership, 2018
 
 ## Sentence-level rules
 
@@ -139,20 +139,20 @@ Insert `[REAL QUOTE NEEDED — paraphrase from <evidence source: interview / pil
 
 What good PRFAQ voice draws from:
 
-- **Strunk & White**, *The Elements of Style* — cited by Bezos. "Omit needless words." "Use the active voice." "Use definite, specific, concrete language."
+- **Strunk & White**, *The Elements of Style* — a touchstone for Amazon writing. "Omit needless words." "Use the active voice." "Use definite, specific, concrete language."
 - **George Orwell**, "Politics and the English Language" — six rules including no stale metaphor, short word over long, cut every cuttable word.
 - **Steve Jobs** — concrete customer outcome over spec ("1,000 songs in your pocket"). What Amazon does NOT take: theatrical superlatives, presenter-as-protagonist.
 - **Hemingway** — short sentences, verbs that do work, few subordinate clauses.
 
 ## Sources
 
-- Bezos 2017 shareholder letter: https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders
+- Amazon 2017 shareholder letter: https://www.aboutamazon.com/news/company-news/2017-letter-to-shareholders
 - CNBC, 6-page memos: https://www.cnbc.com/2018/04/23/what-jeff-bezos-learned-from-requiring-6-page-memos-at-amazon.html
 - 4 Cs of Writing at Amazon (Peter Tilsen): https://www.linkedin.com/pulse/4-cs-writing-amazon-peter-tilsen-8fnnc
 - Write Like an Amazonian: https://medium.com/@apappascs/write-like-an-amazonian-14-tips-for-clear-and-persuasive-communication-e2a11afc7362
 - Ian Nowland on 6-page and 2-page docs: https://inowland.medium.com/using-6-page-and-2-page-documents-to-make-organizational-decisions-3216badde909
 - Francis Shanahan, one-pager like an Amazonian: https://francisshanahan.substack.com/p/how-to-write-a-one-pager-like-an
 - theprfaq.com — Amazon writing culture: https://www.theprfaq.com/articles/amazon-writing-culture
-- BusinessToday, Bezos meeting philosophy: https://www.businesstoday.in/technology/news/story/i-like-a-crisp-document-and-a-messy-meeting-inside-jeff-bezoss-meeting-philosophy-409580-2023-12-15
+- BusinessToday, Amazon meeting philosophy: https://www.businesstoday.in/technology/news/story/i-like-a-crisp-document-and-a-messy-meeting-inside-jeff-bezoss-meeting-philosophy-409580-2023-12-15
 - Amazon Press Center, Kindle 2007: https://press.aboutamazon.com/2007/11/introducing-amazon-kindle
 - Amazon Press Center, AWS S3 2006: https://press.aboutamazon.com/2006/3/amazon-web-services-launches

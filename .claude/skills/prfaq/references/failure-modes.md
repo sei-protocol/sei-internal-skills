@@ -178,7 +178,7 @@ The skill scans a PRFAQ (author or review mode) for each signal and either auto-
 
 ## FM28 — Solving the wrong problem (Fire-Phone pattern)
 **Signal:** PR describes a novel capability no customer asked for. Internal quote emphasizes innovation. Problem paragraph thin because team backfilled it after the solution.
-**Why it fails:** Fire Phone's Dynamic Perspective 3D was a feature Bezos demanded but "had the small problem that nobody seems to want their phone displays to be 3D." Internal alignment substituted for customer evidence.
+**Why it fails:** Fire Phone's Dynamic Perspective 3D was a feature Amazon leadership demanded but "had the small problem that nobody seems to want their phone displays to be 3D." Internal alignment substituted for customer evidence.
 **Fix:** Mandatory "Who asked for this?" FAQ answered with concrete pre-PRFAQ research (interview count, transcripts, signups, WTP data). No evidence trail → premature.
 **Source:** https://www.productlessons.xyz/article/why-amazon-fire-phone-failed-case-study
 

@@ -7,7 +7,7 @@ description: "Use when authoring or reviewing a PRFAQ (Amazon working-backwards 
 
 The PRFAQ is Amazon's working-backwards artifact: a future-dated press release plus an FAQ, used **before** building a product to decide whether to build it. It is not a launch tool. It is an editor. Its job is to expose whether the customer thesis is real — and to kill the project if it isn't.
 
-> "We don't do PowerPoint (or any other slide-oriented) presentations at Amazon. Instead, we write narratively structured six-page memos." — Bezos, 2017 Letter to Shareholders
+> "We don't do PowerPoint (or any other slide-oriented) presentations at Amazon. Instead, we write narratively structured six-page memos." — Amazon's 2017 Letter to Shareholders
 >
 > "The PR gives the reader the highlights of the customer experience. The FAQ provides all the salient details of the customer experience as well as a clear-eyed and thorough assessment of how expensive and challenging it will be for the company to build the product or create the service." — Bryar & Carr, *Working Backwards*
 >
@@ -242,7 +242,7 @@ Patterns the LLM (or the human author) will use to bypass the discipline. Each g
 - [`references/canonical-shape.md`](references/canonical-shape.md) — three-part structure section-by-section, external/internal FAQ topic list, 6-page mechanics.
 - [`references/voice-discipline.md`](references/voice-discipline.md) — full kill lists, 15 before/after pairs, customer-quote anatomy, the two tests, sentence-level rules.
 - [`references/failure-modes.md`](references/failure-modes.md) — full 28-mode catalog with source citations + LLM-specific shortlist + theater diagnostic.
-- [`references/primary-sources.md`](references/primary-sources.md) — Bezos / Bryar / Carr / Limp / AWS verbatim quotes with URLs; the 12-item drift-guard checklist.
+- [`references/primary-sources.md`](references/primary-sources.md) — Amazon shareholder letters / Bryar / Carr / Limp / AWS verbatim quotes with URLs; the 12-item drift-guard checklist.
 - [`references/practitioner-variants.md`](references/practitioner-variants.md) — McAllister vs. Bryar/Carr vs. Calbucci template comparison; 11 common-sense optional additions; areas of practitioner disagreement.
 
 ## Output
