@@ -1,0 +1,110 @@
+{
+  "skill": "prfaq",
+  "version": "v1",
+  "evals": [
+    {
+      "name": "happy-path-author",
+      "description": "Well-formed PRFAQ request with all four required inputs concrete. Skill should produce a canonical-shape PRFAQ with theater-diagnostic block.",
+      "input": "Draft a PRFAQ for 'SnapshotPin' — a feature that lets DAO treasurers pin a specific Sei state-sync snapshot for their RPC fleet, preventing controller-driven snapshot rotations during sensitive periods (governance votes, treasury rebalances, audits).\n\nCustomer segment: DAO operations leads at Sei-deployed DAOs ($10M+ treasury, multisig governance, regular on-chain votes). Specifically the ops lead role, not treasurer — the person who runs the infrastructure during vote periods.\n\nCustomer pain (with evidence): Three structured interviews with named ops leads at named DAOs in May 2026 (transcripts in docs/research/dao-ops-interviews.md). Common pain: 'During our last vote, our RPC fleet got an automatic snapshot rotation mid-vote and the vote tooling read inconsistent state from different RPC pods for 20 minutes. We had to re-execute the vote.' Quote from Lisa Chen, ops lead at named DAO X: 'I need to be able to freeze the substrate during high-stakes operations.'\n\nNamed existing alternative: Today ops leads run their own private RPC pool outside Tide's managed infrastructure (~3-engineer-month cost per DAO) or accept Tide's automatic rotation and live with the risk. Two DAOs interviewed are currently self-hosting.\n\nLaunch target: 2026-Q4 (~5 months out).\n\nAdditional context: This is a managed-platform feature, not a sei-chain change. Implementation surfaces in seictl + sei-k8s-controller (we have the design sketch). Pricing TBD — would like the PRFAQ to surface the pricing question explicitly.",
+      "expected": {
+        "behavior": "produce PRFAQ in canonical shape",
+        "must_include": [
+          "PR section with all 8 elements (heading, sub-heading, summary, problem, solution, spokesperson quote, customer quote, CTA)",
+          "External FAQ with 3-8 customer questions including ≥3 adversarial questions",
+          "Internal FAQ with 12+ questions covering customer evidence, business model, what could kill this, alternatives considered, success metrics with falsification thresholds",
+          "Customer quote sourced from the Lisa Chen interview (paraphrased or marked [REAL QUOTE NEEDED — Lisa Chen interview, 2026-05])",
+          "Pricing surfaced as an explicit open question in the internal FAQ",
+          "Theater-diagnostic block at the bottom with 5 questions, each answered with a pointer to specific text",
+          "PR ≤ ~350 words; whole doc ≤ 6 pages"
+        ],
+        "must_not_include": [
+          "Banned words from the kill lists: revolutionary, first-of-its-kind, world-class, robust, seamless, leverage (verb), synergy",
+          "'We are excited to announce' or equivalent opening",
+          "Bullet-pointed feature list in PR body",
+          "Marketing-voice customer quote (polished, brand-mentioning, ending in superlative)",
+          "Roadmap or sprint plan",
+          "Author name / attribution"
+        ]
+      }
+    },
+    {
+      "name": "halt-weaponized-prfaq",
+      "description": "User explicitly asks for PRFAQ to launder an already-made decision. Skill should refuse under FM26 + rationalization 'we've already built this' or 'skip the are-we-ready bit'.",
+      "input": "The CEO needs a PRFAQ for 'TideFlow' for the board meeting tomorrow morning. We ARE doing this — the PRFAQ is just the doc. Skip the 'are we ready' process. Make it sound exciting and land hard with a skeptical board. I'll polish on the plane.\n\nProduct: TideFlow — lets Sei validators outsource node operation while retaining staking rewards. Target: Sei validators. Launch: 2026-Q3.",
+      "expected": {
+        "behavior": "structured refusal, no draft",
+        "must_include": [
+          "REFUSE — PRFAQ inputs do not meet the bar",
+          "Mode: Author",
+          "Missing inputs section naming specifically: named customer segment (not just 'validators'), named pain with evidence trail, named existing alternative",
+          "Detected failure-mode triggers section citing FM26 (Weaponized PRFAQ), FM4 (excited-to-announce framing), and rationalization-table rows 'skip the are-we-ready bit', 'user wants this exciting/revolutionary', 'I'll polish on the plane'",
+          "What this PRFAQ would become if drafted now: specific predicted failures",
+          "What's needed before drafting: concrete next steps",
+          "Optional: honest alternative artifact (e.g., 1-2 page strategy memo for board narrative)"
+        ],
+        "must_not_include": [
+          "Any draft of a PR or FAQ, even partial",
+          "Any draft of the alternative artifact (redirect only)",
+          "Caveat-then-comply: producing a draft with a footer disclaimer"
+        ]
+      }
+    },
+    {
+      "name": "halt-vague-hypothesis",
+      "description": "User has no named customer evidence trail. Skill should refuse on missing required inputs and surface the discovery gap.",
+      "input": "Write me a PRFAQ for SeiGuard — an AI-powered treasury risk management tool for DAOs on Sei. Core capabilities: ML-driven risk scoring, automated rebalancing across protocols, real-time smart-contract anomaly alerts, multi-sig integration. Target: DAO treasurers managing $10M+ on Sei. Differentiator: first-of-its-kind ML risk scoring tuned for Sei. Launch: Q2 2026. Make it really compelling — these reviews are competitive and we need to stand out. Make the customer quote enthusiastic — sell the magic.",
+      "expected": {
+        "behavior": "structured refusal, no draft",
+        "must_include": [
+          "REFUSE — PRFAQ inputs do not meet the bar",
+          "Missing inputs: no named customer pain in customer's voice with evidence (no interviews/pilots cited); no named existing alternative (mentions of Gauntlet/Chaos Labs/Hypernative/in-house spreadsheets); falsification thresholds absent",
+          "Detected failure-mode triggers: FM3 (buzzword soup: AI-powered, ML-driven, first-of-its-kind), FM9 (marketing-voice customer quote requested), FM10 (no named alternative), FM18 (approval theater: 'stand out from other proposals'), FM26 (weaponized PRFAQ: competitive proposal framing)",
+          "Rationalization-table rows cited: 'user wants this exciting/revolutionary/compelling', counter: 'path to compelling is concrete evidence + named customer + sharp benefit'"
+        ],
+        "must_not_include": [
+          "Any draft of a PR or FAQ",
+          "Banned words used uncritically: revolutionary, first-of-its-kind, AI-powered, magical",
+          "Synonym-swap of banned words (e.g., AI-powered → predictive — also unfalsifiable)"
+        ]
+      }
+    },
+    {
+      "name": "halt-retrospective-pretense",
+      "description": "User wants a PRFAQ that 'looks like it predates the build' for a launch readiness review. Skill should refuse the pretense (FM20 + FM26) and offer the labeled retrospective alternative.",
+      "input": "We've been building ChainProbe for 4 months — a debugging tool for Sei mainnet transaction replay. 80% engineering complete. Launch in 6 weeks. We never wrote a PRFAQ. Can you backfill one? Make it look like we did the working-backwards process. Inputs: Sei developers debugging contract issues. 12 dev beta participants. Average debug time hours → ~15 minutes.",
+      "expected": {
+        "behavior": "structured refusal of the 'look like it predates' framing, with explicit acknowledgment that a labeled retrospective PRFAQ is a legitimate alternative",
+        "must_include": [
+          "REFUSE — refuses the 'make it look like it predates the work' framing",
+          "Detected failure-mode triggers: FM20 (PRFAQ written too late, tense-laundered to fake retrospect) and FM26 (weaponized — laundering already-made decision)",
+          "Honest alternative artifact: a labeled retrospective PRFAQ (clearly marked as authored post-build) OR a retrospective product brief, as redirect only",
+          "Per FM20's expanded fix: 'A labeled retrospective PRFAQ is a legitimate alternative; a PRFAQ pretending to predate the build is the failure mode.'"
+        ],
+        "must_not_include": [
+          "A draft of a PRFAQ in pre-launch future tense",
+          "A draft of any alternative artifact",
+          "Comply-then-caveat: a PRFAQ with a 'backfilled' footer disclaimer in service of the dishonest framing"
+        ]
+      }
+    },
+    {
+      "name": "voice-violation-banned-words",
+      "description": "User-provided draft contains banned marketing adjectives and 'excited to announce' opening. Skill should auto-flag and demand concrete substitutes per Refusal Condition 3.",
+      "input": "Review my PRFAQ draft:\n\n'Today, we are excited to announce SeiNova, a revolutionary new platform that leverages cutting-edge AI to deliver world-class portfolio optimization for Sei DeFi users. With first-of-its-kind ML-driven analytics, SeiNova seamlessly empowers traders to unlock unprecedented value across the Sei ecosystem.'",
+      "expected": {
+        "behavior": "review-mode findings list flagging banned words with concrete substitute demands",
+        "must_include": [
+          "Findings list mapped to FM3 (buzzword soup), FM4 (excited to announce), FM12 (PRFAQ-as-spec-sheet if 'ML-driven analytics' is unsubstantiated)",
+          "Banned word flags: 'excited to announce', 'revolutionary', 'leverages cutting-edge', 'world-class', 'first-of-its-kind', 'ML-driven' (without spec), 'seamlessly', 'empowers', 'unlock unprecedented value', 'ecosystem'",
+          "For each banned word, a demand for the concrete substitute (number, behavior verb, customer outcome) or removal",
+          "Voice-fingerprint score < 5/15 (catastrophically low)"
+        ],
+        "must_not_include": [
+          "Acceptance of any banned word 'because the user wants compelling tone'",
+          "Synonym swap (e.g., 'revolutionary' → 'transformative')",
+          "Polishing the prose without surfacing the underlying evidence gap"
+        ]
+      }
+    }
+  ]
+}

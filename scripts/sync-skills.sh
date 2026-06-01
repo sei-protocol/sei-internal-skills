@@ -42,6 +42,7 @@ PORTABLE=(
   author-skill
   audit-skill
   root-cause
+  prfaq
 )
 
 SEI=(
