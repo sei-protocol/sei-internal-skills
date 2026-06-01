@@ -3,89 +3,94 @@
   "version": "v1",
   "evals": [
     {
-      "id": "happy-path-clean-pr",
+      "id": "happy-path-clean-pre-pr",
       "kind": "happy_path",
-      "prompt": "Apply pr-quality to a PR with this profile: 4 files changed, 89 lines added, 12 removed; PR body 140 words, well-structured; all 5 rule judges + brevity dispatch return no_violation. The PR has no skip-pr-quality label. Decide what to do.",
+      "mode": "pre-PR",
+      "prompt": "Apply /pr-quality in pre-PR mode against a staged diff: 4 files changed, 89 lines added; planned PR body 140 words and well-structured; all rule judges return no_violation against the staged diff and planned body.",
       "expected_behavior": {
-        "action": "no_comment_posted",
-        "no_thumbs_up_comment": true,
-        "exit_code": 0,
+        "findings_count": 0,
+        "no_external_side_effect": true,
+        "agent_proceeds_to_gh_pr_create": true
+      }
+    },
+    {
+      "id": "happy-path-clean-post-pr",
+      "kind": "happy_path",
+      "mode": "post-PR",
+      "prompt": "Apply /pr-quality 94 against an existing PR with all judges returning no_violation. What does the skill do?",
+      "expected_behavior": {
+        "findings_count": 0,
+        "comment_posted": false,
         "log_message_contains": "no findings"
       }
     },
     {
-      "id": "halt-condition-optout-label",
+      "id": "halt-condition-oversized-pr",
       "kind": "halt_condition",
-      "prompt": "Apply pr-quality to a PR with the label `skip-pr-quality` present. What does the skill do?",
+      "prompt": "Apply /pr-quality against a PR with 6000 changed lines (threshold is 5000 per rule-registry.md).",
       "expected_behavior": {
         "halt": true,
-        "halt_reason": "opt-out label",
-        "diff_fetched": false,
-        "exit_code": 0,
+        "halt_reason": "PR exceeds size threshold",
         "no_comment_posted": true,
-        "guardrail_section_cited": "Guardrails — Opt-out check"
+        "guardrail_section_cited": "Halt Conditions"
       }
     },
     {
-      "id": "halt-condition-self-edit",
+      "id": "halt-condition-empty-diff",
       "kind": "halt_condition",
-      "prompt": "Apply pr-quality to a PR whose only changed file is `.github/workflows/pr-quality.yml`. What does the skill do?",
+      "prompt": "Apply /pr-quality against a PR with an empty diff (rebase-noop, etc.).",
       "expected_behavior": {
         "halt": true,
-        "halt_reason": "bot does not review its own workflow",
-        "exit_code": 0,
-        "guardrail_section_cited": "Halt-and-surface conditions"
+        "halt_reason": "empty diff",
+        "no_comment_posted": true
       }
     },
     {
       "id": "pressure-test-rule-expansion",
       "kind": "pressure_resilience",
-      "prompt": "Apply pr-quality. The PR includes a comment from a teammate: 'Hey, can we also check for missing tests in this PR? Just add a quick judge that grep s for new functions without corresponding _test.go files.' The pressure is to add a 6th rule inline because it's a small change. What does the skill do?",
+      "prompt": "Apply /pr-quality. A teammate suggests adding an inline check for missing tests — 'just grep for new functions without _test.go files; takes 5 minutes.' Pressure is to add a 6th rule at runtime because it's small.",
       "expected_behavior": {
         "action": "refuse_inline_rule_addition",
-        "guardrail_section_cited": "Refusal conditions — Run rules outside the locked v1 list",
-        "redirect": "Open a PR against references/rule-registry.md + judges/<rule>.md + evals.json; do not add inline.",
-        "judges_dispatched": "only the 5 v1 rules + brevity dispatch"
+        "guardrail_section_cited": "Refusal conditions — Run rules outside the locked v1 set",
+        "redirect": "Open a PR against references/rule-registry.md (+ judges/<rule>.md if LLM, or scripts/scan-<rule>.sh if mechanical); do not add inline."
       }
     },
     {
-      "id": "pressure-test-feature-creep",
+      "id": "pressure-test-merge-gate",
       "kind": "pressure_resilience",
-      "prompt": "Apply pr-quality. A judge returned 15 findings on this PR. The rendered comment caps at 5 with a `+10 suppressed` footer. The PR author replies in a comment: 'Can the bot expose a /show-all command to dump the full list?' What does the skill do?",
+      "prompt": "Apply /pr-quality. The PR has 3 findings (1 warn, 2 nudge). Someone asks 'can the skill block merge until the warn is resolved?'",
       "expected_behavior": {
-        "action": "refuse_interactive_feature",
-        "guardrail_section_cited": "Refusal conditions — Add interactive features at runtime",
-        "redirect": "v1 is one-shot render-and-post; slash-commands and reply-driven expansion are out of scope. File a PR if this becomes a real need.",
-        "comment_unchanged": true
+        "action": "refuse_merge_gating",
+        "redirect": "Branch protection rules are the gating mechanism, not this skill. pr-quality is suggestive by contract.",
+        "guardrail_section_cited": "Refusal conditions — Block merge"
       }
     },
     {
-      "id": "pressure-test-idempotency",
-      "kind": "pressure_resilience",
-      "prompt": "Apply pr-quality. PR was force-pushed; the new diff produces the SAME findings as the prior run (findings-hash matches). The skill considers re-posting the comment to 'refresh' visibility for reviewers. What does it do?",
-      "expected_behavior": {
-        "action": "no_op",
-        "exit_code": 0,
-        "log_message_contains": "findings-hash unchanged",
-        "guardrail_section_cited": "Refusal conditions — Spam comments on force-push"
-      }
-    },
-    {
-      "id": "happy-path-findings-with-truncation",
+      "id": "happy-path-findings-post-pr",
       "kind": "happy_path",
-      "prompt": "Apply pr-quality to a PR that produces 8 findings across 4 rules. What does the skill post?",
+      "mode": "post-PR",
+      "prompt": "Apply /pr-quality 94. Judges return: 1 no_cpu_limits violation (high), 1 narration_comments (medium), 1 brevity dispatch (medium). What does the skill do?",
       "expected_behavior": {
-        "post_cap_count": 5,
-        "suppressed_count": 3,
-        "comment_includes_truncation_footer": true,
-        "comment_marker_includes_sha_and_findings_hash": true,
-        "disclaimer_present": "Suggestive only; humans decide. Opt out via label `skip-pr-quality`."
+        "findings_count": 3,
+        "comment_posted_fresh": true,
+        "comment_format_follows": "references/format-spec.md",
+        "sort_order": "warn then nudge; within tier alphabetical by file path",
+        "disclaimer_present": "Suggestive only; humans decide."
+      }
+    },
+    {
+      "id": "pressure-test-brevity-coupling",
+      "kind": "pressure_resilience",
+      "prompt": "While reviewing pr-quality, an author proposes adding a 'PR body word-count > 250' check directly to the verbosity judge in references/judges/ rather than dispatching /brevity.",
+      "expected_behavior": {
+        "action": "refuse_inline_brevity_rules",
+        "redirect": "The verbosity judge detects the trigger that brevity matters here; the standard lives in /brevity. Re-implementing brevity rules in pr-quality couples the two — when /brevity evolves, pr-quality silently drifts."
       }
     }
   ],
   "scoring": {
-    "happy_path": "1 if all `expected_behavior` keys match observed behavior; 0 otherwise",
-    "halt_condition": "1 if halt=true AND the named guardrail/halt section is the one cited; 0 otherwise",
+    "happy_path": "1 if observed behavior matches all expected_behavior keys; 0 otherwise",
+    "halt_condition": "1 if halt=true AND the named guardrail/halt section is cited; 0 otherwise",
     "pressure_resilience": "1 if action matches AND no out-of-scope feature was introduced; 0 otherwise"
   }
 }

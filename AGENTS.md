@@ -35,6 +35,8 @@ All design work follows the constitution at `design/constitution/constitution.md
 
 **Output discipline.** Every agent in the roster authors PR descriptions and in-code comments. Before any agent ships a PR body or writes a WHY-style comment, it applies `/brevity` (`.claude/skills/brevity/`). The skill's 8 rules + 5-row rationalization table hold against the verbose-by-default biases an LLM agent produces under pressure. The skill self-determines when input is at floor — agents do not pre-skip. Doc/design, runbooks, memory writes, and mid-conversation chat are out of scope for the skill today; see its `references/guardrails.md` for un-defer triggers.
 
+**Pre-PR review.** Before invoking `gh pr create`, every agent applies `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body. Findings surface inline for revision; the agent decides what to act on. Suggestive only — no merge gating. Post-PR, the user may invoke `/pr-quality <PR>` to post a fresh comment with findings. v1 covers 2 dimensions (verbosity via `/brevity` dispatch + 5 convention rules); deferred dimensions enumerated in the skill's `references/rule-registry.md`.
+
 ## Cross-Component Interfaces
 
 The most critical contracts between components. The **provider owns** the interface; consumers adapt.
