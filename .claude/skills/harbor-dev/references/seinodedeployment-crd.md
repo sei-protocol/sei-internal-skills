@@ -35,6 +35,31 @@ The fields the agent reads (most via `seictl nd get -o jsonpath` or `seictl nd w
 - `.status.perPodServices[]` — per-pod headless Service handles for callers that need pod-targeted connectivity (seiload's WebSocket block collector, gRPC streaming, etc.). Each entry has `name`, `namespace`, `ports.{evmHttp, evmWs, ...}`.
 - `.status.internalService` — the aggregate ClusterIP Service handle backing `.status.endpoints.*`.
 
+## Peer auto-wiring (`rpc` preset)
+
+`seictl nd apply --preset rpc --chain-id <id>` writes a single label-based peer source:
+
+```yaml
+spec.template.spec.peers:
+- label:
+    selector:
+      sei.io/chain: <chain-id>
+```
+
+The SND controller stamps `sei.io/chain=<chainID>` on every child SeiNode as a **controller-reserved label** — `sei.io/chain`, `sei.io/nodedeployment`, `sei.io/nodedeployment-ordinal`, and `sei.io/revision` are written after template labels and cannot be suppressed by `spec.template.metadata.labels` (source: `sei-protocol/sei-k8s-controller/internal/controller/nodedeployment/labels.go:48-58`). The SeiNode controller resolves selector matches to headless DNS, then the sidecar's `discover-peers` task queries `:26657 /status` on each match to harvest CometBFT node IDs.
+
+**Failure mode**: chain-id mismatch (typo, fork rename) yields empty `status.resolvedPeers`; the node sits in initial sync forever with no persistent peers. Confirm by checking `kubectl get seinode -l sei.io/chain=<id>` returns both the genesis validators and the new RPC.
+
+**Anti-pattern**: do not hand-wire a `static` `PeerSource` for in-cluster peers — static encodes ephemeral pod IPs and breaks under StatefulSet rescheduling. Let `label.selector` resolve to headless DNS.
+
+## Snapshot bootstrap semantics
+
+`spec.template.spec.fullNode.snapshot.s3.targetHeight` is a **ceiling, not an exact pin**. The sidecar lists `s3://harbor-sei-snapshots/<chainID>/state-sync/*.tar.gz`, parses heights from filenames, and selects `max(height ≤ targetHeight)` (source: `sei-protocol/seictl/sidecar/tasks/snapshot_restore.go:162-210`). `targetHeight=0` means "use the newest available." If no snapshot ≤ `targetHeight` exists, the `snapshot-restore` task fails with `no snapshot found at or below height <H>`. `latest.txt` in the bucket is publisher bookkeeping — the sidecar does not read it on restore. Discovery recipe: `references/aws-dependencies.md#snapshot-discovery-harbor-sei-snapshots`.
+
+**Anti-pattern**: pinning `targetHeight` to a specific block expecting an exact match. Use `0` for newest, or first run `aws s3 ls` and pick a value ≥ a published height.
+
+**Eng-workspace rule**: `spec.template.spec.fullNode.snapshotGeneration` stays unset on every eng-workspace SND (Guardrail #6 in `SKILL.md`).
+
 ## Everything else
 
 `kubectl explain seinodedeployment.spec --recursive` and the source at `sei-protocol/sei-k8s-controller/api/v1alpha1/seinodedeployment_types.go`.

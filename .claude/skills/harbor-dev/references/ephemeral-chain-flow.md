@@ -86,6 +86,24 @@ Atomic preset + `--set` overrides on the SND spec:
 
 Layering, lowest precedence first: preset YAML → discrete flags → `--set`. Maps merge per-key; lists replace wholesale. Server-side-apply dry-run validates the merged CR against the apiserver's schema (preset isn't enough — the cluster's CRD is the schema oracle).
 
+### Snapshot bootstrap (RPC fleets)
+
+For RPC fleets attaching to long-lived chains (`pacific-1`, `atlantic-2`), state-sync from a published snapshot is much faster than fresh sync. Discover available heights and wire the spec via `--set spec.template.spec.fullNode.snapshot.s3.targetHeight=<height>` — see `references/aws-dependencies.md#snapshot-discovery-harbor-sei-snapshots` for the recipe + sidecar selection mechanics.
+
+Do not wire snapshots for `genesis-chain` (fresh ceremony — nothing to restore from) or short-lived ephemeral chains where fresh sync is fast enough.
+
+### Anti-pattern: do not set `spec.template.spec.sidecar` overrides
+
+seictl does not populate this field. If it appears in the rendered CR — typically from a stale `--set`, a hand edit, or copy-paste from a debug session — strip it before writing to the workspace repo. The sidecar image is wired by sei-k8s-controller from cluster config; overriding it pins a specific seictl/sidecar version, hides the platform's chosen default, and confuses the failure mode when reproducing a seid bug.
+
+The single legitimate use is testing a **platform / seictl / sidecar** change — never a sei-chain change. When the engineer's intent is sei-chain testing (the common case), `spec.template.spec.sidecar` must be absent.
+
+Echo the absence explicitly in the plan echo: `sidecar: cluster default (no override)`. If the engineer asked for a platform-test custom sidecar, echo `sidecar: <ref> (engineer-supplied; platform/seictl test mode)`.
+
+### Anti-pattern: do not enable `spec.template.spec.fullNode.snapshotGeneration`
+
+Eng-workspace chains are ephemeral consumers of `harbor-sei-snapshots`, not producers. Enabling generation publishes non-canonical state and disables seid pruning. If the rendered CR carries it (stale `--set`, hand edit), strip it. Snapshot publishing is the snapshot-publisher workload's job — see `references/aws-dependencies.md#snapshot-discovery-harbor-sei-snapshots`.
+
 ## Output
 
 ### `seictl nd apply` — success
