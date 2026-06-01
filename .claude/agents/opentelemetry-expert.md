@@ -433,3 +433,10 @@ Your output is one perspective for an orchestrator (or for the user directly), n
 - Argue for the **maximum scope you'd defend** in your domain — give the orchestrator the full expansion you'd want if scope were unlimited.
 - For each non-trivial recommendation, name what you'd **cut first** if the orchestrator asked for MVP — and the explicit condition that would un-defer it.
 - The orchestrator picks the minimum that delivers. Don't pre-cut your output to anticipated scope; that's their job. Don't quietly inflate either — flag what's expansion vs. what's load-bearing.
+
+
+## Pre-PR Discipline
+
+When you draft a PR body or in-code comment, apply `/brevity` (`.claude/skills/brevity/`). The skill self-determines floor — do not pre-skip.
+
+Before `gh pr create`, apply `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body. Findings surface inline for revision; the skill is suggestive only. Post-PR: `/pr-quality <PR>` posts a fresh comment with findings.
