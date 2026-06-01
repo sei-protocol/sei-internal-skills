@@ -46,7 +46,7 @@ spec.template.spec.peers:
       sei.io/chain: <chain-id>
 ```
 
-The SND controller stamps `sei.io/chain=<chainID>` on every child SeiNode as a **controller-reserved label** — `sei.io/chain`, `sei.io/nodedeployment`, `sei.io/nodedeployment-ordinal`, and `sei.io/revision` are written after template labels and cannot be suppressed by `spec.template.metadata.labels`. The SeiNode controller resolves selector matches to headless DNS, then the sidecar's `discover-peers` task queries `:26657 /status` on each match to harvest CometBFT node IDs.
+The SND controller stamps `sei.io/chain=<chainID>` on every child SeiNode as a **controller-reserved label** — `sei.io/chain`, `sei.io/nodedeployment`, `sei.io/nodedeployment-ordinal`, and `sei.io/revision` are written after template labels and cannot be suppressed by `spec.template.metadata.labels` (source: `sei-protocol/sei-k8s-controller/internal/controller/nodedeployment/labels.go:48-58`). The SeiNode controller resolves selector matches to headless DNS, then the sidecar's `discover-peers` task queries `:26657 /status` on each match to harvest CometBFT node IDs.
 
 **Failure mode**: chain-id mismatch (typo, fork rename) yields empty `status.resolvedPeers`; the node sits in initial sync forever with no persistent peers. Confirm by checking `kubectl get seinode -l sei.io/chain=<id>` returns both the genesis validators and the new RPC.
 
@@ -54,7 +54,7 @@ The SND controller stamps `sei.io/chain=<chainID>` on every child SeiNode as a *
 
 ## Snapshot bootstrap semantics
 
-`spec.template.spec.fullNode.snapshot.s3.targetHeight` is a **ceiling, not an exact pin**. The sidecar lists `s3://harbor-sei-snapshots/<chainID>/state-sync/*.tar.gz`, parses heights from filenames, and selects `max(height ≤ targetHeight)`. `targetHeight=0` means "use the newest available." If no snapshot ≤ `targetHeight` exists, the `snapshot-restore` task fails with `no snapshot found at or below height <H>`. `latest.txt` in the bucket is publisher bookkeeping — the sidecar does not read it on restore. Discovery recipe: `references/aws-dependencies.md#snapshot-discovery-harbor-sei-snapshots`.
+`spec.template.spec.fullNode.snapshot.s3.targetHeight` is a **ceiling, not an exact pin**. The sidecar lists `s3://harbor-sei-snapshots/<chainID>/state-sync/*.tar.gz`, parses heights from filenames, and selects `max(height ≤ targetHeight)` (source: `sei-protocol/seictl/sidecar/tasks/snapshot_restore.go:162-210`). `targetHeight=0` means "use the newest available." If no snapshot ≤ `targetHeight` exists, the `snapshot-restore` task fails with `no snapshot found at or below height <H>`. `latest.txt` in the bucket is publisher bookkeeping — the sidecar does not read it on restore. Discovery recipe: `references/aws-dependencies.md#snapshot-discovery-harbor-sei-snapshots`.
 
 **Anti-pattern**: pinning `targetHeight` to a specific block expecting an exact match. Use `0` for newest, or first run `aws s3 ls` and pick a value ≥ a published height.
 

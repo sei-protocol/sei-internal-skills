@@ -52,7 +52,7 @@ seictl nd apply <id>-rpc --preset rpc --chain-id <id> --image <ref> \
   -n eng-<alias> --dry-run
 ```
 
-**Mechanism**: `targetHeight` is a **ceiling, not an exact pin**. The seictl sidecar lists `*.tar.gz` under the chain prefix, parses heights from filenames, and picks `max(height ≤ targetHeight)`. `targetHeight=0` means "use the newest available." If no snapshot ≤ targetHeight exists, the `snapshot-restore` task fails with `no snapshot found at or below height <H>`. `latest.txt` is publisher bookkeeping; the sidecar ignores it.
+**Mechanism**: `targetHeight` is a **ceiling, not an exact pin**. The seictl sidecar lists `*.tar.gz` under the chain prefix, parses heights from filenames, and picks `max(height ≤ targetHeight)`. `targetHeight=0` means "use the newest available." If no snapshot ≤ targetHeight exists, the `snapshot-restore` task fails with `no snapshot found at or below height <H>`. `latest.txt` is publisher bookkeeping; the sidecar ignores it. Source: `sei-protocol/seictl/sidecar/tasks/snapshot_restore.go:162-210`.
 
 **Halt conditions**:
 
