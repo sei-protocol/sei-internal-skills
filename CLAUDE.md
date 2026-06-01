@@ -26,6 +26,7 @@ The single source of truth for all cross-component interfaces is `tide/interface
 - **Exit codes:** Granular codes (10-52) from runtimes. Operator groups them for retry/fail decisions.
 - **Commit style:** Conventional commits (`feat:`, `fix:`, `docs:`, `refactor:`). Reference the component in scope.
 - **Brevity discipline:** Apply `/brevity` (`.claude/skills/brevity/`) before writing PR bodies or in-code comments. The skill self-determines floor; agents do not pre-skip.
+- **PR-quality discipline:** Before invoking `gh pr create`, apply `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body. Findings surface inline for revision. Post-PR: invoke `/pr-quality <PR>` to post a fresh comment with findings. (Brevity runs during authoring; pr-quality runs on the final diff — they don't chain.)
 
 ## Key File Locations
 - `design/constitution/constitution.md` — governing document for all design work

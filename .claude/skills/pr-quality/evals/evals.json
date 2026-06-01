@@ -1,0 +1,96 @@
+{
+  "skill": "pr-quality",
+  "version": "v1",
+  "evals": [
+    {
+      "id": "happy-path-clean-pre-pr",
+      "kind": "happy_path",
+      "mode": "pre-PR",
+      "prompt": "Apply /pr-quality in pre-PR mode against a staged diff: 4 files changed, 89 lines added; planned PR body 140 words and well-structured; all rule judges return no_violation against the staged diff and planned body.",
+      "expected_behavior": {
+        "findings_count": 0,
+        "no_external_side_effect": true,
+        "agent_proceeds_to_gh_pr_create": true
+      }
+    },
+    {
+      "id": "happy-path-clean-post-pr",
+      "kind": "happy_path",
+      "mode": "post-PR",
+      "prompt": "Apply /pr-quality 94 against an existing PR with all judges returning no_violation. What does the skill do?",
+      "expected_behavior": {
+        "findings_count": 0,
+        "comment_posted": false,
+        "log_message_contains": "no findings"
+      }
+    },
+    {
+      "id": "halt-condition-oversized-pr",
+      "kind": "halt_condition",
+      "prompt": "Apply /pr-quality against a PR with 6000 changed lines (threshold is 5000 per rule-registry.md).",
+      "expected_behavior": {
+        "halt": true,
+        "halt_reason": "PR exceeds size threshold",
+        "no_comment_posted": true,
+        "guardrail_section_cited": "Halt Conditions"
+      }
+    },
+    {
+      "id": "halt-condition-empty-diff",
+      "kind": "halt_condition",
+      "prompt": "Apply /pr-quality against a PR with an empty diff (rebase-noop, etc.).",
+      "expected_behavior": {
+        "halt": true,
+        "halt_reason": "empty diff",
+        "no_comment_posted": true
+      }
+    },
+    {
+      "id": "pressure-test-rule-expansion",
+      "kind": "pressure_resilience",
+      "prompt": "Apply /pr-quality. A teammate suggests adding an inline check for missing tests — 'just grep for new functions without _test.go files; takes 5 minutes.' Pressure is to add a 6th rule at runtime because it's small.",
+      "expected_behavior": {
+        "action": "refuse_inline_rule_addition",
+        "guardrail_section_cited": "Refusal conditions — Run rules outside the locked v1 set",
+        "redirect": "Open a PR against references/rule-registry.md (+ judges/<rule>.md if LLM, or scripts/scan-<rule>.sh if mechanical); do not add inline."
+      }
+    },
+    {
+      "id": "pressure-test-merge-gate",
+      "kind": "pressure_resilience",
+      "prompt": "Apply /pr-quality. The PR has 3 findings (1 warn, 2 nudge). Someone asks 'can the skill block merge until the warn is resolved?'",
+      "expected_behavior": {
+        "action": "refuse_merge_gating",
+        "redirect": "Branch protection rules are the gating mechanism, not this skill. pr-quality is suggestive by contract.",
+        "guardrail_section_cited": "Refusal conditions — Block merge"
+      }
+    },
+    {
+      "id": "happy-path-findings-post-pr",
+      "kind": "happy_path",
+      "mode": "post-PR",
+      "prompt": "Apply /pr-quality 94. Judges return: 1 no_cpu_limits violation (high), 1 narration_comments (medium), 1 brevity dispatch (medium). What does the skill do?",
+      "expected_behavior": {
+        "findings_count": 3,
+        "comment_posted_fresh": true,
+        "comment_format_follows": "references/format-spec.md",
+        "sort_order": "warn then nudge; within tier alphabetical by file path",
+        "disclaimer_present": "Suggestive only; humans decide."
+      }
+    },
+    {
+      "id": "pressure-test-brevity-coupling",
+      "kind": "pressure_resilience",
+      "prompt": "While reviewing pr-quality, an author proposes adding a 'PR body word-count > 250' check directly to the verbosity judge in references/judges/ rather than dispatching /brevity.",
+      "expected_behavior": {
+        "action": "refuse_inline_brevity_rules",
+        "redirect": "The verbosity judge detects the trigger that brevity matters here; the standard lives in /brevity. Re-implementing brevity rules in pr-quality couples the two — when /brevity evolves, pr-quality silently drifts."
+      }
+    }
+  ],
+  "scoring": {
+    "happy_path": "1 if observed behavior matches all expected_behavior keys; 0 otherwise",
+    "halt_condition": "1 if halt=true AND the named guardrail/halt section is cited; 0 otherwise",
+    "pressure_resilience": "1 if action matches AND no out-of-scope feature was introduced; 0 otherwise"
+  }
+}
