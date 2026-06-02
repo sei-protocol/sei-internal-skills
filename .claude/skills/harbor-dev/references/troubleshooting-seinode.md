@@ -129,3 +129,84 @@ aws eks list-pod-identity-associations --cluster-name harbor --namespace eng-<al
 For peer discovery: `kubectl exec <name>-0 -c seid -- aws ec2 describe-instances --filters Name=tag:<key>,Values=<value> --region eu-central-1`. If empty, the tag query is wrong (verify `spec.peers.ec2Tags` in the SeiNode spec) or no instances are tagged.
 
 If a `CiliumNetworkPolicy` is active in the namespace, check `kubectl get ciliumnetworkpolicy -n eng-<alias>` for egress denies.
+
+## Profiling (pprof)
+
+Dev SNDs applied via the seictl `genesis-chain` and `rpc` presets carry `network.rpc.pprof_listen_address: "0.0.0.0:6060"` in `spec.template.spec.overrides` (see sei-protocol/seictl#194). seid exposes Go pprof at port 6060 inside the pod.
+
+Access from the engineer's laptop — port-forward tunnels through the API server; no LB / HTTPRoute / external network involved:
+
+```sh
+kubectl port-forward -n eng-<alias> <pod-name> 6060:6060
+```
+
+Then in a separate shell:
+
+```sh
+# CPU profile, 30s capture window
+go tool pprof http://localhost:6060/debug/pprof/profile?seconds=30
+
+# Heap snapshot
+go tool pprof http://localhost:6060/debug/pprof/heap
+
+# Goroutine snapshot (cheap, instant — good first look at a wedge)
+curl -s 'http://localhost:6060/debug/pprof/goroutine?debug=1' | less
+
+# Full index
+curl http://localhost:6060/debug/pprof/
+```
+
+Cost: idle pprof is essentially free (port listener + a few KB metadata). CPU profiling adds ~5% during the explicit capture window only; heap and goroutine snapshots are cheap.
+
+If the override didn't take (older seictl version, hand-rolled SND), confirm and recover:
+
+```sh
+# Did the override land in config.toml?
+kubectl exec -n eng-<alias> <pod> -c seid -- grep pprof_listen_address /.sei/config/config.toml
+
+# Apply via --set on the SND (works regardless of preset)
+seictl nd apply <id> --preset rpc --chain-id <id> --image <ref> \
+  --set spec.template.spec.overrides."network.rpc.pprof_listen_address"="0.0.0.0:6060" \
+  -n eng-<alias>
+```
+
+**Production caveat**: seictl ships one set of presets (`genesis-chain`, `rpc`) used in both dev and prod; there is no separate prod preset. When promoting a chain to prod, strip the pprof override explicitly: `--set spec.template.spec.overrides."network.rpc.pprof_listen_address"=""`. Pprof must never be reachable in prod — it exposes profile dumps and memory state to anyone with HTTP access to port 6060.
+
+## Preserving the data dir for debugging
+
+When a node is in a bad state and you want a point-in-time copy of its data dir for offline inspection — without doubling storage or waiting minutes-to-hours for `cp -r` — use `cp -al` **inside the PVC**:
+
+```sh
+# Hardlink the data dir at the current point-in-time.
+# Near-instant, near-zero extra space.
+kubectl exec -n eng-<alias> <pod> -c seid -- \
+  cp -al /.sei/data /.sei/keep-$(date -u +%Y%m%dT%H%M%SZ)
+```
+
+**Do NOT hardlink to `/tmp`.** `/tmp` is a separate filesystem in containers (tmpfs or a separate emptyDir mount). Hardlinks cannot span filesystems, so `cp -al /.sei/data /tmp/keep-...` fails with `EXDEV` ("Invalid cross-device link"). Stay within the PVC mount.
+
+### What the hardlink trick actually preserves
+
+Hardlink ≠ symlink. A hardlink is a second directory entry pointing at the same inode; the data lives at the inode, not at either name. When seid's compaction later unlinks the original SST file, the inode survives because the keep dir still references it.
+
+| File class | Behavior under hardlink trick |
+|---|---|
+| SeiDB / blockstore / `evidence.db` SST files | **Frozen.** Compaction unlinks `/.sei/data/...` but the inode survives via `/.sei/keep-.../...` |
+| Tendermint WAL (`data/cs.wal/wal`) + app-level WALs | **Not frozen.** seid writes to the same inode the keep dir references — both names see the new bytes |
+| Pebble `CURRENT` / `MANIFEST-*` files | **Frozen.** Rotated via atomic rename → new inode; old generation preserved in keep dir |
+| `data/snapshots/*.tar.gz` | **Frozen.** Snapshot tarballs are immutable post-write; safe to hardlink |
+| `addrbook.json`, `priv_validator_state.json` | **Frozen.** Updated via atomic rename; old version preserved |
+
+For most "what did the state look like at height H" debugging, the SST files and validator state are what matters.
+
+### Cleanup
+
+```sh
+kubectl exec -n eng-<alias> <pod> -c seid -- rm -rf /.sei/keep-<timestamp>
+```
+
+PVC space won't fully release until the original files are also unlinked (compaction takes care of this naturally as seid runs).
+
+### vs. `deletionPolicy: retain`
+
+`SeiNodeDeployment.spec.deletionPolicy: retain` preserves the PVC across SND deletion — for when you're tearing down the SND but want the disk to survive for forensics. The hardlink trick above is for **live debugging** while the node continues running. They're complementary, not redundant.
