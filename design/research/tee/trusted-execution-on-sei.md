@@ -6,26 +6,31 @@ It is **not** a product proposal. It is the domain framing — what TEE patterns
 
 ## Scope and what's out
 
-**In scope.** TEE applications whose security depends on Sei consensus, Sei-EVM verification, sei-chain validator infrastructure, the sei-sidecar (Waterway proxy), sei-k8s-controller-managed workloads, harbor cluster realities, and Tide's on-chain agentic harness contracts. The lens is "what does it cost to make an attestation load-bearing for a Sei-side decision."
+**In scope.** TEE applications whose security depends on Sei consensus, Sei-EVM verification, sei-chain validator infrastructure, the sei-sidecar (seictl controller-to-pod task API on `:7777`), Waterway (the EVM JSON-RPC HTTP/WS reverse proxy upstream of the platform gateway), sei-k8s-controller-managed workloads, harbor cluster realities, and Tide's on-chain agentic harness contracts. The lens is "what does it cost to make an attestation load-bearing for a Sei-side decision."
 
 **Out of scope.** TEE work that lives entirely off-chain with no Sei-side claim (general AWS Nitro enterprise workloads, Intel SGX for non-blockchain secrets management, etc.) — these are well-covered in the per-vendor docs and don't earn additional Sei-domain framing. Also out of scope: vendor selection at the *product* level (which TEE for which Sei feature) — that's a downstream design pass that should consume this document, not a part of it.
 
 ## The decision-driver: Sei EVM verification cost picture
 
-Per Sei docs ([P256 Precompile](https://docs.sei.io/evm/precompiles/p256-precompile)), **Sei EVM has RIP-7212 deployed**: `P256VERIFY` at `address(0x100)`, **3,450 gas per call**. This is approximately **60× cheaper** than a Solidity P-256 verifier and is the single load-bearing economic fact for Sei TEE design.
+Per [Sei docs](https://docs.sei.io/evm/precompiles/p256-precompile) and verified directly against `sei-chain/precompiles/p256/p256.go:24-25`, **Sei EVM has a P-256 precompile** (RIP-7212-equivalent surface):
+
+- Address: `0x0000000000000000000000000000000000001011` (i.e., `0x1011`)
+- Gas: `GasCostPerByte = 300`, input is 160 bytes → **48,000 gas per verify**
+
+Meaningfully cheaper than Solidity P-256 (~200k/verify) but materially more expensive per-verify than EIP-7951's flat ~6k on Ethereum mainnet — Sei's per-byte schedule makes DCAP cost on Sei land between the two.
 
 Combined with the per-vendor research, the on-chain verification cost picture on Sei is:
 
-| Attester | Signature scheme | Sei EVM verification cost | Strategy |
+| Attester | Signature scheme | Per-attestation Sei EVM cost | Strategy |
 |---|---|---|---|
-| **Intel SGX / TDX (DCAP v4)** | ECDSA P-256 + SHA-256 | **~3M gas with RIP-7212** (Automata DCAP v1.1 numbers + Sei's P256VERIFY) | Direct on-chain verification is economical. Use Automata's contracts or fork. |
-| AMD SEV-SNP | ECDSA P-384 + SHA-384 | ~1.5–2M gas Solidity P-384, OR ~250k gas via Risc0/SP1 ZK proof | No native P-384 precompile. ZK-proof bundling is the production path for high-frequency verification. |
-| AWS Nitro | ECDSA P-384 + SHA-384 (COSE_Sign1) | ~63M cold / <20M warm full on-chain (Marlin NitroProver), OR ~3k gas via secp256k1-recoverable signature from a verified Nitro relay | Direct on-chain is too expensive for steady-state. Use Marlin Oyster pattern: verify one "verifier enclave" attestation on-chain, then accept secp256k1 attestations from that enclave via `ecrecover` for downstream operations. |
-| NVIDIA H100 / Blackwell | ECDSA P-384 + SHA-384 (multiple verifies — leaf cert chain + AK signature + RIM signature) | ~100M+ gas direct on-chain, OR ~200k gas via ZK-proven attestation, OR ~3k gas via trusted relayer (secp256k1) | Direct on-chain not viable. ZK-proven attestation or relayer pattern only. |
+| **AMD SEV-SNP** | ECDSA P-384 + SHA-384 (single verify) | **~1.5–2M gas** Solidity P-384, OR ~250k gas via Risc0/SP1 ZK proof | Cheapest direct on-chain on Sei due to single P-384 verify simplicity. No native P-384 precompile. |
+| **Intel SGX / TDX (DCAP v4)** | ECDSA P-256 + SHA-256 (5–8 verifies: AK + 3-layer PCK chain + TCB Info + QE Identity) | **~3.5–4M gas** with Sei P256VERIFY (5–8 verifies × 48k ≈ 240–384k for verifies + ~3M parsing/quote overhead). ~5M without precompile. ~500k via Automata zkVM. | Sei's per-byte P256VERIFY narrows the cost gap that EIP-7951's flat fee would have widened. Multi-cert-chain overhead dominates. |
+| AWS Nitro | ECDSA P-384 + SHA-384 (COSE_Sign1, 4–5 verifies) | <70M gas cold / <20M warm full on-chain (Marlin NitroProver verbatim), OR ~3k gas via secp256k1-recoverable signature from a verified Nitro relay | Direct on-chain is too expensive for steady-state. Use Marlin Oyster pattern: verify one "verifier enclave" attestation on-chain, then accept secp256k1 attestations from that enclave via `ecrecover`. |
+| NVIDIA H100 / Blackwell | ECDSA P-384 + SHA-384 (multiple verifies: leaf cert chain + AK signature + RIM signature) | ~100M+ gas direct on-chain, OR ~200k gas via ZK-proven attestation, OR ~3k gas via trusted relayer (secp256k1) | Direct on-chain not viable. ZK-proven attestation or relayer pattern only. |
 
-**The takeaway**: on Sei specifically, Intel SGX/TDX is the cheapest on-chain attestation path by 10–50×. Any TEE design that needs **frequent** on-chain attestation verification (per-block, per-job, per-message) gravitates to Intel. Designs that can amortize a one-time on-chain attestation across many downstream signatures (Marlin Oyster pattern) can use any vendor, including AWS Nitro and NVIDIA, with comparable steady-state cost.
+**The takeaway, corrected:** AMD SEV-SNP is cheapest direct on-chain on Sei (~1.5–2M gas for a single P-384 verify), with Intel SGX/TDX competitive (~3.5–4M including multi-cert-chain overhead — Sei's per-byte precompile schedule narrows what would otherwise be a much bigger Intel advantage on Ethereum mainnet). Nitro and NVIDIA are not viable direct; both require amortization (Marlin Oyster secp256k1 pattern) or ZK-proven attestation. **Gas cost is one input, not the deciding factor** — trust model fit (validator-as-host scenarios, vendor ecosystem maturity, operational footprint, privacy/fingerprint exposure) determines which TEE for which Sei application.
 
-Sources: `intel-sgx-tdx.md` §7 + load-bearing claim 11; `amd-sev-snp.md` §7 + load-bearing claim 10; `aws-nitro-enclaves.md` §9 + load-bearing claims 9–10; `nvidia-cc.md` §8 + load-bearing claim 10.
+Sources: `intel-sgx-tdx.md` §7 + load-bearing claim 11; `amd-sev-snp.md` §7 + load-bearing claim 10; `aws-nitro-enclaves.md` §9 + load-bearing claims 9–10; `nvidia-cc.md` §8 + load-bearing claim 10; `sei-chain/precompiles/p256/p256.go:24-25` for the verified Sei precompile address and gas schedule.
 
 ## Application categories on Sei
 
@@ -51,13 +56,13 @@ The TEE patterns that fit Sei's threat model, ranked by maturity of the on-chain
 
 **TEE answer**: ordering decision happens inside a TEE. Pending txs are encrypted to the TEE's published pubkey; only the TEE decrypts; ordering is deterministic given a public seed (e.g. previous block hash). Validators learn the ordering after committing to it.
 
-**Best fit**: **Intel TDX** for full-VM ordering enclaves at validator-set scale. The ordering enclave is registered on-chain via its TDX attestation; chain logic accepts ordering decisions signed by the registered enclave's pubkey. Sei's P256VERIFY precompile makes per-block TDX attestation verification economical (~3M gas if needed) — though in practice the registered-enclave pubkey is used for fast signature verification (3,450 gas) and attestation is verified only on registration / rotation.
+**Best fit**: **Intel TDX** for full-VM ordering enclaves at validator-set scale. The ordering enclave is registered on-chain via its TDX attestation; chain logic accepts ordering decisions signed by the registered enclave's pubkey. Attestation is verified only on registration / rotation (~3.5–4M gas) — the steady-state per-block path uses the registered-enclave pubkey via Sei's P256VERIFY at 48k gas per signature check.
 
 **Why not Nitro here**: Nitro PCR0 attests the enclave image; AWS controls the parent instance's host kernel and could (theoretically) influence non-encrypted I/O paths. For an MEV-resistant ordering surface that must defend against the host operator (a validator running on AWS), Nitro's threat model assumes the AWS host is trusted — which is fine for many use cases but undermines the MEV-resistance claim if the validator IS the host operator.
 
 **Sei-side claim**: substantial. The chain accepts orderings only from registered TDX-attested enclaves. Attestation registration is a governance / on-chain event; attestation rotation on TCB updates is a defined flow.
 
-**Open question**: does Sei consensus tolerate the latency of TEE-bound ordering at 200 ms block times? TDX has measured per-call overhead from VM exits and crypto; sustained ordering decisions inside the TEE must complete within the block time minus consensus overhead. This is a benchmark / design decision, not a research question — flagged for a downstream design pass.
+**Open question**: does Sei consensus tolerate the latency of TEE-bound ordering at Sei's current sub-second block target (pacific-1 cadence is currently ~400ms; the historical 200ms goal remains a longer-term target)? TDX has measured per-call overhead from VM exits and crypto; sustained ordering decisions inside the TEE must complete within the block time minus consensus overhead. This is a benchmark / design decision, not a research question — promoted to the Open Questions section below.
 
 **Load-bearing references**: `intel-sgx-tdx.md` load-bearing claims 2 (`MRTD` + `RTMR[0..3]` required for TDX identity) and 11 (Sei P256VERIFY); `tpm-2.0-open-standards.md` load-bearing claim 7 (CCEL for confidential VM event log replay).
 
@@ -83,9 +88,11 @@ The TEE patterns that fit Sei's threat model, ranked by maturity of the on-chain
 
 **Best fit**: **AWS Nitro Enclaves** via Marlin Oyster pattern. Mature, well-documented, KMS-integrated. The Marlin pattern: verify one bridge-enclave attestation on-chain at deploy / rotation (~63M gas cold, amortized over the bridge's lifetime); accept secp256k1-signed bridge attestations via `ecrecover` (~3k gas) for every cross-chain message.
 
-**Alternative**: **Intel TDX** with Automata DCAP contracts deployed on Sei; ~3M gas per bridge message verification using RIP-7212 — economical at moderate volume but more expensive than the Nitro+secp256k1 amortization pattern at high volume.
+**Alternative**: **Intel TDX** with Automata DCAP contracts deployed on Sei; ~3.5–4M gas per bridge message verification using P256VERIFY — economical at moderate volume but more expensive than the Nitro+secp256k1 amortization pattern at high volume.
 
-**Sei-side claim**: substantial. Bridge mint/burn logic on Sei accepts only TEE-attested witness signatures. Attestation root + PCR / MRTD reference values are stored in a registry contract. Image rotation requires governance.
+**Witness-key freshness — load-bearing concern.** The Marlin Oyster amortization pattern reuses a secp256k1 binding key across many cross-chain messages. Without explicit per-message nonce/sequence binding, a stolen binding key persists past TCB rotation and bridge image upgrade. The design MUST include: (a) sequence numbers in each witness signature, (b) bridge-enclave-driven binding-key rotation on TCB updates, (c) on-chain registry of binding-key validity windows tied to the underlying attestation registration.
+
+**Sei-side claim**: substantial. Bridge mint/burn logic on Sei accepts only TEE-attested witness signatures with valid sequence numbers and current binding-key validity. Attestation root + PCR / MRTD reference values are stored in a registry contract. Image rotation requires governance.
 
 **Load-bearing references**: `aws-nitro-enclaves.md` load-bearing claims 9–10 (Marlin Oyster pattern + ~63M cold / 3k secp256k1 amortization); `intel-sgx-tdx.md` load-bearing claim 11 (Sei P256VERIFY economics).
 
@@ -113,8 +120,9 @@ The TEE patterns that fit Sei's threat model, ranked by maturity of the on-chain
 
 **Open questions** (flagged for downstream Tide design):
 - Where does the Nitro PCR0 reference value enter the system? On-chain registry vs. off-chain reference value provider per IETF RATS?
-- Does Tide accept multiple TEE vendors (Nitro for AWS-hosted agents, TDX for non-AWS agents)? The on-chain verifier must dispatch on attester type.
+- Does Tide accept multiple TEE vendors (Nitro for AWS-hosted agents, TDX for non-AWS agents)? The on-chain verifier must dispatch on attester type. **Trust-set deltas are not fungible** — Nitro trusts AWS hypervisor; SEV-SNP/TDX trust silicon vendor; NVIDIA trusts NRAS + NVIDIA PKI. A multi-vendor verifier must surface which trust set applies to each attestation, not just dispatch on `tee_type`.
 - How does the agent's secp256k1 binding key get rotated? On every enclave restart (new ephemeral key) or pinned to a longer-lived KMS-attested key?
+- **Registry / governance compromise of TideJobHook image-hash registry.** This is the highest-leverage attack on the entire scheme: an attacker who compromises TideCouncil governance and adds a malicious PCR0 to the registry can mint TEE-attested approvals for any payload. The threat model MUST include governance multisig requirements, time-locks on registry changes, and reference-value transparency mechanisms (CoRIM with public RVP).
 
 **Load-bearing references**: `aws-nitro-enclaves.md` load-bearing claims 3 (PCR3 = IAM role hash, PCR4 = parent instance ID hash — both verifiable), 7 (KMS `kms:RecipientAttestation:ImageSha384`), 10 (Marlin Oyster amortization pattern).
 
@@ -126,10 +134,11 @@ Where each layer's trust terminates, and which TEE primitive can root that trust
 |---|---|---|---|
 | sei-chain validator signing | Validator-operated key on validator host | Nitro / TDX / SEV-SNP enclave-bound key | Host compromise no longer leaks the signing key |
 | sei-chain block ordering | Validator discretion (MEV-extractable) | TDX-attested ordering enclave registered on-chain | MEV-resistance becomes a chain-level guarantee, not validator-policy |
-| sei-sidecar (Waterway proxy) | Sidecar process trust in the validator's pod | TEE-bound TLS termination (Nitro for harbor sidecar; TDX elsewhere) | TLS key custody moves into the TEE; sidecar compromise doesn't leak in-flight RPC |
-| sei-k8s-controller orchestration | Controller leader trust; per-pod RBAC | Attested-pod-only join policy (controller refuses to schedule un-attested pods) | Compute substrate becomes attested; off-cluster compromise of node images is detectable |
+| sei-sidecar (seictl controller-to-pod task API, port 7777) | Sidecar process trust in the pod | TEE-bound sidecar (Nitro/TDX) if controller-issued task auth is high-value | Compromised pod can't impersonate controller's task surface |
+| Waterway (EVM JSON-RPC HTTP/WS reverse proxy, upstream of the platform gateway) | Process trust in the proxy + gateway-level TLS termination | TEE-bound TLS termination at the gateway/Waterway boundary | TLS private key custody moves into the TEE; gateway compromise doesn't leak in-flight RPC |
+| sei-k8s-controller orchestration | Controller leader trust; per-pod RBAC | Controller refuses to register/peer un-attested SeiNodes in its peer set (status-level gating). **Note**: hard "attested-pod-only" admission requires a `ValidatingAdmissionPolicy` outside controller-runtime; that's a separate K8s primitive, not a controller-runtime feature. | Peer set + status reflect attestation; off-cluster image compromise becomes detectable at controller level |
 | Harbor cluster compute | AWS EKS + IAM | Same, plus Nitro Enclaves for sensitive workloads | Harbor-hosted agents/bridges get TEE-bound posture without leaving the existing platform |
-| Tide on-chain contracts (TideCouncil, TideJobHook) | EVM consensus + Solidity verification | Same, augmented with on-chain TEE attestation verification (Intel via P256VERIFY; others via amortization) | On-chain coordination contracts can gate escrow release on TEE attestation evidence |
+| Tide on-chain contracts (TideCouncil, TideJobHook) | EVM consensus + Solidity verification | Same, augmented with on-chain TEE attestation verification (Intel via P256VERIFY; AMD via Solidity P-384; others via amortization) | On-chain coordination contracts can gate escrow release on TEE attestation evidence |
 
 The pattern across the table: TEE doesn't replace any of these trust roots — it **layers** a defense-in-depth attestation primitive over them. Sei consensus still validates blocks; AWS still operates the EKS substrate; the K8s controller still owns scheduling. TEE attestation answers a different question: "for *this specific* decision, can I prove that the code running in this specific compute boundary is the code we collectively approved?"
 
@@ -159,15 +168,28 @@ Cross-cutting from the vendor research. These are the things a Sei-side TEE veri
 
 6. **Verifier policy is separate from Evidence parsing.** Per `tpm-2.0-open-standards.md` load-bearing claim 10: provider owns format, verifier owns policy. A Sei-side Verifier should parse vendor Evidence into a normalized claim set, then apply policy (which PCR values are acceptable, which TCB versions are minimum, which images are revoked) as a separate layer. Don't hard-code vendor-specific Evidence parsing into the policy layer.
 
+7. **Side-channel advisory handling.** Intel TCB Info includes `advisoryIDs` (the list of Intel SA-XXXX security advisories applicable to the platform's current TCB). Silently accepting `tcbStatus == OutOfDate` without surfacing or policy-checking advisories is the SGAxe failure mode. The verifier MUST surface `advisoryIDs` to the relying party policy layer; relying-party policy decides which advisories are acceptable for which workload class.
+
+8. **BadRAM mitigation for AMD SEV-SNP.** Chips in the BadRAM-vulnerable window require `PLATFORM_INFO.ALIAS_CHECK_COMPLETE` bit = 1 to indicate the AMD-SB-3015 mitigation TCB has been applied. The verifier MUST require this bit for any AMD SEV-SNP chip whose generation is in the BadRAM-affected set.
+
+9. **Host-controlled-but-signed fields.** Nitro `user_data` (≤1024 B, host-controlled — written by the parent EC2 instance) and AMD SEV-SNP `HOST_DATA` (32 B, hypervisor-supplied) are signed by the attestation but **not measured**. A malicious or compromised host can attach attacker-controlled bytes to a legitimate attestation. Any verifier policy that gates on `user_data` or `HOST_DATA` content needs a separate trust assumption — the values are evidence of the host's input, not of the enclave/guest's behavior.
+
+10. **Quote/report version pinning.** Each vendor has multiple attestation format versions (Intel SGX EREPORT, Quote v3, v4, v5; AMD SEV-SNP report v2, v3, v5; Nitro evolving CDDL). Verifiers MUST pin acceptable versions and reject downgrade. Version confusion is a known DCAP-verifier-bug class.
+
+11. **Privacy / device fingerprinting on-chain.** Publishing raw attestations on-chain exposes uniquely-identifying device IDs as permanent ledger entries: AMD `CHIP_ID` (8 bytes, per-chip from manufacture), AWS Nitro `module_id`, TPM EK certificate, NVIDIA PDI. For validator-as-attester patterns, this is a long-term identity leak. Consider: (a) Nitro for fleet-wide attestations (no per-chip identifier), (b) AMD VLEK instead of VCEK (one VLEK per CSP fleet, not per chip), (c) zero-knowledge attestation proofs that hide device-unique identifiers while preserving the attested-claim property.
+
 ## Open questions and deferred decisions
 
 These are explicitly **not** answered by this research and would need a downstream Tide design pass:
 
 - **Vendor selection per Tide subsystem.** Which TEE vendor for review-runtime agents? For execution-runtime agents? For TideCouncil signing? The research informs but does not decide.
-- **Cross-vendor verifier strategy.** Does Tide accept attestations from multiple vendors, or commit to one for v1? If multi-vendor, what's the on-chain dispatch mechanism (per-attester verifier contract addresses, or a unified verifier with `tee_type` discriminator)?
-- **Reference-value management.** On-chain registry of acceptable PCR / MRTD / measurement values vs off-chain Reference Value Provider per RATS. Governance flow for adding / rotating reference values.
+- **Cross-vendor verifier strategy.** Does Tide accept attestations from multiple vendors, or commit to one for v1? If multi-vendor, what's the on-chain dispatch mechanism (per-attester verifier contract addresses, or a unified verifier with `tee_type` discriminator)? Trust-set deltas must be surfaced to relying-party policy.
+- **Reference-value management.** On-chain registry of acceptable PCR / MRTD / measurement values vs off-chain Reference Value Provider per RATS. Governance flow for adding / rotating reference values. Time-locks + multisig requirements on registry changes (registry compromise is the highest-leverage attack on the system).
 - **Continuous attestation cadence.** One-shot at registration (cheaper) vs. periodic re-attestation (fresher). The right answer depends on the threat model per application — needs per-subsystem framing.
 - **TEE-hosted KMS / signing key custody.** Pure ephemeral keys (regenerated per enclave start; rebound via attestation on each restart) vs. KMS-attested durable keys (the AWS Nitro + KMS condition-keyed pattern). Trade-off: simplicity vs. operational continuity across enclave restarts.
+- **MEV-resistant ordering latency at Sei block time.** Does TDX per-call overhead (VM exits, crypto) leave enough budget inside Sei's sub-second block target to support a TEE-bound ordering decision? Benchmark question for §2's pattern.
+- **Tide image-hash registry placement.** Does the registry live in TideJobHook or TideCouncil? Constitutional ownership matters for one-way doors (storage layout).
+- **Privacy posture for validator-as-attester patterns.** If validators use VCEK (per-chip) for signing-key protection, the chip identifier becomes a permanent fingerprint on-chain. Use VLEK (per-CSP-fleet) or accept the fingerprint exposure?
 
 ## References (the rest of this corpus)
 
@@ -179,13 +201,16 @@ These are explicitly **not** answered by this research and would need a downstre
 
 ## Load-bearing claims for the `tee-specialist` agent (Sei-specific)
 
-1. **Sei's RIP-7212 P256VERIFY at `address(0x100)` (3,450 gas) makes Intel SGX/TDX the cheapest on-chain attestation path by 10–50×.** Any per-block / per-message verification design defaults to Intel unless there's a vendor-specific reason otherwise.
-2. **For high-frequency operations on non-Intel TEEs, the Marlin Oyster amortization pattern (verify one enclave attestation on-chain, accept secp256k1 attestations after) is the production path.** Direct on-chain verification of AMD / Nitro / NVIDIA attestations per-operation is not economically viable.
+1. **Sei EVM's P-256 precompile at `0x0000000000000000000000000000000000001011` charges `300 gas/byte × 160 bytes = 48,000 gas per verify.** This is well below Solidity P-256 (~200k/verify) but above EIP-7951's flat ~6k. Concretely: a full DCAP attestation on Sei costs ~3.5–4M gas (5–8 verifies + parsing); AMD SEV-SNP is ~1.5–2M (single P-384 Solidity verify). AMD is cheapest direct on-chain on Sei; Intel is competitive. Nitro and NVIDIA require amortization or ZK-proven attestation.
+2. **For high-volume operations on non-Intel TEEs, the Marlin Oyster amortization pattern (verify one enclave attestation on-chain, accept secp256k1 attestations after) is the production path.** Direct on-chain verification of Nitro / NVIDIA attestations per-operation is not economically viable; AMD direct is borderline at high volume.
 3. **TDX identity requires `MRTD` + `RTMR[0..3]` together; MRTD-only is exploitable.** Any Sei design that gates on TDX attestation MUST consume RTMR values, not MRTD alone.
 4. **AWS Nitro on harbor is the natural choice for Tide agent runtimes**, given the existing AWS EKS posture. Marlin Oyster pattern + KMS condition keys + `kms:RecipientAttestation:ImageSha384` gating is the well-trodden path.
 5. **MEV-resistant ordering on Sei must defend against the validator-as-host threat**, which Intel TDX handles (full-VM, attested at boot) but AWS Nitro does not (assumes AWS host is trusted; validator-as-AWS-host violates that assumption).
 6. **Joint CPU+GPU attestation** is required for any NVIDIA-CC ZK proving design. Software-bound on Hopper (SPDM session key in CPU TEE REPORT_DATA); hardware-bound on Blackwell (TDISP/IDE). The verifier must check the binding, not just the two reports independently.
-7. **EAT (RFC 9711) is the verifier-output format, not the on-chain input format.** On-chain Sei contracts consume vendor-native Evidence directly; EAT enters at the verifier-result abstraction layer if Tide adopts a multi-vendor verifier.
-8. **Every attestation verifier MUST enforce: debug-bit-rejection, anti-rollback policy on TCB version, freshness binding (nonce in REPORT_DATA / REPORTDATA / Nitro nonce / SPDM nonce), and generation-specific cert chain selection.** These are verifier-policy, not vendor-automatic.
-9. **TEE doesn't replace existing Sei trust roots — it layers attestation as defense-in-depth.** Designs that claim TEE "replaces consensus" or "removes the need to trust AWS" are over-claiming; the right framing is "for *this specific* decision, prove the code is the registered code."
-10. **Reference-value management is the long pole.** The CoRIM standard is emerging; Tide should align on it for cross-vendor reference values rather than building a Tide-specific registry format that won't compose with future tooling.
+7. **EAT (RFC 9711, April 2025) is the verifier-output format, not the on-chain input format.** On-chain Sei contracts consume vendor-native Evidence directly; EAT enters at the verifier-result abstraction layer if Tide adopts a multi-vendor verifier.
+8. **Every attestation verifier MUST enforce: debug-bit-rejection, anti-rollback policy on TCB version, freshness binding (nonce in REPORT_DATA / REPORTDATA / Nitro nonce / SPDM nonce), generation-specific cert chain selection, version pinning (reject downgrade), Intel `advisoryIDs` surfacing, AMD BadRAM `ALIAS_CHECK_COMPLETE` for chips in the affected window, and a separate trust assumption for any policy that gates on host-controlled-but-signed fields (Nitro `user_data`, AMD `HOST_DATA`).** These are verifier-policy, not vendor-automatic.
+9. **Cross-vendor trust-set deltas are not fungible.** Multi-vendor verifier must surface which trust set applies (Nitro: AWS hypervisor + AWS PKI; Intel/AMD: silicon vendor PKI; NVIDIA: NRAS + NVIDIA PKI). Designs that treat `tee_type` as a switch without surfacing the underlying trust delta misrepresent the security posture to the relying party.
+10. **Registry / governance compromise of reference values is the highest-leverage attack on the entire scheme.** Any TideJobHook / TideCouncil image-hash registry MUST include: multisig requirements, time-locks on changes, reference-value transparency (CoRIM with public RVP), and an emergency revocation path. The TEE only matters if the registry that defines "what's a valid measurement" is itself trustworthy.
+11. **TEE doesn't replace existing Sei trust roots — it layers attestation as defense-in-depth.** Designs that claim TEE "replaces consensus" or "removes the need to trust AWS" are over-claiming; the right framing is "for *this specific* decision, prove the code is the registered code."
+12. **Reference-value management is the long pole.** The CoRIM standard is emerging; Tide should align on it for cross-vendor reference values rather than building a Tide-specific registry format that won't compose with future tooling.
+13. **Privacy / device fingerprinting on-chain.** Raw attestations published on-chain expose permanent device identifiers (AMD `CHIP_ID`, Nitro `module_id`, TPM EK, NVIDIA PDI). For validator-as-attester patterns, prefer VLEK (per-CSP-fleet) over VCEK (per-chip), or use ZK-attestation to hide device-unique fields while preserving attested claims.

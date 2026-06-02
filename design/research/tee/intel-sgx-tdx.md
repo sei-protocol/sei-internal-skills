@@ -503,14 +503,21 @@ The "pure on-chain" number is dominated by three things:
 ### 7.3 Sei EVM applicability
 
 Sei EVM is chain ID 1329, an Ethereum-compatible EVM with the same gas
-model. **Sei has already implemented RIP-7212**, exposing a P256VERIFY
-precompile at `address(0x100)` at a cost of 3,450 gas per verification —
-roughly 60× cheaper than a Solidity P-256 implementation. Source:
+model. **Sei has implemented a P-256 precompile** (RIP-7212-equivalent
+surface), exposing P256VERIFY at `address(0x0000000000000000000000000000000000001011)`
+(verified directly in `sei-chain/precompiles/p256/p256.go:24-25`).
+Pricing is per-byte: `GasCostPerByte = 300`, input is 160 bytes
+→ **48,000 gas per verification**. Source:
 [Sei docs — P256 Precompile](https://docs.sei.io/evm/precompiles/p256-precompile).
 
-This places Sei in the "with P-256 precompile" gas tier: an Automata-
-class Intel DCAP verifier on Sei should land in the **~3-4M gas range**
-per quote, not the ~5M-without-precompile tier.
+Meaningfully cheaper than Solidity P-256 (~200k per verify) but
+materially more expensive per-verify than EIP-7951's flat ~6k on
+Ethereum mainnet. This places Sei DCAP cost between the two tiers:
+an Automata-class Intel DCAP verifier on Sei should land in the
+**~3.5–4M gas range** per quote — 5–8 P-256 verifies × 48k ≈ 240–384k
+for verifies plus ~3M for parsing / cert-chain handling / TCB Info /
+quote-body processing — not the ~3M EIP-7951 number and not the
+~5M-without-precompile tier.
 
 The remaining cost drivers are:
 
@@ -679,7 +686,6 @@ as primitive — every design decision flows from them.
 10. **Realistic on-chain gas: ~3M with EIP-7951/RIP-7212 P-256 precompile,
     ~5M without; ~500k via zk-proof (Automata zkVM path).** Source:
     [Automata DCAP v1.1 announcement](https://blog.ata.network/automatas-release-of-dcap-attestation-v1-1-for-agentic-systems-84ae98900370).
-11. **Sei EVM has RIP-7212 deployed — P256VERIFY at `address(0x100)`,
-    3,450 gas per call (~60× cheaper than Solidity).** This is the
-    deciding cost lever, and it is already in place. Source:
-    [Sei docs — P256 Precompile](https://docs.sei.io/evm/precompiles/p256-precompile).
+11. **Sei EVM exposes P256VERIFY at `address(0x0000000000000000000000000000000000001011)` at `300 gas/byte × 160 bytes = 48,000 gas per verify** (verified in `sei-chain/precompiles/p256/p256.go:24-25`). Cheaper than Solidity P-256 (~200k/verify), more expensive per-verify than EIP-7951's flat ~6k. Concretely: Sei DCAP lands at ~3.5–4M gas per quote, not ~3M. Source:
+    [Sei docs — P256 Precompile](https://docs.sei.io/evm/precompiles/p256-precompile);
+    `sei-chain/precompiles/p256/p256.go:24-25`.
