@@ -187,7 +187,7 @@ If validators and RPC fullnodes share a chain-id, filter further: `-l sei.io/cha
 
 ## Profiling (pprof)
 
-Dev SNDs applied via the seictl `genesis-chain` and `rpc` presets carry `network.rpc.pprof_listen_address: "0.0.0.0:6060"` in `spec.template.spec.overrides` (see sei-protocol/seictl#194). seid exposes Go pprof at port 6060 inside the pod.
+Dev SNDs applied via the seictl `genesis-chain` and `rpc` presets (v0.0.54+) carry `network.rpc.pprof_listen_address: "0.0.0.0:6060"` in `spec.template.spec.overrides` (see sei-protocol/seictl#194). seid exposes Go pprof at port 6060 inside the pod.
 
 Access from the engineer's laptop — port-forward tunnels through the API server; no LB / HTTPRoute / external network involved:
 
