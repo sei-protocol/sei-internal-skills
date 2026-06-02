@@ -132,7 +132,7 @@ If a `CiliumNetworkPolicy` is active in the namespace, check `kubectl get cilium
 
 ## Profiling (pprof)
 
-Dev SNDs applied via the seictl `genesis-chain` and `rpc` presets carry `network.rpc.pprof_listen_address: "0.0.0.0:6060"` in `spec.template.spec.overrides` (seictl v0.0.X+; see sei-protocol/seictl#194). seid exposes Go pprof at port 6060 inside the pod.
+Dev SNDs applied via the seictl `genesis-chain` and `rpc` presets carry `network.rpc.pprof_listen_address: "0.0.0.0:6060"` in `spec.template.spec.overrides` (see sei-protocol/seictl#194). seid exposes Go pprof at port 6060 inside the pod.
 
 Access from the engineer's laptop — port-forward tunnels through the API server; no LB / HTTPRoute / external network involved:
 
@@ -170,7 +170,7 @@ seictl nd apply <id> --preset rpc --chain-id <id> --image <ref> \
   -n eng-<alias>
 ```
 
-**Production caveat**: pprof endpoints must never be reachable in prod. Default-on is dev-only.
+**Production caveat**: seictl ships one set of presets (`genesis-chain`, `rpc`) used in both dev and prod; there is no separate prod preset. When promoting a chain to prod, strip the pprof override explicitly: `--set spec.template.spec.overrides."network.rpc.pprof_listen_address"=""`. Pprof must never be reachable in prod — it exposes profile dumps and memory state to anyone with HTTP access to port 6060.
 
 ## Preserving the data dir for debugging
 
@@ -191,11 +191,13 @@ Hardlink ≠ symlink. A hardlink is a second directory entry pointing at the sam
 
 | File class | Behavior under hardlink trick |
 |---|---|
-| SeiDB / blockstore SST files | **Frozen.** Compaction unlinks `/.sei/data/...` but the inode survives via `/.sei/keep-.../...` |
-| WAL / append-only files | **Not frozen.** seid writes to the same inode the keep dir references — both names see the new bytes |
-| Manifests, current pointers | Updated in `/.sei/data` (often via atomic rename → new inode); old version preserved in keep dir |
+| SeiDB / blockstore / `evidence.db` SST files | **Frozen.** Compaction unlinks `/.sei/data/...` but the inode survives via `/.sei/keep-.../...` |
+| Tendermint WAL (`data/cs.wal/wal`) + app-level WALs | **Not frozen.** seid writes to the same inode the keep dir references — both names see the new bytes |
+| Pebble `CURRENT` / `MANIFEST-*` files | **Frozen.** Rotated via atomic rename → new inode; old generation preserved in keep dir |
+| `data/snapshots/*.tar.gz` | **Frozen.** Snapshot tarballs are immutable post-write; safe to hardlink |
+| `addrbook.json`, `priv_validator_state.json` | **Frozen.** Updated via atomic rename; old version preserved |
 
-For most "what did the state look like at height H" debugging, the SST files are what matters.
+For most "what did the state look like at height H" debugging, the SST files and validator state are what matters.
 
 ### Cleanup
 
