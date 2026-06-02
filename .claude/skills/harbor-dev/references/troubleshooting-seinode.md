@@ -130,6 +130,61 @@ For peer discovery: `kubectl exec <name>-0 -c seid -- aws ec2 describe-instances
 
 If a `CiliumNetworkPolicy` is active in the namespace, check `kubectl get ciliumnetworkpolicy -n eng-<alias>` for egress denies.
 
+## Diagnosing wedged nodes (app vs blockstore height)
+
+A common wedge: the blockstore advances but the app falls behind. Compare the two — `lag = blockstore - app`. `lag = 0` is healthy; `lag = 1` sustained means the app-side commit handler is hung; `lag > 1` and growing means the app is structurally stuck.
+
+### With HTTPRoute (Istio Gateway hostname exposed)
+
+When the SND has `spec.networking.httproute` set, `.status.networking.routes[]` carries a public hostname per protocol. Query directly from your laptop — no `kubectl exec` needed.
+
+```sh
+hostname=$(kubectl get snd <name> -n eng-<alias> \
+  -o jsonpath='{.status.networking.routes[?(@.protocol=="rpc")].hostname}')
+
+app=$(curl -s https://$hostname/abci_info | jq -r .result.response.last_block_height)
+store=$(curl -s https://$hostname/status   | jq -r .result.sync_info.latest_block_height)
+echo "app=$app blockstore=$store lag=$((store - app))"
+```
+
+The aggregate hostname round-robins across replicas via the Istio Gateway (Envoy LB), so successive curls may hit different pods. For per-replica view (one pod wedged, others fine), use the exec recipe below.
+
+### Without HTTPRoute (in-cluster only)
+
+If `.status.networking.routes` is empty or has no `rpc` protocol entry, the chain isn't externally reachable — go through the pod's loopback via `kubectl exec`.
+
+```sh
+# Per-pod
+kubectl exec -n eng-<alias> <pod> -c seid -- sh -c '
+  app=$(curl -s localhost:26657/abci_info | jq -r .result.response.last_block_height)
+  store=$(curl -s localhost:26657/status   | jq -r .result.sync_info.latest_block_height)
+  echo "app=$app blockstore=$store lag=$((store - app))"
+'
+
+# Fleet view — every pod on a chain
+for pod in $(kubectl get pods -n eng-<alias> \
+    -l sei.io/chain=<chain-id> -o jsonpath='{.items[*].metadata.name}'); do
+  echo "=== $pod ==="
+  kubectl exec -n eng-<alias> $pod -c seid -- sh -c '
+    app=$(curl -s localhost:26657/abci_info | jq -r .result.response.last_block_height)
+    store=$(curl -s localhost:26657/status   | jq -r .result.sync_info.latest_block_height)
+    echo "app=$app blockstore=$store lag=$((store - app))"
+  '
+done
+```
+
+If validators and RPC fullnodes share a chain-id, filter further: `-l sei.io/chain=<chain-id>,sei.io/role=validator` or `,sei.io/role=node`.
+
+### Reading the result
+
+| Pattern | What it means |
+|---|---|
+| Both heights equal, advancing | Healthy |
+| Both heights equal, frozen | Consensus halted — check peer connectivity, validator quorum |
+| `lag = 1` sustained across multiple polls, blockstore advancing | App commit handler hung — `kubectl logs <pod> -c seid` for app-side panic/deadlock. A single-shot `lag = 1` is normal sampling-race noise at 200ms blocks; poll 3–5× to confirm. |
+| `lag > 1` and growing, outside of restart/state-sync | App falling behind structurally; usually won't catch up without intervention |
+| `lag` shrinks over time | Catch-up after restart or state-sync; healthy |
+
 ## Profiling (pprof)
 
 Dev SNDs applied via the seictl `genesis-chain` and `rpc` presets carry `network.rpc.pprof_listen_address: "0.0.0.0:6060"` in `spec.template.spec.overrides` (see sei-protocol/seictl#194). seid exposes Go pprof at port 6060 inside the pod.
