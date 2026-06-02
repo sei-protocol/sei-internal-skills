@@ -147,7 +147,7 @@ store=$(curl -s https://$hostname/status   | jq -r .result.sync_info.latest_bloc
 echo "app=$app blockstore=$store lag=$((store - app))"
 ```
 
-The aggregate hostname round-robins across replicas via kube-proxy, so successive curls may hit different pods. For per-replica view (one pod wedged, others fine), use the exec recipe below.
+The aggregate hostname round-robins across replicas via the Istio Gateway (Envoy LB), so successive curls may hit different pods. For per-replica view (one pod wedged, others fine), use the exec recipe below.
 
 ### Without HTTPRoute (in-cluster only)
 
@@ -181,8 +181,8 @@ If validators and RPC fullnodes share a chain-id, filter further: `-l sei.io/cha
 |---|---|
 | Both heights equal, advancing | Healthy |
 | Both heights equal, frozen | Consensus halted — check peer connectivity, validator quorum |
-| `lag = 1` sustained, blockstore advancing | App commit handler hung — `kubectl logs <pod> -c seid` for app-side panic/deadlock |
-| `lag > 1` and growing | App falling behind structurally; usually won't catch up without intervention |
+| `lag = 1` sustained across multiple polls, blockstore advancing | App commit handler hung — `kubectl logs <pod> -c seid` for app-side panic/deadlock. A single-shot `lag = 1` is normal sampling-race noise at 200ms blocks; poll 3–5× to confirm. |
+| `lag > 1` and growing, outside of restart/state-sync | App falling behind structurally; usually won't catch up without intervention |
 | `lag` shrinks over time | Catch-up after restart or state-sync; healthy |
 
 ## Profiling (pprof)
