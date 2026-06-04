@@ -62,7 +62,7 @@ graph TB
         CAPI -.reads.-> Registry
     end
 
-    subgraph Cell2[Cell #2 — CAPI-managed, Cilium CNI from day 1]
+    subgraph Cell2[Cell #2 — us-east-2 — CAPI-managed, Cilium CNI]
         C2Flux[Flux]
         C2Sei[sei-k8s-controller]
         C2Apps[Sei workloads]
@@ -70,7 +70,7 @@ graph TB
         C2Cilium[Cilium]
     end
 
-    subgraph Cell3[Cell #3 — CAPI-managed, Cilium CNI from day 1]
+    subgraph Cell3[Cell #3 — eu-west-1 — CAPI-managed, Cilium CNI]
         C3Flux[Flux]
         C3Sei[sei-k8s-controller]
         C3Apps[Sei workloads]
@@ -150,26 +150,26 @@ graph TB
         HarborVPC -.->TGW
     end
 
-    subgraph CellRegion1[Cell #2 region]
-        Cell2VPC[Cell #2 VPC<br/>10.16.0.0/16<br/>Cilium CNI]
-        Cell2TGW{Regional TGW}
+    subgraph CellRegion1[us-east-2 — Cell #2]
+        Cell2VPC[Cell #2 VPC<br/>/16 TBD<br/>Cilium CNI]
+        Cell2TGW{Regional TGW<br/>us-east-2}
         Cell2VPC --> Cell2TGW
     end
 
-    subgraph CellRegion2[Cell #3 region]
-        Cell3VPC[Cell #3 VPC<br/>10.32.0.0/16<br/>Cilium CNI]
-        Cell3TGW{Regional TGW}
+    subgraph CellRegion2[eu-west-1 — Cell #3]
+        Cell3VPC[Cell #3 VPC<br/>/16 TBD<br/>Cilium CNI]
+        Cell3TGW{Regional TGW<br/>eu-west-1}
         Cell3VPC --> Cell3TGW
     end
 
-    TGW <-.inter-region peering.-> Cell2TGW
-    TGW <-.inter-region peering.-> Cell3TGW
+    TGW <-.inter-region peering ~85ms.-> Cell2TGW
+    TGW <-.inter-region peering ~25ms.-> Cell3TGW
 ```
 
 | Decision | v1.5 commitment | Rationale |
 |---|---|---|
 | Topology | Hub-and-spoke TGW with eu-central-1 as hub | N-1 peerings (vs. N²/2 for full peering mesh). AWS-blessed default for fleets >2 cells. |
-| CIDR budget | `/14` (`10.0.0.0/14`) sliced into `/16` per cell | 4× headroom for 10-cell fleet. **Non-overlapping CIDR is the one-way door.** |
+| CIDR budget | `/12` (`10.0.0.0/12` = 16 `/16`s available) sliced into `/16` per cell | Comfortable headroom past today's 4 VPCs (meta + harbor + cell #2 + cell #3) for ~12 future cells without bloating to `/11`. **Non-overlapping CIDR is the one-way door.** Actual `/16` allocations to cell #2 and #3 deferred pending audit of existing meta-cluster + harbor CIDRs (Open Question 8). |
 | Pod CIDR | `100.64.0.0/10` per cell via Cilium IPAM on new cells; VPC CNI custom networking on the meta-cluster until [#108](https://github.com/sei-protocol/Tide/issues/108) migration | Cilium `eni` mode for cell #2/#3 (Cilium manages ENIs directly, no VPC CNI). |
 | IPv6 | Deferred. Un-defer when a single cell exceeds ~30k IPs in use, or compliance/regulator names it. | EKS IPv6 is dual-stack with VPC CNI prefix delegation tuning and ALB rule complexity. Not earned yet. |
 | TGW route tables | Per-class (prod-spokes / harbor-spokes / meta-hub) from cell #3 onward | A misconfigured peering can't accidentally bridge prod ↔ harbor. v1.5 starts with single RT, splits when needed. |
@@ -268,7 +268,7 @@ The bootstrap "controller" is **a CI step + CAAPH**, not a custom Go controller,
 
 6. **`topology.region` label** added to `SeiNodeDeployment` schema. Get the field in before there are consumers. (sei-network-specialist's call.)
 7. **Default-to-Pod-Identity for net-new IAM bindings.** Don't migrate existing IRSA bindings; future new ones are Pod Identity. Pattern starts here.
-8. **CIDR scheme committed in design** (`/14` budget, `/16` per cell, `100.64.0.0/10` pod CIDRs). No CIDRs allocated until cell #2; the scheme is documented so the first allocation doesn't lock in something different.
+8. **CIDR scheme committed in design** (`/12` budget at `10.0.0.0/12`, `/16` per cell, `100.64.0.0/10` pod CIDRs via Cilium IPAM). No `/16` allocations to cells #2 / #3 until the existing meta-cluster + harbor CIDRs are audited (Open Question 8); the scheme is documented so the first allocation doesn't lock in something different.
 
 ### v1.5 — meta-cluster + cells #2 and #3 (real workstream, already triggered)
 
@@ -283,7 +283,7 @@ Brandon named 3 cells (meta + 2 created by automation) on 2026-06-03. The "no se
 - **Pod Identity Association reconciler** as a subpackage of `sei-k8s-controller` (~200 LOC).
 - **TGW hub** stood up in eu-central-1.
 - **Route 53 PHZ `cells.sei.internal`** created and associated to meta-cluster VPC.
-- **Cell #2 and #3** stood up via CAPI from the sei-cell Helm chart. **Cilium from day 1** on both. Region + archetype TBD by product decision (see [Open question 7](#open-questions)).
+- **Cell #2 (us-east-2) and Cell #3 (eu-west-1)** stood up via CAPI from the sei-cell Helm chart. **Cilium from day 1** on both. Archetype + chain assignment TBD (see [Open Question 4](#open-questions)).
 
 ### v2 — fleet operations as cells stabilize
 
@@ -351,7 +351,7 @@ Decisions that are cheap to commit at v1 / v1.5 but expensive to retroactively c
 | **Raw CRDs + Helm (Path A) over ClusterClass (Path B)** | One Helm chart of CAPI CRDs per cell; homogeneity-by-discipline rather than primitive-enforced | ClusterClass's tighter single-source-of-truth. Acceptable until alpha graduates + EKS managed-machinepool template lands. |
 | **CNI heterogeneity window** until prod migrates | Bounded debugging asymmetry (VPC CNI in prod, Cilium in cells). Tracked in [#108](https://github.com/sei-protocol/Tide/issues/108). | Single-CNI fleet from day 1. Worth the bounded cost given prod is a destructive cutover that earns experience-on-greenfield-first. |
 | **We run Karpenter, Cilium, addons ourselves** (post-Auto-Mode-rejection) | Operational ownership of node lifecycle, CNI, kube-proxy-replacement | AWS managing this for a 12% surcharge. Karpenter we already operate today; Cilium adoption is the same shape; net-neutral on ops once Cilium experience exists. |
-| **CIDR commitment ahead of need** | `/14` budget reserved | IP budget is cheap; cost of NOT committing is a Private-NAT migration per future cell. |
+| **CIDR commitment ahead of need** | `/12` budget reserved (16 `/16`s) | IP budget is cheap; cost of NOT committing is a Private-NAT migration per future cell. |
 | **`topology.region` schema label committed at v1** | One-way door on `SeiNodeDeployment` CRD field name | Future option to call it something else. Mitigated by being a label (additive). |
 | **Pod Identity ecosystem maturity** | Pod Identity is 2023+, cross-account chaining 2025+. SDK support uneven. | Some libraries still IRSA-only. Fall through to IRSA where SDK support is missing; document exceptions. |
 | **No active multi-region mainnet validators** | tmkms/Horcrux failover only for multi-region HA | Active-active across regions. Not a real option for CometBFT-style BFT consensus regardless of K8s shape. |
@@ -413,10 +413,11 @@ The honest fallback. If CAPI's operational tax exceeds budget at v1.5, the de-ri
 1. **Auto Mode 21-day rotation graceful handling for validators** — was a blocker in revision 1; **resolved by not using Auto Mode**. No further action.
 2. **Which `kubernetes_*` resources are in current prod TF** — platform-engineer. Resolution: audit during v1 step 2.
 3. **CAPI version pin policy** — follow CAPI minor releases on a 1-month-behind cadence, or pin to a stable line and upgrade every 3-6 months? Owner: platform-engineer. Resolution: before first CAPI minor bump after v1.5.
-4. **Cell #2 and #3 specifics**: archetype (validator/RPC/mixed), region, chains hosted. Owner: product/operations decision. Resolution: before v1.5 implementation starts.
+4. **Cell #2 and #3 archetypes and chains hosted**. Regions resolved: **cell #2 in us-east-2, cell #3 in eu-west-1**. Archetype (validator / RPC / mixed) and chain assignment (mainnet `pacific-1`, testnets, eng/ephemeral) still TBD. Latency context for the choice: eu-west-1 ↔ eu-central-1 is ~25-30ms RTT (intra-Europe, viable for either archetype with caveats); us-east-2 ↔ eu-central-1 is ~85-95ms RTT (transatlantic, structurally better for RPC archetypes — running validator P2P at ~85ms RTT would degrade block production per the sei-network-specialist finding in §4.4). Owner: product/operations decision. Resolution: before v1.5 implementation starts.
 5. **TF state per-cell vs per-region naming** under `cells/` — `cells/<region>/<name>/` or `cells/<name>/`. Platform-engineer prefers the former for blast-radius scoping. Resolution: at v1.5 start.
 6. **Snapshot replication policy** — pruned vs. archive prefix split, replication lifecycle, retention. sei-network-specialist owns. Resolution at v2 when cell #2 lands.
 7. **CAPI upgrade canary mechanism** — do we render the sei-cell Helm chart with a `clusterVersion: vN` parameter and roll cells one at a time onto vN+1, or do we maintain two chart versions in Git? Resolution: at first CAPI minor upgrade post-v1.5.
+8. **Current meta-cluster and harbor VPC CIDR audit**. The `/12` budget at `10.0.0.0/12` is a documented scheme, but actual `/16` allocations to cells #2 (us-east-2) and #3 (eu-west-1) must deconflict with the existing eu-central-1 meta-cluster VPC and harbor VPC CIDRs. If existing CIDRs fall outside `10.0.0.0/12`, document the exception and continue (the scheme governs new allocations; existing VPCs are grandfathered). Owner: platform-engineer. Resolution: before v1.5 cell creation begins.
 
 ## References
 
