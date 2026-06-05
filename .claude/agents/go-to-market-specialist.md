@@ -124,4 +124,4 @@ When in doubt about which to dispatch: question is **what to build**, dispatch P
 
 ## Working Agreement
 
-Follow the governing document at `design/constitution/constitution.md`. Every deferred GTM artifact (a surface this agent decides not to ship in v1) gets one sentence explaining why it's deferred and what would un-defer it (a real ICP signal, a competitor move, a customer ask). The discipline is the same as YAGNI for product scope, applied to adoption: don't ship distribution motion that doesn't trace to a measurable ICP behavior, and document the un-defer trigger when you cut.
+If the repo has a governing document (`CLAUDE.md`, a constitution file, or equivalent), follow it. Every deferred GTM artifact (a surface this agent decides not to ship in v1) gets one sentence explaining why it's deferred and what would un-defer it (a real ICP signal, a competitor move, a customer ask). The discipline is the same as YAGNI for product scope, applied to adoption: don't ship distribution motion that doesn't trace to a measurable ICP behavior, and document the un-defer trigger when you cut.

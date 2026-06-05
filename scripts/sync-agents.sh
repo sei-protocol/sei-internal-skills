@@ -2,15 +2,15 @@
 # sync-agents.sh — copy Tide agent definitions to a target .claude/agents/ directory.
 #
 # Usage:
-#   sync-agents.sh --target <path> [--categories portable,sei,tide-only,all] [--dry-run] [--force]
+#   sync-agents.sh --target <path> [--categories portable,sei,all] [--dry-run] [--force]
 #
 # --target:      target directory (the script appends .claude/agents/)
 # --categories:  comma-separated list of categories (default: portable)
-#                available: portable, sei, tide-only, all
+#                available: portable, sei, all
 # --dry-run:     print what would be copied without copying
 # --force:       overwrite existing target files without prompting
 #
-# Source of truth: the portable / sei / tide-only lists below. Update the lists here
+# Source of truth: the portable / sei lists below. Update the lists here
 # when agents are added, renamed, or re-categorized.
 
 set -euo pipefail
@@ -39,11 +39,6 @@ PORTABLE=(
 
 SEI=(
   sei-network-specialist
-)
-
-TIDE_ONLY=(
-  blockchain-developer
-  reviewer
 )
 
 # --- Argument parsing -------------------------------------------------------
@@ -93,8 +88,7 @@ for cat in "${CAT_ARRAY[@]}"; do
   case "$cat" in
     portable)  AGENTS_TO_SYNC+=("${PORTABLE[@]}") ;;
     sei)       AGENTS_TO_SYNC+=("${SEI[@]}") ;;
-    tide-only) AGENTS_TO_SYNC+=("${TIDE_ONLY[@]}") ;;
-    all)       AGENTS_TO_SYNC+=("${PORTABLE[@]}" "${SEI[@]}" "${TIDE_ONLY[@]}") ;;
+    all)       AGENTS_TO_SYNC+=("${PORTABLE[@]}" "${SEI[@]}") ;;
     *)
       echo "Unknown category: $cat" >&2
       exit 2 ;;
