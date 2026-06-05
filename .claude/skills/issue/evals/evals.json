@@ -29,19 +29,21 @@
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
+          "honors the explicitly-named Linear sink without re-asking the GitHub/Linear/print prompt (the user already said Linear), while still showing the rendered body before creating",
           "renders the same sink-agnostic standard body",
-          "selects the Linear sink and resolves the team by calling list_teams and having the user pick — never guesses the team",
+          "resolves the team by calling list_teams and having the user pick — never guesses the team",
           "offers project / labels / priority as optional (offer, not force)",
           "creates with save_issue passing title + team + description (literal-newline Markdown) and WITHOUT an id (create, not update)",
           "echoes the returned Linear identifier (e.g. ENG-123) and URL"
         ],
         "forbidden_signals": [
+          "re-asks the 3-way sink prompt when the user already named Linear in the request",
           "picks a Linear team silently or infers it from the repo",
           "passes `id` to save_issue (which would update an existing ticket instead of creating)",
           "forces project/labels before allowing creation"
         ]
       },
-      "source": "Procedure step 6 (Linear path); references/linear-integration.md"
+      "source": "Procedure step 5 (sink resolution) + step 6 (Linear path); references/linear-integration.md"
     },
     {
       "id": "halt-linear-mcp-unavailable",

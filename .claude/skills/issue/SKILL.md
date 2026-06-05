@@ -13,7 +13,7 @@ The shape is fixed: Problem, Impact, Relevant experts, Proposed approach (option
 
 `/issue` files *new* issues from synthesized session context. Before any create action:
 
-1. **Never auto-create.** Always render the body and ask the sink (GitHub / Linear / print) first. The user owns when context becomes a tracked artifact.
+1. **Never auto-create; never silently infer the sink.** Always render the body before creating. The sink is the user's *explicit* choice: if the invocation already named one ("file this in Linear", "open a GitHub issue"), honor it without re-asking; otherwise ask GitHub / Linear / print. What's forbidden is *inferring* a sink from context (the repo, a prior issue) or creating before the body is shown — not honoring a sink the user stated.
 2. **Never fabricate.** Don't invent issue URLs or Linear identifiers, and don't fill required fields with `_TBD_` placeholders. If a field has no signal, omit it (when optional) or ask (when required).
 3. **Problem is behavior, not fix.** Refuse to write the proposed solution into the Problem field — push back and capture observable behavior. The fix, if any, belongs in Proposed approach.
 4. **Create, never update.** This skill opens new issues. Don't pass `id` to Linear `save_issue` (that mutates an existing ticket); triaging or editing existing issues is out of scope.
@@ -67,11 +67,12 @@ Preconditions are checked per sink, at the create step — not upfront. The body
 
 4. **Render the body.** Use the section order in `references/format-spec.md`. Skip empty optional sections rather than emitting placeholder headers.
 
-5. **Show the rendered body and pick the sink.** Always ask — never auto-create, never assume a sink:
+5. **Show the rendered body and resolve the sink.** Always show the body before creating. Then:
 
-   > "File as a **GitHub** issue, a **Linear** ticket, or **print** for paste?"
+   - **If the user's invocation already named a sink** ("file this in Linear", "open a GitHub issue", "just print it"), honor it — don't re-ask. State which sink you're using so it's visible.
+   - **Otherwise ask:** "File as a **GitHub** issue, a **Linear** ticket, or **print** for paste?"
 
-   The same rendered body is used whichever sink is chosen.
+   Never infer the sink silently from context (the repo, a prior issue) — an unstated sink is always asked, never guessed. The same rendered body is used whichever sink is chosen.
 
 6. **File or print, per sink.**
    - **GitHub:** `gh issue create --repo <target> --title "<title>" --body-file <tmp>`. Echo the resulting issue URL.
