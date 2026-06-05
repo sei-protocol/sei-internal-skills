@@ -37,6 +37,7 @@ PORTABLE=(
   bugbash
   coral
   council
+  cross-review
   design
   issue
   author-skill

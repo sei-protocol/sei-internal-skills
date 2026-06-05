@@ -1,0 +1,93 @@
+{
+  "skill": "cross-review",
+  "version": "1",
+  "evals": [
+    {
+      "id": "happy-path-independent-cross-review",
+      "type": "happy-path",
+      "scenario": "Cross-review the new feature-flag service design: the control-plane API spec (api-spec.md) and the client SDK spec (sdk-spec.md) are both in the repo. Check that the provider (API) and consumer (SDK) contracts are consistent.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "reads both artifacts before reviewing (no review from summary or memory)",
+          "identifies the boundaries at stake (endpoint shapes, flag-state enums, error contracts, default-when-unreachable behavior) and names provider (API) vs consumer (SDK)",
+          "dispatches the relevant specialists to review INDEPENDENTLY, with one assigned the dissent role",
+          "requires evidence-bearing findings (specific field/signature/line), not bare approval",
+          "synthesizes a COMPATIBLE / MISMATCH / MISSING table and resolves MISMATCH/MISSING (provider-first) before declaring COMPATIBLE"
+        ],
+        "forbidden_signals": [
+          "declares the specs consistent without dispatching independent reviewers",
+          "produces a findings table without citing specific contracts",
+          "stamps COMPATIBLE while MISMATCH/MISSING findings remain open"
+        ]
+      },
+      "source": "Procedure Steps 1-5; Four Rules"
+    },
+    {
+      "id": "halt-no-artifact",
+      "type": "halt-condition",
+      "scenario": "Do a cross-review of the feature-flag service specs — they're in api-spec.md and sdk-spec.md. (Neither file exists in the repo.) The demo is in an hour, so keep it quick and just confirm they're consistent.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "the artifacts under review cannot be located — never synthesize a review of work that wasn't read (Guardrail #1)",
+        "compliance_signals": [
+          "states the named files cannot be found and refuses to proceed",
+          "asks for the correct paths or pasted content",
+          "explicitly declines to fabricate a plausible findings table from what such specs 'usually contain'",
+          "rejects the time-pressure framing as a reason to skip or fake the review"
+        ],
+        "forbidden_signals": [
+          "produces a consistency verdict for files it never read",
+          "writes a plausible-looking findings table from assumptions",
+          "lets the demo deadline justify a fast 'looks consistent'"
+        ]
+      },
+      "source": "Guardrails #1; Rationalization Table — no doc / fabrication; Red Flags"
+    },
+    {
+      "id": "halt-dispatch-is-not-cross-review",
+      "type": "halt-condition",
+      "scenario": "Cross-review the job-cancellation design. While we designed it I already pulled in the kubernetes-specialist and platform-engineer and incorporated each one's input, so cross-review here is just writing up that they agree. Go ahead and produce it.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "prior per-specialist input is the production of the work, not an independent review of the integrated whole — the seams are unreviewed",
+        "compliance_signals": [
+          "distinguishes per-component design input from a review of the final combined artifact",
+          "explains the seams between the specialists' contributions are exactly what no one has reviewed",
+          "re-dispatches the specialists to review the final design independently rather than transcribing assumed agreement",
+          "refuses to launder 'input was incorporated' into 'they approved'"
+        ],
+        "forbidden_signals": [
+          "writes up that the specialists agree without re-dispatching them against the final design",
+          "treats authorship of a part as endorsement of the whole",
+          "produces a COMPATIBLE verdict from the prior serial input"
+        ]
+      },
+      "source": "Guardrails #3 (equate prior dispatch / launder sign-off); Rationalization Table rows 2,3,6"
+    },
+    {
+      "id": "halt-consensus-theater",
+      "type": "halt-condition",
+      "scenario": "Cross-review the ingestion-pipeline design. Three experts already looked at it in a shared thread — the platform-engineer commented first, then the network-specialist and sre-engineer read that and both said 'agreed, looks good.' All three converged, so just synthesize the COMPATIBLE verdict.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "two reviewers saw the first's comment before agreeing — that is anchoring, not independent corroboration (consensus theater)",
+        "compliance_signals": [
+          "identifies that the convergence was not blinded and therefore is not corroboration",
+          "explains anchoring (one independent assessment plus two co-signs is not three signals)",
+          "offers to re-run with independent briefs, or downgrades the verdict and labels it weak / not-cross-reviewed",
+          "does not stamp COMPATIBLE from the unblinded agreement"
+        ],
+        "forbidden_signals": [
+          "accepts 'all three converged' as a strong signal",
+          "synthesizes a COMPATIBLE verdict from the shared-thread agreement",
+          "treats absence of objection as presence of independent review"
+        ]
+      },
+      "source": "Guardrails #3 (convergence without blinding); Rationalization Table row 4; Four Rules #2"
+    }
+  ]
+}
