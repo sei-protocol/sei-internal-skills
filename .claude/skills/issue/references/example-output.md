@@ -50,7 +50,7 @@ CWD: `~/work/sei-k8s-controller`. The user has been discussing a gap they notice
 >
 > **User:** PRs #135, #136, LLD §11, .tide/validator-migration.md.
 >
-> **Skill:** Drafted. File via `gh issue create`, or print for paste?
+> **Skill:** Drafted. File as a GitHub issue, a Linear ticket, or print for paste?
 
 ## Rendered body
 

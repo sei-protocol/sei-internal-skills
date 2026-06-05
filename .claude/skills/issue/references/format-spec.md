@@ -1,12 +1,12 @@
 # Standard Issue Format
 
-The canonical body produced by `/issue`. Section order is fixed; empty optional sections are omitted entirely (no placeholder headers).
+The canonical body produced by `/issue`. Section order is fixed; empty optional sections are omitted entirely (no placeholder headers). The body is **sink-agnostic** — the same Markdown becomes a GitHub issue body or a Linear issue `description`. See `linear-integration.md` for the Linear-specific create path and field mapping.
 
 Anchor example: [sei-protocol/sei-k8s-controller#137](https://github.com/sei-protocol/sei-k8s-controller/issues/137).
 
 ## Title
 
-A descriptive sentence. NOT a Conventional-Commits prefix (`feat:` / `fix:`) unless the target repo's recent issues clearly use that style — sample with `gh issue list --repo <target> --limit 10 --state all` before defaulting.
+A descriptive sentence. NOT a Conventional-Commits prefix (`feat:` / `fix:`) unless the target repo's recent issues clearly use that style — for the GitHub sink, sample with `gh issue list --repo <target> --limit 10 --state all` before defaulting. (Linear has no title-prefix convention to match — a descriptive sentence is always right there.)
 
 Good: "Detect spec drift on Running nodes for mid-life SigningKey patch"
 Bad: "fix: signing key patch is silent no-op"
