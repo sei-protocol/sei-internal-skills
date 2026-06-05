@@ -30,7 +30,7 @@ If a finding warrants an immediate fix, surface it to the user; do not edit code
 - A reachable target component — a directory, package, CRD, runtime, contract, or interface boundary the experts can read in full within their context.
 - Write access to `docs/bugbash/` and `.bugbash/` in the repo (both will be created if missing).
 
-If the repo maintains an interface registry (e.g., Tide's `tide/interface-registry.yaml`), specialists read it as authoritative when reviewing interface boundaries.
+If the repo maintains an interface registry or equivalent source of truth, specialists read it as authoritative when reviewing interface boundaries.
 
 ## Locating the Target Repo and Roster
 

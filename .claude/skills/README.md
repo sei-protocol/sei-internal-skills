@@ -49,16 +49,23 @@ Two complementary artifact-capture skills. Coral / council should offer them at 
 - **`bugbash/`** — Long-running, read-only adversarial review of an existing system by the council of experts. Loops discovery + challenger passes against a named target (`/bugbash SeiNode controller`) until the experts converge on a launch verdict. Output is a structured findings log at `docs/bugbash/<target>.md` with per-item Scenario / Impact / Issue / Fix sketch / Test coverage. Inspired by the [RALPHY loop](https://github.com/snarktank/ralph), reframed for hardening before launch. Distinct from `/security-review` (single-pass, security-only) and `/coral` (collaborative iteration, not adversarial).
 
 ### Investigation
-- **`root-cause/`** — Disciplined, data-driven, multi-expert investigation of complex problems in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s). Forces signals before hypotheses, ≥2 competing hypotheses before evidence, retrieved provenance (not paraphrased), and falsification before conclusion. Dispatches `.claude/agents/` specialists in **parallel + blinded + with assigned dissent** to prevent the consensus-theater / sycophancy failure mode documented in the multi-agent LLM literature. Output is a multi-cause ranked conclusion — never a single root cause. Distinct from `/bugbash` (pre-launch adversarial), `/coral` (collaborative iteration), and live incident command (mitigate first; this skill is for understanding). Tide on-chain agentic harness is explicitly out of scope.
+- **`root-cause/`** — Disciplined, data-driven, multi-expert investigation of complex problems in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s). Forces signals before hypotheses, ≥2 competing hypotheses before evidence, retrieved provenance (not paraphrased), and falsification before conclusion. Dispatches `.claude/agents/` specialists in **parallel + blinded + with assigned dissent** to prevent the consensus-theater / sycophancy failure mode documented in the multi-agent LLM literature. Output is a multi-cause ranked conclusion — never a single root cause. Distinct from `/bugbash` (pre-launch adversarial), `/coral` (collaborative iteration), and live incident command (mitigate first; this skill is for understanding). Problems outside the Sei platform stack are out of scope.
+
+### Authoring Discipline (Tide-local — not synced)
+
+These two are project-scoped disciplines applied during authoring inside Tide. They are intentionally **not** in any sync category (CLAUDE.md / AGENTS.md reference them as in-repo disciplines):
+
+- **`brevity/`** — Tighten agent-produced PR descriptions and in-code comments before they ship. Self-determines floor; agents don't pre-skip.
+- **`pr-quality/`** — Pre-PR review of the staged diff + planned body (verbosity via `/brevity` dispatch + convention rules). Suggestive only; never gates merge.
 
 ### Release Operations
 - **`chaos-suite/`** — Execute the full chaos test suite (runbook: sei-protocol/platform#169) against a dev or staging Sei cluster and collate results into a release summary. **Status: scaffold** — follows the template; scripts are placeholders pending authoring against the live runbook. Tracking issue: sei-protocol/platform#170.
+- **`validate-release/`** — Collect a completed chaos-suite run's results from S3 + Thanos/Grafana, derive per-scenario metrics and panel PNGs, and push a structured release-validation report to Notion. Companion to `/chaos-suite` (run) → `/validate-release` (report).
 
 ### Engineer Self-Service
 - **`harbor-dev/`** — Engineer-facing interface to the harbor EKS cluster. Translates natural-language intent (spin up an ephemeral chain, attach an RPC fleet, run a bench, onboard me, tear it down) into `seictl nd` invocations and PR-based GitOps deliveries against `sei-protocol/harbor-engineering-workspace`. Built on `seictl` v0.0.43+.
 
 ### Future Slots
-- _(planned)_ `release-verify/` — deploy-smoke + sanity checks after a release cut.
 - _(planned)_ Add skills here as the team codifies more processes.
 
 ## Adding a New Skill

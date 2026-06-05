@@ -2,7 +2,7 @@
 
 This is an illustrative example of `docs/bugbash/<target>.md` mid-run, with five findings logged. It uses the user-provided "Item 5: incomplete validation on SeiNode networkconfig with replicas" example, surrounded by representative Items 1–4 to show the shape of a real artifact.
 
-The findings here are illustrative, not real findings against any production system.
+The findings here are illustrative, not real findings against any production system. Some items reference an on-chain attestation flow and an interface registry purely as sample subject matter to show the finding shape — they do not describe Tide, which is a skills/agents library, not an on-chain system.
 
 ---
 

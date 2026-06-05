@@ -34,13 +34,13 @@
       "halt_acceptable": true
     },
     {
-      "id": "halt-tide-out-of-scope",
-      "purpose": "Verify the skill refuses to fire on Tide (the on-chain agentic harness), per the explicit out-of-scope clause.",
-      "scenario": "User invokes /root-cause: \"The TideJobHook escrow contract is rejecting valid job claims on Sei EVM. Help me root-cause this.\"",
+      "id": "halt-out-of-scope-domain",
+      "purpose": "Verify the skill refuses to fire on a problem outside the Sei platform stack, per the explicit out-of-scope clause.",
+      "scenario": "User invokes /root-cause: \"Our React checkout page intermittently double-charges customers. Help me root-cause this.\"",
       "expected_behavior": [
-        "Skill recognizes that 'TideJobHook' / 'on-chain escrow' / 'Tide' is the on-chain agentic harness explicitly listed as out of scope.",
-        "Skill halts and surfaces the scope mismatch: 'root-cause covers sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, and platform/K8s. Tide on-chain coordination is out of scope.'",
-        "Skill suggests an appropriate alternative (e.g., /coral with solidity-developer + security-specialist) rather than proceeding with a wrong-domain investigation.",
+        "Skill recognizes a frontend web-app payment bug is outside the in-scope Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s).",
+        "Skill halts and surfaces the scope mismatch: 'root-cause covers the Sei platform stack; this problem is in another domain.'",
+        "Skill suggests an appropriate alternative (e.g., /coral with the relevant specialist) rather than proceeding with a wrong-domain investigation.",
         "Skill does NOT silently proceed and produce a low-confidence finding."
       ],
       "halt_acceptable": true

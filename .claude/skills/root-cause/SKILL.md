@@ -1,6 +1,6 @@
 ---
 name: root-cause
-description: "Use when an engineer wants to understand a complex problem in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s) with disciplined, data-driven, multi-expert investigation — 'root-cause this', 'why is X breaking', 'this bug keeps coming back', 'investigate the X regression', 'what's actually causing X', 'why did the chain wedge', 'help me understand why X', '/root-cause'. Pulls the right `.claude/agents/` specialists, forces independent hypotheses before evidence, demands retrieved signals (not paraphrased), and refuses to declare a cause without a falsification attempt. Anti-triggers: NOT for live incident commander work — mitigate first, investigate after stabilization; NOT for fixing a known cause (just write the fix); NOT for greenfield design (use /coral or /council); NOT for pre-launch hardening (use /bugbash); NOT for Tide (the on-chain agentic harness) — out of scope. Sibling redirects: /coral for collaborative iteration on a defined slice; /council for multi-component design; /bugbash for adversarial pre-launch review; /design for capturing a finished design."
+description: "Use when an engineer wants to understand a complex problem in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s) with disciplined, data-driven, multi-expert investigation — 'root-cause this', 'why is X breaking', 'this bug keeps coming back', 'investigate the X regression', 'what's actually causing X', 'why did the chain wedge', 'help me understand why X', '/root-cause'. Pulls the right `.claude/agents/` specialists, forces independent hypotheses before evidence, demands retrieved signals (not paraphrased), and refuses to declare a cause without a falsification attempt. Anti-triggers: NOT for live incident commander work — mitigate first, investigate after stabilization; NOT for fixing a known cause (just write the fix); NOT for greenfield design (use /coral or /council); NOT for pre-launch hardening (use /bugbash); NOT for capturing a finished design (use /design); NOT for problems outside the Sei platform stack — out of scope."
 ---
 
 # Root Cause
@@ -24,7 +24,7 @@ This skill operates on **active investigation, not live mitigation**. Before any
    - **File a single-expert conclusion on a cross-component incident.** If the effect spans ≥2 specialty boundaries (e.g., controller + Sei networking + cloud infra), the investigation must dispatch parallel, **blinded**, hypothesis-first experts. Serial single-expert work on a cross-component incident is a halt.
    - **Accept consensus theater.** If experts return aligned conclusions but their dispatch logs show they saw each other's work before committing, the consensus is invalid. Re-run with proper blinding.
    - **Fire on live incident response.** The skill is for *investigation discipline*, not incident command. If users are actively impacted and no mitigation is in place, redirect: mitigate first, investigate second. The skill belongs after the bleeding has stopped — or in parallel, by a separate person from the on-call.
-   - **Fire on Tide (the on-chain agentic harness).** Tide is explicitly out of scope. In-scope systems are listed in the trigger description; Tide is not.
+   - **Fire on problems outside the Sei platform stack.** The in-scope systems are listed in the trigger description. For a problem in another domain, redirect to the right tool rather than forcing a low-confidence cross-domain investigation.
 
 See `references/multi-expert-dispatch.md` for the dispatch contract, `references/falsifiability-checklist.md` for the falsification rules, `references/sei-k8s-signal-ladder.md` for the signal hierarchy, and `references/rationalization-table.md` for the full failure-mode catalog with citations.
 
@@ -196,7 +196,7 @@ Stop and report to the user if:
 - **Postmortem doc capture.** Out of scope by design (deferred). The skill produces a conversational summary; converting it into a `docs/postmortems/` artifact is a future companion skill.
 - **Single-expert deep-dive.** If the problem is genuinely contained to one specialist's domain and the user knows it, just `/coral` that specialist directly.
 - **Fix-it work.** Once the contributing factors are identified, fixing them is its own engagement. The skill ends at the ranked conclusion + recommended actions.
-- **Cover Tide (on-chain agentic harness).** Out of scope per the trigger description. Tide RCA is a different beast — agent-loop correctness, on-chain coordination drift, escrow state — and will get its own skill if and when it earns one.
+- **Cover domains outside the Sei platform stack.** Out of scope per the trigger description. A problem in another domain gets a redirect to the right tool, not a forced cross-domain investigation.
 
 ## Output (end-of-session summary)
 
