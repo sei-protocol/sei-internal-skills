@@ -40,7 +40,7 @@
       "expected_behavior": [
         "Skill recognizes that 'TideJobHook' / 'on-chain escrow' / 'Tide' is the on-chain agentic harness explicitly listed as out of scope.",
         "Skill halts and surfaces the scope mismatch: 'root-cause covers sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, and platform/K8s. Tide on-chain coordination is out of scope.'",
-        "Skill suggests an appropriate alternative (e.g., /coral with blockchain-developer + solidity-developer + security-specialist) rather than proceeding with a wrong-domain investigation.",
+        "Skill suggests an appropriate alternative (e.g., /coral with solidity-developer + security-specialist) rather than proceeding with a wrong-domain investigation.",
         "Skill does NOT silently proceed and produce a low-confidence finding."
       ],
       "halt_acceptable": true

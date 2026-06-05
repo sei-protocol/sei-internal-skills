@@ -12,10 +12,10 @@ Coral is for lightweight iteration. Council is for full-ceremony work. When any 
 
 Immediate handoff, regardless of size:
 
-- Event signatures (topic hashes)
-- Storage layout in upgradeable contracts
-- CRD spec field names
-- EIP-712 type hashes, domain separators
+- Persisted schema / field names (after data is written or consumers depend on them)
+- Public API contracts (request/response shapes, status codes, error formats)
+- On-disk or wire data formats
+- Signed or indexed identifiers (stable IDs, content hashes, signed tokens)
 - Anything the repo's CLAUDE.md flags as irreversible
 
 Script: "This touches a one-way door: [what]. Warrants full council process — I'll hand off unless you want to stay in coral with you gating it manually."
@@ -42,5 +42,5 @@ Anything requiring an interface-registry update (where a registry exists) → co
 ## Handoff Script Examples
 
 - "Now touching 3 components (A, B, C) with interface changes between A→B. That's System tier — hand off to /council?"
-- "You just mentioned changing the X event signature. One-way door. Hand off to /council for the gate, or handle it here with you gating manually?"
+- "You just mentioned renaming a persisted field other systems depend on. One-way door. Hand off to /council for the gate, or handle it here with you gating manually?"
 - "You said 'let's design this properly' — that's a council cue. Hand off?"

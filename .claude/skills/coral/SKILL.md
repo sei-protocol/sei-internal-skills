@@ -34,6 +34,8 @@ This is the right tool when work is **scoped and iterative**: one or two compone
    - The orchestrator's job is to pick the **least** that delivers, not the union of what specialists offered.
 
    Then present to user, take redirection, follow up.
+
+   **Offer `/cross-review` when the outputs need a consistency check.** When two or more specialists produced outputs that touch a shared boundary (one's output is the other's input, or both define part of the same contract), offer `/cross-review` before shipping: it has the relevant specialists independently review the combined work and synthesizes a COMPATIBLE / MISMATCH / MISSING table. This is the cross-review pass between you (the orchestrator) and the coral experts — distinct from the per-specialist dispatches that produced the work. Don't auto-fire; the user opts in.
 5. **Offer artifact capture.** Two natural artifacts; either (or both) may apply:
    - **`/design`** — when the deliverable IS a design (LLD, architecture sketch, system-tier decision). Captures the synthesized design under `docs/designs/` (or repo-specific path like Tide's `design/milestones/`) with mermaid diagrams. Pre-fill from session: Background, Goals, Non-goals, Design, Alternatives, Trade-offs, Open questions, References.
    - **`/issue`** — when a deferred slice surfaces ("deferred — when X"), the user cuts scope ("not now, but file it"), or the session closes with an obvious phase 2. Captures synthesized context as a tracked GitHub issue. Pre-fill from session: Problem, Impact, Relevant experts, Proposed approach, Out of scope.
@@ -46,7 +48,7 @@ This is the right tool when work is **scoped and iterative**: one or two compone
 Coral is deliberately narrow. Flag and ask (never auto-hand-off) when any of these appear:
 
 - Work is touching ≥3 components, or ≥2 interface boundaries
-- A one-way door comes up (event signatures, storage layout, CRD field names, EIP-712 types, or anything the repo's CLAUDE.md flags as irreversible)
+- A one-way door comes up (persisted schema / field names, public API contracts, on-disk or wire formats, signed or indexed identifiers, or anything the repo's CLAUDE.md flags as irreversible)
 - Work is clearly going to span multiple sessions
 - User says "this is bigger than I thought" / "let's do this properly" / "we should design this"
 - Cross-review across components becomes necessary, not just single-specialist consult
