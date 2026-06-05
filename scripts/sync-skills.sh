@@ -48,6 +48,7 @@ PORTABLE=(
 SEI=(
   chaos-suite
   harbor-dev
+  validate-release
 )
 
 # --- Argument parsing -------------------------------------------------------

@@ -34,6 +34,7 @@ PORTABLE=(
   k8s-capacity-management
   sre-engineer
   go-to-market-specialist
+  platform-release-manager
 )
 
 SEI=(
