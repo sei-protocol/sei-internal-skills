@@ -1,8 +1,18 @@
-**Date:** 2026-06-03
-**Status:** Draft (revision 2 — CAPI replaces Auto Mode after Brandon's course-correct; ClusterClass alpha risk assessed and Path A chosen)
+**Date:** 2026-06-05
+**Status:** Draft (revision 3 — near-term execution via TF replication; meta-cluster + CAPI captured as eventual state)
 **Issue:** [sei-protocol/Tide#106](https://github.com/sei-protocol/Tide/issues/106)
 **Sibling:** [sei-protocol/Tide#108](https://github.com/sei-protocol/Tide/issues/108) (prod CNI migration to Cilium)
 **Authors:** bdchatham
+
+---
+
+> **Read this first.** This document has two purposes:
+>
+> 1. **Codify research and architectural direction for future work.** The meta-cluster vision (eu-central-1 hosting CAPI + CAAPH + tofu-controller, child cells reconciled declaratively) is the team's documented destination. The research grounding it — six parallel streams, five-specialist debate, ClusterClass deep-research — is captured so a future operator does not re-derive it.
+>
+> 2. **Define near-term execution: TF replication of the harbor pattern.** Cell #2 (us-east-2) and Cell #3 (eu-west-1) will be stood up by **replicating the existing prod TF root**, the same pattern used for harbor. The meta-cluster reconcilers are **NOT** built in v1.5. They become un-defer triggered work.
+>
+> The near-term path is captured in [§ Near-term execution](#near-term-execution-cell-2-and-3-via-tf-replication). The eventual-state architecture is captured in [§ Architecture (eventual state)](#architecture-eventual-state). Both are load-bearing; both are intentional.
 
 ---
 
@@ -14,32 +24,109 @@ Today every Sei cluster — `prod` in eu-central-1 and `harbor` — is a hand-cr
 
 This design was triggered by a session on 2026-06-03 that originally evaluated `flux-iac/tofu-controller` adoption for the existing `prod` root module. That evaluation [parked tofu-controller for the root](#alternative-1-tofu-controller-on-the-prod-root-module) (circular dependency: TF that creates the EKS cluster can't run inside it). The bigger workstream surfaced naturally — **eu-central-1 as a meta/management cluster that provisions and manages child cells in other regions via GitOps**.
 
-**Concrete v1.5 scope** (named by Brandon on 2026-06-03): the fleet at v1.5 is **3 cells total**:
-- The **meta-cluster** in eu-central-1 (already exists, TF-bootstrapped, will host the fleet reconcilers)
-- **Cell #2 and Cell #3** — created by the meta-cluster via CAPI
+**Concrete v1.5 scope** (named by Brandon on 2026-06-03, refined 2026-06-05): the fleet at v1.5 is **3 cells total**:
+- The eu-central-1 cluster (already exists, TF-bootstrapped). Per revision 3, this is **not yet "the meta-cluster"** in any reconciler sense — it stays a plain cluster until the meta-cluster un-defer fires. The "meta-cluster" framing in the eventual-state architecture below describes its future role, not its v1.5 role.
+- **Cell #2 (us-east-2)** and **Cell #3 (eu-west-1)** — stood up by **TF replication of the prod root**, matching the harbor pattern. No CAPI; no CAAPH; no tofu-controller in v1.5.
 
-A six-stream parallel research pass and a five-specialist Coral debate (kubernetes, platform, network, product, sei-network) ran ahead of revision 1 of this document. Revision 2 incorporates Brandon's course-correct on the cluster-lifecycle reconciler (CAPI replacing the originally-proposed EKS Auto Mode) and a follow-up deep-research pass on ClusterClass alpha risk that resolved Path A vs Path B for cluster template homogeneity.
+A six-stream parallel research pass and a five-specialist Coral debate (kubernetes, platform, network, product, sei-network) ran ahead of revision 1 of this document. Revision 2 incorporated Brandon's course-correct on the cluster-lifecycle reconciler (CAPI replacing the originally-proposed EKS Auto Mode) and a follow-up deep-research pass on ClusterClass alpha risk. **Revision 3** captures Brandon's call to defer the meta-cluster reconcilers themselves — execute cells #2 and #3 with the known-good TF replication pattern, preserve the meta-cluster as documented eventual state. This doc is now both the near-term plan AND the architectural memory for when the meta-cluster un-defer fires.
 
 ## Goals
 
-1. **Programmatic cluster creation** — a new cell stands up via PR-merge of cell registry + cluster manifests, not multi-day handcraft.
-2. **Audit and multi-operator** — every TF apply traceable to a PR + GHA run; second platform operator can apply without sharing Brandon's workspace clone.
-3. **Cross-region capability for 2 named cells** — cell #2 and cell #3 stood up via CAPI from the meta-cluster.
-4. **GitOps symmetry** — workload delivery (Flux) and cluster lifecycle (CAPI) both flow through Git, eliminating today's asymmetry.
-5. **Fleet-shaped identity** — shared resources (`harbor-sei-snapshots`, KMS keys, future shared state) accessible from any cell with zero touches to shared IAM when adding cell #N.
-6. **Sei-chain-aware cell topology** — validator cells and RPC cells are recognized as distinct archetypes; the design does not paper over their different latency and failure semantics.
-7. **Cilium as the target CNI for the fleet** — cell #2/#3 ship on Cilium from day 1; meta-cluster CNI migration tracked separately in [#108](https://github.com/sei-protocol/Tide/issues/108).
+**Near-term (this design's v1 + v1.5 implementation):**
+
+1. **Cell #2 (us-east-2) and Cell #3 (eu-west-1) shipped** via TF replication of the prod root, matching the harbor pattern.
+2. **Audit and multi-operator** for TF applies — every apply traceable to a PR + GHA run; second platform operator can apply without sharing Brandon's workspace clone.
+3. **Cheap one-way doors picked early** — CIDR scheme, `topology.region` label, Pod Identity default for new bindings, Cilium on new cells, TGW hub topology. These compose with both the near-term TF replication path AND the eventual meta-cluster architecture, so the team isn't locked into an upgrade migration when the meta-cluster un-defer fires.
+4. **Fleet-shaped identity** from day 1 — shared resources (`harbor-sei-snapshots`, KMS keys) accessible from any cell via Pod Identity + `aws:PrincipalOrgID` so adding a future cell #N requires zero edits to shared roles.
+
+**Eventual state (this design's documented destination):**
+
+5. **Programmatic cluster creation** — when fleet operational tax justifies it (un-defer triggers in [§ Phased rollout](#phased-rollout)), the meta-cluster reconcilers stand up and new cells land via PR-merge of cell registry + cluster manifests.
+6. **GitOps symmetry** — workload delivery (Flux today) and cluster lifecycle (CAPI eventually) both flow through Git.
+7. **Sei-chain-aware cell topology** — validator cells and RPC cells recognized as distinct archetypes; the design does not paper over their different latency and failure semantics. Applies in both phases.
+8. **Cilium as the target CNI for the fleet** — cell #2/#3 ship on Cilium from day 1; meta-cluster CNI migration tracked separately in [#108](https://github.com/sei-protocol/Tide/issues/108). Applies in both phases.
 
 ## Non-goals
 
+**Near-term (explicitly deferred from v1.5 per Brandon's 2026-06-05 call):**
+
+- **Meta-cluster reconcilers in v1.5.** CAPI, CAPA, CAAPH, tofu-controller install in eu-central-1 — all deferred. The full meta-cluster architecture is documented in [§ Architecture (eventual state)](#architecture-eventual-state); it becomes un-defer-triggered work (see [§ Phased rollout](#phased-rollout)).
+- **Pod Identity Association *reconciler*.** The ~200 LOC Go subpackage in sei-k8s-controller — deferred. Near-term cells declare Pod Identity Associations via TF in each cell's TF root; sufficient at the 5-10 bindings per cell scale, no controller needed yet.
+- **Cell registry as controller input.** A `cells/<name>/cell.yaml` registry consumed by TF (source-of-truth for cell metadata) is still useful and adopted; **but** it is not driving a controller in v1.5. Promoted to controller input when the meta-cluster un-defer fires.
+
+**Always-out-of-scope (regardless of phase):**
+
 - **EKS Auto Mode adoption.** Considered as the cluster-lifecycle baseline in revision 1; rejected after Brandon's course-correct. Reasons: 21-day forced node rotation incompatible with stateful Sei validator pods, plus AWS-managed CNI conflicts with the Cilium target end-state. See [§9 Alternative 2](#alternative-2-eks-auto-mode--terraform-from-ci-was-the-original-recommendation).
 - **Crossplane as cluster provisioner.** Right tool for app-team-facing Compositions (XRDs); wrong tool for "spin up EKS clusters." See [§9 Alternative 5](#alternative-5-crossplane).
-- **`ClusterClass` (Path B) at v1.5.** Alpha status still + missing `AWSManagedMachinePoolTemplate` defeats homogeneity goal. Path A (raw CRDs + Helm templating) chosen; migration A→B preserved as clean two-way door. See [§4.5](#45-cluster-template-homogeneity-path-a-raw-crds--helm).
+- **`ClusterClass` (Path B) when the meta-cluster does un-defer.** Alpha status still + missing `AWSManagedMachinePoolTemplate` defeats homogeneity goal. Path A (raw CRDs + Helm templating) chosen; migration A→B preserved as clean two-way door. See [§4.5](#45-cluster-template-homogeneity-path-a-raw-crds--helm).
 - **EKS Hybrid Nodes** for any current Sei workload.
 - **Multi-account expansion.** Today all clusters live in AWS account `189176372795`. Multi-account is a future workstream.
 - **Migration of existing `harbor` cluster** into the meta-cluster model. It works today; touch it only if a future phase explicitly requires it.
 - **Bare-metal / non-EKS clusters.** EKS-only.
 - **Active-active mainnet validators across regions.** Sei consensus (CometBFT-based) is BFT — cross-region validator P2P at 100-250ms RTT is consensus-degrading even with timeout tuning. Multi-region fault tolerance is achieved via tmkms/Horcrux signer failover + sentry geography, not active multi-region validators. See [§4.4](#44-validator-cell-vs-rpc-cell-archetypes).
+
+## Near-term execution (cell #2 and #3 via TF replication)
+
+This is what the team is **actually building** in v1.5. The full meta-cluster architecture in the next section is what we're documenting toward — not what we're building now.
+
+### Rationale (why this and not the meta-cluster directly)
+
+Three signals:
+
+1. **Known-good pattern.** The team has shipped a non-trivial cluster (harbor) via TF replication. CAPI/CAAPH/tofu-controller is new to the team; the operational learning cost stacked on top of cell #2 + #3 delivery is real and not earned.
+2. **Eventual-state direction preserved.** When un-defer triggers fire, the team walks into a fully-scoped target (CAPI Path A, CAAPH, tofu-controller for cross-cluster, Pod Identity reconciler) — no re-derivation needed.
+3. **Foundation one-way doors picked early under this path too.** CIDR, Pod Identity + `aws:PrincipalOrgID`, Cilium, TGW topology, `topology.region` — all locked at v1/v1.5 even under TF replication. The eventual meta-cluster adoption is a control-plane layer change, not a substrate migration.
+
+### Shape
+
+**Per-cell TF root**, structured to mirror `terraform/aws/189176372795/eu-central-1/prod/`:
+- `terraform/aws/189176372795/us-east-2/cell-2/` — Cell #2 root
+- `terraform/aws/189176372795/eu-west-1/cell-3/` — Cell #3 root
+
+**What lives in each cell's TF root:**
+- VPC carved from the documented `/12` budget — specific `/16` per cell, deconflicting with existing meta + harbor CIDRs per [Open Question 8](#open-questions)
+- EKS control plane (matching prod's pattern — managed control plane, mix of managed node groups + Karpenter)
+- Cilium installed via Flux HelmRelease as the CNI from day 1 (no VPC CNI on new cells)
+- Karpenter, ESO, sei-k8s-controller installed per cell via Flux (not CAAPH)
+- Pod Identity Agent installed; Pod Identity Associations declared directly in TF using the `aws:PrincipalOrgID` pattern from [§4.2](#42-identity-federation) — adding cell #N requires zero edits to shared roles
+- TGW spoke attachment + cross-region peering to the eu-central-1 hub (declared in TF; per-cell or via a shared `cross-cluster/` root, see [Open Question 5](#open-questions))
+- IAM trust updates on shared roles (when a new shared role is needed) via TF, with `aws:PrincipalOrgID` condition
+
+**What lives in a Git directory `cells/<name>/`** (source-of-truth even without a controller consuming it):
+- `cell.yaml` — name, region, CIDR, archetype, status, OIDC issuer URL once known
+- `flux/` — cell-specific Flux Kustomization tree (workloads + addons)
+
+**Operational pattern:**
+- TF apply per cell via GHA + OIDC (the same v1 workflow scaled to N roots)
+- Cluster changes (EKS version bump, addon update, IAM trust additions) replicated across cell roots — N PR-and-CI loops per change
+- Flux per cell handles workload delivery
+- Cells are independent; no cross-cell controller dependency
+
+### What this near-term path costs
+
+| Cost | Quantification |
+|---|---|
+| N TF roots to maintain | 3 today (prod + cell-2 + cell-3) + harbor = 4. EKS upgrades, addon bumps, IAM trust additions replicated N times. |
+| No declarative cluster drift detection | `terraform plan` runs on a cadence (CI weekly + on PR) catch drift; no continuous reconciliation |
+| Manual cell stand-up | Cell #4 in another region: copy-and-modify an existing cell's TF root, allocate `/16`, apply. Hours-to-days, not minutes |
+| No fleet-wide template enforcement | Cells diverge as operators edit one and forget another; the Helm chart that would enforce homogeneity in the meta-cluster path is absent here |
+
+### What this near-term path buys
+
+- Operational pattern the team already knows
+- Zero new infrastructure (no CAPI CRDs, no CAAPH, no tofu-controller install)
+- Faster cell #2 + #3 delivery
+- Foundation one-way doors picked now compose with the eventual meta-cluster adoption — no rework
+
+### Un-defer triggers from TF replication → meta-cluster adoption
+
+Any one fires → start the meta-cluster v2/v3 work documented in [§ Architecture (eventual state)](#architecture-eventual-state):
+
+1. **N ≥ 4 cells with active TF changes** — per-cluster PR cost becomes significant; the CAPI tax buys back the per-cell PR cost
+2. **ClusterClass + `AWSManagedMachinePoolTemplate` both ship** in CAPI/CAPA, removing the alpha-status concern that motivated Path A
+3. **Second platform operator joins with ownership of cluster lifecycle** — fleet-shaped tooling earns its keep at N=2 operators
+4. **Recurring drift between TF state and reality** — monthly drift detection catches >2 incidents → the declarative reconcile loop matters
+5. **A real ergonomic ask** for "stand up a new cell in <15 minutes, not a day" — from leadership, customers, or scaling requirements
 
 ## Architecture (eventual state)
 
@@ -270,66 +357,85 @@ The bootstrap "controller" is **a CI step + CAAPH**, not a custom Go controller,
 7. **Default-to-Pod-Identity for net-new IAM bindings.** Don't migrate existing IRSA bindings; future new ones are Pod Identity. Pattern starts here.
 8. **CIDR scheme committed in design** (`/12` budget at `10.0.0.0/12`, `/16` per cell, `100.64.0.0/10` pod CIDRs via Cilium IPAM). No `/16` allocations to cells #2 / #3 until the existing meta-cluster + harbor CIDRs are audited (Open Question 8); the scheme is documented so the first allocation doesn't lock in something different.
 
-### v1.5 — meta-cluster + cells #2 and #3 (real workstream, already triggered)
+### v1.5 — cells #2 (us-east-2) and #3 (eu-west-1) via TF replication (real workstream)
 
-Brandon named 3 cells (meta + 2 created by automation) on 2026-06-03. The "no second cell" smell test (product-engineer's strongest argument in revision 1) is **resolved**. v1.5 implementation:
+**Per Brandon's 2026-06-05 call**: cells stand up via TF replication of the prod root, matching the harbor pattern. NOT via CAPI/CAAPH/tofu-controller. The full meta-cluster architecture (§ Architecture eventual state) is documented but not built in v1.5. See [§ Near-term execution](#near-term-execution-cell-2-and-3-via-tf-replication) for the full shape.
 
-- **TF state split**: `global/`, `meta/eu-central-1/`, `cells/<region>/<name>/`, `cross-cluster/`. Per-state DynamoDB lock + KMS object key.
-- **Meta-cluster's own TF state stays in CI** — never reconciled from inside itself.
-- **CAPI + CAPA installed in meta-cluster** via `clusterctl init`, then a Flux HelmRelease for ongoing upgrade discipline. **Pin to a specific CAPI version**, never `*.x`. Treat CAPI upgrades as platform changes with their own PR + review (see [Blocker 1](#blocker-1-capi-operational-tax-for-a-2-person-platform-team)).
-- **CAAPH installed** for addon delivery.
-- **`sei-cell` Helm chart** (`meta-cluster/charts/sei-cell/`) with `values.yaml` for cell #2 and cell #3.
-- **tofu-controller** installed in meta-cluster. Manages `cross-cluster/` state only. `approvePlan: ""` (manual) for tier-0 (IAM trust, peering); `auto` only for idempotent fan-out (Pod Identity associations driven by cell registry).
-- **Pod Identity Association reconciler** as a subpackage of `sei-k8s-controller` (~200 LOC).
-- **TGW hub** stood up in eu-central-1.
-- **Route 53 PHZ `cells.sei.internal`** created and associated to meta-cluster VPC.
-- **Cell #2 (us-east-2) and Cell #3 (eu-west-1)** stood up via CAPI from the sei-cell Helm chart. **Cilium from day 1** on both. Archetype + chain assignment TBD (see [Open Question 4](#open-questions)).
+Implementation:
 
-### v2 — fleet operations as cells stabilize
+- **Per-cell TF roots** — `terraform/aws/189176372795/us-east-2/cell-2/` and `eu-west-1/cell-3/`, each a parameterized copy of the prod root pattern
+- **VPC carved from the `/12` budget** — `/16` per cell, deconflicting with existing meta + harbor CIDRs (resolution of [Open Question 8](#open-questions))
+- **EKS control plane** provisioned via TF; node management matches prod (managed node groups + Karpenter as today)
+- **Cilium installed via Flux HelmRelease** as the CNI from day 1 on both new cells (no VPC CNI)
+- **Karpenter, ESO, sei-k8s-controller** installed per cell via Flux
+- **Pod Identity Agent** installed; Pod Identity Associations declared in TF using `aws:PrincipalOrgID` so adding cell #N requires zero shared-role edits
+- **TGW hub** stood up in eu-central-1, **TGW spoke attachments + cross-region peering** declared in TF (probably in a shared `cross-cluster/` root for cleanliness, see [Open Question 5](#open-questions))
+- **Route 53 PHZ `cells.sei.internal`** created in TF and associated to every spoke VPC
+- **Per-cell Git directory `cells/<name>/`** — `cell.yaml` (registry metadata) + `flux/` (workload tree); source-of-truth even without a controller consuming it
+- **Cell #2 and #3 archetype + chain assignment** still TBD (see [Open Question 4](#open-questions))
 
-- **Per-class TGW route tables** (prod-spokes / harbor-spokes / meta-hub) — promoted from v3 given 3 cells from the start.
-- **S3 Cross-Region Replication** on `harbor-sei-snapshots` (pruned prefix only; archive on-demand cross-region with retry).
-- **`SeiExternalPeer` CR** in sei-k8s-controller for explicit cross-cell peer wiring (if needed).
-- **Prod CNI migration** to Cilium per [#108](https://github.com/sei-protocol/Tide/issues/108). Un-defer trigger: cell #2 runs on Cilium ≥2 weeks without CNI-related incidents.
-- **Cilium ClusterMesh** enrollment after prod migrates (full-fleet) or between cell #2/#3 only (partial) — depends on whether ClusterMesh is needed before prod migrates.
+Explicitly **NOT** in v1.5: CAPI install, CAAPH, tofu-controller install, Pod Identity reconciler subpackage, sei-cell Helm chart, Cluster CR per cell. All deferred to v2+ un-defer triggers.
 
-### v3 — auto-onboarding (defer indefinitely)
+### v2 — fleet operational maturity (no meta-cluster yet)
 
-- `Cell` CRD with a reconciler that watches `Cell` rows and drives the new-cell flow end-to-end.
-- Un-defer trigger: ≥3 cells AND human onboarding flow becomes a measurable cost.
+Work that becomes valuable as the fleet stabilizes at N=3-4, **still under the TF replication pattern**:
 
-### Future un-defer signals
+- **Per-class TGW route tables** (prod-spokes / harbor-spokes / meta-hub) — promoted given 3 cells from the start
+- **S3 Cross-Region Replication** on `harbor-sei-snapshots` (pruned prefix only; archive on-demand cross-region with retry)
+- **Cross-cell peer wiring discipline** — when a Sei workload needs cross-cell connectivity (rare; mostly sentries reaching validators across cells), document the pattern (static peer literal in `SeiNodeDeployment`, no CR or controller needed at N=3)
+- **Prod CNI migration** to Cilium per [#108](https://github.com/sei-protocol/Tide/issues/108). Un-defer trigger: cell #2 runs on Cilium ≥2 weeks without CNI-related incidents
+- **Cilium ClusterMesh** enrollment if cross-cell NetworkPolicy or identity-aware L7 becomes a real ask (between cell #2/#3 only until prod migrates per #108; full-fleet after)
+- **TF state split discipline** — by this phase, `terraform/aws/189176372795/` has 4-5 roots (prod + harbor + cell-2 + cell-3 + cross-cluster). Document the cross-cell-touch policy (which root changes for which kind of edit) to keep the cognitive load bounded
 
-- **ClusterClass un-defer** (Path A → Path B): CAPI `ClusterTopology` default-on in `clusterctl init` AND CAPA ships `AWSManagedMachinePoolTemplate`. See [§4.5](#45-cluster-template-homogeneity-path-a-raw-crds--helm).
-- **CAPI minor-upgrade blockage** — if a CAPI minor blocks v1.5 fleet for >1 day, invest in a CAPI-upgrade runbook + canary class rollout pattern. See [Blocker 1](#blocker-1-capi-operational-tax-for-a-2-person-platform-team).
-- **Pod Identity Associations exceed ~30** → migrate from custom reconciler to tofu-controller TF graph.
-- **First cross-cell NetworkPolicy ask** → Cilium ClusterMesh enrollment (cell #2 + #3 first if prod hasn't migrated yet; full-fleet once #108 closes).
+### v3 — meta-cluster un-defer (the eventual-state adoption)
+
+Triggered by ANY of the un-defer signals from [§ Near-term execution](#near-term-execution-cell-2-and-3-via-tf-replication). The full meta-cluster architecture in [§ Architecture (eventual state)](#architecture-eventual-state) becomes the implementation target:
+
+- CAPI + CAPA install in eu-central-1 (now elevated to "meta-cluster")
+- CAAPH for Helm chart delivery to cells
+- tofu-controller for `cross-cluster/` AWS state
+- Pod Identity Association reconciler subpackage in sei-k8s-controller
+- `sei-cell` Helm chart parameterized per cell
+- Existing TF-replicated cells migrated to the meta-cluster control plane (the migration story is non-trivial — bringing existing infra under CAPI is its own design pass when v3 fires)
+
+### v4 — auto-onboarding (defer indefinitely)
+
+- `Cell` CRD with a reconciler that watches `Cell` rows and drives the new-cell flow end-to-end
+- Un-defer trigger: N≥5 cells in active rotation AND human onboarding flow is a measurable bottleneck
+
+### Cross-phase un-defer signals to watch
+
+- **ClusterClass un-defer** (Path A → Path B when meta-cluster is adopted): CAPI `ClusterTopology` default-on AND CAPA ships `AWSManagedMachinePoolTemplate`. See [§4.5](#45-cluster-template-homogeneity-path-a-raw-crds--helm).
+- **First cross-cell NetworkPolicy ask** → Cilium ClusterMesh enrollment (cell #2 + #3 first if prod hasn't migrated; full-fleet once #108 closes).
 - **Mainnet incident** where eu-central-1 region failure takes a validator offline → revisit sentry geography + tmkms/Horcrux (NOT active multi-region validators).
-- **p99 RPC latency from APAC clients exceeds SLO** → stand up RPC cell in APAC (RPC cell archetype only, no validators).
+- **p99 RPC latency from APAC clients exceeds SLO** → stand up RPC cell in APAC (RPC archetype only, no validators).
 
 ## One-way doors picked early
 
-Decisions that are cheap to commit at v1 / v1.5 but expensive to retroactively change:
+Decisions that are cheap to commit at v1 / v1.5 but expensive to retroactively change. **These apply under both the near-term TF replication path and the eventual meta-cluster path** — picking them now means the meta-cluster un-defer in the future doesn't require a substrate migration.
 
-1. **Non-overlapping CIDR scheme** (`/14` budget per fleet, `/16` per cell, `100.64.0.0/10` pod CIDRs).
+1. **Non-overlapping CIDR scheme** (`/12` budget at `10.0.0.0/12`, `/16` per cell, `100.64.0.0/10` pod CIDRs).
 2. **`topology.region` label on `SeiNodeDeployment`.** Schema one-way door; cheap to add, costly later.
-3. **`pods.eks.amazonaws.com` (Pod Identity) as default for new IAM bindings.** No migration of existing IRSA; new ones are Pod Identity.
-4. **AWS account `189176372795` stays single-account through v2.** Multi-account is its own design pass.
-5. **CAPI + CAPA as cluster-lifecycle reconciler.** Documented so future "let's use Crossplane" or "let's use Auto Mode" proposals re-litigate against this design's evidence.
-6. **Cilium as the target CNI for the entire fleet.** Cell #2/#3 from day 1; meta-cluster migration via [#108](https://github.com/sei-protocol/Tide/issues/108).
-7. **Path A (raw CAPI CRDs + Helm templating).** Two-way door to Path B preserved; un-defer trigger named.
+3. **`pods.eks.amazonaws.com` (Pod Identity) as default for new IAM bindings** with `aws:PrincipalOrgID` trust pattern. No migration of existing IRSA; new ones are Pod Identity. Identical pattern under TF replication and meta-cluster paths.
+4. **AWS account `189176372795` stays single-account through v3.** Multi-account is its own design pass.
+5. **Cilium as the target CNI for the entire fleet.** Cell #2/#3 from day 1; meta-cluster migration via [#108](https://github.com/sei-protocol/Tide/issues/108).
+6. **CAPI + CAPA as the *eventual* cluster-lifecycle reconciler.** Documented so future "let's use Crossplane" or "let's use Auto Mode" proposals re-litigate against this design's evidence. Not built in v1.5.
+7. **Path A (raw CAPI CRDs + Helm templating) when meta-cluster un-defer fires.** Two-way door to Path B preserved; un-defer trigger named.
+8. **TGW hub-and-spoke topology with eu-central-1 as hub.** Apply under both phases. Avoids peering-to-TGW migration at any point.
 
 ## Honest blockers
 
-### Blocker 1: CAPI operational tax for a 2-person platform team
+### Blocker 1: CAPI operational tax — gates the eventual-state un-defer
 
-**Source: deep research on CAPI release cadence + Giant Swarm's public framing.** CAPI ships breaking changes to v1beta2 fields every minor release (~4 month cadence). Conversion webhooks bridge versions but have documented edge cases ([CAPI #12605](https://github.com/kubernetes-sigs/cluster-api/issues/12605)). At our scale (3 cells, 2-person team), expect **~1 day/month of CAPI maintenance** (CRD upgrades, machine-controller edge cases, conversion bumps). Giant Swarm at MSP scale described it as "a thousand small features" of sustained work; for us at 3 cells the tax is real but bounded.
+**Source: deep research on CAPI release cadence + Giant Swarm's public framing.** CAPI ships breaking changes to v1beta2 fields every minor release (~4 month cadence). Conversion webhooks bridge versions but have documented edge cases ([CAPI #12605](https://github.com/kubernetes-sigs/cluster-api/issues/12605)). At our scale (3-5 cells, 2-person team), expect **~1 day/month of CAPI maintenance** (CRD upgrades, machine-controller edge cases, conversion bumps). Giant Swarm at MSP scale described it as "a thousand small features" of sustained work; for us the tax is real but bounded.
 
-**Resolution path:**
+**This blocker is one of the reasons revision 3 defers the meta-cluster build to v3** (un-defer triggered) instead of v1.5. Under near-term TF replication, this tax does not apply — it activates when the meta-cluster un-defer fires.
+
+**Resolution path** (at the v3 un-defer moment):
 - Pin CAPI version via Flux HelmRelease, never `*.x`
 - Treat CAPI minor upgrades as platform changes with their own PR + review
 - Build a canary class pattern (rebase one Cluster at a time onto a new chart version) to limit upgrade blast radius
-- If monthly tax exceeds 2 days, surface as a signal to revisit (switch to TF-per-cell with manual cluster-lifecycle ops, or wait for ClusterClass + AWSManagedMachinePoolTemplate to graduate)
+- If monthly tax exceeds 2 days post-adoption, surface as a signal to revisit (switch back to TF replication, or wait for ClusterClass + AWSManagedMachinePoolTemplate to graduate)
 
 ### Blocker 2: `kubernetes_secret_v1` migration prerequisite
 
@@ -347,8 +453,9 @@ Decisions that are cheap to commit at v1 / v1.5 but expensive to retroactively c
 
 | Trade-off | What we accept | What we give up |
 |---|---|---|
-| **CAPI operational tax** | ~1 day/month CRD upgrades, edge cases, conversion bumps | TF-per-cluster simplicity. The K8s-native declarative payoff at fleet scale earns the tax once N≥3. |
-| **Raw CRDs + Helm (Path A) over ClusterClass (Path B)** | One Helm chart of CAPI CRDs per cell; homogeneity-by-discipline rather than primitive-enforced | ClusterClass's tighter single-source-of-truth. Acceptable until alpha graduates + EKS managed-machinepool template lands. |
+| **TF replication (near-term) over meta-cluster build** | N TF roots to maintain; cluster changes replicated N times; no declarative cluster reconciliation; manual cell stand-up at hours-to-days scale | Faster cell #2/#3 delivery on a known operational pattern. Avoids stacking CAPI learning curve on top of cell delivery. Eventual meta-cluster adoption preserved with no substrate migration (foundation one-way doors picked now). |
+| **CAPI operational tax** (when v3 un-defer fires) | ~1 day/month CRD upgrades, edge cases, conversion bumps | TF-per-cluster simplicity. The K8s-native declarative payoff at fleet scale earns the tax once it activates. |
+| **Raw CRDs + Helm (Path A) over ClusterClass (Path B)** at meta-cluster adoption time | One Helm chart of CAPI CRDs per cell; homogeneity-by-discipline rather than primitive-enforced | ClusterClass's tighter single-source-of-truth. Acceptable until alpha graduates + EKS managed-machinepool template lands. |
 | **CNI heterogeneity window** until prod migrates | Bounded debugging asymmetry (VPC CNI in prod, Cilium in cells). Tracked in [#108](https://github.com/sei-protocol/Tide/issues/108). | Single-CNI fleet from day 1. Worth the bounded cost given prod is a destructive cutover that earns experience-on-greenfield-first. |
 | **We run Karpenter, Cilium, addons ourselves** (post-Auto-Mode-rejection) | Operational ownership of node lifecycle, CNI, kube-proxy-replacement | AWS managing this for a 12% surcharge. Karpenter we already operate today; Cilium adoption is the same shape; net-neutral on ops once Cilium experience exists. |
 | **CIDR commitment ahead of need** | `/12` budget reserved (16 `/16`s) | IP budget is cheap; cost of NOT committing is a Private-NAT migration per future cell. |
@@ -376,27 +483,30 @@ The original research-driven recommendation favored EKS Auto Mode + Terraform-fr
 
 The architectural shape stays close to what Auto Mode would have given us — TF bootstraps the root cluster, declarative reconciliation handles the rest. The reconciler swaps: CAPI takes the cluster-lifecycle slot; Karpenter (self-managed, as today) takes the node-lifecycle slot Auto Mode would have owned.
 
-### Alternative 3: Cluster API / CAPA — adopted
+### Alternative 3: Cluster API / CAPA — chosen as eventual state, deferred from v1.5
 
-This was the **rejected** alternative in revision 1. Promoted to chosen path after Brandon's course-correct.
+Revision 1 rejected this; revision 2 promoted it; **revision 3 keeps it as the chosen eventual-state target but defers the build to v3** (un-defer triggered). The architecture in [§ Architecture (eventual state)](#architecture-eventual-state) is the documented destination.
 
-The research arguments against CAPI (still valid, just outweighed):
-- ClusterClass still alpha at CAPI v1.13. **Mitigated by Path A (§4.5).**
-- CAPA Pod Identity is unmerged PR #5808. **Mitigated by the Pod Identity reconciler in sei-k8s-controller (§4.2).**
+The research arguments against CAPI (still valid, all addressed in the eventual-state design):
+- ClusterClass still alpha at CAPI v1.13. **Mitigated by Path A ([§4.5](#45-cluster-template-homogeneity-path-a-raw-crds--helm)).**
+- CAPA Pod Identity is unmerged PR #5808. **Mitigated by the Pod Identity reconciler in sei-k8s-controller ([§4.2](#42-identity-federation)).**
 - EKS Auto Mode not first-class in CAPA. **Moot — we're not using Auto Mode.**
 - Real upgrade-blocking bugs (#12605 v1beta1→v1beta2 conversion). **Mitigated by pinning CAPI version + canary chart rollout discipline.**
 - Giant Swarm: "a thousand small features." **At our scale, the budget is ~1 day/month, not multi-team-years.**
 - SuperOrbital: management cluster is tier-0. **Accepted; the meta-cluster IS tier-0 by definition.**
 
-The strongest argument FOR CAPI at our scale (3 cells, two created by automation): the alternative (TF-per-cluster) means **3 TF roots, 3 state files, 3 PR-and-CI loops per cluster change**. CAPI collapses that into one set of CRDs in the meta-cluster, reconciled continuously. The K8s-native pattern also aligns with the rest of the stack (Flux, sei-k8s-controller, tofu-controller).
+The strongest argument FOR CAPI as the eventual state: at N≥4 cells, the TF replication pattern's per-cluster PR cost becomes meaningful, and the CAPI tax (~1 day/month) buys back declarative drift detection, single-source-of-truth templating via Helm, and a K8s-native pattern that aligns with Flux + sei-k8s-controller + tofu-controller. The strongest argument for **deferring** this work (revision 3's call): cells #2 and #3 can ship via the known TF replication pattern faster than the team can absorb CAPI's learning curve.
 
 ### Alternative 4: Defer the entire meta-cluster (product-engineer's position in revision 1)
 
 The strongest scope-cut in revision 1: "the design solves a problem Brandon doesn't have yet."
 
-**This argument is now resolved** by Brandon's 2026-06-03 confirmation of 3 cells (meta + 2 created by automation). The product-engineer's smell test ("nobody has named a second cell") fails — cells #2 and #3 ARE named workstream. v1.5 is real, not hypothetical.
+**Revision 3 substantially adopts this position** for the near-term execution path. Brandon's 2026-06-03 confirmation of cells #2 and #3 resolved the "nobody has named a second cell" smell test for cell creation — but the product-engineer's underlying point ("don't build infrastructure ahead of named need") carries to the meta-cluster reconcilers. Cells #2 and #3 are named; the meta-cluster's automation isn't (the team is choosing TF replication).
 
-What survives from the position: **v1 implementation is still tight** (`.gitignore` + GHA+OIDC + ESO migration + cheap one-way doors). v1.5 only starts when v1 lands and prerequisites resolve. The discipline of YAGNI shapes phase boundaries, not feature absence.
+What survives in revision 3:
+- **v1 implementation is still tight** (`.gitignore` + GHA+OIDC + ESO migration + cheap one-way doors)
+- **v1.5 is bounded** to TF replication + foundation one-way doors — no meta-cluster reconcilers
+- **The meta-cluster build is un-defer-gated**, not scheduled
 
 ### Alternative 5: Crossplane
 
@@ -404,20 +514,44 @@ What survives from the position: **v1 implementation is still tight** (`.gitigno
 
 Reconsider Crossplane when (a) we have app teams self-serving infrastructure, or (b) the IDP-style platform XRD product becomes a stated goal. Neither is true today.
 
-### Alternative 6: EKS Auto Mode + just Terraform, no meta-cluster
+### Alternative 6: TF replication, no meta-cluster reconcilers (CHOSEN for near-term)
 
-The honest fallback. If CAPI's operational tax exceeds budget at v1.5, the de-risk is: drop CAPI, drop CAAPH, run N independent TF roots each provisioning one cluster, deliver workloads via per-cluster Flux. We'd lose the K8s-native reconciliation pattern but keep the TF state split and GHA+OIDC audit. Documented as the un-defer fallback if [Blocker 1](#blocker-1-capi-operational-tax-for-a-2-person-platform-team) fires.
+**Chosen as the v1.5 implementation path per Brandon's 2026-06-05 call.** See [§ Near-term execution](#near-term-execution-cell-2-and-3-via-tf-replication) for the full shape.
+
+Stand up cells #2 and #3 via TF replication of the prod root, matching the harbor pattern. No CAPI, no CAAPH, no tofu-controller install. Cilium installed via Flux HelmRelease per cell. Pod Identity Associations declared in TF using `aws:PrincipalOrgID`. TGW peering declared in TF.
+
+Why this wins for near-term:
+- **Known operational pattern** (harbor already shipped this way)
+- **Zero new infrastructure to learn** (no CAPI CRDs, no CAAPH, no tofu-controller install)
+- **Faster cell delivery** than stacking the meta-cluster learning curve on top
+- **Foundation one-way doors picked early under this path** — eventual meta-cluster un-defer is a control-plane change, not a substrate migration
+
+Why this is honest about the cost:
+- N TF roots to maintain (3 today: prod + cell-2 + cell-3 + harbor = 4)
+- Cluster changes (EKS version bump, addon update) replicated N times
+- No declarative drift detection — only `terraform plan` runs catch drift
+- New cell stand-up is hours-to-days, not minutes
+
+The meta-cluster (Alternative 3) is the eventual destination when un-defer triggers fire.
 
 ## Open questions
 
-1. **Auto Mode 21-day rotation graceful handling for validators** — was a blocker in revision 1; **resolved by not using Auto Mode**. No further action.
-2. **Which `kubernetes_*` resources are in current prod TF** — platform-engineer. Resolution: audit during v1 step 2.
-3. **CAPI version pin policy** — follow CAPI minor releases on a 1-month-behind cadence, or pin to a stable line and upgrade every 3-6 months? Owner: platform-engineer. Resolution: before first CAPI minor bump after v1.5.
-4. **Cell #2 and #3 archetypes and chains hosted**. Regions resolved: **cell #2 in us-east-2, cell #3 in eu-west-1**. Archetype (validator / RPC / mixed) and chain assignment (mainnet `pacific-1`, testnets, eng/ephemeral) still TBD. Latency context for the choice: eu-west-1 ↔ eu-central-1 is ~25-30ms RTT (intra-Europe, viable for either archetype with caveats); us-east-2 ↔ eu-central-1 is ~85-95ms RTT (transatlantic, structurally better for RPC archetypes — running validator P2P at ~85ms RTT would degrade block production per the sei-network-specialist finding in §4.4). Owner: product/operations decision. Resolution: before v1.5 implementation starts.
-5. **TF state per-cell vs per-region naming** under `cells/` — `cells/<region>/<name>/` or `cells/<name>/`. Platform-engineer prefers the former for blast-radius scoping. Resolution: at v1.5 start.
-6. **Snapshot replication policy** — pruned vs. archive prefix split, replication lifecycle, retention. sei-network-specialist owns. Resolution at v2 when cell #2 lands.
-7. **CAPI upgrade canary mechanism** — do we render the sei-cell Helm chart with a `clusterVersion: vN` parameter and roll cells one at a time onto vN+1, or do we maintain two chart versions in Git? Resolution: at first CAPI minor upgrade post-v1.5.
-8. **Current meta-cluster and harbor VPC CIDR audit**. The `/12` budget at `10.0.0.0/12` is a documented scheme, but actual `/16` allocations to cells #2 (us-east-2) and #3 (eu-west-1) must deconflict with the existing eu-central-1 meta-cluster VPC and harbor VPC CIDRs. If existing CIDRs fall outside `10.0.0.0/12`, document the exception and continue (the scheme governs new allocations; existing VPCs are grandfathered). Owner: platform-engineer. Resolution: before v1.5 cell creation begins.
+**Near-term (block v1 / v1.5 progress):**
+
+1. **Which `kubernetes_*` resources are in current prod TF** — platform-engineer. Resolution: audit during v1 step 2.
+2. **Cell #2 and #3 archetypes and chains hosted**. Regions resolved: **cell #2 in us-east-2, cell #3 in eu-west-1**. Archetype (validator / RPC / mixed) and chain assignment (mainnet `pacific-1`, testnets, eng/ephemeral) still TBD. Latency context for the choice: eu-west-1 ↔ eu-central-1 is ~25-30ms RTT (intra-Europe, viable for either archetype with caveats); us-east-2 ↔ eu-central-1 is ~85-95ms RTT (transatlantic, structurally better for RPC archetypes — running validator P2P at ~85ms RTT would degrade block production per the sei-network-specialist finding in [§4.4](#44-validator-cell-vs-rpc-cell-archetypes)). Owner: product/operations decision. Resolution: before v1.5 implementation starts.
+3. **Current meta-cluster and harbor VPC CIDR audit**. The `/12` budget at `10.0.0.0/12` is a documented scheme, but actual `/16` allocations to cells #2 (us-east-2) and #3 (eu-west-1) must deconflict with the existing eu-central-1 meta-cluster VPC and harbor VPC CIDRs. If existing CIDRs fall outside `10.0.0.0/12`, document the exception and continue (the scheme governs new allocations; existing VPCs are grandfathered). Owner: platform-engineer. Resolution: before v1.5 cell creation begins.
+4. **TF state organization for v1.5**. Three real questions:
+   - Per-cell TF root layout: `terraform/aws/189176372795/<region>/<cell-name>/` matches the existing prod pattern — confirm.
+   - `cross-cluster/` root: do TGW peering + cross-cell IAM trust live in a separate root, or in each cell's root? Platform-engineer's revision-2 recommendation favored a separate `cross-cluster/` root for blast-radius scoping; revision 3's TF-replication path still benefits from this split.
+   - Module factoring: does v1.5 extract `modules/cell/` to share VPC + EKS + Cilium setup across cell-2 and cell-3 roots, or do we accept some copy-paste between roots and refactor at v2? Owner: platform-engineer. Resolution: at v1.5 start.
+
+**Cross-phase / deferred:**
+
+5. **CAPI version pin policy** — follow CAPI minor releases on a 1-month-behind cadence, or pin to a stable line and upgrade every 3-6 months? Owner: platform-engineer. Resolution: at v3 un-defer (meta-cluster adoption).
+6. **CAPI upgrade canary mechanism** — render the sei-cell Helm chart with a `clusterVersion: vN` parameter and roll cells one at a time, or maintain two chart versions in Git? Owner: platform-engineer. Resolution: at first CAPI minor upgrade post-v3 adoption.
+7. **Snapshot replication policy** — pruned vs. archive prefix split, replication lifecycle, retention. sei-network-specialist owns. Resolution at v2 when cell #2 lands.
+8. **Auto Mode 21-day rotation graceful handling for validators** — was a blocker in revision 1; **resolved by not using Auto Mode**. No further action.
 
 ## References
 
