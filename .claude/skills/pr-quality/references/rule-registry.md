@@ -83,5 +83,5 @@ The judge subagent loads brevity's SKILL.md (subagent-loads-target-skill — sam
 2. If LLM-judged: new `judges/<rule>.md` with prompt + scope + few-shot examples.
 3. If mechanical: new `scripts/scan-<rule>.sh` predicate (single-purpose; stdout = findings, stderr = logs).
 4. New eval case in `evals/evals.json`.
-5. Cross-review by `reviewer` (convention fit) + `product-engineer` (mechanism coherence).
+5. Cross-review (via `/cross-review`) for convention fit + `product-engineer` for mechanism coherence.
 6. Ship.

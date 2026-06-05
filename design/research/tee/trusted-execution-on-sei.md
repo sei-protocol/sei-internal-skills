@@ -6,7 +6,7 @@ It is **not** a product proposal. It is the domain framing — what TEE patterns
 
 ## Scope and what's out
 
-**In scope.** TEE applications whose security depends on Sei consensus, Sei-EVM verification, sei-chain validator infrastructure, the sei-sidecar (seictl controller-to-pod task API on `:7777`), Waterway (the EVM JSON-RPC HTTP/WS reverse proxy upstream of the platform gateway), sei-k8s-controller-managed workloads, harbor cluster realities, and Tide's on-chain agentic harness contracts. The lens is "what does it cost to make an attestation load-bearing for a Sei-side decision."
+**In scope.** TEE applications whose security depends on Sei consensus, Sei-EVM verification, sei-chain validator infrastructure, the sei-sidecar (seictl controller-to-pod task API on `:7777`), Waterway (the EVM JSON-RPC HTTP/WS reverse proxy upstream of the platform gateway), sei-k8s-controller-managed workloads, and harbor cluster realities. The lens is "what does it cost to make an attestation load-bearing for a Sei-side decision."
 
 **Out of scope.** TEE work that lives entirely off-chain with no Sei-side claim (general AWS Nitro enterprise workloads, Intel SGX for non-blockchain secrets management, etc.) — these are well-covered in the per-vendor docs and don't earn additional Sei-domain framing. Also out of scope: vendor selection at the *product* level (which TEE for which Sei feature) — that's a downstream design pass that should consume this document, not a part of it.
 

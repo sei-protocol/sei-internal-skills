@@ -37,6 +37,7 @@ PORTABLE=(
   bugbash
   coral
   council
+  cross-review
   design
   issue
   author-skill
@@ -48,6 +49,7 @@ PORTABLE=(
 SEI=(
   chaos-suite
   harbor-dev
+  validate-release
 )
 
 # --- Argument parsing -------------------------------------------------------

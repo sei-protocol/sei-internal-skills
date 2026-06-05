@@ -1,6 +1,6 @@
 ---
 name: council
-description: "Use when the user wants full-ceremony engineering: design a new system from scratch, plan a multi-component feature end-to-end, write a low-level design, run a design review or cross-review, verify interface consistency, or spin up an independent engineering workstream — 'use the council', 'design review', 'cross-review', 'convene the team', 'design this with the experts', 'one-way door', 'interface registry', 'run this through council', '/council'. Also fires on explicit scope-tier requests (Product, System, Component, Feature). Anti-triggers: NOT for lightweight expert iteration on a single system or feature (use /coral); NOT for adversarial hardening of an existing system (use /bugbash); NOT for capturing a finished design as a markdown doc (use /design); NOT for filing a deferred slice as a tracked issue (use /issue); NOT for in-conversation TODOs (use TaskCreate)."
+description: "Use when the user wants full-ceremony engineering: design a new system from scratch, plan a multi-component feature end-to-end, write a low-level design, or spin up an independent multi-session engineering workstream — 'use the council', 'convene the team', 'design this with the experts', 'one-way door', 'run this through council', '/council'. Also fires on explicit scope-tier requests (Product, System, Component, Feature). Anti-triggers: NOT for a standalone cross-review of a design / plan / diff / set of expert outputs (use /cross-review); NOT for lightweight expert iteration on a single system or feature (use /coral); NOT for adversarial hardening of an existing system (use /bugbash); NOT for capturing a finished design as a markdown doc (use /design); NOT for filing a deferred slice as a tracked issue (use /issue); NOT for in-conversation TODOs (use TaskCreate)."
 ---
 
 # Council
@@ -14,10 +14,10 @@ For single-system iteration with one or two experts, use `coral` — the lighter
 Council enforces full process when full process applies. Before any side-effecting action:
 
 1. **Scope-tier first.** No dispatch happens without an identified tier (Product / System / Component / Feature). When the tier is ambiguous, ask one focused question; don't dispatch on guesses.
-2. **Cross-review is its own phase.** Specialists giving input during their individual dispatches is NOT cross-review. Cross-review reads provider + consumer + interface source and produces a COMPATIBLE / MISMATCH / MISSING table. Resolve all MISMATCH and MISSING before proceeding.
+2. **Cross-review is its own phase — and its own skill.** Specialists giving input during their individual dispatches is NOT cross-review. Council runs cross-review by invoking `/cross-review` on the affected work, which produces a COMPATIBLE / MISMATCH / MISSING findings table. Resolve all MISMATCH and MISSING before proceeding.
 3. **Interface source of truth is authoritative.** If a spec or code conflicts with it, the source of truth wins. Update the source first, then specs and code conform.
 4. **Provider owns the interface.** Consumers adapt. When provider and consumer disagree, the provider's definition is canonical.
-5. **One-way doors require explicit user approval.** Event signatures, storage layout, CRD spec field names, EIP-712 type hashes, and anything the repo's governing document flags as irreversible — STOP and present before finalizing.
+5. **One-way doors require explicit user approval.** Persisted schema / field names, public API contracts, on-disk or wire data formats, signed or indexed identifiers, and anything the repo's governing document flags as irreversible — STOP and present before finalizing.
 6. **Force-coral when work is coral-sized.** If the work is single-component with no interface changes and doesn't warrant scope-tier ceremony, suggest `/coral` rather than running full process.
 
 ## Locating the Target Repo and Its Conventions
@@ -87,7 +87,7 @@ The specialist roster comes from `.claude/agents/` in the target repo. When disp
 3. "Read the interface source of truth before starting" (registry if present, relevant LLDs otherwise)
 4. What output you expect (spec, code, findings table)
 
-If the repo has a `reviewer` agent, use it for cross-review. If not, perform the review yourself by reading both provider and consumer specs and comparing against the interface definition.
+For cross-review, invoke the `/cross-review` skill — it dispatches the relevant specialists to independently review the work and synthesizes the findings table. Don't fold cross-review into the individual dispatches; it is a distinct phase with a distinct output.
 
 ## Dispatching Work
 
@@ -100,23 +100,23 @@ Example — parallel safe:
 - specialist B adds an internal format change (no external interface)
 
 Example — must sequentialize:
-- specialist A defines a new event signature (provider) → THEN specialist B updates the consumer
+- specialist A defines a new API contract (provider) → THEN specialist B updates the consumer
 
 ### Cross-Review
 
-After any work touching interface boundaries, dispatch the `reviewer` agent with:
+After any work touching interface boundaries, run a cross-review by invoking the `/cross-review` skill on the affected work:
 - The provider's spec or code
 - The consumer's spec or code
 - The relevant interface definitions
 
-The reviewer produces a findings table: COMPATIBLE / MISMATCH / MISSING. Resolve all MISMATCH and MISSING before proceeding.
+`/cross-review` dispatches the relevant specialists for independent review and synthesizes a findings table: COMPATIBLE / MISMATCH / MISSING. Resolve all MISMATCH and MISSING before proceeding.
 
 ### Interface Changes
 
 When work changes an interface:
 1. Update the interface source of truth first (registry if used, provider's LLD otherwise)
 2. Then update specs and code to match
-3. Run the reviewer (or self-review) to verify consistency
+3. Run `/cross-review` to verify consistency
 
 Provider owns the interface — if there's a disagreement, the provider's definition wins and consumers adapt.
 
@@ -219,10 +219,10 @@ When escalation files exist:
 
 Some changes can't be reversed after deployment. Before finalizing any of these, STOP and present to the user for explicit approval:
 
-- **Event signatures** — topic hashes become permanent once indexers depend on them
-- **Storage layout** — slot positions in upgradeable contracts are permanent
-- **CRD spec field names** — changing these after controllers depend on them requires migration
-- **EIP-712 type hashes** — changing these after wallets have signed invalidates existing signatures
+- **Persisted schema / field names** — renaming after data is written or consumers depend on them requires migration
+- **Public API contracts** — request/response shapes, status codes, and error formats clients have integrated against
+- **On-disk or wire data formats** — serialization layouts that existing data or peers depend on
+- **Identifiers and signatures** — anything other systems index, sign, or cache (stable IDs, content hashes, signed tokens)
 - Any other irreversibility the repo's governing document flags
 
 Format: "This involves a one-way door: [what's changing]. Once deployed, [consequence of changing it later]. Should I proceed?"
@@ -246,7 +246,7 @@ Pressure patterns that surface during full-ceremony work and the counters from t
 |---|---|
 | "We both know this is System tier — skip the scope-tier selection." | Scope-tier selection is the entry point that determines specialist slate AND one-way-door risk. State the tier, confirm in one question, then proceed — don't skip. |
 | "The specialists already gave input in their dispatches — skip cross-review." | Individual dispatch is NOT cross-review. Cross-review reads provider + consumer + interface source and produces a findings table. Different phase, different output. |
-| "It's still in dev — the one-way-door rule is for prod." | The one-way-door gate is on change category, not deployment target. Dev-then-staging-then-prod is the path; the door's irreversibility lives in the *category* (event sig, storage layout, CRD field name, EIP-712), not the cluster. |
+| "It's still in dev — the one-way-door rule is for prod." | The one-way-door gate is on change category, not deployment target. Dev-then-staging-then-prod is the path; the door's irreversibility lives in the *category* (persisted schema/field name, public API contract, on-disk/wire format, signed or indexed identifier), not the cluster. |
 | "Just update the spec to match what got implemented — provider already shipped." | Provider owns the interface, but provider-owns means provider defines BEFORE shipping, not after. Retroactive spec updates to match drift = the spec is now the implementation's documentation, which is exactly the failure mode the interface source of truth prevents. Update spec first, then re-implement to match. |
 | "We can do interface changes parallel — they're separable." | Parallel dispatch is for work that doesn't share interface boundaries. If both touch the same interface, provider goes first and consumer follows. Sequential, not parallel. |
 | "The escalation file is from last week — just skip it." | Escalations are scope re-classification signals — what looked like Component might be System if the fix touches interfaces. Resolve before new work, not after. |
@@ -280,7 +280,7 @@ For implementation work, include test results.
 
 ## Core Principles
 
-- **Interfaces first** — the primary deliverable is exact signatures, types, events, env vars, exit codes
+- **Interfaces first** — the primary deliverable is exact signatures, types, errors, and contracts
 - **YAGNI** — only features tracing to current-phase business needs
 - **Two-way doors only** — one-way doors require explicit justification and human approval
 - **Errors are interface** — every error is part of the public contract

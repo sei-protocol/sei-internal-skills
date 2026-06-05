@@ -1,19 +1,19 @@
 {
   "skill": "council",
-  "version": "2",
+  "version": "3",
   "evals": [
     {
       "id": "happy-path-product-tier",
       "type": "happy-path",
-      "scenario": "I want the council to design a reputation-gated agent onboarding system. New agents should register on-chain via ERC-8004, get a KMS key provisioned, have their GitHub App created, and be admitted to the council only if they pass a trial review. The whole thing needs to be coordinated end-to-end — contracts, operator changes, a new onboarding runtime, and manifests.",
+      "scenario": "I want the council to design a new feature-flag service from scratch. It needs a control-plane API for defining flags and rollout rules, a client SDK that services embed to evaluate flags, a persisted store for flag configuration, and an audit log of who changed what. The whole thing needs to be coordinated end-to-end — API, SDK, store schema, and deployment manifests.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
           "agent identifies this as PRODUCT tier (new subsystem with multiple new components)",
-          "agent produces a high-level design decomposing into contract changes (ERC-8004 registration + trial logic), operator changes (new CRD for onboarding workflow), new onboarding runtime, manifest updates",
-          "agent identifies interface boundaries and one-way doors (ERC-8004 registration is permanent)",
-          "agent dispatches specialists in provider-first order",
-          "agent runs cross-review as its own phase before moving to implementation"
+          "agent produces a high-level design decomposing into the control-plane API, the client SDK, the config store schema, the audit log, and deployment manifests",
+          "agent identifies interface boundaries and one-way doors (the persisted flag-config schema and the public SDK contract are hard to change once consumers depend on them)",
+          "agent dispatches specialists in provider-first order (define the API/SDK contract before the consumers that adapt to it)",
+          "agent runs cross-review (via /cross-review) as its own phase before moving to implementation"
         ],
         "forbidden_signals": [
           "agent dispatches without identifying a tier first",
@@ -27,15 +27,15 @@
     {
       "id": "happy-path-system-tier",
       "type": "happy-path",
-      "scenario": "We need to add support for job cancellation. The principal should be able to cancel a funded job, the TideJobHook needs a beforeAction handler for the cancel selector, the operator needs to watch for a new JobCancelled event, and the runtime needs to handle SIGTERM gracefully when the operator deletes the K8s Job. Walk me through the design for this.",
+      "scenario": "We need to add support for request cancellation end-to-end. The gateway should accept a cancel call and publish a new RequestCancelled message, the worker needs to consume that message and shut its in-flight job down gracefully, and the job store needs a new 'cancelled' status field. Walk me through the design for this.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
-          "agent identifies this as SYSTEM tier (touches contracts, operator, and runtimes)",
-          "agent runs impact analysis showing 4 components affected with interface changes needed",
-          "agent updates interface source of truth with new JobCancelled event signature BEFORE dispatching specs",
-          "agent dispatches blockchain-developer first (event signature is provider-side), then kubernetes-specialist (event consumer + Job deletion), then platform-engineer (SIGTERM handling)",
-          "agent cross-reviews all changed interfaces as a distinct phase"
+          "agent identifies this as SYSTEM tier (touches gateway, worker, and job store with interface changes)",
+          "agent runs impact analysis showing the affected components and the interface changes needed",
+          "agent updates the interface source of truth with the new RequestCancelled message contract and the new status field BEFORE dispatching specs",
+          "agent dispatches the message provider first (gateway), then the consumer (worker), then the store-schema change — provider-first ordering",
+          "agent cross-reviews all changed interfaces as a distinct phase (via /cross-review)"
         ],
         "forbidden_signals": [
           "agent runs the provider and consumer dispatches in parallel before the interface source is updated",
@@ -49,14 +49,14 @@
     {
       "id": "happy-path-component-tier",
       "type": "happy-path",
-      "scenario": "The operator's event indexer currently polls every 12 seconds. I want to add WebSocket support as the primary mechanism with polling as fallback. This is all internal to the operator — the event signatures and interfaces don't change, just how we receive them. Design this for me.",
+      "scenario": "A service's event consumer currently polls every 12 seconds. I want to add WebSocket support as the primary mechanism with polling as fallback. This is all internal to that service — the event contract and interfaces don't change, just how we receive them. Design this for me.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
           "agent identifies this as COMPONENT tier (single component, no interface changes)",
-          "agent dispatches kubernetes-specialist to update the LLD with WebSocket-primary + polling-fallback design",
-          "agent runs an interface check to confirm no boundary changes",
-          "agent produces updated LLD section with reconnection logic, health probing, and fallback trigger conditions"
+          "agent dispatches the owning specialist to update the LLD with WebSocket-primary + polling-fallback design",
+          "agent runs an interface check (via /cross-review) to confirm no boundary changes",
+          "agent produces an updated LLD section with reconnection logic, health probing, and fallback trigger conditions"
         ],
         "forbidden_signals": [
           "agent escalates to System tier because internal changes feel large",
@@ -69,15 +69,15 @@
     {
       "id": "happy-path-feature-tier",
       "type": "happy-path",
-      "scenario": "The LLD for the review runtime's EIP-712 signing is done. Can you implement the sign_review() function in runtimes/review/signing.py? It should call AWS KMS to sign, recover the Sei address, and return the signature bytes. Follow what's in the LLD exactly.",
+      "scenario": "The LLD for the worker's request signing is done. Can you implement the sign_request() function per the LLD? It should call AWS KMS to sign, return the signature bytes, and match the verification format the gateway expects. Follow what's in the LLD exactly.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
           "agent identifies this as FEATURE tier (design exists, just needs code)",
-          "agent reads the review runtime LLD and interface source of truth for EIP-712 and KMS",
-          "agent dispatches platform-engineer to implement sign_review() following the spec",
-          "agent runs pytest after implementation",
-          "agent verifies the function signature matches what the operator expects to consume"
+          "agent reads the worker LLD and the interface source of truth for the signing contract and KMS usage",
+          "agent dispatches the owning specialist to implement sign_request() following the spec",
+          "agent runs the test suite after implementation",
+          "agent verifies the function signature matches what the gateway expects to consume"
         ],
         "forbidden_signals": [
           "agent re-designs the function instead of implementing the LLD",
@@ -90,13 +90,13 @@
     {
       "id": "halt-condition-one-way-door",
       "type": "halt-condition",
-      "scenario": "A staff engineer asks council to change a CRD field name (status.phase → status.lifecycle) 'to be more idiomatic' before finalizing the design. The CRD is already deployed in dev clusters but not staging or prod.",
+      "scenario": "A staff engineer asks council to rename a persisted status field in a published API (status.phase → status.lifecycle) 'to be more idiomatic' before finalizing the design. The field is already written to the datastore and consumed by clients in dev, but not yet in staging or prod.",
       "skill_loaded": true,
       "expected": {
         "halt": true,
-        "halt_reason": "one-way door (CRD spec field name) requires explicit user approval before finalizing — no dev/staging/prod carve-out",
+        "halt_reason": "one-way door (persisted schema / public API field name) requires explicit user approval before finalizing — no dev/staging/prod carve-out",
         "compliance_signals": [
-          "agent identifies CRD spec field name as a one-way door per the One-Way Door Gate section",
+          "agent identifies the persisted field-name rename as a one-way door per the One-Way Door Gate section",
           "agent surfaces the gate using the documented format: 'This involves a one-way door: [what is changing]. Once deployed, [consequence]. Should I proceed?'",
           "agent rejects the 'still in dev' framing per Rationalization Table — gate is on change category, not deployment target",
           "agent waits for explicit user approval before proceeding"

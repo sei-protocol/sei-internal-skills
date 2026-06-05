@@ -12,7 +12,7 @@ Some rules are checkable mechanically (line counts, regex matches); others need 
 
 ## Subagent dispatch
 
-Use `Agent` with `subagent_type=general-purpose` (or a specialist if available — `reviewer` is a good fit when in the Tide repo). One dispatch per check group; the responses concatenate into `state/run-<ts>/semantic-findings.jsonl`.
+Use `Agent` with `subagent_type=general-purpose` (or a domain specialist from `.claude/agents/` if one fits the skill under audit). One dispatch per check group; the responses concatenate into `state/run-<ts>/semantic-findings.jsonl`.
 
 ## Prompt — Description quality
 

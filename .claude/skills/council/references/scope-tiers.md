@@ -31,7 +31,7 @@ For each component identified in Phase 1, run the Component tier process below. 
 
 ### Phase 3: Cross-Review
 After all component LLDs are drafted:
-1. For each interface boundary, dispatch the `reviewer` agent.
+1. For each interface boundary, run `/cross-review` (it dispatches the relevant specialists for independent review).
 2. Collect findings into a cross-review document.
 3. Save to the repo's conventional cross-review location.
 4. Resolve all MISMATCH and MISSING findings:
@@ -42,7 +42,7 @@ After all component LLDs are drafted:
 Run the Feature tier process for each component, in the same provider-first order.
 
 ### Phase 5: Integration Verification
-1. Run the `reviewer` across all interface boundaries one final time.
+1. Run `/cross-review` across all interface boundaries one final time.
 2. Run the repo's test suite.
 3. Present the full summary to the user.
 
@@ -83,13 +83,13 @@ For each affected component:
 3. If the change warrants a new LLD section, add it. If small, update in place.
 
 ### Phase 4: Cross-Review
-Dispatch the `reviewer` for every interface boundary touched. Focus on changed interfaces — don't re-review unchanged boundaries unless asked.
+Run `/cross-review` for every interface boundary touched. Focus on changed interfaces — don't re-review unchanged boundaries unless asked.
 
 ### Phase 5: Implementation
 For each affected component, dispatch the owning specialist. Provider-first ordering.
 
 ### Phase 6: Verification
-1. Run the `reviewer` across changed interfaces.
+1. Run `/cross-review` across changed interfaces.
 2. Run tests for all affected components.
 3. Present summary with interface change log.
 
@@ -120,7 +120,7 @@ For each affected component, dispatch the owning specialist. Provider-first orde
 3. LLD follows the repo's template (all sections, no TBD).
 
 ### Phase 3: Interface Check
-1. Dispatch the `reviewer` to check the new/updated LLD against the interface source.
+1. Run `/cross-review` to check the new/updated LLD against the interface source.
 2. If MISMATCH: resolve before implementation.
 3. If COMPATIBLE: proceed.
 

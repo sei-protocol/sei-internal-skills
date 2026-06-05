@@ -12,7 +12,7 @@ How `/issue` discovers and suggests the **Relevant experts** field. The point of
 
 3. **Global Claude personas** (fallback). The standard set: `kubernetes-specialist`, `platform-engineer`, `solidity-developer`, `network-specialist`, `security-specialist`, `tee-specialist`, `product-engineer`, `product-manager`, `opentelemetry-expert`. Also Sei-specific: `sei-network-specialist`. Use these names verbatim — they're recognized by `coral` / `council`.
 
-4. **Repo-specific personas.** Some repos have their own (e.g. `blockchain-developer` and `reviewer` in Tide; `sei-network-specialist` in sei-k8s-controller). When a repo has its own, prefer it over a generic equivalent.
+4. **Repo-specific personas.** Some repos have their own (e.g. `sei-network-specialist` in sei-k8s-controller). When a repo has its own, prefer it over a generic equivalent.
 
 ## Matching heuristics
 
@@ -22,7 +22,7 @@ Match the issue's **surface area** to personas, not the issue's **wording**.
 |---|---|
 | Go controller / reconciler / CRD | `kubernetes-specialist` |
 | K8s manifests, Kustomize, Helm, container images | `platform-engineer` |
-| Solidity contract, EIP, ERC standard | `solidity-developer` (or `blockchain-developer` in Tide) |
+| Solidity contract, EIP, ERC standard | `solidity-developer` |
 | Service mesh, ingress, NetworkPolicy, cloud networking | `network-specialist` |
 | Sei node networking specifically (CometBFT, Waterway, seid ports) | `sei-network-specialist` |
 | Threat model, auth boundary, credential flow | `security-specialist` |
@@ -30,7 +30,7 @@ Match the issue's **surface area** to personas, not the issue's **wording**.
 | Product scope, MVP cut, deferral discipline | `product-manager` |
 | Cross-component architecture, novel coordination patterns | `product-engineer` |
 | Tracing, metrics, log pipelines, OTel SDK | `opentelemetry-expert` |
-| Cross-component interface consistency | `reviewer` (Tide-specific) |
+| Cross-component interface consistency | `/cross-review` (dispatches the relevant specialists) |
 
 ## Sizing the list
 
