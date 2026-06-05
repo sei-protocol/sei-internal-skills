@@ -228,11 +228,9 @@ Cross-account Pod Identity chaining (June 2025) is the path for any future multi
 ```mermaid
 graph TB
     subgraph Hub[eu-central-1]
-        MetaVPC[Meta-cluster VPC<br/>10.0.0.0/16<br/>VPC CNI today]
+        ProdVPC[prod VPC<br/>meta-cluster role at v3<br/>/16 from /12 budget<br/>VPC CNI today; Cilium per #108]
         TGW{TGW Hub<br/>RT: prod-spokes<br/>RT: harbor-spokes<br/>RT: meta-hub}
-        ProdVPC[prod VPC<br/>10.4.0.0/16]
-        HarborVPC[harbor VPC<br/>10.8.0.0/16]
-        MetaVPC -.->TGW
+        HarborVPC[harbor VPC<br/>/16 from /12 budget]
         ProdVPC -.->TGW
         HarborVPC -.->TGW
     end
@@ -257,7 +255,7 @@ graph TB
 |---|---|---|
 | Topology | Hub-and-spoke TGW with eu-central-1 as hub | N-1 peerings (vs. N²/2 for full peering mesh). AWS-blessed default for fleets >2 cells. |
 | CIDR budget | `/12` (`10.0.0.0/12` = 16 `/16`s available) sliced into `/16` per cell | Comfortable headroom past today's 4 VPCs (meta + harbor + cell #2 + cell #3) for ~12 future cells without bloating to `/11`. **Non-overlapping CIDR is the one-way door.** Actual `/16` allocations to cell #2 and #3 deferred pending audit of existing meta-cluster + harbor CIDRs (Open Question 8). |
-| Pod CIDR | `100.64.0.0/10` per cell via Cilium IPAM on new cells; VPC CNI custom networking on the meta-cluster until [#108](https://github.com/sei-protocol/Tide/issues/108) migration | Cilium `eni` mode for cell #2/#3 (Cilium manages ENIs directly, no VPC CNI). |
+| Pod CIDR | **Cilium `eni` mode on new cells** — pods come from the VPC primary CIDR (the cell's `/16`); no separate pod CIDR carve. Meta-cluster runs VPC CNI today (per-cluster config); the [#108](https://github.com/sei-protocol/Tide/issues/108) migration is where the meta-cluster's pod IPAM decision is made. | `eni` mode means Cilium manages ENIs directly and pods are first-class VPC citizens. Non-overlapping pod IPs across cells fall out of the non-overlapping VPC `/16` allocations — no separate pod-CIDR scheme needed. ClusterMesh natively interoperates because cell VPC CIDRs are already disjoint. Pod density per node is bounded by EC2 ENI capacity (acceptable for Sei workloads — validator/RPC pods are large, low-density). |
 | IPv6 | Deferred. Un-defer when a single cell exceeds ~30k IPs in use, or compliance/regulator names it. | EKS IPv6 is dual-stack with VPC CNI prefix delegation tuning and ALB rule complexity. Not earned yet. |
 | TGW route tables | Per-class (prod-spokes / harbor-spokes / meta-hub) from cell #3 onward | A misconfigured peering can't accidentally bridge prod ↔ harbor. v1.5 starts with single RT, splits when needed. |
 | Service discovery | Route 53 private hosted zone `cells.sei.internal` associated to every spoke VPC | Cheap, AWS-native, no controller. Cilium ClusterMesh deferred — see [#108](https://github.com/sei-protocol/Tide/issues/108) for prod CNI migration which unlocks full-fleet ClusterMesh. |
@@ -330,14 +328,14 @@ Watch CAPI v1.14/v1.15 release notes and CAPA #3166's follow-up. Until both land
     - **CAAPH** applies `HelmChartProxy` resources targeting the new cell's labels → installs Karpenter, Cilium, ESO, sei-k8s-controller on the cell as it becomes Ready.
 3. **tofu-controller in meta-cluster** reconciles `cross-cluster/`:
     - TGW attachment + routes
-    - Pod Identity associations on the meta-cluster account
+    - **Pod Identity Associations on each cell's EKS cluster** — `eks:CreatePodIdentityAssociation` calls are issued *from* the meta-cluster's tofu-controller against each cell's EKS API; the associations themselves live on the target cell, binding `(namespace, service-account) → IAM role` per cell
     - IAM trust updates on shared roles (if a new role is needed)
     - S3 / KMS policy edits
 4. **GHA `cell-bootstrap` job** picks up the CAPI-emitted kubeconfig (a Secret in the meta-cluster), runs `flux bootstrap` against the new cell, points it at the cell-specific Flux directory in Git.
 5. Flux on the new cell hydrates: addons not handled by CAAPH, workloads.
 6. Smoke test job validates: Cilium pods Ready, Pod Identity works (target-role assumption against `harbor-sei-snapshots`), TGW reachability to meta-cluster, snapshot bucket access.
 
-The bootstrap "controller" is **a CI step + CAAPH**, not a custom Go controller, at v1.5. Defer any "auto-onboarding controller" until N≥3 cells AND a real ergonomic ask.
+The bootstrap "controller" is **a CI step + CAAPH**, not a custom Go controller, **when this eventual-state flow lands (v3)**. Defer any further "auto-onboarding controller" (e.g., a `Cell` CRD reconciler) until v4 — N≥5 cells AND a real ergonomic ask. Reminder: v1.5 implementation uses [TF replication](#near-term-execution-cell-2-and-3-via-tf-replication), not the flow described in this section.
 
 ## Phased rollout
 
@@ -355,7 +353,7 @@ The bootstrap "controller" is **a CI step + CAAPH**, not a custom Go controller,
 
 6. **`topology.region` label** added to `SeiNodeDeployment` schema. Get the field in before there are consumers. (sei-network-specialist's call.)
 7. **Default-to-Pod-Identity for net-new IAM bindings.** Don't migrate existing IRSA bindings; future new ones are Pod Identity. Pattern starts here.
-8. **CIDR scheme committed in design** (`/12` budget at `10.0.0.0/12`, `/16` per cell, `100.64.0.0/10` pod CIDRs via Cilium IPAM). No `/16` allocations to cells #2 / #3 until the existing meta-cluster + harbor CIDRs are audited (Open Question 8); the scheme is documented so the first allocation doesn't lock in something different.
+8. **CIDR scheme committed in design** — `/12` budget at `10.0.0.0/12`, `/16` per cell. Pods come from the VPC primary CIDR via Cilium `eni` mode (no separate pod-CIDR carve; see [§4.3](#43-network-topology)). No `/16` allocations to cells #2 / #3 until existing meta-cluster + harbor CIDRs are audited (Open Question 3); the scheme is documented so the first allocation doesn't lock in something different.
 
 ### v1.5 — cells #2 (us-east-2) and #3 (eu-west-1) via TF replication (real workstream)
 
