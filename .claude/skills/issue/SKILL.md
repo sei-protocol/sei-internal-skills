@@ -91,6 +91,7 @@ Stop and surface to the user if:
 
 - The required fields (Title, Problem, Impact, Relevant experts) can't be established from session context or user input — ask; don't fabricate them.
 - The chosen sink is unavailable (`gh` unauthenticated, or the Linear MCP not connected) — report it and offer another sink or print. Never invent a URL or Linear identifier.
+- A user-named Linear team isn't in `list_teams` — present the actual list and let the user pick; never file into a fallback/first team.
 - The Problem can only be stated as the proposed fix — push back for observable behavior before filing.
 - The session produced multiple deferred slices — ask which to file; don't batch-create reflexively.
 
