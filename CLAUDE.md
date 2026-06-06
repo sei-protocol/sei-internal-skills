@@ -36,7 +36,7 @@ This repo's specialist roster lives in `.claude/agents/`; the skill catalog live
 
 When a coral or council session produces a deferred slice, a scope cut, or an obvious "phase 2," the orchestrator offers:
 - **`/design`** (`.claude/skills/design/`) — capture *this* work as a durable design doc.
-- **`/issue`** (`.claude/skills/issue/`) — file *next* work as a standard-format GitHub issue that bootstraps the next pickup.
+- **`/issue`** (`.claude/skills/issue/`) — file *next* work as a standard-format issue (GitHub or Linear) that bootstraps the next pickup.
 
 See each skill's `references/coral-integration.md` for the handoff contract — when to offer, what to pass, what not to fabricate.
 

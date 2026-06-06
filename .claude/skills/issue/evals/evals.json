@@ -1,0 +1,91 @@
+{
+  "skill": "issue",
+  "version": "1",
+  "evals": [
+    {
+      "id": "happy-path-github",
+      "type": "happy-path",
+      "scenario": "We just deferred mid-life SigningKey patch detection during this coral session. File it as an issue so the follow-up is ready for pickup.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "renders the standard body (Problem, Impact, Relevant experts required; optional sections only when there's signal)",
+          "pre-fills fields from the session rather than re-prompting what the session already established",
+          "asks at the create step whether to file as GitHub, Linear, or print — does not auto-create or assume a sink",
+          "on GitHub choice, files via `gh issue create --repo <target> --body-file` and echoes the issue URL"
+        ],
+        "forbidden_signals": [
+          "auto-creates the issue without showing the body and asking",
+          "infers a sink from context (the repo, prior issues, a weak cue) instead of asking — the request named no sink, so it must be asked",
+          "writes the Problem field as the proposed fix instead of observable behavior",
+          "emits placeholder headers (`_TBD_`) for optional sections with no signal"
+        ]
+      },
+      "source": "Procedure steps 2-6; format-spec.md"
+    },
+    {
+      "id": "happy-path-linear",
+      "type": "happy-path",
+      "scenario": "Turn this deferred slice into a Linear ticket.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "honors the explicitly-named Linear sink without re-asking the GitHub/Linear/print prompt (the user already said Linear), while still showing the rendered body before creating",
+          "renders the same sink-agnostic standard body",
+          "resolves the team by calling list_teams and having the user pick — never guesses the team",
+          "offers project / labels / priority as optional (offer, not force)",
+          "creates with save_issue passing title + team + description (literal-newline Markdown) and WITHOUT an id (create, not update)",
+          "echoes the returned Linear identifier (e.g. ENG-123) and URL"
+        ],
+        "forbidden_signals": [
+          "re-asks the 3-way sink prompt when the user already named Linear in the request",
+          "picks a Linear team silently or infers it from the repo",
+          "passes `id` to save_issue (which would update an existing ticket instead of creating)",
+          "forces project/labels before allowing creation"
+        ]
+      },
+      "source": "Procedure step 5 (sink resolution) + step 6 (Linear path); references/linear-integration.md"
+    },
+    {
+      "id": "halt-linear-mcp-unavailable",
+      "type": "halt-condition",
+      "scenario": "File this in Linear. (The Linear MCP tools are not connected in this session.)",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "the Linear sink requires the Linear MCP tools, which are interactively-authenticated and absent here; never fabricate a Linear identifier or URL",
+        "compliance_signals": [
+          "states that the Linear MCP is unavailable and cannot create the ticket",
+          "offers to fall back to the GitHub sink or to print the body for paste",
+          "does not invent a Linear identifier or URL"
+        ],
+        "forbidden_signals": [
+          "fabricates a Linear identifier (e.g. ENG-NNN) or a linear.app URL",
+          "claims the ticket was created when it was not",
+          "silently switches to GitHub without telling the user"
+        ]
+      },
+      "source": "Preconditions (Linear sink); references/linear-integration.md guardrails"
+    },
+    {
+      "id": "halt-standalone-fix-framing",
+      "type": "halt-condition",
+      "scenario": "File an issue: 'make buildRunningPlan re-apply on SigningKey drift'.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "the ask is framed as the proposed fix, not the observable problem — the Problem field must be behavior, not solution",
+        "compliance_signals": [
+          "pushes back on the fix-framing and asks what behavior today is wrong, missing, or painful",
+          "captures the proposed fix under Proposed approach (optional), not as the Problem",
+          "still asks GitHub / Linear / print at the create step"
+        ],
+        "forbidden_signals": [
+          "writes the Problem field as 'make buildRunningPlan re-apply...' (the fix)",
+          "files without separating observable problem from proposed solution"
+        ]
+      },
+      "source": "Procedure step 2; format-spec.md Problem section"
+    }
+  ]
+}

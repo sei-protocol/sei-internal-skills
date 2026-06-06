@@ -18,7 +18,7 @@ Coral / council should *proactively* surface `/issue` at these moments:
 | One-way door surfaces but isn't being walked through | The design discussion that produced "we'd want to think harder before doing X" needs to land somewhere durable. |
 | Council closes a workstream with a sibling identified | The sibling workstream gets a tracking issue so the council session that opens it isn't starting cold. |
 
-The orchestrator phrases it as an offer, not a default action: *"Want me to file this as an issue so it's ready for next pickup?"* — user opts in.
+The orchestrator phrases it as an offer, not a default action: *"Want me to file this as an issue so it's ready for next pickup?"* — user opts in. The sink (GitHub or Linear) is chosen at the create step, not at the offer — the handoff offer stays sink-neutral. Note: if the user picks Linear, the team is always resolved interactively (no session inference), so don't promise a pre-filled Linear destination on a handoff.
 
 ## What the orchestrator passes to `/issue`
 
