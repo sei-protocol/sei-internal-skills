@@ -1,5 +1,6 @@
 ---
 name: coral
+model: claude-opus-4-8
 description: "Use when the user has a specific system, feature, or problem and wants quick expert iteration with the right specialist(s) on a defined slice — 'huddle', 'coral', 'pull in the [specialist]', 'iterate on this with [expert]', 'let's work on X with [expert]', 'use the experts', 'work with the team on this', '/coral'. Anti-triggers: NOT for sustained multi-component design work with formal process (use /council); NOT for adversarial review of running systems (use /bugbash); NOT for capturing a session's design (use /design); NOT for one-off in-conversation TODOs (use TaskCreate). Coral flags handoff to /council when work crosses ≥3 components, ≥2 interface boundaries, hits one-way doors, or spans multiple sessions."
 ---
 

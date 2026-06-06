@@ -1,5 +1,6 @@
 ---
 name: validate-release
+model: claude-opus-4-8
 description: "Queries Grafana metrics and S3 seiload reports for a completed chaos suite run, analyzes per-scenario results against BFT theory, and produces an executive-quality release validation report pushed to Notion — written for engineering leaders and stakeholders making a go/no-go release decision. Trigger on 'validate release', 'generate release report', 'chaos suite report', 'summarize the chaos run', '/validate-release [SUITE_ID]'. SUITE_ID format: <sha7>-<YYYYMMDD> (e.g. abc1234-20260527); omit to derive from latest S3 run. NOT for running the chaos suite itself (use /chaos-suite). NOT for debugging a single scenario (inspect the Workflow pod logs directly). NOT for production system monitoring (use the Grafana dashboards)."
 ---
 

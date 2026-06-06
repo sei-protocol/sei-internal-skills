@@ -1,5 +1,6 @@
 ---
 name: council
+model: claude-opus-4-8
 description: "Use when the user wants full-ceremony engineering: design a new system from scratch, plan a multi-component feature end-to-end, write a low-level design, or spin up an independent multi-session engineering workstream — 'use the council', 'convene the team', 'design this with the experts', 'one-way door', 'run this through council', '/council'. Also fires on explicit scope-tier requests (Product, System, Component, Feature). Anti-triggers: NOT for a standalone cross-review of a design / plan / diff / set of expert outputs (use /cross-review); NOT for lightweight expert iteration on a single system or feature (use /coral); NOT for adversarial hardening of an existing system (use /bugbash); NOT for capturing a finished design as a markdown doc (use /design); NOT for filing a deferred slice as a tracked issue (use /issue); NOT for in-conversation TODOs (use TaskCreate)."
 ---
 

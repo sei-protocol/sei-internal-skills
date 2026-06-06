@@ -1,5 +1,6 @@
 ---
 name: brevity
+model: claude-opus-4-8
 description: "Use when authoring or revising agent-produced PR descriptions or in-code comments — 'tighten this', 'compress this PR body', 'this is too verbose', 'cut the filler', '/brevity'. Also fires when an agent is about to write a PR body or any in-code comment containing WHY-style narration. Anti-triggers: NOT for compressing memory files / CLAUDE.md (one-shot migration concern); NOT for chat output mid-conversation (soft-guidance via authoritative-voice patterns); NOT for commit messages (Conventional Commits convention covers it); NOT for source code itself or docstring formatting (use gofmt, prettier, golint). For multi-dimensional PR-time critique beyond brevity (convention adherence, defensive code, missing tests), use /pr-quality."
 ---
 
