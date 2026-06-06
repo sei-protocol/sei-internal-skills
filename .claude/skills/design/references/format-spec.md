@@ -9,7 +9,7 @@ The canonical body produced by `/design`. Section order is fixed; empty optional
 
 **Status:** Draft
 **Date:** YYYY-MM-DD
-**Issue:** #<n>   (GitHub) — or — ENG-123 — https://linear.app/...   (Linear); omit if no source issue
+**Issue:** <ref>   (`#14` for a GitHub source, or `ENG-123 — https://linear.app/...` for a Linear source; omit the line if no source issue)
 **Authors:** <git user.name>, ...
 ```
 
