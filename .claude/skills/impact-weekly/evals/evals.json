@@ -5,7 +5,7 @@
     {
       "id": "happy-path-weekly-rollup",
       "type": "happy-path",
-      "scenario": "It's Friday — roll up my week into Impact Hub. I'm the assignee; check my Linear from the last 7 days.",
+      "scenario": "It's Friday — roll up my week into Impact Hub. I'm the assignee; cover this week (the current calendar week, Mon→now).",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
