@@ -50,6 +50,7 @@ SEI=(
   chaos-suite
   harbor-dev
   validate-release
+  impact-weekly
 )
 
 # --- Argument parsing -------------------------------------------------------

@@ -62,6 +62,9 @@ These two are project-scoped disciplines applied during authoring inside Tide. T
 - **`chaos-suite/`** — Execute the full chaos test suite (runbook: sei-protocol/platform#169) against a dev or staging Sei cluster and collate results into a release summary. **Status: scaffold** — follows the template; scripts are placeholders pending authoring against the live runbook. Tracking issue: sei-protocol/platform#170.
 - **`validate-release/`** — Collect a completed chaos-suite run's results from S3 + Thanos/Grafana, derive per-scenario metrics and panel PNGs, and push a structured release-validation report to Notion. Companion to `/chaos-suite` (run) → `/validate-release` (report).
 
+### Impact Hub (project management)
+- **`impact-weekly/`** — Roll up an engineer's Linear week (+ linked PRs) into the matching Impact Hub bet as a substantiated, executive-summary Weekly-log entry, draft→confirm→write. The synthesis tail of the work loop in `docs/designs/impact-hub-pm-skill-suite.md`; failure modes (mis-tracking, bloat, unsubstantiated claims) are engineered as refusals. `impact-portfolio` (across-team lifecycle scan) and `impact-eoq` (per-engineer quarter rollup) are deferred phase-2 siblings.
+
 ### Engineer Self-Service
 - **`harbor-dev/`** — Engineer-facing interface to the harbor EKS cluster. Translates natural-language intent (spin up an ephemeral chain, attach an RPC fleet, run a bench, onboard me, tear it down) into `seictl nd` invocations and PR-based GitOps deliveries against `sei-protocol/harbor-engineering-workspace`. Built on `seictl` v0.0.43+.
 
