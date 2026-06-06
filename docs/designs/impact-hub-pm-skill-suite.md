@@ -12,7 +12,7 @@ We want skills that pull work from issues into the right Impact Hub project, tra
 
 ## Goals
 
-- **Thread one tag through the whole work lifecycle** — ambiguous epic → explicit technical direction → execution tasks → PRs → synthesis — so downstream rollups are a deterministic group-by and engineers *and* leaders can synthesize "what got done" without archaeology. The Impact suite is the synthesis tail of this loop; our existing design/decomposition skills are the front half.
+- **Thread one tag through the whole work lifecycle** — ambiguous epic → explicit technical direction → execution tasks → PRs → synthesis — so that, *as labeling adoption rises*, downstream rollups become a deterministic group-by and engineers *and* leaders can synthesize "what got done" without archaeology. (At cold start the suite runs on a name-match fallback; determinism is earned, not assumed.) The Impact suite is the synthesis tail of this loop; the front half is net-new upstream work layered onto our existing design/decomposition skills.
 - Turn an engineer's week of real work into a substantiated, executive-summary progress update on the matching Impact Hub project — fast enough to actually happen weekly.
 - Make every claim in an Impact doc point to its evidence (Linear issue / PR).
 - Keep Impact docs as an **index into the work, never a re-narration of it** — so they stay readable and useful.
@@ -29,39 +29,45 @@ We want skills that pull work from issues into the right Impact Hub project, tra
 
 The Impact suite is the tail of a lifecycle that turns an ambiguous epic into validated direction, then into tagged execution, then into synthesis. The **`impact:<slug>` tag (+ lineage links) is the spine** — every artifact in the chain carries it, so synthesis is a deterministic group-by, not a reconstruction. Each stage is owned by a skill we already have or are building:
 
+Ordering matches the shipped skills: **cross-review happens at synthesis, *before* `/design` captures** (it's an anti-trigger in `/design`, `/cross-review`, and coral/council that cross-review precedes capture). The spine's identity is the **immutable Notion page ID** of the bet; `impact:<slug>` (slug = kebab of the bet Name) is a human-readable, re-derivable *display alias* layered on top — never the join key.
+
 | Stage | Transition | Skill | Artifact (carries the spine) |
 |---|---|---|---|
-| 0 · Bet | ambiguous epic exists | Impact Hub | Impact Tracker row → defines `impact:<slug>` |
+| 0 · Bet | ambiguous epic exists | Impact Hub | Impact Tracker row (page ID = identity); `impact:<slug>` derived from Name |
 | 1 · Refine | epic → technical direction | `/coral` or `/council` | a design pass (ambiguity resolved) |
-| 2 · Capture | → durable direction | `/design` | design doc, frontmatter `Impact: <slug>` (lineage to the bet) |
-| 3 · Validate | direction → trusted | `/cross-review` | findings table; **gate before decomposition** |
-| 4 · Decompose | design → execution tasks | `/issue` | Linear issues, each labeled `impact:<slug>` + lineage to the design |
-| 5 · Implement | tasks → PRs | engineer | PRs linked to the tagged issues (inherit the spine) |
-| 6 · Track | week of PRs/issues → update | `impact-weekly` | Weekly-log entry on the bet (grouped by the tag) |
+| 2 · Validate | direction → trusted | `/cross-review` (at synthesis, **before** capture) | findings table — *recommended* pre-decomposition step, not an enforced gate |
+| 3 · Capture | validated direction → durable | `/design` | design doc, lineage to the bet (page ID + `impact:<slug>`) |
+| 4 · Decompose | design → execution tasks | `/issue` | Linear issues, each labeled `impact:<slug>` + design lineage |
+| 5 · Implement | tasks → PRs | engineer | PRs linked to the tagged issues (see PR caveat below) |
+| 6 · Track | week of PRs/issues → update | `impact-weekly` | Weekly-log entry on the bet (grouped by the label) |
 | 7 · Synthesize | quarter → exec summary | `impact-eoq` / `impact-portfolio` | retrospective, portfolio, per-engineer rollup |
 
 ```mermaid
 flowchart LR
-    B[Impact bet<br/>impact:slug] --> R[/coral · /council<br/>refine ambiguity/]
-    R --> D[/design<br/>technical direction/]
-    D --> X[/cross-review<br/>validate · gate/]
-    X --> I[/issue<br/>decompose → tagged tasks/]
+    B[Impact bet<br/>page ID = identity] --> R[/coral · /council<br/>refine ambiguity/]
+    R --> X[/cross-review<br/>validate direction/]
+    X --> D[/design<br/>capture · bet lineage/]
+    D --> I[/issue<br/>decompose → impact:slug tasks/]
     I --> P[PRs<br/>linked to tagged issues]
     P --> W[impact-weekly<br/>track]
     W --> Q[impact-eoq · impact-portfolio<br/>synthesize]
     Q -.exec summary.-> B
-    %% the impact:slug tag + lineage links thread B→I→P→W→Q  -- verify this matches your intent
+    %% spine = bet page ID; impact:slug label threads I→P→W→Q  -- verify this matches your intent
 ```
 
 **Where `/design` and `/cross-review` fit (the explicit ask):**
-- **`/design` (stage 2)** is how ambiguity becomes *explicit, durable* technical direction. Extend its lineage convention (already does design↔issue) to **design↔bet**: a design for a bet carries `Impact: <slug>` in frontmatter, so the bet and its direction find each other.
-- **`/cross-review` (stage 3)** is the *quality gate* — independent specialists validate the direction before it's decomposed, so we never shatter a flawed design into a dozen tagged tasks. Decomposition (`/issue`) is the natural next step only once cross-review clears.
+- **`/cross-review` (stage 2)** validates the direction *before* it's captured or decomposed — the right place to catch a flawed design before it shatters into a dozen tagged tasks. It is a **recommended sequence, not an enforced gate**: no skill blocks `/issue` on a cleared cross-review, so this is a convention, not a control.
+- **`/design` (stage 3)** turns the validated direction into a *durable, bet-linked* doc. This needs a **new lineage class** (design↔bet via the bet's page ID + `impact:<slug>`), distinct from the existing design↔issue lineage — a real `/design` change, not a free extension.
 
-The decomposition step (4) is where the spine gets stamped on execution work: `/issue` applies `impact:<slug>` (and threads design lineage) to each task. From there everything is tagged, so stages 6–7 are deterministic.
+**These front-half integrations are net-new upstream work, not "small additions."** `/issue` has no Notion awareness today; `/design`'s frontmatter is a fixed set; `/cross-review` has no gate concept. Each integration is its own scoped change with its own design — explicitly **out of the `impact-weekly` MVP** (see Design). The MVP works from day one via the name-match fallback and gets more deterministic as labeling adoption grows.
 
 ## Design
 
-Three skills sharing one write-contract + brevity/substantiation discipline, **as the synthesis tail of the loop above**. **MVP = `impact-weekly` only**; the other two are phase 2. The front-half integrations (`/design` bet-lineage, `/issue` tag-stamping, `/cross-review` as the gate) are small additions to existing skills, not new skills.
+Three skills sharing one write-contract + brevity/substantiation discipline, **as the synthesis tail of the loop above**.
+
+**MVP = `impact-weekly`, standalone.** Its value on its own: *turn your Linear week into a confirmed, substantiated, brevity-clean Weekly-log entry on the right bet — fast enough to do every Friday.* That painkiller stands without the rest of the loop; it runs day-one on the name-match fallback. **Determinism and the leader-facing rollups are Phase 2**, gated on labeling coverage actually rising — not MVP promises.
+
+**The front-half integrations are net-new upstream work, each its own scoped change** (a new design↔bet lineage class in `/design`; Notion-bet awareness + label-stamping in `/issue`, which has none today; a documented cross-review-before-decompose *convention*, which no skill enforces). They are **out of the `impact-weekly` MVP** and should be designed/built deliberately, not assumed free. The loop is the **north-star architecture**; the MVP is one honest step into it.
 
 | Skill | Job | Phase |
 |---|---|---|
@@ -89,10 +95,11 @@ flowchart TD
 ### Shared contracts
 
 - **Work capture — Friday on-demand Linear query** (not a local log). `list_issues(assignee=me, updatedAt≥7d)` + completed-in-window; PRs come from each issue's linked attachments. Stateless input — can't drift from Linear, zero weekly upkeep. (A local log would need repeated daily capture with no daemon to do it, and would be a drift-prone cache of the source of truth.)
-- **Work → bet decoration (primary mapping)** — a **Linear label per Impact bet**, `impact:<bet-slug>` (slug = kebab-cased Impact Tracker row Name). Work that advances a bet carries the label; `impact-weekly` groups the week's issues by it → deterministic `slug → Notion row` mapping. Linear projects do **not** map to Impact bets (they're coarser/durable — Calm Velocity, Incidents, …), so the label is the only reliable link. The label↔row map (`{impact-slug → notionPageId}`) is cached in gitignored `state/`.
-  - **Stamped upstream:** `/issue` applies `impact:<slug>` when filing Linear work tied to a bet (offered against the engineer's `Person`-scoped bets). PRs roll up via their linked Linear issue (Linear's GitHub link), so the label on the issue suffices.
-  - **Fallback for untagged/legacy work** — name-match the issue's Linear project/title against the engineer's bets → human confirms in the draft → cache. Never dropped: unmatched items surface as "assign or skip."
-  - **Bootstrapping** — this quarter's bets get their labels created and in-flight issues bulk-labeled once; after that, `/issue` keeps new work decorated. The coverage gate's untagged-rate is the adoption signal.
+- **Work → bet decoration (primary mapping)** — a **Linear label per Impact bet**, `impact:<bet-slug>`. **The join identity is the bet's immutable Notion page ID**, not the slug: the cache is `{notionPageId → {slug, labelId}}`, and the slug is a re-derivable display alias (kebab of the Name) that keeps the label human-readable. Work that advances a bet carries the label; `impact-weekly` groups the week's issues by label → resolves label → page ID. Linear projects do **not** map to Impact bets (coarser/durable — Calm Velocity, Incidents, …), so the label is the only reliable link.
+  - **Rename / split / merge resilience:** because identity is the page ID, a renamed bet doesn't orphan existing work — but the slug/label then drifts from the Name. Reconciliation detects "label slug ≠ current Name" and **surfaces it for human resolution** (relabel, or keep the alias); it never silently mis-joins or drops. Split/merge are human-resolved the same way.
+  - **Stamped upstream (net-new work, not MVP):** a future `/issue` change applies `impact:<slug>` when filing Linear work tied to a bet. **PR→issue linkage is config-contingent** — it works only if the workspace's Linear↔GitHub integration is wired (magic words / branch naming); when it isn't, substantiation degrades to issue-only (stated, not assumed).
+  - **Fallback for untagged/legacy work (the MVP's day-one path)** — name-match the issue against the engineer's `Person`-scoped bets → human confirms in the draft → cache by page ID. Never dropped: unmatched items surface as "assign or skip." At cold start (nothing labeled yet) this fallback carries everything; determinism grows only as labeling adoption rises.
+  - **Bootstrapping** — this quarter's bets get labels created and in-flight issues bulk-labeled once (depends on a Linear label-*create* tool — verify). The coverage gate's untagged-rate is the adoption signal.
 - **Notion write** — append a dated entry under **Weekly log** via block-append; idempotent on the `Week of <YYYY-MM-DD>` heading (re-runs update in place). Draft → confirm → write. Confidence is *suggested*, never set. Definition fields untouched.
 - **Substantiation (FM#3)** — minimal evidence unit = the Linear issue (PR secondary). Every bullet carries ≥1 link; an unsubstantiated bullet is **refused**, not softened. Links must resolve to *this* engineer's work *this* quarter.
 - **Brevity (FM#2)** — hard ceilings (≈≤60 words / project entry; phase-2 retrospective ≤150 words / engineer; portfolio = table only, no prose). Mandatory `/brevity` pass before the draft is shown, announcing rules applied. *Link-don't-inline* enforced as a refusal. Append-only structure prevents cumulative bloat. **Genre rule: the Impact doc is the index; Linear + the PRs are the record.**
@@ -116,9 +123,20 @@ Before writing, reconcile work ↔ owned rows: if a worked-on bet has no row, or
 - Name-match mapping needs a one-time human confirm per project. Accepted: it's the FM#1 safety, and it self-caches.
 - Manual trigger means it only runs when invoked. Accepted: the confirm gate requires a human regardless.
 
-## Cross-skill change
+## Cross-skill changes (net-new, post-MVP)
 
-The decoration convention adds a small **`/issue` enhancement**: when filing Linear work tied to an Impact bet, offer to apply the `impact:<slug>` label (resolved against the engineer's `Person`-scoped bets). This is how new work stays decorated without manual effort. The label convention itself (slug derivation, label group) is captured in a shared reference both `/issue` and `impact-weekly` read.
+The decoration convention requires upstream changes — each its own scoped slice, **not** part of the `impact-weekly` MVP:
+
+- **`/issue`** gains Notion-bet awareness (it has none today): resolve the engineer's `Person`-scoped bets, derive the slug, and *offer* to apply the `impact:<slug>` label on Linear-sink work. Note `/issue` is dual-sink — GitHub-sink work carries no Linear label, so the spine only reaches Linear-filed work.
+- **`/design`** gains a new **design↔bet lineage class** (page ID + `impact:<slug>`), distinct from the existing design↔issue lineage (which is bidirectional/tool-backed; design↔bet is forward-only unless we later add a Notion write-back).
+- The **cross-review-before-decompose sequence** is a documented convention; no skill enforces it.
+
+The label convention (slug derivation, page-ID identity, label group) lives in a shared reference both `/issue` and `impact-weekly` read.
+
+## Preconditions to verify before building
+
+- **Notion MCP** must support: querying the Impact Tracker for a bet by Person/Name, **appending blocks under the in-body `Weekly log` heading**, and **read-modify-write to update a `Week of <date>` block in place** (idempotency). The only Notion precedent in-repo is page *creation* (`validate-release`), so this surface is unproven — confirm it (or rework the write mechanic) before `impact-weekly` ships.
+- **Linear MCP** must support **label creation** (for bootstrapping + first-stamp), not just list/apply.
 
 ## Open questions
 
