@@ -30,8 +30,15 @@ The Linear MCP tools must be connected and authenticated — at minimum `list_te
    - **Labels** (`labels`) — call the `list_issue_labels` tool (scoped to the team); pass label names or IDs.
    - **Priority** (`priority`) — `0` None, `1` Urgent, `2` High, `3` Medium, `4` Low.
    - **Assignee** (`assignee`) — user ID / name / email / "me".
+   - **Impact bet** (optional) — if this work advances an Impact Hub bet, offer to apply its `impact:<slug>` label (see *Impact-bet decoration* below).
 
    These are MCP tool calls, not CLI commands — there is no Linear CLI. If a list comes back long, ask the user to name the project/label rather than enumerating dozens. Skip any the user doesn't want. Don't block on them; a title + team + description is a complete Linear issue.
+
+   **Impact-bet decoration (Linear-sink only).** If the work advances an Impact Hub bet, offer to stamp the `impact:<slug>` label so `impact-weekly` rolls it up deterministically instead of falling back to name-matching. On opt-in:
+   - **Resolve the bet — never guess.** Query the Impact Tracker data source via Notion (`notion-fetch` / `notion-search` the Impact Hub) filtered to the engineer's `Person`; present their bets and let the user pick (or say "none").
+   - **Derive the label.** `slug` = kebab-case of the bet's Name; the label is `impact:<slug>`. The bet's Notion **page ID is the canonical identity** — the slug is a re-derivable display alias. The **label on the Linear issue is the durable record**; `/issue` does *not* write impact-weekly's state — impact-weekly resolves `impact:<slug>` → page ID and caches it on its own first read. Don't reach into another skill's cache.
+   - **Ensure the label exists.** `list_issue_labels` (team-scoped); if `impact:<slug>` is absent, create it with `create_issue_label` (`create_issue_label` is part of the connected Linear MCP). Then add it to the issue's `labels`. `/issue` only ever *creates/applies* the label — it never deletes or renames one; stale/duplicate `impact:` labels from a bet rename are surfaced and reconciled on impact-weekly's read side (human relabel), an accepted MVP liability.
+   - **Linear-sink only.** A GitHub-sink issue carries no Linear label — instead note the bet in the issue's **References** section as `Impact bet: <Name> — <url>` (distinct from the body's `## Impact` cost section) and skip the label. Offer, don't force. Convention: `docs/designs/impact-hub-pm-skill-suite.md` (decoration convention) — the same one `impact-weekly` consumes.
 
 3. **Create.** Call `save_issue` **without `id`** (passing `id` updates an existing issue — only create here):
    - `title` — the issue title.
@@ -47,6 +54,7 @@ The Linear MCP tools must be connected and authenticated — at minimum `list_te
 - **One issue per invocation.** Same as the GitHub path — if a session produced multiple deferred slices, the user picks which to file; don't batch-create.
 - **No fabricated identifiers.** If creation fails or the MCP is unavailable, surface the failure and offer GitHub / print. A made-up `ENG-NNN` is worse than an honest "couldn't reach Linear."
 - **One sink, one issue per invocation.** No cross-posting the same issue to both GitHub and Linear, and no parent/sub-issue (`parentId`) linking — both are deferred. Un-defer when a user actually asks; until then, file one issue to one sink.
+- **Impact-bet decoration is offered, never forced or guessed.** Never invent a bet or a slug; resolve the bet from Notion and let the user pick. The bet's **page ID is the identity**, the `impact:<slug>` label is the alias — don't treat the slug as the join key.
 
 ## Lineage with `/design`
 

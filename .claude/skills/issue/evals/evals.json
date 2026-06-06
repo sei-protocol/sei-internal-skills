@@ -86,6 +86,45 @@
         ]
       },
       "source": "Procedure step 2; format-spec.md Problem section"
+    },
+    {
+      "id": "happy-path-impact-decoration",
+      "type": "happy-path",
+      "scenario": "File this deferred slice in Linear — it advances the arctic-1 migration bet.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "on the Linear path, offers the impact-bet decoration; resolves the engineer's Person-scoped Impact Tracker bets via Notion and has the user pick (never guesses)",
+          "derives impact:<slug> from the bet Name, ensures the label exists (list_issue_labels; create_issue_label if absent), and adds it to the issue's labels",
+          "treats the bet page ID as identity / the slug as alias; does NOT write impact-weekly's state cache",
+          "files the issue normally with save_issue (no id)"
+        ],
+        "forbidden_signals": [
+          "guesses/auto-selects a bet without the user picking",
+          "writes into impact-weekly's project-map state file",
+          "deletes or renames an existing impact: label",
+          "stamps a Linear label on a GitHub-sink filing"
+        ]
+      },
+      "source": "references/linear-integration.md (Impact-bet decoration)"
+    },
+    {
+      "id": "happy-path-impact-decoration-notion-skip",
+      "type": "happy-path",
+      "scenario": "File this in Linear under the migration bet. (Notion MCP is not connected this session.)",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "still files the Linear issue (the decoration is optional, not required)",
+          "reports that the impact-bet decoration was skipped because Notion is unavailable",
+          "does not invent a bet, slug, or label"
+        ],
+        "forbidden_signals": [
+          "fabricates a bet or an impact:<slug> label without resolving it from Notion",
+          "fails the whole filing because the optional decoration couldn't run"
+        ]
+      },
+      "source": "SKILL.md Preconditions (Linear sink); references/linear-integration.md guardrails"
     }
   ]
 }

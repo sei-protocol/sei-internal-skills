@@ -49,7 +49,7 @@ Direct user invocation when there's no active workstream — e.g., a teammate sp
 Preconditions are checked per sink, at the create step — not upfront. The body is always drafted first; if the chosen sink isn't available, the skill prints the body for paste rather than blocking.
 
 - **GitHub sink:** `gh` CLI installed and authenticated for the target repo's org; CWD is a git repo OR the user passed `--repo owner/name`. Default target is the current repo (i.e. Tide for teammates working in this checkout).
-- **Linear sink:** the Linear MCP tools (`mcp__…__list_teams`, `…__save_issue`, etc.) are connected and authenticated. These are interactively-authenticated — they may be absent in headless / cron runs. If unavailable, say so and fall back to GitHub or print; never fabricate a Linear URL.
+- **Linear sink:** the Linear MCP tools (`mcp__…__list_teams`, `…__save_issue`, `…__list_issue_labels`, `…__create_issue_label`, etc.) are connected and authenticated. These are interactively-authenticated — they may be absent in headless / cron runs. If unavailable, say so and fall back to GitHub or print; never fabricate a Linear URL. The optional Impact-bet decoration additionally uses the Notion MCP to resolve the bet; skip the decoration (don't fail the filing) if Notion is unavailable.
 
 ## Procedure
 
@@ -76,8 +76,8 @@ Preconditions are checked per sink, at the create step — not upfront. The body
    Never infer the sink silently from context (the repo, a prior issue) — an unstated sink is always asked, never guessed. A **weak cue is not a named sink**: "the last few went to Linear", "this is a Platform thing", or the repo's history do NOT count — only an explicit instruction in *this* request ("file this in Linear") does. When in doubt, ask. The same rendered body is used whichever sink is chosen.
 
 6. **File or print, per sink.**
-   - **GitHub:** `gh issue create --repo <target> --title "<title>" --body-file <tmp>`. Echo the resulting issue URL.
-   - **Linear:** resolve the team, then create. See `references/linear-integration.md` for the full path. In short: list teams (`list_teams`) and have the user pick one — never guess the team; optionally offer project / labels / priority (offer, don't force); create with `save_issue` (`title`, `team`, `description` = the rendered body as Markdown — pass literal newlines, not escaped sequences). Echo the returned issue **identifier** (e.g. `ENG-123`) and URL.
+   - **GitHub:** if the work advances an Impact Hub bet, offer (before creating) to add an `Impact bet: <Name> — <url>` line to the body's **References** — the GitHub analog of the Linear label, since GitHub carries no Linear label. Notion-resolve the bet (Person-scoped, user picks, never guess); skip if Notion is unavailable. This is a human / `/design`-inheritance breadcrumb, **not** part of the deterministic label spine (only Linear-filed work joins that). Then `gh issue create --repo <target> --title "<title>" --body-file <tmp>`. Echo the resulting issue URL.
+   - **Linear:** resolve the team, then create. See `references/linear-integration.md` for the full path. In short: list teams (`list_teams`) and have the user pick one — never guess the team; optionally offer project / labels / priority (offer, don't force); **if the work advances an Impact Hub bet, offer to stamp its `impact:<slug>` label** (Notion-resolve the bet, create the label if absent — see linear-integration.md "Impact-bet decoration"); create with `save_issue` (`title`, `team`, `description` = the rendered body as Markdown — pass literal newlines, not escaped sequences). Echo the returned issue **identifier** (e.g. `ENG-123`) and URL.
    - **Print:** emit the body in a fenced markdown block.
 
 ## What this skill doesn't do
