@@ -12,6 +12,7 @@ We want skills that pull work from issues into the right Impact Hub project, tra
 
 ## Goals
 
+- **Thread one tag through the whole work lifecycle** — ambiguous epic → explicit technical direction → execution tasks → PRs → synthesis — so downstream rollups are a deterministic group-by and engineers *and* leaders can synthesize "what got done" without archaeology. The Impact suite is the synthesis tail of this loop; our existing design/decomposition skills are the front half.
 - Turn an engineer's week of real work into a substantiated, executive-summary progress update on the matching Impact Hub project — fast enough to actually happen weekly.
 - Make every claim in an Impact doc point to its evidence (Linear issue / PR).
 - Keep Impact docs as an **index into the work, never a re-narration of it** — so they stay readable and useful.
@@ -24,9 +25,43 @@ We want skills that pull work from issues into the right Impact Hub project, tra
 - No editing project-definition fields (*Why it matters / Success looks like*) — skills only append progress.
 - No always-on daemon; no autonomous writes to exec-facing Notion.
 
+## The end-to-end work loop
+
+The Impact suite is the tail of a lifecycle that turns an ambiguous epic into validated direction, then into tagged execution, then into synthesis. The **`impact:<slug>` tag (+ lineage links) is the spine** — every artifact in the chain carries it, so synthesis is a deterministic group-by, not a reconstruction. Each stage is owned by a skill we already have or are building:
+
+| Stage | Transition | Skill | Artifact (carries the spine) |
+|---|---|---|---|
+| 0 · Bet | ambiguous epic exists | Impact Hub | Impact Tracker row → defines `impact:<slug>` |
+| 1 · Refine | epic → technical direction | `/coral` or `/council` | a design pass (ambiguity resolved) |
+| 2 · Capture | → durable direction | `/design` | design doc, frontmatter `Impact: <slug>` (lineage to the bet) |
+| 3 · Validate | direction → trusted | `/cross-review` | findings table; **gate before decomposition** |
+| 4 · Decompose | design → execution tasks | `/issue` | Linear issues, each labeled `impact:<slug>` + lineage to the design |
+| 5 · Implement | tasks → PRs | engineer | PRs linked to the tagged issues (inherit the spine) |
+| 6 · Track | week of PRs/issues → update | `impact-weekly` | Weekly-log entry on the bet (grouped by the tag) |
+| 7 · Synthesize | quarter → exec summary | `impact-eoq` / `impact-portfolio` | retrospective, portfolio, per-engineer rollup |
+
+```mermaid
+flowchart LR
+    B[Impact bet<br/>impact:slug] --> R[/coral · /council<br/>refine ambiguity/]
+    R --> D[/design<br/>technical direction/]
+    D --> X[/cross-review<br/>validate · gate/]
+    X --> I[/issue<br/>decompose → tagged tasks/]
+    I --> P[PRs<br/>linked to tagged issues]
+    P --> W[impact-weekly<br/>track]
+    W --> Q[impact-eoq · impact-portfolio<br/>synthesize]
+    Q -.exec summary.-> B
+    %% the impact:slug tag + lineage links thread B→I→P→W→Q  -- verify this matches your intent
+```
+
+**Where `/design` and `/cross-review` fit (the explicit ask):**
+- **`/design` (stage 2)** is how ambiguity becomes *explicit, durable* technical direction. Extend its lineage convention (already does design↔issue) to **design↔bet**: a design for a bet carries `Impact: <slug>` in frontmatter, so the bet and its direction find each other.
+- **`/cross-review` (stage 3)** is the *quality gate* — independent specialists validate the direction before it's decomposed, so we never shatter a flawed design into a dozen tagged tasks. Decomposition (`/issue`) is the natural next step only once cross-review clears.
+
+The decomposition step (4) is where the spine gets stamped on execution work: `/issue` applies `impact:<slug>` (and threads design lineage) to each task. From there everything is tagged, so stages 6–7 are deterministic.
+
 ## Design
 
-Three skills sharing one write-contract + brevity/substantiation discipline. **MVP = `impact-weekly` only**; the other two are phase 2.
+Three skills sharing one write-contract + brevity/substantiation discipline, **as the synthesis tail of the loop above**. **MVP = `impact-weekly` only**; the other two are phase 2. The front-half integrations (`/design` bet-lineage, `/issue` tag-stamping, `/cross-review` as the gate) are small additions to existing skills, not new skills.
 
 | Skill | Job | Phase |
 |---|---|---|
