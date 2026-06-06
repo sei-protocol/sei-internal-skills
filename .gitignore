@@ -1,4 +1,5 @@
 .council/archive/
 .bugbash/archive/
-.claude/skills/*/state/*
+.claude/skills/*/state/**
+!.claude/skills/*/state/
 !.claude/skills/*/state/.gitkeep

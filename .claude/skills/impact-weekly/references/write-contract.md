@@ -13,7 +13,7 @@ A single dated entry appended under the bet's **`Weekly log`** body section. Not
 ## Entry shape
 
 ```markdown
-## Week of <YYYY-MM-DD>
+## Week of <YYYY-MM-DD>   ← the Monday of the work window (deterministic; see Idempotency)
 
 <one-sentence executive outcome for this bet this week.>
 - <outcome bullet> — [SEI-123](linear-url) ([PR #456](pr-url))
@@ -31,7 +31,7 @@ A single dated entry appended under the bet's **`Weekly log`** body section. Not
 
 ## Idempotency
 
-The `## Week of <YYYY-MM-DD>` heading is the idempotency key. Before writing:
+The `## Week of <YYYY-MM-DD>` heading is the idempotency key, where the date is the **Monday of the work window** — derived deterministically from `since`, normalized to that week's Monday, in ISO `YYYY-MM-DD`. The same week always produces the same heading, so re-runs converge regardless of which day or with what `since/until` offset the skill is invoked. Before writing:
 
 1. `notion-fetch` the page; scan the Weekly log for an existing `Week of <date>` heading.
 2. **Present** → replace that week's block in place (update, not duplicate). **Absent** → insert a new dated entry under the heading.

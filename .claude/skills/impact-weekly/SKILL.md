@@ -44,7 +44,7 @@ See `references/write-contract.md` for the append/idempotency mechanics and `ref
 
 6. **Confirm.** Show each entry and the **exact target page** it will append to; require explicit confirmation. On edits, loop back to step 5. Output: user's go/no-go per bet.
 
-7. **Write.** For each confirmed bet, **first re-verify the target** (re-fetch by page ID; assert it's the engineer's Impact Tracker row and the section is `Weekly log` — refuse on mismatch). Then append a dated entry under its **Weekly log**, idempotent on the `Week of <YYYY-MM-DD>` heading (update in place on re-run; if more than one matching heading exists, halt and surface rather than guess). Touch nothing else on the page. Echo each page URL written.
+7. **Write.** For each confirmed bet, **first re-verify the target** (re-fetch by page ID; assert it's the engineer's Impact Tracker row and the section is `Weekly log` — refuse on mismatch). Then append a dated entry under its **Weekly log**, idempotent on the `Week of <YYYY-MM-DD>` heading (the **Monday of the work window**, deterministic — see `references/write-contract.md`; update in place on re-run; if more than one matching heading exists, halt and surface rather than guess). Touch nothing else on the page. Echo each page URL written.
 
 8. **Report.** One line per bet written (with URL), the unmapped/uncovered items still open, and any suggested confidence changes for the human to apply.
 
