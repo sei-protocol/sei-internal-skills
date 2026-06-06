@@ -1,6 +1,6 @@
 ---
 name: design
-description: "Use when a coral/council session, an issue pickup, or a standalone authoring pass produces a design (LLD, architecture sketch, system-tier decision) that should land as a durable markdown doc — 'design this', 'capture this design', 'write up the design', 'design doc for issue #X', 'turn this into a design', '/design'. Companion to /issue — captures the design while /issue captures the next workstream. Anti-triggers: NOT for filing a new issue (use /issue); NOT for code review write-ups; NOT for postmortems; NOT for cross-reviewing a design (coral/council do that BEFORE /design captures); NOT for maintaining the doc's status over time (status transitions are manual edits)."
+description: "Use when a coral/council session, an issue pickup, or a standalone authoring pass produces a design (LLD, architecture sketch, system-tier decision) that should land as a durable markdown doc — 'design this', 'capture this design', 'write up the design', 'design doc for issue #X', 'design doc for ENG-123', 'turn this into a design', '/design'. Seeds from a source issue on GitHub (`--issue 14`) or Linear (`--issue ENG-123`) and threads bidirectional lineage. Companion to /issue — captures the design while /issue captures the next workstream. Anti-triggers: NOT for filing a new issue (use /issue); NOT for code review write-ups; NOT for postmortems; NOT for cross-reviewing a design (coral/council do that BEFORE /design captures); NOT for maintaining the doc's status over time (status transitions are manual edits)."
 ---
 
 # Design
@@ -11,7 +11,7 @@ The shape is fixed: Background, Goals, Non-goals, Design (with mermaid diagrams)
 
 ## Guardrails
 
-This skill writes one markdown file (the design doc) and optionally posts one gh issue comment (the lineage thread). Before any write:
+This skill writes one markdown file (the design doc) and optionally posts one issue comment — a GitHub issue comment (`gh`) or a Linear issue comment (MCP) — as the lineage thread. Before any write:
 
 1. **Show-before-write.** Render the full body and the resolved path; ask "Write to `<path>`?" — never auto-write, even from a coral handoff with rich pre-fill.
 2. **Don't overwrite without confirmation.** If a file already exists at the resolved path, halt and ask: overwrite, suffix with a run number (`<slug>-2.md`), or abort.
@@ -45,19 +45,19 @@ See `references/coral-integration.md` for the full handoff shape.
 
 Coral can offer both at the same handoff moment.
 
-### 2. From an issue (`/design --issue <n>`)
+### 2. From an issue (`/design --issue <ref>`)
 
-When an issue (typically filed via `/issue`) gets picked up and a design pass runs, invoke `/design --issue 14` to seed the doc from the issue's body:
+When an issue (typically filed via `/issue`) gets picked up and a design pass runs, invoke `/design --issue <ref>` to seed the doc from the issue's body. The `<ref>` is either a **GitHub number** (`14` or `#14`) or a **Linear identifier** (`ENG-123`) — the skill detects which (see Procedure step 2) and fetches accordingly (`gh issue view` for GitHub, the Linear `get_issue` MCP tool for Linear). The field mapping is the same for both sinks:
 
 - Issue **Problem** → design **Background**
 - Issue **Out of scope** → design **Non-goals** (starting point; the design pass may refine)
 - Issue **Proposed approach** → design **Design** (starting point; specialists likely expanded it)
 - Issue **References** → design **References** (plus the issue itself)
-- Issue **#n** → design frontmatter `Issue: #n` (the lineage primitive)
+- Issue ref → design frontmatter `Issue:` (the lineage primitive — `#n` for GitHub, `<IDENTIFIER> — <url>` for Linear)
 
 The orchestrator (or the user) fills in what the design session produced — Goals, refined Design, Alternatives, Trade-offs, Open questions.
 
-After the design lands, offer to comment on the issue with the design path. See `references/issue-integration.md`.
+After the design lands, offer to thread the lineage back to the issue (a GitHub or Linear comment, or a body/description edit). See `references/issue-integration.md`.
 
 ### 3. Standalone
 
@@ -66,7 +66,7 @@ Direct user invocation when there's no active workstream or upstream issue — e
 ## Preconditions
 
 - A markdown-friendly editor or pager (the skill writes a file; review happens in your editor of choice).
-- For issue-mode and lineage features: `gh` CLI installed and authenticated.
+- For issue-mode and lineage features: `gh` CLI installed and authenticated for a **GitHub** ref; the Linear MCP tools (`get_issue`, `save_comment`, `save_issue`) connected and authenticated for a **Linear** ref. The Linear MCP is interactively-authenticated and may be absent in headless / cron runs — when a Linear ref is given and the MCP is unavailable, halt and surface it rather than fabricating issue content or a lineage link.
 - CWD is the target repo (where the design will land), unless `--repo owner/name` is specified.
 
 ## Procedure
@@ -80,7 +80,10 @@ Direct user invocation when there's no active workstream or upstream issue — e
    - Create the directory if it doesn't exist; show the path to the user before writing.
 
 2. **Resolve invocation mode.**
-   - `--issue <n>` → fetch the issue body via `gh issue view <n> --json body,title,number,url -q '...'` and pre-fill from it (mode 2).
+   - `--issue <ref>` → detect the ref type and fetch (mode 2):
+     - **GitHub** — `<ref>` is numeric (`14` or `#14`). Fetch via `gh issue view <n> --json body,title,number,url -q '...'`.
+     - **Linear** — `<ref>` matches `^[A-Za-z]+-\d+$` (e.g. `ENG-123`). Fetch via the Linear `get_issue` MCP tool (`id: <ref>`); read its `title`, `description` (the issue body — the standard `/issue` sections live here), `identifier`, and `url`.
+     - Ambiguous or unrecognized → ask the user which sink rather than guessing.
    - Coral/council handoff with synthesized context → use that context (mode 1).
    - Otherwise → prompt for each section (mode 3).
 
@@ -107,11 +110,13 @@ Direct user invocation when there's no active workstream or upstream issue — e
 
 7. **Write the file on confirmation.** On the user's "yes": create parent directories if needed; check for existing file at the resolved path and halt per Guardrail #2 if found; write the body.
 
-8. **Issue lineage (if --issue mode or coral session referenced an issue).** Offer to comment on the issue:
+8. **Issue lineage (if --issue mode or coral session referenced an issue).** Offer to thread the lineage back to the source issue:
    ```
    Design captured: <relative-path-from-repo-root>
    ```
-   See `references/issue-integration.md` for the full lineage flow including bidirectional updates.
+   - **GitHub source** → comment via `gh issue comment` (default) or edit the References section via `gh issue edit`.
+   - **Linear source** → comment via the `save_comment` MCP tool (`issueId: <identifier>`, default) or append to the References of the issue `description` via `save_issue` (`id: <identifier>`).
+   Default to a comment (lightest touch); offer the body/description edit as an opt-up. See `references/issue-integration.md` for the full lineage flow including the Linear branch and idempotency.
 
 ## Halt Conditions
 
@@ -119,7 +124,7 @@ Stop and report rather than auto-recovering when:
 
 - Required inputs are missing after step 3 — surface what's empty and ask the user to fill them. `/design` is the recording step; it doesn't synthesize content from training data.
 - The resolved output path already exists (step 7) — show the existing file's date and ask: overwrite, suffix-with-run-number, or abort.
-- `--issue <n>` mode but `gh` CLI is not installed or not authenticated — halt and surface the setup needed.
+- `--issue <ref>` mode but the needed backend is unavailable — `gh` not installed/authenticated for a GitHub ref, or the Linear MCP not connected for a Linear ref. Halt and surface the setup needed; never fabricate the issue body or a lineage link.
 - The output dir can't be created (permissions, missing parent in a non-git path) — halt and surface.
 - User says "no" to the "Write to `<path>`?" prompt in step 6 — that's a valid halt. Stop, don't retry.
 
