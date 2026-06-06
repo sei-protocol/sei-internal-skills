@@ -17,7 +17,7 @@ state/project-map-<user>.json   (gitignored)
 2. Each label resolves to a bet page ID via the cache.
 3. Grouped issues map deterministically to that bet. No guessing.
 
-This is the reliable path. It only works for work that was decorated upstream (a future `/issue` enhancement stamps the label; until adoption rises, most work hits the fallback below — that's expected at cold start).
+This is the reliable path, but only for work that was decorated upstream. `/issue` stamps the `impact:<slug>` label when filing **new** bet-tied Linear work (see `.claude/skills/issue/references/linear-integration.md`, "Impact-bet decoration") — but most of a week's work is **existing** issues picked up in the Linear UI, which never pass through `/issue`. So the label currently covers only the trickle of net-new `/issue` filings; the bulk still hits the name-match fallback below. *Deferred — a bulk-label backfill pass over existing in-flight issues is the real lever to drive the untagged-rate down; un-defer when the name-match cost is measured high enough to justify it.*
 
 ## Fallback: name-match, human-confirmed
 

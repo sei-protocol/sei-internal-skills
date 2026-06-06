@@ -83,11 +83,13 @@ Direct user invocation when there's no active workstream or upstream issue — e
 2. **Resolve invocation mode.**
    - `--issue <ref>` → normalize, detect the ref type, and fetch (mode 2):
      - **Normalize first:** strip a leading `#`; if `<ref>` is a `linear.app/.../issue/<IDENTIFIER>/...` URL, extract the `<IDENTIFIER>` token. Linear identifiers are matched case-insensitively (`get_issue` resolves them either case).
-     - **GitHub** — normalized `<ref>` is purely numeric (`14`). Fetch via `gh issue view <n> --json body,title,number,url -q '...'`.
-     - **Linear** — normalized `<ref>` matches `^[A-Za-z][A-Za-z0-9]*-\d+$` (a team key that starts with a letter and may contain digits, then `-`, then the number — e.g. `ENG-123`, `PLA4-16916`). Fetch via the Linear `get_issue` MCP tool (`id: <ref>`); read its `title`, `description` (the issue body), `identifier`, and `url`.
+     - **GitHub** — normalized `<ref>` is purely numeric (`14`). Fetch via `gh issue view <n> --json body,title,number,url,labels -q '...'`.
+     - **Linear** — normalized `<ref>` matches `^[A-Za-z][A-Za-z0-9]*-\d+$` (a team key that starts with a letter and may contain digits, then `-`, then the number — e.g. `ENG-123`, `PLA4-16916`). Fetch via the Linear `get_issue` MCP tool (`id: <ref>`); read its `title`, `description` (the issue body), `identifier`, `url`, and `labels`.
      - Ambiguous or unrecognized (e.g. a cross-repo `owner/repo#n`, or a string matching neither shape) → ask the user which sink rather than guessing.
      - **Seeding from the body:** when the issue body carries the standard `/issue` sections (`## Problem`, `## Out of scope`, `## Proposed approach`, `## References`), map them per the table in mode 2. When it doesn't — a Linear-native issue written in the UI, or any issue not filed via `/issue` — **don't force the mapping**: seed **Background** from the whole body and leave Goals / Non-goals / Design for the design pass to fill. Never invent section content that isn't there.
-   - Coral/council handoff with synthesized context → use that context (mode 1).
+     - **Bet inheritance:** if the fetched issue carries an `impact:<slug>` label, treat it as the design's bet and pre-fill the `Impact:` frontmatter (resolve the slug → bet page ID + URL via Notion, below).
+   - `--bet <slug|url>` → set the design's Impact-bet lineage (no issue fetch). Normalize: if a Notion page URL, the page ID is the `…notion.so/<…>-<32hex>` / `app.notion.com/p/<id>` token; if a bare `<slug>`, resolve it against the engineer's `Person`-scoped Impact Tracker rows (Notion) to get the bet's Name, page ID, and URL. Record `**Impact:** <slug> — <url>` (page ID = identity). If the slug can't be resolved to a real bet, ask — never invent one.
+   - Coral/council handoff with synthesized context → use that context (mode 1); if the session referenced a bet, capture it as `--bet` above.
    - Otherwise → prompt for each section (mode 3).
 
 3. **Gather inputs.** Required: **Title**, **Background**, **Goals**, **Design**. Optional: **Non-goals**, **Alternatives**, **Trade-offs**, **Open questions**, **References**, **Status** (defaults to `Draft`), **Authors** (defaults to git user.name).
@@ -109,7 +111,7 @@ Direct user invocation when there's no active workstream or upstream issue — e
 
 5. **Resolve slug and path.** Convert title to kebab-case for the filename. Repo-specific suffix conventions: Tide LLDs use `<slug>-lld.md`. Default: `<slug>.md`. Combine with the output dir from step 1 to produce the resolved path. Show the user the resolved path before continuing.
 
-6. **Render and show the body.** Use the section order in `references/format-spec.md`. Skip empty optional sections rather than emitting placeholder headers. Frontmatter (Status / Date / Issue / Authors) is required. **Output of this step:** the full rendered body displayed inline plus the prompt "Write to `<path>`?" — never auto-write per Guardrail #1.
+6. **Render and show the body.** Use the section order in `references/format-spec.md`. Skip empty optional sections rather than emitting placeholder headers. Frontmatter (Status / Date / Issue / Authors) is required; include **`Impact: <slug> — <url>`** when the design advances an Impact Hub bet — captured via `--bet <slug|url>`, a coral/council session that referenced a bet, or a source issue carrying an `impact:<slug>` label (the bet's page ID in the URL is the identity). This lineage is **forward-only** — do not write back onto the Notion bet page (that's `impact-weekly` / `impact-eoq`'s surface). **Output of this step:** the full rendered body displayed inline plus the prompt "Write to `<path>`?" — never auto-write per Guardrail #1.
 
 7. **Write the file on confirmation.** On the user's "yes": create parent directories if needed; check for existing file at the resolved path and halt per Guardrail #2 if found; write the body.
 

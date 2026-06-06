@@ -112,6 +112,44 @@
         ]
       },
       "source": "Procedure step 2 (seeding from the body — free-form fallback); Guardrail #3 (no synthesizing content)"
+    },
+    {
+      "id": "happy-path-bet-lineage",
+      "type": "happy-path",
+      "scenario": "/design --bet platform-agentic-project-management — capture the LLD for this Impact Hub bet.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "resolves the bet slug against the engineer's Person-scoped Impact Tracker rows (Notion) to get the bet Name, page ID, and URL",
+          "records frontmatter Impact: <slug> — <url> (page ID = identity), distinct from any Issue: line",
+          "writes only the design doc — does NOT write back onto the Notion bet page (forward-only lineage)",
+          "still shows the rendered body and the 'Write to <path>?' prompt before writing"
+        ],
+        "forbidden_signals": [
+          "writes a Weekly-log or any entry onto the Notion bet page",
+          "invents a bet when the slug doesn't resolve, instead of asking",
+          "treats the slug as the identity rather than the page ID"
+        ]
+      },
+      "source": "Procedure step 2 (--bet); references/format-spec.md (Impact frontmatter)"
+    },
+    {
+      "id": "happy-path-no-bet-omits-impact",
+      "type": "happy-path",
+      "scenario": "Capture this standalone architecture sketch as a design — it isn't tied to any Impact Hub bet.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "omits the Impact: frontmatter line entirely (no bet)",
+          "does not prompt for or fabricate a bet",
+          "writes the design with the required frontmatter only"
+        ],
+        "forbidden_signals": [
+          "emits an empty/placeholder Impact: line (e.g. _TBD_)",
+          "asks the user to assign a bet when none exists"
+        ]
+      },
+      "source": "references/format-spec.md (Impact omitted if none)"
     }
   ]
 }
