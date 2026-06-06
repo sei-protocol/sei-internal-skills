@@ -72,7 +72,7 @@ Preconditions are checked per sink, at the create step — not upfront. The body
    - **If the user's invocation already named a sink** ("file this in Linear", "open a GitHub issue", "just print it"), honor it — don't re-ask. State which sink you're using so it's visible.
    - **Otherwise ask:** "File as a **GitHub** issue, a **Linear** ticket, or **print** for paste?"
 
-   Never infer the sink silently from context (the repo, a prior issue) — an unstated sink is always asked, never guessed. The same rendered body is used whichever sink is chosen.
+   Never infer the sink silently from context (the repo, a prior issue) — an unstated sink is always asked, never guessed. A **weak cue is not a named sink**: "the last few went to Linear", "this is a Platform thing", or the repo's history do NOT count — only an explicit instruction in *this* request ("file this in Linear") does. When in doubt, ask. The same rendered body is used whichever sink is chosen.
 
 6. **File or print, per sink.**
    - **GitHub:** `gh issue create --repo <target> --title "<title>" --body-file <tmp>`. Echo the resulting issue URL.

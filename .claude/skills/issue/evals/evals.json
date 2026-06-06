@@ -16,6 +16,7 @@
         ],
         "forbidden_signals": [
           "auto-creates the issue without showing the body and asking",
+          "infers a sink from context (the repo, prior issues, a weak cue) instead of asking — the request named no sink, so it must be asked",
           "writes the Problem field as the proposed fix instead of observable behavior",
           "emits placeholder headers (`_TBD_`) for optional sections with no signal"
         ]
