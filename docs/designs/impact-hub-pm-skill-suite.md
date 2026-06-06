@@ -40,9 +40,9 @@ Three skills sharing one write-contract + brevity/substantiation discipline. **M
 flowchart TD
     A[Friday: query Linear<br/>assignee=me, updated≤7d + completed] --> B[Expand linked PRs per issue]
     B --> C[Fetch my Person-scoped<br/>Impact Tracker rows]
-    C --> D{Map each work item<br/>→ project}
-    D -->|name-match proposed| E[Show draft: per-project entry<br/>+ unmapped items]
-    D -->|cached map hit| E
+    C --> D{Group by impact:slug label}
+    D -->|labeled → deterministic| E[Show draft: per-project entry<br/>+ unmapped items]
+    D -->|untagged → name-match fallback + confirm| E
     E --> F[/brevity pass + substantiation check/]
     F --> G{User confirms?}
     G -->|yes| H[Append dated entry under Weekly log<br/>idempotent on 'Week of DATE']
@@ -54,7 +54,10 @@ flowchart TD
 ### Shared contracts
 
 - **Work capture — Friday on-demand Linear query** (not a local log). `list_issues(assignee=me, updatedAt≥7d)` + completed-in-window; PRs come from each issue's linked attachments. Stateless input — can't drift from Linear, zero weekly upkeep. (A local log would need repeated daily capture with no daemon to do it, and would be a drift-prone cache of the source of truth.)
-- **Work → project mapping** — propose by name-match against the engineer's `Person`-scoped rows → human confirms in the draft step → persist `{linearProjectId → notionPageId}` to gitignored `state/`. Confirmation cost decays to ~zero after week one. Unmapped items are surfaced ("assign or skip"), never dropped.
+- **Work → bet decoration (primary mapping)** — a **Linear label per Impact bet**, `impact:<bet-slug>` (slug = kebab-cased Impact Tracker row Name). Work that advances a bet carries the label; `impact-weekly` groups the week's issues by it → deterministic `slug → Notion row` mapping. Linear projects do **not** map to Impact bets (they're coarser/durable — Calm Velocity, Incidents, …), so the label is the only reliable link. The label↔row map (`{impact-slug → notionPageId}`) is cached in gitignored `state/`.
+  - **Stamped upstream:** `/issue` applies `impact:<slug>` when filing Linear work tied to a bet (offered against the engineer's `Person`-scoped bets). PRs roll up via their linked Linear issue (Linear's GitHub link), so the label on the issue suffices.
+  - **Fallback for untagged/legacy work** — name-match the issue's Linear project/title against the engineer's bets → human confirms in the draft → cache. Never dropped: unmatched items surface as "assign or skip."
+  - **Bootstrapping** — this quarter's bets get their labels created and in-flight issues bulk-labeled once; after that, `/issue` keeps new work decorated. The coverage gate's untagged-rate is the adoption signal.
 - **Notion write** — append a dated entry under **Weekly log** via block-append; idempotent on the `Week of <YYYY-MM-DD>` heading (re-runs update in place). Draft → confirm → write. Confidence is *suggested*, never set. Definition fields untouched.
 - **Substantiation (FM#3)** — minimal evidence unit = the Linear issue (PR secondary). Every bullet carries ≥1 link; an unsubstantiated bullet is **refused**, not softened. Links must resolve to *this* engineer's work *this* quarter.
 - **Brevity (FM#2)** — hard ceilings (≈≤60 words / project entry; phase-2 retrospective ≤150 words / engineer; portfolio = table only, no prose). Mandatory `/brevity` pass before the draft is shown, announcing rules applied. *Link-don't-inline* enforced as a refusal. Append-only structure prevents cumulative bloat. **Genre rule: the Impact doc is the index; Linear + the PRs are the record.**
@@ -62,14 +65,15 @@ flowchart TD
 
 ### Coverage gate (FM#1)
 
-Before writing, reconcile work ↔ owned rows: if a worked-on project has no row, or an owned row got work but no entry, **report the gap — don't silently write the subset**. Coverage is the acceptance gate; its miss-rate is also the signal for when to adopt PR/issue tagging.
+Before writing, reconcile work ↔ owned rows: if a worked-on bet has no row, or an owned row got work but no entry, **report the gap — don't silently write the subset**. Coverage is the acceptance gate; its **untagged-rate** (work that fell to the name-match fallback because it lacked an `impact:` label) is the adoption signal for the decoration convention.
 
 ## Alternatives
 
 - **Local accumulated work-log (considered, rejected for MVP).** The user's initial lean. Rejected because this harness has no daemon — "log all week" still needs repeated manual capture, and the log is a drift-prone cache of Linear. Kept only as a *deferred, additive* note-supplement for off-Linear work (never primary).
-- **Notion link field on the row (rejected).** A relation/field on the shared Impact Tracker would be the cleanest long-term link, but editing a shared exec data source's schema is a one-way door; local-state mapping is the reversible MVP.
+- **Name-match-only mapping (rejected as primary; kept as fallback).** Originally the MVP mapping. Demoted to fallback once it became clear Linear projects ≠ Impact bets, so name-matching a project/title to a bet is unreliable. The `impact:<slug>` label is the reliable primary; name-match handles only untagged/legacy work.
+- **Notion link field on the row (rejected).** A relation/field on the shared Impact Tracker would be a clean link, but editing a shared exec data source's schema is a one-way door; a Linear label keeps the decoration on the work side and is natively filterable.
+- **Restructure Linear so projects/initiatives == Impact bets (rejected).** Cleanest native grouping but a team-wide process reorg a skill shouldn't impose; the label convention gets the filterability without the restructure.
 - **`/schedule` cron trigger (deferred).** Right end-state (scheduled *draft* + one-click confirm), but premature while writes need human confirmation.
-- **PR/issue tagging for deterministic mapping (deferred).** Un-defer when the coverage gate's miss-rate from name-match proves too lossy.
 
 ## Trade-offs
 
@@ -77,9 +81,15 @@ Before writing, reconcile work ↔ owned rows: if a worked-on project has no row
 - Name-match mapping needs a one-time human confirm per project. Accepted: it's the FM#1 safety, and it self-caches.
 - Manual trigger means it only runs when invoked. Accepted: the confirm gate requires a human regardless.
 
+## Cross-skill change
+
+The decoration convention adds a small **`/issue` enhancement**: when filing Linear work tied to an Impact bet, offer to apply the `impact:<slug>` label (resolved against the engineer's `Person`-scoped bets). This is how new work stays decorated without manual effort. The label convention itself (slug derivation, label group) is captured in a shared reference both `/issue` and `impact-weekly` read.
+
 ## Open questions
 
 - Exact length ceilings and the `/brevity` floor for the Weekly-log entry — tune during authoring/evals.
+- Slug derivation rule (kebab-case of row Name) and whether to use a dedicated Linear label *group* vs flat `impact:` prefix — settle during authoring.
+- Bootstrapping scope: who creates this quarter's bet labels + bulk-labels in-flight issues (one-time) — a tiny helper vs a documented manual step.
 - Phase-2 cross-engineer reads: **confirmed acceptable** (Impact Hub is a shared board).
 - Off-Linear work frequency — determines whether the note-supplement gets un-deferred.
 
