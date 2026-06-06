@@ -83,7 +83,7 @@ Direct user invocation when there's no active workstream or upstream issue — e
    - `--issue <ref>` → normalize, detect the ref type, and fetch (mode 2):
      - **Normalize first:** strip a leading `#`; if `<ref>` is a `linear.app/.../issue/<IDENTIFIER>/...` URL, extract the `<IDENTIFIER>` token. Linear identifiers are matched case-insensitively (`get_issue` resolves them either case).
      - **GitHub** — normalized `<ref>` is purely numeric (`14`). Fetch via `gh issue view <n> --json body,title,number,url -q '...'`.
-     - **Linear** — normalized `<ref>` matches `^[A-Za-z]+-\d+$` (e.g. `ENG-123`). Fetch via the Linear `get_issue` MCP tool (`id: <ref>`); read its `title`, `description` (the issue body), `identifier`, and `url`.
+     - **Linear** — normalized `<ref>` matches `^[A-Za-z][A-Za-z0-9]*-\d+$` (a team key that starts with a letter and may contain digits, then `-`, then the number — e.g. `ENG-123`, `PLA4-16916`). Fetch via the Linear `get_issue` MCP tool (`id: <ref>`); read its `title`, `description` (the issue body), `identifier`, and `url`.
      - Ambiguous or unrecognized (e.g. a cross-repo `owner/repo#n`, or a string matching neither shape) → ask the user which sink rather than guessing.
      - **Seeding from the body:** when the issue body carries the standard `/issue` sections (`## Problem`, `## Out of scope`, `## Proposed approach`, `## References`), map them per the table in mode 2. When it doesn't — a Linear-native issue written in the UI, or any issue not filed via `/issue` — **don't force the mapping**: seed **Background** from the whole body and leave Goals / Non-goals / Design for the design pass to fill. Never invent section content that isn't there.
    - Coral/council handoff with synthesized context → use that context (mode 1).
@@ -93,7 +93,7 @@ Direct user invocation when there's no active workstream or upstream issue — e
 
    Mode-specific:
    - **Coral handoff path:** show the pre-fill, take adjustments. Don't re-prompt fields the session answered.
-   - **From-issue path:** show what was inherited from the issue, take adjustments, prompt for the design-specific sections (Goals, Alternatives, Trade-offs, Open questions).
+   - **From-issue path:** show what was inherited from the issue, take adjustments, and prompt for the design-specific sections (Goals, Alternatives, Trade-offs, Open questions). **If the issue body was free-form** (step 2's fallback seeded only Background), also prompt for **Design** — the required fields must all be filled before this step's completeness check, or capture halts per Guardrail #3. Don't leave a required field empty just because the source issue didn't provide it.
    - **Standalone path:** prompt for each. Push back on framings like "design X" without context — Background should answer "why does this design exist?"
 
    **Output of this step:** a complete input set with all required fields filled. If any required field is empty after gathering, halt and surface what's missing per Guardrail #3.
