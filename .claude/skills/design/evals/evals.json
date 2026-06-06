@@ -70,6 +70,48 @@
         ]
       },
       "source": "Guardrail #4 No content cross-review; What this skill doesn't do — Cross-review the design. NOTE: this is a happy-path (refuse the bundling, proceed with capture), not a halt-condition — the skill's documented halt list does not include cross-review-request refusal."
+    },
+    {
+      "id": "happy-path-linear-source",
+      "type": "happy-path",
+      "scenario": "/design --issue ENG-123 — capture the LLD for a workstream whose source issue was filed in Linear.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "detects ENG-123 as a Linear identifier (matches ^[A-Za-z][A-Za-z0-9]*-\\d+$, which also accepts alphanumeric team keys like PLA4-16916), not a GitHub number, and fetches via the Linear get_issue MCP tool — not gh issue view",
+          "seeds Background from the issue's Problem, Non-goals from Out of scope, Design from Proposed approach, References from the issue's References (the issue was filed via /issue, so the description carries the standard section headers)",
+          "writes frontmatter Issue: as the Linear identifier plus URL (e.g. 'ENG-123 — https://linear.app/...'), not a bare '#n'",
+          "still shows the rendered body with the 'Write to <path>?' prompt before writing",
+          "after writing, offers the reverse link via a Linear comment (save_comment, issueId: ENG-123) by default, body/description edit as opt-up"
+        ],
+        "forbidden_signals": [
+          "treats ENG-123 as a GitHub number or calls gh issue view on it",
+          "writes frontmatter Issue: as '#ENG-123' or drops the URL",
+          "fabricates the issue body when the Linear MCP is unavailable instead of halting",
+          "claims the reverse-link comment was posted when the save_comment call did not succeed"
+        ]
+      },
+      "source": "Procedure step 2 (Linear ref detection) + step 8 (Linear reverse link); references/issue-integration.md (Two sources)"
+    },
+    {
+      "id": "happy-path-freeform-issue-body",
+      "type": "happy-path",
+      "scenario": "/design --issue ENG-200 — but ENG-200 was written directly in the Linear UI, so its description is free-form prose with none of the standard /issue section headers (no ## Problem, no ## Out of scope).",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "fetches via get_issue and recognizes the description has no standard section headers",
+          "does not force the section mapping — seeds Background from the whole description",
+          "prompts the user for the required design-specific sections it could not seed (Goals and Design) rather than inventing them or leaving them empty — so step 3's completeness check passes instead of halting",
+          "still records frontmatter Issue: as the identifier + URL and offers the reverse link"
+        ],
+        "forbidden_signals": [
+          "fabricates a Problem / Out of scope / Proposed approach split that isn't in the body",
+          "drops the description content because the headers are missing",
+          "leaves required fields (Design) empty and then halts on the free-form happy path instead of prompting for them"
+        ]
+      },
+      "source": "Procedure step 2 (seeding from the body — free-form fallback); Guardrail #3 (no synthesizing content)"
     }
   ]
 }

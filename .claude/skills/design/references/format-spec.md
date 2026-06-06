@@ -9,13 +9,13 @@ The canonical body produced by `/design`. Section order is fixed; empty optional
 
 **Status:** Draft
 **Date:** YYYY-MM-DD
-**Issue:** #<n>  (omit if no source issue)
+**Issue:** <ref>   (`#14` for a GitHub source, or `ENG-123 — https://linear.app/...` for a Linear source; omit the line if no source issue)
 **Authors:** <git user.name>, ...
 ```
 
 - **Status** lifecycle: `Draft` → `Under review` → `Accepted` → `Superseded by <new design path>`. The skill writes `Draft`; updates are manual.
 - **Date** is the date the design was first written. Not updated on revision (use git history for that).
-- **Issue** is the lineage primitive. If the design started from `/issue` or a coral/council session that referenced an issue, capture the number here. The skill auto-fills when invoked with `--issue <n>`.
+- **Issue** is the lineage primitive. If the design started from `/issue` or a coral/council session that referenced an issue, capture the ref here — `#<n>` for a GitHub issue, or `<IDENTIFIER> — <url>` for a Linear issue (carry the URL; the bare identifier isn't clickable). The skill auto-fills when invoked with `--issue <ref>`.
 - **Authors** defaults to the local git user; user can add collaborators (people who weighed in during the design session).
 
 ## Body sections (in order)

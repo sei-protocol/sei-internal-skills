@@ -43,7 +43,7 @@ The Linear MCP tools must be connected and authenticated — at minimum `list_te
 
 ## Guardrails specific to this path
 
-- **Always create, never update.** `/issue` files *new* issues. Do not pass `id` to `save_issue` — that would mutate an existing ticket. Updating/triaging existing issues is out of scope (see SKILL.md "What this skill doesn't do").
+- **Always create, never update.** `/issue` files *new* issues. Do not pass `id` to `save_issue` — that would mutate an existing ticket. Updating/triaging existing issues is out of scope *for this skill* (see SKILL.md "What this skill doesn't do"). (`/design` legitimately *does* update via `save_issue id` to thread its reverse link — that's a different skill's job, not this one's.)
 - **One issue per invocation.** Same as the GitHub path — if a session produced multiple deferred slices, the user picks which to file; don't batch-create.
 - **No fabricated identifiers.** If creation fails or the MCP is unavailable, surface the failure and offer GitHub / print. A made-up `ENG-NNN` is worse than an honest "couldn't reach Linear."
 - **One sink, one issue per invocation.** No cross-posting the same issue to both GitHub and Linear, and no parent/sub-issue (`parentId`) linking — both are deferred. Un-defer when a user actually asks; until then, file one issue to one sink.
@@ -52,9 +52,4 @@ The Linear MCP tools must be connected and authenticated — at minimum `list_te
 
 GitHub issues thread to designs via `#<n>`. Linear issues use an identifier (e.g. `ENG-123`) instead.
 
-**`/design` does not yet consume Linear identifiers.** Its `--issue <n>` mode is GitHub-number-only (it runs `gh issue view <n>`) and was not extended alongside this change. So for a Linear-tracked workstream, the lineage is **manual, not automated**:
-
-- The *issue* body can still carry a `Design: <path>` line once a design lands — add it by hand, same as the GitHub flow.
-- The *design* doc's `Issue:` frontmatter cannot be auto-threaded from a Linear identifier yet, and `/design --issue ENG-123` is not supported.
-
-**Deferred — `/design` Linear lineage.** Un-defer when a Linear-tracked issue is first picked up for a design pass; extending `/design --issue` to accept a Linear identifier (and reverse-link via the Linear MCP) is its own change. Until then, thread the lineage by hand and don't claim an automated loop.
+`/design` consumes both: `/design --issue ENG-123` detects the Linear identifier, fetches the issue via the Linear `get_issue` MCP tool, seeds the design from its body, records `**Issue:** ENG-123 — <url>` in the design frontmatter, and reverse-links via a Linear comment (`save_comment`) or a description edit (`save_issue`). So the `--issue` lineage flow works for Linear-tracked work just as it does for GitHub. One difference to know: GitHub gets free PR back-linking (`Closes #<n>`), while Linear's PR linkage depends on its GitHub integration being configured — so for Linear the explicit reverse comment/description link is the primary thread, not an optional extra. See `.claude/skills/design/references/issue-integration.md` ("Two sources: GitHub and Linear").
