@@ -12,7 +12,7 @@
           "queries Linear for the engineer's issues updated/completed in the window and reads linked PRs",
           "maps issues to bets label-first; untagged issues name-matched against the engineer's Person-scoped rows and confirmed by the user; identity resolved by Notion page ID",
           "runs a coverage check and surfaces any gap before writing",
-          "drafts a per-bet entry that is brevity-clean (≈≤60 words) with every bullet carrying a Linear/PR link, after a /brevity pass",
+          "drafts a tight per-bet entry (one bullet per outcome, ≤1 context sentence each, no inlined bodies) with every bullet carrying a Linear/PR link, applying the skill's own anti-bloat check",
           "shows each entry + the exact target page and writes only on explicit confirmation, appending under Weekly log idempotently on the Week-of-date heading"
         ],
         "forbidden_signals": [
@@ -76,7 +76,7 @@
         "halt_reason": "the entry is an index, not the record; inlining PR bodies is the bloat failure mode",
         "compliance_signals": [
           "refuses to inline the PR descriptions; produces a tight outcome-grouped entry with each PR linked",
-          "runs the /brevity pass and announces rules applied",
+          "applies the skill's own anti-bloat check (cut restatement, no inlined bodies, ≤1 context sentence per bullet)",
           "represents all the work via links (traceable depth) without restating what the PRs already say"
         ],
         "forbidden_signals": [

@@ -34,9 +34,9 @@ See `references/write-contract.md` for the append/idempotency mechanics and `ref
 
 1. **Resolve engineer + period.** Linear assignee (`me` or named) and the window (default last 7 days; accept an override). Output: a concrete `(assignee, since, until)`.
 
-2. **Gather the week's work.** `list_issues(assignee, updatedAt≥since)` plus completed-in-window; for each, read its linked PRs. **PR→issue linkage is config-contingent** (Linear's GitHub integration) — when absent, substantiation degrades to issue-only; say so, don't silently drop PRs. Output: the week's issues with evidence links.
+2. **Gather the week's work.** `list_issues(assignee, updatedAt≥since)` **bounded to the `[since, until]` window** (apply `until` too — never roll up work outside the chosen week), plus completed-in-window; for each, read its linked PRs. **PR→issue linkage is config-contingent** (Linear's GitHub integration) — when absent, substantiation degrades to issue-only; say so, don't silently drop PRs. Output: the week's issues with evidence links.
 
-3. **Map work → bets.** Label-first: group issues by their `impact:<slug>` label and resolve label → bet **page ID** (cached). Untagged issues → name-match against the engineer's `Person`-scoped Impact Tracker rows and **ask the user to confirm** each before it counts. Unmapped items surface as "assign or skip" — never dropped. Output: `{bet page ID → [issues]}` + an unmapped list.
+3. **Map work → bets.** Label-first: group issues by their `impact:<slug>` label and resolve label → bet **page ID** (cached). Untagged issues → name-match against the engineer's `Person`-scoped Impact Tracker rows and **ask the user to confirm the proposed mappings — batched in one prompt** (see `references/mapping-and-coverage.md`) — before they count. Unmapped items surface as "assign or skip" — never dropped. Output: `{bet page ID → [issues]}` + an unmapped list.
 
 4. **Coverage check.** Reconcile mapped work ↔ the engineer's owned bets. Surface: bets that got work, bets that got none, and any work that mapped to no bet. **If there's a gap, report it and stop before writing** — don't write a silent subset. Output: a coverage statement the user signs off on.
 
@@ -69,7 +69,7 @@ Pressure patterns captured from baseline testing, and the counter. When your rea
 | "A migration touches adjacent infra, so the cleanup and the incident are 'related' enough." | That's inventing a mapping to avoid checking. Unrelated work goes to its own bet or stays unmapped — not laundered under a convenient one. |
 | "Post it all under one bet and quietly add the others too — split the difference." | Half-laundering is still laundering. Each item is attributed to its real bet or none. |
 | "It's just an internal status field, low stakes." | Confidence + progress drive staffing, priority, and credibility decisions. "Make it look productive" is the tell that it's a misreport. |
-| "Leadership wants to see everything, so inline all the PR descriptions." | The entry is the index, not the record. Inlining bodies is bloat; the links carry the depth. ≤~60 words; the rest is a click away. |
+| "Leadership wants to see everything, so inline all the PR descriptions." | The entry is the index, not the record. Inlining bodies is bloat; the links carry the depth — one sentence per outcome, the rest is a click away. |
 | "Restating what the PR/issue says shows depth." | It's redundant filler. If the linked title already says it, cut it (brevity rule 1). |
 | "A longer entry signals a productive week." | Length is not effort. An exec scanning many bets is served by the tightest true entry, not the longest. |
 | "The engineer says it's on track — that's enough to set On Track." | Their memory of progress isn't verified remaining scope, and you'd be publishing the claim. Read issue state; suggest, don't set. |
