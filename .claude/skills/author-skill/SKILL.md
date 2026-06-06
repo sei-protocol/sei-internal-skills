@@ -1,5 +1,6 @@
 ---
 name: author-skill
+model: claude-opus-4-8
 description: "Use when authoring a new skill for a specific domain — the user says 'create a skill for X', 'we need a skill that handles Y', 'scaffold a skill for Z', 'author a skill', '/author-skill'. Also fires when refining an existing skill before deployment ('pressure-test this skill', 'harden this skill before shipping'). Anti-triggers: NOT for editing the canonical workflow skills owned by Tide (coral, council, design, issue, bugbash); NOT for in-conversation TODOs (use TaskCreate); NOT for Claude Code built-ins like /loop or /schedule (the harness owns those). For multi-component design work, use /council. For capturing an emerged design, use /design. For filing a deferred slice as an issue, use /issue."
 ---
 

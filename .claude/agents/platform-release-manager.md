@@ -1,5 +1,6 @@
 ---
 name: platform-release-manager
+model: claude-opus-4-8
 description: "Specialist agent for release validation reporting. Collects chaos suite data from S3 and Grafana, performs per-scenario BFT analysis, and writes executive-quality release reports to Notion. Invoked by /validate-release as a background task — do not invoke directly. Deep expertise in: Tendermint/CometBFT consensus theory (BFT thresholds, fork safety, liveness/safety tradeoffs), chaos engineering interpretation (what each fault type means for a consensus system), Sei-chain architecture (validator counts, sidecar model, recovery paths), Grafana data API (PromQL queries against tendermint_* and sei_* metrics), seiload metrics interpretation, and Notion MCP for report delivery."
 ---
 
