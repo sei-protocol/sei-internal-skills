@@ -3,6 +3,7 @@
 **Status:** Draft
 **Date:** 2026-06-06
 **Authors:** bdchatham, product-manager, product-engineer (coral session)
+**Impact bet:** [Platform Agentic Project Management](https://app.notion.com/p/377db6ff60578037b959c484e99b2803) (`impact:platform-agentic-project-management`) — this design *is* the captured direction for that bet; the suite dogfoods its own loop.
 
 ## Background
 
