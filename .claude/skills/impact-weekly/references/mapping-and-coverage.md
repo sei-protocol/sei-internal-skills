@@ -32,7 +32,7 @@ Linear *projects* do **not** correspond to Impact bets (they're coarser and dura
 
 ## Slug drift (rename / split / merge)
 
-Because identity is the page ID, a renamed bet doesn't orphan past work — but the cached slug/label drifts from the new Name. On detecting `label slug ≠ current Name`, **surface it for human resolution** (relabel, or keep the alias). Split/merge are surfaced the same way. Never silently re-join or drop.
+Because identity is the page ID, a renamed bet doesn't orphan past work, and **a write to that same page ID still proceeds** — the page is the canonical target; the only open item is relabeling the alias. On detecting `label slug ≠ current Name`, **surface it for human resolution** (relabel, or keep the alias) but don't block the write to the correct page. (Halt only when the cached page ID resolves to something that is *not* the engineer's Impact Tracker bet row — see the write contract's pre-write verification.) Split/merge are surfaced the same way. Never silently re-join or drop.
 
 ## Coverage gate
 
@@ -42,7 +42,7 @@ Before any write, reconcile and surface:
 - **Owned bets with work but no entry** — don't silently omit; either draft an entry or note "no qualifying work."
 - **Unmapped issues** — listed explicitly as "assign or skip."
 
-**If any gap exists, report it and stop before writing.** Never write a silent subset, and never resolve a gap by attributing work to a convenient bet. The gate's **untagged-rate** (work that fell to the name-match fallback) is the adoption signal for the decoration convention.
+**If a gap exists, surface it and get the user's call before writing — never write a *silent* subset, and never resolve a gap by attributing work to a convenient bet.** This is not "never write if any gap exists": once the user has assigned or explicitly skipped the gapped items (the coverage sign-off in procedure step 4), the **confirmed** bets are written, and the skipped/unmapped items are reported as still-open (step 8). The gate prevents *silent* omission and mis-attribution, not acknowledged partial progress. The gate's **untagged-rate** (work that fell to the name-match fallback) is the adoption signal for the decoration convention.
 
 ## PR substantiation caveat
 
