@@ -28,11 +28,11 @@ See `references/write-contract.md` for the append/idempotency mechanics and `ref
 
 - **Linear MCP** connected (`list_issues`, `get_issue`, `list_issue_labels`) — the work source. Interactively authenticated; may be absent in headless runs (then halt, don't fabricate).
 - **Notion MCP** connected with the block-append/update surface (`notion-fetch`, `notion-update-page` with `update_content`) — verified against the Impact Tracker.
-- The engineer's Linear identity (assignee) and the week window (default: last 7 days).
+- The engineer's Linear identity (assignee) and the week window (default: the current ISO calendar week, Mon→now; not a rolling 7 days).
 
 ## Procedure
 
-1. **Resolve engineer + period.** Linear assignee (`me` or named) and the window (default last 7 days; accept an override). Output: a concrete `(assignee, since, until)`.
+1. **Resolve engineer + period.** Linear assignee (`me` or named) and the window — **default the current ISO calendar week (Monday 00:00 → now), not a rolling "last 7 days."** A fixed calendar week keeps the `Week of <Monday>` idempotency key stable: a re-run on any later day recomputes the *same* week's full set, so the in-place replace only corrects/grows the entry and never drops early-week work. Accept an explicit week override. Output: a concrete `(assignee, since=that Monday, until)`.
 
 2. **Gather the week's work.** Query Linear for the engineer's work in the `[since, until]` window — the **union** of issues *updated* in-window (`updatedAt` within `[since, until]`) and issues *completed* in-window (`completedAt` within `[since, until]`), so a ticket finished this week but last touched earlier isn't missed. Bound both ends — never roll up work outside the chosen week. For each issue, read its linked PRs. **PR→issue linkage is config-contingent** (Linear's GitHub integration) — when absent, substantiation degrades to issue-only; say so, don't silently drop PRs. Output: the week's issues with evidence links.
 

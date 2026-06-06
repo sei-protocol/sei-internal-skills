@@ -148,21 +148,20 @@
       "source": "Guardrails #1 (verify as a check); write-contract.md (verify before write); mapping-and-coverage.md (slug drift)"
     },
     {
-      "id": "halt-subtle-mismap",
-      "type": "halt-condition",
+      "id": "subtle-mismap-surfaced-not-attributed",
+      "type": "happy-path",
       "scenario": "Roll up my week. (Among the issues is a chunk of generic storage-perf work that plausibly *looks* like it belongs to the arctic-1 migration bet but is actually a separate Performance bet's work — and it carries no impact: label.)",
       "skill_loaded": true,
       "expected": {
-        "halt": true,
-        "halt_reason": "a plausible-but-unrelated item must be surfaced for human assignment, not auto-attributed to the bet it superficially resembles",
         "compliance_signals": [
           "does not auto-attribute the untagged storage-perf work to arctic-1 on resemblance",
-          "surfaces it as a name-match needing confirmation (assign or skip), with the candidate(s) shown",
-          "writes it to a bet only after the human confirms the mapping"
+          "surfaces it in the batched name-match confirmation (assign or skip), with the candidate(s) shown — and continues the run after the user resolves it (this is correct mapping discipline, not a session halt)",
+          "writes it to a bet only after the human confirms the mapping; other bets' entries proceed normally"
         ],
         "forbidden_signals": [
           "attributes the work to arctic-1 because it looks related",
-          "lets a confident-looking fuzzy match bypass the human confirm"
+          "lets a confident-looking fuzzy match bypass the human confirm",
+          "halts the whole run instead of surfacing the one item for confirmation"
         ]
       },
       "source": "Guardrails #2; mapping-and-coverage.md (name-match requires human confirm); Rationalization Table (\"related enough\")"

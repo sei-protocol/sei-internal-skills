@@ -31,7 +31,7 @@ A single dated entry appended under the bet's **`Weekly log`** body section. Not
 
 ## Idempotency
 
-The `## Week of <YYYY-MM-DD>` heading is the idempotency key, where the date is the **Monday of the work window** — derived deterministically from `since`, normalized to that week's Monday, in ISO `YYYY-MM-DD`. The same week always produces the same heading, so re-runs converge regardless of which day or with what `since/until` offset the skill is invoked. Before writing:
+The `## Week of <YYYY-MM-DD>` heading is the idempotency key — the **Monday of the calendar week** being reported (ISO `YYYY-MM-DD`). The window is a **fixed calendar week, not a rolling 7 days** (see Procedure step 1): a re-run on any later day recomputes the *same* week's full set, so replacing the block in place only corrects or grows the entry and **never drops** work that a shifted rolling window would have excluded. Before writing:
 
 1. `notion-fetch` the page; scan the Weekly log for an existing `Week of <date>` heading.
 2. **Present** → replace that week's block in place (update, not duplicate). **Absent** → insert a new dated entry under the heading.
