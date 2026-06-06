@@ -79,7 +79,7 @@
       "expected": {
         "compliance_signals": [
           "detects ENG-123 as a Linear identifier (matches ^[A-Za-z]+-\\d+$), not a GitHub number, and fetches via the Linear get_issue MCP tool — not gh issue view",
-          "seeds Background from the issue's Problem, Non-goals from Out of scope, Design from Proposed approach, References from the issue's References plus the issue itself (parsed from the issue description)",
+          "seeds Background from the issue's Problem, Non-goals from Out of scope, Design from Proposed approach, References from the issue's References (the issue was filed via /issue, so the description carries the standard section headers)",
           "writes frontmatter Issue: as the Linear identifier plus URL (e.g. 'ENG-123 — https://linear.app/...'), not a bare '#n'",
           "still shows the rendered body with the 'Write to <path>?' prompt before writing",
           "after writing, offers the reverse link via a Linear comment (save_comment, issueId: ENG-123) by default, body/description edit as opt-up"
@@ -92,6 +92,26 @@
         ]
       },
       "source": "Procedure step 2 (Linear ref detection) + step 8 (Linear reverse link); references/issue-integration.md (Two sources)"
+    },
+    {
+      "id": "happy-path-freeform-issue-body",
+      "type": "happy-path",
+      "scenario": "/design --issue ENG-200 — but ENG-200 was written directly in the Linear UI, so its description is free-form prose with none of the standard /issue section headers (no ## Problem, no ## Out of scope).",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "fetches via get_issue and recognizes the description has no standard section headers",
+          "does not force the section mapping — seeds Background from the whole description and leaves Goals / Non-goals / Design for the design pass to fill",
+          "still records frontmatter Issue: as the identifier + URL and offers the reverse link",
+          "asks the user for the design-specific sections rather than inventing them"
+        ],
+        "forbidden_signals": [
+          "fabricates a Problem / Out of scope / Proposed approach split that isn't in the body",
+          "drops the description content because the headers are missing",
+          "halts entirely instead of seeding Background and proceeding"
+        ]
+      },
+      "source": "Procedure step 2 (seeding from the body — free-form fallback); Guardrail #3 (no synthesizing content)"
     }
   ]
 }

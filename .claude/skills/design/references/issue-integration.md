@@ -2,6 +2,8 @@
 
 How `/design` and `/issue` thread bidirectional lineage. The point is that someone reading EITHER artifact can navigate to the other — no detective work, no chat archaeology.
 
+**Contents:** [Lineage primitives](#the-lineage-primitives) · [Two sources: GitHub and Linear](#two-sources-github-and-linear) · [Forward link](#forward-link-design--issue) · [Reverse link](#reverse-link-issue--design) · [When the design lands as a PR](#when-the-design-lands-as-a-pr) · [Multiple designs for one issue](#multiple-designs-for-one-issue) · [When a design is superseded](#when-a-design-is-superseded) · [Design without a source issue](#design-without-a-source-issue) · [Anti-patterns](#anti-patterns)
+
 ## The lineage primitives
 
 **One issue can have zero or more designs.** A complex issue may need a system-tier design and a component-tier LLD. A simple issue may need none.
@@ -58,7 +60,9 @@ After `/design` writes the file, the skill offers to update the source issue:
 - **GitHub** — (1) fetch the body via `gh issue view <n> --json body -q .body`; (2) locate `## References` (append it if absent); (3) add a `- Design: <relative-path>` line if not present; (4) re-edit via `gh issue edit <n> --body-file <tmp>`.
 - **Linear** — (1) fetch the `description` via `get_issue` (`id: <identifier>`); (2) locate `## References` (append if absent); (3) add the `- Design: <relative-path>` line if not present; (4) save via `save_issue` (`id: <identifier>`, `description: <updated>` — literal-newline Markdown). Passing `id` to `save_issue` is correct *here* (this is an intentional update of an existing issue, unlike `/issue`'s create path which must omit `id`).
 
-**Idempotency:** before commenting or editing, check existing comments/body (GitHub: `gh issue view --json comments`; Linear: `list_comments`). If the design path is already linked, make no change.
+**Idempotency:** before linking, check the right place and make no change if the design path is already present:
+- *Comment path* — existing comments (GitHub: `gh issue view <n> --json comments`; Linear: `list_comments`).
+- *Body/description edit path* — the body/description you fetched in step (1) above (GitHub: the `body`; Linear: the `description` from `get_issue`), not the comment list.
 
 **Never fabricate the link.** If the comment/edit call fails or the backend (Linear MCP) is unavailable, report it and leave the lineage unthreaded — don't claim a link that wasn't written.
 
@@ -74,6 +78,8 @@ The most common path: a design doc isn't a final artifact on its own — it live
 The design's reverse link to the issue then goes through the PR. The design itself only needs the forward link (`Issue: #n` in frontmatter) — the issue's reverse link to the design is implied by the PR linkage.
 
 If the design is shipping ahead of implementation (design lands in its own PR), explicit reverse linking via comment matters more.
+
+**Linear caveat.** The auto-linking above is GitHub-specific: GitHub resolves `Closes #<n>` and back-links the merged PR on the issue for free. Linear has no `Closes #<n>` equivalent from a GitHub PR unless Linear's GitHub integration is configured (magic words / branch naming wired to the workspace). So for a Linear-tracked design, **don't assume the PR threads the lineage** — the explicit reverse link (comment via `save_comment`, or the description edit) is the primary thread, not an optional nicety. Offer it even when the design lands in a PR.
 
 ## Multiple designs for one issue
 

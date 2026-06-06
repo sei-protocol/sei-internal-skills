@@ -51,7 +51,7 @@ The orchestrator has the session in head. Pre-fill, don't re-prompt. The skill's
 | Design field | Pulled from |
 |---|---|
 | **Title** | The slice's name as the orchestrator referred to it. Make it descriptive — file readers will see it in directory listings. |
-| **Issue ref** | If the session referenced an issue (filed via `/issue` or pre-existing), capture the number. Otherwise omit. |
+| **Issue ref** | If the session referenced an issue (filed via `/issue` or pre-existing), capture the ref — a GitHub number (`#14`) or a Linear identifier + URL (`ENG-123 — <url>`). Otherwise omit. The reverse link at step 8 then threads to whichever sink the ref names (GitHub via `gh`, Linear via the `save_comment` MCP tool) — see `issue-integration.md` ("Two sources"). |
 | **Authors** | git user.name plus any specialists the orchestrator dispatched (the specialist personas, not human names — e.g., `kubernetes-specialist, platform-engineer`). |
 | **Background** | Original ask + system context surfaced during specialist dispatch. *Not* the proposed fix — just the why. |
 | **Goals** | What the session set out to achieve. Often the orchestrator's framing of the slice. |

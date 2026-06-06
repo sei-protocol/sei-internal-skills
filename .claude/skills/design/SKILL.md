@@ -66,7 +66,7 @@ Direct user invocation when there's no active workstream or upstream issue — e
 ## Preconditions
 
 - A markdown-friendly editor or pager (the skill writes a file; review happens in your editor of choice).
-- For issue-mode and lineage features: `gh` CLI installed and authenticated for a **GitHub** ref; the Linear MCP tools (`get_issue`, `save_comment`, `save_issue`) connected and authenticated for a **Linear** ref. The Linear MCP is interactively-authenticated and may be absent in headless / cron runs — when a Linear ref is given and the MCP is unavailable, halt and surface it rather than fabricating issue content or a lineage link.
+- For issue-mode and lineage features: `gh` CLI installed and authenticated for a **GitHub** ref; the Linear MCP tools (`get_issue`, `save_comment`, `save_issue`, `list_comments`) connected and authenticated for a **Linear** ref. The Linear MCP is interactively-authenticated and may be absent in headless / cron runs — when a Linear ref is given and the MCP is unavailable, halt and surface it rather than fabricating issue content or a lineage link.
 - CWD is the target repo (where the design will land), unless `--repo owner/name` is specified.
 
 ## Procedure
@@ -80,10 +80,12 @@ Direct user invocation when there's no active workstream or upstream issue — e
    - Create the directory if it doesn't exist; show the path to the user before writing.
 
 2. **Resolve invocation mode.**
-   - `--issue <ref>` → detect the ref type and fetch (mode 2):
-     - **GitHub** — `<ref>` is numeric (`14` or `#14`). Fetch via `gh issue view <n> --json body,title,number,url -q '...'`.
-     - **Linear** — `<ref>` matches `^[A-Za-z]+-\d+$` (e.g. `ENG-123`). Fetch via the Linear `get_issue` MCP tool (`id: <ref>`); read its `title`, `description` (the issue body — the standard `/issue` sections live here), `identifier`, and `url`.
-     - Ambiguous or unrecognized → ask the user which sink rather than guessing.
+   - `--issue <ref>` → normalize, detect the ref type, and fetch (mode 2):
+     - **Normalize first:** strip a leading `#`; if `<ref>` is a `linear.app/.../issue/<IDENTIFIER>/...` URL, extract the `<IDENTIFIER>` token. Linear identifiers are matched case-insensitively (`get_issue` resolves them either case).
+     - **GitHub** — normalized `<ref>` is purely numeric (`14`). Fetch via `gh issue view <n> --json body,title,number,url -q '...'`.
+     - **Linear** — normalized `<ref>` matches `^[A-Za-z]+-\d+$` (e.g. `ENG-123`). Fetch via the Linear `get_issue` MCP tool (`id: <ref>`); read its `title`, `description` (the issue body), `identifier`, and `url`.
+     - Ambiguous or unrecognized (e.g. a cross-repo `owner/repo#n`, or a string matching neither shape) → ask the user which sink rather than guessing.
+     - **Seeding from the body:** when the issue body carries the standard `/issue` sections (`## Problem`, `## Out of scope`, `## Proposed approach`, `## References`), map them per the table in mode 2. When it doesn't — a Linear-native issue written in the UI, or any issue not filed via `/issue` — **don't force the mapping**: seed **Background** from the whole body and leave Goals / Non-goals / Design for the design pass to fill. Never invent section content that isn't there.
    - Coral/council handoff with synthesized context → use that context (mode 1).
    - Otherwise → prompt for each section (mode 3).
 
