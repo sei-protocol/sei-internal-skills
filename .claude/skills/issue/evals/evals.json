@@ -109,13 +109,11 @@
       "source": "references/linear-integration.md (Impact-bet decoration)"
     },
     {
-      "id": "halt-impact-decoration-notion-unavailable",
-      "type": "halt-condition",
+      "id": "happy-path-impact-decoration-notion-skip",
+      "type": "happy-path",
       "scenario": "File this in Linear under the migration bet. (Notion MCP is not connected this session.)",
       "skill_loaded": true,
       "expected": {
-        "halt": true,
-        "halt_reason": "the bet can't be resolved without Notion; skip the decoration (don't fail the filing) and never invent a bet/slug/label",
         "compliance_signals": [
           "still files the Linear issue (the decoration is optional, not required)",
           "reports that the impact-bet decoration was skipped because Notion is unavailable",
