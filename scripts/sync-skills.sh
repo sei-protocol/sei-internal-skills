@@ -51,6 +51,7 @@ SEI=(
   harbor-dev
   validate-release
   impact-weekly
+  impact-portfolio
 )
 
 # --- Argument parsing -------------------------------------------------------

@@ -24,7 +24,7 @@ We want skills that pull work from issues into the right Impact Hub project, tra
 - No Notion schema change to the shared Impact Tracker (linkage stays in local state).
 - No auto-flipping Overall Confidence (agent suggests; human decides).
 - No editing project-definition fields (*Why it matters / Success looks like*) — skills only append progress.
-- No always-on daemon; no autonomous writes to exec-facing Notion.
+- No always-on daemon; no **autonomous** writes to exec-facing Notion. (Phase-2 `impact-portfolio` writes a weekly report page, but human-confirmed via draft→confirm→write — the read-only "table only, no prose" sketch is superseded; see `docs/designs/impact-portfolio-weekly-report.md`.)
 
 ## The end-to-end work loop
 
@@ -73,7 +73,7 @@ Three skills sharing one write-contract + brevity/substantiation discipline, **a
 | Skill | Job | Phase |
 |---|---|---|
 | **`impact-weekly`** | Friday: gather the engineer's Linear week → map each item to its Impact project → draft an exec progress entry → confirm → append to the project's **Weekly log**. | **MVP** |
-| `impact-portfolio` | Read-only scan across all projects: bucket by lifecycle, surface what needs attention. | Phase 2 |
+| `impact-portfolio` | **Weekly cross-project exec report**: a human-confirmed report page per week (exec summary + per-project sections, owner + confidence + ≤3 substantiated bullets). Scope evolved from the original read-only sketch — see `docs/designs/impact-portfolio-weekly-report.md`. | Phase 2 |
 | `impact-eoq` | Per-engineer quarter rollup of substantiated outcomes into the **Retrospective** section. | Phase 2 |
 
 ### `impact-weekly` flow
@@ -103,7 +103,7 @@ flowchart TD
   - **Bootstrapping** — this quarter's bets get labels created and in-flight issues bulk-labeled once (depends on a Linear label-*create* tool — verify). The coverage gate's untagged-rate is the adoption signal.
 - **Notion write** — append a dated entry under **Weekly log** via block-append; idempotent on the `Week of <YYYY-MM-DD>` heading (re-runs update in place). Draft → confirm → write. Confidence is *suggested*, never set. Definition fields untouched.
 - **Substantiation (FM#3)** — minimal evidence unit = the Linear issue (PR secondary). Every bullet carries ≥1 link; an unsubstantiated bullet is **refused**, not softened. Links must resolve to *this* engineer's work *this* quarter.
-- **Brevity (FM#2)** — hard ceilings (≈≤60 words / project entry; phase-2 retrospective ≤150 words / engineer; portfolio = table only, no prose). Mandatory `/brevity` pass before the draft is shown, announcing rules applied. *Link-don't-inline* enforced as a refusal. Append-only structure prevents cumulative bloat. **Genre rule: the Impact doc is the index; Linear + the PRs are the record.**
+- **Brevity (FM#2)** — hard ceilings (≈≤60 words / project entry; phase-2 retrospective ≤150 words / engineer; portfolio report = exec summary + per-project sections, ≤3 bullets/section with a "+N more →" pointer, no prose paragraphs — see the `impact-portfolio` design). Mandatory `/brevity` pass before the draft is shown, announcing rules applied. *Link-don't-inline* enforced as a refusal. Append-only structure prevents cumulative bloat. **Genre rule: the Impact doc is the index; Linear + the PRs are the record.**
 - **Trigger** — manual invocation (`/impact-weekly`). The draft→confirm gate needs a human, so a cron buys little yet.
 
 ### Coverage gate (FM#1)

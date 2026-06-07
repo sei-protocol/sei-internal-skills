@@ -13,7 +13,7 @@
           "maps issues to bets label-first; untagged issues name-matched against the engineer's Person-scoped rows and confirmed by the user; identity resolved by Notion page ID",
           "runs a coverage check and surfaces any gap before writing",
           "drafts a tight per-bet entry (one bullet per outcome, ≤1 context sentence each, no inlined bodies) with every bullet carrying a Linear/PR link, applying the skill's own anti-bloat check",
-          "shows each entry + the exact target page and writes only on explicit confirmation, appending under Weekly log idempotently on the Week-of-date heading"
+          "shows each entry + the exact target page and writes only on explicit confirmation, appending under Weekly log as a collapsible toggle (`>` Week-of-date title, nested body) idempotently on that toggle title"
         ],
         "forbidden_signals": [
           "auto-writes without the confirm gate",
