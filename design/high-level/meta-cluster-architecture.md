@@ -68,7 +68,7 @@ graph TB
     end
 
     subgraph USE[us-east-2]
-        Dev[dev cluster<br/>10.0.0.0/16<br/>existing]
+        Dev[dev cluster<br/>10.0.0.0/16<br/>existing<br/>not in scope]
         Cell2[Cell #2 — RPC pacific-1 NA<br/>10.70.0.0/16<br/>Cilium<br/>Flux + sei-k8s-controller<br/>Prometheus + Thanos Sidecar + Alloy]
     end
 
@@ -79,7 +79,6 @@ graph TB
     Cell2 -.metrics + logs.-> Prod
     Cell3 -.metrics + logs.-> Prod
     Harbor -.metrics + logs.-> Prod
-    Dev -.metrics + logs.-> Prod
 
     Cell2 ===|VPC peering| Prod
     Cell3 ===|VPC peering| Prod
@@ -189,7 +188,7 @@ The largest architectural shift in revision 4. **Cells do not run their own obse
 
 ```mermaid
 graph LR
-    subgraph Cell[Each cell: cell-2, cell-3, harbor, dev]
+    subgraph Cell[Each in-scope cluster: cell-2, cell-3, harbor]
         Prom[Prometheus<br/>scrapes local exporters<br/>local TSDB<br/>2h retention]
         Sidecar[Thanos Sidecar<br/>uploads blocks to S3<br/>exposes gRPC :10901]
         Alloy[Alloy<br/>collects container logs<br/>ships to prod Loki]
@@ -265,7 +264,7 @@ graph TB
     Prod <-->|peering| Harbor
     Prod <-->|peering ~85ms| Cell2
     Prod <-->|peering ~25ms| Cell3
-    Prod -.optional.- Dev
+    Dev[us-east-2 dev VPC<br/>10.0.0.0/16<br/>not in scope]
 ```
 
 | Decision | Commitment | Rationale |
@@ -462,7 +461,7 @@ Harbor's pattern handles this — see [§4.4](#44-flux-per-cluster-no-central-re
 
 | Trade-off | What we accept | What we give up |
 |---|---|---|
-| **Per-cluster TF over meta-cluster automation** | N TF roots to maintain (5 today; 6 after #2 and #3 land). Cluster changes replicated N times. Manual cell stand-up at hours-to-days scale. | Declarative cluster reconciliation, single-source-of-truth templating, K8s-native pattern at fleet scale. The meta-cluster architecture is parked as captured research. |
+| **Per-cluster TF over meta-cluster automation** | Each cluster owns its own TF root; cluster changes (EKS version bumps, addon updates, IAM trust additions) replicate across N roots. Manual cell stand-up at hours-to-days scale. Today: `prod`, `harbor`, `us-east-2/dev` cluster roots plus `bootstrap/` and `us-east-2/common/` shared roots. After v1.5: add `cell-2/` and `cell-3/` cluster roots. | Declarative cluster reconciliation, single-source-of-truth templating, K8s-native pattern at fleet scale. The meta-cluster architecture is parked as captured research. |
 | **`clusters/base/` discipline-enforced homogeneity** | Operators must update `base/` when changing fleet-wide manifests; per-cell overlays drift if not policed | Primitive-enforced homogeneity (e.g., ClusterClass). Trade is acceptable because Brandon owns the discipline today and the fleet is small. |
 | **Centralized observability** (Sidecar + Querier-pull) | Prod's Querier holds N gRPC connections to cell sidecars; cell churn affects `stores:` list; cross-region data transfer cost ($100-400/mo estimated for cells #2 + #3); prod becomes tier-0 observability dependency for cells; cardinality budget cap (2M fleet-wide) | Operational simplicity in cells (Prometheus + Sidecar + Alloy only, no Grafana/Loki/AM). Matches harbor's existing federation pattern — no new deployment in prod. |
 | **VPC peering over TGW** | Peering matrix grows quadratically past the hub-and-spoke shape; transitive routing not available; per-route discipline on both sides of each peering | $0.05/hr/attachment TGW cost; one less AWS service to operate. At N=3-4 cells the peering matrix is small. |
