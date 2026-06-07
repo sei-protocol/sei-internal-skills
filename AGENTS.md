@@ -79,8 +79,11 @@ For sibling-repo or finer-grained installs, call the scripts directly:
 # Copy portable + sei agents to a sibling repo
 ./scripts/sync-agents.sh --target ~/work/platform --categories portable,sei
 
-# Copy sei skills (chaos-suite, harbor-dev) to user-level
+# Copy the sei-team skills (impact-weekly, impact-portfolio, chaos-suite, validate-release, harbor-dev) to user-level
 ./scripts/sync-skills.sh --target ~/ --categories sei
+
+# Install a single domain (e.g. project-management → impact-weekly, impact-portfolio)
+./scripts/sync-skills.sh --target ~/ --categories project-management
 
 # Preview without copying
 ./scripts/sync-agents.sh --target ~/ --dry-run
