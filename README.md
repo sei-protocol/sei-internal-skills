@@ -8,12 +8,6 @@ Tide is Sei's library of **portable Claude Code skills and specialist agents** f
 
 Skills and agents are authored once here and synced out to your user-scope (`~/.claude/`) and sibling repos, so the same `/coral`, `/cross-review`, `/root-cause`, or `kubernetes-specialist` works the same way everywhere.
 
-## What's in here
-
-- **Skills** (`.claude/skills/`) — self-contained Claude Code skills for engineering workflows: collaborating with experts (`/coral`, `/council`, `/cross-review`), capturing work (`/design`, `/issue`, `/prfaq`), hardening and investigation (`/bugbash`, `/root-cause`), authoring discipline (`/brevity`, `/pr-quality`), skill maintenance (`/author-skill`, `/audit-skill`), and Sei release/dev operations (`/chaos-suite`, `/validate-release`, `/harbor-dev`).
-- **Agents** (`.claude/agents/`) — specialist personas dispatched by the skills (or directly via the Agent tool): `kubernetes-specialist`, `platform-engineer`, `solidity-developer`, `network-specialist`, `sei-network-specialist`, `security-specialist`, `sre-engineer`, `tee-specialist`, `product-manager`, and more.
-- **Sync machinery** (`scripts/`, `Makefile`) — copies portable skills and agents into user-scope and sibling repos, and installs a canonical read-only permission set.
-
 ## Setup
 
 One-line install: clone, then
@@ -31,18 +25,6 @@ The canonical permission set is **strictly read-only by design**. Mutating patte
 
 Run `make` with no args to list all targets.
 
-## Organization & selective sync
-
-Skills and agents are grouped into **domains** for navigation and selective install — e.g. `project-management` (`/impact-weekly`, `/impact-portfolio`), `product-management` (`/prfaq`, `go-to-market-specialist`), `workflow`, `platform-infra`, and so on. The domain is **metadata, not directory structure**: each skill/agent carries a `category:` in its frontmatter, the catalogs ([`.claude/skills/README.md`](.claude/skills/README.md), [`AGENTS.md`](AGENTS.md)) group by it, and the sync scripts let you install one domain at a time:
-
-```sh
-make sync-skills                                            # the `portable` set (default)
-./scripts/sync-skills.sh --categories project-management    # just one domain
-./scripts/sync-skills.sh --categories all                   # everything syncable
-```
-
-Claude Code discovers skills/agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/tide/` are **not** discovered. So the install is always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. (`output-quality` — `/brevity`, `/pr-quality` — is Tide-local and intentionally not synced.)
-
 ## Daily use
 
 Most work starts with one of the collaboration skills:
@@ -54,6 +36,42 @@ Most work starts with one of the collaboration skills:
 - **`/root-cause`** — disciplined, multi-expert investigation of a complex problem.
 
 Coral and council offer **`/design`** (capture this work as a durable doc) and **`/issue`** (file the next workstream) at natural handoff moments.
+
+## What's in here
+
+- **Skills** (`.claude/skills/`) — self-contained Claude Code skills, grouped by domain:
+  - **Workflow** — `/coral`, `/council`, `/cross-review`
+  - **Workstream bootstrap** — `/design`, `/issue`
+  - **Hardening & investigation** — `/bugbash`, `/root-cause`
+  - **Skill authoring** — `/author-skill`, `/audit-skill`
+  - **Output quality** (Tide-local) — `/brevity`, `/pr-quality`
+  - **Product management** — `/prfaq`
+  - **Project management** — `/impact-weekly`, `/impact-portfolio`
+  - **Release operations** — `/chaos-suite`, `/validate-release`
+  - **Engineer self-service** — `/harbor-dev`
+- **Agents** (`.claude/agents/`) — specialist personas dispatched by the skills (or directly via the Agent tool), grouped by domain:
+  - **Platform infra** — `kubernetes-specialist`, `platform-engineer`, `network-specialist`, `k8s-capacity-management`, `sei-network-specialist`
+  - **Observability** — `opentelemetry-expert`, `observability-platform-engineer`, `sre-engineer`
+  - **Security** — `security-specialist`, `tee-specialist`
+  - **Blockchain** — `solidity-developer`
+  - **Product management** — `product-engineer`, `product-manager`, `go-to-market-specialist`
+  - **Release operations** — `platform-release-manager`
+- **Sync machinery** (`scripts/`, `Makefile`):
+  - `sync-skills.sh` / `sync-agents.sh` — copy skills/agents into user-scope (`~/.claude/`) or sibling repos, by domain or alias
+  - `Makefile` — `make bootstrap` (one-shot install), plus `make sync-skills` / `make sync-agents`
+  - `update-agent-permissions.sh` — installs the canonical read-only permission set
+
+## Organization & selective sync
+
+Skills and agents are grouped into **domains** for navigation and selective install — e.g. `project-management` (`/impact-weekly`, `/impact-portfolio`), `product-management` (`/prfaq`, `go-to-market-specialist`), `workflow`, `platform-infra`, and so on. The domain is **metadata, not directory structure**: each skill/agent carries a `category:` in its frontmatter, the catalogs ([`.claude/skills/README.md`](.claude/skills/README.md), [`AGENTS.md`](AGENTS.md)) group by it, and the sync scripts let you install one domain at a time:
+
+```sh
+make sync-skills                                            # the `portable` set (default)
+./scripts/sync-skills.sh --categories project-management    # just one domain
+./scripts/sync-skills.sh --categories all                   # everything syncable
+```
+
+Claude Code discovers skills/agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/tide/` are **not** discovered. So the install is always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. (`output-quality` — `/brevity`, `/pr-quality` — is Tide-local and intentionally not synced.)
 
 ## Repository structure
 
@@ -80,7 +98,7 @@ scripts/                    # sync-agents.sh, sync-skills.sh, permission tooling
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
 | **Wiring a sibling repo to use these** | `scripts/sync-agents.sh --target <path>` and `scripts/sync-skills.sh --target <path>` |
 
-## Conventions
+## Contributing & conventions
 
 - **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the skill or component in scope (e.g. `feat(cross-review): ...`, `docs(readme): ...`).
 - **Brevity discipline.** Apply `/brevity` before writing PR bodies or WHY-style in-code comments.
