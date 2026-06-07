@@ -4,23 +4,46 @@ This repository hosts specialist agent personas in `.claude/agents/`. They are g
 
 ## Roster
 
-| Agent | Category | Scope |
-|-------|----------|-------|
-| `kubernetes-specialist` | Portable | Go + controller-runtime, CRDs, event indexing, Job lifecycle |
-| `platform-engineer` | Portable | K8s manifests, Python container runtimes, cloud auth |
-| `solidity-developer` | Portable | Solidity / Foundry / OpenZeppelin / ERC standards |
-| `network-specialist` | Portable | K8s and cloud networking, service mesh |
-| `security-specialist` | Portable | Security + adversarial design |
-| `tee-specialist` | Portable | TEE + attestation |
-| `product-engineer` | Portable | Product engineering |
-| `product-manager` | Portable | Product management, scope discipline |
-| `go-to-market-specialist` | Portable | GTM strategy for novel products — ICP / JTBD / motion / launch. Partner to `product-manager`. |
-| `platform-release-manager` | Portable | Release management and cut discipline |
-| `opentelemetry-expert` | Portable | Application-side OpenTelemetry SDK instrumentation. Backend operations → `observability-platform-engineer`. |
-| `observability-platform-engineer` | Portable | Telemetry backend as a system: Prometheus/Thanos/Loki/Tempo/Alloy/Promtail/Grafana operations, PromQL/LogQL authorship, mixin vendoring, ingester/compactor/store-gateway sizing. |
-| `k8s-capacity-management` | Portable | Capacity as a discipline: workload right-sizing from observed data, Karpenter NodePool design, DaemonSet overhead, PriorityClass tiers, HPA/VPA/KEDA tuning, scheduling primitives. |
-| `sre-engineer` | Portable | Google SRE-flavored: SLOs/SLIs, dashboards, alerts, runbooks (human + agent-callable), post-mortems. Closes the loop by filing `/issue` work when a runbook needs missing tooling. |
-| `sei-network-specialist` | Sei-ecosystem | Sei node networking (seid ports, CometBFT P2P, Waterway, Istio quirks). Valuable to any Sei-adjacent work. |
+Grouped by **domain** — each agent carries a matching `category:` in its `.claude/agents/<name>.md` frontmatter, and `sync-agents.sh --categories <domain>` syncs a domain. Agents discover **flat** under `~/.claude/agents/`; the domains are metadata, not folders. Sync aliases cross-cut: all agents are `portable` except `sei-network-specialist` (`sei`); `all` is everything.
+
+### platform-infra
+| Agent | Scope |
+|-------|-------|
+| `kubernetes-specialist` | Go + controller-runtime, CRDs, event indexing, Job lifecycle |
+| `platform-engineer` | K8s manifests, Python container runtimes, cloud auth |
+| `network-specialist` | K8s and cloud networking, service mesh |
+| `k8s-capacity-management` | Capacity as a discipline: workload right-sizing from observed data, Karpenter NodePool design, DaemonSet overhead, PriorityClass tiers, HPA/VPA/KEDA tuning, scheduling primitives. |
+| `sei-network-specialist` | Sei node networking (seid ports, CometBFT P2P, Waterway, Istio quirks). Valuable to any Sei-adjacent work. *(sync alias: `sei`)* |
+
+### observability
+| Agent | Scope |
+|-------|-------|
+| `opentelemetry-expert` | Application-side OpenTelemetry SDK instrumentation. Backend operations → `observability-platform-engineer`. |
+| `observability-platform-engineer` | Telemetry backend as a system: Prometheus/Thanos/Loki/Tempo/Alloy/Promtail/Grafana operations, PromQL/LogQL authorship, mixin vendoring, ingester/compactor/store-gateway sizing. |
+| `sre-engineer` | Google SRE-flavored: SLOs/SLIs, dashboards, alerts, runbooks (human + agent-callable), post-mortems. Closes the loop by filing `/issue` work when a runbook needs missing tooling. |
+
+### security
+| Agent | Scope |
+|-------|-------|
+| `security-specialist` | Security + adversarial design |
+| `tee-specialist` | TEE + attestation |
+
+### blockchain
+| Agent | Scope |
+|-------|-------|
+| `solidity-developer` | Solidity / Foundry / OpenZeppelin / ERC standards |
+
+### product-management
+| Agent | Scope |
+|-------|-------|
+| `product-engineer` | Product engineering |
+| `product-manager` | Product management, scope discipline |
+| `go-to-market-specialist` | GTM strategy for novel products — ICP / JTBD / motion / launch. Partner to `product-manager`. Pairs with the `/prfaq` skill (same domain). |
+
+### release-operations
+| Agent | Scope |
+|-------|-------|
+| `platform-release-manager` | Release management and cut discipline |
 
 The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
@@ -56,8 +79,11 @@ For sibling-repo or finer-grained installs, call the scripts directly:
 # Copy portable + sei agents to a sibling repo
 ./scripts/sync-agents.sh --target ~/work/platform --categories portable,sei
 
-# Copy sei skills (chaos-suite, harbor-dev) to user-level
+# Copy the sei-team skills (impact-weekly, impact-portfolio, chaos-suite, validate-release, harbor-dev) to user-level
 ./scripts/sync-skills.sh --target ~/ --categories sei
+
+# Install a single domain (e.g. project-management → impact-weekly, impact-portfolio)
+./scripts/sync-skills.sh --target ~/ --categories project-management
 
 # Preview without copying
 ./scripts/sync-agents.sh --target ~/ --dry-run

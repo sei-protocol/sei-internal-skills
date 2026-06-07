@@ -1,5 +1,6 @@
 ---
 name: chaos-suite
+category: release-operations
 model: claude-opus-4-8
 description: "Release-testing skill that executes the full chaos test suite (runbook sei-protocol/platform#169) against a dev or staging Sei cluster and collates results into a release-summary document. Trigger on 'chaos suite', 'run release chaos tests', 'execute chaos testing for the release cut', 'run the chaos runbook'. NEVER triggers on production — this skill refuses to run if kubectl context matches a prod pattern. NOT for single-test debugging (use ad-hoc kubectl for that). NOT for runbook authoring (this skill executes a runbook, it does not write one)."
 ---

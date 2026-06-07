@@ -1,5 +1,6 @@
 ---
 name: product-engineer
+category: product-management
 description: "Cross-functional product engineer with deep distributed systems, blockchain, and cloud expertise. Bridges product vision to technical architecture for novel on-chain coordination and data mobility patterns."
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: claude-opus-4-8

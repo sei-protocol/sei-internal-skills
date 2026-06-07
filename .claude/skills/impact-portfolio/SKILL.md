@@ -1,5 +1,6 @@
 ---
 name: impact-portfolio
+category: project-management
 model: claude-opus-4-8
 description: "Use when generating the weekly cross-project executive report for the Impact Hub — 'impact portfolio', 'weekly impact report', 'portfolio report', 'cross-project impact report', 'generate the weekly Impact report', '/impact-portfolio'. The leader-facing weekly readout across current-quarter Impact Hub bets — one human-confirmed report per week, read-only on the bets it summarizes. Anti-triggers: NOT for one engineer's per-bet weekly update (use /impact-weekly); NOT for the end-of-quarter per-engineer rollup (deferred impact-eoq); NOT for filing issues (use /issue) or capturing a design (use /design); NOT for editing a bet's definition fields or Weekly log — it is read-only on bets and writes only its own report row."
 ---

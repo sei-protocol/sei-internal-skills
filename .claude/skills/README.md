@@ -18,7 +18,9 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
 
 **Authoring standard:** read [`SKILL-TEMPLATE.md`](./SKILL-TEMPLATE.md) before creating a new skill.
 
-Claude Code discovers skills as direct subdirectories — nested folders are NOT discovered. Logical grouping happens in this catalog, not in directory structure.
+Claude Code discovers skills as **flat** direct subdirectories of `skills/` — nested folders and custom roots (e.g. `~/.claude/tide/`) are NOT discovered. So domain grouping is **metadata, not directories**, expressed in three mirrored places: each skill's `category:` SKILL.md frontmatter, the sync script's domain lists (`sync-skills.sh --categories <domain>`), and the sections of this catalog.
+
+**Domains:** `workflow` · `workstream-bootstrap` · `hardening` · `investigation` · `skill-authoring` · `output-quality` (Tide-local) · `product-management` · `project-management` · `release-operations` · `engineer-self-service`. Sync aliases cross-cut them: `portable`, `sei`, `all`.
 
 ## Catalog
 
@@ -39,6 +41,9 @@ Two complementary artifact-capture skills. Coral / council should offer them at 
 
 - **`issue/`** — Synthesize the current session into a standard-format issue that bootstraps the next pickup, filed to **GitHub or Linear** (asked at the create step). Required body sections: Problem, Impact, Relevant experts. Fires when a deferred slice surfaces, the user cuts scope, or the session closes with an obvious phase 2.
 - **`design/`** — Capture the current session's design as a markdown doc under `docs/designs/` (or repo-specific path; Tide → `design/milestones/` or `design/high-level/`). ADR-flavored body with mermaid diagrams encouraged. Threads bidirectional lineage to the source issue (frontmatter `Issue: #n` forward; offers to update issue's References reverse). Fires when the deliverable IS a design (LLD, architecture sketch, system-tier decision).
+### Product Management
+Product-decision discipline before engineering scoping. Pairs with the `go-to-market-specialist` agent (same domain).
+
 - **`prfaq/`** — Author or review a PRFAQ (Amazon working-backwards Press Release + FAQ) before greenlighting a product/feature/initiative. Forces customer-thesis discipline (named customer, named pain, named alternatives, falsification thresholds). Refuses theater: buzzword soup, customer-absent prose, FAQ-as-marketing, polished perfectionism over thinking. Three modes: Author / Review / Verdict. Companion to `/design` (capture this design) and `/issue` (capture next workstream).
 
 ### Skill Authoring & Auditing
@@ -62,7 +67,7 @@ These two are project-scoped disciplines applied during authoring inside Tide. T
 - **`chaos-suite/`** — Execute the full chaos test suite (runbook: sei-protocol/platform#169) against a dev or staging Sei cluster and collate results into a release summary. **Status: scaffold** — follows the template; scripts are placeholders pending authoring against the live runbook. Tracking issue: sei-protocol/platform#170.
 - **`validate-release/`** — Collect a completed chaos-suite run's results from S3 + Thanos/Grafana, derive per-scenario metrics and panel PNGs, and push a structured release-validation report to Notion. Companion to `/chaos-suite` (run) → `/validate-release` (report).
 
-### Impact Hub (project management)
+### Project Management (Impact Hub)
 - **`impact-weekly/`** — Roll up an engineer's Linear week (+ linked PRs) into the matching Impact Hub bet as a substantiated, executive-summary Weekly-log entry, draft→confirm→write. The producer in the work loop in `docs/designs/impact-hub-pm-skill-suite.md`; failure modes (mis-tracking, bloat, unsubstantiated claims) are engineered as refusals.
 - **`impact-portfolio/`** — The weekly cross-project executive report: one human-confirmed Notion page per week under the Impact Hub's Weekly Reports (exec summary + per-project sections with owner, Overall Confidence, ≤3 substantiated bullets). Reads the week's per-bet Weekly-log toggles (+ a Linear `impact:<slug>` activity scan); read-only on bets, writes only its own report page. The reader-facing synthesis tail; design at `docs/designs/impact-portfolio-weekly-report.md`. (`impact-eoq`, the per-engineer quarter rollup, is the remaining deferred phase-2 sibling.)
 
@@ -87,12 +92,13 @@ A project-scope skill in this repo is only discoverable when Claude Code is runn
 
 ```sh
 ./scripts/sync-skills.sh                    # daily: portable skills → ~/.claude/skills/
-./scripts/sync-skills.sh --categories all   # also sync sei skills (chaos-suite, harbor-dev)
+./scripts/sync-skills.sh --categories all                 # also sync the sei-team skills
+./scripts/sync-skills.sh --categories project-management  # just one domain
 ./scripts/sync-skills.sh --target ~/work/sei-k8s-controller --force  # to another repo
 ```
 
 If a tracked file in the target differs from Tide's version, the skill is reported as a conflict and skipped — re-run with `--force` to overwrite. Target-only files (user customizations, runtime artifacts) are preserved.
 
-Sibling of `scripts/sync-agents.sh` — same shape, same flags. Categories: `portable` (`bugbash`, `coral`, `council`, `cross-review`, `design`, `issue`, `author-skill`, `audit-skill`, `root-cause`, `prfaq`), `sei` (`chaos-suite`, `harbor-dev`, `validate-release`), `all`. Update the lists in the script when a skill is added, renamed, or re-categorized.
+Sibling of `scripts/sync-agents.sh` — same shape, same flags. Sync by **domain** (`--categories project-management`, `--categories workflow`, …) or by **alias**: `portable` (the 10 general skills), `sei` (the 5 Sei-team skills: impact-weekly, impact-portfolio, chaos-suite, validate-release, harbor-dev), `all`. `output-quality` (brevity, pr-quality) is Tide-local and not synced. Update the domain lists in the script when a skill is added, renamed, or re-categorized.
 
 For procedural skills like `chaos-suite` that operate on remote infrastructure, you can also just run them from Tide and pass `--repo` / target paths to direct work elsewhere — no sync needed.

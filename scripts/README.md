@@ -27,7 +27,7 @@ Copies agent personas from `.claude/agents/` to a target `.claude/agents/` direc
 ./scripts/sync-agents.sh --target ~/ --dry-run
 ```
 
-Categories: `portable` (default), `sei`, `all`. Non-destructive by default — pass `--force` to overwrite changed files.
+Categories: agent **domains** (`platform-infra`, `observability`, `security`, `blockchain`, `product-management`, `release-operations`) or **aliases** `portable` (default, all non-Sei agents), `sei` (`sei-network-specialist`), `all`. Non-destructive by default — pass `--force` to overwrite changed files.
 
 ## `sync-skills.sh`
 
@@ -37,14 +37,17 @@ Sibling of `sync-agents.sh` — same shape, same flags. Copies skills from `.cla
 # Sync portable skills to user-level (default category)
 ./scripts/sync-skills.sh --target ~/
 
-# Also sync the Sei skills (chaos-suite, harbor-dev, validate-release)
+# Also sync the sei-team skills (impact-weekly, impact-portfolio, chaos-suite, validate-release, harbor-dev)
 ./scripts/sync-skills.sh --target ~/ --categories all
+
+# Or install a single domain
+./scripts/sync-skills.sh --target ~/ --categories project-management
 
 # Preview without copying
 ./scripts/sync-skills.sh --target ~/ --dry-run
 ```
 
-Categories: `portable` (default), `sei`, `all`. Update the lists at the top of the script when a skill is added, renamed, or re-categorized.
+Categories: skill **domains** (`workflow`, `workstream-bootstrap`, `hardening`, `investigation`, `skill-authoring`, `product-management`, `project-management`, `release-operations`, `engineer-self-service`) or **aliases** `portable` (default), `sei`, `all`. `output-quality` (brevity, pr-quality) is Tide-local and not synced. Update the domain lists at the top of the script when a skill is added, renamed, or re-categorized.
 
 ## `update-agent-permissions.sh` + `verify-agent-permissions.sh` + `agent-permissions.json`
 

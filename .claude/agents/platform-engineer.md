@@ -1,5 +1,6 @@
 ---
 name: platform-engineer
+category: platform-infra
 description: "Platform infrastructure and container runtime development. Expert in K8s manifests (Kustomize), Python container images, cloud auth (AWS IAM/IRSA, KMS, GitHub App JWT), RBAC, Pod Security, secrets management, and GitOps. Use for platform manifests, runtime container design, and integration of cloud services with K8s workloads."
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: claude-opus-4-8

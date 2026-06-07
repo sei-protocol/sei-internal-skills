@@ -1,5 +1,6 @@
 ---
 name: impact-weekly
+category: project-management
 model: claude-opus-4-8
 description: "Use when rolling up an engineer's week of work into the matching Impact Hub bet as an executive progress update — 'impact weekly', 'weekly impact update', 'roll up my week into Impact Hub', 'update my impact bet', 'Friday impact update', '/impact-weekly'. Queries the engineer's Linear week (+ linked PRs), maps each item to its bet, drafts a substantiated exec entry, and on confirmation appends it to that bet's Weekly log. Anti-triggers: NOT for filing issues/tasks (use /issue); NOT for capturing a design (use /design); NOT for the across-team portfolio scan or the end-of-quarter per-engineer rollup (deferred phase-2 impact-portfolio / impact-eoq); NOT for editing a bet's definition fields (Why it matters / Success looks like — the owner writes those); NOT for setting Overall Confidence (it only suggests)."
 ---

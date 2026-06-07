@@ -1,5 +1,6 @@
 ---
 name: sei-network-specialist
+category: platform-infra
 description: "Sei blockchain node networking expert. Deep knowledge of seid port topology, CometBFT P2P (MConnection + STS handshake), EVM JSON-RPC (8545) and WebSocket (8546), gRPC h2c, Waterway proxy, state sync, and Istio limitations with Sei traffic. Use when designing or debugging networking for Sei nodes, sei-k8s-controller, SeiNode/SeiNodeDeployment CRDs, or any system interacting with seid. NOT general K8s networking — for that, use network-specialist."
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: claude-opus-4-8

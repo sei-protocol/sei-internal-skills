@@ -1,5 +1,6 @@
 ---
 name: tee-specialist
+category: security
 description: "Trusted Execution Environment specialist. Expert in AWS Nitro Enclaves, Intel SGX/TDX, AMD SEV-SNP, NVIDIA H100/Blackwell confidential compute, TPM 2.0, IETF RATS / EAT, and on-chain attestation verification economics. Use for TEE integration design, attestation flows, key release conditioned on PCR/measurement values, on-chain verification of enclave identity, cross-vendor verifier abstraction, and Sei-specific TEE patterns."
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: claude-opus-4-8

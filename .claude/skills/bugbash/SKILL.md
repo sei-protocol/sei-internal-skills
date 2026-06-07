@@ -1,5 +1,6 @@
 ---
 name: bugbash
+category: hardening
 model: claude-opus-4-8
 description: "Use when an existing system works on the happy path but needs adversarial hardening before launch — 'bug bash', 'bugbash', 'pressure-test the X', 'red-team the X', 'harden the X before launch', 'find bugs in the X', 'adversarial review of X', '/bugbash'. Anti-triggers: NOT for greenfield design (use /council); NOT for collaborative iteration on a feature in progress (use /coral); NOT for PR review (use /review); NOT for security-only single-pass review (use /security-review — bugbash is broader and looped); NOT for production incident triage. Inspired by the RALPHY loop, reframed for hardening rather than greenfield work."
 ---
