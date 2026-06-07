@@ -11,9 +11,20 @@ Today a leader who wants "what got done across the portfolio this week" opens th
 
 This is the deferred Phase-2 `impact-portfolio` from `impact-hub-pm-skill-suite.md`. Its scope is **evolved** here: the parent sketched a *read-only* "table, no prose" scan; this captures a skill that **writes a human-confirmed weekly report page** to the shared board. The write stays draft→confirm→write (never autonomous), so the parent non-goal "no *autonomous* writes to exec Notion" still holds — but "read-only / table only" is superseded. **Approved one-way door** (the parent doc is updated to match).
 
+## Update (2026-06-07): persistence resolved — Weekly Reports **database**
+
+The Notion precondition spike (PLT-437 / Tide #119) found Notion allows custom properties only on **database rows**, not plain sub-pages — so the `report_week` identity and `generated_by` provenance cannot live on a sub-page. **Resolved (owner-approved one-way door):** "Weekly Reports" is now an inline **database** under the Impact Hub; each weekly report is a **row**.
+
+- **Data source:** `collection://af6a7313-890d-4a8c-a936-59b7e94ef8f6`. **Approved schema (the persisted one-way door):** `Name` (title) · `report_week` (date — identity / idempotency key) · `generated_by` (select: `impact-portfolio` / `human` — provenance / clobber-guard).
+- **Mechanism:** create via `notion-create-pages` `parent={data_source_id}` (proven path); idempotency = query rows by `report_week`; assert `generated_by == impact-portfolio` before any update. `generated_by` (native, always-readable) replaces the `last_edited_by` signal the MCP doesn't reliably expose.
+- **This supersedes the sub-page / "Weekly Reports toggle" / page-property / last-editor language in the sections below** (kept for history). The spike open-questions are resolved: page-create parents under a `data_source_id`; rows carry custom properties; a full-body replace is safe on the skill-owned row.
+- **Residuals** (enumerated in the skill's `references/write-contract.md`): unkeyed human row, hand-edited skill row (machine-managed — rebuilt each run), `generated_by` advisory, date-only representation.
+
+The authoritative contract is the skill's `references/write-contract.md`. The sections below describe the original sketch and are retained for provenance.
+
 ## Goals
 
-- One **page per week** a leader opens to see the week across projects, every claim clickable, in <3 minutes.
+- One **report per week** a leader opens to see the week across projects, every claim clickable, in <3 minutes.
 - **No silent omission**: the report is complete, or *visibly* incomplete — coverage gaps and partial-fetch failures render on the page.
 - **Executive altitude**: exec summary + per-project sections, **≤3 bullets/section** ("almost never more than 3"), nothing silently dropped.
 - **Substantiated**: every delivery bullet carries an evidence link, inherited from the source weekly (never invented).
@@ -32,7 +43,7 @@ This is the deferred Phase-2 `impact-portfolio` from `impact-hub-pm-skill-suite.
 
 ### Output artifact
 
-One Notion page per week under the existing **"Weekly Reports"** toggle on the Impact Hub page (`35edb6ff605780b6b023d95456209168`; confirmed: a plain toggle heading, not a database).
+**[Superseded — see the Update above.]** One report per week, now a **row in the Weekly Reports database** under the Impact Hub. (Original sketch: a page under a "Weekly Reports" toggle — the spike showed sub-pages can't carry the identity/provenance properties, so it became a database.)
 
 - **Title (display):** `Impact Report - Week of <Month Xth>` — human-facing only.
 - **Identity (join key):** the week's **ISO Monday** (`report_week: YYYY-MM-DD`), written as a **page property**, anchored to a declared TZ. The display title is *never* the match key (it drifts on ordinal/locale/format). This mirrors `impact-weekly`'s ISO-key discipline.
@@ -134,9 +145,9 @@ flowchart TD
 
 ## Open questions
 
-- Can `notion-create-pages` parent under a toggle/heading block (vs. page/database)? Does it accept nested block content + a custom page property in one call? (Spike.)
+- ~~Can `notion-create-pages` parent under a toggle/heading block? Nested content + a custom page property in one call?~~ **Resolved (spike):** no block-parent — rows in a database (`parent=data_source_id`); rows carry native custom properties. See the Update.
 - Does the Notion MCP resolve `Person` user-ID → display name, and do in-page anchor links render? (Degrade paths specified.)
-- Is a full-body replace allowed on a skill-owned report page, or must updates use `update_content` section-replace?
+- ~~Is a full-body replace allowed on a skill-owned report page, or must updates use `update_content` section-replace?~~ **Resolved (spike):** a full-body replace is safe on the skill-owned row (its `generated_by` proves ownership); the skill reasons with full-body-clobber semantics either way. See the Update / `write-contract.md`.
 - Auto-derive "current quarter" from the report date, or keep runner-confirmed?
 
 ## References

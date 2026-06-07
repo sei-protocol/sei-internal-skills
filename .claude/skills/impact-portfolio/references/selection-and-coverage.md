@@ -40,7 +40,7 @@ For each active bet, read its `Week of <thisMonday>` toggle and lift outcomes:
 
 ## Owner & confidence
 
-- **Owner** = the bet's `Person` (user-ID → display name; degrade to raw ID, flagged; never fabricate). Render with the framing **"owner ≠ sole contributor"** — work is cross-engineer and the bet owner may not be the doer. Do not use this page for individual credit until a contributor-attribution model exists.
+- **Owner** = the bet's `Person` (user-ID → display name; degrade to raw ID, flagged; never fabricate). Render with the framing **"owner ≠ sole contributor"** — work is cross-engineer and the bet owner may not be the doer. Do not use this report for individual credit until a contributor-attribution model exists.
 - **Overall Confidence** = the bet's property (On Track / At Risk / Need Help / Not Started / Delivered), shown next to the owner. It is the exec counter-signal to a rosy self-authored weekly — a glowing narrative under an At-Risk bet must be visible.
 
 ## Coverage gaps (rendered, not refused)
@@ -89,6 +89,6 @@ _Read 9 of 11 sources; could not load: <bet>, <bet>._
 
 **Planned shared reference — not yet extracted.** These concepts are currently authored in *both* skills and should converge into one suite-level reference both read, **once the Notion write mechanism is spiked and the contracts freeze** (tracked: Tide #119 / PLT-437) — extracting now would lock interfaces the spike may still move: bet **page-ID identity**, `impact:<slug>` **label-first resolution**, the canonical **ISO-Monday week-key derivation**, **`Person` → display-name** resolution, the **brevity** and **substantiation** rules. Until then they are inlined in each skill and kept in sync by hand.
 
-**`impact-portfolio`-local:** the cross-engineer/cross-quarter selection query, union detection, the report-page write contract, and the exec-summary roll-up.
+**`impact-portfolio`-local:** the cross-engineer/cross-quarter selection query, union detection, the report-row write contract, and the exec-summary roll-up.
 
 **Stays `impact-weekly`-local:** the write-to-bet coverage gate and bet-write target re-verification — this skill never writes a bet.
