@@ -89,9 +89,11 @@ ENGINEER_SELF_SERVICE=(
 # output-quality (brevity, pr-quality) is intentionally Tide-local — not synced.
 
 # Meta-aliases cross-cut the domains (back-compat with the Makefile / muscle memory):
-#   portable = workflow + skill-authoring + product-management
+#   portable = workflow + workstream-bootstrap + hardening + investigation
+#              + skill-authoring + product-management
 #   sei      = project-management + release-operations + engineer-self-service
 #   all      = every domain above
+# (output-quality is Tide-local — deliberately has no sync case below.)
 
 # --- Argument parsing -------------------------------------------------------
 
@@ -144,6 +146,9 @@ for cat in "${CAT_ARRAY[@]}"; do
     portable)  SKILLS_TO_SYNC+=("${WORKFLOW[@]}" "${WORKSTREAM_BOOTSTRAP[@]}" "${HARDENING[@]}" "${INVESTIGATION[@]}" "${SKILL_AUTHORING[@]}" "${PRODUCT_MANAGEMENT[@]}") ;;
     sei)       SKILLS_TO_SYNC+=("${PROJECT_MANAGEMENT[@]}" "${RELEASE_OPERATIONS[@]}" "${ENGINEER_SELF_SERVICE[@]}") ;;
     all)       SKILLS_TO_SYNC+=("${WORKFLOW[@]}" "${WORKSTREAM_BOOTSTRAP[@]}" "${HARDENING[@]}" "${INVESTIGATION[@]}" "${SKILL_AUTHORING[@]}" "${PRODUCT_MANAGEMENT[@]}" "${PROJECT_MANAGEMENT[@]}" "${RELEASE_OPERATIONS[@]}" "${ENGINEER_SELF_SERVICE[@]}") ;;
+    output-quality)
+      echo "output-quality (brevity, pr-quality) is a Tide-local domain — not synced. Edit it in Tide." >&2
+      exit 2 ;;
     *)
       echo "Unknown category: $cat" >&2
       exit 2 ;;

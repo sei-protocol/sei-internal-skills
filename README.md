@@ -31,6 +31,18 @@ The canonical permission set is **strictly read-only by design**. Mutating patte
 
 Run `make` with no args to list all targets.
 
+## Organization & selective sync
+
+Skills and agents are grouped into **domains** for navigation and selective install — e.g. `project-management` (`/impact-weekly`, `/impact-portfolio`), `product-management` (`/prfaq`, `go-to-market-specialist`), `workflow`, `platform-infra`, and so on. The domain is **metadata, not directory structure**: each skill/agent carries a `category:` in its frontmatter, the catalogs ([`.claude/skills/README.md`](.claude/skills/README.md), [`AGENTS.md`](AGENTS.md)) group by it, and the sync scripts let you install one domain at a time:
+
+```sh
+make sync-skills                                            # the `portable` set (default)
+./scripts/sync-skills.sh --categories project-management    # just one domain
+./scripts/sync-skills.sh --categories all                   # everything syncable
+```
+
+Claude Code discovers skills/agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/tide/` are **not** discovered. So the install is always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. (`output-quality` — `/brevity`, `/pr-quality` — is Tide-local and intentionally not synced.)
+
 ## Daily use
 
 Most work starts with one of the collaboration skills:
