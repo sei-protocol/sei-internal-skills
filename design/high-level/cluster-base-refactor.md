@@ -139,62 +139,74 @@ Cilium adoption on a cluster cascades changes to four other manifests:
 - Karpenter NodePools get `startupTaints: node.cilium.io/agent-not-ready` (pods don't schedule until eBPF flips node Ready)
 - Karpenter HelmRelease gets `spec.dependsOn: [{name: cilium}]` (chart must apply after Cilium DaemonSet exists, else early Karpenter-provisioned nodes have no CNI)
 
-These cascade together. **A Kustomize Component captures them as a composable unit**:
+These cascade together (six manifests affected — `cert-manager`, `metrics-server`, `istiod`, `aws-load-balancer-controller` all gain `hostNetwork: true`; NodePools gain a `startupTaint`; karpenter gains `dependsOn: cilium`). **A Kustomize Component captures them as a composable unit using strategic merge patches** (NOT JSON-6902 `op: add` — those clobber existing keys at parent paths; strategic merge handles "add this key, leave siblings alone" cleanly):
 
 ```yaml
 # clusters/base/cni-cilium/kustomization.yaml
 apiVersion: kustomize.config.k8s.io/v1alpha1
 kind: Component
 
-patches:
-  - target:
-      kind: HelmRelease
-      name: cert-manager
-      namespace: cert-manager
-    patch: |
-      - op: add
-        path: /spec/values/webhook
-        value:
-          hostNetwork: true
-          securePort: 9443
-  - target:
-      kind: HelmRelease
-      name: metrics-server
-      namespace: kube-system
-    patch: |
-      - op: add
-        path: /spec/values/hostNetwork
-        value: { enabled: true }
-  - target:
-      kind: HelmRelease
-      name: istiod
-      namespace: istio-system
-    patch: |
-      - op: add
-        path: /spec/values/global/hostNetwork
-        value: true
-  - target:
-      kind: NodePool
-      labelSelector: karpenter.sh/discovery-class
-    patch: |
-      - op: add
-        path: /spec/template/spec/startupTaints
-        value:
-          - key: node.cilium.io/agent-not-ready
-            effect: NoExecute
-  - target:
-      kind: HelmRelease
-      name: karpenter
-      namespace: kube-system
-    patch: |
-      - op: add
-        path: /spec/dependsOn
-        value:
-          - name: cilium
-
 resources:
-  - ../../base/kube-system/cilium.yaml   # Cilium HelmRelease itself (only present when component composed)
+  - ../kube-system/cilium.yaml   # The Cilium HelmRelease itself — present only when component composed
+
+patches:
+  - target: { kind: HelmRelease, name: cert-manager, namespace: cert-manager }
+    patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata: { name: cert-manager }
+      spec:
+        values:
+          webhook:
+            hostNetwork: true
+            securePort: 9443
+  - target: { kind: HelmRelease, name: metrics-server, namespace: kube-system }
+    patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata: { name: metrics-server }
+      spec:
+        values:
+          hostNetwork:
+            enabled: true
+  - target: { kind: HelmRelease, name: aws-load-balancer-controller, namespace: kube-system }
+    patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata: { name: aws-load-balancer-controller }
+      spec:
+        values:
+          hostNetwork: true   # same CGNAT-reachability cause as cert-manager + metrics-server
+  - target: { kind: HelmRelease, name: istiod, namespace: istio-system }
+    patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata: { name: istiod }
+      spec:
+        values:
+          global:
+            hostNetwork: true
+  - target: { kind: NodePool, labelSelector: "karpenter.sh/role" }
+    patch: |
+      apiVersion: karpenter.sh/v1
+      kind: NodePool
+      spec:
+        template:
+          spec:
+            startupTaints:
+              - key: node.cilium.io/agent-not-ready
+                effect: NoExecute
+  - target: { kind: HelmRelease, name: karpenter, namespace: kube-system }
+    patch: |
+      apiVersion: helm.toolkit.fluxcd.io/v2
+      kind: HelmRelease
+      metadata: { name: karpenter }
+      spec:
+        dependsOn:
+          - name: cilium
 ```
+
+**Patch shape choice**: strategic merge (the inline `patch: |` YAML form, no `op:`). Kustomize's strategic merge for non-CRD resources uses OpenAPI; for CRDs (HelmRelease, NodePool) it falls back to a JSON-merge-patch semantics — "merge this object with the existing; don't clobber unspecified keys." This is the right semantics for "add hostNetwork to the existing webhook block without touching `timeoutSeconds`." JSON-6902 `op: add` at a parent path (`/spec/values/webhook`) would overwrite the entire block — wrong.
 
 **Cell usage**:
 ```yaml
@@ -236,6 +248,7 @@ Cell-specific values that diverge from `clusters/base/`:
 | external-dns `domainFilters` | `[prod-use2.platform.sei.io, prod-use2.internal.platform.sei.io]` — **NEVER** apex `platform.sei.io` (prod owns it) | `[prod-euw1.platform.sei.io, prod-euw1.internal.platform.sei.io]` |
 | Karpenter `karpenter.sh/discovery` tag | `prod-use2` | `prod-euw1` |
 | sei-k8s-controller `SEI_GATEWAY_PUBLIC_DOMAIN` | `prod-use2.platform.sei.io` | `prod-euw1.platform.sei.io` |
+| sei-k8s-controller `SEI_P2P_ENDPOINT_DOMAIN` | `prod-use2.platform.sei.io` (drives per-validator NLB hostname pattern `<seinode>-p2p.<chain>.prod-use2.platform.sei.io`) | `prod-euw1.platform.sei.io` |
 | sei-k8s-controller `SEI_NLB_TARGET_TYPE` | `instance` (Cilium pattern) | `instance` |
 | sei-k8s-controller `SEI_SNAPSHOT_BUCKET` | `prod-sei-snapshots/us-east-2` (no CRR; same source bucket, region-scoped path) | `prod-sei-snapshots/eu-west-1` |
 | Private hosted zone | `prod-use2.internal.platform.sei.io` (cross-associated to prod VPC for federation DNS) | `prod-euw1.internal.platform.sei.io` |
@@ -249,25 +262,50 @@ All these get patched per-cell via strategic merge or configMapGenerator. `clust
 
 ### 4.5 arctic-1 cell layout
 
-Cell-tied vs chain-tied split for arctic-1:
+The team's existing pattern (verified against `clusters/prod/arctic-1/validators/validator-18/validator-18.yaml` and sei-k8s-controller `api/v1alpha1` + `internal/controller/nodedeployment/p2p_endpoint.go` at `d4c69a9`):
+
+#### Public per-validator NLB pattern (controller-managed)
+
+When a SeiNodeDeployment sets `networking.tcp: {}`, the sei-k8s-controller automatically provisions:
+- One `Service` per replica of type `LoadBalancer`, annotated `service.beta.kubernetes.io/aws-load-balancer-type: external`, `aws-load-balancer-scheme: internet-facing`, `aws-load-balancer-nlb-target-type: <ip|instance>` (instance on Cilium clusters, ip on VPC CNI), cross-zone enabled, port 26656 (P2P)
+- external-dns hostname annotation `<seinode>-p2p.<chainID>.<P2P_ENDPOINT_DOMAIN>` → CNAME → NLB DNS
+- The child SeiNode's `Spec.ExternalAddress` stamped to the predictable hostname → seid's `p2p.external_address` → advertised to peers via CometBFT address book
+
+**Implication**: cell↔cell consensus P2P needs no VPC peering, no cell↔cell SG rules. Validators across cells discover each other via DNS + ExternalAddress through the regular Internet path (with cross-zone NLB and AWS backbone routing). Matches the current EC2 reality where arctic-1 validators across us-east-2 / eu-central-1 / eu-west-1 peer via public addresses.
+
+#### Validator signing-key custody (SOPS Secrets in the cell)
+
+Each validator references three Secret resources via `ValidatorSpec`:
+- `signingKey.secret` — the consensus signing key (`priv_validator_key.json`)
+- `nodeKey.secret` — the node libp2p key
+- `operatorKeyring.secret` + `passphraseSecretRef` — operator account keyring (governance votes, MsgEditValidator, etc.)
+
+Validators are NOT signed by remote tmkms/Horcrux quorum. Double-sign safety is enforced operationally by `spec.replicas: 1` (load-bearing — never scale above 1) plus the controller's `XValidation` rules that block packing signing key and node key in the same Secret (trust-boundary discipline). For new cells, each migrating validator's Secrets get re-encrypted with the cell's region-local KMS key (`alias/prod-use2-sops` or `alias/prod-euw1-sops`) and committed under `clusters/<cell>/arctic-1/validators/<validator-N>/`.
+
+**Cutover sequencing risk**: the EC2 validator with a given identity MUST stop before the K8s validator with the same identity starts, else two processes sign with one consensus key (equivocation → tombstone + slash). This is chain-ops discipline, not a platform-level mechanism. Document in the migration runbook.
+
+#### Sentry geography
+
+arctic-1's existing topology runs **without a separate sentry tier**. Validators expose P2P NLBs directly. The `peers[]` block on each SND lists peer cohorts via:
+- `ec2Tags` selectors (cross-region: us-east-2, eu-central-1, eu-west-1) for legacy EC2 validators
+- `label.selector` for K8s-side discovery (`sei.io/chain: arctic-1`)
+- `Component: state-syncer` tag selector to find prod's syncer for cold-start state-sync
+
+New cells inherit this pattern — no sentry pods, just validator pods with their NLBs.
+
+#### What lives where
 
 **`manifests/base/arctic-1/`** (chain-tied; shared by every cluster hosting arctic-1):
-- `chainId: arctic-1`
-- Default container image + tag (overridable per node for canary rollouts)
-- Peer label selector (`sei.io/chain: arctic-1`)
-- EC2 peer-cohort tags for legacy interop (the EC2 nodes that haven't migrated yet, plus any chain-team-owned EC2 sentries that stay outside K8s)
-- Snapshot trustPeriod, snapshotGeneration policy
-- Genesis ConfigMap
+- Chain ID, default container image + tag (overridable per node for canary rollouts)
+- Default peer-cohort declaration template (EC2 tag selectors for legacy interop, K8s label selectors for in-cluster discovery)
+- Snapshot trustPeriod (`9999h0m0s` per current arctic-1 pattern) and state-sync defaults
+- arctic-1 namespace definition + RBAC
 
-**`clusters/<cell>/arctic-1/`** (cluster-tied; ~10 validator SeiNodeDeployment CRs per cell):
-- Per-validator SeiNodeDeployment CR. Each declares:
-  - Validator identity (unique per K8s declaration; globally unique across the fleet)
-  - Signing key reference (SOPS-encrypted Secret per validator, region-local KMS key)
-  - PV `volumeHandle` (EBS volume ID; region-locked; pre-provisioned via TF)
-  - `nodeAffinity` AZ values (cell-local)
-  - Replicas: `1` (validator identities never have HA replicas)
-  - Networking: NLB per sentry exposure if applicable; validator P2P not publicly routed
-  - `peers[]`: includes legacy EC2 peer cohort + (eventually) the other cells' K8s peers via `topology.region` label discovery
+**`clusters/<cell>/arctic-1/`** (cluster-tied):
+- ~10 SeiNodeDeployment CRs (one per validator identity migrating from EC2)
+- Per-validator directory containing:
+  - SeiNodeDeployment manifest with `spec.replicas: 1`, the validator identity's specific peer-cohort overrides if any, region-locked PV `volumeHandle` for the EBS volume, AZ `nodeAffinity`, `networking.tcp: {}` for the per-pod NLB
+  - SOPS-encrypted signing-key, node-key, operator-keyring Secrets
 - `kustomization.yaml`:
   ```yaml
   resources:
@@ -277,9 +315,11 @@ Cell-tied vs chain-tied split for arctic-1:
     - ...
   ```
 
-**Validator placement constraint**: Per Brandon's 2026-06-07 call, a given validator identity exists in exactly one cluster's tree, ever. No splitting; no duplication. Existing arctic-1 validators in `clusters/prod/arctic-1/validators/` (validator-18, validator-19) stay there. New cells take over for the EC2 validators in their respective regions — those will be declared as fresh K8s CRs (the identities those EC2 nodes hold today migrate into K8s manifests in `clusters/prod-use2/arctic-1/validators/` and `clusters/prod-euw1/arctic-1/validators/`).
+**Validator placement constraint**: Per Brandon's 2026-06-07 call, a given validator identity exists in exactly one cluster's tree, ever. The existing arctic-1 validators in `clusters/prod/arctic-1/validators/` (validator-18, validator-19) stay. New cells take over for EC2 validators in their respective regions — fresh K8s SND manifests declaring those identities in `clusters/prod-use2/arctic-1/validators/` and `clusters/prod-euw1/arctic-1/validators/`.
 
-Inventory of which EC2 node identities migrate to which cell: discovery happens at Phase 3 implementation start. Roughly ~10 per cell per Brandon's call.
+**Inventory of EC2 identities → cells**: discovery happens at Phase 3 implementation start. ~10 per cell per Brandon's call.
+
+**CI uniqueness guardrail** (sei-network specialist recommendation): a precommit / CI grep across `clusters/*/arctic-1/validators/*/` for validator addresses must fail on duplicates. ~5 lines of bash; catches the double-sign incident class before merge.
 
 ### 4.6 Deployment sequencing — smooth startup without intervention
 
@@ -322,14 +362,14 @@ graph TD
 
 Today's `terraform/aws/189176372795/eu-central-1/harbor/thanos-peering.tf` works because harbor↔prod is same-region. Cross-region (`prod-use2` ↔ prod, `prod-euw1` ↔ prod) requires:
 
-1. **Cross-region peering request from cell side, accepter on prod side.** Single-provider TF + `aws_vpc_peering_connection` with manual accepter, OR dual-provider TF with `auto_accept = true` (preferred — explicit).
-2. **Route table updates on both sides**: cell routes prod CIDR via peering; prod routes cell CIDR via peering. Symmetric.
-3. **`allow_remote_vpc_dns_resolution = true` is one-sided per region**. To resolve `thanos-sidecar.prod-use2.internal.platform.sei.io` from prod (eu-central-1) over peering, prod's VPC needs an inbound Route 53 resolver endpoint into us-east-2, OR (simpler) the per-cell private hosted zone is associated with prod's VPC via `aws_route53_zone_association` (works cross-region — proven pattern in harbor's `thanos-peering.tf`).
+1. **Dual-provider Terraform with `auto_accept = true`** (decision locked; single-provider + `aws_vpc_peering_connection_accepter` splits lifecycle across two TF roots and creates an ordering cliff). Cell's TF declares a second provider aliased to `eu-central-1` and creates the peering with `auto_accept = true`. Mirrors harbor's `auto_accept` ergonomics; works cross-region only with the aliased provider.
+2. **Route table updates on both sides** in the cell's TF (the cross-region peering owns both sides for lifecycle clarity). Symmetric: cell routes prod CIDR via peering; prod routes cell CIDR via peering.
+3. **Cross-region DNS via `aws_route53_zone_association`** — the per-cell private hosted zone (`<cell>.internal.platform.sei.io`) is cross-associated with prod's VPC via a separate `aws_route53_zone_association` resource (works cross-region; harbor's `thanos-peering.tf` is the proven precedent). Once associated, prod's local Route 53 resolves the zone — no `allow_remote_vpc_dns_resolution` flag needed (that flag is for the unrelated case of querying the *peer's* resolver, which we explicitly don't do). Use `lifecycle.ignore_changes = [vpc]` on the zone resource to tolerate the dual association.
 
 **Plan**:
-- Each cell's TF creates the peering connection (`aws_vpc_peering_connection` in cell's region) with `accepter.region = eu-central-1` and `auto_accept = true` via dual-provider.
-- Each cell's TF creates its private hosted zone `<cell>.internal.platform.sei.io` and associates it with both the cell's VPC and prod's VPC (cross-region zone association — `ignore_changes = [vpc]` to tolerate the second association).
-- Each cell's TF creates route table entries on cell side; prod's TF creates return routes on its side (pull cell's CIDR from cell's remote state).
+- Each cell's TF creates the peering (`aws_vpc_peering_connection` with provider aliased to eu-central-1, `auto_accept = true`).
+- Each cell's TF creates `aws_route53_zone.cell_internal` named `<cell>.internal.platform.sei.io` and two `aws_route53_zone_association` resources — one for the cell's VPC, one for prod's VPC.
+- Each cell's TF creates route table entries on both cell and prod sides (cell-side via `aws_route_table` resources; prod-side via `aws_route` referencing prod's RT IDs pulled from prod's remote state).
 
 ### 4.8 Observability federation
 
@@ -339,6 +379,14 @@ Star topology per the locked decisions:
 - Prod's `clusters/prod/monitoring/grafana-datasources.yaml` extends with two new Loki datasources (`loki-prod-use2`, `loki-prod-euw1`)
 - AlertManager stays per-cluster (5 AMs total across the fleet, pinging the same PagerDuty service); label-based scoping. **No mTLS** — SG-only.
 - `prometheusSpec.externalLabels` per cell injects `cluster`, `region`, `cell_archetype` (defaults: `cell_archetype: prod` for the new cells, `dev` for harbor)
+
+**AlertManager label contract** (load-bearing — **MUST land in v1 PR before any cell sends real alerts**, else 5-AM PagerDuty dedup collapses cell-scoped pages):
+- Every alert rule MUST carry: `cluster` (cell name), `region`, `severity` (`page` | `ticket` | `silent`), `cell_archetype` (`prod` | `dev`)
+- Runbook URLs template `{{ $labels.cluster }}` so per-cell runbooks resolve
+- Alerts route to PagerDuty ONLY when `severity=page`; default is `ticket`
+- **`region` and `cell_archetype` are NOT injected anywhere today** (observability-platform-engineer Phase 1 finding). The v1 PR adds them to `prometheusSpec.externalLabels` on every cluster's HelmRelease values — prod, harbor, dev, and both new cells. This is gating, not follow-up.
+
+**`exemplar-storage` parity** — Phase 1 found harbor=ON, prod=OFF. Lock: **enable on prod at extraction time** (matches harbor; needed for trace-to-metrics correlation that future OpenTelemetry work depends on). Encode in `clusters/base/monitoring/` defaults; no per-cluster overlay needed once parity'd.
 
 `clusters/base/monitoring/` holds the shared monitoring shape (Prometheus + Sidecar + Storegateway + Loki + Alloy + NLBs). New cells and harbor consume it; prod's `clusters/prod/monitoring/` stays cluster-exclusive because its hub stack is structurally different.
 
@@ -433,18 +481,20 @@ spec:
           value: instance
 ```
 
-### JSON 6902 patches (used in `cni-cilium` Component)
+### JSON 6902 patches (use sparingly)
 
-Add operations on Helm chart values (`spec.values.X`). Necessary because strategic merge for HelmRelease values doesn't always do what's wanted (key-removal semantics).
-
-Example shown in §4.3.
+For surgical edits with explicit ordering semantics (e.g., inserting a single element into a list at a specific index). **Avoid `op: add` at parent paths** when the parent already exists with other keys — `add` *replaces* the parent object rather than merging, clobbering siblings (kubernetes-specialist Phase 1 review finding). Use strategic merge (above) for "merge this key, leave siblings alone" semantics — which is the case for nearly all overlays in this design including the `cni-cilium` Component patches (§4.3).
 
 ### configMapGenerator with `behavior: replace`
 
 For ConfigMaps where the entire content needs cell-specific override (e.g., `thanos-objstore` bucket name, `cilium-tf-values` from TF).
 
+**Always set `disableNameSuffixHash: true`** on extracted generators to keep the generated ConfigMap name stable across base + overlays. Without this, Kustomize appends a content hash (`thanos-objstore-abc123`) and consumers (HelmRelease `valuesFrom`, mounted volumes) need to track the hashed name — Phase 4 byte-equivalence validation will fail with false diffs otherwise (platform-engineer Phase 1 review finding).
+
 Example (`clusters/prod-use2/monitoring/kustomization.yaml`):
 ```yaml
+generatorOptions:
+  disableNameSuffixHash: true
 configMapGenerator:
   - name: thanos-objstore
     namespace: monitoring
@@ -484,13 +534,18 @@ A `scripts/validate-base-refactor.sh` shell script in the PR captures these step
 ### v1 (this PR) — base/ extraction + cells stand up
 
 - Extract Categories A and B to `clusters/base/` and `manifests/base/observability/`
-- Add `clusters/base/cni-cilium/` Kustomize Component (Category C)
+- Add `clusters/base/cni-cilium/` Kustomize Component (Category C) — using strategic merge patches throughout; aws-load-balancer-controller hostNetwork patch included
 - Re-point `clusters/harbor/` consumers to new bases (this happens with the extraction; harbor is the "extract from" cluster)
 - Add `clusters/prod-use2/` and `clusters/prod-euw1/` consuming the bases
-- Add `terraform/aws/189176372795/us-east-2/prod-use2/` and `eu-west-1/prod-euw1/` TF roots
-- Cross-region peering Terraform set up
+- Add `terraform/aws/189176372795/us-east-2/prod-use2/` and `eu-west-1/prod-euw1/` TF roots with dual-provider cross-region peering
 - arctic-1 cell trees populated with the EC2-migrating validator CRs (Category F initial slice — arctic-1 only, single-cell-scope)
 - prod's `thanos-query.yaml` `stores:` list extended; `grafana-datasources.yaml` extended
+- **Pin `sei-k8s-controller` to a specific commit** in `clusters/base/sei-k8s-controller/kustomization.yaml` (remove `?ref=main`)
+- **Inject `region` and `cell_archetype` labels** into `prometheusSpec.externalLabels` on every cluster's monitoring HelmRelease values
+- **Enable `exemplar-storage` on prod** at extraction time (parity with harbor)
+- **Set `disableNameSuffixHash: true`** on every configMapGenerator added to base or overlays
+- **Add `policy: upsert-only` to external-dns** in `clusters/base/external-dns/` (network-specialist guardrail)
+- **CI uniqueness check** for validator identities — `scripts/check-validator-uniqueness.sh` greps `clusters/*/arctic-1/validators/*/` and fails on duplicates
 - Validation script asserts harbor + prod outputs unchanged
 
 ### v2 — chain bases (atlantic-2 + pacific-1)
@@ -519,17 +574,22 @@ A `scripts/validate-base-refactor.sh` shell script in the PR captures these step
 
 ## Honest blockers and risks
 
-### Blocker 1: arctic-1 validator EC2-to-K8s migration inventory
+### Pre-implementation checklist (chain-ops + platform inputs)
 
-To populate `clusters/prod-use2/arctic-1/validators/` and `clusters/prod-euw1/arctic-1/validators/`, we need the inventory of EC2 validator identities currently running in those regions. **~10 per cell** per Brandon, but the specific node identities, signing key Secret refs, peer IDs need to be enumerated. Owner: chain operations team. Resolution: before Phase 4 validation start.
+1. **arctic-1 validator inventory** — list the specific EC2 validator identities currently running in us-east-2 and eu-west-1 that migrate to the new cells (~10 each). Owner: chain operations team. Resolution: before v1 PR Phase 4 validation start. (Downgraded from "blocker" — design proceeds without specific identities; they fill in when implementation starts.)
+2. **Region-local KMS keys for SOPS** — each new cell needs `alias/prod-use2-sops` and `alias/prod-euw1-sops` provisioned before validator Secrets can be re-encrypted for the cell. Owner: platform-engineer at v1 PR.
+3. **Validator key re-encryption ceremony** — each migrating validator's signing-key, node-key, and operator-keyring Secrets must be decrypted with the current KMS key, re-encrypted with the cell's regional KMS, and committed in the cell tree. Owner: chain operations team coordinating with platform-engineer.
+4. **EC2 → K8s cutover sequencing per validator** — for each identity: stop the EC2 validator before the K8s validator with the same identity starts. Document in migration runbook. Owner: chain operations team.
 
-### Blocker 2: cross-region peering TF pattern
+### Blocker: state-sync load on prod's syncer
 
-Dual-provider TF vs single-provider with `aws_vpc_peering_connection_accepter` resource. Both work; convention pick needed. Owner: platform-engineer at v1 PR.
+~10 validators per cell × 2 cells = 20 cold-start state-sync fetches against prod's existing `Component: state-syncer`. arctic-1 pruned state ~80-150 GB; at ~85ms RTT (us-east-2) and ~25ms (eu-west-1), per-validator cold-start is hours not minutes (sei-network specialist Phase 1 estimate). Required mitigations:
 
-### Blocker 3: sei-k8s-controller `?ref=main` floating CRDs
+- **Stagger validator cold-starts** — at most 2-3 concurrent cold-starts per cell, sequenced. Documented in migration runbook.
+- **Confirm syncer bandwidth headroom** before starting (chain ops + sre-engineer to check).
+- **Fallback**: once one K8s validator in a cell is synced, subsequent validators in the same cell can state-sync from it (intra-VPC, no peering RTT) — un-defers the prod-syncer dependency for the rest of the cell.
 
-The current Kustomize remote base `github.com/sei-protocol/sei-k8s-controller/config/default?ref=main` is a one-way door for CRD schema changes. As part of the base/ extraction, **pin to a specific commit or tag** in `clusters/base/sei-k8s-controller/kustomization.yaml`. Owner: kubernetes-specialist at v1 PR.
+Owner: chain operations team coordinating with platform-engineer at v1 PR cutover.
 
 ## Don't-do guardrails
 
@@ -544,13 +604,25 @@ From the Phase 1 cross-review:
 - **Don't** include the dev-only legacy `manifests/base/{seid,testnet,waterway,genesis}` in any prod cell — those are pre-controller raw manifests, not the SeiNodeDeployment CR pattern prod uses
 - **Don't** declare `aws_eks_pod_identity_association` without `depends_on` on its IAM role — EKS API rejects associations referencing not-yet-propagated trust policies
 - **Don't** enable Cilium `kubeProxyReplacement: strict` until prod migrates (Tide#108) — partial replacement is harbor's current setting; new cells match
+- **Don't** add `dependsOn` between Flux Kustomizations at the cluster root level (kubernetes-specialist guardrail) — the DAG is flat by design. Ordering lives in HelmRelease `dependsOn` chains; cross-Kustomization edges break the retry-on-CRD-missing pattern.
+- **Don't** enable external-dns `policy: sync` on cells — use `upsert-only`. `sync` deletes records it doesn't own; if a cell sees the apex zone via misconfigured PHZ association, it would delete prod's TXT records (network-specialist guardrail).
+- **Don't** add inbound Route 53 resolver endpoints — PHZ cross-association is the chosen mechanism for cross-region DNS (network-specialist guardrail).
+- **Don't** advertise validator pod IPs as `external_address` — peers will try unroutable CGNAT addresses. The controller stamps the per-pod NLB hostname; that's the right value (sei-network specialist guardrail).
+- **Don't** enable `addr-book-strict = true` on cell validators — K8s pod IPs are private; default value works for peer discovery (sei-network specialist guardrail).
+- **Don't** colocate two validators on the same node — anti-affinity required (single-node failure = double-validator outage; sei-network specialist guardrail).
+- **Don't** let `PublishNotReadyAddresses: true` propagate to public NLB-fronted Services — fine for headless intra-cluster, dangerous on NLB-fronted public exposure (sei-network specialist guardrail).
+- **Don't** start a K8s validator while the same identity is still running on EC2 — double-sign → tombstone + slash. Cutover sequencing per validator must stop EC2 first.
 
-## Open follow-ups
+## Open follow-ups (file as `/issue` against `sei-protocol/platform` at v1 PR kickoff)
 
 - `manifests/base/chaos-scenarios/` is unwired today (no consumer). Keep, remove, or finish wiring? Decision: defer; not blocking.
 - AlertManager centralization vs per-cluster — current state is per-cluster (5 AMs after new cells, all paging same PD). Acceptable for v1 with the label contract; centralization is a separate workstream if dedup becomes a problem.
-- Loki federation read pattern (datasource-per-cell doesn't scale past ~4 cells) — surfaces if/when cell #4 is named.
-- Cardinality budget enforcement — `prometheus_tsdb_head_series` alert not wired today; observability-platform-engineer flagged as un-measured. File as follow-up.
+- Loki federation read pattern (datasource-per-cell doesn't scale past ~4 cells) — at N=4 (prod + harbor + use2 + euw1) we're at the tail end of workable; follow-up before adding cell #5.
+- Cardinality budget enforcement — `prometheus_tsdb_head_series` alert not wired today; observability-platform-engineer flagged as un-measured.
+- Per-cell snapshotter — once one validator in a cell is synced, subsequent cells can intra-VPC state-sync from it. Document the recipe.
+- sei-k8s-controller tag-pin (replace v1's commit-pin) — coordinate with controller team to establish release-tagging cadence; switch base from `?ref=<sha>` to `?ref=v<X.Y.Z>` in v2.
+- Heatseeker probe targets for new cells — design assumes probes target validators; verify against existing heatseeker chain probe config.
+- Validator double-sign safety CI check (Phase 1 sei-network recommendation) — actual implementation, not just design mention.
 
 ## References
 
