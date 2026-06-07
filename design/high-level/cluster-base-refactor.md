@@ -29,8 +29,8 @@ A six-stream Phase 1 deep dive (platform-engineer, kubernetes-specialist, sei-ne
 
 ## Goals
 
-1. **`prod-use2` and `prod-euw1` clusters stood up** with ~10 arctic-1 validator pods each, replicating the validator nodes currently on EC2 in those regions. Same shape as harbor (Cilium, sei-k8s-controller, monitoring spoke, gateway/istio), minus eng / nightly / chaos-mesh / staging namespaces.
-2. **`clusters/base/` extraction** that eliminates the cert-manager / external-dns / gateway / sei-k8s-controller / default-NodePool / monitoring-spoke duplication between harbor and the new cells, with prod participating where the shape matches (sans Cilium overrides).
+1. **`prod-use2` and `prod-euw1` clusters stood up** with ~10 arctic-1 validator pods each, replicating the validator nodes currently on EC2 in those regions. Same shape as harbor (Cilium, sei-k8s-controller, federated monitoring, gateway/istio), minus eng / nightly / chaos-mesh / staging namespaces.
+2. **`clusters/base/` extraction** that eliminates the cert-manager / external-dns / gateway / sei-k8s-controller / default-NodePool / monitoring duplication between harbor and the new cells, with prod participating where the shape matches (sans Cilium overrides). Where prod diverges structurally (its monitoring stack is a federation hub, not the shared shape), prod's tree stays cluster-exclusive and doesn't consume the base.
 3. **`manifests/base/<chain>/` extension** for chain-tied resources (chainId, image, peer label selectors, EC2 peer-cohort tags, snapshot policy), with cluster-tied bits (PV volumes, AZ, replicas, networking) staying in `clusters/<cluster>/<chain>/`.
 4. **Kustomize validation** asserting that `base/ + patches` renders byte-identical to current `clusters/prod/` and `clusters/harbor/` outputs (or semantically-equivalent with documented diffs), and produces valid new outputs for `prod-use2` and `prod-euw1`.
 5. **Smooth cluster startup with zero manual intervention**: TF apply → Flux bootstrap → all addons + workloads converge via the established retry-on-CRD-missing pattern.
@@ -61,7 +61,7 @@ sei-protocol/platform/
 │   │   ├── gateway/                   # Namespace + base Gateway + base Certificate + http-redirect
 │   │   ├── sei-k8s-controller/        # Deployment + Service + ConfigMap base (env via overlay)
 │   │   ├── default/                   # Karpenter NodePool + EC2NodeClass base (tags via overlay)
-│   │   ├── monitoring-spoke/          # Prometheus + Thanos Sidecar + Loki + Alloy NLBs (harbor + new cells; not prod)
+│   │   ├── monitoring/                # Prometheus + Thanos Sidecar + Loki + Alloy NLBs (harbor + new cells; prod stays cluster-exclusive — it's the federation hub)
 │   │   ├── istio-system/              # istio-base + istiod base (hostNetwork via Cilium overlay)
 │   │   ├── kube-system/               # AWS LB Controller, metrics-server, coredns config base
 │   │   └── cni-cilium/                # Kustomize Component — Cilium-coupled overrides (see §4.3)
@@ -77,7 +77,7 @@ sei-protocol/platform/
 │   │   ├── gateway/                   # Thin overlay: chain-listener YAML for arctic-1 + cell-specific cert refs
 │   │   ├── istio-system/              # Thin overlay: composes cni-cilium component
 │   │   ├── kube-system/               # Thin overlay: composes cni-cilium for cert-manager hostNetwork, etc.
-│   │   ├── monitoring/                # Thin overlay: composes base/monitoring-spoke + per-cell externalLabels
+│   │   ├── monitoring/                # Thin overlay: composes base/monitoring + per-cell externalLabels
 │   │   ├── sei-k8s-controller/        # Thin overlay: per-cell env (SEI_SNAPSHOT_BUCKET, SEI_GATEWAY_PUBLIC_DOMAIN, etc.)
 │   │   ├── heatseeker/                # Cell-exclusive: arctic-1 probe Deployments only
 │   │   └── arctic-1/                  # Cell-exclusive: ~10 SeiNodeDeployment CRs for validators migrating from EC2
@@ -126,7 +126,7 @@ Components classified by extraction shape (full mapping in companion artifact `/
 | **A — Clean base + value patches** | cert-manager, external-dns, sei-k8s-controller, gateway (sans chain listeners), default/NodePools | Same shape between prod and harbor; only value divergence. Extract to `clusters/base/<X>/`, apply per-cell overlays via strategic merge patches. Cilium-coupled fields (cert-manager webhook hostNetwork, NodePool startupTaints) come from the `cni-cilium` component (§4.3), not the base. |
 | **B — Byte-identical wins** | `alloy-logs.yaml`, `podmonitor-seid.yaml`, `prometheusrule-karpenter.yaml`, `thanos-objstore.yaml` (bucket name only differs), `pagerduty.yaml` (structure identical) | Extract to `manifests/base/observability/` and `manifests/base/monitoring/alerts/karpenter.yaml`. Bucket name parametrized via per-cluster `configMapGenerator: behavior: replace`. SOPS ciphertext stays cluster-local. |
 | **C — Cilium cascade (Kustomize Component)** | cilium HelmRelease, karpenter `dependsOn: cilium`, cert-manager webhook hostNetwork, metrics-server hostNetwork, istiod hostNetwork, NodePool startupTaints | All Cilium-only. Bundled into `clusters/base/cni-cilium/` Kustomize Component. Cilium clusters compose: `resources: [../base/<X>] + components: [../base/cni-cilium]`. Prod (VPC CNI) doesn't include the component. See §4.3 for detail. |
-| **D — Cluster-role divergence (per-role base)** | monitoring stack (prod = hub, harbor + cells = spoke), flux-system (image-automation in harbor only) | Don't force a single base. **`clusters/base/monitoring-spoke/`** for harbor + new cells; prod's full hub stack stays at `clusters/prod/monitoring/`. flux-system stays per-cluster. |
+| **D — Structural divergence** | monitoring stack (prod is a federation hub with Querier + Compactor + Ruler + Grafana + centralized Loki; harbor + cells run the simpler federation-source shape with Prometheus + Sidecar + Storegateway + local Loki + Alloy + NLBs); flux-system (image-automation in harbor only) | The base captures the shared shape (`clusters/base/monitoring/`) which harbor + new cells consume. Prod's hub stack stays at `clusters/prod/monitoring/` as cluster-exclusive — it doesn't consume the base because its shape is different. flux-system stays per-cluster. |
 | **E — Cluster-exclusive** | `heatseeker` (prod + new cells, but arctic-1-only on cells); `engineers`, `nightly`, `chaos-mesh`, `staging` (harbor only) | Stay in cluster trees. heatseeker on new cells is a thin manifest set (arctic-1 Deployments only). |
 | **F — Chain workload bases (NEW)** | arctic-1, atlantic-2, pacific-1 chain manifests | **New pattern**: `manifests/base/<chain>/` holds chain-tied resources (chainId, image, peer label selectors, EC2 peer-cohort tags for legacy interop, snapshot trustPeriod, snapshotGeneration policy). `clusters/<cluster>/<chain>/` overlays declare which CRs to instantiate plus cluster-tied values (PV `volumeHandle`, `nodeAffinity` AZ values, replicas, networking exposure, validator placement, KMS key ARN, cert SANs). |
 
@@ -340,7 +340,7 @@ Star topology per the locked decisions:
 - AlertManager stays per-cluster (5 AMs total across the fleet, pinging the same PagerDuty service); label-based scoping. **No mTLS** — SG-only.
 - `prometheusSpec.externalLabels` per cell injects `cluster`, `region`, `cell_archetype` (defaults: `cell_archetype: prod` for the new cells, `dev` for harbor)
 
-`clusters/base/monitoring-spoke/` holds the spoke shape (Prometheus + Sidecar + Storegateway + Loki + Alloy + NLBs). New cells and harbor consume it; prod has its own hub-specific stack.
+`clusters/base/monitoring/` holds the shared monitoring shape (Prometheus + Sidecar + Storegateway + Loki + Alloy + NLBs). New cells and harbor consume it; prod's `clusters/prod/monitoring/` stays cluster-exclusive because its hub stack is structurally different.
 
 ## Rationale for base reuse decisions
 
@@ -373,11 +373,13 @@ Extracted via **Kustomize Component** rather than per-cluster strip-removes, bec
 
 Risk profile: medium. Kustomize Components are less commonly used than overlays in the team's repo today (no current consumers). Adoption introduces a new Kustomize primitive — the team needs to know it. Mitigation: clear inline comment in the Component file pointing at this design.
 
-### Category D (per-role bases: monitoring-spoke, flux-system stays per-cluster)
+### Category D (structural divergence: `clusters/base/monitoring/`, flux-system stays per-cluster)
 
-monitoring stack is **NOT extracted to a single base** because prod runs an architecturally different shape (Thanos hub: Querier + Compactor + Ruler + Grafana + Loki centralized + Pyroscope). A unified base would force the spoke pattern on prod or the hub pattern on cells — both are wrong.
+The convention this design lands on: `clusters/base/<X>/` captures the shape clusters typically use for namespace X. Where a cluster's tree diverges structurally, it stays cluster-exclusive and doesn't consume the base. Naming-wise the base entry is just `monitoring/` (not `monitoring-spoke/` or similar) — being inside `clusters/base/` already implies "shared shape"; further qualifiers don't add information.
 
-`clusters/base/monitoring-spoke/` is the right granularity: harbor + new cells share it; prod stays cluster-exclusive.
+monitoring stack is **NOT extracted as a single base for the whole fleet** because prod runs an architecturally different shape (Thanos hub: Querier + Compactor + Ruler + Grafana + Loki centralized + Pyroscope). A unified base would force prod's hub shape on cells or vice versa — both wrong.
+
+Resolution: `clusters/base/monitoring/` holds the shared shape (Prometheus + Sidecar + Storegateway + Loki + Alloy + NLBs). Harbor + new cells consume it. Prod's `clusters/prod/monitoring/` stays cluster-exclusive.
 
 flux-system stays per-cluster because harbor includes image-automation + engineering workspace resources; prod and new cells use a leaner shape.
 
@@ -468,14 +470,14 @@ The /goal requires `kustomize` validation that base + patches produces the same 
 
 **Validation steps** (Phase 4 work):
 1. **Snapshot baseline**: `kustomize build clusters/prod/ > /tmp/prod-baseline.yaml` and `kustomize build clusters/harbor/ > /tmp/harbor-baseline.yaml` against current `main`
-2. **Apply refactor on a branch**: extract `clusters/base/` per this design, re-point `clusters/prod/` and `clusters/harbor/` to consume the relevant bases. **But only for components in Category A and B** in this initial PR — extracting D and F (monitoring-spoke, chain bases) is staged later to avoid moving too many pieces at once.
+2. **Apply refactor on a branch**: extract `clusters/base/` per this design, re-point `clusters/prod/` and `clusters/harbor/` to consume the relevant bases. **But only for components in Category A and B** in this initial PR — extracting D and F (`clusters/base/monitoring/`, chain bases) is staged later to avoid moving too many pieces at once.
 3. **Re-render on the branch**: `kustomize build clusters/prod/` and `kustomize build clusters/harbor/`
 4. **Diff**: outputs must be **byte-identical** (or semantically equivalent with documented intentional diffs, e.g., field-ordering normalization).
 5. **Render new cells**: `kustomize build clusters/prod-use2/` and `kustomize build clusters/prod-euw1/` must produce valid manifests (passes `kubectl --dry-run=client apply`).
 
 A `scripts/validate-base-refactor.sh` shell script in the PR captures these steps so CI can re-run them on every revision.
 
-**Scope discipline**: keep the initial PR focused on extracting Categories A + B + the C cascade Component. Categories D (monitoring-spoke) and F (chain bases) ship as follow-up PRs once A/B/C land and validation is clean. Reduces risk per PR.
+**Scope discipline**: keep the initial PR focused on extracting Categories A + B + the C cascade Component. Categories D (`clusters/base/monitoring/`) and F (chain bases) ship as follow-up PRs once A/B/C land and validation is clean. Reduces risk per PR.
 
 ## Phased rollout
 
@@ -498,12 +500,12 @@ A `scripts/validate-base-refactor.sh` shell script in the PR captures these step
 - Validate prod output unchanged
 - No cell impact
 
-### v3 — monitoring-spoke base
+### v3 — `clusters/base/monitoring/` base
 
-- Extract `clusters/base/monitoring-spoke/`
+- Extract `clusters/base/monitoring/` (the shape harbor + new cells use; prod stays cluster-exclusive)
 - Re-point harbor + new cells to consume it
 - Validate harbor output unchanged; cells render cleanly
-- Prod unchanged
+- Prod unchanged (cluster-exclusive `clusters/prod/monitoring/` hub stack remains)
 
 ### v4 — harbor naming alignment + base/ migration
 
