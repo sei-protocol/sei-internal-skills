@@ -69,11 +69,11 @@ graph TB
 
     subgraph USE[us-east-2]
         Dev[dev cluster<br/>10.0.0.0/16<br/>existing]
-        Cell2[Cell #2 — RPC pacific-1 NA<br/>10.70.0.0/16<br/>Cilium<br/>Flux + sei-k8s-controller<br/>prometheus-agent + Alloy]
+        Cell2[Cell #2 — RPC pacific-1 NA<br/>10.70.0.0/16<br/>Cilium<br/>Flux + sei-k8s-controller<br/>Prometheus + Thanos Sidecar + Alloy]
     end
 
     subgraph EUW[eu-west-1]
-        Cell3[Cell #3 — RPC pacific-1 EU<br/>10.80.0.0/16<br/>Cilium<br/>Flux + sei-k8s-controller<br/>prometheus-agent + Alloy]
+        Cell3[Cell #3 — RPC pacific-1 EU<br/>10.80.0.0/16<br/>Cilium<br/>Flux + sei-k8s-controller<br/>Prometheus + Thanos Sidecar + Alloy]
     end
 
     Cell2 -.metrics + logs.-> Prod
@@ -169,56 +169,88 @@ Each cluster runs its own Flux. Flux on each cluster reconciles its own path und
 
 This is the canonical Flux multi-cluster pull pattern (Stefan Prodan's standalone mode, not hub-and-spoke). Per the research in revisions 1-3, this avoids the Adobe Flex 360-cluster Argo blast-radius failure mode at any fleet size.
 
-Bootstrap order on a new cell:
-1. TF apply provisions VPC, EKS, IAM, peering.
-2. TF installs Flux via Helm provider, configured with a deploy key to the platform repo and a path pointing at `clusters/<cell-name>/`.
-3. Flux reconciles `clusters/base/` (included via Kustomize) — installs Cilium, Karpenter, ESO, sei-k8s-controller, prometheus-agent, Alloy.
-4. Flux reconciles cell-specific overlay — installs Sei workloads (full-nodes, Waterway, etc.).
-5. Smoke tests validate Cilium ready, Pod Identity working, peering reachable, observability shippers running.
+**Bootstrap pattern — copy harbor's solution explicitly** (verified in `terraform/aws/189176372795/eu-central-1/harbor/flux.tf` + `cilium.tf`):
+
+1. TF apply provisions VPC, EKS, IAM, peering, and removes the `vpc-cni` + `kube-proxy` EKS managed addons entirely.
+2. TF writes a pre-seeded `kubernetes_config_map_v1.cilium-tf-values` in `kube-system` containing all TF-rendered Cilium values (cluster pool CIDR, cluster ID/name for ClusterMesh-readiness, etc.).
+3. TF uses the **`flux_bootstrap_git` provider** (NOT raw `helm_release`) to bootstrap Flux against the platform repo's `clusters/<cell-name>/` path. The provider creates a deploy key in GitHub and a corresponding `git-credentials` Secret in the cluster — no `kubernetes_secret_v1` is authored by Tide-side TF, the provider manages it inline (closing the kubeconfig-in-CI trap from Blocker 1).
+4. Flux on the new cell reconciles `clusters/base/` (included via Kustomize) — the `clusters/base/cilium/HelmRelease` consumes the pre-seeded `cilium-tf-values` ConfigMap via `valuesFrom`.
+5. **Cilium CNI install race is absorbed, not avoided**: the EKS control plane tolerates pending-CNI for several minutes; managed-node-group nodes stay in `NotReady` until Cilium's DaemonSet bootstraps. CoreDNS (scheduled on `CriticalAddonsOnly`-tainted MNG nodes with explicit toleration) becomes Ready after Cilium. Flux's own pods schedule on the same tainted MNG with tolerations. The node-group-join sequence is the implicit barrier; no race because nothing requests CNI before Cilium's DaemonSet runs.
+6. Flux reconciles cell-specific overlay under `clusters/<cell-name>/` — installs Sei workloads (`pacific-1` full-nodes, Waterway, regional NLB).
+7. Smoke tests validate Cilium ready, Pod Identity working, peering reachable, Thanos sidecar gRPC endpoint resolvable from prod's Querier, Alloy shipping to prod Loki.
+
+**Do NOT use `helm_release.cilium`** in cell TF — `terraform destroy` would become a CNI-removal incident. Cilium's lifecycle stays in Flux via `clusters/base/cilium/HelmRelease`.
 
 ### 4.5 Centralized observability federation
 
 The largest architectural shift in revision 4. **Cells do not run their own observability stacks.** Prod's existing Thanos + Grafana + Loki + AlertManager is the fleet's hub.
 
+**Federation mechanism**: prod's existing Thanos topology is **Sidecar + Querier-pull** (verified in `clusters/prod/monitoring/thanos-query.yaml`: `receive: { enabled: false }`; `stores:` list adds each federated cluster's sidecar gRPC endpoint). Harbor is already federated this way. Cells #2 and #3 join the same pattern — no new Receive deployment needed.
+
 ```mermaid
 graph LR
     subgraph Cell[Each cell: cell-2, cell-3, harbor, dev]
-        PA[prometheus-agent<br/>scrapes local exporters<br/>remote-write only]
+        Prom[Prometheus<br/>scrapes local exporters<br/>local TSDB<br/>2h retention]
+        Sidecar[Thanos Sidecar<br/>uploads blocks to S3<br/>exposes gRPC :10901]
         Alloy[Alloy<br/>collects container logs<br/>ships to prod Loki]
+        Prom --> Sidecar
     end
 
     subgraph Prod[eu-central-1 prod]
-        Thanos[Thanos<br/>Receive + Querier<br/>Store Gateway<br/>RDS-backed Grafana]
+        Querier[Thanos Querier<br/>stores: list per cell]
+        StoreGW[Thanos Store Gateway<br/>reads S3 blocks]
         Loki[Loki<br/>centralized log store]
-        Grafana[Grafana<br/>single endpoint<br/>all-fleet dashboards]
-        AM[AlertManager<br/>centralized routing<br/>PagerDuty + Slack]
+        Grafana[Grafana<br/>RDS-backed<br/>single endpoint]
+        AM[AlertManager<br/>label-scoped routing]
+        Compactor[Compactor + Ruler]
     end
 
-    PA -->|remote-write over VPC peering| Thanos
-    Alloy -->|log push over VPC peering| Loki
-    Thanos --> Grafana
+    S3[(S3 objstore<br/>per-cell prefix)]
+
+    Sidecar -.upload blocks.-> S3
+    Sidecar -.gRPC pull over peering<br/>mTLS.-> Querier
+    StoreGW -.read historical.-> S3
+    Alloy -.log push over peering.-> Loki
+    Querier --> Grafana
     Loki --> Grafana
-    Thanos --> AM
+    Querier --> AM
+    Compactor --> S3
 ```
 
-What each cell runs:
-- **prometheus-agent** (NOT full Prometheus) — agent mode, no local TSDB, remote-write only. Scrapes local exporters (kube-state-metrics, node-exporter, cAdvisor, sei-k8s-controller, application metrics) and pushes everything to prod's Thanos Receive endpoint over VPC peering.
-- **Alloy** (or Promtail) — log collection daemon, ships container logs and journal logs to prod's Loki over VPC peering.
-- **No local Grafana, no local Thanos, no local Prometheus server with TSDB, no local Loki, no local AlertManager.**
+**What each cell runs** (`clusters/base/observability/`):
+- **Prometheus** (full, NOT agent mode) — scrapes local exporters (kube-state-metrics, node-exporter, cAdvisor, sei-k8s-controller, application metrics). Local TSDB with 2-hour retention (just enough for sidecar block upload).
+- **Thanos Sidecar** — uploads 2-hour blocks to a per-cell S3 prefix; exposes Thanos gRPC StoreAPI on `:10901` over the cell's internal NLB for prod's Querier to consume. mTLS terminated at the sidecar.
+- **Alloy** — log collection daemon. Ships container logs and journal logs to prod's Loki ingester over VPC peering with a per-cell bearer token in ESO.
+- **External DNS** — registers `thanos-sidecar.<cell-name>.internal.platform.sei.io` in the cell's Route 53 private zone (associated to prod's VPC for resolution).
+- **No local Grafana, no local Querier, no local Compactor, no local AlertManager.**
 
-What prod runs (existing; reused for the fleet):
-- **Thanos** — Receive for ingest, Querier for read, Store Gateway for historical, Compactor + Ruler for the long-tail. RDS-backed Grafana already migrated per the recent CNPG→RDS workstream.
-- **Loki** — log store.
-- **Grafana** — single endpoint, all-fleet dashboards. Per-cell variables select scope.
-- **AlertManager** — centralized routing to PagerDuty + Slack. Alert rules can be cell-scoped or fleet-scoped via labels.
+**What prod runs** (existing; reused for the fleet):
+- **Thanos Querier** with `stores:` list updated to include `thanos-sidecar.cell-2.internal.platform.sei.io:10901` and `thanos-sidecar.cell-3.internal.platform.sei.io:10901` (and harbor's, already there).
+- **Thanos Store Gateway** — reads historical blocks from cell-specific S3 prefixes.
+- **Thanos Compactor + Ruler** — compacts cell blocks; evaluates alert rules globally.
+- **Grafana** — RDS-backed (migrated in the recent CNPG→RDS workstream), single endpoint, all-fleet dashboards.
+- **Loki** — log store accepting writes from all cells.
+- **AlertManager** — centralized routing to PagerDuty + Slack.
 
-Trade-offs of this centralization (covered in [§ Trade-offs](#trade-offs)):
-- Operational surface in cells is small (no observability stack to operate)
-- Single point of failure for fleet observability — if prod's Thanos is down, no cell metrics are queryable (mitigation: prometheus-agent buffers locally; recovers on prod recovery)
-- VPC peering becomes load-bearing — observability shipping breaks if peering breaks
-- Cross-region data transfer cost ($0.02/GB outbound) for metrics + logs; bounded by cardinality and log volume
+**Cardinality budget** (load-bearing — without this prod's Thanos eats 2-5× its current series count):
+- Fleet-wide cap: **2M active series** at v1.5; revisit at v2 if approached.
+- `cluster` external label injected by each cell's Prometheus (`external_labels: { cluster: cell-2 }` etc.) — defense in depth against label collisions. Inject at the agent, NOT at Querier.
+- Drop high-cardinality identifiers (`pod_name` suffixes that include replica hashes, `instance` full IP) via `metric_relabel_configs`.
+- Each cell gets a unique `replica` value (`cell-2-prom`, `cell-3-prom`, etc.) — never share across cells (Thanos dedup will silently drop series).
 
-The specific Thanos federation mechanism (Thanos Receive endpoint exposed to cells, vs. Thanos Sidecar in cells with Querier `--store` from prod) follows prod's existing setup. Capture in Open Question 5.
+**AlertManager label contract** (load-bearing — required for cell-scoped routing):
+- Every alert rule MUST carry: `cluster` (cell name), `region`, `severity` (page|ticket|silent), `cell_archetype` (rpc|hub).
+- Runbook URLs template `{{ $labels.cluster }}` so per-cell runbooks resolve.
+- Alerts route to PagerDuty ONLY when `severity=page`; default is ticket.
+
+**Loki strategy**: single-tenant at v1.5 (simpler); per-cell tenant decision deferred. Cell label injected at log push time via Alloy external labels. Never put `pod`, `pod_ip`, or `instance` (full IP) into Loki *stream* labels — use structured metadata. This is the single biggest cardinality landmine at fleet scale.
+
+**Trade-offs** (covered also in [§ Trade-offs](#trade-offs)):
+- Operational surface in cells is small (only Prometheus + Sidecar + Alloy, no Grafana/Loki/AM).
+- Single point of failure for fleet observability — if prod's Querier is unreachable, cell metrics still locally queryable via direct Prometheus query (degraded experience; mitigation: short-lived 2h local TSDB)
+- VPC peering becomes load-bearing — federation breaks if peering breaks
+- Cross-region data transfer cost — bounded by cardinality + log volume; estimated $100-400/month combined for cells #2 + #3 at v1.5 scale (per observability-platform-engineer's estimate)
+- Querier pull pattern means **prod holds N gRPC connections** to cell sidecars; cell churn affects Querier `stores:` list (Kubernetes lifecycle drives sidecar headless Service stability)
 
 ### 4.6 Network topology — VPC peering hub-and-spoke
 
@@ -241,10 +273,11 @@ graph TB
 | Topology | **VPC peering hub-and-spoke**, prod as hub | At N=3-4 cells the peering matrix is small (3-4 peerings, all touching prod). No TGW required; TGW becomes a candidate past ~5-6 cells when the matrix grows or transitive routing matters. Saves $0.05/hr/attachment plus the operational overhead of a TGW per region. |
 | CIDR allocation | Inventoried scheme: `10.X.0.0/16` per cluster, X allocated in 10-step increments. Prod=50, harbor=60, us-east-2/dev=0, Cell #2=70, Cell #3=80. | Matches the team's existing practice. Non-overlapping VPC CIDRs are the one-way door — locked from the existing inventory plus the named cells. |
 | Service CIDR | `172.20.0.0/16` in every cluster | Matches harbor; in-cluster ClusterIP range; non-overlapping not required since service IPs are intra-cluster. |
-| Pod CIDR | Cilium `eni` mode — pods come from the VPC primary CIDR (the cell's `/16`); no separate pod-CIDR carve | Cilium manages ENIs directly; pods are first-class VPC citizens with VPC-routable IPs. Cross-cluster pod-to-pod routing falls out of VPC peering + Cilium's identity-aware policy. Pod density per node bounded by EC2 ENI capacity — acceptable for Sei workloads (validator/RPC pods are large, low-density). |
+| Cilium IPAM mode | **`cluster-pool` + VXLAN encapsulation** (UDP/8472) — pods receive IPs from a Cilium-managed pool, **not** from the VPC primary CIDR. Matches harbor's actual config (verified in `terraform/aws/189176372795/eu-central-1/harbor/cilium.tf`). VPC CNI and kube-proxy addons are **removed entirely** from the EKS managed-addons list. | Same pattern as harbor — operator troubleshooting is consistent across cells. Pod IPs are inside Cilium's pool (default `10.0.0.0/8`, scoped per-cluster); VXLAN encapsulation handles inter-node pod traffic without consuming VPC ENI secondary IPs. Pod density per node is bounded by Cilium's pool size, not EC2 ENI capacity — fine for Sei workloads. Cross-cluster pod-to-pod traffic (if ever needed) goes via ClusterMesh (deferred); cross-cell traffic today is L3 over VPC peering (cell sidecar → prod Querier; cell Alloy → prod Loki). |
+| Subnet plan inside each cell's `/16` | Match harbor's pattern: `cidrsubnet(local.vpc_cidr, 4, k)` for private subnets per AZ (`/20` each, 3 AZs); `cidrsubnet(local.vpc_cidr, 8, k+48)` for public subnets per AZ (`/24` each); `cidrsubnet(local.vpc_cidr, 8, k+52)` for intra subnets per AZ (`/24` each). Pods do NOT consume node-subnet IPs because Cilium runs `cluster-pool` IPAM. | Harbor's allocation is well-trodden; copy it. Node IPs come from the private subnet (`/20` per AZ = 4k IPs per AZ); pod IPs come from Cilium's pool entirely (~256k available); LB/NLB hits the public subnet. No `eni`-mode subnet-exhaustion concern. |
 | IPv6 | Deferred. Un-defer when a single cell exceeds ~30k IPs in use or compliance/regulator names it. | EKS IPv6 is dual-stack with VPC CNI prefix delegation; not earned at our density. |
 | Peering route propagation | Each peering's route table updates on both sides; cells route to prod's `10.50.0.0/16` and back. Service-CIDR (`172.20.0.0/16`) traffic stays intra-cluster — no cross-cluster service-IP routing. | Standard VPC peering route discipline. Cross-cluster traffic uses pod IPs (cell's VPC CIDR), not service IPs. |
-| Cross-cluster service discovery | Route 53 private hosted zone `cells.sei.internal` associated to every spoke VPC | Cheap, AWS-native, no controller. Cell `pacific-1-rpc.cell-2.cells.sei.internal` resolves to its NLB; prod's Thanos targets known cell hostnames for federation. |
+| Cross-cluster service discovery | Per-cell Route 53 private hosted zone `<cell-name>.internal.platform.sei.io` (matches harbor's `harbor.internal.platform.sei.io` pattern). Each zone associated to both the cell's VPC and prod's VPC. **Set `allow_remote_vpc_dns_resolution = true` on both sides of each peering** — load-bearing for prod's Querier to resolve `thanos-sidecar.cell-2.internal.platform.sei.io` over peering. Use `ignore_changes = [vpc]` on the zone resource to tolerate the dual association. | Cheap, AWS-native, no controller. Matches harbor's existing `thanos-peering.tf` pattern. external-dns's `domainFilters` adds one entry per cell, not a rewrite. |
 | Service mesh / Cilium ClusterMesh | Deferred. Un-defer trigger: first cross-cell NetworkPolicy ask or identity-aware L7 need. | At v1.5 the only cross-cluster path is prod ↔ cell for observability; that's L3 over peering. ClusterMesh becomes interesting if cells need to talk to each other directly. |
 
 ### 4.7 Identity federation
@@ -308,14 +341,17 @@ Cell-to-validator P2P is **not relevant** — cells host full-nodes (not validat
 
 Implementation per [§4](#architecture-chosen-direction):
 
-1. **Extract `clusters/base/`** from common cell manifests. First content: Cilium, Karpenter, ESO, sei-k8s-controller, Pod Identity Agent, prometheus-agent, Alloy, Flux's own config.
-2. **TF roots** under `terraform/aws/189176372795/us-east-2/cell-2/` and `eu-west-1/cell-3/`. Copy-and-parameterize from harbor's pattern.
-3. **VPC peering** declared in TF — cell ↔ prod, both sides routed.
-4. **Pod Identity Associations** declared in TF using `aws:PrincipalOrgID` trust on shared roles (Thanos Receive endpoint, S3 snapshot bucket, KMS).
-5. **Flux bootstrap via TF Helm provider** — Flux installed on the cell pointing at `clusters/cell-2/` (and cell-3) in the platform repo.
-6. **Cell-specific overlays** under `clusters/cell-2/` and `clusters/cell-3/` — `pacific-1` full-node Helm releases, Waterway, regional NLB.
-7. **Route 53 latency-based routing** on the user-facing endpoint → cell #2 + #3 per user region.
-8. **Validation**: smoke test prometheus-agent reaching prod Thanos; Alloy reaching prod Loki; user-facing RPC traffic served from new cells in their respective regions.
+1. **Extract `clusters/base/`** from common cell manifests. Initial content: Cilium HelmRelease (consuming TF-rendered `cilium-tf-values` ConfigMap), Karpenter controller (NodePool + EC2NodeClass CRs live in cell overlays — they vary by region), ESO, sei-k8s-controller, Pod Identity Agent, Prometheus + Thanos Sidecar, Alloy, External DNS, Flux's own config.
+2. **TF roots** under `terraform/aws/189176372795/us-east-2/cell-2/` and `eu-west-1/cell-3/`. Copy-and-parameterize from harbor's flat layout (22 files; no `modules/cell/` extraction at v1.5 — premature abstraction at N=2). Remove `vpc-cni` and `kube-proxy` EKS managed addons.
+3. **VPC peering** declared in TF — cell ↔ prod, both sides routed, `allow_remote_vpc_dns_resolution = true` on both sides.
+4. **S3 CRR for `harbor-sei-snapshots` to a `us-east-2` prefix** — pulled forward from v2 per sei-network specialist guidance. pacific-1 pruned snapshot is ~400-600GB; cross-region cold start from eu-central-1 to us-east-2 at ~85ms RTT projects to **45-90 minutes per node**, exceeding the 30-minute trigger. Replicate to us-east-2 *before* cell #2 first cold start. eu-west-1 (cell #3) at ~25ms RTT projects 20-40min — can defer.
+5. **Pod Identity Associations** declared in TF using `aws_eks_pod_identity_association` resources with `aws:PrincipalOrgID` trust on shared roles (`harbor-sei-snapshots` reader, KMS, Thanos sidecar S3 prefix). Each association has an explicit `depends_on` on its IAM role — EKS API rejects associations referencing roles whose trust policy isn't yet propagated.
+6. **Flux bootstrap via `flux_bootstrap_git` provider** (NOT raw `helm_release`) — points at `clusters/cell-2/` and `clusters/cell-3/` in the platform repo.
+7. **Cell-specific overlays** under `clusters/cell-2/` and `clusters/cell-3/` — `pacific-1` full-node Helm releases (6 full-nodes per cell, 3 AZs × 2, Karpenter-scaled to 12-15 under load per sei-network specialist guidance), Waterway, regional NLB.
+8. **Per-cell Route 53 private zone** `<cell-name>.internal.platform.sei.io` associated to both cell VPC and prod VPC; external-dns publishes `thanos-sidecar.<cell-name>.internal.platform.sei.io`.
+9. **Thanos Querier `stores:` list updated** in prod to include the two new sidecar endpoints; mTLS certs provisioned per cell via ESO.
+10. **Route 53 latency-based routing** on the user-facing endpoint → cell #2 + #3 per user region, **with NLB health checks for failover** to alternate cell or prod on cell unhealthy.
+11. **Validation**: smoke test prod Querier resolving + connecting to cell sidecars; Alloy reaching prod Loki; user-facing RPC traffic served from new cells in their respective regions; alert rules carry `cluster` label and route per the AlertManager contract.
 
 ### v2 — operational maturation
 
@@ -347,31 +383,80 @@ Cheap decisions to lock; expensive to retroactively change. These are the durabl
 5. **Cilium as the target CNI for the entire fleet.** Cell #2/#3 from day 1; prod migration via [#108](https://github.com/sei-protocol/Tide/issues/108).
 6. **`clusters/base/` folder pattern.** Cells overlay shared base; never delete base manifests. Discipline enforces homogeneity.
 7. **VPC peering hub-and-spoke** with prod as hub. TGW deferred indefinitely; un-defer trigger: peering matrix > 6 attachments or transitive routing genuinely needed.
-8. **Centralized observability** — Thanos + Grafana + Loki + AlertManager only in prod. Cells run shippers only (prometheus-agent + Alloy). No per-cell observability stack.
+8. **Centralized observability** — Thanos + Grafana + Loki + AlertManager only in prod. Cells run shippers only (Prometheus + Thanos Sidecar + Alloy). No per-cell observability stack.
 9. **Per-cluster TF + per-cluster Flux** as the chosen direction. Meta-cluster automation (CAPI, CAAPH, tofu-controller) explicitly parked, not deferred.
+
+## Don't-do guardrails
+
+Load-bearing prohibitions surfaced by the revision-4 cross-review. These belong in this design because misreading them costs real incidents.
+
+**Networking + identity:**
+- **Don't expose Thanos Sidecar publicly.** Internal NLB only; SG-restricted to prod's VPC CIDR. Public + IP-allowlist is a worse failure mode than internal + SG.
+- **Don't route the service CIDR (`172.20.0.0/16`) across peering.** Cross-cluster paths use pod IPs (Cilium-managed) and DNS names, never service IPs.
+- **Don't add cell ↔ cell peerings opportunistically.** If a second cross-cell path appears, it's the TGW un-defer signal — not "add one more peering."
+- **Don't share bearer tokens or mTLS certs across cells.** Per-cell, per-shipper credentials. Rotation surface matters at fleet scale.
+- **Don't expose CometBFT P2P (`:26656`) across VPC peering.** RPC cells don't need it; cells host full-nodes that peer to public seeds, not each other.
+
+**Observability:**
+- **Don't share `external_labels.replica` across cells.** Thanos dedup will silently drop series. Each cell's Prometheus gets a distinct `replica` value.
+- **Don't let cells write under prod's `cluster` label.** Inject `cluster=cell-2` (etc.) at the cell's Prometheus, never at Querier. Defense in depth against misconfigured workloads.
+- **Don't put `pod`, `pod_ip`, or `instance` (full IP) into Loki *stream* labels.** Use structured metadata. Single biggest cardinality landmine at fleet scale.
+- **Don't route alerts to PagerDuty without an explicit `severity=page` label gate.** Every rule defaults to ticket; promote with explicit sign-off.
+- **Don't enable Cilium kube-proxy replacement on prod until [#108](https://github.com/sei-protocol/Tide/issues/108) lands.** Mixed-mode debugging during the migration is hard enough.
+
+**TF + bootstrap:**
+- **Don't use `helm_release.cilium` in cell TF.** Cilium's lifecycle stays in Flux via `clusters/base/cilium/HelmRelease`; `terraform destroy` should never be a CNI-removal incident.
+- **Don't use `kubectl_manifest` resources** for CRDs that aren't yet registered (Karpenter NodePool, ESO ClusterSecretStore). Pre-seed via Flux + Kustomize, not raw kubectl-provider.
+- **Don't declare a Pod Identity Association without explicit `depends_on`** on its IAM role. EKS API rejects associations referencing roles whose trust policy isn't yet propagated. Race observed in harbor.
+- **Don't set CPU limits** on `clusters/base/` workloads (Cilium, Karpenter, Prometheus, Alloy, ESO). Requests only. Standing project rule.
+- **Don't rely on Kustomize discipline alone** for "base may not be deleted." Install Kyverno with a `ClusterPolicy` blocking deletion patches targeting `clusters/base/` resource names. Discipline is necessary but not sufficient at 1-2 operators.
+- **Don't migrate harbor into `clusters/base/`** at v1.5. Harbor's existing manifest tree is the source the base is being extracted *from* — mutating both sides in flight risks losing the working configuration. Defer harbor migration to v2 (or never, if cosmetic).
+
+**Sei-specific:**
+- **Don't put a global Waterway** in front of all cells. Defeats the regional latency win and concentrates the EVM JSON-RPC failure domain.
+- **Don't share Waterway memcached across cells.** Per-cell cache only — cross-cluster memcached defeats the regional latency benefit.
+- **Don't try to front `pacific-1` RPC with Istio L7** for WebSocket without Waterway in front. The mirroring limitation bites.
+- **Don't enroll cells in Cilium ClusterMesh "preemptively"** — only when cross-cell NetworkPolicy or identity-aware L7 becomes a real ask.
+- **Don't assume validators cell-ify on this pattern.** Validator cell shape remains: same-region pair (primary + standby with tmkms/Horcrux), sentries in front, no K8s-network-policy crossing the signer boundary.
 
 ## Honest blockers
 
-### Blocker 1: `kubernetes_secret_v1` migration prerequisite
+### Blocker 1: GHA OIDC role trust for `aws eks get-token` against cell API endpoints
 
-**Source: platform-engineer.** Today's prod TF writes K8s Secrets directly (e.g., `kubernetes_secret_v1.grafana_rds_credentials`). The GHA+OIDC apply path requires kubeconfig-in-CI — the failure mode the migration is supposed to escape.
+**Source: platform-engineer.** Audit of current prod TF (`/Users/brandon/workspace/platform/terraform/aws/189176372795/eu-central-1/{prod,harbor}/`) confirms the `kubernetes_*` provider footprint is **4 ConfigMaps + 1 ServiceAccount, ZERO secrets**:
+- Prod: `kubernetes_config_map.karpenter_values`, `kubernetes_service_account_v1.seid_node`
+- Harbor: `kubernetes_config_map_v1.cilium_values`, `kubernetes_config_map_v1.karpenter_values`
 
-**Resolution path**: audit all `kubernetes_*` and `kubectl_*` resources in prod TF before the GHA workflow lands. For each, define the ESO + `ExternalSecret` replacement. Block v1 step 4 (GHA+OIDC) on completion. The audit lives in the same PR series as v1.
+The Grafana RDS credential `kubernetes_secret_v1` resource that triggered earlier concern was migrated to ESO during the prior CNPG → RDS workstream. **No ESO migration is required** by this design.
 
-### Blocker 2: Thanos Receive endpoint exposure across VPC peering
+The actual v1 step 4 dependency: GHA-runner needs to call `aws eks get-token` against each cluster's API endpoint via OIDC role trust. Each cluster's `endpoint_public_access` and OIDC role trust policy must permit the GHA OIDC subject.
 
-**Source: design analysis.** Prod's Thanos Receive (or equivalent ingest endpoint) is in prod's VPC. Cells must remote-write to it over peering. This requires:
-- Exposing the Receive endpoint reachably from peered VPC CIDRs (likely via internal NLB or in-cluster Service with peered access)
-- Authentication on the write path (mTLS, signed JWT, or bearer token) — cells cannot write anonymously
-- Security group rules opening `:remote-write-port` from each cell's CIDR
+**Resolution path**:
+1. Confirm `endpoint_public_access = true` on prod + harbor + new cells, OR provision a private endpoint with reachability from the GHA runner (e.g., GitHub-hosted runners need public access; self-hosted in-VPC runners can use private).
+2. Create a per-environment IAM role for GHA OIDC with trust on `repo:sei-protocol/platform:ref:refs/heads/main` and `kubernetes_*`-relevant permissions.
+3. Audit the 4 ConfigMaps + 1 SA for managed-by-TF behavior under the GHA runner identity — should work as-is (TF provider talks to API via `aws eks get-token`, not via baked kubeconfig).
 
-**Resolution path**: confirm prod's existing Thanos setup supports network exposure to peered VPCs without re-architecture. If prod's Thanos is currently cluster-internal-only, exposing it for the fleet is its own design pass (likely small — an NLB + auth config). Owner: observability-platform-engineer + network-specialist at v1.5 start.
+Owner: platform-engineer at v1 step 4.
 
-### Blocker 3: Cilium installation order in TF bootstrap
+### Blocker 2: Thanos Sidecar gRPC endpoint exposure across VPC peering
 
-**Source: kubernetes-specialist.** When Flux is installed by TF before Cilium reconciles, the cluster has no CNI for the first minutes. CoreDNS, kube-proxy, and Flux's own pods race the CNI install. Harbor's existing bootstrap solves this (harbor uses Cilium), so the pattern exists in the repo.
+**Source: design analysis + platform-engineer's prod manifest reference.**
 
-**Resolution path**: copy harbor's bootstrap sequencing. Either install Cilium via TF's Helm provider before Flux, OR rely on Flux's HelmRelease reconciliation with appropriate dependsOn / healthChecks. Owner: platform-engineer at v1.5 start.
+Prod's Thanos topology is **Sidecar + Querier-pull** (`clusters/prod/monitoring/thanos-query.yaml` shows `receive: { enabled: false }`). Each cell exposes a Thanos Sidecar gRPC endpoint that prod's Querier connects to.
+
+Concrete requirements:
+- **Internal NLB in each cell** fronting the sidecar gRPC port (`:10901`); TLS terminated at the NLB or passthrough to the sidecar.
+- **DNS name** `thanos-sidecar.<cell-name>.internal.platform.sei.io` via external-dns in the cell's Route 53 private zone, associated to prod's VPC.
+- **Authentication via mTLS** — Thanos gRPC's canonical pattern. Per-cell client cert issued from a fleet CA; prod's Querier uses one cert per cell store entry. Secrets managed via ESO from AWS Secrets Manager. **Per-cell, per-direction credentials** — never share certs across cells.
+- **Security group** on the cell NLB allows ingress from prod's VPC CIDR (`10.50.0.0/16`) on `:10901` only.
+- **Querier `stores:` list update**: prod's Flux HelmRelease for thanos-query gains `thanos-sidecar.cell-2.internal.platform.sei.io:10901` and `thanos-sidecar.cell-3.internal.platform.sei.io:10901` entries at v1.5.
+- **No public exposure**. Internal NLB only, never an Internet-facing LB with allowlists.
+
+Owner: observability-platform-engineer + network-specialist at v1.5 step 1.
+
+### Blocker 3 (resolved in §4.4): Cilium installation order
+
+Harbor's pattern handles this — see [§4.4](#44-flux-per-cluster-no-central-reconciler) step 5. No design action required; v1.5 implementer follows harbor's `flux_bootstrap_git` + pre-seeded `cilium-tf-values` ConfigMap pattern verbatim.
 
 ## Trade-offs
 
@@ -379,7 +464,7 @@ Cheap decisions to lock; expensive to retroactively change. These are the durabl
 |---|---|---|
 | **Per-cluster TF over meta-cluster automation** | N TF roots to maintain (5 today; 6 after #2 and #3 land). Cluster changes replicated N times. Manual cell stand-up at hours-to-days scale. | Declarative cluster reconciliation, single-source-of-truth templating, K8s-native pattern at fleet scale. The meta-cluster architecture is parked as captured research. |
 | **`clusters/base/` discipline-enforced homogeneity** | Operators must update `base/` when changing fleet-wide manifests; per-cell overlays drift if not policed | Primitive-enforced homogeneity (e.g., ClusterClass). Trade is acceptable because Brandon owns the discipline today and the fleet is small. |
-| **Centralized observability** | Single point of failure for fleet observability; cross-region data transfer cost; prod becomes a tier-0 observability dependency for cells | Operational simplicity in cells (no observability stack to operate). Per-cell isolation would mean N Grafana / Thanos / Loki / AlertManager installs to maintain. |
+| **Centralized observability** (Sidecar + Querier-pull) | Prod's Querier holds N gRPC connections to cell sidecars; cell churn affects `stores:` list; cross-region data transfer cost ($100-400/mo estimated for cells #2 + #3); prod becomes tier-0 observability dependency for cells; cardinality budget cap (2M fleet-wide) | Operational simplicity in cells (Prometheus + Sidecar + Alloy only, no Grafana/Loki/AM). Matches harbor's existing federation pattern — no new deployment in prod. |
 | **VPC peering over TGW** | Peering matrix grows quadratically past the hub-and-spoke shape; transitive routing not available; per-route discipline on both sides of each peering | $0.05/hr/attachment TGW cost; one less AWS service to operate. At N=3-4 cells the peering matrix is small. |
 | **CNI heterogeneity window** until prod migrates | Bounded debugging asymmetry (VPC CNI in prod, Cilium in cells + harbor). Tracked in [#108](https://github.com/sei-protocol/Tide/issues/108). | Single-CNI fleet from day 1. Worth the bounded cost given prod's CNI migration is its own destructive cutover. |
 | **CIDR commitment ahead of need** | `10.X.0.0/16` per cluster, X in 10-step increments — locks future cells into this scheme | Acceptable: matches the team's existing practice; future flexibility is purely IP-budget conservatism. |
@@ -479,17 +564,34 @@ ClusterClass deep-research follow-up:
 
 ## Open questions
 
+**Closed in this revision:**
+
+- ~~Cell #2 and #3 archetype + chain~~ — closed: RPC fleets serving `pacific-1` mainnet, NA users (cell #2) and EU users (cell #3).
+- ~~CIDR allocations~~ — closed: cell #2 at 10.70.0.0/16, cell #3 at 10.80.0.0/16; existing inventory verified.
+- ~~Thanos federation mechanism~~ — closed in §4.5: Sidecar + Querier-pull, matching prod's existing topology. Verified in `clusters/prod/monitoring/thanos-query.yaml`.
+- ~~`kubernetes_*` resources audit~~ — closed: 4 ConfigMaps + 1 SA, NO secrets; no ESO migration needed.
+- ~~Cilium bootstrap order~~ — closed in §4.4 (Blocker 3): harbor's `flux_bootstrap_git` + pre-seeded `cilium-tf-values` ConfigMap pattern; node-group-join is the implicit barrier.
+- ~~Cilium IPAM mode~~ — closed: cluster-pool + VXLAN, matching harbor.
+- ~~Harbor migration to `clusters/base/`~~ — closed as **deferred to v2**. Don't mutate both sides of the extraction in flight.
+
 **Block v1.5 progress:**
 
-1. **Which `kubernetes_*` resources are in current prod TF** — platform-engineer. Resolution: audit during v1 step 2 (see [Blocker 1](#blocker-1-kubernetes_secret_v1-migration-prerequisite)).
-2. **Thanos federation mechanism** — does prod's existing Thanos accept remote-write from cells (Receive pattern) or does prod's Querier scrape cell sidecars (Sidecar + Querier `--store` pattern)? Owner: observability-platform-engineer. Resolution: before v1.5 step 1 (`clusters/base/observability/` extraction).
-3. **`clusters/base/` initial content** — exact list of HelmReleases + Kustomizations to extract from harbor + cell-2 + cell-3 manifests. Iterate at v1.5 start. Owner: platform-engineer.
-4. **Should `harbor` migrate to consume `clusters/base/`?** Cosmetic refactor only — harbor's existing manifest tree works. Resolution: defer to v2 unless `base/` evolves to encode policy harbor wants.
+1. **`clusters/base/` initial content** — exact list of HelmReleases + Kustomizations to extract from harbor + cell-2 + cell-3 manifests at v1.5 step 1. Initial set listed in [§ Phased rollout v1.5 step 1](#v15--cells-2-us-east-2-and-3-eu-west-1). Owner: platform-engineer.
+2. **Karpenter `EC2NodeClass` AMI family per cell** — Bottlerocket vs Amazon Linux 2023? AMI family varies by region availability and team preference. Owner: platform-engineer at v1.5 step 1.
 
-**Cross-phase / deferred:**
+**Tracked as follow-up issues (file via `/issue` against `sei-protocol/platform` at v1.5 kickoff):**
 
-5. **Snapshot replication policy** — pruned vs. archive prefix split; replication lifecycle; retention. sei-network-specialist owns. Resolution at v2 when cell #2 cold-start latency is measured.
-6. **Cell #4+ regions** — when more cells are needed, what regions? Product/operations decision. The design pattern accommodates any region; CIDR scheme has 12 more `/16` slots available in the 10-step increment.
+3. **Pod Identity Association sprawl mitigation** — when bindings exceed ~30 across cells, extract `terraform/modules/sei-pod-identity-bindings/` so namespace/SA renames touch one place. (sei-network specialist's F1.)
+4. **Route 53 latency-routing failover policy** — NLB health checks with fallback ordering: nearest-cell → other-cell → prod. SLO impact documented for product. (sei-network F3 + network F-NET-3 + k8s-specialist F2.)
+5. **WebSocket connection draining** on Karpenter scale-down — `preStop` hook with Waterway WS-aware quiesce. (sei-network F5.)
+6. **pacific-1 hard-fork upgrade gate** — SeiNodeDeployment upgrades for `pacific-1` must roll all cells within a 48h window before upgrade height. (sei-network F7.)
+7. **`topology.region` enum validation** — CRD OpenAPI schema validates against curated AWS region list. (sei-network F6.)
+8. **Loki tenant strategy** — single-tenant v1.5; per-cell-tenant decision deferred. (observability F4.)
+9. **Cross-region egress cost monitoring** — establish baseline at v1.5 from harbor's actual shipping volume; revisit at v2. (observability F5 + network F-NET-2.)
+10. **Prometheus WAL sizing per cell** — pin at 12h buffer (~5-10Gi PVC) for prod-outage survival. (observability F6.)
+11. **Grafana folder convention** — per-cell folder with `$cluster` variable on every panel. (observability F7.)
+12. **TGW lazy-insurance assessment** — provision now or wait? Documented un-defer triggers: >6 attachments OR transitive routing required. (network F-NET-1.)
+13. **eu-west-1 (cell #3) snapshot replication** — defer until cold-start latency measured; v2 if 30-minute trigger fires. (sei-network F2 part 2.)
 
 ## References
 
