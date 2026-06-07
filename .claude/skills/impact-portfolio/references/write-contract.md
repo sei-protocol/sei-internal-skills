@@ -19,6 +19,7 @@ Nothing on any bet page or Impact Tracker row is ever touched. (The spike that c
 - **Display title:** `Impact Report - Week of <Month Xth>` — human-facing only, never the match key (ordinal / locale / format drift).
 - **Join key:** the row's **`report_week` date property** = the week's **ISO Monday** (`YYYY-MM-DD`), the same Monday-anchored week `impact-weekly` keys its toggles on.
 - **Timezone:** the ISO Monday is computed against a **single declared TZ** (runner-confirmed or a documented default — never the runner's local clock; **halt** if it can't be established). A wrong TZ silently forks the identity.
+- **Date-only comparison:** `report_week` is set and matched as a **date with no time component**, normalized to the declared TZ. The match is `report_week == thisMonday` as a *calendar date* — never a datetime/instant compare. Rows carrying a time component or a date *range* (a human picking a time in the UI, or another tool) are **out of scope** and may mis-match; that mis-match surfaces as a residual (below), never a silent wrong-row write.
 
 ## Provenance — `generated_by`, asserted before any overwrite
 
@@ -42,14 +43,25 @@ On **create**, set `generated_by = impact-portfolio`. Before **any** update to a
 
 A local `state/report-<weekISO>.json` records `{rowPageId, weekKey}` as a **diagnostic-only** backstop (gitignored). **The backstop never resolves a write target.** Every write path — including a mid-failure re-run, and the *convergent* and *empty-live-query* cases — re-queries by `report_week` and asserts `generated_by` live immediately before writing. If the live query is empty/flaky, **halt** — never write a `rowPageId` carried over from the backstop, a prior URL echo, or runner input. Identity is the live property + provenance, never a cached id.
 
-The old title-twin concern is now largely moot: rows are matched by `report_week`, not title. A human row for the same week is **detected** by the query and **halted on** via `generated_by == human` (surfaced for reconciliation, never clobbered). A human row that left `report_week` unset is invisible to the match — the accepted residual; surface it as a reconcile action item, never silently clobber.
+The old title-twin concern is now largely moot: rows are matched by `report_week`, not title. A human row for the same week is **detected** by the query and **halted on** via `generated_by == human`. The remaining residuals are enumerated below.
+
+## Residuals (stated, not hidden)
+
+The clobber-guard is best-effort, not cryptographic. Four accepted residuals — each surfaced or mitigated, none a silent failure:
+
+1. **Unkeyed human row.** A human row for the week with `report_week` unset is invisible to the match → the skill creates its own row and a duplicate coexists. Surface it as a reconcile action item; never clobber.
+2. **Hand-edited skill row.** The report row is **machine-managed**: a re-run **regenerates the whole body** (to pull in newly-added toggles), discarding any manual edits a human made to the row in between. The skill cannot detect this — Notion does not reliably expose `last_edited_by` — so the mitigation is twofold: (a) the confirm's replace branch states the body is fully regenerated, and (b) humans edit the **source weeklies**, not the report row. Don't hand-edit the report; it is rebuilt every run.
+3. **`generated_by` is advisory.** It is a normal select any board member can set; a human who sets their row's `generated_by = impact-portfolio` would pass the assert. The guard is trust-on-read, not proof of authorship. Accepted on a shared internal board; revisit if this report ever becomes a trust boundary.
+4. **Date representation.** Only date-only, declared-TZ `report_week` values are in scope (see Identity); a time component or range may mis-match.
+
+All four are MVP-accepted on a shared internal board; each is surfaced or mitigated, not silent.
 
 ## Confirm the destructive action — not just the prose
 
 Render the report, name the **target database**, and show a **branch-specific destructive-action summary**, then require **fresh per-run** confirmation (a standing "always confirm" never satisfies the gate — it can't have seen this run's target):
 
 - **Create** (no row for the week): the target database + the **TOCTOU re-query result** + "no existing row (create)". A wrong-target or TOCTOU-duplicate create is destructive too — "it's only a create" is not a reason to fast-confirm.
-- **Replace** (exactly 1, `generated_by == impact-portfolio`): the target **row id + URL + its `generated_by` value** + "replace".
+- **Replace** (exactly 1, `generated_by == impact-portfolio`): the target **row id + URL + its `generated_by` value** + "replace (**regenerates the full body** — any manual edits to the row are discarded)".
 - **Halt**: >1 row / `generated_by == human` or absent / `report_week` mismatch.
 
 Treat every write as full-body-clobber semantics (the whole body is re-rendered). `generated_by` — not `last_edited_by` — is the human-vs-machine signal, and it is always readable because the skill sets it.

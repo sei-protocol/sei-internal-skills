@@ -108,6 +108,7 @@ Stop and surface to the user if:
 - **Auto-fill skipped weeklies from Linear.** Gaps are rendered, not synthesized. (Deferred — thin-Linear fallback; un-defer only if surfacing proves too lossy at high adoption.)
 - **Attribute contributors.** Owner = the bet's `Person`, rendered "owner ≠ sole contributor." Real contributor attribution is deferred — don't use this report for individual credit until it exists.
 - **Auto-discover non-bet projects.** Wave-class projects are manual injections until they're real bets (or a deterministic PR→project filter exists).
+- **Support hand-edits to the report row.** The row is machine-managed and **rebuilt every run** — a re-run regenerates the whole body, discarding any manual edits. Edit the source weeklies, not the report; the confirm's replace branch states the body is fully regenerated.
 - **The end-of-quarter rollup.** That's the deferred `impact-eoq`.
 
 ## Output
