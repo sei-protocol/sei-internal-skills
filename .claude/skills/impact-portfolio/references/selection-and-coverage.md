@@ -20,9 +20,11 @@ A candidate becomes a **section** only if it had **activity this week** (next).
 A bet is active this week if **either** signal fires:
 
 - **(a) Toggle-present** — its Weekly log contains a `> Week of <thisMonday>` toggle (the exact ISO Monday; not "latest", not "in range"). Toggle-present *is* proof of activity.
-- **(b) Linear** — `list_issues(label: "impact:<slug>", updated OR completed in [thisMonday, until])`, **cross-engineer** (no assignee filter — unlike `impact-weekly`, which is Person-scoped). ≥1 issue ⇒ active.
+- **(b) Linear** — `list_issues(label: "impact:<slug>", updated OR completed in [thisMonday, until])`, **cross-engineer** (no assignee filter — unlike `impact-weekly`, which is Person-scoped). ≥1 issue ⇒ active. This scan is **read-only**: `list_issues` only. Never apply an `impact:` label, set a status, or comment on a Linear issue to "improve" detection — that is a write to work you don't own. (Bulk-labeling to drive the untagged-rate down is a separate, human-led lever, not this skill's action.)
 
 **Why union, not label-only:** at cold start most work is untagged and the label scan under-counts; toggle-present catches bets whose owner ran their weekly without a label. **Why not toggle-only:** then a skipped weekly = a silently missing section.
+
+**Partial Linear scan — unknown is not quiet.** If the `impact:<slug>` query errors or times out for a bet (Linear is connected but *that* slug's scan failed), its signal (b) is **unknown, not negative**. Never classify such a bet "quiet" on a failed Linear half. If it also has no toggle, record it in the partial-fetch manifest as a source that **couldn't be read** — never silently treat unread as inactive (that is exactly the FM#1 silent omission the report exists to prevent).
 
 **The residual hole — state it, don't hide it.** Work that is *both* untagged *and* has no toggle is invisible to both signals. This is irreducible without a name-match scan (out of MVP scope). The report does **not** claim total coverage; the untagged-rate is the signal this risk is high (the shared lever with `impact-weekly` — bulk-labeling drives it down).
 
@@ -57,7 +59,7 @@ An active project that is **not yet a bet** (e.g. Wave) is a **runner-supplied m
 
 ## Substantiation (anti-FM#3)
 
-Minimal evidence unit per section bullet = a Linear issue URL (PR secondary), inherited from the toggle. A bullet whose upstream had no link is **cut** ("unsubstantiated — cite or cut"). Exec-summary bullets carry no own link but must **trace to a substantiated section** — a new top-level claim with no section behind it is cut. Never fabricate.
+Minimal evidence unit per section bullet = a Linear issue URL (PR secondary), inherited from the toggle. A bullet whose upstream had no link is **cut** ("unsubstantiated — cite or cut"). Exec-summary bullets carry no own link but must **trace to a substantiated section** — a new top-level claim with no section behind it is cut. The exec summary is the one place the skill writes synthesized prose, so the line is tight: **aggregate section facts only** — a trend, judgment, or comparative characterization ("Platform is accelerating", "we're ahead on X") that no source weekly actually made is fabrication of narrative even if it "traces" to a section. Restate what the sections substantiate; never fabricate.
 
 ## Rendered shape
 
@@ -85,7 +87,7 @@ _Read 9 of 11 sources; could not load: <bet>, <bet>._
 
 ## Reuse with `impact-weekly`
 
-**Shared** (a suite-level reference both skills read — do not fork): bet **page-ID identity**, `impact:<slug>` **label-first resolution**, the canonical **ISO-Monday week-key derivation**, **`Person` → display-name** resolution, the **brevity** and **substantiation** rules.
+**Planned shared reference — not yet extracted.** These concepts are currently authored in *both* skills and should converge into one suite-level reference both read, **once the Notion write mechanism is spiked and the contracts freeze** (tracked: Tide #119 / PLT-437) — extracting now would lock interfaces the spike may still move: bet **page-ID identity**, `impact:<slug>` **label-first resolution**, the canonical **ISO-Monday week-key derivation**, **`Person` → display-name** resolution, the **brevity** and **substantiation** rules. Until then they are inlined in each skill and kept in sync by hand.
 
 **`impact-portfolio`-local:** the cross-engineer/cross-quarter selection query, union detection, the report-page write contract, and the exec-summary roll-up.
 
