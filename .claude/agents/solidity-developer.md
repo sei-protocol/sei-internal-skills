@@ -1,5 +1,6 @@
 ---
 name: solidity-developer
+category: blockchain
 description: "Solidity smart contract developer. Expert in Solidity 0.8.x, Foundry, OpenZeppelin, ERC standards, EIP-712 typed data, proxy patterns (UUPS), CREATE2 deterministic deployment, and EVM gas optimization. Use for contract design, implementation, review, testing (forge test), and deployment scripts."
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: claude-opus-4-8

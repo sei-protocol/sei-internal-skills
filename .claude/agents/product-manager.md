@@ -1,5 +1,6 @@
 ---
 name: product-manager
+category: product-management
 description: "Technical product manager focused on minimum viable products for novel blockchain-enabled use cases. Expert in scoping to customer problems, cutting scope ruthlessly, and defining what 'done' looks like."
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: claude-opus-4-8

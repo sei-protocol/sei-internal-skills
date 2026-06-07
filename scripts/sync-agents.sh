@@ -6,7 +6,9 @@
 #
 # --target:      target directory (the script appends .claude/agents/)
 # --categories:  comma-separated list of categories (default: portable)
-#                available: portable, sei, all
+#                domains: platform-infra, observability, security, blockchain,
+#                         product-management, release-operations
+#                aliases: portable (all non-Sei agents), sei (sei-network-specialist), all
 # --dry-run:     print what would be copied without copying
 # --force:       overwrite existing target files without prompting
 #
@@ -20,19 +22,58 @@ AGENTS_DIR="$(cd "$SCRIPT_DIR/../.claude/agents" && pwd)"
 
 # --- Category lists (source of truth) ---------------------------------------
 
+# Domain categories — source-of-truth grouping (mirrors each agent's `category:`
+# frontmatter and the AGENTS.md roster). Claude discovers agents FLAT under
+# ~/.claude/agents/; these domains are metadata for humans + selective sync.
+PLATFORM_INFRA=(
+  kubernetes-specialist
+  platform-engineer
+  network-specialist
+  k8s-capacity-management
+  sei-network-specialist
+)
+
+OBSERVABILITY=(
+  opentelemetry-expert
+  observability-platform-engineer
+  sre-engineer
+)
+
+SECURITY=(
+  security-specialist
+  tee-specialist
+)
+
+BLOCKCHAIN=(
+  solidity-developer
+)
+
+PRODUCT_MANAGEMENT=(
+  product-engineer
+  product-manager
+  go-to-market-specialist
+)
+
+RELEASE_OPERATIONS=(
+  platform-release-manager
+)
+
+# Meta-aliases cross-cut the domains (back-compat). `sei` is the Sei-only slice
+# (sei-network-specialist, which is also in the platform-infra DOMAIN); `portable`
+# is everything else; `all` is every agent.
 PORTABLE=(
   kubernetes-specialist
   platform-engineer
-  solidity-developer
   network-specialist
-  security-specialist
-  tee-specialist
-  product-engineer
-  product-manager
+  k8s-capacity-management
   opentelemetry-expert
   observability-platform-engineer
-  k8s-capacity-management
   sre-engineer
+  security-specialist
+  tee-specialist
+  solidity-developer
+  product-engineer
+  product-manager
   go-to-market-specialist
   platform-release-manager
 )
@@ -86,6 +127,12 @@ declare -a AGENTS_TO_SYNC=()
 IFS=',' read -ra CAT_ARRAY <<< "$CATEGORIES"
 for cat in "${CAT_ARRAY[@]}"; do
   case "$cat" in
+    platform-infra)      AGENTS_TO_SYNC+=("${PLATFORM_INFRA[@]}") ;;
+    observability)       AGENTS_TO_SYNC+=("${OBSERVABILITY[@]}") ;;
+    security)            AGENTS_TO_SYNC+=("${SECURITY[@]}") ;;
+    blockchain)          AGENTS_TO_SYNC+=("${BLOCKCHAIN[@]}") ;;
+    product-management)  AGENTS_TO_SYNC+=("${PRODUCT_MANAGEMENT[@]}") ;;
+    release-operations)  AGENTS_TO_SYNC+=("${RELEASE_OPERATIONS[@]}") ;;
     portable)  AGENTS_TO_SYNC+=("${PORTABLE[@]}") ;;
     sei)       AGENTS_TO_SYNC+=("${SEI[@]}") ;;
     all)       AGENTS_TO_SYNC+=("${PORTABLE[@]}" "${SEI[@]}") ;;

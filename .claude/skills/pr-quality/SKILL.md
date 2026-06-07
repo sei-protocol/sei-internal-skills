@@ -1,5 +1,6 @@
 ---
 name: pr-quality
+category: output-quality
 model: claude-opus-4-8
 description: "Use when about to open a PR or reviewing one — 'opening a PR', 'run pr-quality on this', 'check my PR', '/pr-quality', '/pr-quality 94'. Fires before `gh pr create` (pre-PR mode — agent surfaces findings inline against the staged diff so the author can revise) and on demand against an existing PR (post-PR mode — posts a fresh PR comment with findings). Suggestive only — never gates merge. Anti-triggers: NOT for blocking PRs (use branch protection if you need gating); NOT for style auto-fix (use gofmt / prettier); NOT for license / IP / security scanning (separate tooling). For verbosity-only on agent output, use /brevity directly. For multi-component design / cross-review, use /council."
 ---

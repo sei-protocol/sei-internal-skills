@@ -1,5 +1,6 @@
 ---
 name: cross-review
+category: workflow
 model: claude-opus-4-8
 description: "Use when an orchestrator has produced or gathered engineering work — a design, plan, diff, or set of specialist outputs — and wants the relevant specialists to INDEPENDENTLY review it for consistency, gaps, and interface mismatches — 'cross-review this', 'cross review', 'have the experts cross-review this', 'check this design for consistency across components', 'review these specialist outputs against each other', '/cross-review'. The review counterpart to producing work with /coral; /coral offers it at synthesis and /council invokes it as its review phase. Anti-triggers: NOT for producing or iterating work with experts (use /coral); NOT for full-ceremony multi-component design (use /council — it dispatches this as its review phase); NOT for adversarial pre-launch hardening (use /bugbash); NOT for line-level diff correctness (use /code-review); NOT for capturing a finished design (use /design); NOT for incident investigation (use /root-cause)."
 ---

@@ -1,5 +1,6 @@
 ---
 name: kubernetes-specialist
+category: platform-infra
 description: "Kubernetes operator and controller development. Expert in Go with controller-runtime (kubebuilder), CRDs, event indexing, K8s Job lifecycle, EKS, and cloud-native patterns. Use for operator code, CRD changes, reconciliation logic, event indexing, and any controller-runtime work."
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: claude-opus-4-8
