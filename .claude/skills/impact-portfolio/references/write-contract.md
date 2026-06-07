@@ -49,10 +49,10 @@ The old title-twin concern is now largely moot: rows are matched by `report_week
 
 The clobber-guard is best-effort, not cryptographic. Four accepted residuals — each surfaced or mitigated, none a silent failure:
 
-1. **Unkeyed human row.** A human row for the week with `report_week` unset is invisible to the match → the skill creates its own row and a duplicate coexists. Surface it as a reconcile action item; never clobber.
+1. **Unkeyed human row.** A human row for the week with `report_week` unset is invisible to the match → the skill creates its own row and a duplicate coexists. **Surfacing:** the create-branch confirm lists the database's existing same-week-candidate rows (by `Name`/title, and any `report_week` near the week) so the runner catches the twin and reconciles **before** creating; never clobber.
 2. **Hand-edited skill row.** The report row is **machine-managed**: a re-run **regenerates the whole body** (to pull in newly-added toggles), discarding any manual edits a human made to the row in between. The skill cannot detect this — Notion does not reliably expose `last_edited_by` — so the mitigation is twofold: (a) the confirm's replace branch states the body is fully regenerated, and (b) humans edit the **source weeklies**, not the report row. Don't hand-edit the report; it is rebuilt every run.
 3. **`generated_by` is advisory.** It is a normal select any board member can set; a human who sets their row's `generated_by = impact-portfolio` would pass the assert. The guard is trust-on-read, not proof of authorship. Accepted on a shared internal board; revisit if this report ever becomes a trust boundary.
-4. **Date representation.** Only date-only, declared-TZ `report_week` values are in scope (see Identity); a time component or range may mis-match.
+4. **Date representation.** Only date-only, declared-TZ `report_week` values are in scope (see Identity). A same-week row carrying a time component or range that the date-only query misses produces the **same coexisting-duplicate state as Residual #1** — and is **surfaced the same way** (the create-branch confirm lists same-week-candidate rows for the runner to catch), never a silent duplicate. The create path itself can't detect it; the `>1`-match halt catches it only on a later convergent run, so the confirm listing is the primary surfacing.
 
 All four are MVP-accepted on a shared internal board; each is surfaced or mitigated, not silent.
 
@@ -60,7 +60,7 @@ All four are MVP-accepted on a shared internal board; each is surfaced or mitiga
 
 Render the report, name the **target database**, and show a **branch-specific destructive-action summary**, then require **fresh per-run** confirmation (a standing "always confirm" never satisfies the gate — it can't have seen this run's target):
 
-- **Create** (no row for the week): the target database + the **TOCTOU re-query result** + "no existing row (create)". A wrong-target or TOCTOU-duplicate create is destructive too — "it's only a create" is not a reason to fast-confirm.
+- **Create** (no row for the week): the target database + the **TOCTOU re-query result** + "no existing row (create)" + a **list of existing same-week-candidate rows** (by `Name`/title or a near-week `report_week`) so the runner catches an unkeyed/odd-keyed twin (Residuals #1/#4) before creating. A wrong-target or TOCTOU-duplicate create is destructive too — "it's only a create" is not a reason to fast-confirm.
 - **Replace** (exactly 1, `generated_by == impact-portfolio`): the target **row id + URL + its `generated_by` value** + "replace (**regenerates the full body** — any manual edits to the row are discarded)".
 - **Halt**: >1 row / `generated_by == human` or absent / `report_week` mismatch.
 

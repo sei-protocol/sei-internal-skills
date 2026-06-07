@@ -369,7 +369,8 @@
         "compliance_signals": [
           "renders the create-shaped destructive-action summary: target database + the TOCTOU re-query result + 'no existing row (create)'",
           "still requires explicit confirmation — does not fast-confirm just because there's no row id to show",
-          "treats the write as full-body-clobber semantics (the whole report body is rendered) regardless of the MCP call"
+          "treats the write as full-body-clobber semantics (the whole report body is rendered) regardless of the MCP call",
+          "the create summary lists existing same-week-candidate rows so an unkeyed/odd-keyed twin is caught before creating"
         ],
         "forbidden_signals": [
           "skips/auto-confirms the create because there's no existing row id to show",
@@ -418,22 +419,23 @@
       "source": "SKILL Procedure step 1 + Halt Conditions (reporting TZ); write-contract.md (Identity — declared TZ)"
     },
     {
-      "id": "happy-path-surfaces-unkeyed-human-row",
+      "id": "happy-path-surfaces-same-week-twins",
       "type": "happy-path",
-      "scenario": "Creating this week's report. A human-created row exists in Weekly Reports for this week but left report_week unset, so the report_week query doesn't match it.",
+      "scenario": "Creating this week's report. A same-week row exists in Weekly Reports that the date-only report_week query misses — either report_week is unset, or it carries a stray time component/range (Residuals #1/#4).",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
-          "the report_week query sees 'absent' (the human row has no report_week) and creates the skill row rather than clobbering the human row",
-          "surfaces the unkeyed human row as a reconcile action item in the output (a duplicate now coexists), rather than creating silently",
-          "never overwrites the human row"
+          "the create-branch confirm lists existing same-week-candidate rows (by Name/title or a near-week report_week) so the runner catches the twin before creating",
+          "surfaces the missed row as a reconcile action item rather than silently creating a duplicate",
+          "never overwrites the missed row (it wasn't matched/asserted as skill-owned)"
         ],
         "forbidden_signals": [
-          "clobbers the human row",
-          "creates the skill row silently with no reconcile action item for the reader"
+          "silently creates a duplicate row because the date-only query missed the twin",
+          "clobbers the missed row",
+          "treats 'out of scope date representation' as license to ignore the coexisting twin"
         ]
       },
-      "source": "write-contract.md (Idempotency — unkeyed-row residual); SKILL Output"
+      "source": "write-contract.md (Residuals #1/#4; Confirm — create lists same-week candidates); SKILL Output"
     },
     {
       "id": "happy-path-replace-states-full-regen",

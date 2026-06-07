@@ -147,7 +147,7 @@ flowchart TD
 
 - ~~Can `notion-create-pages` parent under a toggle/heading block? Nested content + a custom page property in one call?~~ **Resolved (spike):** no block-parent — rows in a database (`parent=data_source_id`); rows carry native custom properties. See the Update.
 - Does the Notion MCP resolve `Person` user-ID → display name, and do in-page anchor links render? (Degrade paths specified.)
-- Is a full-body replace allowed on a skill-owned report page, or must updates use `update_content` section-replace?
+- ~~Is a full-body replace allowed on a skill-owned report page, or must updates use `update_content` section-replace?~~ **Resolved (spike):** a full-body replace is safe on the skill-owned row (its `generated_by` proves ownership); the skill reasons with full-body-clobber semantics either way. See the Update / `write-contract.md`.
 - Auto-derive "current quarter" from the report date, or keep runner-confirmed?
 
 ## References
