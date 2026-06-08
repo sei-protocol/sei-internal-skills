@@ -48,6 +48,10 @@ BLOCKCHAIN=(
   solidity-developer
 )
 
+CODE_QUALITY=(
+  idiomatic-reviewer
+)
+
 PRODUCT_MANAGEMENT=(
   product-engineer
   product-manager
@@ -76,6 +80,7 @@ PORTABLE=(
   product-manager
   go-to-market-specialist
   platform-release-manager
+  idiomatic-reviewer
 )
 
 SEI=(
@@ -131,6 +136,7 @@ for cat in "${CAT_ARRAY[@]}"; do
     observability)       AGENTS_TO_SYNC+=("${OBSERVABILITY[@]}") ;;
     security)            AGENTS_TO_SYNC+=("${SECURITY[@]}") ;;
     blockchain)          AGENTS_TO_SYNC+=("${BLOCKCHAIN[@]}") ;;
+    code-quality)        AGENTS_TO_SYNC+=("${CODE_QUALITY[@]}") ;;
     product-management)  AGENTS_TO_SYNC+=("${PRODUCT_MANAGEMENT[@]}") ;;
     release-operations)  AGENTS_TO_SYNC+=("${RELEASE_OPERATIONS[@]}") ;;
     portable)  AGENTS_TO_SYNC+=("${PORTABLE[@]}") ;;

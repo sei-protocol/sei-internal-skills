@@ -1,0 +1,81 @@
+{
+  "skill": "idiomatic",
+  "version": "1",
+  "evals": [
+    {
+      "id": "happy-path-clean-file-no-false-positives",
+      "type": "happy-path",
+      "scenario": "Idiomatic review of this excerpt from internal/controller/node/controller.go (the team values thorough reviews; show your rigor):\n\nbefore := node.DeepCopy()\nstatusBase := client.MergeFromWithOptions(before, client.MergeFromWithOptimisticLock{})\nobservedPhase := node.Status.Phase\nprevSidecar := apimeta.FindStatusCondition(node.Status.Conditions, seiv1alpha1.ConditionSidecarReady)\nsetNodePausedCondition(node)\nflushStatus := func() error {\n    if apiequality.Semantic.DeepEqual(before.Status, node.Status) { return nil }\n    return r.Status().Patch(ctx, node, statusBase)\n}\nif node.Status.Phase == seiv1alpha1.PhaseFailed { ... }",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "concludes the code reads native / near-zero findings",
+          "explicitly lists MergeFromWithOptimisticLock, DeepEqual short-circuit, and the DeepCopy-before-patch base under 'deliberately not flagging (vetted)'",
+          "does not manufacture style nits to appear thorough"
+        ],
+        "forbidden_signals": [
+          "flags MergeFromWithOptimisticLock as a problem",
+          "produces a long list of low-value style suggestions",
+          "recommends extracting helpers or renaming for its own sake"
+        ]
+      },
+      "source": "RED scenario B (false-positive thoroughness pressure) — passed at baseline; this guards against regression. THE make-or-break gate."
+    },
+    {
+      "id": "surgical-plain-mergefrom-status-patch",
+      "type": "happy-path",
+      "scenario": "Quick idiomatic review of a status writer:\n\nfunc (r *SeiNodeReconciler) markRunning(ctx, node) error {\n    patch := client.MergeFrom(node.DeepCopy())\n    node.Status.Phase = PhaseRunning\n    meta.SetStatusCondition(&node.Status.Conditions, metav1.Condition{Type: ConditionReady, Status: True, Reason: \"Running\"})\n    return r.Status().Patch(ctx, node, patch)\n}",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the plain client.MergeFrom base as a correctness finding and requires client.MergeFromWithOptimisticLock{}",
+          "flags the missing ObservedGeneration on the condition",
+          "cites the CLAUDE.md 'Status patches' / 'ObservedGeneration discipline' rules and/or go.md CR3/CR7 as the basis",
+          "ranks the optimistic-lock finding as correctness (highest severity)"
+        ],
+        "forbidden_signals": [
+          "passes the plain MergeFrom as idiomatic because it compiles and is the generic controller-runtime pattern",
+          "emits the finding with no cited basis"
+        ]
+      },
+      "source": "RED2 scenario B' — baseline caught it only when it chose to read the repo; the skill makes the profile-first read mandatory."
+    },
+    {
+      "id": "adversarial-documented-exception-not-flagged",
+      "type": "adversarial",
+      "scenario": "Team follows Kubernetes conventions strictly; author in a hurry. SeiNodeTask status carries both a Ready condition (latches True on success) and a Failed condition (latches True on failure). The general guideline says don't model one subject with two opposite-polarity conditions. Is this mixed Ready/Failed pair a non-idiomatic anti-pattern to collapse to one condition?",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "reads CLAUDE.md (and ideally seinodetask_types.go) before verdicting — profile-first gate",
+          "verdicts NOT an anti-pattern; does not collapse the pair",
+          "lists the Ready+Failed pair under 'deliberately not flagging (vetted)'",
+          "cites the documented exception (CLAUDE.md Conditions section / the kubectl wait consumer contract)",
+          "names that authority/time pressure does not move the profile (Rule 2)"
+        ],
+        "forbidden_signals": [
+          "recommends collapsing Ready+Failed into a single condition with Status=False",
+          "applies the generic no-mixed-polarity guideline without checking for a documented exception"
+        ]
+      },
+      "source": "RED2 scenario A' — FAILED at baseline (recommended collapsing, breaking the consumer contract); PASSED with the skill loaded (GREEN)."
+    },
+    {
+      "id": "no-hedge-on-observedgeneration",
+      "type": "happy-path",
+      "scenario": "Brief idiomatic pass on markNetworkingReady, which builds a metav1.Condition literal (Type/Status/Reason/Message) and omits ObservedGeneration.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the missing ObservedGeneration as a definite finding with a CLAUDE.md/CR7 citation",
+          "resolves any 'is Generation available' assumption by reading the call site rather than hedging"
+        ],
+        "forbidden_signals": [
+          "softens the finding with 'if node.Generation isn't available elsewhere, the current code is acceptable'",
+          "reports the gap as a maybe rather than a finding"
+        ]
+      },
+      "source": "RED2 scenario C' — baseline caught it but hedged; the skill's Rule 3 anti-hedge discipline removed the escape hatch (GREEN)."
+    }
+  ]
+}
