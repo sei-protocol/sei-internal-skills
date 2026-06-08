@@ -80,4 +80,5 @@ When a finding needs judgment the static pack can't carry, the method dispatches
 |----------|------------------|
 | Go | `kubernetes-specialist` (controller-runtime work) |
 | Solidity | `solidity-developer` |
+| Rust | _(none yet — review on the pack + first principles; add a `rust-specialist` when Rust work is common)_ |
 | … | … |
