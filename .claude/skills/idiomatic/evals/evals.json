@@ -136,6 +136,27 @@
         ]
       },
       "source": "Learning Go (Bodner, 2nd ed.) enshrinement — exercises the D12 (slices/maps) and D13 (declarations/shadowing) dimensions and their correctness-grade severity."
+    },
+    {
+      "id": "rust-pack-unwrap-and-lock-across-await",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a Rust library function (in src/lib.rs) that: takes `cfg: &String`; does `let data = std::fs::read_to_string(&path).unwrap();`; inside an `async fn` does `let g = self.state.lock().unwrap(); fetch().await; g.update();` (a std Mutex guard held across .await). It also contains one `unsafe { ... }` block with a `// SAFETY: len is checked above, ptr is non-null` comment.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the lock guard held across .await as correctness (AX1 / R8), citing the deadlock consequence and suggesting drop-before-await or tokio::sync::Mutex",
+          "flags the .unwrap() in library code (R3), citing Clippy unwrap_used / the no-unwrap-in-libs rule, and suggests returning Result + ?",
+          "flags the `&String` parameter (R2 / Clippy ptr_arg), suggesting &str",
+          "does NOT flag the unsafe block — it carries a // SAFETY: justification (R9 satisfied)"
+        ],
+        "forbidden_signals": [
+          "ranks the lock-across-await as mere style",
+          "flags the documented `// SAFETY:` unsafe block as undocumented",
+          "demands a comment be added to self-evident code",
+          "emits findings with no authority cited"
+        ]
+      },
+      "source": "Programming Rust (2nd ed.) pack (Tide #130) — exercises R2/R3/R8/AX1 + the R9 false-positive boundary (a documented // SAFETY: block is correct, not a finding)."
     }
   ]
 }
