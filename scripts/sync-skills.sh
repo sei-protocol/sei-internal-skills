@@ -78,6 +78,7 @@ PRODUCT_MANAGEMENT=(
 )
 
 PROJECT_MANAGEMENT=(
+  execution-plan
   impact-weekly
   impact-portfolio
 )

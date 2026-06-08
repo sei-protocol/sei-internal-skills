@@ -63,6 +63,11 @@ RELEASE_OPERATIONS=(
   platform-release-manager
 )
 
+# Sei/Impact-Hub-scoped (synced via the `sei` alias, like the project-management skills)
+PROJECT_MANAGEMENT=(
+  technical-program-manager
+)
+
 # Meta-aliases cross-cut the domains (back-compat). `sei` is the Sei-only slice
 # (sei-network-specialist, which is also in the platform-infra DOMAIN); `portable`
 # is everything else; `all` is every agent.
@@ -141,9 +146,10 @@ for cat in "${CAT_ARRAY[@]}"; do
     code-quality)        AGENTS_TO_SYNC+=("${CODE_QUALITY[@]}") ;;
     product-management)  AGENTS_TO_SYNC+=("${PRODUCT_MANAGEMENT[@]}") ;;
     release-operations)  AGENTS_TO_SYNC+=("${RELEASE_OPERATIONS[@]}") ;;
+    project-management)  AGENTS_TO_SYNC+=("${PROJECT_MANAGEMENT[@]}") ;;
     portable)  AGENTS_TO_SYNC+=("${PORTABLE[@]}") ;;
-    sei)       AGENTS_TO_SYNC+=("${SEI[@]}") ;;
-    all)       AGENTS_TO_SYNC+=("${PORTABLE[@]}" "${SEI[@]}") ;;
+    sei)       AGENTS_TO_SYNC+=("${SEI[@]}" "${PROJECT_MANAGEMENT[@]}") ;;
+    all)       AGENTS_TO_SYNC+=("${PORTABLE[@]}" "${SEI[@]}" "${PROJECT_MANAGEMENT[@]}") ;;
     *)
       echo "Unknown category: $cat" >&2
       exit 2 ;;
