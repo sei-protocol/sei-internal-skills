@@ -33,6 +33,11 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 |-------|-------|
 | `solidity-developer` | Solidity / Foundry / OpenZeppelin / ERC standards |
 
+### code-quality
+| Agent | Scope |
+|-------|-------|
+| `idiomatic-reviewer` | Idiomatic-conformance review, language-pluggable. Digests the repo's agent files + `doc.go` into a local idiom profile that outranks generic idiom, overlays a per-language pack, emits two-altitude (design + surgical) cited findings. Reviews for idiom; does **not** author the system (that's the language specialist, e.g. `kubernetes-specialist`). Backed by the `/idiomatic` skill. |
+
 ### product-management
 | Agent | Scope |
 |-------|-------|
