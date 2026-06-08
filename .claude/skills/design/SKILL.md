@@ -102,6 +102,8 @@ Direct user invocation when there's no active workstream or upstream issue — e
 
    **Output of this step:** a complete input set with all required fields filled. If any required field is empty after gathering, halt and surface what's missing per Guardrail #3.
 
+   **Idiom note for the Design section.** If the Design specifies concrete interface signatures, type definitions, or code sketches, they should be idiomatic to the target language and the package's documented patterns — that's the `idiomatic-reviewer` lens (via `/idiomatic`). `/design` captures; it does not review idiom. That pass belongs to the preceding coral/council cross-review, where `idiomatic-reviewer` is now on the slate when code is under review. Capture the sketches as they were validated there; flag any concrete interface that hasn't had an idiom pass as an Open question rather than presenting it as settled.
+
 4. **Mermaid diagrams.** During the **Design** section, identify candidate diagrams from the synthesized context:
    - **Sequence** — when an interaction across components matters (request flow, handoff order).
    - **Flowchart** — when a decision tree or state-conditional path matters.

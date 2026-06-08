@@ -58,6 +58,8 @@ If the artifact can't be read, halt (Guardrail #1).
 
 Read `.claude/agents/` from the calling repo. Choose the smallest set whose combined domains cover the boundaries. For each interface, you want at least the provider-domain specialist and the consumer-domain specialist. Add a domain specialist for any cross-cutting concern the artifact raises (security boundary → `security-specialist`; capacity/cost → `k8s-capacity-management`; etc.).
 
+**When the artifact includes a code diff or implementation** (not solely a design doc), add `idiomatic-reviewer` to the slate. It brings a distinct axis the boundary reviewers don't cover — does the code read *native* to its language, framework, and the package's own documented patterns — and it reports separately from the boundary table (see Step 4). Skip it when the artifact under review is a pure design/spec with no code.
+
 If only one specialist is genuinely relevant, this is a single-reviewer pass — run it, but label the output accordingly. Don't manufacture reviewers to look thorough.
 
 ### Step 3 — Dispatch independent reviews (blinded)
@@ -80,9 +82,12 @@ Merge the independent reviews into one de-duplicated table:
 - **Surface disagreement — don't smooth it.** If two reviewers reached opposite conclusions on the same boundary, that's a finding, not a rounding error. Record both and reason from first principles; provider-owns-the-interface is the tie-break, not seniority or recency.
 - **Convergence is corroboration only if independent.** If the reviews agree and were blinded, say the confidence is high. If they weren't blinded, downgrade and note it.
 
+**Idiom findings ride in an addendum, not the boundary table.** `idiomatic-reviewer` reports two-altitude findings (design + surgical) keyed to files and packages, not to interface boundaries, so they don't fit the COMPATIBLE / MISMATCH / MISSING schema. Record them in a separate **Idiom** section below the table, each carrying its cited basis and severity (correctness-grade / idiom-divergence-with-consequence / style).
+
 ### Step 5 — Resolve and report
 
 - Every **MISMATCH** and **MISSING** is resolved (artifact updated; provider/consumer reconciled — provider definition wins, consumer adapts) or **explicitly accepted by the user** with the risk stated. Nothing is silently dropped.
+- **Correctness-grade idiom findings block too.** A runtime-consequence idiom finding (e.g. a status patch missing the optimistic lock, an always-present condition removed) is resolved or explicitly accepted before a COMPATIBLE verdict — the same bar as a MISMATCH. Pure-style idiom findings are **advisory**: surfaced in the Idiom addendum, never gating.
 - Output: the findings table, the verdict (COMPATIBLE overall / OPEN with N findings), the resolved items with what changed, and any accepted-with-risk items.
 - If cross-review can't reach a clean verdict — reviewers split, an artifact gap nobody can close — say so explicitly: "cross-review open, 2 MISMATCH unresolved, needs a provider decision on X." A labeled open state beats a fabricated COMPATIBLE.
 
@@ -135,7 +140,8 @@ Stop and report to the user if:
 - **`/coral`** produces work with specialists, then *offers* `/cross-review` at synthesis when outputs touch a shared boundary. Coral builds; cross-review checks.
 - **`/council`** runs cross-review as a distinct phase of its scope-tier process by invoking this skill — it does not perform cross-review itself.
 - **`/code-review`** is line-level diff correctness; **`/bugbash`** is adversarial hardening of a running system; **`/root-cause`** is incident investigation. Cross-review is consistency review of a produced artifact across the specialists who own its boundaries.
+- **`idiomatic-reviewer`** (the `/idiomatic` skill) is the **idiom-conformance** lens — does the code read native to its language, framework, and the package's documented patterns. It's a distinct axis from boundary consistency: cross-review dispatches it as part of the slate when code is under review, and its findings ride in the Idiom addendum (correctness-grade blocks; style is advisory). It reviews idiom; it does not author the system or check boundaries.
 
 ## Output
 
-End-of-session summary: the artifact reviewed, the reviewer slate (and who held dissent), the findings table verdict (COMPATIBLE / OPEN with N findings), what was resolved and how, and any accepted-with-risk items. If open, name the unresolved findings and what would close them.
+End-of-session summary: the artifact reviewed, the reviewer slate (and who held dissent), the findings table verdict (COMPATIBLE / OPEN with N findings), what was resolved and how, and any accepted-with-risk items. If code was reviewed, include the Idiom addendum (with any blocking correctness-grade idiom findings called out). If open, name the unresolved findings and what would close them.
