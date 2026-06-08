@@ -1,6 +1,6 @@
-# Language pack contract (_TEMPLATE)
+# Language pack contract (TEMPLATE)
 
-A language pack is **data** the method loads. Every pack must provide the six sections below, in this order, so the method stays language-agnostic. **Adding a language = drop one file conforming to this template** into `references/languages/<lang>.md` and (optionally) map the language to a specialist agent.
+A language pack is **data** the method loads. Every pack must provide the six sections below, in this order, so the method stays language-agnostic. **Adding a language = drop one file conforming to this template** at `references/language-pack-<lang>.md` and (optionally) map the language to a specialist agent.
 
 This section schema is a **soft one-way door**: changing it churns every existing pack. Revise deliberately.
 

@@ -16,7 +16,7 @@ Detect the language deterministically, in this order:
 2. **File-extension majority** of the changed/target set — tiebreak and fallback.
 3. **Agent-file hint** — a primary language named in `CLAUDE.md`/`AGENTS.md` disambiguates polyglot repos (a Go controller with embedded shell/yaml stays "Go").
 
-Load `references/languages/<lang>.md`. If none exists, review against the profile + first principles and **flag the missing-pack gap** — do not refuse. The profile alone is high-value.
+Load `references/language-pack-<lang>.md`. If none exists, review against the profile + first principles and **flag the missing-pack gap** — do not refuse. The profile alone is high-value.
 
 ## Step 3 — Two-altitude feedback
 

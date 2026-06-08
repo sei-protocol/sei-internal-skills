@@ -38,7 +38,7 @@ Each section is required; drop one only with an explicit `N/A — <reason>` line
 ## Tooling (existing toolchain — no bespoke build)
 
 - **`go doc ./pkg`** and **`go doc ./pkg.Type`** — primary render; verifies the synopsis (§1) is a valid one-liner.
-- **`godoc` / `pkgsite`** — HTML render; confirms headings/lists (Go 1.19+ doc-comment syntax) parse.
+- **`godoc` / `pkgsite`** — HTML render; confirms headings/lists (Go's doc-comment heading syntax) parse.
 - **`golangci-lint`** — enable `ST1000` (require a package doc comment — the cheapest first step), `godot` (comment punctuation), `stylecheck` `ST1020`/`ST1021` (exported-symbol doc form).
 - **`gopls`** — hover/rename safety; surfaces undocumented exported symbols.
 
@@ -90,4 +90,4 @@ Each section is required; drop one only with an explicit `N/A — <reason>` line
 package <name>
 ```
 
-The existing `internal/planner/doc.go` already satisfies sections 1–4 well; under this standard it would add explicit **Invariants** (atomic plan creation; `FailedPhase==""` means retry), **Zero-Value semantics** (nil plan = steady state), and a **Concurrency** section (the optimistic-lock + single-patch story currently only in CLAUDE.md).
+The existing `internal/planner/doc.go` already satisfies sections 1–4 well; under this standard it would add explicit **Invariants** (atomic plan creation; `FailedPhase==""` means retry), **Zero-Value semantics** (nil plan = steady state), and a **Concurrency** section (the optimistic-lock + single-patch story, which lives only in CLAUDE.md).

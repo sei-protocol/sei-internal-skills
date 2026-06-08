@@ -17,6 +17,24 @@ A capable model already knows Effective Go, Clean Code, and the common framework
 
 So the value of this skill is **not** a Go textbook. It is the discipline that makes local convention win, every finding carry a citation, and clean code get a clean bill of health. The language pack is a checklist and a source of citations; the spine is the product.
 
+## Guardrails
+
+Refusal conditions — these hold under time pressure, authority, and a tidy-looking diff:
+
+1. **No profile → no findings.** Do not emit a single finding before reading the repo's `CLAUDE.md`/`AGENTS.md` and the target package's `doc.go`. You cannot apply local convention you never read.
+2. **Never assert a one-way-door rule.** If reviewing would *introduce* a convention the repo hasn't decided (a field rename that's a wire-format change, a new enum value, a new condition-naming scheme), flag it for human approval — do not write it as a finding.
+3. **Suggest-only.** Never rewrite the author's files. Output is findings the human or calling agent applies.
+4. **No uncited findings, no hedges.** Every finding cites an authority and/or a repo rule; "probably fine if X" is not a finding (resolve the assumption, then flag or don't).
+5. **Don't flag clean code.** On idiomatic code the output is "reads native — no findings." Manufacturing nits gets the reviewer muted.
+
+## Halt Conditions
+
+Stop and escalate rather than proceeding when:
+
+- **Can't build a profile** (no agent files, no `doc.go`): don't refuse — review on first principles and **flag the missing-profile gap**; mark findings as reduced-confidence.
+- **No language pack for the detected language:** don't refuse and don't invent a pack — review against the profile + first principles and flag the missing-pack gap (see the rationalization table).
+- **A finding would set a one-way door:** stop and escalate to a human / the language specialist instead of asserting it.
+
 ## When to use / when not
 
 | Use `/idiomatic` for… | Use instead… |
@@ -36,7 +54,7 @@ A correct-but-unidiomatic function passes `/code-review` and is exactly what `/i
 Full protocol in `references/method.md`. In short:
 
 1. **Build the package idiom profile — FIRST, always.** Read the repo's governing docs (`CLAUDE.md`, `AGENTS.md`) and the target package's own docs (`doc.go`, package README) before reading the diff for findings. Extract declared conventions, prohibitions, mandates, the framework fingerprint, and **stated exceptions**. See `references/package-profile.md`. **No profile → no findings.**
-2. **Overlay the language pack.** Detect the language (build manifest → `go.mod`/`package.json`/`Cargo.toml`/`pyproject.toml`; else file-extension majority; else the agent-file's stated primary language). Load `references/languages/<lang>.md`. The pack supplies idiom dimensions, citable authorities, and the language's *divergences* from general principles. If no pack exists for the language, say so and review only against the profile + first-principles, flagging the gap.
+2. **Overlay the language pack.** Detect the language (build manifest → `go.mod`/`package.json`/`Cargo.toml`/`pyproject.toml`; else file-extension majority; else the agent-file's stated primary language). Load `references/language-pack-<lang>.md`. The pack supplies idiom dimensions, citable authorities, and the language's *divergences* from general principles. If no pack exists for the language, say so and review only against the profile + first-principles, flagging the gap.
 3. **Produce two-altitude feedback.** Separate **Design** (boundaries, ownership, abstraction level, idiom-divergence with runtime consequence) from **Surgical** (line-level idiom fixes). A reader must be able to apply surgical fixes without reading the design discussion. Rank by the severity model: correctness > idiom-divergence-with-runtime-consequence > style.
 4. **Check the data-structure documentation.** If the package owns a non-trivial data structure with a lifecycle (a plan, a state machine, a cross-package flow), check it carries a `doc.go` meeting the standard in `references/datastructure-standard.md`. Recommend or draft one; flag invariants that are documented but unguarded by a test, and CLAUDE.md "Key Patterns" missing from the owning package's `doc.go` (doc drift).
 
@@ -74,7 +92,7 @@ Every finding names its basis: a language-idiom authority (e.g. "Effective Go: E
 
 ```
 ## Idiomatic review: <target>
-Language: <lang> (pack: references/languages/<lang>.md) · Profile: <CLAUDE.md / doc.go read? yes/no>
+Language: <lang> (pack: references/language-pack-<lang>.md) · Profile: <CLAUDE.md / doc.go read? yes/no>
 
 ### Design
 - [severity] <finding>. Basis: <authority and/or repo rule>. Consequence: <what breaks / why it matters>.
@@ -96,7 +114,7 @@ Suggest only — never rewrite the author's files. The human or calling agent ap
 
 ## Language-pack + profile-overlay mechanism
 
-The method is language-agnostic; the language expertise is **data**, in `references/languages/<lang>.md`, conforming to `references/languages/_TEMPLATE.md`. **Adding a language = drop one conforming file.** The Go pack (`go.md`) is written against the template and is the worked reference. The template's section schema is a soft one-way door — revising it churns every existing pack, so change it deliberately.
+The method is language-agnostic; the language expertise is **data**, in `references/language-pack-<lang>.md`, conforming to `references/language-pack-TEMPLATE.md`. **Adding a language = drop one conforming file.** The Go pack (`language-pack-go.md`) is written against the template and is the worked reference. The template's section schema is a soft one-way door — revising it churns every existing pack, so change it deliberately.
 
 For findings that need *judgment* the static pack can't carry (e.g. "is this reconcile idiomatic for level-triggered semantics?"), dispatch the matching language specialist agent (Go → `kubernetes-specialist`) via the Agent tool and fold its verdict in. The pack handles the citable 80%; the agent handles the 20% that needs a reasoning persona. (Pilot ships pack-only; agent dispatch is available when a finding warrants it.)
 
@@ -104,8 +122,8 @@ For findings that need *judgment* the static pack can't carry (e.g. "is this rec
 
 - `references/method.md` — the two-altitude protocol, severity model, profile-overlay precedence.
 - `references/package-profile.md` — how to mine CLAUDE.md/AGENTS.md into a profile; the sei-k8s-controller worked example (the rules a generic linter misses).
-- `references/languages/_TEMPLATE.md` — the pluggable pack contract.
-- `references/languages/go.md` — the Go idiom pack (Effective Go, Go Code Review Comments, controller-runtime overlay, the Clean-Code divergences).
+- `references/language-pack-TEMPLATE.md` — the pluggable pack contract.
+- `references/language-pack-go.md` — the Go idiom pack (Effective Go, Go Code Review Comments, controller-runtime overlay, the Clean-Code divergences).
 - `references/datastructure-standard.md` — the package data-structure documentation standard + reusable `doc.go` template + toolchain.
 
 ## What this skill defers
