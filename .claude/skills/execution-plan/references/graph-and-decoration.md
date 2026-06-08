@@ -38,7 +38,7 @@ The three consumers are projections over the same call:
 - `/impact-portfolio` → `betGraph({ all, window:7d })`, per-bet section.
 - manager "what did my team do this week" → `betGraph({ persons:myTeam, window:7d })`, grouped by person + bet.
 
-`untaggedNearby` = in-scope work by the persons that carries no `impact:<slug>` label — the **coverage signal**, surfaced, never silently dropped.
+`untaggedNearby` = in-scope work by the persons that carries no `impact:<slug>` label — the **coverage signal** (missing-label work), surfaced, never silently dropped. Its inverse, **scope-creep candidates** = labeled issues with `designLinked=false` (work tied to the bet but not tracing to its design) — the TPM agent derives this directly from `plan.issues[].designLinked`; there is no separate field.
 
 **Degradation:** when Linear's GitHub integration isn't wired, `prs[]` is empty — the graph is **issue-only**; state it, don't infer PRs from branch names.
 
