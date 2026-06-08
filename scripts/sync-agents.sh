@@ -50,6 +50,7 @@ BLOCKCHAIN=(
 
 CODE_QUALITY=(
   idiomatic-reviewer
+  systems-engineer
 )
 
 PRODUCT_MANAGEMENT=(
@@ -81,6 +82,7 @@ PORTABLE=(
   go-to-market-specialist
   platform-release-manager
   idiomatic-reviewer
+  systems-engineer
 )
 
 SEI=(

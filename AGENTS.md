@@ -37,6 +37,7 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 | Agent | Scope |
 |-------|-------|
 | `idiomatic-reviewer` | Idiomatic-conformance review, language-pluggable. Digests the repo's agent files + `doc.go` into a local idiom profile that outranks generic idiom, overlays a per-language pack, emits two-altitude (design + surgical) cited findings. Reviews for idiom; does **not** author the system (that's the language specialist, e.g. `kubernetes-specialist`). Backed by the `/idiomatic` skill. |
+| `systems-engineer` | Systems software engineer — builds **and** reviews high-performance, reliable, observable, maintainable application code/architectures. Owns "how software behaves on the machine and over time": perf (CPU/mem/I/O/concurrency/latency), failure-modes-by-design (timeouts, back-pressure, idempotency, graceful degradation), observability-by-design, Linux/OS behavior, maintainability. Hooks into the `/idiomatic` standards (idiom ⊂ systems quality) and leans on `idiomatic-reviewer` for the pure idiom pass. Builds/reviews code; does **not** run the platform (→ `sre-engineer` / `platform-engineer` / observability agents). |
 
 ### product-management
 | Agent | Scope |
