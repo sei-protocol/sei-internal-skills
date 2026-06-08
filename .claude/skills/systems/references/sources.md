@@ -5,7 +5,7 @@ The authorities cited across the `/systems` references, with links and licensing
 | Short name | URL | Openness |
 |---|---|---|
 | Google SRE Book / Workbook | https://sre.google/books | Free online — CC-BY-**NC-ND** (cite only) |
-| AWS Builder's Library | https://aws.amazon.com/builders-library | Free online (cite) |
+| Amazon Builder's Library | https://aws.amazon.com/builders-library | Free online (cite) |
 | Principles of Chaos | https://principlesofchaos.org | Open community |
 | Fowler: CircuitBreaker | https://martinfowler.com/bliki/CircuitBreaker.html | Public blog (cite) |
 | Azure: Bulkhead pattern | https://learn.microsoft.com/azure/architecture/patterns/bulkhead | Free docs |

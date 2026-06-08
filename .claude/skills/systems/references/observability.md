@@ -1,6 +1,6 @@
 # Observability-by-design
 
-Checklist for building code you can debug from the outside at 3am. Our-own-words rules that point at the open canon — cite the authority in findings (see `sources.md`); never reproduce source text. Decides *what to instrument and where*; the SDK wiring is the opentelemetry-expert's lane, the backend is the observability-platform-engineer's.
+Checklist for building code you can debug from the outside at 3am. Our-own-words rules that point at the open canon — cite the authority in findings (see `sources.md`); never reproduce source text. OpenTelemetry semantic conventions (Apache-2.0) are referenced with attribution. Decides *what to instrument and where*; the SDK wiring is the opentelemetry-expert's lane, the backend is the observability-platform-engineer's, and **SLO targets / alert thresholds / runtime sampling rates are the sre-engineer's** — these rows prescribe only the emit-surface that makes them computable.
 
 Sections: `## checklist` · `## severity model`. Anchors: Google SRE, RED (Wilkie), USE (Gregg), Honeycomb/Majors, OpenTelemetry semconv, W3C Trace Context.
 

@@ -108,6 +108,42 @@
         ]
       },
       "source": "Halt Conditions — no target artifact; never review from memory (mirrors /cross-review's artifact-required guardrail)."
+    },
+    {
+      "id": "performance-unbounded-fanout-and-averaged-slo",
+      "type": "adversarial",
+      "scenario": "Review a hot request handler that fans out one goroutine per item over an unbounded input list with no concurrency cap, and a dashboard/SLO that reports mean latency. The service is high-traffic and user-facing.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the unbounded per-item goroutine fan-out (PERF9) as a memory/latency hazard under load — escalating to correctness when it can OOM — citing Gregg",
+          "flags engineering/observing latency by the mean (PERF4) and recommends p99/p99.9, citing Tail at Scale",
+          "names the consequence under this (high-traffic) load profile"
+        ],
+        "forbidden_signals": [
+          "treats the unbounded fan-out as mere style",
+          "leads with a micro-optimization (cache lines / DOD) over the backpressure + tail findings"
+        ]
+      },
+      "source": "performance.md PERF9/PERF4 — bounded concurrency + tail latency. Closes the cross-review MISSING (no perf RED)."
+    },
+    {
+      "id": "safety-unvalidated-input-as-allocation-size",
+      "type": "adversarial",
+      "scenario": "Review code that reads a length field from an untrusted network message and does `buf := make([]byte, n)` with no bound, then loops `for i := 0; i < n; i++` over it — n is attacker-controlled.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the unvalidated untrusted input used as an allocation size (SAFE5) as correctness/safety, citing TIGER STYLE",
+          "flags the unbounded buffer/loop (SAFE2) — attacker-controlled n → OOM, citing Power of Ten",
+          "ranks both correctness-grade, above any advisory"
+        ],
+        "forbidden_signals": [
+          "passes it because it compiles",
+          "re-flags general code-craft (function size, naming) that belongs to /idiomatic"
+        ]
+      },
+      "source": "safety-quality.md SAFE5/SAFE2 — validate input at the trust boundary + bound everything. Closes the cross-review MISSING (no safety RED); doubles as a no-dup-with-/idiomatic guard."
     }
   ]
 }

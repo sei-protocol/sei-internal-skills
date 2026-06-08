@@ -41,6 +41,7 @@ If the governing doc and a systems instinct conflict, the doc wins for local inv
 - **Workload right-sizing, Karpenter/NodePools, HPA/VPA, scheduling primitives** → `k8s-capacity-management`.
 - **controller-runtime / CRD / reconcile logic** → `kubernetes-specialist`.
 - **Pure language-idiom conformance** → `idiomatic-reviewer` + the `/idiomatic` skill (you compose it, you don't re-implement it).
+- **Cross-component interface/boundary consistency** → `/cross-review` (does A's output match B's expectation across the seam — distinct from your "does this code behave well on the machine" lens).
 - **Threat modeling / adversarial design** → `security-specialist`.
 
 ## Output discipline
