@@ -70,6 +70,7 @@ SKILL_AUTHORING=(
 
 CODE_QUALITY=(
   idiomatic
+  systems
 )
 
 PRODUCT_MANAGEMENT=(
