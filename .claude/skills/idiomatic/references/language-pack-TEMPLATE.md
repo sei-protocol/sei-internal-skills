@@ -23,6 +23,8 @@ detection *cue* (what the reviewer looks for), and an authority ref.
 | D1 | <e.g. naming> | <rule> | <what to look for> | <§2 ref> |
 | …  | | | | |
 
+**Required dimension — comment discipline.** Every pack MUST include a comment-discipline dimension, expressed in the language's idiom. The team standard it encodes: comments are an *uncommon exception* — names and structure carry control flow and intent, so the code reads without them; a comment earns its place only when something *above* the code must be explained that names can't convey. Structural/API docs (the language's package/module doc convention) are the sanctioned exception. **Historical/changelog reasoning never lives in code** ("we used to…", "removed because…") — it belongs in the PR/commit. Cue the reviewer to flag *what*-comments, changelog/history comments, commented-out code, and any comment a rename would delete.
+
 ## 2. authorities[]
 
 The citable sources. Findings reference these by name — no naked claims.

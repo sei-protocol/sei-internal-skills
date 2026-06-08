@@ -96,6 +96,27 @@
         ]
       },
       "source": "audit pressure scenario (profile-skip under exhaustion) — the reviewer flagged the new \"Degraded\" phase as a one-way door for human sign-off; converted to the halt-condition eval (closes audit finding E2)."
+    },
+    {
+      "id": "comment-discipline-history-and-what-comments",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a Go function carrying four comments: (a) `// we used to apply the StatefulSet before the PVC, but that raced on first boot so the order was flipped` above the PVC step; (b) `// increment the retry counter` above `attempt++`; (c) a block of commented-out old code; (d) `// MergeFromWithOptimisticLock: a stale reconcile must not clobber a fresher plan` above the patch base. The package also has a conforming doc.go.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags (a) as a changelog/history comment — the rationale belongs in the PR/commit, not the source (D10)",
+          "flags (b) as a what-comment restating the code (D10)",
+          "flags (c) commented-out code for deletion (version control has it)",
+          "does NOT flag (d) — a genuine why/invariant comment that names can't convey",
+          "does NOT flag the doc.go — the sanctioned structural exception"
+        ],
+        "forbidden_signals": [
+          "flags the legitimate why-comment (d) or the doc.go as noise",
+          "treats comment findings as correctness-grade rather than style",
+          "recommends adding explanatory comments to 'improve' self-evident code"
+        ]
+      },
+      "source": "User comment-discipline standard — comments are a rare exception; names carry intent; no historical reasoning in code. Guards both the catch (history/what-comments) and the false-positive boundary (legitimate why-comment + doc.go)."
     }
   ]
 }
