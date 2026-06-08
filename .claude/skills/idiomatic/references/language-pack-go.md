@@ -15,7 +15,7 @@ The worked reference pack, written against `_TEMPLATE.md`. Cite §2 authorities 
 | D7 | Composition | Embedding for behavior reuse; interfaces for polymorphism — not type hierarchies. | Simulated inheritance; deep embedding for data-only reuse. | Effective Go: Embedding |
 | D8 | Function shape | Return early; keep the happy path at minimal indentation; named returns only when they clarify or carry a deferred mutation. | `else` after a `return`; deeply nested happy path. | GCR: Indent Error Flow |
 | D9 | Mutability & copies | Consistent value/pointer receivers per type; `DeepCopy()` shared cache objects before mutating. | Mixed receiver kinds on one type; mutating a client-cache object without copy. | controller-runtime cache semantics |
-| D10 | Comments & docs | Doc comments are full sentences explaining *why*; package doc in `doc.go`. | `// what` restating code; package with no doc. | Effective Go: Commentary |
+| D10 | Comment discipline | Comments are an **uncommon exception** — names and structure carry control flow and intent; the code should read without them. A comment earns its place only when something *above* the code must be explained that names can't convey (a non-obvious *why*, a cross-cutting invariant). Package/structural docs live in `doc.go` (see `datastructure-standard.md`) — the sanctioned exception, not a license for inline prose. **No historical/changelog reasoning in code** ("we used to…", "removed because the alert was noisy") — that belongs in the PR/commit, where an investigator finds it. | `// what` restating the next line; "we used to"/"previously"/commented-out code; a comment a rename would delete; a package owning a non-trivial structure with no `doc.go`. | Effective Go: Commentary; GCR: Comment Sentences |
 | D11 | Generics discretion | Type params only when they remove real cross-type duplication; don't parameterize what one interface covers. | `[T any]` used once; generic where an interface is simpler. | Go generics guidance |
 
 ## 2. authorities[]
@@ -46,6 +46,9 @@ This is the load-bearing section. Do **not** flag these.
 - **Naked goroutine** — cue: `go f()` with no cancel/join. Rewrite: bound it to a context and make exit observable.
 - **`else`-after-`return`** — cue: an `else` block whose `if` already returned. Rewrite: drop the `else`, dedent the happy path.
 - **Stutter** — cue: `task.TaskExecution`. Rewrite: `task.Execution`.
+- **Changelog comment** — cue: a comment narrating past states ("we used to use X", "removed because the alert was noisy", "previously did Y"). Rewrite: delete it; the history lives in the PR/commit, where an investigating reader finds it — not in the source.
+- **What-comment** — cue: a comment restating what the next line does (`// increment the counter` over `i++`). Rewrite: delete it; if the line isn't self-evident, fix the name rather than annotate it.
+- **Commented-out code** — cue: blocks of code left commented out. Rewrite: delete; version control already has it.
 
 ## 5. framework_overlays[]
 
