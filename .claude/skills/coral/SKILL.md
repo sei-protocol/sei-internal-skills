@@ -25,6 +25,7 @@ This is the right tool when work is **scoped and iterative**: one or two compone
    - Two cleanly separable concerns → parallel dispatch.
    - Three+ or tangled concerns → this is probably council work. See Handoff.
    - **Design briefs always include a scope-cutter.** If the deliverable is a spec, LLD, or design doc (vs. an implementation patch or a code review), include `product-manager` (or the closest available scope-discipline persona) as either a parallel specialist or as a final scope-review pass before synthesis. Depth specialists alone tend to maximize their domain; the scope-cutter holds the floor on YAGNI.
+   - **Code review/refinement slices include the idiom lens.** If the slice is reviewing or refining existing code (vs. producing a design), include `idiomatic-reviewer` alongside the domain specialist. It checks a distinct axis — does the code read native to its language, framework, and the package's documented patterns — that the builder doesn't self-cover. Pair them: the language specialist (e.g. `kubernetes-specialist`) owns the build; `idiomatic-reviewer` owns the idiom pass.
 3. **Dispatch with a focused brief.** Each dispatch includes:
    - The specific slice
    - Which files to read first

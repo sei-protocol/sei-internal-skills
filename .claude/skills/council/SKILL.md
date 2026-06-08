@@ -113,6 +113,8 @@ After any work touching interface boundaries, run a cross-review by invoking the
 
 `/cross-review` dispatches the relevant specialists for independent review and synthesizes a findings table: COMPATIBLE / MISMATCH / MISSING. Resolve all MISMATCH and MISSING before proceeding.
 
+When the reviewed work includes **code or an implementation** (not solely specs/LLDs), `/cross-review` adds `idiomatic-reviewer` to the slate for the idiom-conformance lens — does the code read native to its language and the package's documented patterns. Its findings ride in a separate Idiom addendum; **correctness-grade idiom findings block the same as a MISMATCH** (style findings are advisory). This is inherited automatically — council does not dispatch `idiomatic-reviewer` itself.
+
 ### Interface Changes
 
 When work changes an interface:
