@@ -1,0 +1,113 @@
+{
+  "skill": "systems",
+  "version": "1",
+  "evals": [
+    {
+      "id": "happy-path-sound-service-no-findings",
+      "type": "happy-path",
+      "scenario": "Systems review of a small HTTP handler that: takes a request-scoped context with a deadline, calls one downstream with client.Timeout set + bounded retry (3) with backoff+jitter, emits RED metrics + a wide structured event, returns a structured error, and writes via an idempotency key. It's a low-traffic internal endpoint.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "concludes 'behaves well — no findings' (or near-zero)",
+          "lists the sound choices (deadline, bounded retry+jitter, idempotency, RED + wide event) under 'deliberately not flagging'",
+          "does not manufacture systems nits to look thorough"
+        ],
+        "forbidden_signals": [
+          "demands a circuit breaker / hedging / static allocation with no consequence for this load",
+          "produces a long list of advisory items as if they were findings"
+        ]
+      },
+      "source": "Rule 1 false-positive guard (the make-or-break gate) — on a sound system, say so."
+    },
+    {
+      "id": "reliability-unbounded-retry-no-timeout",
+      "type": "adversarial",
+      "scenario": "Review a client call: an unbounded `for { resp, err := http.Get(url); if err==nil break }` retry loop, fixed 1s sleep between tries, default http client (no timeout), feeding a downstream that's currently degraded.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the missing timeout (REL1) and the unbounded retry (REL3) as correctness/consequence, citing AWS Builder's Library / Google SRE",
+          "flags the fixed-interval (no-jitter) backoff (REL4) as a thundering-herd risk",
+          "names the consequence under load (retry storm amplifies the outage)"
+        ],
+        "forbidden_signals": [
+          "passes it because it compiles / works on the happy path",
+          "emits findings with no cited authority"
+        ]
+      },
+      "source": "reliability.md REL1/REL3/REL4 — retry storm + missing timeout."
+    },
+    {
+      "id": "observability-unbounded-cardinality-label",
+      "type": "adversarial",
+      "scenario": "Review code that records `requests_total.WithLabelValues(userID, fullURL).Inc()` — user id and raw URL as metric labels — on a high-traffic endpoint.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags unbounded metric-label cardinality (OBS7) as correctness — can take down the metrics backend, citing OTel semconv",
+          "recommends moving the high-cardinality ids to a span/wide event (OBS8)"
+        ],
+        "forbidden_signals": [
+          "treats it as a minor style nit",
+          "no authority cited"
+        ]
+      },
+      "source": "observability.md OBS7/OBS8 — cardinality discipline."
+    },
+    {
+      "id": "api-breaking-change-one-way-door",
+      "type": "adversarial",
+      "scenario": "Review a PR that renames a field in a published JSON API response (`order_id` → `id`) and tightens a previously-optional field to required.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the breaking change to a published contract (API1) as correctness for every existing caller, citing Google AIP",
+          "flags it as a one-way door for human approval rather than asserting the rename as the fix (Rule 2)"
+        ],
+        "forbidden_signals": [
+          "approves the rename as a cleanup",
+          "asserts the wire-format change without escalation"
+        ]
+      },
+      "source": "api-design.md API1 + Rule 2 one-way-door discipline."
+    },
+    {
+      "id": "rule1-consequence-doesnt-bite",
+      "type": "adversarial",
+      "scenario": "Review a one-shot CLI migration script (runs once, single-threaded, operator-invoked) that reads a file and applies rows. A reviewer is tempted to demand circuit breakers, p99 hedging, bounded worker pools, and static allocation.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "does NOT demand circuit breakers / hedging / worker-pool bounds / static allocation — none have a consequence for a one-shot single-threaded script",
+          "explicitly applies Rule 1 (no consequence under this load → not a finding)",
+          "limits findings to what actually bites here (e.g. validate the input file, check the error on each row)"
+        ],
+        "forbidden_signals": [
+          "flags resilience/perf rules that don't bite for a one-shot script",
+          "treats the systems checklist as a mandatory gate regardless of load profile"
+        ]
+      },
+      "source": "Rule 1 — rank by consequence-under-load; don't flag rules that don't bite. The skill's central discipline."
+    },
+    {
+      "id": "halt-condition-no-target-artifact",
+      "type": "halt-condition",
+      "scenario": "Asked '/systems-review the payments service' with no path, no diff, and no design pasted — the actual code/architecture can't be located or read.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "no target artifact to review — cannot systems-review from memory",
+        "compliance_signals": [
+          "halts and asks for the code path / diff / design rather than producing findings",
+          "does not fabricate a plausible findings list for a service it cannot read"
+        ],
+        "forbidden_signals": [
+          "invents systems findings about an unread service",
+          "proceeds with a generic checklist as if it had reviewed the artifact"
+        ]
+      },
+      "source": "Halt Conditions — no target artifact; never review from memory (mirrors /cross-review's artifact-required guardrail)."
+    }
+  ]
+}
