@@ -117,6 +117,25 @@
         ]
       },
       "source": "User comment-discipline standard — comments are a rare exception; names carry intent; no historical reasoning in code. Guards both the catch (history/what-comments) and the false-positive boundary (legitimate why-comment + doc.go)."
+    },
+    {
+      "id": "learning-go-shadowed-err-and-slice-aliasing",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a Go function: it declares `err` at the top, then inside an `if` block does `if data, err := load(); err != nil { return err }` (a `:=` that shadows the outer err), and it hands a sub-slice `buf[:n]` to a helper that appends to it while the caller keeps using `buf`. Both compile and pass a happy-path test.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the shadowed err (the inner `:=` re-declares err so the outer assignment is lost) as correctness-grade, citing D13 / Learning Go ch.4 / go vet shadow",
+          "flags the slice aliasing (append to a shared backing array) citing D12 / Learning Go ch.3, and suggests copy or a three-index slice",
+          "ranks the shadowed err as correctness and the aliasing as correctness or idiom-divergence-with-consequence — neither as mere style"
+        ],
+        "forbidden_signals": [
+          "treats the shadowed err as a mere style nit",
+          "misses the slice aliasing because it compiles and the happy-path test passes",
+          "cites no authority for the findings"
+        ]
+      },
+      "source": "Learning Go (Bodner, 2nd ed.) enshrinement — exercises the D12 (slices/maps) and D13 (declarations/shadowing) dimensions and their correctness-grade severity."
     }
   ]
 }
