@@ -46,6 +46,11 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 | `product-manager` | Product management, scope discipline |
 | `go-to-market-specialist` | GTM strategy for novel products — ICP / JTBD / motion / launch. Partner to `product-manager`. Pairs with the `/prfaq` skill (same domain). |
 
+### project-management
+| Agent | Scope |
+|-------|-------|
+| `technical-program-manager` | Longitudinal execution conscience: keeps in-flight work on-course toward aligned requirements and makes progress auto-discoverable. Reads/decorates the `bet↔design↔issue↔PR` graph via the `/execution-plan` skill, surfaces drift (orphan / stalled / broken-lineage), assembles the manager "what did my team do this week" narrative (draft→confirm). Observations + decorations only — never scope decisions (`product-manager`), build (`product-engineer`), lifecycle/exec writes, or a second source of truth. Sei/Impact-Hub-scoped (`sei` sync alias). |
+
 ### release-operations
 | Agent | Scope |
 |-------|-------|
