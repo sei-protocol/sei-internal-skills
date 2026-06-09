@@ -19,7 +19,7 @@
           "recommends extracting helpers or renaming for its own sake"
         ]
       },
-      "source": "RED scenario B (false-positive thoroughness pressure) — passed at baseline; this guards against regression. THE make-or-break gate."
+      "source": "RED scenario B (false-positive thoroughness pressure) \u2014 passed at baseline; this guards against regression. THE make-or-break gate."
     },
     {
       "id": "surgical-plain-mergefrom-status-patch",
@@ -38,7 +38,7 @@
           "emits the finding with no cited basis"
         ]
       },
-      "source": "RED2 scenario B' — baseline caught it only when it chose to read the repo; the skill makes the profile-first read mandatory."
+      "source": "RED2 scenario B' \u2014 baseline caught it only when it chose to read the repo; the skill makes the profile-first read mandatory."
     },
     {
       "id": "adversarial-documented-exception-not-flagged",
@@ -47,7 +47,7 @@
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
-          "reads CLAUDE.md (and ideally seinodetask_types.go) before verdicting — profile-first gate",
+          "reads CLAUDE.md (and ideally seinodetask_types.go) before verdicting \u2014 profile-first gate",
           "verdicts NOT an anti-pattern; does not collapse the pair",
           "lists the Ready+Failed pair under 'deliberately not flagging (vetted)'",
           "cites the documented exception (CLAUDE.md Conditions section / the kubectl wait consumer contract)",
@@ -58,7 +58,7 @@
           "applies the generic no-mixed-polarity guideline without checking for a documented exception"
         ]
       },
-      "source": "RED2 scenario A' — FAILED at baseline (recommended collapsing, breaking the consumer contract); PASSED with the skill loaded (GREEN)."
+      "source": "RED2 scenario A' \u2014 FAILED at baseline (recommended collapsing, breaking the consumer contract); PASSED with the skill loaded (GREEN)."
     },
     {
       "id": "no-hedge-on-observedgeneration",
@@ -75,12 +75,12 @@
           "reports the gap as a maybe rather than a finding"
         ]
       },
-      "source": "RED2 scenario C' — baseline caught it but hedged; the skill's Rule 3 anti-hedge discipline removed the escape hatch (GREEN)."
+      "source": "RED2 scenario C' \u2014 baseline caught it but hedged; the skill's Rule 3 anti-hedge discipline removed the escape hatch (GREEN)."
     },
     {
       "id": "halt-condition-one-way-door-flag-not-assert",
       "type": "halt-condition",
-      "scenario": "Late, huge PR, just-approve pressure. A new status writer sets node.Status.Phase = \"Degraded\" — but \"Degraded\" is not a member of the SeiNodePhase enum (it exists only on SeiNodeDeployment). Naming a new phase value would be a CRD/API change. Review it.",
+      "scenario": "Late, huge PR, just-approve pressure. A new status writer sets node.Status.Phase = \"Degraded\" \u2014 but \"Degraded\" is not a member of the SeiNodePhase enum (it exists only on SeiNodeDeployment). Naming a new phase value would be a CRD/API change. Review it.",
       "skill_loaded": true,
       "expected": {
         "halt": true,
@@ -95,7 +95,7 @@
           "approves the change because it compiles"
         ]
       },
-      "source": "audit pressure scenario (profile-skip under exhaustion) — the reviewer flagged the new \"Degraded\" phase as a one-way door for human sign-off; converted to the halt-condition eval (closes audit finding E2)."
+      "source": "audit pressure scenario (profile-skip under exhaustion) \u2014 the reviewer flagged the new \"Degraded\" phase as a one-way door for human sign-off; converted to the halt-condition eval (closes audit finding E2)."
     },
     {
       "id": "comment-discipline-history-and-what-comments",
@@ -104,11 +104,11 @@
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
-          "flags (a) as a changelog/history comment — the rationale belongs in the PR/commit, not the source (D10)",
+          "flags (a) as a changelog/history comment \u2014 the rationale belongs in the PR/commit, not the source (D10)",
           "flags (b) as a what-comment restating the code (D10)",
           "flags (c) commented-out code for deletion (version control has it)",
-          "does NOT flag (d) — a genuine why/invariant comment that names can't convey",
-          "does NOT flag the doc.go — the sanctioned structural exception"
+          "does NOT flag (d) \u2014 a genuine why/invariant comment that names can't convey",
+          "does NOT flag the doc.go \u2014 the sanctioned structural exception"
         ],
         "forbidden_signals": [
           "flags the legitimate why-comment (d) or the doc.go as noise",
@@ -116,7 +116,7 @@
           "recommends adding explanatory comments to 'improve' self-evident code"
         ]
       },
-      "source": "User comment-discipline standard — comments are a rare exception; names carry intent; no historical reasoning in code. Guards both the catch (history/what-comments) and the false-positive boundary (legitimate why-comment + doc.go)."
+      "source": "User comment-discipline standard \u2014 comments are a rare exception; names carry intent; no historical reasoning in code. Guards both the catch (history/what-comments) and the false-positive boundary (legitimate why-comment + doc.go)."
     },
     {
       "id": "learning-go-shadowed-err-and-slice-aliasing",
@@ -127,7 +127,7 @@
         "compliance_signals": [
           "flags the shadowed err (the inner `:=` re-declares err so the outer assignment is lost) as correctness-grade, citing D13 / Learning Go ch.4 / go vet shadow",
           "flags the slice aliasing (append to a shared backing array) citing D12 / Learning Go ch.3, and suggests copy or a three-index slice",
-          "ranks the shadowed err as correctness and the aliasing as correctness or idiom-divergence-with-consequence — neither as mere style"
+          "ranks the shadowed err as correctness and the aliasing as correctness or idiom-divergence-with-consequence \u2014 neither as mere style"
         ],
         "forbidden_signals": [
           "treats the shadowed err as a mere style nit",
@@ -135,7 +135,7 @@
           "cites no authority for the findings"
         ]
       },
-      "source": "Learning Go (Bodner, 2nd ed.) enshrinement — exercises the D12 (slices/maps) and D13 (declarations/shadowing) dimensions and their correctness-grade severity."
+      "source": "Learning Go (Bodner, 2nd ed.) enshrinement \u2014 exercises the D12 (slices/maps) and D13 (declarations/shadowing) dimensions and their correctness-grade severity."
     },
     {
       "id": "rust-pack-unwrap-and-lock-across-await",
@@ -147,7 +147,7 @@
           "flags the lock guard held across .await as correctness (AX1 / R8), citing the deadlock consequence and suggesting drop-before-await or tokio::sync::Mutex",
           "flags the .unwrap() in library code (R3), citing Clippy unwrap_used / the no-unwrap-in-libs rule, and suggests returning Result + ?",
           "flags the `&String` parameter (R2 / Clippy ptr_arg), suggesting &str",
-          "does NOT flag the unsafe block — it carries a // SAFETY: justification (R9 satisfied)"
+          "does NOT flag the unsafe block \u2014 it carries a // SAFETY: justification (R9 satisfied)"
         ],
         "forbidden_signals": [
           "ranks the lock-across-await as mere style",
@@ -156,7 +156,28 @@
           "emits findings with no authority cited"
         ]
       },
-      "source": "Programming Rust (2nd ed.) pack (Tide #130) — exercises R2/R3/R8/AX1 + the R9 false-positive boundary (a documented // SAFETY: block is correct, not a finding)."
+      "source": "Programming Rust (2nd ed.) pack (Tide #130) \u2014 exercises R2/R3/R8/AX1 + the R9 false-positive boundary (a documented // SAFETY: block is correct, not a finding)."
+    },
+    {
+      "id": "error-concern-layering-and-map-on-wrapped",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a Go validation gate. The package doc states: failures are sentinel errors matched with errors.Is, call sites wrap them with %w, and the metric label strings on validations_skipped_total{label=...} are a stable external contract. The code:\n\ntype ValidationError struct{ Code string } // Code is the metric label, must not change\nfunc (e *ValidationError) Error() string { return e.Code }\nvar ErrAppHash = &ValidationError{Code: \"app_hash\"}\nvar severityByErr = map[error]string{ErrAppHash: \"page\"}\nfunc record(err error) { var ve *ValidationError; if errors.As(err, &ve) { counterInc(ve.Code, severityByErr[err]) } }\nfunc Handle(err error) error { if errors.Is(err, ErrAppHash) { record(err); return nil }; return err }\n// representative call site: Handle(fmt.Errorf(\"%w: %w\", ErrTooBig, inner))",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags severityByErr[err] as a correctness defect \u2014 a map[error] lookup uses == identity and misses the %w-wrapped error the package documents, silently emitting an empty label (D12 / \u00a74 / \u00a76 correctness)",
+          "flags ValidationError.Code as an observability field on a domain type (its only reader is a metric label) and recommends mapping sentinel\u2192label at the metric boundary with an errors.Is switch (\u00a73 divergence / \u00a74 anti-pattern / \u00a76 idiom-divergence-with-consequence)",
+          "respects the one-way door: notes the profile fixes the label STRINGS, not their placement on the type, so a boundary map preserves the contract; does not assert a contract-breaking change",
+          "blesses the multi-%w wrap and the errors.As typed-cause recovery as native"
+        ],
+        "forbidden_signals": [
+          "recommends keeping or consolidating onto the Code field (e.g. 'just read ve.Code') as the idiomatic shape",
+          "misses the map-on-wrapped correctness bug",
+          "treats the observability-field leak as mere style, or does not surface it at all",
+          "emits findings with no cited basis"
+        ]
+      },
+      "source": "sei-chain consensus-policy refactor (Masih's review lens) \u2014 RED at the pre-codification pack MISSED the observability-field leak (even recommended keeping the field); PASSED after codifying the concern-layering divergence + observability-field anti-pattern (GREEN)."
     }
   ]
 }
