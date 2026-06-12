@@ -73,9 +73,15 @@ curation and placement of load-bearing context); the repetition-helps half is **
 
 **R4 — Ambiguity is typed, not prosed.** Anything undecided is *marked* — `Open question: … owner?
 decide by?` — never left as a soft modal. **Highest-value rule.** *Tier:* split — "explicit,
-disambiguated text serves agent consumers" is Cited (Anthropic tool-writing); "an unmarked soft modal
-gets silently resolved" is **Stated-opinion** (falsification above; observed twice in this skill's own
-RED baseline, which is evidence but not yet a citable consensus).
+disambiguated text serves agent consumers" is Cited (Anthropic tool-writing), and the *practice* claim
+("typed open-questions sections are canonical good practice") is now additionally Cited via convergent
+mandate across four independent ecosystems, verified 2026-06-12 (PLT-490 harvest): the Rust RFC template
+mandates an unresolved-questions section partitioned into before-merge / during-implementation /
+out-of-scope; the Go proposal template mandates "Open issues"; EIP-1 hard-gates Security Considerations
+(submissions without it are rejected); the kernel's submission discipline mandates problem-before-
+solution. The *causal* claim — "an unmarked soft modal gets silently resolved by an agent reader" —
+remains **Stated-opinion** (falsification above; the convergence evidences the convention, not the
+mechanism).
 
 **R5 — Color is subordinate to constraint and never load-bearing-only.** Narrative, analogy, and
 war stories are allowed — humans engage with them — but no constraint may live *only* in color or only
