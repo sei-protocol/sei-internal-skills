@@ -14,6 +14,10 @@ no registry (both deferred per Design 03 until the corpus exceeds ~1 vertical an
 Cite vocabulary — `cite: <vertical>/<kind>/<target>`:
 
 - `cite: hld/shape/<anchor>` → resolves to `exemplars/hld/canonical-shape.md#<anchor>`.
+- `cite: lld/shape/<anchor>` → resolves to `exemplars/lld/canonical-shape.md#<anchor>` (PLT-490).
+- `cite: hld/exemplar/<slug>` / `cite: lld/exemplar/<slug>` → resolve to
+  `exemplars/<vertical>/annotated-exemplars.md#<slug>` — annotated pointers at public, process-vetted
+  documents (positive exemplars only).
 - `cite: prfaq/source/<Q-id>` → resolves via `exemplars/prfaq.md` (a pointer) into
   `/prfaq/references/primary-sources.md`, by Q-ID (Q1, Q4, …).
 - `cite: prfaq/shape/<anchor>` → resolves via `exemplars/prfaq.md` into
@@ -37,8 +41,8 @@ prose-string + URL** in the doctrine files, exactly the way `/idiomatic` cites "
 
 One row per candidate source named in Design 03's verticals table — **license posture only, no harvested
 text**. Vertical status is marked so the "≥1 openly-licensed anchor per net-new vertical" property is
-visible even where the exemplar files are deferred (DEFERRED rows name sources; no `exemplars/<vertical>/`
-files exist yet).
+visible even where the exemplar files are deferred (DEFERRED/candidate rows name sources whose
+exemplar content doesn't exist yet; ACTIVE verticals have `exemplars/<vertical>/` files).
 
 | Short name | Vertical | URL | Openness |
 |---|---|---|---|
@@ -48,14 +52,17 @@ files exist yet).
 | AWS Well-Architected | HLD (ACTIVE) | https://docs.aws.amazon.com/wellarchitected | Reserved — © Amazon (cite-and-link only) |
 | Google SRE design chapters | HLD (ACTIVE) | https://sre.google/books | Reserved — CC-BY-NC-ND (cite-and-link only) |
 | PRFAQ sources | PRFAQ (reuse) | /prfaq/references/primary-sources.md | **Owned by `/prfaq`** — NOT duplicated here; that file is the single source of truth for the PRFAQ set (Working Backwards, Amazon shareholder letters, Bryar Coda, Commoncog, …) |
-| TIGER STYLE | LLD (DEFERRED) | https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md | **Apache-2.0** (summarize ideas; adapt w/ attribution) — phrasing per `/systems/references/sources.md` |
-| Google Engineering Practices | LLD (DEFERRED) | https://google.github.io/eng-practices | **CC-BY-3.0** (adapt w/ attribution) — per `/systems` |
-| Google AIP | LLD (DEFERRED) | https://aip.dev | **CC-BY-4.0** (text), Apache-2.0 (samples) — per `/systems` |
-| Rust RFCs | LLD (DEFERRED) | https://github.com/rust-lang/rfcs | Apache-2.0 / MIT (openly-licensed) |
-| PEPs | LLD (DEFERRED) | https://peps.python.org | CC0 / PSF (openly-licensed) |
-| ADR | LLD (DEFERRED) | https://adr.github.io | CC (openly-licensed) |
-| Oxide RFD | LLD (DEFERRED) | https://rfd.shared.oxide.computer | Open — confirm (reserved until verified) |
-| IETF RFCs | LLD (DEFERRED) | https://www.ietf.org/rfc | Reserved — RFC 5378 / BCP 78 governs reproduction (cite-and-link only) |
+| TIGER STYLE | LLD (candidate) | https://github.com/tigerbeetle/tigerbeetle/blob/main/docs/TIGER_STYLE.md | **Apache-2.0** (summarize ideas; adapt w/ attribution) — phrasing per `/systems/references/sources.md` |
+| Google Engineering Practices | LLD (candidate) | https://google.github.io/eng-practices | **CC-BY-3.0** (adapt w/ attribution) — per `/systems` |
+| Google AIP | LLD (candidate) | https://aip.dev | **CC-BY-4.0** (text), Apache-2.0 (samples) — per `/systems` |
+| Rust RFCs | LLD (ACTIVE) | https://github.com/rust-lang/rfcs | **Apache-2.0 OR MIT** (verified 2026-06-12: LICENSE-APACHE + LICENSE-MIT at repo root; per-RFC — repo-wide relicensing in progress per the README, confirm the specific RFC before adapting its text) — adapt w/ attribution |
+| Go proposals / design docs | LLD (ACTIVE) | https://github.com/golang/proposal | **BSD-3-Clause** (verified 2026-06-12: repo LICENSE) — adapt w/ attribution + notice |
+| Ethereum EIPs | LLD (ACTIVE) | https://eips.ethereum.org | **CC0 1.0** (verified 2026-06-12: repo LICENSE.md + per-EIP mandated waiver) — public-domain dedication, freest class |
+| Linux kernel docs | LLD (ACTIVE) | https://docs.kernel.org | **GPL-2.0 (default; verified 2026-06-12 per COPYING + per-file SPDX)** — **cite-and-link ONLY, never adapt** (copyleft); small `(GPL-2.0+ OR CC-BY-4.0)` dual-tagged exception set exists (admin-guide reporting/regressions docs) but the design exemplars (RCU/, memory-barriers.txt, process/) are GPL-only |
+| PEPs | LLD (candidate) | https://peps.python.org | CC0 / PSF (openly-licensed) |
+| ADR | LLD (candidate) | https://adr.github.io | CC (openly-licensed) |
+| Oxide RFD | LLD (candidate) | https://rfd.shared.oxide.computer | Open — confirm (reserved until verified) |
+| IETF RFCs | LLD (candidate) | https://www.ietf.org/rfc | Reserved — RFC 5378 / BCP 78 governs reproduction (cite-and-link only) |
 | Atlassian PRD templates | PRD (DEFERRED) | https://www.atlassian.com/software/confluence/templates | Published for adoption (openly-licensed) |
 | Cagan / SVPG: "How to Write a Good PRD" | PRD (DEFERRED) | https://www.svpg.com | Reserved (cite-and-link only) |
 | Lenny's Newsletter | PRD (DEFERRED) | https://www.lennysnewsletter.com | Reserved (cite-and-link only) |
@@ -64,10 +71,16 @@ files exist yet).
 | McEnerney: "The Craft of Writing Effectively" | 1-pager (DEFERRED) | https://www.youtube.com/watch?v=vtIzMaLkCaM | Reserved — public talk (cite-and-link only) |
 | Shape Up (Basecamp) | 1-pager (DEFERRED) | https://basecamp.com/shapeup | Reserved (cite-and-link only) |
 
-DEFERRED-row license postures are best-effort from Design 03 and re-verified at harvest before any text is
-adapted; treat any unverified row as reserved.
+DEFERRED/candidate-row license postures are best-effort from Design 03 and re-verified at harvest before
+any text is adapted; treat any unverified row as reserved. ACTIVE rows dated "verified 2026-06-12" were
+checked first-hand against the repo license files (PLT-490 harvest). LLD vertical status: ACTIVE —
+`exemplars/lld/canonical-shape.md` + `annotated-exemplars.md` exist; `candidate` rows are named sources
+not yet exemplified.
 
-Deferred — `lingua://` URI scheme + indexed `registry.md` + resolver: un-defer when the corpus exceeds
-~1 vertical of real entries (grep stops sufficing). Per Design 03; not built here.
+**Registry un-defer trigger: MET as of PLT-490** — HLD and LLD are both ACTIVE with real entries, so
+Design 03's condition ("the corpus exceeds ~1 vertical") now holds. The `lingua://` URI scheme + indexed
+`registry.md` + resolver are **not built here** (the identifier scheme is a soft one-way door requiring a
+deliberate human decision); they are the flagged next corpus build goal, no longer an indefinite deferral.
+Until then, grep over prose-string cites remains the resolution mechanism.
 
 Full provenance + per-vertical synthesis: Design 03 (link above).
