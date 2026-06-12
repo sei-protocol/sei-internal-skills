@@ -14,10 +14,12 @@
 # --target:      target directory (the script appends .claude/skills/). Default: $HOME.
 # --categories:  comma-separated list of categories. Default: portable.
 #                domains: workflow, workstream-bootstrap, hardening, investigation,
-#                         skill-authoring, product-management, project-management,
+#                         skill-authoring, code-quality, writing-quality,
+#                         product-management, project-management,
 #                         release-operations, engineer-self-service
 #                aliases: portable (workflow+workstream-bootstrap+hardening+
-#                           investigation+skill-authoring+product-management),
+#                           investigation+skill-authoring+code-quality+
+#                           writing-quality+product-management),
 #                         sei (project-management+release-operations+engineer-self-service),
 #                         all
 #                (output-quality — brevity, pr-quality — is Tide-local, not synced)
@@ -73,6 +75,10 @@ CODE_QUALITY=(
   systems
 )
 
+WRITING_QUALITY=(
+  lingua
+)
+
 PRODUCT_MANAGEMENT=(
   prfaq
 )
@@ -96,7 +102,7 @@ ENGINEER_SELF_SERVICE=(
 
 # Meta-aliases cross-cut the domains (back-compat with the Makefile / muscle memory):
 #   portable = workflow + workstream-bootstrap + hardening + investigation
-#              + skill-authoring + product-management + code-quality
+#              + skill-authoring + code-quality + writing-quality + product-management
 #   sei      = project-management + release-operations + engineer-self-service
 #   all      = every domain above
 # (output-quality is Tide-local — deliberately has no sync case below.)
@@ -146,13 +152,14 @@ for cat in "${CAT_ARRAY[@]}"; do
     investigation)         SKILLS_TO_SYNC+=("${INVESTIGATION[@]}") ;;
     skill-authoring)       SKILLS_TO_SYNC+=("${SKILL_AUTHORING[@]}") ;;
     code-quality)          SKILLS_TO_SYNC+=("${CODE_QUALITY[@]}") ;;
+    writing-quality)       SKILLS_TO_SYNC+=("${WRITING_QUALITY[@]}") ;;
     product-management)    SKILLS_TO_SYNC+=("${PRODUCT_MANAGEMENT[@]}") ;;
     project-management)    SKILLS_TO_SYNC+=("${PROJECT_MANAGEMENT[@]}") ;;
     release-operations)    SKILLS_TO_SYNC+=("${RELEASE_OPERATIONS[@]}") ;;
     engineer-self-service) SKILLS_TO_SYNC+=("${ENGINEER_SELF_SERVICE[@]}") ;;
-    portable)  SKILLS_TO_SYNC+=("${WORKFLOW[@]}" "${WORKSTREAM_BOOTSTRAP[@]}" "${HARDENING[@]}" "${INVESTIGATION[@]}" "${SKILL_AUTHORING[@]}" "${CODE_QUALITY[@]}" "${PRODUCT_MANAGEMENT[@]}") ;;
+    portable)  SKILLS_TO_SYNC+=("${WORKFLOW[@]}" "${WORKSTREAM_BOOTSTRAP[@]}" "${HARDENING[@]}" "${INVESTIGATION[@]}" "${SKILL_AUTHORING[@]}" "${CODE_QUALITY[@]}" "${WRITING_QUALITY[@]}" "${PRODUCT_MANAGEMENT[@]}") ;;
     sei)       SKILLS_TO_SYNC+=("${PROJECT_MANAGEMENT[@]}" "${RELEASE_OPERATIONS[@]}" "${ENGINEER_SELF_SERVICE[@]}") ;;
-    all)       SKILLS_TO_SYNC+=("${WORKFLOW[@]}" "${WORKSTREAM_BOOTSTRAP[@]}" "${HARDENING[@]}" "${INVESTIGATION[@]}" "${SKILL_AUTHORING[@]}" "${CODE_QUALITY[@]}" "${PRODUCT_MANAGEMENT[@]}" "${PROJECT_MANAGEMENT[@]}" "${RELEASE_OPERATIONS[@]}" "${ENGINEER_SELF_SERVICE[@]}") ;;
+    all)       SKILLS_TO_SYNC+=("${WORKFLOW[@]}" "${WORKSTREAM_BOOTSTRAP[@]}" "${HARDENING[@]}" "${INVESTIGATION[@]}" "${SKILL_AUTHORING[@]}" "${CODE_QUALITY[@]}" "${WRITING_QUALITY[@]}" "${PRODUCT_MANAGEMENT[@]}" "${PROJECT_MANAGEMENT[@]}" "${RELEASE_OPERATIONS[@]}" "${ENGINEER_SELF_SERVICE[@]}") ;;
     output-quality)
       echo "output-quality (brevity, pr-quality) is a Tide-local domain — not synced. Edit it in Tide." >&2
       exit 2 ;;
