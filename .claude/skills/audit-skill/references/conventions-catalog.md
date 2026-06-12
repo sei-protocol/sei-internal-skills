@@ -53,6 +53,7 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 | R3 | info | static | Cross-references to other skills use the skill name only (no `@skills/...` force-loads). Plain-markdown relative links to sibling skills are fine — see R5. |
 | R4 | warn | semantic | Reference files don't duplicate SKILL.md content — they extend it |
 | R5 | info | semantic | Cross-skill references using `../<sibling-skill>/references/<file>.md` or `.claude/skills/<sibling>/references/<file>.md` are permitted between skills in the same `.claude/skills/` directory when they encode a handoff contract or shared methodology (e.g., audit-skill's pressure-testing reuses author-skill's RED-GREEN-REFACTOR docs; coral's handoff points at design/issue's coral-integration refs). These are documentation links, not force-loads — they don't violate R1. Surfaced as info-only so reviewers see the cross-skill coupling. |
+| R6 | info | semantic | A skill that declares a **cite/exemplar contract** in its references (a corpus directory whose paths are load-bearing cite targets, e.g. lingua's `references/exemplars/<vertical>/` per its `sources.md` cite vocabulary) may nest those corpus files one extra level. The contract file must document the path scheme. Scope: corpus/exemplar content only — the skill's own method/reference docs still obey R1. |
 
 ## Scripts [procedural only]
 

@@ -9,7 +9,7 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
    ```sh
    ./scripts/sync-skills.sh
    ```
-   This copies the portable skills (`bugbash`, `coral`, `council`, `cross-review`, `design`, `issue`, `author-skill`, `audit-skill`, `root-cause`, `prfaq`) into `~/.claude/skills/` so they're available everywhere.
+   This copies the portable skills (`bugbash`, `coral`, `council`, `cross-review`, `design`, `issue`, `author-skill`, `audit-skill`, `root-cause`, `prfaq`, `idiomatic`, `systems`, `lingua`) into `~/.claude/skills/` so they're available everywhere.
 3. **Re-run after `git pull`** if these skills changed upstream. It's idempotent — safe to run any time.
 
 **Edit skills in Tide, never in `~/.claude/skills/`.** Local edits at user-scope get overwritten on next sync. To change a skill, edit it here and PR.
@@ -20,7 +20,7 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
 
 Claude Code discovers skills as **flat** direct subdirectories of `skills/` — nested folders and custom roots (e.g. `~/.claude/tide/`) are NOT discovered. So domain grouping is **metadata, not directories**, expressed in three mirrored places: each skill's `category:` SKILL.md frontmatter, the sync script's domain lists (`sync-skills.sh --categories <domain>`), and the sections of this catalog.
 
-**Domains:** `workflow` · `workstream-bootstrap` · `hardening` · `investigation` · `skill-authoring` · `output-quality` (Tide-local) · `product-management` · `project-management` · `release-operations` · `engineer-self-service`. Sync aliases cross-cut them: `portable`, `sei`, `all`.
+**Domains:** `workflow` · `workstream-bootstrap` · `hardening` · `investigation` · `skill-authoring` · `writing-quality` · `output-quality` (Tide-local) · `product-management` · `project-management` · `release-operations` · `engineer-self-service`. Sync aliases cross-cut them: `portable`, `sei`, `all`.
 
 ## Catalog
 
@@ -55,6 +55,11 @@ Language- and framework-idiom conformance review. Pairs with the `idiomatic-revi
 
 - **`idiomatic/`** — Review and refine code so it reads native to its language, framework, and the package's own established patterns. Digests the repo's agent files (CLAUDE.md/AGENTS.md) + the package's `doc.go` into a local idiom profile that **outranks** generic textbook idiom, then overlays a pluggable per-language idiom pack (`references/languages/<lang>.md`; Go ships first, written against `_TEMPLATE.md`). Two-altitude output — design-level and surgical line-level, each citing its basis. Discipline spine pressure-tested with subagents: profile-first gate, local-profile-overrides-generic (including documented exceptions), cite-every-finding, and a false-positive guard. Includes a package data-structure documentation standard (`references/datastructure-standard.md`, modeled on sei-k8s-controller's planner→executor→task `doc.go`). Distinct from `/code-review` (correctness), `/cross-review` (boundary consistency), and `/pr-quality` (locked rule gate) — durable idiom findings can graduate into the pr-quality registry.
 - **`systems/`** — Review/design code & architecture for **systems-level quality**: reliability, observability, performance, safety, API durability. A citable standards corpus grounded in the open canon (Google SRE, AWS Builder's Library, OTel semconv, TigerBeetle TIGER STYLE, NASA Power of Ten, Google AIP, …) split one-level-deep by theme, that the `systems-engineer` agent hooks into (also invocable as `/systems-review`). Findings ranked by **consequence-under-load**, each cited; discipline spine = consequence-ranking · cite-everything/copyright-clean · don't-duplicate-the-idiom-or-ops-lens. Idiom ⊂ systems quality: run `/idiomatic` first, `/systems` on top. Distinct from `/code-review` (correctness), `/cross-review` (boundary consistency), and the ops agents (operating the running system).
+
+### Writing Quality
+Dual-audience (human ↔ AI agent) prose conformance. Pairs with the `prose-steward` agent (PLT-480, same domain) — the skill is the doctrine + machinery, the agent is the standing review lens.
+
+- **`lingua/`** — Translate an org artifact (design doc/HLD, PRD, 1-pager) so it reads correctly for **both** audiences: the human who scans (NN/g F-pattern, working-memory limits) and the AI agent that ingests linearly and acts on what it reads. Mirrors `/idiomatic`'s mechanism — a cited `references/audience-model.md` (rules R1–R5 with basis tiers: **Cited** may surface as findings; **Stated-opinion** is advisory-only, never blocking, each with a falsification line) + a pluggable artifact pack (`references/pack-hld.md` ships first) + a repo-profile overlay (`CLAUDE.md` "Writing conventions") that **outranks** the generic doctrine and can establish exceptions. Discipline spine pressure-tested with subagents: two-part gate (no doctrine → no output; profile read first), fidelity (never invent commitments), typed ambiguity (soft modals become Open questions, never promoted to requirements), advisory-only (no agent-parsed format — council-gated one-way door). Grounded by the exemplar corpus under `references/exemplars/` (cite contract from PLT-478). One mode (Translate); Compose/Review deferred — review arrives via `prose-steward`. Distinct from `/idiomatic` (code idiom), `/prfaq` (the PRFAQ vertical), `/systems` (runtime quality), `/brevity` (PR-body tightening).
 
 ### Hardening
 - **`bugbash/`** — Long-running, read-only adversarial review of an existing system by the council of experts. Loops discovery + challenger passes against a named target (`/bugbash SeiNode controller`) until the experts converge on a launch verdict. Output is a structured findings log at `docs/bugbash/<target>.md` with per-item Scenario / Impact / Issue / Fix sketch / Test coverage. Inspired by the [RALPHY loop](https://github.com/snarktank/ralph), reframed for hardening before launch. Distinct from `/security-review` (single-pass, security-only) and `/coral` (collaborative iteration, not adversarial).
@@ -106,6 +111,6 @@ A project-scope skill in this repo is only discoverable when Claude Code is runn
 
 If a tracked file in the target differs from Tide's version, the skill is reported as a conflict and skipped — re-run with `--force` to overwrite. Target-only files (user customizations, runtime artifacts) are preserved.
 
-Sibling of `scripts/sync-agents.sh` — same shape, same flags. Sync by **domain** (`--categories project-management`, `--categories workflow`, …) or by **alias**: `portable` (the 10 general skills), `sei` (the 5 Sei-team skills: impact-weekly, impact-portfolio, chaos-suite, validate-release, harbor-dev), `all`. `output-quality` (brevity, pr-quality) is Tide-local and not synced. Update the domain lists in the script when a skill is added, renamed, or re-categorized.
+Sibling of `scripts/sync-agents.sh` — same shape, same flags. Sync by **domain** (`--categories project-management`, `--categories workflow`, …) or by **alias**: `portable` (the general-purpose skill set, incl. code-quality + writing-quality), `sei` (the 5 Sei-team skills: impact-weekly, impact-portfolio, chaos-suite, validate-release, harbor-dev), `all`. `output-quality` (brevity, pr-quality) is Tide-local and not synced. Update the domain lists in the script when a skill is added, renamed, or re-categorized.
 
 For procedural skills like `chaos-suite` that operate on remote infrastructure, you can also just run them from Tide and pass `--repo` / target paths to direct work elsewhere — no sync needed.

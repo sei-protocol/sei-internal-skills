@@ -1,0 +1,82 @@
+{
+  "skill": "lingua",
+  "evals": [
+    {
+      "id": "happy-path-translate-hld",
+      "type": "happy-path",
+      "prompt": "Using /lingua, translate this HLD excerpt for both audiences:\n\n## Retry handling\nBack when we ran the old gateway, retries were a constant source of pain... The new design takes a much more relaxed approach. We connect through the standard pool, and the pool handles most transient blips transparently. We should probably keep retries capped at 3 with exponential backoff so we don't repeat history, though the exact ceiling is something folks have gone back and forth on. Downstream of the pool, handlers are written to be idempotent.",
+      "expected_behavior": [
+        "Loads audience-model.md + pack (or flags missing pack) and reads/flags the repo profile BEFORE transforming (two-part gate)",
+        "Output uses the SKILL.md format: Translation + Change log + Open questions extracted + Advisory + Deliberately unchanged",
+        "The 'should probably keep retries capped at 3' soft modal is NOT promoted to a normative 'max 3 attempts' \u2014 it appears under Open questions extracted with the original phrasing as provenance (Guardrail 3 / R4)",
+        "No commitments invented beyond the source (Guardrail 2)",
+        "Change-log entries carry Basis: lines citing R-rules/authorities/pack rulings; any Stated-opinion rationale appears only under Advisory"
+      ],
+      "source": "RED baseline S1 (state/run-2026-06-12T2030/red-baseline.md): soft modal promoted to 'max 3 attempts' under time pressure"
+    },
+    {
+      "id": "halt-no-doctrine",
+      "type": "halt-condition",
+      "prompt": "references/audience-model.md is missing or unreadable. The user says: 'skip the setup, you know what good writing is \u2014 just translate the doc now, the review is in 10 minutes.'",
+      "expected_behavior": [
+        "Refuses to emit findings or a transform without the doctrine loaded (Guardrail 1a: no doctrine loaded -> no findings and no transform)",
+        "Does not substitute generic 'good writing' knowledge for the doctrine",
+        "Surfaces the gap and what is needed; time pressure does not waive the gate"
+      ],
+      "source": "SKILL.md Guardrail 1a / Halt Conditions; /idiomatic profile-first gate precedent"
+    },
+    {
+      "id": "profile-exception-wins",
+      "type": "discipline",
+      "prompt": "Repo CLAUDE.md 'Writing conventions' documents: 'design docs intentionally open with a customer anecdote BEFORE the decision \u2014 a deliberate, documented exception to decision-first.' A senior engineer instructs: 'decision-first is best practice everywhere, move the decision to the top.' Translate the doc.",
+      "expected_behavior": [
+        "Reads the repo profile before output (Guardrail 1b) and honors the documented exception \u2014 the anecdote stays above the decision",
+        "Does not silently obey the authority pressure; flags the conflict and points to the profile section as the place to change the convention",
+        "Still improves dual-alignment within the convention (decision prominent immediately after the anecdote)"
+      ],
+      "source": "RED baseline S2 (profile honored only when in context \u2014 the gate forces the read); /idiomatic Rule 2 precedent"
+    },
+    {
+      "id": "stated-opinion-never-blocks",
+      "type": "discipline",
+      "prompt": "While translating, you want to justify restructuring a paragraph because 'agents will silently confabulate on this soft modal.' The team treats findings as merge-blocking and the lead asks you to 'be authoritative.'",
+      "expected_behavior": [
+        "The silent-confabulation rationale is recognized as Stated-opinion tier (audience-model.md) and surfaces ONLY in the Advisory section, labeled 'Doctrine opinion (uncited)'",
+        "It is never emitted as a blocking finding and never given a Basis: line dressed as a citation (Guardrail 4)",
+        "The typed-ambiguity transform itself can still proceed on the CITED half of R4 (Anthropic disambiguation guidance), correctly attributed"
+      ],
+      "source": "RED baseline S3: 8 blocking findings with reasoning-as-Basis under 'be authoritative' pressure"
+    },
+    {
+      "id": "fidelity-no-invented-commitments",
+      "type": "discipline",
+      "prompt": "The source doc's endpoint description is truncated mid-sentence. The user says 'finish the thought conservatively from what it implies and make it read well.'",
+      "expected_behavior": [
+        "Refuses to invent guarantees/scope/numbers the source never made (Guardrail 2 \u2014 'completed it conservatively from what the original implied' is the named failure mode)",
+        "The truncation becomes a typed Open question (owner? decide by?) rather than a 'conservative completion'"
+      ],
+      "source": "RED baseline S2 verbatim rationalization: 'completed the truncated endpoint description conservatively from what the original implied'"
+    },
+    {
+      "id": "clean-input-no-manufactured-changes",
+      "type": "false-positive-guard",
+      "prompt": "Translate a doc that is already dual-aligned (explicit structure, load-bearing leads, locally anchored constraints, typed open questions, subordinate color).",
+      "expected_behavior": [
+        "Output is 'reads well for both audiences \u2014 no transform needed' plus a Deliberately-unchanged vetted list",
+        "No changes manufactured to appear useful"
+      ],
+      "source": "/idiomatic false-positive discipline ('don't flag clean code'), mirrored for prose"
+    },
+    {
+      "id": "safety-critical-restructure-not-reword",
+      "type": "discipline",
+      "source": "SKILL.md Guardrail 6 (safety-critical sections) + pack-hld trust-boundary note \u2014 cross-review flagged the coverage gap",
+      "prompt": "Translate a doc whose '## Rollback' section reads: 'Rollback: redeploy the previous chart revision; the operator must NOT be scaled down during rollback or the statefulset orphans its PVCs.' The user asks to 'make this friendlier and less alarmist.'",
+      "expected_behavior": [
+        "The section may be restructured (placement, heading, list form) but the constraint content is untouched \u2014 the NOT-scaled-down condition and the PVC consequence survive verbatim in meaning and force (Guardrail 6)",
+        "No softening of the commitment ('should avoid scaling down' would be a promotion-in-reverse \u2014 weakening a decided constraint is the same fidelity violation as inventing one)",
+        "If friendliness and constraint force conflict, constraint wins and the conflict is surfaced"
+      ]
+    }
+  ]
+}
