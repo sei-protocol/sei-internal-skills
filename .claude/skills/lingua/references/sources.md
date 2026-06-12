@@ -15,9 +15,11 @@ Cite vocabulary — `cite: <vertical>/<kind>/<target>`:
 
 - `cite: hld/shape/<anchor>` → resolves to `exemplars/hld/canonical-shape.md#<anchor>`.
 - `cite: lld/shape/<anchor>` → resolves to `exemplars/lld/canonical-shape.md#<anchor>` (PLT-490).
-- `cite: hld/exemplar/<slug>` / `cite: lld/exemplar/<slug>` → resolve to
-  `exemplars/<vertical>/annotated-exemplars.md#<slug>` — annotated pointers at public, process-vetted
-  documents (positive exemplars only).
+- `cite: hld/exemplar/<slug>` / `cite: lld/exemplar/<slug>` / `cite: one-pager/exemplar/<slug>` →
+  resolve to `exemplars/<vertical>/annotated-exemplars.md#<slug>` — annotated pointers at public,
+  process-vetted documents (positive exemplars only).
+- `cite: one-pager/shape/<anchor>` → resolves to `exemplars/one-pager/canonical-shape.md#<anchor>`
+  (PLT-491).
 - `cite: prfaq/source/<Q-id>` → resolves via `exemplars/prfaq.md` (a pointer) into
   `/prfaq/references/primary-sources.md`, by Q-ID (Q1, Q4, …).
 - `cite: prfaq/shape/<anchor>` → resolves via `exemplars/prfaq.md` into
@@ -66,16 +68,25 @@ exemplar content doesn't exist yet; ACTIVE verticals have `exemplars/<vertical>/
 | Atlassian PRD templates | PRD (DEFERRED) | https://www.atlassian.com/software/confluence/templates | Published for adoption (openly-licensed) |
 | Cagan / SVPG: "How to Write a Good PRD" | PRD (DEFERRED) | https://www.svpg.com | Reserved (cite-and-link only) |
 | Lenny's Newsletter | PRD (DEFERRED) | https://www.lennysnewsletter.com | Reserved (cite-and-link only) |
-| Working Backwards (Bryar & Carr) | 1-pager (DEFERRED) | https://www.workingbackwards.com | Reserved — trade book (cite-and-link only); facts citable, text not |
-| Bezos shareholder letters / PowerPoint ban | 1-pager (DEFERRED) | https://www.aboutamazon.com | Reserved — © Amazon (cite-and-link only) |
-| McEnerney: "The Craft of Writing Effectively" | 1-pager (DEFERRED) | https://www.youtube.com/watch?v=vtIzMaLkCaM | Reserved — public talk (cite-and-link only) |
-| Shape Up (Basecamp) | 1-pager (DEFERRED) | https://basecamp.com/shapeup | Reserved (cite-and-link only) |
+| Working Backwards (Bryar & Carr) | 1-pager (candidate) | https://www.workingbackwards.com | Reserved — trade book (cite-and-link only); facts citable, text not |
+| Bezos shareholder letters / PowerPoint ban | 1-pager (candidate) | https://www.aboutamazon.com | Reserved — © Amazon (cite-and-link only) |
+| McEnerney: "The Craft of Writing Effectively" | 1-pager (candidate) | https://www.youtube.com/watch?v=vtIzMaLkCaM | Reserved — public talk (cite-and-link only) |
+| Shape Up (Basecamp) | 1-pager (candidate) | https://basecamp.com/shapeup | Reserved (cite-and-link only) |
+| AR 25-50 (Army correspondence) | 1-pager (ACTIVE) | https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN42124-AR_25-50-007-WEB-13.pdf | **Public domain — 17 U.S.C. §105** (verified 2026-06-12) — adapt freely; doctrine only, not embedded third-party material |
+| SECNAV M-5216.5 (Navy correspondence manual) | 1-pager (ACTIVE) | https://www.secnav.navy.mil/doni/ (verified copy: https://www.navyband.navy.mil/documents/secnav-m52165-ch1.pdf) | **Public domain — §105** (verified 2026-06-12 via the deep-linked PDF) — adapt freely |
+| AFH 33-337 "The Tongue and Quill" | 1-pager (ACTIVE) | https://www.e-publishing.af.mil/ (verified copy: https://www.govinfo.gov/content/pkg/GOVPUB-D301-PURL-gpo67301/pdf/GOVPUB-D301-PURL-gpo67301.pdf) | **Public domain — §105** (verified 2026-06-12 via the deep-linked GPO copy) — adapt freely **except embedded literary epigraphs (third-party copyright)** |
+| Federal Plain Language Guidelines + OMB M-11-15 | 1-pager (ACTIVE) | https://digital.gov/guides/plain-language/ · https://obamawhitehouse.archives.gov/sites/default/files/omb/memoranda/2011/m11-15.pdf | **Public domain — §105** (verified 2026-06-12; original 2011 guidelines via GSA archive — plainlanguage.gov redirects to digital.gov) — adapt freely |
+| BVP published investment memos | 1-pager (ACTIVE) | https://www.bvp.com/memos | Reserved — freely published, © Bessemer (cite-and-link only) |
+| Coinbase mission memo (Armstrong) | 1-pager (ACTIVE) | https://www.coinbase.com/blog/coinbase-is-a-mission-focused-company | Reserved — author-published (cite-and-link only) |
+| BLUF practitioner essays (Ström-Awn; Sehgal/HBR; *Smart Brevity*) | 1-pager (ACTIVE) | https://mattstromawn.com/writing/bluf/ · https://hbr.org/2016/11/how-to-write-email-with-military-precision · https://www.hachettebookgroup.com/titles/jim-vandehei/smart-brevity/9781523516971/ | Reserved (cite-and-link only — no quoted fragments; *Smart Brevity* is a trade book) |
 
 DEFERRED/candidate-row license postures are best-effort from Design 03 and re-verified at harvest before
 any text is adapted; treat any unverified row as reserved. ACTIVE rows dated "verified 2026-06-12" were
-checked first-hand against the repo license files (PLT-490 harvest). LLD vertical status: ACTIVE —
-`exemplars/lld/canonical-shape.md` + `annotated-exemplars.md` exist; `candidate` rows are named sources
-not yet exemplified.
+checked first-hand against the repo license files (PLT-490 harvest) or, for the 1-pager rows, against
+the official PD documents (PLT-491 harvest; §105 caveats: contractor and state-government works are NOT
+PD, and embedded third-party material in PD manuals stays copyrighted). Vertical status: HLD, LLD, and
+one-pager are ACTIVE — each has `exemplars/<vertical>/` canonical-shape + annotated-exemplars files;
+`candidate` rows are named sources not yet exemplified.
 
 **Registry un-defer trigger: MET as of PLT-490** — HLD and LLD are both ACTIVE with real entries, so
 Design 03's condition ("the corpus exceeds ~1 vertical") now holds. The `lingua://` URI scheme + indexed
