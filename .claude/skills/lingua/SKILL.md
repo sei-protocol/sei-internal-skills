@@ -16,9 +16,11 @@ that always wins; same spine: cite every finding, don't flag clean prose). One m
 
 These hold under time pressure, authority, and a tidy-looking rewrite:
 
-1. **The two-part gate.** (a) **No doctrine loaded → no findings and no transform.** Load
-   `references/audience-model.md` and the artifact pack (`references/pack-<type>.md`) before touching
-   the text. (b) **The repo profile is read before any output** — a `CLAUDE.md` "Writing conventions"
+1. **The two-part gate.** (a) **No doctrine loaded → no findings and no transform.** The hard gate is
+   `references/audience-model.md` — load it before touching the text, plus the artifact pack
+   (`references/pack-<type>.md`) **when one exists for the doc type** (MVP ships `pack-hld.md`). A doc
+   type with no pack degrades, not halts: proceed on `audience-model.md` + first principles with the
+   missing-pack gap flagged — never invent a pack. (b) **The repo profile is read before any output** — a `CLAUDE.md` "Writing conventions"
    section (or the repo's nominated equivalent). The profile **overrides the doctrine in both
    directions** and can establish exceptions to rules this skill correctly knows. If no profile exists:
    proceed against the doctrine + first principles and **flag the missing-profile gap** (reduced
@@ -127,10 +129,10 @@ needed"* plus the vetted list. Manufacturing changes to look useful gets this sk
 
 Stop and surface rather than proceeding when:
 
-- **The doctrine can't be loaded** (`audience-model.md` or the artifact pack missing/unreadable) — no
-  findings, no transform; time pressure does not waive the gate (Guardrail 1a).
-- **No artifact pack exists for the doc type** — proceed against `audience-model.md` + first principles
-  only with the missing-pack gap flagged; never invent a pack.
+- **`audience-model.md` is missing or unreadable** — the hard gate: no findings, no transform; time
+  pressure does not waive it (Guardrail 1a). *(Distinct: a doc type with **no artifact pack** is a
+  degrade, not a halt — proceed on `audience-model.md` + first principles with the missing-pack gap
+  flagged; never invent a pack.)*
 - **The user asks for an agent-parsed format** (front-matter contract, inline markers) — refuse;
   redirect to the council gate (Guardrail 5).
 - **Overwriting the source file is requested without explicit confirmation**, or the artifact belongs to
