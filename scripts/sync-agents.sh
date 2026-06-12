@@ -53,6 +53,10 @@ CODE_QUALITY=(
   systems-engineer
 )
 
+WRITING_QUALITY=(
+  prose-steward
+)
+
 PRODUCT_MANAGEMENT=(
   product-engineer
   product-manager
@@ -88,6 +92,7 @@ PORTABLE=(
   platform-release-manager
   idiomatic-reviewer
   systems-engineer
+  prose-steward
 )
 
 SEI=(
@@ -144,6 +149,7 @@ for cat in "${CAT_ARRAY[@]}"; do
     security)            AGENTS_TO_SYNC+=("${SECURITY[@]}") ;;
     blockchain)          AGENTS_TO_SYNC+=("${BLOCKCHAIN[@]}") ;;
     code-quality)        AGENTS_TO_SYNC+=("${CODE_QUALITY[@]}") ;;
+    writing-quality)     AGENTS_TO_SYNC+=("${WRITING_QUALITY[@]}") ;;
     product-management)  AGENTS_TO_SYNC+=("${PRODUCT_MANAGEMENT[@]}") ;;
     release-operations)  AGENTS_TO_SYNC+=("${RELEASE_OPERATIONS[@]}") ;;
     project-management)  AGENTS_TO_SYNC+=("${PROJECT_MANAGEMENT[@]}") ;;
