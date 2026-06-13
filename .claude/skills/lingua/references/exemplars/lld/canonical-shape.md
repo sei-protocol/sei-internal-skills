@@ -104,3 +104,31 @@ design (Rust "Future possibilities"; const-generics' "Future Extensions"; Go's e
 multi-error support, which later landed separately). The positive twin of a non-goals list — it lets
 the author decline scope without appearing to have missed it. **Without it:** every review thread
 re-opens the adjacent feature, and the core proposal grows until it stalls.
+
+## rollout-and-sequencing
+
+How the component ships *incrementally*. This **shares its core with the HLD's
+`sequencing-and-milestones`** (`cite: hld/shape/sequencing-and-milestones`) — phases, what ships first,
+what each milestone depends on, and what's deferred with its un-defer trigger (the YAGNI floor written
+down) — and **extends it with three deltas an infra/operator LLD carries that a protocol RFC does not**:
+
+- **Per-phase rollback.** Each phase names how to undo it, **anchored at the phase it reverses** — not a
+  single rollback paragraph at the end. (The section's R3 obligation: a rollback that lives away from its
+  phase is one an operator can't find mid-incident.)
+- **Cross-repo merge-ordering.** When the change spans repos, the ordering is a typed, load-bearing
+  constraint — e.g. "the producer must not merge until consumers can pin the matching version." An agent
+  coordinating two repos builds to this; a soft "land them together" is untyped ambiguity (R4).
+- **Files touched.** The concrete edit surface, anchored to the code **by symbol or section, not a bare
+  line number** (line numbers rot; a symbol survives a refactor). This is the doc-authoring use of file
+  anchoring — not a corpus `cite:` form.
+
+It does **not** restate what other sections already own: breaking changes / wire-format one-way doors
+stay in `compatibility`; risk stays in `drawbacks-and-risks`; deferral of *adjacent features* stays in
+`future-possibilities`. This section is the *timeline and the operational ordering* — nothing the spine
+already homes. Per-phase rollback and merge-ordering are **commitment content** (Guardrail-6: restructure,
+never reword). Rules **R3 (peak — anchor each phase's rollback locally)** + **R4 (ordering and dependency
+constraints typed, not prosed)**.
+
+**Without it:** the implementer infers the build order, rollback is a single end-of-doc paragraph an
+operator can't map to the failing step, and a cross-repo change merges out of order and breaks a consumer
+that pinned the wrong version.

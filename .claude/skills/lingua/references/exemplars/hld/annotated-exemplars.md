@@ -4,10 +4,11 @@
 > annotated in our own words against the HLD spine (`canonical-shape.md` — `cite: hld/shape/<anchor>`)
 > and audience-model rules R1–R5. Cite an entry as `cite: hld/exemplar/<slug>` → the `##` anchors below.
 > **The slugs are stable cite targets — renaming one is a breaking change for citing rules.** Inclusion
-> bar matches the LLD set: process-vetted (merged/Final/in-tree), heavily reviewed, widely consumed.
+> bar matches the LLD set: process-vetted (merged/Final/in-tree, or **org-owned** merged/Draft-under-review
+> per the `org-owned` class in `../../sources.md`), heavily reviewed, widely consumed.
 > Most harvested documents are LLD-genre (see `../lld/annotated-exemplars.md`); the entries below are the
 > harvest's genuinely architecture-level reads — the PLT-490 harvest closed at four; new entries enter
-> when a genuinely architecture-level public doc clears the bar. Nothing reproduced beyond nominative
+> when a genuinely architecture-level public or org-owned doc clears the bar. Nothing reproduced beyond nominative
 > titles and section names; license classes in `../../sources.md`.
 
 ## linux-rcu-design-tree
@@ -56,3 +57,16 @@ only.**
   not of any one function — anchored in the section and argued where they bite (→ R3).
 - The economic motivation models `hld/shape/context-and-problem` for a mechanism change: the
   environment (auction dynamics, user overpayment) is established before the mechanism appears.
+
+## seinode-import-volume-shapes
+
+**SeiNode import-volume — shapes evaluated** — `sei-k8s-controller/docs/design-seinode-import-volume.md`
+· Draft/RFC · License class: **org-owned** (adapt w/ attribution).
+
+- The **decision-matrix** done right: a `## Shapes evaluated` table scoring options A–E across named
+  axes (e.g. interaction-with-Retain-orphan) *before* the decision — humans scan the rows, an agent
+  reads each `(axis, option, value)` cell (→ the decision-matrix affordance on
+  `hld/shape/key-decisions-and-alternatives`; R1+R4).
+- "Additional options considered" types each rejected option with its reason and a revisit-trigger
+  ("Evaluated but **not adopted**… Revisit if orphan adoption becomes frequent enough") — alternatives a
+  reviewer can pressure-test, not assertions (→ `hld/shape/key-decisions-and-alternatives`).

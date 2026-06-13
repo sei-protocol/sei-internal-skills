@@ -1,8 +1,9 @@
 # Annotated LLD exemplars — what good looks like, with provenance
 
 > **Corpus content (Design 03; harvested under PLT-490, verified 2026-06-12).** Positive exemplars only.
-> Each entry is an our-own-words annotation **pointing at** a public, process-vetted document — merged or
-> Final (one deliberate exception, noted), heavily reviewed, widely implemented. Annotations name what
+> Each entry is an our-own-words annotation **pointing at** a process-vetted document — **public**
+> (merged or Final; one deliberate exception, noted) **or org-owned** (an internal Sei doc, merged or
+> Draft-under-review; see the `org-owned` class in `../../sources.md`). Annotations name what
 > the exemplar demonstrates, keyed to `lld/shape/<anchor>` sections and audience-model rules (R1–R5).
 > Cite an exemplar as `cite: lld/exemplar/<slug>` → the `##` anchors below. **The slugs are stable cite
 > targets — renaming one is a breaking change for citing rules.** Nothing is reproduced beyond nominative
@@ -171,3 +172,29 @@ License class: **GPL-2.0 — cite-and-link only.**
   before the change is mentioned at all (→ `lld/shape/motivation-and-problem`; R2 at changelog scale).
 - One-logical-change-per-patch with a built-in self-test (a description growing long signals a needed
   split) — scope discipline as a falsifiable rule.
+
+## config-manager-design
+
+**sei-chain configuration manager** — `sei-config/docs/config-manager/DESIGN.md` · merged · License
+class: **org-owned** (adapt w/ attribution).
+
+- The MVP seam ships minimal (only stamps `schema_version` on write); `doctor` / refuse-on-newer /
+  `migrate` **ride with the deferred CLI** — sequencing stated as what-ships-now vs what-rides-later,
+  not a flat feature list (→ `lld/shape/rollout-and-sequencing`; R4).
+- "Future (deferred)" names two consolidations, each **reversible and out of scope now**, with the
+  dependency arrow that makes them safe — typed deferral with its condition
+  (→ `lld/shape/rollout-and-sequencing`, `lld/shape/future-possibilities`).
+- A one-way door called out inline ("auto-migrate + no-downgrade is a per-pod one-way door that breaks
+  rollback") — reversibility made visible at the decision (→ `lld/shape/rationale-and-alternatives`).
+
+## validation-substrate-ship-cut
+
+**seictl validation substrate** — `seictl/docs/design/validation-substrate.md` · Draft (coral
+cross-review) · License class: **org-owned** (adapt w/ attribution).
+
+- The `v1 ship cut` table (Artifact | v1 | Trigger-to-un-defer) ships effectively no new code in v1 and
+  lands each primitive only on a named trigger, "not speculatively." The cleanest corpus instance of a
+  rollout/ship-cut driven by typed un-defer triggers (→ `lld/shape/rollout-and-sequencing`; R4).
+- Each deferred primitive names the painkiller that un-defers it — e.g. an engineer reporting a bench
+  that passed while validators OOM-ed the whole window — so a bare "later" is replaced by a falsifiable
+  signal (→ `lld/shape/rollout-and-sequencing`).
