@@ -1,6 +1,6 @@
 # Language pack contract (TEMPLATE)
 
-A language pack is **data** the method loads. Every pack must provide the six sections below, in this order, so the method stays language-agnostic. **Adding a language = drop one file conforming to this template** at `references/language-pack-<lang>.md` and (optionally) map the language to a specialist agent.
+A language pack is **data** the method loads. Every pack must provide the six required sections below, in this order, so the method stays language-agnostic — plus an optional-but-recommended §7 `lint_anchors[]` (see below; the Go pack carries one). **Adding a language = drop one file conforming to this template** at `references/language-pack-<lang>.md` and (optionally) map the language to a specialist agent.
 
 This section schema is a **soft one-way door**: changing it churns every existing pack. Revise deliberately.
 
@@ -68,6 +68,23 @@ How to map this pack's dimensions onto the method's three tiers
 - correctness: <which dimensions/overlays land here>
 - idiom-divergence-with-consequence: <…>
 - style: <…>
+
+## 7. lint_anchors[]  (optional but recommended)
+
+The machine-checkable rules (linter IDs / analyzer names) behind the dimensions,
+so a finding can cite a *checkable* anchor instead of only prose. A table:
+dimension/anti-pattern → anchor(s) → catalog/tool → what it flags → caveat.
+The language's lint ecosystem supplies these (Go: go vet / staticcheck /
+golangci-lint; Rust: Clippy / rustc lints; TS: eslint/tsc; …).
+
+Three rules make this section trustworthy:
+- **Cite anchors only from this table — never assert a check ID from memory.**
+  A wrong, falsifiable ID handed to an author is worse than none.
+- **Mark genuinely judgment-only dimensions explicitly** ("no anchor —
+  judgment-only") so the reviewer cites the prose authority and does not
+  fabricate a check.
+- **Record provenance caveats** — off-by-default checks, version-dependent rule
+  names, canonical spellings — so a cited ID is accurate for the repo's config.
 ```
 
 ---

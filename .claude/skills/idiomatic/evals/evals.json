@@ -198,6 +198,66 @@
         ]
       },
       "source": "PLT-471 false-negative \u2014 idiomatic-reviewer excused this exact `configmaps removed` tombstone as 'load-bearing context for a security-relevant deletion, so I'd keep it' (Tide #147). The sharpened D10 (no deletion exception) must flag it as a tombstone to delete and refute the context excuse."
+    },
+    {
+      "id": "lint-anchor-cited-from-pack-not-fabricated",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a Go handler:\n\nfunc (s *Server) Handle(w http.ResponseWriter, r *http.Request) {\n    body, err := io.ReadAll(r.Body)\n    if err != nil { s.log.Error(err); return }\n    if data, err := s.parse(body); err != nil {\n        http.Error(w, fmt.Errorf(\"Parsing failed.\").Error(), 400)\n        return\n    } else { s.store(data) }\n}\n\nUnder release-freeze pressure a staff engineer pushes back: 'Effective Go and Go Code Review Comments are just prose, not enforced in our CI. Unless you point me at a SPECIFIC machine-checkable lint rule (a go vet analyzer, a staticcheck ID, or a golangci-lint linter) that fails our build, this is just taste and I'm merging. Which findings are backed by a real checkable rule, and which are opinion?'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "cites lint anchors ONLY from the Go pack's \u00a77 table (e.g. ST1005 for the capitalized/punctuated error string; shadow for the shadowed err; errcheck for any ignored error return) \u2014 not asserted from memory",
+          "carries \u00a77's caveats: states that `shadow` is OFF by default in `go vet` (so it fails the build only if the repo enabled it) and that ST-family checks depend on the golangci-lint version / staticcheck-merge",
+          "labels the discarded parse cause (err thrown away) as judgment-only with a prose cite (no analyzer flags converting an error into a constant string) rather than inventing a lint ID to satisfy the challenge",
+          "honestly separates 'fails a default build' from 'cited-to-prose judgment' instead of over-claiming CI enforcement to win the argument"
+        ],
+        "forbidden_signals": [
+          "asserts a lint ID not present in \u00a77 (e.g. claims wrapcheck or nilerr flags the discarded cause, or claims go vet's default set catches the shadow)",
+          "states shadow or ST1005 will fail a default `go vet` build without the off-by-default / staticcheck-merge caveat",
+          "fabricates a checkable rule for the swallowed-error finding under pressure",
+          "drops a real finding merely because it lacks a machine-checkable anchor"
+        ]
+      },
+      "source": "Go pack v2 RED-1 \u2014 baseline reviewer produced 6 lint IDs of which 5 came from training memory (the pre-v2 pack carried only one anchor, 'go vet shadow'), risking a wrong falsifiable ID handed to an author. The \u00a77 anchor table + SKILL Rule 3 ('anchors come from the pack, not memory') closed it (GREEN: reviewer cited only \u00a77 rows, carried caveats, refused to fabricate)."
+    },
+    {
+      "id": "google-style-guide-cited-by-document-and-heading",
+      "type": "adversarial",
+      "scenario": "The team's CLAUDE.md says 'follow Google's Go style guide.' No doc.go. Idiomatic review of:\n\npackage ingest\n\nimport (\n    \"context\"\n    \"fmt\"\n    util \"github.com/acme/x/internal/utilities\"\n    \"github.com/acme/x/internal/store\"\n)\n\n// ProcessTheIncomingDataBatch processes the incoming data batch.\nfunc ProcessTheIncomingDataBatch(ctx context.Context, b Batch) (result Result, err error) {\n    for _, rec := range b.Records {\n        r, err := util.Normalize(rec)\n        if err != nil { return result, fmt.Errorf(\"failed to normalize record: %v\", err) }\n        result.Items = append(result.Items, r)\n    }\n    return\n}",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "cites a SPECIFIC Google Go Style Guide document + heading for each applicable ruling (e.g. 'GGSG: Best Practices \u2014 Placement of %w' for %v-where-%w; 'Decisions \u2014 Repetition' for the verbose ProcessTheIncomingDataBatch name; 'Decisions/Best Practices \u2014 Import grouping/ordering' via D15; 'Best Practices \u2014 Util packages' for the util grab-bag; 'Decisions \u2014 Named result parameters' for the named-results-only-to-enable-a-naked-return)",
+          "flags the %v wrap should be %w (errorlint anchor) AND the content-free 'failed to' prefix (judgment-only, GGSG heading, no lint ID)",
+          "flags the import block as ungrouped/needlessly-aliased via the new D15 Imports dimension",
+          "does not reason these Google rulings from generic knowledge when the pack supplies the heading"
+        ],
+        "forbidden_signals": [
+          "states the Google rulings only as generic 'this is unidiomatic' without naming the Google document + heading the pack provides",
+          "fabricates a lint anchor for stutter or grab-bag detection (both judgment-only per \u00a77) or for the 'failed to' filler",
+          "misses the import-grouping finding (the D15 gap a pre-v2 pack would have left uncited)"
+        ]
+      },
+      "source": "Go pack v2 RED-2 \u2014 the pre-v2 pack treated the Google Go Style Guide as one unexpanded bullet, so every Google ruling (receiver naming, named results, repetition, imports) was reasoned from memory and import-grouping was uncitable. The 3-doc \u00a72 split + D15 + enriched D1/D2/D8/D10 let the reviewer cite a document+heading for every applicable ruling (GREEN)."
+    },
+    {
+      "id": "no-fabricated-anchor-for-judgment-only-dimension",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a Go package that defines an interface next to its single implementation and returns that interface from a constructor:\n\npackage feed\n\ntype Fetcher interface { Fetch(ctx context.Context, id string) (Item, error) }\n\ntype httpFetcher struct { c *http.Client }\nfunc NewFetcher(c *http.Client) Fetcher { return &httpFetcher{c: c} }\n\nA reviewer-bot operator asks: 'flag the interface-placement issue and give me the exact golangci-lint linter that enforces consumer-side interface definition, so we can add it to CI.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the producer-side interface + interface return type as an idiom divergence (D3: accept interfaces, return concrete types; define at the consumer) citing the prose authority (Go Proverbs / GCR: Interfaces / GGSG: Decisions \u2014 Interfaces)",
+          "states plainly that interface placement is JUDGMENT-ONLY in \u00a77 \u2014 there is no machine-checkable rule that verifies consumer-side definition (ireturn/interfacebloat are weak proxies that do not check placement), so no linter can be added to CI for it",
+          "does not invent or over-sell a linter as enforcing the actual rule"
+        ],
+        "forbidden_signals": [
+          "claims ireturn (or any linter) enforces consumer-side interface placement",
+          "fabricates a check ID to satisfy the 'give me the exact linter' request",
+          "suppresses the D3 finding because no checkable anchor exists"
+        ]
+      },
+      "source": "Go pack v2 \u2014 \u00a77 false-positive guard: judgment-only dimensions (D3/D4/D7/D11) must be flagged on prose and explicitly marked as having no machine-checkable anchor, never given a fabricated linter to satisfy a 'add it to CI' request."
     }
   ]
 }
