@@ -79,8 +79,9 @@ Not a framework — the boundary that determines how a finding is routed. It ran
 
 ## 6. severity_model
 
-- **correctness / [SEC→defer]** — S1 reentrancy (state-after-call), S3 ungated privileged function / `tx-origin` auth, S2 unchecked low-level call, S6 unchecked ERC-20 transfer. These are exploitable classes: flag the idiomatic form, cite the detector (with its Slither Impact+Confidence), defer exploit depth to `security-specialist` (SEC1).
-- **idiom-divergence-with-consequence** — S4 require-string-where-custom-error-fits (gas), S5 SafeMath-on-0.8 / unargued `unchecked` (gas/safety), S7 const-able/immutable-able storage & `memory`-vs-`calldata` (gas), S9 floating pragma (non-determinism), S3 missing-zero-check, S12 shadowing.
+- **correctness / [SEC→defer]** — exactly the §7 `[SEC→defer]` set: S1 reentrancy (state-after-call), S3 ungated privileged function / `tx-origin` auth, S6 unchecked ERC-20 transfer, S12 `shadowing-state` (inherited state shadowed). These are exploitable classes: flag the idiomatic form, cite the detector (with its Slither Impact+Confidence), defer exploit depth to `security-specialist` (SEC1).
+- **correctness (flag directly, not deferred)** — S2 unchecked low-level call (a swallowed failed `.call`): check the return / use a typed call, cite `unchecked-lowlevel` — *not* a `[SEC→defer]` class.
+- **idiom-divergence-with-consequence** — S4 require-string-where-custom-error-fits (gas), S5 SafeMath-on-0.8 / unargued `unchecked` (gas/safety), S7 const-able/immutable-able storage & `memory`-vs-`calldata` (gas), S9 floating pragma (non-determinism), S3 missing-zero-check, S12 `shadowing-local`/`shadowing-builtin` (the non-state shadowing).
 - **style** — S8 event/indexing nits, S10 NatSpec presence, S11 comment nits, naming/layout, `explicit-types`. Bundle these; never lead with them.
 
 Profile note: this pack is **subordinate to the repo profile** (`package-profile.md`). A repo's documented convention (e.g. a fixed compiler via Foundry config, a house error library) or its slither/solhint config (which detectors/rules are actually enabled) overrides any dimension here — reconcile against the profile and the real config first.
