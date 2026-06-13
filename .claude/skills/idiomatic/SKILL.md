@@ -131,6 +131,8 @@ For findings that need *judgment* the static pack can't carry (e.g. "is this rec
 - `references/examples-rust.md` — on-demand worked good/bad pairs for the Rust pack; each lint-anchored pair verified by running `cargo clippy` (anchors + default-on/off status demonstrated).
 - `references/language-pack-typescript.md` — the TypeScript idiom pack (TS Handbook, Google TS Style Guide, typescript-eslint, the `tsc` strict family) — plus §7 eslint/tsc lint anchors recording each rule's **preset** and whether it **requires type information** (the type-checked-rules-silently-skip trap) and a judgment-only list.
 - `references/examples-typescript.md` — on-demand worked good/bad pairs for the TS pack; each lint-anchored pair verified by running `eslint`/`tsc` (anchors + preset + type-info status demonstrated).
+- `references/language-pack-solidity.md` — the Solidity idiom pack (Solidity Style Guide + Security Considerations + Common Patterns, OpenZeppelin, the SWC registry, Slither, Solhint) — plus §7 Slither/Solhint/solc anchors (with Slither Impact+Confidence, the `[SEC→defer]` idiom-vs-security boundary, and a judgment-only list). Maps to the `solidity-developer` specialist.
+- `references/examples-solidity.md` — on-demand worked good/bad pairs for the Solidity pack; each lint-anchored pair verified by running `slither`/`solhint`/`solc` (anchors demonstrated).
 - `references/datastructure-standard.md` — the package data-structure documentation standard + reusable `doc.go` template + toolchain.
 
 ## What this skill defers

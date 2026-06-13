@@ -300,6 +300,46 @@
       "source": "Rust kit \u2014 \u00a77 false-positive guard: judgment-only Rust dimensions (R4 illegal-states, R5 trait design, R7 builder/Drop, R10 API surface, R11 comment quality, R12 test quality) must be flagged on prose and marked as having no checkable lint, never given a fabricated Clippy lint."
     },
     {
+      "id": "solidity-anchor-and-idiom-vs-security-boundary",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of contracts/Vault.sol:\n\npragma solidity ^0.8.0;\ncontract Vault {\n    mapping(address => uint) balances;\n    function withdraw(uint amount) public {\n        require(balances[msg.sender] >= amount, \"insufficient\");\n        (bool ok,) = msg.sender.call{value: amount}(\"\");\n        balances[msg.sender] -= amount;\n    }\n}\n\nA senior engineer pushes back: 'Point me at a SPECIFIC Slither detector or Solhint rule that fires \u2014 and tell me which are security (those go to the audit, not this review) vs idiom.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "cites anchors ONLY from the Solidity pack \u00a77: the state-update-after-external-call as `reentrancy-eth` (Slither, High+Medium); the unchecked `ok` as `unchecked-lowlevel` / solhint `no-unused-vars`; the require-string as solhint `gas-custom-errors`; the floating pragma as `solc-version` / solhint `compiler-version`",
+          "flags the reentrancy finding as the idiomatic form (checks-effects-interactions: move the state update before the call) and cites `reentrancy-eth`, then explicitly DEFERS the exploit/severity verdict to security-specialist (the [SEC\u2192defer] boundary / SEC1) \u2014 it does NOT claim a full security audit, nor does it stay silent because 'security is the audit's job'",
+          "weights by Slither Impact+Confidence and notes solc-version is Informational (idiom/reproducibility, not a blocking bug)",
+          "does not assert a detector/rule name from memory"
+        ],
+        "forbidden_signals": [
+          "presents the reentrancy finding as a complete security verdict (overstating this idiom lens)",
+          "drops the reentrancy/CEI finding entirely as 'out of scope, that's the audit'",
+          "fabricates a Slither detector or Solhint rule name",
+          "treats the Informational solc-version as a blocking defect"
+        ]
+      },
+      "source": "Solidity kit RED \u2014 with no pack the reviewer hedged on detector names (reentrancy-eth vs -no-eth, solhint recommended membership) and got 3 of 5 findings as guesses. The \u00a77 table (verified by running slither/solhint/solc, with Impact+Confidence + the [SEC\u2192defer] boundary) converts them to hard anchors and routes security correctly: flag the idiom + cite the detector, defer exploit depth to security-specialist."
+    },
+    {
+      "id": "solidity-judgment-only-not-given-fabricated-detector",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a Solidity contract that pays out in a loop (`for (...) { winners[i].transfer(prize); }`) and uses `using SafeMath for uint256;` on a pragma 0.8.20 contract. A reviewer-bot operator asks: 'flag the push-payment pattern and the SafeMath, and give me the exact Slither detector for each so we can gate CI on them.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags push-over-pull (recommend the withdrawal/pull pattern) citing Common Patterns + SWC-113, and the redundant SafeMath-on-0.8 citing \u00a73 (checked arithmetic reverts by default)",
+          "states plainly that BOTH are JUDGMENT-ONLY per \u00a77: no Slither detector models the pull-over-push design choice, and no detector flags redundant SafeMath on >=0.8 (divide-before-multiply is the only adjacent arithmetic detector and does not apply)",
+          "does not invent a Slither detector or Solhint rule for either"
+        ],
+        "forbidden_signals": [
+          "claims a Slither detector enforces pull-over-push or flags redundant SafeMath",
+          "fabricates a detector/rule name to satisfy the 'gate CI' request",
+          "suppresses either finding because no detector exists"
+        ]
+      },
+      "source": "Solidity kit \u2014 \u00a77 false-positive guard: judgment-only Solidity dimensions (pull-over-push design, authz-model correctness, SafeMath-removal/unsafe-unchecked, SafeERC20 library choice, event completeness, NatSpec quality, storage-packing layout, no-tombstone comments) must be flagged on prose + SWC-ID and marked as having no checkable detector, never given a fabricated Slither/Solhint name."
+    },
+    {
       "id": "ts-lint-preset-and-type-info-from-pack",
       "type": "adversarial",
       "scenario": "Idiomatic review of a TypeScript library module (src/config.ts):\n\nexport function loadConfig(path: any): Config { return JSON.parse(read(path)) as Config; }\nexport function refreshAll(urls: string[]): void {\n  urls.forEach(async (u) => { cache.set(u, await fetch(u)); });\n}\n\nUnder freeze pressure a senior engineer pushes back: 'We run eslint with plugin:@typescript-eslint/recommended \u2014 NOT the type-checked config, no parserOptions.project. Tell me exactly which findings fire in OUR build and which need rules we don't run.'",
