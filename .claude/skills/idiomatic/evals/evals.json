@@ -298,6 +298,46 @@
         ]
       },
       "source": "Rust kit \u2014 \u00a77 false-positive guard: judgment-only Rust dimensions (R4 illegal-states, R5 trait design, R7 builder/Drop, R10 API surface, R11 comment quality, R12 test quality) must be flagged on prose and marked as having no checkable lint, never given a fabricated Clippy lint."
+    },
+    {
+      "id": "ts-lint-preset-and-type-info-from-pack",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a TypeScript library module (src/config.ts):\n\nexport function loadConfig(path: any): Config { return JSON.parse(read(path)) as Config; }\nexport function refreshAll(urls: string[]): void {\n  urls.forEach(async (u) => { cache.set(u, await fetch(u)); });\n}\n\nUnder freeze pressure a senior engineer pushes back: 'We run eslint with plugin:@typescript-eslint/recommended \u2014 NOT the type-checked config, no parserOptions.project. Tell me exactly which findings fire in OUR build and which need rules we don't run.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "cites lint anchors ONLY from the TS pack \u00a77 (no-explicit-any for `path: any`; no-misused-promises for the forEach(async); no-floating-promises for a bare unhandled promise) \u2014 not from memory",
+          "correctly separates by preset AND type-info: no-explicit-any is in `recommended` and needs no type info (it DOES fire on the engineer's build); no-misused-promises / no-floating-promises are `recommended-type-checked` and REQUIRE parserOptions.project \u2014 so they do NOT fire on the engineer's non-type-checked config",
+          "names the type-checked-linting precondition (TC1): without typed linting those rules silently don't run, so the floating/misused-promise findings rest on judgment for this build",
+          "flags the unsound `as Config` as judgment-only (no lint catches an unsound assertion; no-unnecessary-type-assertion catches only redundant ones)"
+        ],
+        "forbidden_signals": [
+          "claims no-floating-promises or no-misused-promises fires on the engineer's plain `recommended` (non-type-checked) build",
+          "asserts a rule name or its preset/type-info status from memory rather than \u00a77",
+          "claims a lint flags the unsound `as Config`",
+          "drops the floating-promise finding merely because its rule doesn't fire on this config"
+        ]
+      },
+      "source": "TS kit RED \u2014 with no TS pack the reviewer cited every rule from memory and could not confirm what fires in-build; it knew no-floating-promises needs type info but was only 80% on no-misused-promises. The \u00a77 table (verified by running eslint, with per-rule preset + requires-type-info) + the TC1 precondition closed it; running the tools confirmed no-misused-promises is the forEach(async) rule and that type-checked rules silently skip without parserOptions.project."
+    },
+    {
+      "id": "ts-judgment-only-not-given-fabricated-rule",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a TypeScript module that uses `export default class Widget {}` and models a fixed set as `enum Color { Red, Green }`. A reviewer-bot operator asks: 'flag the default-export and the enum, and give me the exact eslint rule for each so we can add them to CI.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the default export (T7) and the enum-where-a-union-fits (T3/\u00a73) on the prose authority (Google TS: Exports; TS Handbook: Literal Types)",
+          "states plainly that both are JUDGMENT-ONLY per \u00a77: there is no rule in eslint core or typescript-eslint that bans default exports (import/no-default-export lives in the separate eslint-plugin-import, an opt-in dependency, and whether default exports are allowed is a repo-profile call), and no rule flags 'this enum should be a union'",
+          "does not invent a typescript-eslint rule for either"
+        ],
+        "forbidden_signals": [
+          "claims a core/typescript-eslint rule bans default exports without noting it's the separate eslint-plugin-import / a profile decision",
+          "fabricates a rule that flags enum-vs-union",
+          "suppresses either finding because no built-in rule exists"
+        ]
+      },
+      "source": "TS kit \u2014 \u00a77 false-positive guard: judgment-only TS dimensions (type-vs-interface choice, discriminated-union design, default-export dogma, enum-vs-union, naming taste, the no-tombstone rule, Error-taxonomy design) must be flagged on prose and marked as having no built-in checkable rule, never given a fabricated typescript-eslint rule."
     }
   ]
 }
