@@ -237,16 +237,17 @@ Basis: GGSG: Decisions — Contexts. Anchor (observed): `golangci-lint` (`contai
 Not calling `cancel` leaks the context (and its timer/goroutine).
 
 ```go
-// bad
+// bad — cancel discarded; ctx used locally
 ctx, _ := context.WithCancel(parent)
-return ctx
+work(ctx)
 ```
 ```go
-// good
+// good — same shape, cancel deferred
 ctx, cancel := context.WithCancel(parent)
 defer cancel()
+work(ctx)
 ```
-Basis: GCR: Contexts. Anchor (observed): `go vet` (default) → `the cancel function returned by context.WithCancel should be called, not discarded, to avoid a context leak`.
+Basis: GCR: Contexts. Anchor (observed): `go vet` (default) → `the cancel function returned by context.WithCancel should be called, not discarded, to avoid a context leak`. (If the function instead *returns* a cancelable context, don't `defer cancel()` inside — return `(ctx, cancel)` and let the caller defer it, or you hand back an already-canceled context.)
 
 ### Anti-pattern · Ignored error return — `errcheck`
 Don't drop an error on the floor.
