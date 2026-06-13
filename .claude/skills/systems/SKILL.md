@@ -103,7 +103,7 @@ The `systems-engineer` persona's first step loads the relevant `/systems` refere
 Stop and ask / escalate rather than proceeding when:
 
 - **No target artifact** to review (the code/design can't be read) — halt and ask; never review from memory.
-- **The work is really another lens** — idiom (`/idiomatic`), line-level correctness (`/code-review`), or operating the live system (the ops agents) — redirect rather than stretch this skill over it.
+- **The work is really another lens** — idiom (`/idiomatic`), line-level correctness (`/code-review`), or operating the live system (the ops agents) — redirect rather than stretch this skill over it. *Exception:* a **tombstone** (removal-narration at a deletion site) is not redirected away — it stays a systems finding (correct-over-time hazard), flagged by citing the idiom comment-discipline dimension (Go `D10` / Rust `R11`); see Rule 3.
 - **A finding would set a one-way door** (API/wire-format change) — stop and escalate to a human instead of asserting the fix.
 
 ## What this skill defers
