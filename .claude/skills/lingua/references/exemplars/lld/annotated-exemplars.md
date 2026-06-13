@@ -175,7 +175,7 @@ License class: **GPL-2.0 — cite-and-link only.**
 
 ## config-manager-design
 
-**sei-chain configuration manager** — `sei-config/docs/config-manager/DESIGN.md` · merged · License
+**sei-chain configuration manager** — `bdchatham-designs/designs/config-manager/DESIGN.md` (relocated from sei-config docs/, PLT-497) · merged · License
 class: **org-owned** (adapt w/ attribution).
 
 - The MVP seam ships minimal (only stamps `schema_version` on write); `doctor` / refuse-on-newer /
@@ -189,7 +189,7 @@ class: **org-owned** (adapt w/ attribution).
 
 ## validation-substrate-ship-cut
 
-**seictl validation substrate** — `seictl/docs/design/validation-substrate.md` · Draft (coral
+**seictl validation substrate** — `bdchatham-designs/designs/validation-substrate/validation-substrate.md` (relocated from seictl docs/, PLT-497) · Draft (coral
 cross-review) · License class: **org-owned** (adapt w/ attribution).
 
 - The `v1 ship cut` table (Artifact | v1 | Trigger-to-un-defer) ships effectively no new code in v1 and

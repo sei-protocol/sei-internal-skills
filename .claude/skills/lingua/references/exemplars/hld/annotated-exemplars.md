@@ -60,7 +60,7 @@ only.**
 
 ## seinode-import-volume-shapes
 
-**SeiNode import-volume — shapes evaluated** — `sei-k8s-controller/docs/design-seinode-import-volume.md`
+**SeiNode import-volume — shapes evaluated** — `bdchatham-designs/designs/seinode-import-volume/design-seinode-import-volume.md` (relocated from sei-k8s-controller docs/, PLT-497)
 · Draft/RFC · License class: **org-owned** (adapt w/ attribution).
 
 - The **decision-matrix** done right: a `## Shapes evaluated` table scoring options A–E across named
