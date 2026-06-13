@@ -74,6 +74,8 @@ When the profile and the language pack disagree, **the profile wins** for correc
 
 Every finding names its basis: a language-idiom authority (e.g. "Effective Go: Errors") **and/or** a specific repo rule (`CLAUDE.md` line / `doc.go` section). No naked "this is more idiomatic." And no escape-hatch hedges — "probably fine if X is available elsewhere" is not a finding. Either the cited basis holds (it's a finding) or it doesn't (it isn't). If you must assume to flag, go read the file and resolve the assumption first.
 
+**Machine-checkable anchors come from the pack, not from memory.** When you cite a lint rule (a linter ID or analyzer name — e.g. `staticcheck ST1005`, `go vet shadow`, a Clippy lint), cite it **only** from the language pack's lint-anchor section, and carry the pack's caveat (a check may be off-by-default or version-dependent). Do **not** assert a check ID from training memory — a wrong, falsifiable ID handed to an author destroys the review's credibility. If the pack marks a dimension *judgment-only* (no checkable rule exists), say exactly that and cite the prose authority; never invent an ID to satisfy a "show me a checkable rule" challenge.
+
 **False-positive discipline (the make-or-break gate):** on clean, idiomatic code, the correct output is *"reads native — no findings"* plus, optionally, a short "deliberately not flagging (vetted)" list. A reviewer that manufactures nits to look thorough gets muted, and its real findings get ignored with it. Thoroughness is measured by what you *vetted and rejected*, not by the length of the list.
 
 ### Rationalization table
@@ -123,7 +125,7 @@ For findings that need *judgment* the static pack can't carry (e.g. "is this rec
 - `references/method.md` — the two-altitude protocol, severity model, profile-overlay precedence.
 - `references/package-profile.md` — how to mine CLAUDE.md/AGENTS.md into a profile; the sei-k8s-controller worked example (the rules a generic linter misses).
 - `references/language-pack-TEMPLATE.md` — the pluggable pack contract.
-- `references/language-pack-go.md` — the Go idiom pack (Effective Go, Go Code Review Comments, controller-runtime overlay, the Clean-Code divergences).
+- `references/language-pack-go.md` — the Go idiom pack (Effective Go, Go Code Review Comments, the Google Go Style Guide corpus, controller-runtime overlay, the Clean-Code divergences) — plus §7 machine-checkable lint anchors (go vet / staticcheck / golangci-lint) with provenance caveats and an explicit judgment-only list.
 - `references/datastructure-standard.md` — the package data-structure documentation standard + reusable `doc.go` template + toolchain.
 
 ## What this skill defers
