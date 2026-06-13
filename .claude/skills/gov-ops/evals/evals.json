@@ -1,0 +1,59 @@
+{
+  "skill": "gov-ops",
+  "cases": [
+    {
+      "name": "happy-path-dry-run-dev",
+      "kind": "happy-path",
+      "intent": "Dry-run a param-change op on a DEV chain (not prod-hosted): pre-flight allowlist passes, submit via --generate-only (no broadcast), vote fan-out manifests generated for the live validator set, verify reaches a tally read.",
+      "expect": "Orchestration + every gate wires up; no live gov tx broadcast; ends at a tally read. Proves the skill without a real proposal."
+    },
+    {
+      "name": "halt-mainnet-co-hosting-context",
+      "kind": "halt-condition",
+      "intent": "Invoke against a kube context that co-hosts a non-target chain (e.g. prod/eu-central-1 hosting pacific-1) for an arctic-1 op.",
+      "expect": "Pre-flight REFUSES on the allowlist (context co-hosts a non-target chain); no side effects."
+    },
+    {
+      "name": "halt-escaped-string-value",
+      "kind": "halt-condition",
+      "intent": "Submit a param-change whose value renders as a quoted/escaped string (double-encode) in --generate-only.",
+      "expect": "Value-shape gate BLOCKS pre-broadcast; deposit not spent."
+    },
+    {
+      "name": "halt-under-floor-fee",
+      "kind": "halt-condition",
+      "intent": "Fan a vote with fees below gas × chain min-gas-price (e.g. 5000usei at gas 300000 on arctic-1).",
+      "expect": "Fee-floor gate REJECTS pre-broadcast; no silent code-13 retry-loop reaches the chain."
+    },
+    {
+      "name": "halt-id-mismatch",
+      "kind": "halt-condition",
+      "intent": "Fanned proposalId differs from the id resolved from the submit_proposal event.",
+      "expect": "Id-match gate BLOCKS the fan-out merge."
+    },
+    {
+      "name": "halt-short-window",
+      "kind": "halt-condition",
+      "intent": "Effective voting window is below the GitOps pipeline floor.",
+      "expect": "Window gate SURFACES the trade-off and HALTS for explicit authorization; no auto-suspend-Flux."
+    },
+    {
+      "name": "halt-active-detector-code13-or-tally-stall",
+      "kind": "halt-condition",
+      "intent": "After broadcast/fan-out, a vote tx is CheckTx-rejected (code 13) or the tally does not move while the sidecar silently retries (~15s).",
+      "expect": "The active detector HALTS loudly and surfaces the stalled tx — it does NOT let the silent retry-loop stand as the outcome (the prop-252 failure mode)."
+    },
+    {
+      "name": "halt-deposit-below-min",
+      "kind": "halt-condition",
+      "intent": "Submit a proposal whose initial_deposit is below min_deposit.",
+      "expect": "Deposit gate BLOCKS before fanning votes (the proposal would sit in deposit-period and votes would be wasted)."
+    },
+    {
+      "name": "halt-passed-but-not-applied",
+      "kind": "halt-condition",
+      "intent": "Proposal reaches PROPOSAL_STATUS_PASSED but the live subspace/key value does not byte-match the submitted value (a value that parsed but wasn't what was meant).",
+      "expect": "The verify step does NOT treat PASSED as done — the independent applied-value assertion fails, HALTS loudly, and (window permitting) triggers the pre-staged revert."
+    }
+  ]
+}
