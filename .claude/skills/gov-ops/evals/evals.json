@@ -36,6 +36,18 @@
       "kind": "halt-condition",
       "intent": "Effective voting window is below the GitOps pipeline floor.",
       "expect": "Window gate SURFACES the trade-off and HALTS for explicit authorization; no auto-suspend-Flux."
+    },
+    {
+      "name": "halt-active-detector-code13-or-tally-stall",
+      "kind": "halt-condition",
+      "intent": "After broadcast/fan-out, a vote tx is CheckTx-rejected (code 13) or the tally does not move while the sidecar silently retries (~15s).",
+      "expect": "The active detector HALTS loudly and surfaces the stalled tx — it does NOT let the silent retry-loop stand as the outcome (the prop-252 failure mode)."
+    },
+    {
+      "name": "halt-deposit-below-min",
+      "kind": "halt-condition",
+      "intent": "Submit a proposal whose initial_deposit is below min_deposit.",
+      "expect": "Deposit gate BLOCKS before fanning votes (the proposal would sit in deposit-period and votes would be wasted)."
     }
   ]
 }

@@ -44,6 +44,28 @@ Steps are tagged **P0** (gates + fan-out, the core), **P1** (thin), **P2** (refe
 
 Submit with a **non-validator funded key** (the operator `node_admin` key stays sidecar-sealed). `--generate-only` for review; sign via the keyring, **never an inline mnemonic on the command line**. Generate-only / signed-tx artifacts go to a **gitignored `state/` path and are shredded post-run** (a signed tx is a broadcastable bearer artifact). **No mnemonic / key material in logs, audit, or chat.**
 
+## Halt Conditions
+
+Stop and report (do not proceed) if any of:
+
+- the live `(context, network, namespace)` triple isn't on the allowlist, or the context co-hosts a non-target chain (Guardrail 1);
+- `seid status` network ≠ expected, or `catching_up == true`;
+- any blocking gate fails — value-shape, `deposit < min_deposit`, `fees < gas × min-gas-price`, or fanned `proposalId` ≠ resolved id (`references/guardrails.md` gate table);
+- the on-chain proposal content/id doesn't match intent, or `status != VOTING_PERIOD` (step 3);
+- **CheckTx code-13 or a non-moving tally** after broadcast/fan-out (step 5) — HALT loudly; do not let the sidecar's silent retry stand;
+- the effective voting window is shorter than the pipeline can serve and no fast-path authorization is given (step 7);
+- a prior unfinished run exists in `state/` (see State Management).
+
+On any halt: leave the run dir intact, surface the failing gate, await operator direction. **Never** auto-suspend Flux or imperative-apply to recover.
+
+## State Management
+
+Each run writes to `state/run-<ISO-8601-timestamp>/`: the resolved triple + pinned endpoint, the `--generate-only` artifact, the resolved `proposalId`, the **pre-flight param snapshot** (the revert source), and the fast-path `audit.log` (if used). `state/` is gitignored — artifacts (including any signed tx) are never committed and are shredded post-run.
+
+**Interrupted runs — refuse, don't auto-resume.** Given the prod/mainnet adjacency and the non-idempotent submit, an unfinished run in `state/` is a **refuse-to-start** condition. The operator inspects the run dir, confirms on-chain state (was the proposal submitted? did votes land?), then explicitly archives the dir before a fresh run. Blindly resuming a half-submitted gov op risks a double-submit.
+
+> **Intentionally prose-driven, not scripted** (no `scripts/`): the value is live sequencing / timing / safety decisions across a short voting window, not a deterministic runbook. Read-path commands (`seid q …`, `seid status`, `kubectl get`, `flux reconcile`) are happy-path; **write/destructive commands (`kubectl delete`, `flux suspend`, `kubectl apply` to shared prod) are never pre-approved** — they run only via the authorization-gated fast-path.
+
 ## Preconditions
 
 - `seictl`/`seid` reachable for the target chain; `flux` CLI; the GitOps repo checked out at `main`.
