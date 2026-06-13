@@ -67,9 +67,9 @@ exemplar content doesn't exist yet; ACTIVE verticals have `exemplars/<vertical>/
 | Go proposals / design docs | LLD (ACTIVE) | https://github.com/golang/proposal | **BSD-3-Clause** (verified 2026-06-12: repo LICENSE) — adapt w/ attribution + notice |
 | Ethereum EIPs | LLD (ACTIVE) | https://eips.ethereum.org | **CC0 1.0** (verified 2026-06-12: repo LICENSE.md + per-EIP mandated waiver) — public-domain dedication, freest class |
 | Linux kernel docs | LLD (ACTIVE) | https://docs.kernel.org | **GPL-2.0 (default; verified 2026-06-12 per COPYING + per-file SPDX)** — **cite-and-link ONLY, never adapt** (copyleft); small `(GPL-2.0+ OR CC-BY-4.0)` dual-tagged exception set exists (admin-guide reporting/regressions docs) but the design exemplars (RCU/, memory-barriers.txt, process/) are GPL-only |
-| sei-config config-manager DESIGN | LLD (ACTIVE) | sei-protocol/sei-config:docs/config-manager/DESIGN.md | **org-owned** (verified 2026-06-13; PLT-495) — adapt w/ attribution; rollout/sequencing exemplar |
-| seictl validation-substrate | LLD (ACTIVE) | sei-protocol/seictl:docs/design/validation-substrate.md | **org-owned** (verified 2026-06-13; PLT-495) — adapt w/ attribution; v1-ship-cut/un-defer-trigger exemplar |
-| sei-k8s-controller import-volume (shapes) | HLD (ACTIVE) | sei-protocol/sei-k8s-controller:docs/design-seinode-import-volume.md | **org-owned** (verified 2026-06-13; PLT-495) — adapt w/ attribution; decision-matrix exemplar |
+| sei-config config-manager DESIGN | LLD (ACTIVE) | sei-protocol/bdchatham-designs:designs/config-manager/DESIGN.md | **org-owned** (verified 2026-06-13; PLT-495) — adapt w/ attribution; rollout/sequencing exemplar. Relocated from sei-config docs/ (PLT-497). |
+| seictl validation-substrate | LLD (ACTIVE) | sei-protocol/bdchatham-designs:designs/validation-substrate/validation-substrate.md | **org-owned** (verified 2026-06-13; PLT-495) — adapt w/ attribution; v1-ship-cut/un-defer-trigger exemplar. Relocated from seictl docs/ (PLT-497). |
+| sei-k8s-controller import-volume (shapes) | HLD (ACTIVE) | sei-protocol/bdchatham-designs:designs/seinode-import-volume/design-seinode-import-volume.md | **org-owned** (verified 2026-06-13; PLT-495) — adapt w/ attribution; decision-matrix exemplar. Relocated from sei-k8s-controller docs/ (PLT-497). |
 | PEPs | LLD (candidate) | https://peps.python.org | CC0 / PSF (openly-licensed) |
 | ADR | LLD (candidate) | https://adr.github.io | CC (openly-licensed) |
 | Oxide RFD | LLD (candidate) | https://rfd.shared.oxide.computer | Open — confirm (reserved until verified) |
