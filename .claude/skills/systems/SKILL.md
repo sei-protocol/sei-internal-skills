@@ -56,7 +56,7 @@ Every finding names the failure mode it prevents *for this system's actual load 
 Every finding names a canonical authority (Google SRE, AWS Builder's Library, OTel semconv, TIGER STYLE, Google AIP…) and/or a repo rule. No naked "this won't scale." The citation is a link, **never reproduced or closely-reworded reserved text** — half the sources are reserved (cite-only); copyright discipline is a spine rule here, not a footnote. An irreversible change (API/wire format) is **flagged for human approval**, not asserted.
 
 ### Rule 3 — Don't duplicate the idiom or the ops lens
-"Reads native" → `/idiomatic`. "Operate/run the live system" (postmortems, on-call, runtime cluster tuning) → the ops agents. `/systems` reviews how the *code and architecture* behave on the machine and over time — nothing else.
+"Reads native" → `/idiomatic`. "Operate/run the live system" (postmortems, on-call, runtime cluster tuning) → the ops agents. `/systems` reviews how the *code and architecture* behave on the machine and over time — nothing else. The one comment class it still flags is the **tombstone** (removal-narration left at a deletion site): a correct-over-time hazard because stale narration misleads a future operator about *current* intent. Flag it by **citing the idiomatic pack's comment-discipline dimension** (Go `D10` / Rust `R11`) — cite the idiom lens, never re-derive it (see `references/safety-quality.md`).
 
 ### Rationalization table
 
@@ -66,6 +66,7 @@ Every finding names a canonical authority (Google SRE, AWS Builder's Library, OT
 | "This is clean code, but let me list some systems nits to be thorough." | Rule 1. On a sound system, say "behaves well — no findings." Padding gets the reviewer muted. |
 | "I'll quote the SRE Book / the article to make the point." | Rule 2. Cite-and-link; never reproduce reserved text. Summarize the idea in your own words. |
 | "The function's a bit long / the name's off." | Rule 3. That's `/idiomatic`. Don't duplicate the idiom lens. |
+| "It's just a stale comment narrating what got removed — that's idiom, skip it." | Rule 3 carve-out. A tombstone is in scope as a *correct-over-time* hazard (a future operator reads the removal-narration as current intent). Flag it — **cite the idiomatic comment-discipline dimension** (Go `D10` / Rust `R11`), don't re-derive the comment rule. The rest of comment idiom stays `/idiomatic`. |
 | "Let me also tune the alert / write the runbook." | Rule 3. That's `sre-engineer`. This skill reviews the code, not the running system. |
 | "I'll just rename the API field to fix it." | Rule 2. A wire-format change is a one-way door — flag for human approval, don't assert. |
 

@@ -4,6 +4,8 @@ Checklist for defensive, resource-bounded construction in code that must stay co
 
 **Scope note — this is the *systems-safety* slice only.** General code-craft that belongs to other lenses is deliberately out: idiom/naming/control-flow → `/idiomatic`; small-functions / check-every-return / test-size discipline → `/idiomatic` (the language pack's testing + error dimensions); code-review norms (small CLs, approve-to-unblock, review latency) → `/pr-quality` and the cited Google Engineering Practices. This file keeps only the rows that are distinctly about *systems safety under failure and load*.
 
+**Scope note, continued — the one comment class a systems review still flags is the tombstone.** A comment that narrates a *deletion* — naming what a removed rule, permission, field, or block was, or why it was deleted (`// configmaps removed: leader election uses the Lease lock…`) — is in scope here not as comment *idiom* but as a **code-correct-over-time** hazard: stale removal-narration misleads a future operator into reading it as *current* intent and making a wrong call under pressure. Flag it by **citing the idiomatic pack's comment-discipline dimension** (Go `D10` / Rust `R11` — the no-tombstone bar: a deletion gets no tombstone, and there is no "load-bearing context for the deletion" exception); do **not** re-derive or restate the comment-discipline rule here (Rule 3 — cite the idiom lens, don't duplicate it). The rest of comment discipline (what-comments, doc placement, naming) stays entirely `/idiomatic`.
+
 Sections: `## checklist` · `## severity model`. Anchors: TigerBeetle TIGER STYLE, NASA/JPL Power of Ten. Companion: `performance.md` (bounded concurrency), `api-design.md` (validate at the boundary).
 
 ## checklist
