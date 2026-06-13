@@ -1,6 +1,6 @@
 # Artifact pack — HLD (architecture / system-level design doc)
 
-The one MVP pack. For each section of the HLD spine it rules **which audience-model rules dominate**
+The first artifact pack. For each section of the HLD spine it rules **which audience-model rules dominate**
 and cites the corpus shape (`cite: hld/shape/<anchor>` → `exemplars/hld/canonical-shape.md#<anchor>` —
 the stable cite contract from PLT-478). Rule names (R1–R5) and basis tiers are owned by
 `audience-model.md`; rulings below inherit each rule's tier.
@@ -37,6 +37,6 @@ say, per section, which way to lean.
 
 ## Deferred (per the design's MVP cut)
 
-PRD / LLD / 1-pager packs — one-file-add when a real consumer reviews that vertical. Until then,
-non-HLD artifacts translate against `audience-model.md` + first principles with the missing-pack gap
-flagged.
+PRD pack — one-file-add when a real consumer reviews that vertical (LLD + 1-pager packs landed in
+PLT-494). Until then, PRDs translate against `audience-model.md` + first principles with the missing-pack
+gap flagged.
