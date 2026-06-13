@@ -31,6 +31,12 @@ Cite vocabulary — `cite: <vertical>/<kind>/<target>`:
   (a close reword of reserved prose is a reproduction). A citation that would require quoting a reserved
   source is refused at author time — distill the idea in our own words and link instead.
 - **openly-licensed** → adapt with attribution.
+- **org-owned** → an internal Sei doc the org owns (these repos). Adapt with attribution; distill into
+  our-own-words `canonical-shape`/annotation anchors, never reproduce source text wholesale (Design 03
+  entry path). The first engineering-genre exemplars, harvested PLT-495. **Precedent (this is the class's
+  first use):** quoted fragments *illustrate*, they don't *substitute* for the distillation — keep any
+  verbatim span short and attributed; if a sentence can be paraphrased without losing the point,
+  paraphrase it.
 
 `canonical-shape.md` files are original analysis, copyright-clean by construction.
 
@@ -61,6 +67,9 @@ exemplar content doesn't exist yet; ACTIVE verticals have `exemplars/<vertical>/
 | Go proposals / design docs | LLD (ACTIVE) | https://github.com/golang/proposal | **BSD-3-Clause** (verified 2026-06-12: repo LICENSE) — adapt w/ attribution + notice |
 | Ethereum EIPs | LLD (ACTIVE) | https://eips.ethereum.org | **CC0 1.0** (verified 2026-06-12: repo LICENSE.md + per-EIP mandated waiver) — public-domain dedication, freest class |
 | Linux kernel docs | LLD (ACTIVE) | https://docs.kernel.org | **GPL-2.0 (default; verified 2026-06-12 per COPYING + per-file SPDX)** — **cite-and-link ONLY, never adapt** (copyleft); small `(GPL-2.0+ OR CC-BY-4.0)` dual-tagged exception set exists (admin-guide reporting/regressions docs) but the design exemplars (RCU/, memory-barriers.txt, process/) are GPL-only |
+| sei-config config-manager DESIGN | LLD (ACTIVE) | sei-protocol/sei-config:docs/config-manager/DESIGN.md | **org-owned** (verified 2026-06-13; PLT-495) — adapt w/ attribution; rollout/sequencing exemplar |
+| seictl validation-substrate | LLD (ACTIVE) | sei-protocol/seictl:docs/design/validation-substrate.md | **org-owned** (verified 2026-06-13; PLT-495) — adapt w/ attribution; v1-ship-cut/un-defer-trigger exemplar |
+| sei-k8s-controller import-volume (shapes) | HLD (ACTIVE) | sei-protocol/sei-k8s-controller:docs/design-seinode-import-volume.md | **org-owned** (verified 2026-06-13; PLT-495) — adapt w/ attribution; decision-matrix exemplar |
 | PEPs | LLD (candidate) | https://peps.python.org | CC0 / PSF (openly-licensed) |
 | ADR | LLD (candidate) | https://adr.github.io | CC (openly-licensed) |
 | Oxide RFD | LLD (candidate) | https://rfd.shared.oxide.computer | Open — confirm (reserved until verified) |
