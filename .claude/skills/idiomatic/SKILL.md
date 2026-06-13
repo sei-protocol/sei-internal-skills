@@ -127,6 +127,8 @@ For findings that need *judgment* the static pack can't carry (e.g. "is this rec
 - `references/language-pack-TEMPLATE.md` — the pluggable pack contract.
 - `references/language-pack-go.md` — the Go idiom pack (Effective Go, Go Code Review Comments, the Google Go Style Guide corpus, controller-runtime overlay, the Clean-Code divergences) — plus §7 machine-checkable lint anchors (go vet / staticcheck / golangci-lint) with provenance caveats and an explicit judgment-only list.
 - `references/examples-go.md` — on-demand worked good/bad pairs for the Go pack; each lint-anchored pair verified by running the tool (the §7 anchors are demonstrated). Highest-value for the §3 divergences and judgment-only dimensions.
+- `references/language-pack-rust.md` — the Rust idiom pack (Programming Rust, the Rust Book, the Rust API Guidelines `C-*` corpus, the Rust Style Guide, the async/tokio overlay) — plus §7 Clippy/rustc lint anchors with group + default-on/off caveats (the `restriction`/`pedantic`/`nursery` off-by-default trap) and a judgment-only list.
+- `references/examples-rust.md` — on-demand worked good/bad pairs for the Rust pack; each lint-anchored pair verified by running `cargo clippy` (anchors + default-on/off status demonstrated).
 - `references/datastructure-standard.md` — the package data-structure documentation standard + reusable `doc.go` template + toolchain.
 
 ## What this skill defers
