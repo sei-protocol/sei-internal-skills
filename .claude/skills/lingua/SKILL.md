@@ -49,6 +49,15 @@ These hold under time pressure, authority, and a tidy-looking rewrite:
    license classes: reserved sources are cite-and-link only — never reproduced, never
    paraphrased-to-evade.
 
+## Sonar cite-lint (mechanical citation verification)
+
+`python3 cite-lint.py` verifies every `cite: <vertical>/<kind>/<target>` in the corpus resolves to a
+declared anchor — the grep-invisible defect class (wrapped spans, renamed/removed anchors). A `cite:` is
+a **Sonar Resource Name** with the `lingua` domain elided (`srn:lingua:<vertical>/<kind>/<target>`,
+Design 06 / PLT-493). Exit non-zero on any unresolved cite; run it as the pre-PR gate when touching the
+corpus. Reserved-source over-quotation stays human-review (Guardrail 7); the per-cite adjacency flag is
+deferred (Design 06 §4). `lint:ignore-cite` on a line opts out documentation of the cite *syntax*.
+
 ## Why this skill exists (the observed failures)
 
 Pressure-tested before authoring (RED baseline, 2026-06-12, three blinded subagents — no doctrine
