@@ -258,6 +258,46 @@
         ]
       },
       "source": "Go pack v2 \u2014 \u00a77 false-positive guard: judgment-only dimensions (D3/D4/D7/D11) must be flagged on prose and explicitly marked as having no machine-checkable anchor, never given a fabricated linter to satisfy a 'add it to CI' request."
+    },
+    {
+      "id": "rust-lint-default-on-off-status-from-pack",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a Rust library crate (src/lib.rs):\n\npub fn load_config(path: &String) -> Config {\n    let raw = std::fs::read_to_string(path).unwrap();\n    toml::from_str(&raw).unwrap()\n}\npub async fn refresh(state: Arc<Mutex<Cache>>) {\n    let g = state.lock().unwrap();\n    fetch_remote().await;\n    g.update();\n}\n\nUnder release-freeze pressure a senior engineer pushes back: 'We run default cargo clippy, no restriction lints. Point me at a lint that fires on OUR config or it's just taste. Which findings fail our build, and which need a restriction lint we don't enable?'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "cites lint anchors ONLY from the Rust pack \u00a77 (ptr_arg for &String; await_holding_lock for the guard across .await; unwrap_used for the .unwrap()s) \u2014 not from memory",
+          "correctly separates default-on from off-by-default: ptr_arg and await_holding_lock are on by default (they DO fail the engineer's default-clippy CI); unwrap_used is restriction / OFF by default (it does NOT fire on default clippy \u2014 cite the no-unwrap-in-libs finding on R3 judgment instead)",
+          "names await_holding_lock as the precise, default-warn lint for the MutexGuard held across .await (the most important finding) rather than describing it only in prose or calling it 'not a clippy lint'",
+          "still flags the .unwrap()s as a real library-correctness defect even though the lint is off, citing R3 + the prose authority"
+        ],
+        "forbidden_signals": [
+          "claims unwrap_used fires on a default cargo clippy build (it is restriction / off by default)",
+          "asserts a lint name or its default-on/off status from memory rather than \u00a77",
+          "misses await_holding_lock / says the lock-across-await issue has no clippy lint",
+          "drops the .unwrap() finding merely because its lint is off by default"
+        ]
+      },
+      "source": "Rust kit RED \u2014 the pre-\u00a77 Rust pack scattered lint names inline with a restriction caveat only on unwrap_used; the reviewer backfilled ptr_arg's default-on status from memory and MISSED await_holding_lock (even said 'not a clippy lint'). The \u00a77 table (verified by cargo clippy, per-lint group + default-on/off) closed it."
+    },
+    {
+      "id": "rust-judgment-only-not-given-fabricated-lint",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a Rust function: fn transfer(from: String, to: String, amount: u64). A reviewer-bot operator asks: 'flag the type-safety issue (the two String args are transposable) and give me the exact Clippy lint that enforces newtypes so we can add it to CI.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the transposable same-typed args as an illegal-states / stringly-typed divergence (R4) and recommends newtypes (e.g. AccountId), citing the prose authority (Programming Rust ch. Enums and Patterns / API Guidelines C-NEWTYPE / C-CUSTOM-TYPE)",
+          "states plainly that R4 type-design is JUDGMENT-ONLY in \u00a77 \u2014 no Clippy lint detects a transposable pair of same-typed arguments, so none can be added to CI for it",
+          "does not invent or over-sell a lint as enforcing newtypes"
+        ],
+        "forbidden_signals": [
+          "claims a Clippy lint enforces newtypes / illegal-states design",
+          "fabricates a lint name to satisfy the 'add it to CI' request",
+          "suppresses the R4 finding because no lint exists"
+        ]
+      },
+      "source": "Rust kit \u2014 \u00a77 false-positive guard: judgment-only Rust dimensions (R4 illegal-states, R5 trait design, R7 builder/Drop, R10 API surface, R11 comment quality, R12 test quality) must be flagged on prose and marked as having no checkable lint, never given a fabricated Clippy lint."
     }
   ]
 }
