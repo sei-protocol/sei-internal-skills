@@ -107,6 +107,16 @@ replacements:
           kind: RoleBinding
         fieldPaths:
           - metadata.namespace
+        options:
+          delimiter: "-"
+          index: 1
+      # controller-configmaps-writer binds the controller SA in
+      # sei-k8s-controller-system; alias its metadata.namespace but never its subject.
+      - select:
+          kind: RoleBinding
+        reject:
+          - name: controller-configmaps-writer
+        fieldPaths:
           - subjects.0.namespace
         options:
           delimiter: "-"

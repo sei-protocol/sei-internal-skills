@@ -2,7 +2,7 @@
 
 A new engineer's onboarding is one PR against `sei-protocol/platform` adding three files plus a sibling PR against `sei-protocol/harbor-engineering-workspace` adding one file. After both PRs merge, run a targeted `terraform apply`. Both pieces complete in under five minutes.
 
-**Canonical reference PR:** [sei-protocol/platform#587](https://github.com/sei-protocol/platform/pull/587) — the fromtherain re-onboard. Use this as the diff template for new engineers; the shape is current with the latest base-template additions (including the templated rbac-proxy ClusterRoleBinding).
+**Canonical reference PR:** [sei-protocol/platform#587](https://github.com/sei-protocol/platform/pull/587) — the fromtherain re-onboard. Use this as the diff template for new engineers; the shape is current with the latest base-template additions (including the templated rbac-proxy ClusterRoleBinding and the controller `node-configmaps-writer` Role + `controller-configmaps-writer` RoleBinding).
 
 Literal file shapes live in [`onboarding-pr-template.md`](./onboarding-pr-template.md). Substitute `fromtherain` → `<alias>` throughout.
 
@@ -24,7 +24,7 @@ References `../base`, sets `alias=<alias>` via `configMapGenerator`, runs `repla
 - `Namespace` → `tide.sei.io/owner` and `toolkit.fluxcd.io/tenant` labels aliased.
 - `ServiceAccount name: engineer-service-account` and `name: seid-node` → `tide.sei.io/owner` label aliased.
 
-A second `replacements:` block substitutes `eng-tenant` → `eng-<alias>` (delimiter `-`, index 1) for namespace fields, and `engineers/tenant` → `engineers/<alias>` (delimiter `/`, index 2) for the Flux Kustomization's `spec.path`.
+A second `replacements:` block substitutes `eng-tenant` → `eng-<alias>` (delimiter `-`, index 1) for namespace fields, and `engineers/tenant` → `engineers/<alias>` (delimiter `/`, index 2) for the Flux Kustomization's `spec.path`. The RoleBinding `subjects.0.namespace` aliasing rejects `controller-configmaps-writer`: that binding's subject is the controller SA in `sei-k8s-controller-system`, which must stay literal (aliasing it would point the grant at a non-existent namespace).
 
 Literal content in [`onboarding-pr-template.md`](./onboarding-pr-template.md) → File 1. Substring-replace `fromtherain` → `<alias>`.
 
@@ -69,6 +69,7 @@ The wrapper `terraform/.../harbor/engineers.tf` and the submodule's `engineers/v
 | `sync.yaml` | Flux `Kustomization` `tenant` watching `harbor-engineering-workspace` GitRepository at `./engineers/tenant`. |
 | `engineer-service-account.yaml` | `engineer-service-account` ServiceAccount with `tide.sei.io/cell-type=personal` and `tide.sei.io/owner=tenant` labels. |
 | `seid-node-sa.yaml` | `seid-node` ServiceAccount with the same labels. |
+| `controller-configmaps-rbac.yaml` | `node-configmaps-writer` Role (configmaps CRUD) + `controller-configmaps-writer` RoleBinding granting the controller SA (`sei-k8s-controller-manager@sei-k8s-controller-system`) configmaps write here — for the rbac-proxy/workflow-vars ConfigMaps it manages (the controller's ClusterRole is read-only on configmaps; PLT-471). |
 
 Shared Terraform at `terraform/aws/189176372795/eu-central-1/harbor/`:
 
