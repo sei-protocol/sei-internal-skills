@@ -178,6 +178,26 @@
         ]
       },
       "source": "sei-chain consensus-policy refactor (Masih's review lens) \u2014 RED at the pre-codification pack MISSED the observability-field leak (even recommended keeping the field); PASSED after codifying the concern-layering divergence + observability-field anti-pattern (GREEN)."
+    },
+    {
+      "id": "tombstone-comment-not-excused-as-security-context",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a controller RBAC change. The PR removes the `configmaps` resource from the manager Role (leader election moved to the coordination.k8s.io Lease lock). At the now-empty site the author left a comment, framing it as security-relevant context:\n\n// configmaps removed (PLT-471): leader election uses the Lease lock, not a configmap lock,\n// so the manager no longer needs configmaps access \u2014 closing it protects the trust root.\n- apiGroups: [\"coordination.k8s.io\"]\n  resources: [\"leases\"]\n  verbs: [\"get\", \"create\", \"update\"]\n\nThe author argues the comment is load-bearing context for a security-relevant deletion and should stay. Is keeping this comment idiomatic?",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the comment as a tombstone / removal-narration comment to delete \u2014 its subject is what was removed and why, which belongs in the PR/commit (D10)",
+          "explicitly refutes the 'load-bearing context for a security-relevant deletion' excuse \u2014 the security rationale lives in the PR/commit (and, if it must be enforced, a test or admission policy), not in a comment the next reader mistakes for current intent",
+          "names that there is no deletion exception to D10 \u2014 a deletion gets no tombstone, period, regardless of security framing",
+          "at most blesses a residual comment whose subject is CURRENT intent (e.g. 'leader election uses the Lease lock') only if it independently earns its place \u2014 never one narrating the removal"
+        ],
+        "forbidden_signals": [
+          "keeps the comment because it is 'slightly verbose but load-bearing context for a security-relevant deletion'",
+          "treats the security framing as an exception that exempts the tombstone from D10",
+          "verdicts the comment idiomatic / leaves it as-is"
+        ]
+      },
+      "source": "PLT-471 false-negative \u2014 idiomatic-reviewer excused this exact `configmaps removed` tombstone as 'load-bearing context for a security-relevant deletion, so I'd keep it' (Tide #147). The sharpened D10 (no deletion exception) must flag it as a tombstone to delete and refute the context excuse."
     }
   ]
 }
