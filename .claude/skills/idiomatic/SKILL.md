@@ -129,6 +129,8 @@ For findings that need *judgment* the static pack can't carry (e.g. "is this rec
 - `references/examples-go.md` — on-demand worked good/bad pairs for the Go pack; each lint-anchored pair verified by running the tool (the §7 anchors are demonstrated). Highest-value for the §3 divergences and judgment-only dimensions.
 - `references/language-pack-rust.md` — the Rust idiom pack (Programming Rust, the Rust Book, the Rust API Guidelines `C-*` corpus, the Rust Style Guide, the async/tokio overlay) — plus §7 Clippy/rustc lint anchors with group + default-on/off caveats (the `restriction`/`pedantic`/`nursery` off-by-default trap) and a judgment-only list.
 - `references/examples-rust.md` — on-demand worked good/bad pairs for the Rust pack; each lint-anchored pair verified by running `cargo clippy` (anchors + default-on/off status demonstrated).
+- `references/language-pack-typescript.md` — the TypeScript idiom pack (TS Handbook, Google TS Style Guide, typescript-eslint, the `tsc` strict family) — plus §7 eslint/tsc lint anchors recording each rule's **preset** and whether it **requires type information** (the type-checked-rules-silently-skip trap) and a judgment-only list.
+- `references/examples-typescript.md` — on-demand worked good/bad pairs for the TS pack; each lint-anchored pair verified by running `eslint`/`tsc` (anchors + preset + type-info status demonstrated).
 - `references/datastructure-standard.md` — the package data-structure documentation standard + reusable `doc.go` template + toolchain.
 
 ## What this skill defers
