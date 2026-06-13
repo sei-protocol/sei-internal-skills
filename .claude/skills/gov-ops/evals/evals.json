@@ -48,6 +48,12 @@
       "kind": "halt-condition",
       "intent": "Submit a proposal whose initial_deposit is below min_deposit.",
       "expect": "Deposit gate BLOCKS before fanning votes (the proposal would sit in deposit-period and votes would be wasted)."
+    },
+    {
+      "name": "halt-passed-but-not-applied",
+      "kind": "halt-condition",
+      "intent": "Proposal reaches PROPOSAL_STATUS_PASSED but the live subspace/key value does not byte-match the submitted value (a value that parsed but wasn't what was meant).",
+      "expect": "The verify step does NOT treat PASSED as done — the independent applied-value assertion fails, HALTS loudly, and (window permitting) triggers the pre-staged revert."
     }
   ]
 }
