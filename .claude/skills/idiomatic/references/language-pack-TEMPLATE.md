@@ -89,6 +89,10 @@ Three rules make this section trustworthy:
 
 ---
 
+## Optional: worked examples companion (`examples-<lang>.md`)
+
+A pack may carry an on-demand `examples-<lang>.md` of **original** good/bad pairs (authored for the pack — never reproduced from a book or doc). Most valuable for the §3 divergences and the §7 judgment-only dimensions, where a before/after teaches faster than the rule. For any lint-anchored pair, **verify the anchor by actually running the tool** on the bad snippet and record the observed diagnostic — that keeps §7's check IDs demonstrated, not asserted (the Go examples caught a mis-named analyzer this way). The method loads it in step 3 on demand, not every review.
+
 ## Optional: language → specialist agent map
 
 When a finding needs judgment the static pack can't carry, the method dispatches a specialist agent. Record the mapping here as packs are added:
