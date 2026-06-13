@@ -18,8 +18,8 @@ These hold under time pressure, authority, and a tidy-looking rewrite:
 
 1. **The two-part gate.** (a) **No doctrine loaded → no findings and no transform.** The hard gate is
    `references/audience-model.md` — load it before touching the text, plus the artifact pack
-   (`references/pack-<type>.md`) **when one exists for the doc type** (MVP ships `pack-hld.md`). A doc
-   type with no pack degrades, not halts: proceed on `audience-model.md` + first principles with the
+   (`references/pack-<type>.md`) **when one exists for the doc type** (packs ship for `hld`, `lld`, and
+   `1pager`). A doc type with no pack degrades, not halts: proceed on `audience-model.md` + first principles with the
    missing-pack gap flagged — never invent a pack. (b) **The repo profile is read before any output** — a `CLAUDE.md` "Writing conventions"
    section (or the repo's nominated equivalent). The profile **overrides the doctrine in both
    directions** and can establish exceptions to rules this skill correctly knows. If no profile exists:
@@ -81,9 +81,9 @@ loaded). All three failed in ways this spine now counters:
 ## The method — Translate
 
 1. **Load the doctrine (gate a).** `references/audience-model.md` (the two reading models + the five
-   dual-aligned rules R1–R5 and their basis tiers) and the artifact pack for the doc type — MVP ships
-   `references/pack-hld.md`. No pack for the type → use `audience-model.md` + first principles and flag
-   the missing-pack gap; don't invent a pack.
+   dual-aligned rules R1–R5 and their basis tiers) and the artifact pack for the doc type —
+   `references/pack-hld.md`, `references/pack-lld.md`, or `references/pack-1pager.md`. No pack for the
+   type → use `audience-model.md` + first principles and flag the missing-pack gap; don't invent a pack.
 2. **Read the repo profile (gate b).** `CLAUDE.md` "Writing conventions" (or nominated equivalent).
    Extract conventions, prohibitions, and **stated exceptions**. Profile beats doctrine — including
    exceptions to rules you know are generally right.
@@ -156,14 +156,16 @@ Stop and surface rather than proceeding when:
 
 - `references/audience-model.md` — the two reading models, rules R1–R5 with basis tiers + falsification
   lines. **Owns the rule names.**
-- `references/pack-hld.md` — the HLD artifact pack: per-section rulings citing the corpus shape.
+- `references/pack-hld.md`, `references/pack-lld.md`, `references/pack-1pager.md` — the artifact packs:
+  per-section rulings (which audience rules dominate) citing the corpus shape + the strongest exemplar.
 - `references/sources.md` — the corpus license table + cite discipline (owned by the corpus, PLT-478).
-- `references/exemplars/` — the citable corpus (HLD canonical shape; PRFAQ pointer).
+- `references/exemplars/` — the citable corpus: hld / lld / one-pager canonical shapes + annotated
+  exemplars (PLT-490/491), and the PRFAQ pointer.
 
 ## What this skill defers (un-defer triggers)
 
 Compose mode + a standalone Review surface — when Translate is validated on real artifacts (review
-arrives sooner via `prose-steward`, PLT-480). PRD/LLD/1-pager packs — when a real consumer needs that
-vertical (one-file-add). Separate audience-pack files — when a second artifact pack would duplicate
+arrives sooner via `prose-steward`, PLT-480). PRD pack — when a real consumer reviews that vertical
+(one-file-add; LLD + 1-pager packs landed in PLT-494). Separate audience-pack files — when a second artifact pack would duplicate
 `audience-model.md`. Any agent-parsed format — only through an explicit council gate. The `lingua://`
 registry — when the corpus exceeds ~1 vertical (per Design 03).
