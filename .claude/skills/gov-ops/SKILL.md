@@ -7,7 +7,7 @@ description: "Orchestrates a Sei governance proposal lifecycle — submit → co
 
 # Gov-Ops — Governance Proposal Orchestration
 
-Drive one Sei governance proposal end-to-end on a target chain: submit it, confirm it landed in voting with the intended content, fan validator votes via GitOps, verify it passed and applied, and surface rollback. Built so an **agent** can run it against a **prod-hosted** chain without re-learning the footguns that bit the arctic-1 `TimeoutParams` op (platform #995). Operational facts (fee floor, value encoding, voting window) are **cited** from the SeiNodeTask reference, not restated — `sei-k8s-controller docs/seinode-task.md` §`Reconciliation cadence & gotchas`.
+Drive one Sei governance proposal end-to-end on a target chain: submit it, confirm it landed in voting with the intended content, fan validator votes via GitOps, verify it passed and applied, and surface rollback. Built so an **agent** can run it against a **prod-hosted** chain without re-learning the footguns that bit the arctic-1 `TimeoutParams` op (platform #995). Operational facts (fee floor, value encoding, voting window) are **cited** from the SeiNodeTask reference, not restated — `sei-protocol/bdchatham-designs designs/seinode-task/seinode-task.md` §`Reconciliation cadence & gotchas`.
 
 **One invocation = one proposal lifecycle.** Param-change only.
 
@@ -81,4 +81,4 @@ See `evals/evals.json`. Minimum: a **dry-run E2E on a dev chain** (NOT a prod-ho
 - `references/guardrails.md` — the allowlist, the gate definitions, the authorization mechanism.
 - `references/fan-out.md` — the `GovVote` manifest template + per-cluster generation.
 - `references/rollback.md` — the rollback + chain-halted runbook.
-- Operational facts (cited, not restated): `sei-k8s-controller docs/seinode-task.md` (`#reconciliation-cadence--gotchas`, `#signing-topology`, `#statusoutputs`). Consumed by the `platform-release-manager` agent.
+- Operational facts (cited, not restated): `sei-protocol/bdchatham-designs designs/seinode-task/seinode-task.md` (`#reconciliation-cadence--gotchas`, `#signing-topology`, `#statusoutputs`). Consumed by the `platform-release-manager` agent.
