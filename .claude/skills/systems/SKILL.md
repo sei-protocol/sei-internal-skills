@@ -20,7 +20,7 @@ Refusal conditions — they hold under time pressure and a checklist-completion 
 1. **No consequence → no finding** (Rule 1). Never flag a rule that doesn't bite for this system's load/criticality.
 2. **Cite every finding; stay copyright-clean.** An authority and/or repo rule per finding; never reproduce or closely-reword reserved source text.
 3. **Suggest-only.** Never rewrite the author's files — produce findings the human/calling agent applies.
-4. **Don't duplicate the idiom or ops lens** (Rule 3). Idiom → `/idiomatic`; operating the live system → the ops agents.
+4. **Don't duplicate the idiom or ops lens** (Rule 3). Idiom → `/idiomatic`; operating the live system → the ops agents. *One carve-out:* a **tombstone** (removal-narration at a deletion site) is flagged as a correct-over-time hazard by **citing** the idiom comment-discipline dimension (Go `D10` / Rust `R11`) — see Rule 3.
 5. **One-way doors are flagged, not asserted.** A change to a published API/wire format goes to human approval.
 
 ## When to use / when not
@@ -41,7 +41,7 @@ Idiom ⊂ systems quality: `/idiomatic` answers "does it read native"; `/systems
 ## The method
 
 1. **Identify the work's systems surface** and load the relevant reference(s): `reliability` (remote calls, retries, queues, failure handling), `observability` (does it expose how it's doing), `performance` (hot paths, concurrency, latency), `safety-quality` (invariants, bounds, untrusted input), `api-design` (a published/wire interface).
-2. **Apply on top of the `/idiomatic` pass** — don't re-flag idiom (that's the other lens).
+2. **Apply on top of the `/idiomatic` pass** — don't re-flag idiom (that's the other lens). The one exception: a **tombstone** (removal-narration at a deletion site) is in scope as a correct-over-time hazard — flag it by citing the idiom comment-discipline dimension (Go `D10` / Rust `R11`), don't re-derive the rule (Rule 3 carve-out).
 3. **Rank every finding by consequence under load** (severity model in each reference): correctness/safety > consequence-under-load > advisory.
 4. **Cite every finding** (an authority from `sources.md` and/or a repo rule) and suggest the fix. Suggest-only — never rewrite the author's files.
 
