@@ -38,4 +38,4 @@ spec:
 - One manifest set per cluster context; wire into that cluster's Flux path; `flux reconcile
   kustomization flux-system -n flux-system --with-source --context <ctx>` after the merge.
 - Fee floor and the SeiNode-name (not pod/deployment) rule are the two most common mistakes —
-  both are encoded above. See `sei-k8s-controller docs/seinode-task.md` for the why.
+  both are encoded above. See `sei-protocol/bdchatham-designs designs/seinode-task/seinode-task.md` for the why.
