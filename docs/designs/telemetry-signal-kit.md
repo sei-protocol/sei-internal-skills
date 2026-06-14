@@ -14,20 +14,26 @@ The value the MVP proves is **detection**, not rollback: *an agent can watch a c
 
 Build-vs-reuse was sourced first (via the `/research` method, 4 blind sweeps + adversarial verify) — see `design/research/telemetry-signal-kit-tooling.md`. Headline: **reuse on every layer** (official `grafana/mcp-grafana`; existing Thanos Query Frontend + recording rules; SRE multi-burn-rate + Argo-Rollouts/Flagger decision schema). The cross-review surfaced a production precedent the research missed: `validate-release/scripts/query-grafana.py` **already authenticates to Grafana's datasource-proxy with a bearer token exactly as this design proposes** — the federation bet is already running, not speculative.
 
-This is the **first (exemplar) kit** of a signal-kit *spine* aligned with Brandon. The spine is stated once and proven by this kit; two later kits (indexed-events, perf/eBPF) are named only to pressure-test that the spine generalizes — their modes are out of scope here and will be specified when those kits are designed. We do **not** commit a kit×mode roadmap on the evidence of one cell.
+This is the **first (exemplar) kit** of a signal-kit *spine* aligned with Brandon. The generalization the spine must demonstrably support — and the reason this is a primitive, not a one-off gate — is **two orthogonal axes**:
+
+- **Kit (the data source):** telemetry (PromQL/Thanos, this kit), later blockchain-indexed-events, later perf/eBPF.
+- **Mode (what a reading *does* — the "act" verb):** **gate** (defensive, per-step: rollout/CICD/ops — *MVP*), **measure** (generative, iterative: optimize/benchmark toward a target value under controlled conditions — *proven-admitted below, not built*), **coordinate** (an event barrier — later).
+
+Mode ⊥ kit: telemetry can feed *both* gate and measure (benchmark via PromQL); perf/eBPF feeds measure. The spine is stated once and **proven** to admit gate *and* measure (see "Modes"); MVP **builds** only telemetry/gate. We do **not** commit to building the matrix on one cell of evidence — but the abstraction is required to hold for the cell we'll want next.
 
 ## Goals
 
-1. A **`guard`** primitive: a non-human, signal-driven gate that extends the `/workstream` checkpoint ledger — declared up front, fail-closed, provenance-bearing; it surfaces/halts before a risky step proceeds if the signal isn't healthy.
+1. A **`guard`** primitive — the **gate-mode instance** of the general **signal binding** (a declared, cited, fail-closed, provenance-bearing metric condition). The guard extends the `/workstream` checkpoint ledger; it surfaces/halts before a risky step proceeds if the signal isn't healthy. (The measure-mode instance — an *objective* a workstream optimizes toward — is designed-for, not built; see "Modes.")
 2. The **telemetry signal kit** (gate mode, MVP): the read adapter (`grafana/mcp-grafana`, read-only), the citable query vocabulary (existing `chaos_suite:*` / `slo_*` recording rules + SRE multi-burn-rate), and the gate-decision semantics (Argo-Rollouts/Flagger-style `interval`/`count`/`failureLimit` + the telemetry-kit correctness contracts below).
-3. The **signal-kit spine** stated once, kit-invariant (so indexed-events and perf kits drop in later), with its contracts cleanly separated from telemetry-specific ones.
-4. Encode the correctness contracts the research + SRE cross-review surfaced, **tiered** into spine-level (every kit) and telemetry-kit-level (this kit) — see "Correctness contracts."
+3. The **signal-kit spine** stated once, kit- *and* mode-invariant, with its contracts cleanly separated from telemetry-specific ones, and **proven** to admit measure mode (the iterative-optimization control structure), not just gate.
+4. A **decided auth layer** (grafana-mcp interface + a Grafana service-account Viewer token) — standard, not one-off; see "Auth."
+5. Encode the correctness contracts the research + SRE cross-review surfaced, **tiered** into spine-level (every kit/mode) and telemetry-kit-level (this kit) — see "Correctness contracts."
 
-(Spine generalization beyond statement is **deferred — when the second kit (indexed-events/coordinate) is actually built**. We generalize at the second kit, not the first.)
+(Building modes/kits beyond telemetry/gate is **deferred — measure when a perf/benchmark workstream needs it; coordinate when an indexed-events barrier does.** We *prove* generality at the first kit and *build* it at the second.)
 
 ## Non-goals
 
-- **Not** the measure or coordinate modes, nor the perf/eBPF or blockchain-indexed-events kits (later kits; the spine is designed to admit them, proven only when built).
+- **Not** *building* the measure or coordinate modes, nor the perf/eBPF or blockchain-indexed-events kits — the spine is *proven* to admit them ("Modes"), built later. Measure ships when a perf/benchmark workstream needs it; coordinate when an indexed-events barrier does.
 - **Not** the federation *automation* in the guard issue — the guard primitive builds and tests against a **manually-provisioned Viewer token**; the operator-CR/Secrets-Manager automation is a sibling issue (see "Issues & sequencing"). *Operator-CR automation deferred — when more than one agent/guard needs a token, or rotation becomes manual toil.*
 - **Not** an in-cluster direct-to-Thanos read path + `prom-label-proxy` tenancy (*deferred — when an agent runs untrusted/model-authored queries needing per-call audit, or must be denied a tenant like pacific-1*).
 - **Not** a generic "arbitrary PromQL" guard, and **not** a generic escape hatch in MVP — domain guards only. *Generic escape hatch deferred — when a real guard need can't be expressed as a domain guard.* (Same RBAC-boundary reasoning as the gov-ops content-specific decision.)
@@ -37,9 +43,9 @@ This is the **first (exemplar) kit** of a signal-kit *spine* aligned with Brando
 
 ## Design
 
-### The `guard` primitive (extends the workstream ledger)
+### The `guard` primitive — the gate-mode signal binding (extends the workstream ledger)
 
-The `/workstream` ledger today holds `checkpoint`s (human gates). Add a second entry kind, `guard` (a signal gate):
+The `guard` is the **gate-mode instance** of a signal binding (the measure-mode instance, an `objective`, is in "Modes"). The `/workstream` ledger today holds `checkpoint`s (human gates). Add a second entry kind, `guard` (a signal gate):
 
 ```
 - guard:    <name>
@@ -56,17 +62,43 @@ The three `when:` modes are the contract: `pre-step` gates before the action, `s
 
 **Recursion bound (reuses the workstream's).** A guard may **surface, halt, and route to an already-declared checkpoint** — nothing more. It may **not** launch a workstream, spawn a sub-agent that launches one, or create new ledger entries at trip time. All ledger entries (checkpoints *and* guards) are declared up front; the ledger is **static after declaration**. Auto-abort (when enabled, OQ5) executes a **pre-declared reversible rollback action**, never open-ended remediation. This is the bound that keeps a continuous guard's trip handler from becoming an unbounded watch→remediate→watch loop.
 
-### The signal-kit spine (kit-invariant)
+### The signal-kit spine (kit- and mode-invariant)
 
-Every signal kit, regardless of source, implements the same five verbs: **declare → fetch (fail-closed) → evaluate (via a cited query) → act (gate/surface) → capture provenance.** The pluggable kit supplies a **read adapter**, a **citable query/event vocabulary**, and the **domain semantics**; the verbs are constant.
+Every signal binding, regardless of source or mode, implements the same five verbs: **declare → fetch (fail-closed) → evaluate (via a cited query) → act → capture provenance.** The pluggable **kit** supplies a *read adapter* + *citable query/event vocabulary*; the **mode** supplies the *act semantics* (what a reading does); the verbs are constant. Four of the five verbs are fully invariant — only **act** varies by mode.
 
-The verbs survive the coordinate-mode stress test (a blockchain indexed event): declare ("await proposal X reaching quorum"), fetch fail-closed (indexer unreachable ⇒ cannot confirm ⇒ never PASS), evaluate a cited query (an indexed-events filter, the analog of a recording rule), act (gate/surface), capture provenance (query + block range + result). What does *not* translate is telemetry vocabulary — which is why the contracts are tiered below rather than listed as one spine-level block.
+The verbs survive the coordinate-mode stress test (a blockchain indexed event): declare ("await proposal X reaching quorum"), fetch fail-closed (indexer unreachable ⇒ cannot confirm ⇒ never PASS), evaluate a cited query (an indexed-events filter, the analog of a recording rule), act (unblock the barrier), capture provenance (query + block range + result). What does *not* translate is telemetry vocabulary — which is why the contracts are tiered below rather than listed as one spine-level block.
+
+### Modes (the `act` layer — proving the spine admits more than gate)
+
+A **mode** is the decision semantics layered on a reading. The spine produces a fail-closed, cited reading; the mode decides what it *does* and how it composes with the workstream:
+
+| Mode | Control structure | `act` produces | Workstream relationship | Status |
+|------|-------------------|----------------|-------------------------|--------|
+| **gate** | defensive, one-shot per step, binary | `healthy → proceed` / `trip → halt+rollback` | extends the **checkpoint ledger** (a `guard` gates a step) | **MVP** |
+| **measure** | generative, *iterative loop*, convergent | `distance-to-objective → {converged, keep-going, budget-exhausted}` | *is* the workstream's **objective / loop terminator** ("done = a measured value under benchmark conditions X") | designed-for, not built |
+| **coordinate** | reactive, event-driven | `event-reached → unblock` | a **synchronization barrier** between steps | later |
+
+**Measure-mode walkthrough (proving it fits the spine).** A perf-optimization workstream — "drive p99 commit latency below X under benchmark workload W on node-shape S" — runs the *same five verbs*: **declare** the objective + benchmark circumstances (workload, node shape, the cited metric); **fetch** fail-closed (benchmark harness or Thanos unreachable ⇒ cannot claim progress, never false-converge); **evaluate** the objective metric via a cited, re-runnable query; **act** = report *distance-to-objective* into the optimization loop (converged / keep-going / exhausted) rather than gate a step; **capture provenance** — and here provenance is *more* central than in gate mode: the re-runnable query, the benchmark conditions, and the historical series *are the deliverable* (your "technical documentation on the data, historical queries to retrieve it again"). The spine holds; only `act` and the workstream relationship change.
+
+**The boundary that keeps measure mode in scope-bounds: the signal-kit is the measurement instrument, not the optimizer.** It answers, provably and with citation, *"where am I relative to the objective?"* The agent/workstream decides *what change to try next*. We are not building a perf auto-tuner; we are building the fail-closed, provenance-bearing measurement + objective-evaluation that an optimization workstream consumes. (This is also why telemetry serves measure today and perf/eBPF is a *richer measure-mode kit* later — kit ⊥ mode.)
+
+MVP **builds** gate; this section exists to **prove** the spine and the contract-tiering admit measure without rework — the test Brandon set. Measure mode ships when a perf/benchmark workstream needs it.
 
 ### The telemetry kit (MVP)
 
 - **Read adapter:** `grafana/mcp-grafana` (official, Apache-2.0) — PromQL instant/range + per-rule firing-alert state; Thanos-transparent via the Grafana datasource. No custom Thanos MCP. **Precedent:** `validate-release/scripts/query-grafana.py` already calls `…/api/datasources/proxy/uid/<uid>/api/v1/query_range` with a bearer token in production — same auth surface, working today.
 - **Citable query vocabulary:** cite the *existing* recording rules (`chaos_suite:block_time_p95:rate2m`, `:tps:rate1m`, `:block_height_delta:rate2m`, the `slo_*_{5m..30d}` ladders) and SRE **multi-window multi-burn-rate** alert exprs. The guard names a rule; it does **not** re-derive histograms inline. The `chaos_suite` validation agent's poll loop is the implementation template (OQ3+OQ4: estimated 60–70% reusable, pending the source pull).
 - **Decision semantics:** mirror **Argo Rollouts `AnalysisTemplate` / Flagger** (`interval` / `count` / `failureLimit` / `successCondition` / `thresholdRange`). Threshold/rate/quantile/window-fraction are PromQL-native (the `sum_over_time((expr > bool THRESH)[w:])/count` "fraction-of-window-healthy" primitive already exists in `recording-validator-slos.yaml`); baseline-relative deltas across the cutover boundary are the one genuinely agent-side computation — pushed into a pinned two-window query, not in-context arithmetic.
+
+### Auth (decided — standard convention, not one-off)
+
+The interface and the credential are distinct layers; the standard convention stacks them, so there is no bespoke auth to invent:
+
+- **Interface — `grafana/mcp-grafana` (the MCP server).** The standard agent→Grafana surface (official Grafana Labs), configured in the agent's MCP config against our Grafana URL. The agent calls MCP tools; it does not hand-roll HTTP.
+- **Credential — a Grafana service account, `Viewer` role, service-account token.** Service accounts are Grafana's standard programmatic-access mechanism (GA since Grafana 9.1, the explicit replacement for API keys) — *this is the convention*, not a one-off. The MCP server authenticates to Grafana with this token; Viewer makes read-only structural. Precedent in-repo: `validate-release/scripts/query-grafana.py` already consumes exactly this token shape against the datasource-proxy.
+- **Scope — distinct service account per consumer.** The guard gets its own SA (not the chaos-suite one), so its calls are independently attributable and revocable, with a finite token expiry.
+
+The **runtime contract is therefore decided for MVP**: grafana-mcp + a Viewer SA token. Only the *minting/rotation automation* is deferred (Issue B) — the operator's `GrafanaServiceAccount` CR is the GitOps path; a manually-minted token in Secrets Manager is the identical-contract fallback. (Orthogonal, unaffected by auth: OQ-warnings — whether grafana-mcp surfaces Thanos `warnings`/`partial_response` through the proxy.)
 
 ### Correctness contracts (tiered)
 
@@ -104,13 +136,15 @@ The `guard` primitive lives **in the `/workstream` skill** (a second ledger entr
 
 This workstream splits into **two issues** so the guard primitive isn't held hostage to a prod-auth infra decision:
 
-- **Issue A — guard primitive + telemetry kit** (the skill work: the ledger entry, the spine verbs, the tiered contracts, the decision semantics, the poll loop). Dependency: *a read-only Grafana token*. Built and tested against a **manually-issued Viewer token**. This is the workstream's deliverable and what proves the hypothesis.
-- **Issue B — metric-federation slice** (sibling, owned by platform-engineer): SA-token automation via the `GrafanaServiceAccount` CR → Secrets Manager → CSI, gated on OQ1/OQ2/OQ3. Can proceed in parallel; if it slips on OQ3 it does not block Issue A.
+- **Issue A — guard primitive + telemetry kit** (the skill work: the ledger entry, the spine verbs, the tiered contracts, the decision semantics, the poll loop). Auth contract decided ("Auth"); built and tested against a **manually-issued Viewer SA token**. This is the workstream's deliverable and what proves the hypothesis.
+- **Issue B — SA-token provisioning automation** (sibling, owned by platform-engineer): automate the decided credential via the `GrafanaServiceAccount` CR → Secrets Manager → CSI + rotation, gated on OQ1/OQ2/OQ3. Can proceed in parallel; if it slips on OQ3 it does not block Issue A (which runs on the manual token).
 
-### The federation slice (Issue B — a one-way door)
+### The federation read path (Issue B — a one-way door)
 
-- **Read path:** Thanos **Query Frontend** (`thanos-query-frontend.monitoring.svc:9090`) — the fleet-global view Grafana already trusts.
-- **Auth:** a **Grafana service-account Viewer token** → datasource-proxy (the non-interactive answer to the headless crux; Grafana's Google OAuth is interactive-only). Provisioned via a `GrafanaServiceAccount` CR through the already-deployed Grafana Operator; token → AWS Secrets Manager → CSI. **Use a distinct SA per consumer** — the guard must not share the chaos-suite token, so its calls are independently attributable and revocable. Set a **finite token expiry** + rotation (MVP cut-first: short manual expiry + a calendar reminder; un-defer rotation when a second consumer shares the path).
+The auth *mechanism* is decided ("Auth"); this slice is the *read path it points at* plus the provisioning automation.
+
+- **Read path:** Thanos **Query Frontend** (`thanos-query-frontend.monitoring.svc:9090`) — the fleet-global view Grafana already trusts — reached via the Grafana datasource-proxy.
+- **Provisioning + rotation:** the Viewer SA token via the `GrafanaServiceAccount` CR (operator/GitOps) → AWS Secrets Manager → CSI, with a finite expiry (MVP cut-first: short manual expiry + a calendar reminder; un-defer automated rotation when a second consumer shares the path).
 - **Read-only is structural — confirm, don't assume:** Viewer role is enforced at Grafana; the write-free guarantee additionally rests on Thanos Query exposing **no admin path** (confirm `--query.enable-admin` is off; receive/ruler not routed through this datasource). On OSS Grafana the floor is Viewer-across-**all**-datasources — acceptable **only if** that Grafana fronts metrics-only sources; if it fronts Loki/Tempo/SQL with sensitive content, a leaked token reads those too (escalates blast radius — confirm the datasource inventory).
 - **Coupling to flag:** routing through Grafana makes **guard availability bounded by Grafana availability** — a Grafana outage fails all guards closed (correct direction, but a new coupling the in-cluster-direct path would avoid).
 - **One-way door:** **publicly exposing Thanos's query API is out of scope and requires explicit human approval to even propose** — it contradicts the deliberate "no public Thanos gRPC" stance. Route external agents through Grafana for MVP.
