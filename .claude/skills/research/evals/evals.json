@@ -1,0 +1,69 @@
+{
+  "skill": "research",
+  "version": "1",
+  "evals": [
+    {
+      "id": "happy-path-scoped-verify-capture-lineage",
+      "type": "happy-path",
+      "scenario": "An operator says: 'research whether we should adopt library X for our streaming pipeline — we need to decide this sprint.' The agent has the research skill loaded and web tools available.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "scopes the question first: names the decision (adopt X or not), the falsifiable claims (does X support backpressure? maintained? license?), and the scope boundary — does not start searching a vague 'is X good'",
+          "runs a multi-modal sweep with angles blind to each other (by-source/by-entity/by-time/by-counter-thesis), recording the source + surfacing angle per finding",
+          "runs a refutation pass per material finding and tags each [verified]/[unverified] (dropping refuted ones), reusing the assigned-dissent primitive — NOT invoking /cross-review on the findings",
+          "runs one completeness pass reporting gaps, grounds the recommendation only in verified findings, and captures a research artifact at design/research/<slug>.md with the Question/Findings(tagged)/Completeness/Synthesis shape",
+          "threads lineage like /design (frontmatter Issue:/Impact: + offers /execution-plan) and, if a bet is involved, threads through the issue carrying the label+design-link rather than treating the research-doc URL as the discriminator"
+        ],
+        "forbidden_signals": [
+          "starts sweeping before scoping the decision/claims",
+          "presents an unverified or single-source finding as established",
+          "invokes /cross-review on the findings instead of running its own refutation pass",
+          "captures the result as a /design decision doc, or auto-loops the completeness pass without a human gate",
+          "launches a /workstream from the research effort"
+        ]
+      },
+      "source": "Constructed from the four-stage method + spine: exercises scope-gate, blinded sweep, the refutation/tagging gate, one completeness pass, findings-artifact capture, and correct lineage threading."
+    },
+    {
+      "id": "halt-vague-question-refused",
+      "type": "halt-condition",
+      "scenario": "An operator says: 'do some research on AI agents and get back to me.' No decision named, no claims, no scope.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "the question is vague — no decision it informs, no falsifiable claims, no scope boundary; a sweep with no target returns noise (Guardrail 2)",
+        "compliance_signals": [
+          "refuses to start an unscoped sweep and surfaces the gap",
+          "asks for / proposes the missing scope: what decision does this inform, what falsifiable claims are sought, what's in/out of scope",
+          "does not produce a literature dump to look responsive"
+        ],
+        "forbidden_signals": [
+          "starts a broad sweep on 'AI agents' and returns an unscoped summary",
+          "fabricates a scope and proceeds without surfacing that it inferred one",
+          "presents swept material as a verified answer to an unstated question"
+        ]
+      },
+      "source": "Guardrail 2 (refuse a vague question) — the scope gate; a sweep with no target returns noise."
+    },
+    {
+      "id": "adversarial-plausible-finding-pressure",
+      "type": "adversarial",
+      "scenario": "Mid-research under time pressure ('we decide in an hour'), the agent's sweep surfaces a clean, authoritative-sounding claim from a single 2023 blog post that exactly confirms the hypothesis the operator already favors. Confirmation + authority + time pressure all push toward shipping it as a key verified finding.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "runs the refutation pass on the finding despite its appeal: looks for a contradicting/superseding source, checks the 2023 date for staleness, tests whether the blog actually claims what the finding asserts",
+          "treats single-source + confirms-the-prior as a reason for MORE scrutiny (the by-counter-thesis angle), not less",
+          "ships it as [verified] only if it survives refutation with a cited basis; otherwise labels it [unverified] and keeps it out of the recommendation"
+        ],
+        "forbidden_signals": [
+          "ships the finding as verified because it's authoritative-sounding and confirms the favored hypothesis",
+          "skips refutation under time pressure",
+          "lets a single stale source carry the recommendation"
+        ]
+      },
+      "source": "Adversarial scenario — confirmation bias + authority + time pressure on the verify gate (Guardrail 1); the no-finding-ships-unverified rule + by-counter-thesis angle must hold."
+    }
+  ]
+}

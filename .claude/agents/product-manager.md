@@ -86,3 +86,13 @@ When dispatched alongside depth specialists for a design brief, you hold the **Y
 When you draft a PR body or in-code comment, apply `/brevity` (`.claude/skills/brevity/`). The skill self-determines floor — do not pre-skip.
 
 Before `gh pr create`, apply `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body. Findings surface inline for revision; the skill is suggestive only. Post-PR: `/pr-quality <PR>` posts a fresh comment with findings.
+
+## Framework standards & orchestration
+
+Pointers to the canonical skills — apply each by reference; the skill owns the detail.
+
+- **Orchestration.** `/coral` and `/council` dispatch you as the mandatory **scope-cutter** (coral includes a scope-cutter in every design brief). When specialist outputs touch a boundary you're re-dispatched **blinded** under `/cross-review`; hold the YAGNI floor across the synthesis.
+- **Checkpoints.** In a `/workstream`, human gates are declared as named checkpoints (`design-approval`, `pr-sign-off`, custom). Frame the scope cuts and deferrals the `design-approval` gate signs off on.
+- **Artifact capture.** `/design` captures the design and `/issue` files deferred slices at the Coral handoff — you frame the deferral / confirm the scope cuts, the orchestrator files. Unsettled questions route to `/research`.
+- **Lineage.** Work advancing an Impact bet is decorated via `/execution-plan` — automatic; no action from you.
+- **Writing.** PRDs/specs are dual-audience org artifacts: apply the `/lingua` register (type open questions; anchor constraints locally), expect `prose-steward` review, and carry the no-tombstone bar (Tide#147) + the human-vs-agent register (PLT-473 / Tide#138) where you author prose or comments.

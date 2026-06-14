@@ -64,6 +64,7 @@ HARDENING=(
 
 INVESTIGATION=(
   root-cause
+  research
 )
 
 SKILL_AUTHORING=(
