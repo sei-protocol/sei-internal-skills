@@ -37,7 +37,7 @@ See `references/reviewer-dispatch.md` for the blinded dispatch contract, `refere
 `/cross-review` MUST, as its **required first-step output and before dispatching any reviewer**,
 emit:
 
-- `Class:` — one of the six (`doc-only | mechanical | component | cross-component | shared-stack | skill-package`, per `references/slate-routing.md`),
+- `Class:` — one of the six (`doc-only | mechanical | component | cross-component | shared-stack | skill-package`, per `references/slate-routing.md`; authoritative list: `references/slate-routing.md` §1),
 - the resulting `Tier:` (T1/T2/T3, read off the routing table — never re-derived by hand), and
 - the assembled **slate** (domain lenses + auto-wired stewards + the assigned dissenter).
 
@@ -157,6 +157,7 @@ Documented failure modes during cross-review. When your own reasoning aligns wit
 | "The demo's in an hour — a quick 'looks consistent' is the helpful move." | Speed is a reason to be efficient, not to skip the check or fake the result. A 10-minute boundary review is cheap insurance; a fabricated green light just moves the failure to the demo. |
 | "I don't have the doc, but I can write a plausible findings table from what such designs usually contain." | That's fabrication, not review. No artifact, no cross-review — halt and get it. |
 | "'Looks good' from two senior people is enough." | Absence of objection is not presence of review. A finding with no cited contract is not a finding. Require evidence. |
+| "The skill change is a one-line typo / obviously small — it's mechanical, skip the steward pin." | A `skill-package` change routes by **file-type-present, not change-size** (`references/slate-routing.md` §3a). The mechanical-equivalent carve-out is `doc-only` only. A one-line typo in a `.claude/` skill body is still `skill-package` (T3, floor T2, audit+author+prose pinned). "It's just a typo in a skill" does not demote it to `mechanical`; dropping the pin needs an operator override with a stated reason, never a size judgment. |
 
 ## Red Flags — STOP and Reset
 
@@ -170,6 +171,7 @@ Phrases that signal a rationalization is firing — in your reasoning or the use
 - "Their input was incorporated" — standing in for "they reviewed the final"
 - "It's just synthesis" / "I'm only writing it up"
 - "I'll review from the summary" / "I don't need the actual doc"
+- "It's just a typo in the skill" / "we've done dozens of these" — offered to demote a `skill-package` change to `mechanical` and drop the steward pin
 
 **All of these mean: read the artifact, dispatch independent reviewers, require evidence per finding, or label the verdict honestly.**
 
@@ -180,6 +182,7 @@ Stop and report to the user if:
 - `Class:` was not emitted before dispatch (§0) — no classification ⇒ no review. HALT and classify before dispatching any reviewer.
 - The artifact under review can't be located or pasted — never synthesize a review of work you haven't read.
 - The calling repo has no `.claude/agents/` roster and the user can't point at one.
+- A **pinned** steward (audit/author/prose on a `skill-package` change) is absent from the calling repo's `.claude/agents/` roster — HALT, not a silent drop (same posture as dropping the pin). Ask the operator, who may override with a stated reason.
 - A reviewer returns bare approval with no cited evidence — re-dispatch with the evidence requirement.
 - Reviewers were not blinded (saw each other's assessments first) — the convergence is invalid; re-run with independent briefs.
 - Reviewers split on a boundary and the provider-owns tie-break doesn't resolve it — surface the disagreement and ask the user / provider for the call.

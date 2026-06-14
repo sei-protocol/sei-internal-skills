@@ -48,7 +48,7 @@ Blinded:      <yes | no>       (no downgrades confidence — say so in the Verdi
 Dissenter:    <which lens held assigned dissent this round — required, never empty>
 
 ## Routing
-- Slate: <lenses dispatched, each tagged domain | steward | dissenter>
+- Slate: <lenses dispatched, each tagged domain / steward / dissenter (a lens may hold more than one — e.g. a steward also assigned the dissent)>
 - Auto-wired stewards: <which, and why — e.g. "audit+author+prose: skill-package change">
 - Overrides: <none | operator lowered T3→T2, reason: "…", risk accepted: yes>
 
@@ -56,7 +56,7 @@ Dissenter:    <which lens held assigned dissent this round — required, never e
 | Lens | Verdict | Finding (evidence-bearing) | Resolution |
 |---|---|---|---|
 | security-specialist | RATIFY | … cites contract/field/line … | n/a |
-| network-specialist  | DISSENT | … the strongest objection … | artifact updated @ <commit/section> | accepted-risk: <stated> |
+| network-specialist  | DISSENT | … the strongest objection … | artifact updated @ <commit/section> OR accepted-risk: <stated> |
 | author-skill        | RATIFY | triggers/guardrails/evals present, cited | n/a |
 
 ## Boundary findings  (the COMPATIBLE / MISMATCH / MISSING table — unchanged schema)
@@ -149,17 +149,23 @@ round's** header, and passes only on the **conjunction of all of**:
 |---|---|---|
 | `State:` | `RESOLVED` or `RESOLVED-WITH-ACCEPTED-RISK` (exact token) | `OPEN`, `OPEN-BLOCKED`, any other/missing token |
 | `OpenFindings:` | parses to integer `0` | non-zero, non-integer, or absent |
-| `Convergence:` | `unanimous` or `split` (present and parseable) | absent / unparseable |
+| `Convergence:` | `unanimous` or `split` (present, parseable, **latest round only, tokens only — never free prose**) | absent, unparseable, or **any token other than `unanimous`\|`split`** (out-of-enum fails identical to absent) |
 | `Dissenter:` | non-empty (a dissenter was assigned) | empty / absent |
 | `Blinded:` | `yes` or `no` (advisory — `no` downgrades confidence, does not fail) | — |
+| **Cross-field consistency** | `State` and `OpenFindings` agree | `State: RESOLVED`\|`RESOLVED-WITH-ACCEPTED-RISK` with `OpenFindings ≠ 0`, **OR** `OPEN-BLOCKED` with `OpenFindings: 0` — a contradictory-but-parseable header **fails closed identical to an absent one**. (`OPEN` fails on the `State:` row regardless of count — it is not a cross-field case; per the enum, `OPEN` may carry either count.) |
 
-**Fail closed — the load-bearing correctness property.** The gate fails closed on an **absent or
-malformed** ledger, not only on `State: OPEN`. A grep that finds **no** ledger file, an
-**unparseable/missing** `State:`, a non-integer/absent `OpenFindings:`, or an **empty**
-`Dissenter:` ⇒ the gate **FAILS**, identical to `State: OPEN`. The gate must **never error-into-
-pass**: a search that finds no `RESOLVED` resolves to FAIL, never to a skipped check that
-proceeds. (The pre-design "synthesis evaporated into the transcript" status quo — no ledger —
-must not pass the gate.)
+**Fail closed — the load-bearing correctness property.** The gate fails closed on an **absent,
+malformed, or self-contradictory** ledger, not only on `State: OPEN`. A grep that finds **no**
+ledger file, an **unparseable/missing** `State:`, a non-integer/absent `OpenFindings:`, an
+**out-of-enum** `Convergence:`, an **empty** `Dissenter:`, **or a header whose `State:` and
+`OpenFindings:` contradict each other** ⇒ the gate **FAILS**, identical to `State: OPEN`. A
+parseable-but-contradictory header (e.g. `State: RESOLVED` with `OpenFindings: 3`) is **not** a
+pass: the gate reads both fields and the cross-check is part of the conjunction, so a grep that
+finds `RESOLVED` without cross-checking `OpenFindings` is the exact error this row forbids. The
+gate must **never error-into-pass**: a search that finds no clean `RESOLVED` (token present *and*
+count `0` *and* fields consistent) resolves to FAIL, never to a skipped check that proceeds. (The
+pre-design "synthesis evaporated into the transcript" status quo — no ledger — must not pass the
+gate.)
 
 **Provider/consumer:** `/cross-review` is the **provider** of this schema; `/workstream`'s
 review-gate is the **consumer**. Per the skill's tie-break, this schema is canonical; 536's gate

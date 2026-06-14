@@ -7,7 +7,7 @@ description: "Use when the user has a specific system, feature, or problem and w
 
 # Coral
 
-Lightweight specialist iteration. When the user has a defined slice of work and wants the right specialist(s) on it, coral picks the smallest set of specialists that match and iterates with them. No tier selection, no cross-review rounds, no workstream file.
+Lightweight specialist iteration. When the user has a defined slice of work and wants the right specialist(s) on it, coral picks the smallest set of specialists that match and iterates with them. No scope-tier ceremony, no cross-review rounds, no workstream file.
 
 This is the right tool when work is **scoped and iterative**: one or two components, no irreversible design decisions in play, a single session. When it isn't, hand off to `council`.
 

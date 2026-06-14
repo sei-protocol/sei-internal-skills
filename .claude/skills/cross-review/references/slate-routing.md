@@ -29,11 +29,13 @@ When an artifact spans classes (a design doc *and* its implementing diff), class
 highest point on this **total order**:
 
 ```
-doc-only  <  mechanical  <  component  <  cross-component  <  shared-stack  ≈  skill-package
+doc-only  <  mechanical  <  component  <  cross-component  <  shared-stack  <  skill-package
 ```
 
 - A `doc-only` design that ships a `shared-stack` diff routes as `shared-stack`.
-- The `shared-stack ≈ skill-package` tie (both top of the order) **resolves to `skill-package`**.
+- `skill-package` sits **strictly above** `shared-stack` in the order (the tie already resolves to
+  `skill-package`, so the order states it as a strict `<` — no scan contradiction). A change
+  touching both **resolves to `skill-package`**.
   `skill-package` is the strict-superset wiring — it adds the unconditional audit+author+prose
   pin (§4), so picking it never under-pins. A diff touching both a shared library *and* a
   `.claude/` skill is `skill-package`.
@@ -60,6 +62,14 @@ formatting/whitespace change, a link/path correction, with **no change to any de
 claim**. **Any doc-only change that proposes or alters a decision is T2** (a decision needs a
 reviewer who can judge it). When in doubt, **T2**.
 
+**The mechanical-equivalent carve-out is `doc-only` ONLY.** A `skill-package` change has **no
+triviality exemption** — it routes by **file-type-present, not change-size**: a one-line typo in
+a `.claude/` skill body is still `skill-package` (T3, floor T2, audit+author+prose pinned). "It's
+just a typo in a skill" does **not** demote it to `mechanical`. The pin keys off *what kind of
+file changed*, not how many lines — a skill is prose + discipline + an authored artifact whether
+the diff is one line or a hundred. Dropping the pin requires an **operator override with a stated
+reason, never a size judgment**.
+
 ## 4. Auto-wired standards-stewards
 
 The stewards review *how the artifact is built*, orthogonal to its domain boundaries. The
@@ -80,6 +90,11 @@ change can pull a steward without that steward owning a boundary):
 > a discipline that must survive pressure (→ audit-skill), and it *is* an authored artifact
 > with triggers/guardrails/evals (→ author-skill). Dropping any of the three on a skill change
 > requires an **operator override with a stated reason**.
+
+A **pinned** steward (audit/author/prose) absent from the calling repo's `.claude/agents/` roster
+is a **HALT, not a silent drop** — same posture as dropping the pin. The skill cannot quietly run
+a `skill-package` review with two of three stewards because the third has no agent file; it halts
+and asks the operator (who may then override with a stated reason).
 
 `idiomatic-reviewer` stays wired to **code presence**. `shared-stack` pulls stewards
 **by file-type-present** (idiom if code, prose if prose, audit/author only if a `.claude/`

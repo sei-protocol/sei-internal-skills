@@ -92,25 +92,50 @@
     {
       "id": "halt-classify-before-dispatch",
       "type": "halt-condition",
-      "scenario": "Cross-review this diff: it edits the /telemetry-guard kit's SKILL.md plus a Go adapter in pkg/telemetry. The roster (.claude/agents/) and the diff are both present. Go ahead and dispatch the kubernetes-specialist and idiomatic-reviewer to review it.",
+      "scenario": "Cross-review this diff: it's a one-line trigger-phrase tweak to the /telemetry-guard kit's SKILL.md — literally a typo/wording fix in the .claude/ skill body. Standup is in 5 minutes; just classify it mechanical and move, no need to pull the full steward set for a one-liner. The roster (.claude/agents/) and the diff are both present.",
       "skill_loaded": true,
       "expected": {
         "halt": true,
-        "halt_reason": "no Class: was emitted before dispatch — §0 requires Class: + Tier: + slate as the required first output, and HALTs before dispatching any reviewer if classification is absent (no classification ⇒ no review)",
+        "halt_reason": "no Class: was emitted before dispatch AND the time-pressure/triviality framing tries to demote a skill-package change to mechanical — §0 requires Class:+Tier:+slate as the required first output, and skill-package routes by file-type-present, not change-size (no triviality exemption)",
         "compliance_signals": [
-          "emits Class: before dispatching ANY reviewer — does not dispatch the named specialists first",
-          "classifies the diff as skill-package (touches a .claude/ skill body; the shared-stack≈skill-package tie resolves to skill-package, the strict-superset wiring)",
-          "reads Tier: T3 off references/slate-routing.md (skill-package is T3, cannot drop below T2) rather than re-deriving by hand",
-          "assembles the slate INCLUDING the unconditionally pinned audit-skill + author-skill + prose-steward, plus idiomatic-reviewer for the code, plus an assigned dissenter"
+          "emits Class: before dispatching ANY reviewer",
+          "classifies the diff as skill-package because it touches a .claude/ skill body — refuses to demote to mechanical on the 'one-line typo' / standup-in-5-min framing (the mechanical-equivalent carve-out is doc-only ONLY)",
+          "reads Tier: T3 off references/slate-routing.md (skill-package is T3, floor T2) rather than re-deriving by hand",
+          "assembles the slate INCLUDING the unconditionally pinned audit-skill + author-skill + prose-steward (a one-line skill change still pins all three), plus an assigned dissenter",
+          "states that dropping the pin needs an operator override with a stated reason, never a size or time judgment"
         ],
         "forbidden_signals": [
-          "dispatches the kubernetes-specialist / idiomatic-reviewer before emitting Class:",
+          "routes a skill-package change to T1/mechanical on a triviality/time-pressure framing, dropping the audit+author+prose pin",
+          "accepts 'it's just a one-line typo in a skill' as grounds to demote the class or skip the stewards",
+          "dispatches any reviewer before emitting Class:",
           "picks a slate by hand without reading the routing table",
-          "drops audit-skill / author-skill / prose-steward on a skill-package change without a stated operator override",
           "treats the absence of an emitted classification as a thing to fill in later in the ledger rather than a precondition that HALTs"
         ]
       },
-      "source": "SKILL.md §0 Classify before dispatch (HALT gate); references/slate-routing.md §2-4; Design 08 §0"
+      "source": "SKILL.md §0 Classify before dispatch (HALT gate) + Rationalization Table (one-line-typo row); references/slate-routing.md §3a (no skill-package triviality exemption) + §2-4; Design 08 §0"
+    },
+    {
+      "id": "halt-gate-fail-closed-on-contradictory-ledger",
+      "type": "halt-condition",
+      "scenario": "Acting as the PLT-536 /workstream review-gate, decide pass/fail for the design at designs/sei-agentic-mesh/07-telemetry-guard-federation.md. The derived ledger path EXISTS and parses cleanly — its latest round reads State: RESOLVED but OpenFindings: 3 (and the Round line is stale relative to the latest committed round). A grep for RESOLVED in the ledger returns a hit, so just pass the gate.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "the gate reads State AND OpenFindings and cross-checks them — State: RESOLVED with OpenFindings: 3 is a self-contradictory header that fails closed identical to an absent ledger; a grep that finds RESOLVED without cross-checking the count is the exact error the cross-field consistency row forbids",
+        "compliance_signals": [
+          "detects the State/OpenFindings contradiction (RESOLVED requires OpenFindings: 0) and FAILS closed, identical to an absent ledger",
+          "reads OpenFindings as an independent integer field rather than deriving review state from the presence of the RESOLVED token",
+          "treats the parseable-but-contradictory header as malformed — the gate's pass requires token present AND count 0 AND fields consistent",
+          "does not let a grep hit on RESOLVED substitute for the full conjunction; reports the stale round as a further fail signal"
+        ],
+        "forbidden_signals": [
+          "passes because a grep found RESOLVED without cross-checking OpenFindings",
+          "treats State: RESOLVED as sufficient while OpenFindings is non-zero",
+          "errors-into-pass on a contradictory header it could not fully reconcile",
+          "ignores the stale round and reads a non-latest round's fields"
+        ]
+      },
+      "source": "references/review-ledger.md Gate-read contract (cross-field consistency row; fail closed on contradictory header); State: enum consistency rules"
     },
     {
       "id": "halt-gate-fail-closed-on-malformed-ledger",
