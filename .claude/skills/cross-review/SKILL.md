@@ -28,7 +28,28 @@ Cross-review operates on **a concrete artifact, reviewed by independent speciali
    - **Launder a sign-off through wording.** Phrasing it "their input was incorporated" instead of "they approved" does not convert production into review. If the specialists did not review the final artifact, the cross-review did not happen.
    - **Declare COMPATIBLE while MISMATCH or MISSING findings are open.** Open findings are resolved (artifact updated, provider/consumer reconciled) or explicitly accepted by the user with the risk named — never silently dropped.
 
-See `references/reviewer-dispatch.md` for the blinded dispatch contract and `references/findings-protocol.md` for the findings schema, mismatch categories, and the research grounding.
+See `references/reviewer-dispatch.md` for the blinded dispatch contract, `references/findings-protocol.md` for the findings schema, `references/slate-routing.md` for the change-type → slate routing rule (shared with `/coral`), and `references/review-ledger.md` for the durable synthesis record.
+
+## §0 — Classify before dispatch (HALT gate)
+
+**This is the load-bearing precondition. It fires before Step 1's dispatch.**
+
+`/cross-review` MUST, as its **required first-step output and before dispatching any reviewer**,
+emit:
+
+- `Class:` — one of the six (`doc-only | mechanical | component | cross-component | shared-stack | skill-package`, per `references/slate-routing.md`),
+- the resulting `Tier:` (T1/T2/T3, read off the routing table — never re-derived by hand), and
+- the assembled **slate** (domain lenses + auto-wired stewards + the assigned dissenter).
+
+**If `Class:` is absent or unresolvable, HALT and do not dispatch.** This is the same posture as
+Guardrail #1 ("no artifact ⇒ halt"): **no classification ⇒ no review.** Everything mechanical —
+tier, slate, the steward pin, the dissenter floor — is a *function of* a populated `Class:`; the
+HALT is what forces the classification to happen at all. An operator override (naming a slate or
+tier directly) still satisfies the precondition — it produces a recorded `Class:`/`Tier:` — it
+does not bypass it.
+
+The emitted classification is the ledger's header (`references/review-ledger.md`). A
+cross-review that dispatches reviewers without an emitted `Class:` is **non-compliant**.
 
 ## The Four Rules
 
@@ -54,26 +75,56 @@ State, in the first turn:
 
 If the artifact can't be read, halt (Guardrail #1).
 
-### Step 2 — Pick the reviewer slate
+### Step 2 — Route the slate (per `references/slate-routing.md`)
 
-Read `.claude/agents/` from the calling repo. Choose the smallest set whose combined domains cover the boundaries. For each interface, you want at least the provider-domain specialist and the consumer-domain specialist. Add a domain specialist for any cross-cutting concern the artifact raises (security boundary → `security-specialist`; capacity/cost → `k8s-capacity-management`; etc.).
+The slate is **routed, not re-derived by hand.** Apply the shared routing table
+(`references/slate-routing.md` — the one mechanism, also cited by `/coral`):
 
-**When the artifact includes a code diff or implementation** (not solely a design doc), add `idiomatic-reviewer` to the slate. It brings a distinct axis the boundary reviewers don't cover — does the code read *native* to its language, framework, and the package's own documented patterns — and it reports separately from the boundary table (see Step 4). Skip it when the artifact under review is a pure design/spec with no code.
+1. **Classify** the artifact into one of the six classes (already done in §0).
+2. **Read the tier off the table** (T1/T2/T3) — class sets the default; blast-radius bumps it
+   up, never silently down. `shared-stack`/`skill-package` are T3 by default and **cannot drop
+   below T2**.
+3. **Assemble the slate:** read `.claude/agents/` and pick the domain lenses whose combined
+   domains cover the boundaries (provider + consumer per interface, plus any cross-cutting
+   specialist — security boundary → `security-specialist`; capacity/cost →
+   `k8s-capacity-management`; etc.). The orchestrator's remaining judgment is *which domain
+   specialists* cover the boundaries; the depth and steward wiring are mechanical.
+4. **Auto-wire the stewards** by file-type-present (table §4): `prose-steward` on any prose;
+   `idiomatic-reviewer` on any code diff; `audit-skill`+`author-skill` on a `.claude/` skill
+   body. **A `skill-package` change pins `audit-skill` + `author-skill` + `prose-steward`
+   unconditionally** — dropping any of the three requires an operator override with a stated
+   reason.
+5. **Assign the dissenter** (see The Four Rules / Step 3) and record it.
 
-If only one specialist is genuinely relevant, this is a single-reviewer pass — run it, but label the output accordingly. Don't manufacture reviewers to look thorough.
+The stewards report on their own axes (Idiom addendum / Prose addendum / per-lens RATIFY-DISSENT
+verdicts in the ledger), not the boundary table — see Step 4 and `references/review-ledger.md`.
+
+If only one specialist is genuinely relevant (a T1 `mechanical` pass), this is a single-reviewer
+pass — run it, but label the output accordingly, and **fold the dissent obligation into the one
+reviewer** (an adversarial pass; recorded as `Dissenter: <lens> (self, single-reviewer pass)`).
+Don't manufacture reviewers to look thorough; don't waive the dissent because the slate is one.
 
 ### Step 3 — Dispatch independent reviews (blinded)
 
 Dispatch contract (mandatory — see `references/reviewer-dispatch.md` for the brief template):
 
 - **Independent.** Each specialist reviews the same artifact without seeing peers' reviews. Do not summarize one reviewer's view into another's brief.
-- **Assigned dissent.** Tag one reviewer red-team: their job is to argue the design is wrong and produce the strongest objection. Without an assigned dissenter you get consensus theater.
+- **Assigned dissent (default, not droppable).** Tag one reviewer red-team: their job is to argue the design is wrong and produce the strongest objection — picked as the lens *most likely to find the breaking boundary*, not the least busy. This is the **floor**, not an opt-in: the ledger's `Dissenter:` field is **required and never empty**, and a `Convergence: unanimous` verdict is only valid if a dissenter was assigned and still concluded RATIFY (unanimity without an assigned dissenter is consensus theater). A **T1 single-reviewer pass folds** the dissent into the one reviewer (an adversarial pass), recorded as `Dissenter: <lens> (self, single-reviewer pass)` — never waived.
 - **Structured brief.** Ask each reviewer: "Review this artifact for the boundaries you own or consume. For each, return COMPATIBLE / MISMATCH / MISSING with the specific contract/field/line as evidence. Name anything the design assumes but doesn't state." Not "take a look."
 - **Evidence required.** Reject bare approval in the returned findings; re-dispatch if a reviewer returns "looks good" with nothing cited.
 
-### Step 4 — Synthesize the findings table
+### Step 4 — Synthesize into the review ledger
 
-Merge the independent reviews into one de-duplicated table:
+Write the durable synthesis record per `references/review-ledger.md` — the committed, target-
+derivable ledger at `<artifact-dir>/cross-review/<target-slug>.md` (or `.cross-review/<slug>.md`
+at repo root when the target has no natural directory). It carries the typed header
+(`Class:`/`Tier:`/`State:`/`OpenFindings:`/`Convergence:`/`Blinded:`/`Dissenter:`, one-per-line,
+exact-token — they are PLT-536's review-gate contract), the per-lens RATIFY/DISSENT verdicts, the
+boundary table below, the Idiom/Prose addenda, and the **Rejected findings** table (Rule 4 made
+auditable — a finding the orchestrator rejected, who raised it, and *how the rejection was
+verified*). A re-review **appends a new `## Round N`** — never edits a prior round in place.
+
+Merge the independent reviews into one de-duplicated boundary table inside the ledger:
 
 | Interface / Boundary | Provider | Consumer | Status | Evidence | Raised by |
 |---|---|---|---|---|---|
@@ -88,8 +139,8 @@ Merge the independent reviews into one de-duplicated table:
 
 - Every **MISMATCH** and **MISSING** is resolved (artifact updated; provider/consumer reconciled — provider definition wins, consumer adapts) or **explicitly accepted by the user** with the risk stated. Nothing is silently dropped.
 - **Correctness-grade idiom findings block too.** A runtime-consequence idiom finding (e.g. a status patch missing the optimistic lock, an always-present condition removed) is resolved or explicitly accepted before a COMPATIBLE verdict — the same bar as a MISMATCH. Pure-style idiom findings are **advisory**: surfaced in the Idiom addendum, never gating.
-- Output: the findings table, the verdict (COMPATIBLE overall / OPEN with N findings), the resolved items with what changed, and any accepted-with-risk items.
-- If cross-review can't reach a clean verdict — reviewers split, an artifact gap nobody can close — say so explicitly: "cross-review open, 2 MISMATCH unresolved, needs a provider decision on X." A labeled open state beats a fabricated COMPATIBLE.
+- Output: the committed ledger with its typed header `State:`, the verdict, the resolved items with what changed, and any accepted-with-risk items. Set `State:` per the enum in `references/review-ledger.md` — `RESOLVED` / `RESOLVED-WITH-ACCEPTED-RISK` are the only passing terminals; `OpenFindings:` is `0` for those.
+- If cross-review can't reach a clean verdict — reviewers split, an artifact gap nobody can close — say so explicitly and set `State: OPEN-BLOCKED` with `OpenFindings: ≥1`: it **fails the gate to a human**. A split must **never** be relabeled `RESOLVED-WITH-ACCEPTED-RISK` to make the loop terminate (accepted-risk needs an operator decision on a *named* risk, not mere disagreement). A labeled open state beats a fabricated COMPATIBLE.
 
 ## Rationalization Table
 
@@ -126,6 +177,7 @@ Phrases that signal a rationalization is firing — in your reasoning or the use
 
 Stop and report to the user if:
 
+- `Class:` was not emitted before dispatch (§0) — no classification ⇒ no review. HALT and classify before dispatching any reviewer.
 - The artifact under review can't be located or pasted — never synthesize a review of work you haven't read.
 - The calling repo has no `.claude/agents/` roster and the user can't point at one.
 - A reviewer returns bare approval with no cited evidence — re-dispatch with the evidence requirement.
@@ -144,4 +196,4 @@ Stop and report to the user if:
 
 ## Output
 
-End-of-session summary: the artifact reviewed, the reviewer slate (and who held dissent), the findings table verdict (COMPATIBLE / OPEN with N findings), what was resolved and how, and any accepted-with-risk items. If code was reviewed, include the Idiom addendum (with any blocking correctness-grade idiom findings called out). If open, name the unresolved findings and what would close them.
+End-of-session summary: the emitted `Class:`/`Tier:`/slate (§0), the committed ledger path, the reviewer slate (and who held the required dissent), the verdict with its `State:` token, what was resolved and how, any accepted-with-risk items, and any rejected findings with how the rejection was verified. If code was reviewed, include the Idiom addendum; if prose, the Prose addendum (correctness-grade blocks, style advisory). If open, name the unresolved findings and what would close them — and if a split could not be resolved, `State: OPEN-BLOCKED` to a human.

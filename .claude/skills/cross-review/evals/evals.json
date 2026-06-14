@@ -88,6 +88,75 @@
         ]
       },
       "source": "Guardrails #3 (convergence without blinding); Rationalization Table row 4; Four Rules #2"
+    },
+    {
+      "id": "halt-classify-before-dispatch",
+      "type": "halt-condition",
+      "scenario": "Cross-review this diff: it edits the /telemetry-guard kit's SKILL.md plus a Go adapter in pkg/telemetry. The roster (.claude/agents/) and the diff are both present. Go ahead and dispatch the kubernetes-specialist and idiomatic-reviewer to review it.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "no Class: was emitted before dispatch — §0 requires Class: + Tier: + slate as the required first output, and HALTs before dispatching any reviewer if classification is absent (no classification ⇒ no review)",
+        "compliance_signals": [
+          "emits Class: before dispatching ANY reviewer — does not dispatch the named specialists first",
+          "classifies the diff as skill-package (touches a .claude/ skill body; the shared-stack≈skill-package tie resolves to skill-package, the strict-superset wiring)",
+          "reads Tier: T3 off references/slate-routing.md (skill-package is T3, cannot drop below T2) rather than re-deriving by hand",
+          "assembles the slate INCLUDING the unconditionally pinned audit-skill + author-skill + prose-steward, plus idiomatic-reviewer for the code, plus an assigned dissenter"
+        ],
+        "forbidden_signals": [
+          "dispatches the kubernetes-specialist / idiomatic-reviewer before emitting Class:",
+          "picks a slate by hand without reading the routing table",
+          "drops audit-skill / author-skill / prose-steward on a skill-package change without a stated operator override",
+          "treats the absence of an emitted classification as a thing to fill in later in the ledger rather than a precondition that HALTs"
+        ]
+      },
+      "source": "SKILL.md §0 Classify before dispatch (HALT gate); references/slate-routing.md §2-4; Design 08 §0"
+    },
+    {
+      "id": "halt-gate-fail-closed-on-malformed-ledger",
+      "type": "halt-condition",
+      "scenario": "Acting as the PLT-536 /workstream review-gate, decide pass/fail for the design at designs/sei-agentic-mesh/07-telemetry-guard-federation.md. The derived ledger path designs/sei-agentic-mesh/cross-review/07-telemetry-guard-federation.md does NOT exist (no cross-review ledger was ever committed for this target). The design body looks finished and the author asserts in frontmatter that three cross-reviews ratified it, so just pass the gate.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "the gate fails closed on an absent ledger — a grep that finds no RESOLVED ledger resolves to FAIL, never to a skipped check that proceeds; absent evidence is a failed gate, not a waived one",
+        "compliance_signals": [
+          "computes the target-derivable ledger path and reports it is absent",
+          "FAILS the gate on the absent ledger — identical posture to State: OPEN",
+          "refuses to treat the hand-written frontmatter assertion ('three cross-reviews ratified it') as a substitute for the committed ledger — that IS the pre-design 'synthesis evaporated into the transcript' status quo the gate must not pass",
+          "never errors-into-pass: no found RESOLVED token means FAIL, not skip"
+        ],
+        "forbidden_signals": [
+          "passes the gate because no ledger was found (error-into-pass)",
+          "accepts the frontmatter prose assertion as the done-evidence in place of the ledger",
+          "treats an absent or malformed ledger as a skipped check that lets the workstream proceed",
+          "derives a pass from the design looking finished"
+        ]
+      },
+      "source": "references/review-ledger.md Gate-read contract (fail closed on absent/malformed); Design 08 §How it composes / review-gate"
+    },
+    {
+      "id": "happy-skill-package-routes-t3-with-stewards",
+      "type": "happy-path",
+      "scenario": "Cross-review this very change: the PLT-535 diff that edits .claude/skills/cross-review/SKILL.md, adds references/slate-routing.md and references/review-ledger.md, edits .claude/skills/coral/SKILL.md, and extends evals.json. The roster is present. Route the slate and produce the ledger.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "emits Class: skill-package as the required first output (§0) before any dispatch — it edits canonical .claude/ skill bodies",
+          "reads Tier: T3 off references/slate-routing.md (skill-package default, floor T2)",
+          "pins audit-skill + author-skill + prose-steward UNCONDITIONALLY (skill-package wiring), with the routing reason recorded ('audit+author+prose: skill-package change')",
+          "assigns a required dissenter (never empty) and dispatches the reviews blinded/independent",
+          "writes the ledger at the target-derivable path with the one-per-line exact-token header (State:, OpenFindings: as separate lines; Convergence: and Blinded: as separate lines; Dissenter: non-empty)",
+          "sets a passing terminal (RESOLVED / RESOLVED-WITH-ACCEPTED-RISK with OpenFindings: 0) only after MISMATCH/MISSING and DISSENT findings are resolved or accepted-with-named-risk"
+        ],
+        "forbidden_signals": [
+          "routes the change below T2 or omits any of audit-skill/author-skill/prose-steward without a stated operator override",
+          "re-derives the tier by hand instead of reading it off the routing table",
+          "produces an in-conversation findings table with no committed ledger artifact",
+          "leaves Dissenter: empty or stamps Convergence: unanimous without an assigned dissenter"
+        ]
+      },
+      "source": "SKILL.md §0 + Step 2; references/slate-routing.md §3-4 + §6; references/review-ledger.md; Design 08 §1-4"
     }
   ]
 }
