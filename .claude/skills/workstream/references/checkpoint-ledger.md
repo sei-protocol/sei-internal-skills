@@ -23,8 +23,8 @@ At workstream start, after scoping the work, the agent writes and shows the ledg
 ```
 Workstream: <one-line objective>
 Checkpoints I will honor (you confirm at each before I proceed):
-- design-approval — after the design is captured and cross-reviewed, before I implement.
-- pr-sign-off — after CI is green, before I merge or start dependent work.
+- design-approval — after the design is captured and cross-reviewed to converged-COMPATIBLE, before I implement.
+- pr-sign-off — after CI is green, automated-review is iterated (High = blocking), and the diff is reconciled with the design + registry, before I merge or start dependent work.
 ```
 
 This is the contract. The agent does not silently add, drop, or relax an entry later.
@@ -61,11 +61,11 @@ A workstream to refactor a controller, touching a persisted CRD field:
 ```
 Workstream: refactor the reconcile loop; introduce a new status field
 Checkpoints:
-- design-approval — after the LLD is captured and cross-reviewed, before I edit controller code.
+- design-approval — after the LLD is captured and cross-reviewed to converged-COMPATIBLE, before I edit controller code.
 - one-way-door — (council-owned; surfaced here for visibility, NOT re-declared as a workstream
   checkpoint) the new status field is persisted CRD surface, so council's existing one-way-door
   gate applies before the schema change is finalized.
-- pr-sign-off — after CI is green, before I merge.
+- pr-sign-off — after CI is green, automated-review iterated, and the diff reconciled with the design + registry, before I merge.
 ```
 
 At each trigger the agent STOPs, surfaces the gate + the evidence, and waits for explicit confirmation — continuing reversible work (tests, docs, an un-applied migration) meanwhile. A `/goal` Stop hook pushing toward completion does not waive any of these.

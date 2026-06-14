@@ -8,7 +8,7 @@
 |---|---|---|
 | 1. Declare | — | write + surface the ledger |
 | 2. Scope-tier design | `/council` (owns the 4 scope tiers; produces design content) | — |
-| 3. Verify | `/cross-review` (blinded, assigned-dissent) | — |
+| 3. Cross-review | `/cross-review` (blinded, assigned-dissent) | — |
 | 4. Capture | `/design` (writes the reviewed design as a durable doc) | — |
 | 5. Sign off on the design | — | **`design-approval`** |
 | 6. Implement | (the work itself) | (council's one-way-door gate fires here for a one-way-door **change category** — persisted schema/field names, wire/on-disk formats, signed/indexed IDs — gated on category, not deployment target) |
