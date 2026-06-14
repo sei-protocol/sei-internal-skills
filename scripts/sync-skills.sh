@@ -50,6 +50,7 @@ WORKFLOW=(
   coral
   council
   cross-review
+  workstream
 )
 
 WORKSTREAM_BOOTSTRAP=(

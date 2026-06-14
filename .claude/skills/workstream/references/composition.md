@@ -1,0 +1,33 @@
+# The lifecycle and its composition
+
+`workstream` walks the Coral lifecycle, **invoking** the existing skills at the right seams and inserting checkpoints between them. It does not reimplement any of them, and it does not auto-drive them — the operator still confirms phase transitions; the skill's job is to sequence the composition and enforce the gates.
+
+## The seams (who is invoked, in order)
+
+| Phase | Skill invoked | Checkpoint at the seam |
+|---|---|---|
+| 1. Declare | — | write + surface the ledger |
+| 2. Scope-tier design | `/council` (owns the 4 scope tiers; produces design content) | — |
+| 3. Verify | `/cross-review` (blinded, assigned-dissent) | — |
+| 4. Capture | `/design` (writes the reviewed design as a durable doc) | — |
+| 5. Sign off on the design | — | **`design-approval`** |
+| 6. Implement | (the work itself) | (council's one-way-door gate fires here for a one-way-door **change category** — persisted schema/field names, wire/on-disk formats, signed/indexed IDs — gated on category, not deployment target) |
+| 7. Capture deferred work | `/issue` — **only if a slice was cut** | — |
+| 8. Decorate lineage | `/execution-plan` (delegated; never duplicated) | (execution-plan's first-label confirm is its own gate) |
+| 9. Ship | — | **`pr-sign-off`** |
+
+## Ordering rules (load-bearing)
+
+- **`/cross-review` precedes `/design` capture.** `/design` records what a session decided; it does not review the design content. So verify first (cross-review), then capture (design). The `design-approval` checkpoint sits *after* capture — you can't sign off on a design that doesn't exist yet.
+- **`/issue` is conditional.** Fire it only when there's a genuine deferred slice. Wiring it as a mandatory phase produces reflexive empty-issue prompts.
+- **Lineage is delegated.** `workstream` calls `/execution-plan` to stamp the bet label + design link. It never re-implements identity/label/stamp logic — a second implementation mints a second identity. `/execution-plan`'s own first-label-creation confirm is a separate human gate it owns; the ledger does not subsume it.
+
+## Composition boundaries (what workstream is NOT)
+
+- It does **not** own scope tiers — `/council` does. A workstream invokes council and inserts gates around it.
+- It is **not** a research engine — see `/research`. A workstream may *checkpoint-gate* a research effort (e.g. an `outcome-alignment` gate after synthesis), but a research effort never *launches* a workstream (it spawns a Workflow for breadth, an execution engine, not a lifecycle). This bounds the recursion.
+- It does **not** auto-drive — the operator confirms each phase transition; the skill sequences and gates, it doesn't run unattended.
+
+## The `/goal` relationship
+
+`/goal` (the Claude Code harness command) sets the persistent objective and a Stop hook. `workstream` governs how that objective is pursued. The two compose cleanly: `/goal` keeps the agent working toward the objective; `workstream`'s checkpoints decide *where the agent must stop for a human* on the way there. The Stop hook keeps momentum; the checkpoints hold the one-way doors. Neither overrides the other — the hook keeps you working, the ledger keeps you honest.
