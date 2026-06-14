@@ -25,7 +25,7 @@
 ## Composition boundaries (what workstream is NOT)
 
 - It does **not** own scope tiers — `/council` does. A workstream invokes council and inserts gates around it.
-- It is **not** a research engine — see `/research`. A workstream may *checkpoint-gate* a research effort (e.g. an `outcome-alignment` gate after synthesis), but a research effort never *launches* a workstream (it spawns a Workflow for breadth, an execution engine, not a lifecycle). This bounds the recursion.
+- It is **not** a research engine — see `/research`. A workstream may *checkpoint-gate* a research effort (e.g. an `outcome-alignment` gate after synthesis), but a research effort never *launches* a workstream. (At breadth a research sweep would use a parallel-sweep Workflow — an execution engine, not a lifecycle — but that engine is deferred in `/research`'s MVP, which surfaces the too-wide-sweep limit instead.) This bounds the recursion.
 - It does **not** auto-drive — the operator confirms each phase transition; the skill sequences and gates, it doesn't run unattended.
 
 ## The `/goal` relationship

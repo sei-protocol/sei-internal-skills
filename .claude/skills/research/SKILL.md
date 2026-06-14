@@ -20,7 +20,7 @@ Research outputs today are less reusable, less verifiable, and don't accrue into
 Refusal conditions — these hold under "just give me a quick answer" pressure:
 
 1. **No finding ships unverified.** Every material finding gets a refutation pass before it's trusted. A finding that survives refutation is **verified** (with the refutation move recorded — an *unattempted* refutation yields `unverified`, not `verified`); one the refutation *disproves* is **refuted** and dropped; one it can neither confirm nor disprove is **unverified**, kept only with that label. Never present an unverified finding as established.
-2. **Refuse a vague question.** If the question doesn't name what a *useful answer* looks like (the decision it informs, the falsifiable claims sought), push back and sharpen it before sweeping. A sweep with no target returns noise.
+2. **Refuse a vague question; confirm scope before sweeping.** If the question doesn't name what a *useful answer* looks like (the decision it informs, the falsifiable claims sought), push back and sharpen it. Then **echo the scoped question** (decision + claims + scope boundary) and get the operator's go-ahead before the sweep — a sweep with no confirmed target returns noise.
 3. **Reuse the dissent primitive, don't invoke `/cross-review`.** `/cross-review` reviews *interface boundaries* (provider/consumer, COMPATIBLE/MISMATCH/MISSING) — that table doesn't map onto a research finding. `research` implements its **own** refutation pass *modeled on* cross-review's assigned-dissent primitive (tag a skeptic to argue the finding is wrong). Do not call `/cross-review` on findings.
 4. **Discover, don't decide.** Research surfaces findings + a recommendation; it does not capture a design decision (that's `/design`) or file work (that's `/issue`). Keep the artifact a *findings* artifact.
 5. **Never launch a workstream; surface a too-wide sweep.** A research effort may be *checkpoint-gated by* a `/workstream` (an `outcome-alignment` gate after synthesis), but it never *launches* one. Inline covers **≤3 sweep angles**; if the question needs more, **surface the limit** rather than running a narrow sweep silently — the parallel-sweep Workflow engine is deferred from MVP.
@@ -109,6 +109,7 @@ Stop and surface rather than proceeding when:
 - **A material finding can't be verified or refuted** — keep it only labeled *unverified*; never promote it to established.
 - **The completeness pass surfaces a gap that changes the recommendation** — report it; let the human decide whether to re-sweep (no auto-loop).
 - **The sweep needs >3 angles / broad parallelism** — note that an inline sweep is too narrow; the Workflow engine is deferred, so surface the limit rather than running an under-powered sweep silently.
+- **The operator asks to "turn this into a workstream"** — research never *launches* one (Guardrail 5); surface that launching a `/workstream` is the operator's call (research can be *gated by* one, e.g. an `outcome-alignment` checkpoint after synthesis).
 
 ## State
 
