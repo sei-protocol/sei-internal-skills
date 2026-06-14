@@ -37,7 +37,7 @@ Non-negotiable. Every step exists to enforce one or more.
 1. **Read the artifact, review the whole.** You review what's actually written, and you review the *integrated* artifact — including the parts each specialist didn't author. The boundaries are the point.
 2. **Independent before synthesized.** Each reviewer commits findings before seeing peers'. Convergence only counts as corroboration if it was reached independently.
 3. **Findings carry evidence.** Every finding names the specific contract / field / signature / line. Provider owns the interface; consumers adapt — that's the tie-break when reviewers disagree.
-4. **Resolve before pass.** MISMATCH and MISSING block a COMPATIBLE verdict until fixed or explicitly accepted. A clean table with open findings is a lie.
+4. **Resolve before pass — the raiser confirms.** MISMATCH and MISSING block a COMPATIBLE verdict until fixed or explicitly accepted. A finding addressed by an artifact change closes only when its **raiser re-reviews and confirms** (re-dispatch them) — never on orchestrator judgment. A clean table with open findings, or one self-cleared by the orchestrator, is a lie.
 
 ## Procedure
 
@@ -60,6 +60,10 @@ Read `.claude/agents/` from the calling repo. Choose the smallest set whose comb
 
 **When the artifact includes a code diff or implementation** (not solely a design doc), add `idiomatic-reviewer` to the slate. It brings a distinct axis the boundary reviewers don't cover — does the code read *native* to its language, framework, and the package's own documented patterns — and it reports separately from the boundary table (see Step 4). Skip it when the artifact under review is a pure design/spec with no code.
 
+**When the artifact carries prose a reader acts on** — runbooks, dual-audience design docs, dense load-bearing comments — add `prose-steward` to the slate. It brings the prose axis the boundary reviewers don't cover — does the prose read correctly for both the human reviewer and the consuming agent — and it rides in a Prose addendum alongside Idiom (see Step 4). Skip it when the artifact carries no prose a reader acts on.
+
+**The invariant:** the slate must cover *every axis the artifact has* — boundaries + idiom (if code) + prose (if prose). A domain-only slate over an artifact that carries code or prose is incomplete.
+
 If only one specialist is genuinely relevant, this is a single-reviewer pass — run it, but label the output accordingly. Don't manufacture reviewers to look thorough.
 
 ### Step 3 — Dispatch independent reviews (blinded)
@@ -78,15 +82,16 @@ Merge the independent reviews into one de-duplicated table:
 | Interface / Boundary | Provider | Consumer | Status | Evidence | Raised by |
 |---|---|---|---|---|---|
 
-- **Status** is COMPATIBLE / MISMATCH / MISSING (see `references/findings-protocol.md` for mismatch categories: signature, type, error-contract, naming, sequencing/behavioral).
+- **Status** is COMPATIBLE / MISMATCH / MISSING (see `references/findings-protocol.md` for mismatch categories: signature, type, error-contract, naming, sequencing/behavioral, doc-divergence — the last always blocking, source of truth wins).
 - **Surface disagreement — don't smooth it.** If two reviewers reached opposite conclusions on the same boundary, that's a finding, not a rounding error. Record both and reason from first principles; provider-owns-the-interface is the tie-break, not seniority or recency.
 - **Convergence is corroboration only if independent.** If the reviews agree and were blinded, say the confidence is high. If they weren't blinded, downgrade and note it.
 
-**Idiom findings ride in an addendum, not the boundary table.** `idiomatic-reviewer` reports two-altitude findings (design + surgical) keyed to files and packages, not to interface boundaries, so they don't fit the COMPATIBLE / MISMATCH / MISSING schema. Record them in a separate **Idiom** section below the table, each carrying its cited basis and severity (correctness-grade / idiom-divergence-with-consequence / style).
+**Idiom and prose findings ride in addenda, not the boundary table.** `idiomatic-reviewer` reports two-altitude findings (design + surgical) keyed to files and packages, not to interface boundaries, so they don't fit the COMPATIBLE / MISMATCH / MISSING schema. Record them in a separate **Idiom** section below the table, each carrying its cited basis and severity (correctness-grade / idiom-divergence-with-consequence / style). `prose-steward` findings (dual-audience legibility) ride the same way in a **Prose** section, each with its cited basis and severity.
 
 ### Step 5 — Resolve and report
 
 - Every **MISMATCH** and **MISSING** is resolved (artifact updated; provider/consumer reconciled — provider definition wins, consumer adapts) or **explicitly accepted by the user** with the risk stated. Nothing is silently dropped.
+- **The raiser confirms a fix closes their finding.** A finding marked resolved by an artifact change re-dispatches to its raiser, who re-reviews and confirms — the orchestrator does not self-clear a peer's finding. (User acceptance-with-risk is the only path that doesn't require the raiser.)
 - **Correctness-grade idiom findings block too.** A runtime-consequence idiom finding (e.g. a status patch missing the optimistic lock, an always-present condition removed) is resolved or explicitly accepted before a COMPATIBLE verdict — the same bar as a MISMATCH. Pure-style idiom findings are **advisory**: surfaced in the Idiom addendum, never gating.
 - Output: the findings table, the verdict (COMPATIBLE overall / OPEN with N findings), the resolved items with what changed, and any accepted-with-risk items.
 - If cross-review can't reach a clean verdict — reviewers split, an artifact gap nobody can close — say so explicitly: "cross-review open, 2 MISMATCH unresolved, needs a provider decision on X." A labeled open state beats a fabricated COMPATIBLE.
@@ -132,6 +137,7 @@ Stop and report to the user if:
 - Reviewers were not blinded (saw each other's assessments first) — the convergence is invalid; re-run with independent briefs.
 - Reviewers split on a boundary and the provider-owns tie-break doesn't resolve it — surface the disagreement and ask the user / provider for the call.
 - MISMATCH or MISSING findings remain open and the user has not explicitly accepted the risk — do not stamp COMPATIBLE.
+- A finding is marked resolved without its raiser re-reviewing — re-dispatch them; self-clearing a peer's finding is the rubber-stamp this skill exists to prevent.
 
 **Never declare COMPATIBLE to be helpful.** An honest OPEN verdict with named findings is the valuable output; a premature green light is the failure this skill exists to prevent.
 
@@ -141,7 +147,8 @@ Stop and report to the user if:
 - **`/council`** runs cross-review as a distinct phase of its scope-tier process by invoking this skill — it does not perform cross-review itself.
 - **`/code-review`** is line-level diff correctness; **`/bugbash`** is adversarial hardening of a running system; **`/root-cause`** is incident investigation. Cross-review is consistency review of a produced artifact across the specialists who own its boundaries.
 - **`idiomatic-reviewer`** (the `/idiomatic` skill) is the **idiom-conformance** lens — does the code read native to its language, framework, and the package's documented patterns. It's a distinct axis from boundary consistency: cross-review dispatches it as part of the slate when code is under review, and its findings ride in the Idiom addendum (correctness-grade blocks; style is advisory). It reviews idiom; it does not author the system or check boundaries.
+- **`prose-steward`** (the `/lingua` skill) is the **dual-audience prose** lens — does prose a reader acts on (runbooks, dual-audience docs, dense comments) read correctly for both the human reviewer and the consuming agent. A distinct axis from boundaries and idiom: cross-review dispatches it when the artifact carries such prose, and its findings ride in the Prose addendum. Read-only (no Bash) — materialize the artifact to disk before dispatch (see `references/reviewer-dispatch.md`). It reviews prose; it does not author the artifact.
 
 ## Output
 
-End-of-session summary: the artifact reviewed, the reviewer slate (and who held dissent), the findings table verdict (COMPATIBLE / OPEN with N findings), what was resolved and how, and any accepted-with-risk items. If code was reviewed, include the Idiom addendum (with any blocking correctness-grade idiom findings called out). If open, name the unresolved findings and what would close them.
+End-of-session summary: the artifact reviewed, the reviewer slate (and who held dissent), the findings table verdict (COMPATIBLE / OPEN with N findings), what was resolved and how (and confirmed by its raiser), and any accepted-with-risk items. If code was reviewed, include the Idiom addendum (with any blocking correctness-grade idiom findings called out); if prose was reviewed, include the Prose addendum. If open, name the unresolved findings and what would close them.

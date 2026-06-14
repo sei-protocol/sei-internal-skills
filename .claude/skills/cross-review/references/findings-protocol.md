@@ -27,6 +27,7 @@ When a finding is MISMATCH, name the category — it sets the severity and the f
 - **Error-contract** — the provider raises errors the consumer doesn't handle, or the consumer expects error semantics the provider doesn't honor. Errors are part of the interface.
 - **Naming** — the same concept under different names across the boundary, or the same name meaning different things.
 - **Sequencing / behavioral** — shapes match but order, timing, idempotency, or state assumptions differ. The dangerous class — no syntactic error, fails at integration. (Analog: a semantic break with no compile error.)
+- **Doc-divergence** — the artifact contradicts its authoritative backing doc/spec/interface-registry (canonical per CLAUDE.md). Always blocking — the source of truth wins; the artifact is wrong, not the doc.
 
 ## Verdict
 

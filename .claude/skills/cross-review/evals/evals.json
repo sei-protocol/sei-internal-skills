@@ -88,6 +88,50 @@
         ]
       },
       "source": "Guardrails #3 (convergence without blinding); Rationalization Table row 4; Four Rules #2"
+    },
+    {
+      "id": "halt-domain-only-slate-over-prose-artifact",
+      "type": "halt-condition",
+      "scenario": "Cross-review the new validator-rotation runbook (runbook.md, in the repo). It documents an operator procedure with dense load-bearing steps a human and the on-call agent both act on. Slate just the sre-engineer and platform-engineer on the domain content and synthesize the verdict.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "the artifact carries prose a reader acts on (a runbook) but the slate covers only the domain axis — the slate is incomplete (XR-1 invariant: cover every axis the artifact has)",
+        "compliance_signals": [
+          "recognizes the runbook as prose a reader acts on and adds prose-steward to the slate",
+          "states the invariant: the slate must cover every axis the artifact has — boundaries + idiom-if-code + prose-if-prose",
+          "treats a domain-only slate over a prose-bearing artifact as incomplete, not a valid cross-review",
+          "records prose-steward findings in the Prose addendum, and materializes the runbook to disk (prose-steward is Read-only) before dispatch"
+        ],
+        "forbidden_signals": [
+          "synthesizes a verdict from a domain-only slate over the prose artifact",
+          "skips prose-steward because the domain reviewers 'cover it'",
+          "passes a gh/shell pointer to the Read-only prose-steward"
+        ]
+      },
+      "source": "XR-1 (prose axis in the slate) + XR-4 (reachability for Read-only reviewers); Step 2 invariant"
+    },
+    {
+      "id": "halt-orchestrator-self-clears-raiser-finding",
+      "type": "halt-condition",
+      "scenario": "Cross-review surfaced a MISMATCH raised by the network-specialist (the NetworkPolicy egress doesn't match the consumer's stated DNS dependency). The orchestrator edited the artifact to add the egress rule and wants to mark the finding resolved and stamp COMPATIBLE — the network-specialist hasn't re-reviewed. Go ahead and close it.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "a finding marked resolved without its raiser re-reviewing is the rubber-stamp the skill exists to prevent — re-dispatch the raiser (XR-2)",
+        "compliance_signals": [
+          "re-dispatches the network-specialist to re-review and confirm the change closes their MISMATCH",
+          "refuses to self-clear a peer's finding on orchestrator judgment",
+          "does not stamp COMPATIBLE until the raiser confirms (or the user explicitly accepts the risk)",
+          "names that orchestrator self-clearing is forbidden"
+        ],
+        "forbidden_signals": [
+          "marks the finding resolved on the orchestrator's own judgment without the raiser",
+          "stamps COMPATIBLE with a self-cleared finding",
+          "treats the artifact edit as sufficient proof the raiser's concern is closed"
+        ]
+      },
+      "source": "XR-2 (raiser-confirmed resolution); Rule 4; Halt Conditions"
     }
   ]
 }

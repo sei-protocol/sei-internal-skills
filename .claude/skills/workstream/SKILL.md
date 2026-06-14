@@ -2,7 +2,7 @@
 name: workstream
 category: workflow
 model: claude-opus-4-8
-description: "Use when launching a substantial multi-step workstream on the Coral stack with declared human checkpoints — 'launch a workstream', 'kick off this goal with checkpoints', 'start a workstream with a PR sign-off gate', 'set up checkpoints for this goal', '/workstream'. Scaffolds the Coral lifecycle (council scope-tier → cross-review → /design capture → /issue → /execution-plan) and declares named human gates the agent must surface and obtain confirmation for before proceeding. Also declares signal-driven **guards** — fail-closed metric gates that watch a live signal during a high-risk step ('gate this cutover on the metric staying healthy'). Anti-triggers: NOT the Claude Code /goal harness command (that sets the persistent objective; this governs how it's pursued); NOT a single 1–2 specialist slice (use /coral); NOT scope-tiered design alone (use /council — workstream invokes it); NOT capturing a finished design (use /design). Composes council/cross-review/design/issue/execution-plan; never edits them."
+description: "Use when launching a substantial multi-step workstream on the Coral stack with declared human checkpoints — 'launch a workstream', 'kick off this goal with checkpoints', 'start a workstream with a PR sign-off gate', 'set up checkpoints for this goal', '/workstream'. Use when the work needs named human gates the agent must surface and obtain confirmation for before proceeding, or signal-driven **guards** — fail-closed metric gates that watch a live signal during a high-risk step ('gate this cutover on the metric staying healthy'). Anti-triggers: NOT the Claude Code /goal harness command (that sets the persistent objective; this governs how it's pursued); NOT a single 1–2 specialist slice (use /coral); NOT scope-tiered design alone (use /council — workstream invokes it); NOT capturing a finished design (use /design)."
 ---
 
 # Workstream
@@ -30,7 +30,8 @@ Refusal conditions — these hold under a Stop hook, time pressure, an offline o
 3. **Compose, never edit — and never reimplement.** Invoke `council`/`cross-review`/`design`/`issue`/`execution-plan`; never modify them. Delegate all lineage decoration to `/execution-plan` (never re-implement label/identity/stamp logic — that mints a second identity). If a composed skill is **unavailable**, surface the gap and run the phases you can — do **not** hand-roll the missing skill's logic inline (e.g. don't reimplement council's scope tiers).
 4. **Declare the ledger up front; confirm scope before side effects.** At workstream start, echo the **scope** (objective + the council scope tier) and the **checkpoint ledger**, surface both, and get the operator's go-ahead before invoking the lifecycle. A gate added silently mid-stream, or honored only when convenient, is not a checkpoint.
 5. **Don't manufacture ceremony.** A genuinely small slice does not need a workstream — redirect to `/coral`. Checkpoints are gates a human actually wants, not decoration.
-6. **A guard fails closed — it never PASSes on data it cannot confirm.** Stale, unreachable, empty, or incomplete (partial-response `warnings`) reads are `inconclusive` ⇒ abort, never "looks fine." A guard does not replace a one-way-door checkpoint and may not launch a workstream or create ledger entries at trip time (the ledger is static after declaration). See "The guard primitive."
+6. **Reversibility raises the bar to *create* a checkpoint, never lowers it to *waive* a declared one.** A reversible change may not need a gate; but once a gate is declared, "this is reversible" does not waive it. Reversibility is the axis for *adding* gates, not for skipping ones already on the ledger.
+7. **A guard fails closed — it never PASSes on data it cannot confirm.** Stale, unreachable, empty, or incomplete (partial-response `warnings`) reads are `inconclusive` ⇒ abort, never "looks fine." A guard does not replace a one-way-door checkpoint and may not launch a workstream or create ledger entries at trip time (the ledger is static after declaration). See "The guard primitive."
 
 ## The checkpoint primitive
 
@@ -52,8 +53,8 @@ See `references/checkpoint-ledger.md` for the format and worked examples.
 
 The minimal set that covers the common human gates:
 
-- **`design-approval`** — *trigger:* a design has been captured (via `/design`) **and** cross-reviewed. *gate:* the human signs off on the captured, reviewed design before implementation begins.
-- **`pr-sign-off`** — *trigger:* a PR is ready (CI green) and merging it — or starting work that depends on it — is the next step. *gate:* the human confirms the merge / the go-ahead for dependent work.
+- **`design-approval`** — *trigger:* a design has been captured (via `/design`) **and** has a **converged-COMPATIBLE** `/cross-review` verdict — complete slate + raiser-confirmed resolution per cross-review's contract, not an OPEN or single-pass result. *gate:* the human signs off on the captured, reviewed design before implementation begins.
+- **`pr-sign-off`** — *trigger:* a PR is **ready** — CI green **AND** automated-review (Cursor Bugbot / Claude) findings iterated (High = blocking) **AND** the diff reconciled with the approved `/design` + interface-registry (divergence surfaced as gate evidence; may compose `/verify`) — and merging it, or starting work that depends on it, is next. *gate:* the human confirms the merge / the go-ahead for dependent work.
 
 **One-way-door approval is not re-declared here** — reuse council's existing one-way-door gate by reference (persisted schema/field names, wire formats, signed IDs, prod-touching steps). A `workstream` simply ensures that gate is honored when council surfaces it.
 
@@ -96,7 +97,7 @@ A high-risk step declares **both** a `guard` (the metric watch) and a human `che
 
 1. **Fail closed.** Stale data, unreachable endpoint, auth/query error, an **empty read**, or an **incomplete read** (telemetry: a non-empty `warnings` array) ⇒ "cannot confirm healthy" = `inconclusive` ⇒ **abort**, never PASS. A guard that PASSes on data it cannot confirm is worse than no guard — it manufactures false confidence. This is the checkpoint's fail-closed discipline applied to a signal.
 2. **Cite the re-runnable query** with every reading (the query, window, store that answered, warnings, verdict) — provenance, not a bare scalar.
-3. **Surface on trip; the human owns the irreversible call.** `on_trip` halts before the next step and routes to a pre-declared rollback checkpoint. Auto-abort is deferred and, if ever enabled, only a pre-declared reversible+idempotent rollback, never on a one-way-door step.
+3. **Surface on trip; the human owns the irreversible call — the guard never self-executes the rollback.** `on_trip` halts before the next step, routes to a pre-declared rollback **checkpoint**, and STOPS for the human token — it does not run the rollback itself. Auto-abort is deferred and, if ever enabled, only a pre-declared reversible+idempotent rollback, never on a one-way-door step.
 4. **Recursion bound.** A guard may surface, halt, and route to an **already-declared** checkpoint — nothing more. It may **not** launch a workstream, spawn a sub-agent that launches one, or create ledger entries at trip time. The ledger is static after declaration. (This bounds a `continuous` guard's trip handler from becoming an unbounded watch→remediate→watch loop.)
 
 The kit's **eight correctness contracts** (four verdict-gating, four budget/tuning) — and the soak verdict rule (N-consecutive-breach vs the gate-start baseline) — live in `references/signal-kit-telemetry.md`. **Do not construct a guard verdict from this summary alone**; a guard that skips the contracts PASSes on the common cutover failure modes (no-traffic-drain, half-fleet read).
@@ -107,13 +108,13 @@ The kit's **eight correctness contracts** (four verdict-gating, four budget/tuni
 
 1. **Declare + surface the ledger; confirm scope.** Echo the scope (objective + the council scope tier) and the checkpoint ledger — default ledger: `design-approval` after design capture, `pr-sign-off` before merge / dependent work, plus any custom checkpoints the operator names — and get the operator's go-ahead **before** step 2 (per Guardrail 4).
 2. **Scope-tier the work via `council`.** Invoke `/council` (it owns the four scope tiers and produces the design content). Do not reimplement tiers.
-3. **Verify via `/cross-review`.** Run blinded multi-specialist review on the design **before** capture (cross-review precedes `/design` — design captures what's been reviewed, it doesn't review).
+3. **Cross-review via `/cross-review`.** Run blinded multi-specialist review on the design **before** capture (cross-review precedes `/design` — design captures what's been reviewed, it doesn't review). The `design-approval` gate composes a **converged-COMPATIBLE** verdict — cross-review owns slate-completeness and raiser-confirmed resolution; an OPEN or single-pass verdict does not satisfy it.
 4. **Capture via `/design`.** Offer `/design` to write the reviewed design as a durable doc.
 5. **`design-approval` checkpoint.** STOP; surface the captured, reviewed design; obtain explicit sign-off before implementing.
 6. **Implement** to the approved design. (Council's one-way-door gate fires here if a persisted-schema / wire-format / signed-ID change appears — honor it as a checkpoint even though it wasn't pre-declared.)
 7. **Capture deferred slices via `/issue` — conditionally.** Only if a slice was cut. Don't reflexively file an empty issue.
 8. **Decorate lineage via `/execution-plan`.** Call it to stamp the bet label + design link (delegated; never duplicated). Its first-label-creation confirm is a *separate* gate it owns — not subsumed by the ledger.
-9. **`pr-sign-off` checkpoint.** STOP; surface the ready PR; obtain explicit confirmation before merge / dependent work.
+9. **`pr-sign-off` checkpoint.** STOP; surface the ready PR — CI green, automated-review (Bugbot/Claude) findings iterated (High = blocking), and the diff reconciled with the approved `/design` + interface-registry (divergence surfaced as gate evidence; may compose `/verify`) — and obtain explicit confirmation before merge / dependent work.
 
 ## Rationalization table
 
@@ -159,4 +160,4 @@ Per-run scratch (the in-progress ledger, phase notes) lives in `state/` (gitigno
 
 ## What this skill defers
 
-The `/goal` Stop-hook *mechanism* wiring (this ships the discipline as prose — defer the hook integration until the prose proves insufficient under goal-pressure in an eval); auto-driving phase transitions without operator confirmation (defer until an operator runs the same sequence ≥3 times by hand); a machine-parsed, resumable checkpoint manifest (defer until the primitive is validated).
+The `/goal` Stop-hook *mechanism* wiring (this ships the discipline as prose — defer the hook integration until the prose proves insufficient under goal-pressure in an eval; **acceptance criterion for wiring it:** an eval of the operator-offline + Stop-hook + green-CI scenario at a declared gate shows the prose alone failing to hold the gate); auto-driving phase transitions without operator confirmation (defer until an operator runs the same sequence ≥3 times by hand); a machine-parsed, resumable checkpoint manifest (defer until the primitive is validated).
