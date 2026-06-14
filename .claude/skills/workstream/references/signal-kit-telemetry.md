@@ -27,9 +27,9 @@ The guard **names an existing recording rule or alert expr**; it does not re-der
 - `slo_*_3h` rules actually use a `[2h:]` window despite the `3h` name — cite the expression window.
 - The `_3h` tier and recording rules are evaluated by **Prometheus at ~30s**; only the `≥3d -longwindow` series evaluate in **ThanosRuler at 5m**. This sets the per-source freshness budget below.
 
-## Decision semantics — mirror Argo Rollouts / Flagger
+## Decision semantics — mirror Flagger (Argo Rollouts is the Argo-world equivalent)
 
-Declare the gate with the `AnalysisTemplate`/Flagger vocabulary: `interval` (poll cadence), `count` (windows observed), `failureLimit` / `successCondition` / `thresholdRange`. Two modes of *when* a guard watches (declared in the ledger entry):
+Borrow the schema vocabulary as **prior art only — neither controller is deployed** (this is a Flux shop; the guard is an agent poll-loop, not a canary controller). Flagger is the Flux-ecosystem-native reference: declare the gate with `Canary.analysis` terms — `interval` (poll cadence), `threshold` (max failed checks before trip), `iterations` (windows observed), `metrics[].thresholdRange{min,max}`. (Argo Rollouts' `AnalysisTemplate` `interval`/`count`/`failureLimit`/`successCondition` is the one-to-one equivalent if that vocabulary is more familiar.) Two modes of *when* a guard watches (declared in the ledger entry):
 
 - **`soak`** — poll for N minutes after the action, vs the gate-start baseline. The operative math is **N-consecutive-breach** (`count`/`failureLimit`) against the baseline. **MWMBR does NOT apply** — its slow window can't accumulate inside a 10–30 min soak; a soak guard must not claim slow-burn coverage.
 - **`continuous`** — watch across a whole phase. MWMBR is the continuous-mode degradation math.
@@ -49,7 +49,7 @@ Eight contracts in two tiers. **Contracts 1–4 each gate the verdict** — a mi
 ### Budget / tuning (set right or the guard is blind/noisy)
 
 5. **Per-source freshness.** Budget by who evaluates the series: `~2×30s` for recording-rule + `_3h`-tier series (Prometheus); `~2×5m` for `≥3d -longwindow` series (ThanosRuler). Provenance records which store answered.
-6. **Two-window / N-consecutive-breach, never a single threshold.** For **`soak`**: the verdict is **N-consecutive-breach of the cited query against the gate-start baseline** (`count`/`failureLimit`, Argo/Flagger). For **`continuous`**: MWMBR. **MWMBR never applies to `soak`** (its slow window can't accumulate in a 10–30 min soak) — a soak guard must not claim slow-burn coverage.
+6. **Two-window / N-consecutive-breach, never a single threshold.** For **`soak`**: the verdict is **N-consecutive-breach of the cited query against the gate-start baseline** (Flagger `threshold`/`iterations`; Argo `count`/`failureLimit`). For **`continuous`**: MWMBR. **MWMBR never applies to `soak`** (its slow window can't accumulate in a 10–30 min soak) — a soak guard must not claim slow-burn coverage.
 7. **Baseline captured at gate-start for cutovers.** `offset 1w` is **forbidden for a cutover** — a topology change means last week is a different fleet, and on the `prod` context a stale-baseline query risks reading the co-tenant **pacific-1 mainnet** (the prod/pacific-1 co-tenancy trap). Gate-start snapshot is mandatory for any topology change; `offset 1w` is permitted only for steady-state deploys. For soaks > ~15 min, compare rate/ratio-normalized (organic load ramps else read as degradation) or re-baseline.
 8. **Effective detection latency = input-window + rule-interval.** A guard citing `…:rate2m` is ~2.5 min blind to a sharp drop; provenance states this; `continuous` fast-failure guards cite shorter-window rules.
 
@@ -84,3 +84,4 @@ Every poll: non-empty `warnings` ⇒ inconclusive ⇒ abort; any co-assert unmet
 - No generic arbitrary-PromQL guard — domain guards cite named rules.
 - No Alertmanager grouped-alert read path (per-rule firing state covers MVP).
 - No in-cluster direct-to-Thanos / tenancy proxy (deferred).
+- It is **not** a Flagger `Canary` / Argo `Rollout`. Those gate a k8s Deployment traffic-shift; this guard watches an *agent-driven* high-risk step (a validator cutover) inside a workstream. If the gate is ever wanted as *infrastructure* (a CRD) rather than an agent skill, **Flagger is the Flux-native home** for it — a deferred alternative, not this MVP.
