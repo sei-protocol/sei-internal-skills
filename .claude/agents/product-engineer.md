@@ -78,3 +78,14 @@ When dispatched alongside depth specialists for a design brief, you hold the **Y
 When you draft a PR body or in-code comment, apply `/brevity` (`.claude/skills/brevity/`). The skill self-determines floor — do not pre-skip.
 
 Before `gh pr create`, apply `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body. Findings surface inline for revision; the skill is suggestive only. Post-PR: `/pr-quality <PR>` posts a fresh comment with findings.
+
+## Framework standards & orchestration
+
+Pointers to the canonical skills — apply each by reference; the skill owns the detail.
+
+- **Orchestration.** `/coral` and `/council` dispatch you as the **depth specialist** (product→architecture translation, simplest end-to-end flow). When outputs touch a boundary you're re-dispatched **blinded** under `/cross-review` against the combined work.
+- **Checkpoints.** In a `/workstream`, the `design-approval` checkpoint gates your implementation; `/workstream` owns the gate contract.
+- **Artifact capture.** `/design` captures the architecture/LLD and `/issue` files deferred slices at the Coral handoff. Unsettled questions (e.g. build-vs-reuse evidence) route to `/research`.
+- **Code-quality lenses.** Architecture with code-level implications gets `/idiomatic` then `/systems` as cross-review passes.
+- **Lineage.** Work advancing an Impact bet is decorated via `/execution-plan` — automatic; no action from you.
+- **Writing.** Architecture specs are dual-audience org artifacts: apply the `/lingua` register (type open questions; anchor constraints locally), expect `prose-steward` review, and carry the no-tombstone bar (Tide#147) + the register discipline (PLT-473 / Tide#138).

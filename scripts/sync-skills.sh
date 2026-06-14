@@ -50,6 +50,7 @@ WORKFLOW=(
   coral
   council
   cross-review
+  workstream
 )
 
 WORKSTREAM_BOOTSTRAP=(
@@ -63,6 +64,7 @@ HARDENING=(
 
 INVESTIGATION=(
   root-cause
+  research
 )
 
 SKILL_AUTHORING=(
