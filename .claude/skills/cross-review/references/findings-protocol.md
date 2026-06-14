@@ -27,14 +27,14 @@ When a finding is MISMATCH, name the category — it sets the severity and the f
 - **Error-contract** — the provider raises errors the consumer doesn't handle, or the consumer expects error semantics the provider doesn't honor. Errors are part of the interface.
 - **Naming** — the same concept under different names across the boundary, or the same name meaning different things.
 - **Sequencing / behavioral** — shapes match but order, timing, idempotency, or state assumptions differ. The dangerous class — no syntactic error, fails at integration. (Analog: a semantic break with no compile error.)
-- **Doc-divergence** — the artifact contradicts its authoritative backing doc/spec/interface-registry (canonical per CLAUDE.md). Always blocking — the source of truth wins; the artifact is wrong, not the doc.
+- **Doc-divergence** — the artifact contradicts its authoritative backing source: the interface-registry is the single source of truth for any interface contract (per CLAUDE.md); else the design doc/spec the artifact implements. Always blocking — the source of truth wins; the artifact is wrong, not the doc.
 
 ## Verdict
 
 - **COMPATIBLE (overall)** — every boundary is COMPATIBLE; no open MISMATCH/MISSING. State the confidence: high if reviewers were blinded and independent, lower (and say why) if not.
 - **OPEN (N findings)** — one or more MISMATCH/MISSING unresolved and not yet accepted. List each with what would close it. This is a legitimate, valuable output — not a failure to be smoothed into a green light.
 
-Resolved findings move provider-first: update the interface source / provider definition, then the consumer adapts, then re-check.
+Resolved findings move provider-first: update the interface source / provider definition, then the consumer adapts, then the **raiser** re-reviews and confirms (re-dispatch them) — the orchestrator does not self-clear a peer's finding.
 
 ## Research grounding (why the discipline is shaped this way)
 

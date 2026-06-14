@@ -34,7 +34,7 @@ This is the contract. The agent does not silently add, drop, or relax an entry l
 | name | trigger | gate |
 |---|---|---|
 | `design-approval` | a design has been captured via `/design` **and** has a **converged-COMPATIBLE** `/cross-review` verdict (complete slate + raiser-confirmed resolution per cross-review's contract — not OPEN or single-pass) | the human signs off on the captured, reviewed design before implementation |
-| `pr-sign-off` | a PR is ready — CI green AND automated-review (Bugbot/Claude) findings iterated (High = blocking) AND the diff reconciled with the approved `/design` + interface-registry (divergence surfaced as gate evidence; may compose `/verify`); merging it or starting dependent work is next | the human confirms the merge / the go-ahead for dependent work |
+| `pr-sign-off` | a PR is ready — CI green AND automated-review (Bugbot/Claude) findings iterated (High = blocking) AND the diff reconciled with the approved `/design` + interface-registry (divergence surfaced as gate evidence); merging it or starting dependent work is next | the human confirms the merge / the go-ahead for dependent work |
 
 These cover the two most common human gates (sign off on *what we'll build*; sign off on *shipping it*). They are the default ledger.
 

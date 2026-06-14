@@ -54,7 +54,7 @@ See `references/checkpoint-ledger.md` for the format and worked examples.
 The minimal set that covers the common human gates:
 
 - **`design-approval`** — *trigger:* a design has been captured (via `/design`) **and** has a **converged-COMPATIBLE** `/cross-review` verdict — complete slate + raiser-confirmed resolution per cross-review's contract, not an OPEN or single-pass result. *gate:* the human signs off on the captured, reviewed design before implementation begins.
-- **`pr-sign-off`** — *trigger:* a PR is **ready** — CI green **AND** automated-review (Cursor Bugbot / Claude) findings iterated (High = blocking) **AND** the diff reconciled with the approved `/design` + interface-registry (divergence surfaced as gate evidence; may compose `/verify`) — and merging it, or starting work that depends on it, is next. *gate:* the human confirms the merge / the go-ahead for dependent work.
+- **`pr-sign-off`** — *trigger:* a PR is **ready** — CI green **AND** automated-review (Cursor Bugbot / Claude) findings iterated (High = blocking) **AND** the diff reconciled with the approved `/design` + interface-registry — and merging it, or starting work that depends on it, is next. *gate:* the human confirms the merge / the go-ahead for dependent work.
 
 **One-way-door approval is not re-declared here** — reuse council's existing one-way-door gate by reference (persisted schema/field names, wire formats, signed IDs, prod-touching steps). A `workstream` simply ensures that gate is honored when council surfaces it.
 
@@ -114,7 +114,7 @@ The kit's **eight correctness contracts** (four verdict-gating, four budget/tuni
 6. **Implement** to the approved design. (Council's one-way-door gate fires here if a persisted-schema / wire-format / signed-ID change appears — honor it as a checkpoint even though it wasn't pre-declared.)
 7. **Capture deferred slices via `/issue` — conditionally.** Only if a slice was cut. Don't reflexively file an empty issue.
 8. **Decorate lineage via `/execution-plan`.** Call it to stamp the bet label + design link (delegated; never duplicated). Its first-label-creation confirm is a *separate* gate it owns — not subsumed by the ledger.
-9. **`pr-sign-off` checkpoint.** STOP; surface the ready PR — CI green, automated-review (Bugbot/Claude) findings iterated (High = blocking), and the diff reconciled with the approved `/design` + interface-registry (divergence surfaced as gate evidence; may compose `/verify`) — and obtain explicit confirmation before merge / dependent work.
+9. **`pr-sign-off` checkpoint.** STOP; surface the ready PR — CI green, automated-review (Bugbot/Claude) findings iterated (High = blocking), and the diff reconciled with the approved `/design` + interface-registry (divergence surfaced as gate evidence) — and obtain explicit confirmation before merge / dependent work.
 
 ## Rationalization table
 

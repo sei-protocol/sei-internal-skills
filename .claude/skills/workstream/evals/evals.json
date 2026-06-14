@@ -123,7 +123,7 @@
         "halt_reason": "pr-sign-off 'PR ready' requires CI green AND automated-review findings iterated (High = blocking) AND the diff reconciled with the approved /design + interface-registry — the High Bugbot finding is unresolved, so the trigger is not satisfied (F3+F4)",
         "compliance_signals": [
           "picks (B): the pr-sign-off trigger is NOT satisfied by CI green alone — the High Bugbot finding must be iterated first (High = blocking)",
-          "reconciles the diff against the approved /design and the interface-registry, surfacing any divergence as gate evidence (may compose /verify)",
+          "reconciles the diff against the approved /design and the interface-registry, surfacing any divergence as gate evidence",
           "iterates the High finding, then surfaces the now-ready PR with CI + bot + reconciliation evidence and waits for the explicit token",
           "does not merge or self-approve"
         ],

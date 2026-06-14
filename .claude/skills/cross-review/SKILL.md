@@ -26,7 +26,7 @@ Cross-review operates on **a concrete artifact, reviewed by independent speciali
    - **Accept convergence as corroboration when reviewers were not blinded.** If reviewers saw each other's assessments before committing (a shared thread, a summarized peer view in the brief), their agreement is anchoring, not independent confirmation — consensus theater. Re-run with independent briefs.
    - **Accept bare approval.** "LGTM" / "looks good" is not a finding. Every COMPATIBLE, MISMATCH, or MISSING must cite the specific contract, field, signature, or line it is about. A finding with no evidence is noise.
    - **Launder a sign-off through wording.** Phrasing it "their input was incorporated" instead of "they approved" does not convert production into review. If the specialists did not review the final artifact, the cross-review did not happen.
-   - **Declare COMPATIBLE while MISMATCH or MISSING findings are open.** Open findings are resolved (artifact updated, provider/consumer reconciled) or explicitly accepted by the user with the risk named — never silently dropped.
+   - **Declare COMPATIBLE while MISMATCH or MISSING findings are open — or resolved without the raiser confirming.** Open findings are resolved (artifact updated, provider/consumer reconciled, **and the raiser re-reviewed and confirmed** per Rule 4) or explicitly accepted by the user with the risk named — never silently dropped, never self-cleared by the orchestrator.
 
 See `references/reviewer-dispatch.md` for the blinded dispatch contract and `references/findings-protocol.md` for the findings schema, mismatch categories, and the research grounding.
 
@@ -93,6 +93,7 @@ Merge the independent reviews into one de-duplicated table:
 - Every **MISMATCH** and **MISSING** is resolved (artifact updated; provider/consumer reconciled — provider definition wins, consumer adapts) or **explicitly accepted by the user** with the risk stated. Nothing is silently dropped.
 - **The raiser confirms a fix closes their finding.** A finding marked resolved by an artifact change re-dispatches to its raiser, who re-reviews and confirms — the orchestrator does not self-clear a peer's finding. (User acceptance-with-risk is the only path that doesn't require the raiser.)
 - **Correctness-grade idiom findings block too.** A runtime-consequence idiom finding (e.g. a status patch missing the optimistic lock, an always-present condition removed) is resolved or explicitly accepted before a COMPATIBLE verdict — the same bar as a MISMATCH. Pure-style idiom findings are **advisory**: surfaced in the Idiom addendum, never gating.
+- **No dissenter, no verdict.** A verdict reached without an assigned dissenter (Step 3) is invalid — the dissent assignment is a precondition for any COMPATIBLE/OPEN call, not an optional step.
 - Output: the findings table, the verdict (COMPATIBLE overall / OPEN with N findings), the resolved items with what changed, and any accepted-with-risk items.
 - If cross-review can't reach a clean verdict — reviewers split, an artifact gap nobody can close — say so explicitly: "cross-review open, 2 MISMATCH unresolved, needs a provider decision on X." A labeled open state beats a fabricated COMPATIBLE.
 
