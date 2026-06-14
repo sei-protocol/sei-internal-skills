@@ -2,7 +2,7 @@
 name: workstream
 category: workflow
 model: claude-opus-4-8
-description: "Use when launching a substantial multi-step workstream on the Coral stack with declared human checkpoints — 'launch a workstream', 'kick off this goal with checkpoints', 'start a workstream with a PR sign-off gate', 'set up checkpoints for this goal', '/workstream'. Scaffolds the Coral lifecycle (council scope-tier → cross-review → /design capture → /issue → /execution-plan) and declares named human gates the agent must surface and obtain confirmation for before proceeding. Anti-triggers: NOT the Claude Code /goal harness command (that sets the persistent objective; this governs how it's pursued); NOT a single 1–2 specialist slice (use /coral); NOT scope-tiered design alone (use /council — workstream invokes it); NOT capturing a finished design (use /design). Composes council/cross-review/design/issue/execution-plan; never edits them."
+description: "Use when launching a substantial multi-step workstream on the Coral stack with declared human checkpoints — 'launch a workstream', 'kick off this goal with checkpoints', 'start a workstream with a PR sign-off gate', 'set up checkpoints for this goal', '/workstream'. Scaffolds the Coral lifecycle (council scope-tier → cross-review → /design capture → /issue → /execution-plan) and declares named human gates the agent must surface and obtain confirmation for before proceeding. Also declares signal-driven **guards** — fail-closed metric gates that watch a live signal during a high-risk step ('gate this cutover on the metric staying healthy'). Anti-triggers: NOT the Claude Code /goal harness command (that sets the persistent objective; this governs how it's pursued); NOT a single 1–2 specialist slice (use /coral); NOT scope-tiered design alone (use /council — workstream invokes it); NOT capturing a finished design (use /design). Composes council/cross-review/design/issue/execution-plan; never edits them."
 ---
 
 # Workstream
@@ -30,6 +30,7 @@ Refusal conditions — these hold under a Stop hook, time pressure, an offline o
 3. **Compose, never edit — and never reimplement.** Invoke `council`/`cross-review`/`design`/`issue`/`execution-plan`; never modify them. Delegate all lineage decoration to `/execution-plan` (never re-implement label/identity/stamp logic — that mints a second identity). If a composed skill is **unavailable**, surface the gap and run the phases you can — do **not** hand-roll the missing skill's logic inline (e.g. don't reimplement council's scope tiers).
 4. **Declare the ledger up front; confirm scope before side effects.** At workstream start, echo the **scope** (objective + the council scope tier) and the **checkpoint ledger**, surface both, and get the operator's go-ahead before invoking the lifecycle. A gate added silently mid-stream, or honored only when convenient, is not a checkpoint.
 5. **Don't manufacture ceremony.** A genuinely small slice does not need a workstream — redirect to `/coral`. Checkpoints are gates a human actually wants, not decoration.
+6. **A guard fails closed — it never PASSes on data it cannot confirm.** Stale, unreachable, empty, or incomplete (partial-response `warnings`) reads are `inconclusive` ⇒ abort, never "looks fine." A guard does not replace a one-way-door checkpoint and may not launch a workstream or create ledger entries at trip time (the ledger is static after declaration). See "The guard primitive."
 
 ## The checkpoint primitive
 
@@ -70,6 +71,35 @@ When a checkpoint's trigger is reached:
 4. **Only after explicit confirmation, proceed.** Never self-approve.
 
 A `/goal` Stop hook pushing you to "keep going" does **not** waive this. If the only path forward crosses an unconfirmed gate, the correct state is: hook unsatisfied, gate surfaced, reversible work continuing. Record *why* the goal isn't done so the unsatisfied hook is legible, not mysterious.
+
+## The guard primitive (a signal gate)
+
+A **guard** is the machine counterpart to a checkpoint: a declared, named, **signal-driven** gate the agent must hit, evaluate, and *fail closed* on before proceeding past a high-risk step. Where a checkpoint waits on a *human*, a guard watches a *live signal* (a metric, later an indexed event). It is the tireless second watcher during a cutover/deploy — the human still owns the irreversible go/no-go (a guard never replaces a one-way-door checkpoint; it sits alongside one).
+
+A guard is the **gate-mode instance** of a *signal binding*. The same declare→fetch→evaluate→act→provenance spine later supports **measure mode** (an objective a workstream optimizes toward) and **coordinate mode** (an event barrier); MVP ships gate mode, telemetry kit. The kit supplies the read adapter + query vocabulary + domain semantics — see `references/signal-kit-telemetry.md`.
+
+### The guard ledger entry
+
+A guard is a second ledger entry kind, declared up front alongside checkpoints:
+
+```
+- guard:    <short identifier, kebab-case>
+  signal:   <a CITED live query — a recording-rule name / PromQL expr / a firing-alert rule>
+  healthy:  <condition — baseline-relative at gate-start (cutover) or absolute SLO threshold>
+  when:     pre-step | soak (N min, vs gate-start baseline) | continuous (whole phase)
+  on_trip:  surface + route to a PRE-DECLARED rollback checkpoint   (MVP default)
+```
+
+A high-risk step declares **both** a `guard` (the metric watch) and a human `checkpoint` (the go/no-go). Flow: capture baseline → human go-ahead → execute → soak-watch the guard → trip ⇒ halt + surface + route to rollback.
+
+### The guard enforcement spine
+
+1. **Fail closed.** Stale data, unreachable endpoint, auth/query error, an **empty read**, or an **incomplete read** (telemetry: a non-empty `warnings` array) ⇒ "cannot confirm healthy" = `inconclusive` ⇒ **abort**, never PASS. A guard that PASSes on data it cannot confirm is worse than no guard — it manufactures false confidence. This is the checkpoint's fail-closed discipline applied to a signal.
+2. **Cite the re-runnable query** with every reading (the query, window, store that answered, warnings, verdict) — provenance, not a bare scalar.
+3. **Surface on trip; the human owns the irreversible call.** `on_trip` halts before the next step and routes to a pre-declared rollback checkpoint. Auto-abort is deferred and, if ever enabled, only a pre-declared reversible+idempotent rollback, never on a one-way-door step.
+4. **Recursion bound.** A guard may surface, halt, and route to an **already-declared** checkpoint — nothing more. It may **not** launch a workstream, spawn a sub-agent that launches one, or create ledger entries at trip time. The ledger is static after declaration. (This bounds a `continuous` guard's trip handler from becoming an unbounded watch→remediate→watch loop.)
+
+The kit's **eight correctness contracts** (four verdict-gating, four budget/tuning) — and the soak verdict rule (N-consecutive-breach vs the gate-start baseline) — live in `references/signal-kit-telemetry.md`. **Do not construct a guard verdict from this summary alone**; a guard that skips the contracts PASSes on the common cutover failure modes (no-traffic-drain, half-fleet read).
 
 ## The lifecycle (the procedural scaffold)
 
@@ -125,6 +155,7 @@ Per-run scratch (the in-progress ledger, phase notes) lives in `state/` (gitigno
 
 - `references/checkpoint-ledger.md` — the ledger format, the two canonical types, the custom-checkpoint contract, worked examples.
 - `references/composition.md` — the full lifecycle, which skill is invoked at each seam, and where the checkpoints sit.
+- `references/signal-kit-telemetry.md` — the first signal kit (gate mode): the guard's read adapter, citable query vocabulary, decision semantics, and non-negotiable correctness contracts.
 
 ## What this skill defers
 

@@ -14,6 +14,8 @@ Each ledger entry is a `name` / `trigger` / `gate` triple:
 
 The ledger is **conversational** — surfaced in the agent's message, not a machine-parsed file. (A parsed, resumable manifest is deferred until the primitive is validated.)
 
+**A second entry kind — `guard`.** Besides human `checkpoint`s, a ledger may declare signal-driven **guards** (fail-closed metric gates that watch a live signal during a high-risk step). A guard carries a `guard`/`signal`/`healthy`/`when`/`on_trip` shape, not the human triple, and is enforced by the guard spine (fail-closed; surface-on-trip; static-after-declaration). See SKILL.md "The guard primitive" and `signal-kit-telemetry.md`. Guards and checkpoints co-exist in one ledger: a high-risk step typically declares both (the guard watches; the human checkpoint owns the irreversible call).
+
 ## Surfacing the ledger
 
 At workstream start, after scoping the work, the agent writes and shows the ledger:
