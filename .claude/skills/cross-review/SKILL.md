@@ -32,10 +32,19 @@ See `references/reviewer-dispatch.md` for the blinded dispatch contract, `refere
 
 ## §0 — Classify before dispatch (HALT gate)
 
-**This is the load-bearing precondition. It fires before Step 1's dispatch.**
+**This is the load-bearing precondition, and it is not a competing "first step" — it is the
+*output* of the first-turn framing in Step 1.** The order is fixed and singular:
 
-`/cross-review` MUST, as its **required first-step output and before dispatching any reviewer**,
-emit:
+> **read + frame + classify (Step 1) → HALT if `Class:` absent → dispatch (Step 3).**
+
+You classify **from** the read artifact: Step 1's read-and-frame (artifact, boundaries,
+provider/consumer per boundary) produces exactly the inputs classification needs, so the `Class:`
+emission lands **as part of / immediately after** that first-turn framing — never before reading
+(you cannot classify an artifact you haven't read) and never skipped in favor of framing alone.
+There are not two first steps; there is one first turn whose output **must include** the
+classification.
+
+As that first-turn output, and **before dispatching any reviewer**, emit:
 
 - `Class:` — one of the six (`doc-only | mechanical | component | cross-component | shared-stack | skill-package`, per `references/slate-routing.md`; authoritative list: `references/slate-routing.md` §1),
 - the resulting `Tier:` (T1/T2/T3, read off the routing table — never re-derived by hand), and
@@ -44,9 +53,9 @@ emit:
 **If `Class:` is absent or unresolvable, HALT and do not dispatch.** This is the same posture as
 Guardrail #1 ("no artifact ⇒ halt"): **no classification ⇒ no review.** Everything mechanical —
 tier, slate, the steward pin, the dissenter floor — is a *function of* a populated `Class:`; the
-HALT is what forces the classification to happen at all. An operator override (naming a slate or
-tier directly) still satisfies the precondition — it produces a recorded `Class:`/`Tier:` — it
-does not bypass it.
+HALT is the gate **before Step 3 dispatch** — it is what forces the classification to happen at
+all. An operator override (naming a slate or tier directly) still satisfies the precondition — it
+produces a recorded `Class:`/`Tier:` — it does not bypass it.
 
 The emitted classification is the ledger's header (`references/review-ledger.md`). A
 cross-review that dispatches reviewers without an emitted `Class:` is **non-compliant**.
@@ -64,23 +73,27 @@ Non-negotiable. Every step exists to enforce one or more.
 
 The orchestrator runs the loop. Specialists do the domain review. Both are bound by the Four Rules.
 
-### Step 1 — Frame the target
+### Step 1 — Read, frame, and classify the target (one first turn)
 
-State, in the first turn:
+This is the single first turn. Its output **includes the §0 classification** — read and frame
+first, then classify *from* what you read; do not split these into separate steps or dispatch
+between them. State, in this first turn:
 
 - **What is under review** — the artifact(s), by path or pasted content. Read them now.
 - **The boundaries at stake** — the interfaces/contracts where components meet (a provider produces, a consumer adapts). Cross-review's value concentrates here.
 - **Provider and consumer per boundary** — name them. This sets who owns each interface and who must adapt.
+- **The classification (§0)** — emit `Class:`/`Tier:`/slate, derived *from* the artifact you just read and the boundaries you just framed. This is the HALT gate before any dispatch (Step 3).
 - **What "done" looks like** — a resolved findings table, or a labeled punt with the open items.
 
-If the artifact can't be read, halt (Guardrail #1).
+If the artifact can't be read, halt (Guardrail #1) — you cannot classify or review what you
+haven't read. If the read-and-frame yields no resolvable `Class:`, halt (§0) before dispatching.
 
 ### Step 2 — Route the slate (per `references/slate-routing.md`)
 
 The slate is **routed, not re-derived by hand.** Apply the shared routing table
 (`references/slate-routing.md` — the one mechanism, also cited by `/coral`):
 
-1. **Classify** the artifact into one of the six classes (already done in §0).
+1. **Classify** the artifact into one of the six classes (already emitted in Step 1 per §0 — this step reuses that `Class:`, it does not re-classify).
 2. **Read the tier off the table** (T1/T2/T3) — class sets the default; blast-radius bumps it
    up, never silently down. `shared-stack`/`skill-package` are T3 by default and **cannot drop
    below T2**.

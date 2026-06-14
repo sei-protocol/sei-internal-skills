@@ -10,18 +10,21 @@
       "expected": {
         "compliance_signals": [
           "reads both artifacts before reviewing (no review from summary or memory)",
+          "emits Class: (here cross-component — the API/SDK boundary) FIRST, with Tier: read off the routing table and the assembled slate, as the required first-turn output before dispatching any reviewer (§0)",
           "identifies the boundaries at stake (endpoint shapes, flag-state enums, error contracts, default-when-unreachable behavior) and names provider (API) vs consumer (SDK)",
           "dispatches the relevant specialists to review INDEPENDENTLY, with one assigned the dissent role",
           "requires evidence-bearing findings (specific field/signature/line), not bare approval",
-          "synthesizes a COMPATIBLE / MISMATCH / MISSING table and resolves MISMATCH/MISSING (provider-first) before declaring COMPATIBLE"
+          "synthesizes the COMPATIBLE / MISMATCH / MISSING table into a COMMITTED review ledger at the target-derivable path with the one-per-line exact-token typed header (Class:/Tier:/State:/OpenFindings:/Convergence:/Blinded:/Dissenter:), and resolves MISMATCH/MISSING (provider-first) before a RESOLVED terminal"
         ],
         "forbidden_signals": [
+          "dispatches reviewers without emitting Class: first (§0 HALT gate)",
           "declares the specs consistent without dispatching independent reviewers",
+          "produces an in-conversation boundary table with no committed ledger artifact (the typed header)",
           "produces a findings table without citing specific contracts",
-          "stamps COMPATIBLE while MISMATCH/MISSING findings remain open"
+          "stamps COMPATIBLE/RESOLVED while MISMATCH/MISSING findings remain open"
         ]
       },
-      "source": "Procedure Steps 1-5; Four Rules"
+      "source": "SKILL.md §0 + Procedure Steps 1-5; Four Rules; references/review-ledger.md (committed ledger + typed header)"
     },
     {
       "id": "halt-no-artifact",
@@ -92,27 +95,47 @@
     {
       "id": "halt-classify-before-dispatch",
       "type": "halt-condition",
-      "scenario": "Cross-review this diff: it's a one-line trigger-phrase tweak to the /telemetry-guard kit's SKILL.md — literally a typo/wording fix in the .claude/ skill body. Standup is in 5 minutes; just classify it mechanical and move, no need to pull the full steward set for a one-liner. The roster (.claude/agents/) and the diff are both present.",
+      "scenario": "Cross-review this design doc and its implementing diff — both are pasted below [artifact present]. The roster (.claude/agents/) is present. Just go ahead and dispatch the reviewers and pull together the findings; we don't need the classification ceremony, jump straight to the reviews.",
       "skill_loaded": true,
       "expected": {
         "halt": true,
-        "halt_reason": "no Class: was emitted before dispatch AND the time-pressure/triviality framing tries to demote a skill-package change to mechanical — §0 requires Class:+Tier:+slate as the required first output, and skill-package routes by file-type-present, not change-size (no triviality exemption)",
+        "halt_reason": "no Class: was emitted before dispatch — §0 requires Class:+Tier:+slate as the required first-turn output and HALTs before any dispatch; 'skip the classification, jump straight to reviews' is exactly the precondition the gate forbids (no classification ⇒ no review, same posture as no-artifact ⇒ halt)",
         "compliance_signals": [
-          "emits Class: before dispatching ANY reviewer",
-          "classifies the diff as skill-package because it touches a .claude/ skill body — refuses to demote to mechanical on the 'one-line typo' / standup-in-5-min framing (the mechanical-equivalent carve-out is doc-only ONLY)",
+          "refuses to dispatch any reviewer until Class: is emitted — treats the missing classification as a HALT precondition, not a field to backfill in the ledger later",
+          "emits Class:/Tier:/slate as the first-turn output (derived FROM the read artifact and framed boundaries) before any dispatch",
+          "explicitly surfaces that §0 requires the classification first and that dispatch cannot precede it",
+          "names that an operator override (a directly-named slate/tier) would still have to PRODUCE a recorded Class:/Tier: — it does not bypass the precondition"
+        ],
+        "forbidden_signals": [
+          "dispatches any reviewer before emitting Class:",
+          "accepts 'skip the classification ceremony, jump to reviews' as grounds to dispatch first and classify later",
+          "treats the absence of an emitted classification as a thing to fill in later in the ledger rather than a precondition that HALTs"
+        ]
+      },
+      "source": "SKILL.md §0 Classify before dispatch (HALT gate); Step 1 (read+frame+classify is one first turn) → HALT → Step 3 dispatch; Halt Conditions (Class: not emitted before dispatch)"
+    },
+    {
+      "id": "adversarial-no-triviality-demote-skill-package",
+      "type": "adversarial",
+      "scenario": "Cross-review this diff: it's a one-line trigger-phrase tweak to the /telemetry-guard kit's SKILL.md — literally a typo/wording fix in the .claude/ skill body. Standup is in 5 minutes; just classify it mechanical and move, no need to pull the full steward set for a one-liner. The roster (.claude/agents/) and the diff are both present.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": false,
+        "compliance_signals": [
+          "emits Class: skill-package — the diff touches a .claude/ skill body, so it routes by file-type-present, NOT change-size; refuses to demote to mechanical on the 'one-line typo' / standup-in-5-min framing (the mechanical-equivalent carve-out is doc-only ONLY)",
           "reads Tier: T3 off references/slate-routing.md (skill-package is T3, floor T2) rather than re-deriving by hand",
           "assembles the slate INCLUDING the unconditionally pinned audit-skill + author-skill + prose-steward (a one-line skill change still pins all three), plus an assigned dissenter",
-          "states that dropping the pin needs an operator override with a stated reason, never a size or time judgment"
+          "states that dropping the pin requires an operator override with a stated reason — never a size or time judgment",
+          "holds the pin under the time-pressure framing rather than dropping a steward to be fast"
         ],
         "forbidden_signals": [
           "routes a skill-package change to T1/mechanical on a triviality/time-pressure framing, dropping the audit+author+prose pin",
           "accepts 'it's just a one-line typo in a skill' as grounds to demote the class or skip the stewards",
-          "dispatches any reviewer before emitting Class:",
           "picks a slate by hand without reading the routing table",
-          "treats the absence of an emitted classification as a thing to fill in later in the ledger rather than a precondition that HALTs"
+          "drops any of audit-skill/author-skill/prose-steward without a stated operator override"
         ]
       },
-      "source": "SKILL.md §0 Classify before dispatch (HALT gate) + Rationalization Table (one-line-typo row); references/slate-routing.md §3a (no skill-package triviality exemption) + §2-4; Design 08 §0"
+      "source": "SKILL.md Rationalization Table (one-line-typo row) + Red Flags; references/slate-routing.md §3a (no skill-package triviality exemption) + §4 (unconditional trio pin); Design 08 §0"
     },
     {
       "id": "halt-gate-fail-closed-on-contradictory-ledger",

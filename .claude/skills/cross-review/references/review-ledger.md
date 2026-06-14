@@ -34,16 +34,26 @@ so they are a contract, not prose. `State:` and `OpenFindings:` are **separate l
 reads the count as an integer, not by parsing a parenthetical); `Convergence:` and `Blinded:`
 are **separate lines** (two independent facts).
 
+**Per-round headers (so the gate never reads a stale header).** Each `## Round <N>` section
+carries **its own typed header block** — the five round-scoped fields (`State:`, `OpenFindings:`,
+`Convergence:`, `Blinded:`, `Dissenter:`). The top-of-file block below *is round 1's header*; a
+re-review appends a `## Round 2` section with a fresh header block of its own, and so on. The
+target-scoped fields (`Target:`/`Class:`/`Tier:`) sit once at the top — they don't change across
+rounds. The gate reads the **latest round's** header block (see *Gate-read contract*), never the
+top block when a later round exists.
+
 ```markdown
 # Cross-review ledger — <target>
 
 Target:       <path or PR/branch of the artifact under review>
 Class:        <doc-only | mechanical | component | cross-component | shared-stack | skill-package>
 Tier:         <T1 | T2 | T3>   (+ override note if the operator changed it)
-Round:        <N>              (incremented per re-review of the same target)
+
+## Round 1
+Round:        1                (incremented per re-review of the same target)
 State:        <OPEN | RESOLVED | RESOLVED-WITH-ACCEPTED-RISK | OPEN-BLOCKED>
 OpenFindings: <integer>        (count of still-open findings)
-Convergence:  <unanimous | split>   (LATEST round only, tokens only — a prior-round split that this round resolved + re-ratified is `unanimous`; never free prose)
+Convergence:  <unanimous | split>   (this round only, tokens only — a prior-round split that this round resolved + re-ratified is `unanimous`; never free prose)
 Blinded:      <yes | no>       (no downgrades confidence — say so in the Verdict)
 Dissenter:    <which lens held assigned dissent this round — required, never empty>
 
@@ -73,7 +83,23 @@ Dissenter:    <which lens held assigned dissent this round — required, never e
 
 ## Verdict
 <COMPATIBLE (overall) — confidence high/low + why | OPEN — N findings, each with what closes it | OPEN-BLOCKED — the split the tie-break did not resolve, escalated to a human>
+
+## Round 2                       (appended on re-review — prior round stays verbatim above)
+Round:        2
+State:        <OPEN | RESOLVED | RESOLVED-WITH-ACCEPTED-RISK | OPEN-BLOCKED>
+OpenFindings: <integer>
+Convergence:  <unanimous | split>
+Blinded:      <yes | no>
+Dissenter:    <lens — this round, required, never empty>
+
+### Routing / Per-lens verdicts / Boundary findings / … (this round's sections)
+<the round's own Routing, Per-lens, Boundary, addenda, Rejected — parallel to Round 1>
 ```
+
+Each appended `## Round <N>` repeats its **own** header block (the five round-scoped fields)
+followed by that round's sections. The gate reads the **latest** round's header — for a one-round
+ledger that is the top block (Round 1); once Round 2 exists, Round 2's block is authoritative and
+the top block is stale-by-design (it is Round 1's record, kept verbatim, not the current state).
 
 ## `State:` enum (exact tokens — the gate matches these literally)
 
@@ -123,9 +149,13 @@ still concluded RATIFY (unanimity without an assigned dissenter is consensus the
 ## Single-round MVP — append, never merge in place
 
 MVP is a **single-round committed ledger**. A re-review **appends a new `## Round <N>` section**
-(or a sibling file) — **never an in-place edit of a prior round's rows.** There is **no
-cross-round dedup engine** (no matching a round-2 re-raise to a round-1 row to merge them). The
-prior round stays verbatim as append-only history; the new round stands beside it.
+(or a sibling file) — **never an in-place edit of a prior round's rows.** Each appended round
+**carries its own typed header block** (the five round-scoped fields: `State:`/`OpenFindings:`/
+`Convergence:`/`Blinded:`/`Dissenter:`) so the latest round's state is self-contained and the gate
+never reads a stale top header. There is **no cross-round dedup engine** (no matching a round-2
+re-raise to a round-1 row to merge them) — this is **per-round headers, not row-merging**. The
+prior round stays verbatim as append-only history; the new round stands beside it with its own
+header.
 
 **Dedup within a round:** one row per boundary, one row per lens, *within a single committed
 round*. That is the whole MVP dedup rule.
@@ -133,8 +163,9 @@ round*. That is the whole MVP dedup rule.
 **Resumability (read-forward, not merge-back):** a resumed or re-run cross-review **reads the
 prior ledger first** for context (what the last round concluded, what was rejected and why) so it
 does not re-litigate settled findings or re-raise rejected ones without new evidence — but it
-records its conclusions in a **new round**, not by editing the old one. The reader (and 536's
-gate) reads the **latest round's** header fields.
+records its conclusions in a **new round with its own header block**, not by editing the old one
+or its header. The reader (and 536's gate) reads the **latest round's** header block — the
+top-of-file block is Round 1's; the latest `## Round <N>` block is authoritative once it exists.
 
 *(Multi-round in-place merge + cross-round dedup is CUT from MVP — deferred until a single target
 is re-reviewed ≥2× and append-only history is demonstrably noisy enough to justify a row-merge
@@ -143,7 +174,10 @@ engine.)*
 ## Gate-read contract (PLT-536 `/workstream` review-gate consumer)
 
 The review-gate computes the ledger path from the target path (above), reads the **latest
-round's** header, and passes only on the **conjunction of all of**:
+round's header block** — for a one-round ledger that is the top-of-file block (Round 1); once a
+`## Round <N>` section exists, **that round's own header block is authoritative** and the top
+block is Round 1's stale-by-design record, never the field source. The gate passes only on the
+**conjunction of all of** (read from the latest round's block):
 
 | Schema line | Pass requires | Fail if |
 |---|---|---|
