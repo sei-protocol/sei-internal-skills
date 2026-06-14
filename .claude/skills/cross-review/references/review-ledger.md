@@ -19,6 +19,11 @@ For a **diff/PR with no natural artifact directory**, the default is `.cross-rev
 at the repo root. Either way the rule is the same: **the path is target-derivable** (target path
 → ledger path) so a downstream gate finds it by construction without a registry.
 
+**Slug derivation:** a single-artifact target → that artifact's slug. A **multi-file diff with no
+single artifact path** → `<target-slug>` is the **PR/branch identifier** (single-valued, still
+target-derivable) — never a synthesized compound of the file paths. (`Target:` may list the files
+for the human; the *filename* derives from the PR/branch so the gate can locate it deterministically.)
+
 It is **committed** — it is review evidence, not scratch. (Per-run scratch — in-progress
 dispatch notes — stays in the skill's `state/`, gitignored.)
 
@@ -38,7 +43,7 @@ Tier:         <T1 | T2 | T3>   (+ override note if the operator changed it)
 Round:        <N>              (incremented per re-review of the same target)
 State:        <OPEN | RESOLVED | RESOLVED-WITH-ACCEPTED-RISK | OPEN-BLOCKED>
 OpenFindings: <integer>        (count of still-open findings)
-Convergence:  <unanimous | split>
+Convergence:  <unanimous | split>   (LATEST round only, tokens only — a prior-round split that this round resolved + re-ratified is `unanimous`; never free prose)
 Blinded:      <yes | no>       (no downgrades confidence — say so in the Verdict)
 Dissenter:    <which lens held assigned dissent this round — required, never empty>
 
