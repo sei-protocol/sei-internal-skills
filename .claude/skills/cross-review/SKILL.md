@@ -26,6 +26,7 @@ Cross-review operates on **a concrete artifact, reviewed by independent speciali
    - **Accept convergence as corroboration when reviewers were not blinded.** If reviewers saw each other's assessments before committing (a shared thread, a summarized peer view in the brief), their agreement is anchoring, not independent confirmation — consensus theater. Re-run with independent briefs.
    - **Accept bare approval.** "LGTM" / "looks good" is not a finding. Every COMPATIBLE, MISMATCH, or MISSING must cite the specific contract, field, signature, or line it is about. A finding with no evidence is noise.
    - **Launder a sign-off through wording.** Phrasing it "their input was incorporated" instead of "they approved" does not convert production into review. If the specialists did not review the final artifact, the cross-review did not happen.
+   - **Synthesize from an incomplete slate.** A slate that omits an axis the artifact has — `idiomatic-reviewer` for code, `prose-steward` for prose (the Step 2 invariant) — has not reviewed that axis. A domain-only slate over an artifact carrying code or prose is not a cross-review; complete the slate before any verdict.
    - **Declare COMPATIBLE while MISMATCH or MISSING findings are open — or resolved without the raiser confirming.** Open findings are resolved (artifact updated, provider/consumer reconciled, **and the raiser re-reviewed and confirmed** per Rule 4) or explicitly accepted by the user with the risk named — never silently dropped, never self-cleared by the orchestrator.
 
 See `references/reviewer-dispatch.md` for the blinded dispatch contract and `references/findings-protocol.md` for the findings schema, mismatch categories, and the research grounding.
@@ -134,8 +135,10 @@ Stop and report to the user if:
 
 - The artifact under review can't be located or pasted — never synthesize a review of work you haven't read.
 - The calling repo has no `.claude/agents/` roster and the user can't point at one.
+- The reviewer slate doesn't cover every axis the artifact has — a domain-only slate over an artifact carrying code (needs `idiomatic-reviewer`) or prose (needs `prose-steward`). Complete the slate before synthesizing; an incomplete slate is not a cross-review (Step 2 invariant).
 - A reviewer returns bare approval with no cited evidence — re-dispatch with the evidence requirement.
 - Reviewers were not blinded (saw each other's assessments first) — the convergence is invalid; re-run with independent briefs.
+- No reviewer was assigned the dissent role (Step 3) — a verdict without an assigned dissenter is consensus theater and invalid; assign dissent and re-dispatch before any COMPATIBLE/OPEN call.
 - Reviewers split on a boundary and the provider-owns tie-break doesn't resolve it — surface the disagreement and ask the user / provider for the call.
 - MISMATCH or MISSING findings remain open and the user has not explicitly accepted the risk — do not stamp COMPATIBLE.
 - A finding is marked resolved without its raiser re-reviewing — re-dispatch them; self-clearing a peer's finding is the rubber-stamp this skill exists to prevent.

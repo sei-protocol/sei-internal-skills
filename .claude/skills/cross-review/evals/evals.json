@@ -13,7 +13,8 @@
           "identifies the boundaries at stake (endpoint shapes, flag-state enums, error contracts, default-when-unreachable behavior) and names provider (API) vs consumer (SDK)",
           "dispatches the relevant specialists to review INDEPENDENTLY, with one assigned the dissent role",
           "requires evidence-bearing findings (specific field/signature/line), not bare approval",
-          "synthesizes a COMPATIBLE / MISMATCH / MISSING table and resolves MISMATCH/MISSING (provider-first) before declaring COMPATIBLE"
+          "synthesizes a COMPATIBLE / MISMATCH / MISSING table and resolves MISMATCH/MISSING (provider-first) before declaring COMPATIBLE",
+          "closes each resolved finding only after its raiser re-reviews and confirms the fix (per Rule 4) — not on orchestrator judgment alone"
         ],
         "forbidden_signals": [
           "declares the specs consistent without dispatching independent reviewers",
