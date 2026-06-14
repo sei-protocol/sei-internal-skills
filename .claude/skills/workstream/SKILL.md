@@ -75,7 +75,7 @@ A `/goal` Stop hook pushing you to "keep going" does **not** waive this. If the 
 
 `workstream` walks the Coral lifecycle, inserting checkpoints at the seams. It **invokes** the existing skills at the right moments; it does **not** auto-drive them (the operator still confirms phase transitions). Full recommended flow in `references/composition.md`.
 
-1. **Declare + surface the checkpoint ledger.** Default ledger: `design-approval` after design capture, `pr-sign-off` before merge / dependent work. Add custom checkpoints the operator names.
+1. **Declare + surface the ledger; confirm scope.** Echo the scope (objective + the council scope tier) and the checkpoint ledger — default ledger: `design-approval` after design capture, `pr-sign-off` before merge / dependent work, plus any custom checkpoints the operator names — and get the operator's go-ahead **before** step 2 (per Guardrail 4).
 2. **Scope-tier the work via `council`.** Invoke `/council` (it owns the four scope tiers and produces the design content). Do not reimplement tiers.
 3. **Verify via `/cross-review`.** Run blinded multi-specialist review on the design **before** capture (cross-review precedes `/design` — design captures what's been reviewed, it doesn't review).
 4. **Capture via `/design`.** Offer `/design` to write the reviewed design as a durable doc.

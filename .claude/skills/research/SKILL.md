@@ -29,7 +29,7 @@ Refusal conditions — these hold under "just give me a quick answer" pressure:
 
 ### 1. Scope
 
-State the question and what a useful answer is: the **decision it informs**, the **falsifiable claims** sought, and the **scope boundary** (what's in/out). Refuse a vague question (Guardrail 2). Write the scoped question at the top of the artifact — it's the contract the completeness pass checks against.
+State the question and what a useful answer is: the **decision it informs**, the **falsifiable claims** sought, and the **scope boundary** (what's in/out). Refuse a vague question (Guardrail 2). **Echo the scoped question to the operator and get go-ahead before the sweep** (Guardrail 2). Write the scoped question at the top of the artifact — it's the contract the completeness pass checks against.
 
 ### 2. Multi-modal sweep
 
