@@ -99,7 +99,7 @@ A high-risk step declares **both** a `guard` (the metric watch) and a human `che
 3. **Surface on trip; the human owns the irreversible call.** `on_trip` halts before the next step and routes to a pre-declared rollback checkpoint. Auto-abort is deferred and, if ever enabled, only a pre-declared reversible+idempotent rollback, never on a one-way-door step.
 4. **Recursion bound.** A guard may surface, halt, and route to an **already-declared** checkpoint — nothing more. It may **not** launch a workstream, spawn a sub-agent that launches one, or create ledger entries at trip time. The ledger is static after declaration. (This bounds a `continuous` guard's trip handler from becoming an unbounded watch→remediate→watch loop.)
 
-The kit's correctness contracts (partial-response-safe, volume-floor + liveness, target-coverage, per-source freshness, two-window/N-breach, baseline-at-gate-start) are in `references/signal-kit-telemetry.md` — a guard that skips them PASSes on the common cutover failure modes (no-traffic-drain, half-fleet read).
+The kit's **eight correctness contracts** (four verdict-gating, four budget/tuning) — and the soak verdict rule (N-consecutive-breach vs the gate-start baseline) — live in `references/signal-kit-telemetry.md`. **Do not construct a guard verdict from this summary alone**; a guard that skips the contracts PASSes on the common cutover failure modes (no-traffic-drain, half-fleet read).
 
 ## The lifecycle (the procedural scaffold)
 

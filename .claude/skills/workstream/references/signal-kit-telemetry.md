@@ -11,6 +11,7 @@ A workstream step is high-risk and live (a migration cutover, a deploy, a node-s
 ## Read adapter — the Grafana datasource-proxy call (NOT grafana-mcp)
 
 - **Path:** `GET {GRAFANA_URL}/api/datasources/proxy/uid/prometheus-prod/api/v1/query[_range]` with `Authorization: Bearer {token}`. This is the established `validate-release/scripts/query-grafana.py` pattern — reuse its `query_range()` (proxy URL construction, bearer auth, `status: success` check, empty/NaN handling) and `check-grafana.sh` (token preflight) directly.
+  - **When reusing `query_range()` the adapter MUST additionally** (a) send `?partial_response=false`, and (b) return the response's `warnings` array to the caller *unmodified*. `query_range()` predates the guard and asserts neither — a reused helper that drops `warnings` reintroduces the exact defect that ruled out grafana-mcp (contract 1).
 - **Why not `grafana/mcp-grafana`:** the MCP server **discards the Thanos `warnings` array** and exposes no `partial_response` param (verified in its `main`), so it cannot satisfy the partial-response-safe contract below. The raw proxy returns the full Prometheus/Thanos envelope — `warnings` intact, `partial_response=false` honorable. (An agent-native, warnings-preserving MCP layer is the future path once the upstream fix lands — see the design's Auth section. Until then: the proxy call.)
 - **Auth:** a Grafana **service account, `Viewer` role, SA token** (Grafana's standard programmatic mechanism; read-only is structural — Viewer + Thanos query API write-free + admin/receive/ruler disabled). For development, a manually-minted token; production provisioning/rotation is the platform sibling (Issue B).
 
@@ -36,15 +37,20 @@ Declare the gate with the `AnalysisTemplate`/Flagger vocabulary: `interval` (pol
 
 ## Non-negotiable correctness contracts
 
-These are what separate a real guard from one that PASSes on the two most common cutover failure modes. The first two are load-bearing — **without them the guard is worse than no guard** (it manufactures false confidence).
+Eight contracts in two tiers. **Contracts 1–4 each gate the verdict** — a miss makes the reading unsound and the guard PASSes on a failure it exists to catch (it manufactures false confidence — worse than no guard). Contracts 5–8 are budget/tuning — set them wrong and the guard goes blind or noisy. Below any verdict-gating floor the verdict is `inconclusive`, never PASS.
+
+### Verdict-gating (a miss makes the verdict unsound)
 
 1. **Partial-response-safe — inspect `warnings` as the PRIMARY mechanism.** Thanos has partial-response ON by deliberate design; the cited rules are fleet-aggregated (`sum by (chain_id)`, `topk`), so on a cross-cluster blip a `sum` silently returns a partial total with HTTP 200 + a non-empty `warnings` array — and **freshness does not catch this** (the data that returned is current). **Non-empty `warnings` ⇒ inconclusive ⇒ abort.** Also force `?partial_response=false`. (Both are why the adapter is the proxy call, not grafana-mcp.)
-2. **No-traffic ≠ healthy — volume floor + liveness co-condition.** A ratio SLI (`rate(ok)/rate(total)`) reads a clean `1.0` on a near-zero denominator — exactly the cutover failure where traffic isn't draining to the new shape. Every ratio guard co-asserts a **minimum-event-volume denominator** (e.g. `sum(rate(tx_count[1m])) >= <min>`) AND, for any consensus-touching cutover, a **liveness floor** (`chaos_suite:block_height_delta:rate2m > 0`) — separate cited queries that must independently pass. Below the floor: `inconclusive`, never PASS.
+2. **No-traffic ≠ healthy — volume floor + liveness co-condition.** A ratio SLI (`rate(ok)/rate(total)`) reads a clean `1.0` on a near-zero denominator — exactly the cutover failure where traffic isn't draining to the new shape. Every ratio guard co-asserts a **minimum-event-volume denominator** (e.g. `sum(rate(tx_count[1m])) >= <min>`) AND, for any consensus-touching cutover, a **liveness floor** (`chaos_suite:block_height_delta:rate2m > 0`) — separate cited queries that must independently pass. The `<min>` threshold is **declared per-guard at gate-start** (a function of the cutover's expected traffic floor — there is no global default; a guard with `<min>` unset is *mis-declared*, not permissive). Below the floor: `inconclusive`, never PASS.
 3. **Target-coverage check.** Co-assert `up{…} == 1` (or expected-series cardinality) for the guard's targets — a pod that crashed mid-soak stops emitting and the last value carries forward inside Prometheus's 5m staleness window, reading "fresh enough." Coverage ≠ "the number is good."
 4. **Empty rule result = inconclusive.** `topk` / `histogram_quantile` / join-pattern rules return *no series* when inputs are absent. Empty ⇒ inconclusive ⇒ abort, identical to stale. Never read absence as "not breached = healthy."
+
+### Budget / tuning (set right or the guard is blind/noisy)
+
 5. **Per-source freshness.** Budget by who evaluates the series: `~2×30s` for recording-rule + `_3h`-tier series (Prometheus); `~2×5m` for `≥3d -longwindow` series (ThanosRuler). Provenance records which store answered.
-6. **Two-window / N-consecutive-breach, never a single threshold** (see modes above).
-7. **Baseline captured at gate-start for cutovers.** `offset 1w` is **not permitted for a cutover** (topology changes; last week is a different fleet — and risks the prod/pacific-1 co-tenancy trap). Gate-start snapshot is mandatory for topology changes; `offset 1w` only for steady-state deploys. For soaks > ~15 min, compare rate/ratio-normalized (organic load ramps else read as degradation) or re-baseline.
+6. **Two-window / N-consecutive-breach, never a single threshold.** For **`soak`**: the verdict is **N-consecutive-breach of the cited query against the gate-start baseline** (`count`/`failureLimit`, Argo/Flagger). For **`continuous`**: MWMBR. **MWMBR never applies to `soak`** (its slow window can't accumulate in a 10–30 min soak) — a soak guard must not claim slow-burn coverage.
+7. **Baseline captured at gate-start for cutovers.** `offset 1w` is **forbidden for a cutover** — a topology change means last week is a different fleet, and on the `prod` context a stale-baseline query risks reading the co-tenant **pacific-1 mainnet** (the prod/pacific-1 co-tenancy trap). Gate-start snapshot is mandatory for any topology change; `offset 1w` is permitted only for steady-state deploys. For soaks > ~15 min, compare rate/ratio-normalized (organic load ramps else read as degradation) or re-baseline.
 8. **Effective detection latency = input-window + rule-interval.** A guard citing `…:rate2m` is ~2.5 min blind to a sharp drop; provenance states this; `continuous` fast-failure guards cite shorter-window rules.
 
 **Fail-closed is the spine rule these all serve:** stale data, unreachable endpoint, auth/query error, empty read, or non-empty `warnings` ⇒ "cannot confirm healthy" = abort, **never** PASS. Same discipline as the workstream checkpoint and gov-ops.
@@ -55,7 +61,22 @@ Record, per reading: the exact query (recording-rule name + the expr it expands 
 
 ## Surface vs act (gate mode, MVP)
 
-`on_trip` is **surface-and-wait** — halt before the next step, surface the trip + the cited evidence, route to a pre-declared rollback checkpoint; the human owns the call. Auto-abort is deferred (design OQ5): only ever a pre-declared *reversible, idempotent* rollback, at a higher confidence bar than surface, never on a one-way-door step.
+`on_trip` is **surface-and-wait** — halt before the next step, surface the trip + the cited evidence, route to a pre-declared rollback checkpoint; the human owns the call. Auto-abort is **deferred (design OQ5), not an MVP build target**: if ever enabled it executes only a pre-declared *reversible, idempotent* rollback, never on a one-way-door step, and must clear a *higher, quantified* confidence bar than surface (design worked example: surface at N=3 consecutive breaches, auto-abort at N=5 — **the exact threshold is undecided pending OQ5, owner bdchatham**).
+
+## A worked guard (ledger entry)
+
+```
+- guard:    arctic1-cutover-fleet-health
+  signal:   chaos_suite:tps:rate1m            # fleet-aggregated; cite the expr, force partial_response=false
+  healthy:  within 10% of the gate-start baseline snapshot
+  coassert: sum(rate(sei_chain_app_tx_count_total[1m])) >= <min>   # volume floor, <min> set per-guard
+            chaos_suite:block_height_delta:rate2m > 0               # liveness floor (consensus cutover)
+            up{job="sei-validator",region="prod-euw1"} == 1         # target coverage
+  when:     soak 15m                           # verdict = N-consecutive-breach vs baseline; MWMBR N/A
+  on_trip:  surface + route to the rollback-region checkpoint
+```
+
+Every poll: non-empty `warnings` ⇒ inconclusive ⇒ abort; any co-assert unmet ⇒ inconclusive ⇒ abort; only all-clear + within-baseline for the full soak ⇒ PASS. Record the cited queries, windows, store, warnings, and verdict as provenance.
 
 ## What this kit does not do
 
