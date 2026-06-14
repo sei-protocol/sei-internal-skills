@@ -23,7 +23,7 @@ Refusal conditions — these hold under "just give me a quick answer" pressure:
 2. **Refuse a vague question.** If the question doesn't name what a *useful answer* looks like (the decision it informs, the falsifiable claims sought), push back and sharpen it before sweeping. A sweep with no target returns noise.
 3. **Reuse the dissent primitive, don't invoke `/cross-review`.** `/cross-review` reviews *interface boundaries* (provider/consumer, COMPATIBLE/MISMATCH/MISSING) — that table doesn't map onto a research finding. `research` implements its **own** refutation pass *modeled on* cross-review's assigned-dissent primitive (tag a skeptic to argue the finding is wrong). Do not call `/cross-review` on findings.
 4. **Discover, don't decide.** Research surfaces findings + a recommendation; it does not capture a design decision (that's `/design`) or file work (that's `/issue`). Keep the artifact a *findings* artifact.
-5. **Never launch a workstream.** A research effort may be *checkpoint-gated by* a `/workstream` (an `outcome-alignment` gate after synthesis), but it never *launches* one. At scale it spawns a Workflow (an execution engine) for the parallel sweep — deferred from MVP; inline is the default.
+5. **Never launch a workstream; surface a too-wide sweep.** A research effort may be *checkpoint-gated by* a `/workstream` (an `outcome-alignment` gate after synthesis), but it never *launches* one. Inline covers **≤3 sweep angles**; if the question needs more, **surface the limit** rather than running a narrow sweep silently — the parallel-sweep Workflow engine is deferred from MVP.
 
 ## The method (four stages)
 
