@@ -149,7 +149,7 @@ Merge the independent reviews into one de-duplicated boundary table inside the l
 - **Surface disagreement — don't smooth it.** If two reviewers reached opposite conclusions on the same boundary, that's a finding, not a rounding error. Record both and reason from first principles; provider-owns-the-interface is the tie-break, not seniority or recency.
 - **Convergence is corroboration only if independent.** If the reviews agree and were blinded, say the confidence is high. If they weren't blinded, downgrade and note it.
 
-**Idiom findings ride in an addendum, not the boundary table.** `idiomatic-reviewer` reports two-altitude findings (design + surgical) keyed to files and packages, not to interface boundaries, so they don't fit the COMPATIBLE / MISMATCH / MISSING schema. Record them in a separate **Idiom** section below the table, each carrying its cited basis and severity (correctness-grade / idiom-divergence-with-consequence / style).
+**Idiom and Prose findings ride in addenda, not the boundary table.** `idiomatic-reviewer` reports two-altitude idiom findings (design + surgical) keyed to files/packages; `prose-steward` reports dual-audience legibility findings (R1–R5) keyed to passages. Neither fits the COMPATIBLE / MISMATCH / MISSING boundary schema. Record idiom findings in a separate **Idiom addendum** and prose findings in a separate **Prose addendum** below the table (both defined in `references/review-ledger.md`), each carrying its cited basis and severity (correctness-grade / divergence-with-consequence / style). **Correctness-grade findings in either addendum gate the verdict per Step 5; pure-style ones are advisory.**
 
 ### Step 5 — Resolve and report
 
