@@ -16,6 +16,8 @@ The ledger is **conversational** — surfaced in the agent's message, not a mach
 
 **A second entry kind — `guard`.** Besides human `checkpoint`s, a ledger may declare signal-driven **guards** (fail-closed metric gates that watch a live signal during a high-risk step). A guard carries a `guard`/`signal`/`healthy`/`when`/`on_trip` shape, not the human triple, and is enforced by the guard spine (fail-closed; surface-on-trip; static-after-declaration). See SKILL.md "The guard primitive" and `signal-kit-telemetry.md`. Guards and checkpoints co-exist in one ledger: a high-risk step typically declares both (the guard watches; the human checkpoint owns the irreversible call).
 
+**A third entry kind — `review-gate`.** A ledger may also declare a **review-gate**: a fail-closed *consensus* gate satisfied when the `/cross-review` review-ledger reads a passing terminal (unanimous RATIFY, zero open findings) AND a declared check set is green. It carries a `review-gate`/`slate`/`checks`/`ledger`/`satisfied_when`/`on_fail` shape, not the human triple, and is enforced by the review-gate spine (reads the committed ledger fail-closed, never the transcript; never self-relaxed; never gates a one-way door). It **composes** `/cross-review` (PLT-535) — it never reimplements the slate or the review-ledger. See SKILL.md "The review-gate primitive" and `review-gate.md`. It is the declarable form of delegating `pr-sign-off` to expert-consensus + checks: the operator declares it up front (that declaration is the merge authorization), and the human still owns every one-way door.
+
 ## Surfacing the ledger
 
 At workstream start, after scoping the work, the agent writes and shows the ledger:
