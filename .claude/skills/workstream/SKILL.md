@@ -2,7 +2,7 @@
 name: workstream
 category: workflow
 model: claude-opus-4-8
-description: "Use when launching a substantial multi-step workstream on the Coral stack with declared human checkpoints — 'launch a workstream', 'kick off this goal with checkpoints', 'start a workstream with a PR sign-off gate', 'set up checkpoints for this goal', '/workstream'. Scaffolds the Coral lifecycle (council scope-tier → cross-review → /design capture → /issue → /execution-plan) and declares named human gates the agent must surface and obtain confirmation for before proceeding. Also declares signal-driven **guards** — fail-closed metric gates that watch a live signal during a high-risk step ('gate this cutover on the metric staying healthy'). Anti-triggers: NOT the Claude Code /goal harness command (that sets the persistent objective; this governs how it's pursued); NOT a single 1–2 specialist slice (use /coral); NOT scope-tiered design alone (use /council — workstream invokes it); NOT capturing a finished design (use /design). Composes council/cross-review/design/issue/execution-plan; never edits them."
+description: "Use when launching a substantial multi-step workstream on the Coral stack with declared gates — 'launch a workstream', 'kick off this goal with checkpoints', 'start a workstream with a PR sign-off gate', '/workstream'. Scaffolds the Coral lifecycle (council → cross-review → /design → /issue → /execution-plan) and declares three gate kinds: human **checkpoints** (surface + confirm before proceeding), signal **guards** (fail-closed metric gates watching a live signal during a cutover), and **review-gates** (merge-on-consensus — satisfied when the /cross-review slate is unanimous and declared checks pass, e.g. 'merge once no agents have concerns and bugbot is clean'). Anti-triggers: NOT the Claude Code /goal harness command (that sets the objective; this governs how it's pursued); NOT a single 1–2 specialist slice (use /coral); NOT scope-tiered design alone (use /council); NOT capturing a finished design (use /design). Composes council/cross-review/design/issue/execution-plan; never edits them."
 ---
 
 # Workstream
@@ -31,6 +31,7 @@ Refusal conditions — these hold under a Stop hook, time pressure, an offline o
 4. **Declare the ledger up front; confirm scope before side effects.** At workstream start, echo the **scope** (objective + the council scope tier) and the **checkpoint ledger**, surface both, and get the operator's go-ahead before invoking the lifecycle. A gate added silently mid-stream, or honored only when convenient, is not a checkpoint.
 5. **Don't manufacture ceremony.** A genuinely small slice does not need a workstream — redirect to `/coral`. Checkpoints are gates a human actually wants, not decoration.
 6. **A guard fails closed — it never PASSes on data it cannot confirm.** Stale, unreachable, empty, or incomplete (partial-response `warnings`) reads are `inconclusive` ⇒ abort, never "looks fine." A guard does not replace a one-way-door checkpoint and may not launch a workstream or create ledger entries at trip time (the ledger is static after declaration). See "The guard primitive."
+7. **A review-gate fails closed — it reads the `/cross-review` review-ledger, never the transcript.** A `review-gate` is satisfied **only** when the review-ledger reads a passing terminal per `/cross-review`'s gate-read contract (`RESOLVED` or `RESOLVED-WITH-ACCEPTED-RISK`, `OpenFindings: 0`, `Dissenter` held, cross-field consistent) **with `Convergence: unanimous`** (the consensus refinement — a recorded `split` latest round is not merge-ready) **and** every declared check passes. An absent / malformed / self-contradictory ledger, a `split` latest round, any open finding, a pending/neutral/failed check, or a chat assertion of approval ⇒ **FAIL closed** — never merge. Unanimous RATIFY means *zero open concerns*, not "the open ones look minor"; the gate cannot be self-relaxed, and it **never** gates a one-way door (council's human gate stands). The up-front declaration *is* the operator's merge authorization — it is not self-waivable or widenable mid-stream. See "The review-gate primitive." It **composes** `/cross-review` (never reimplements the slate or ledger).
 
 ## The checkpoint primitive
 
@@ -101,19 +102,48 @@ A high-risk step declares **both** a `guard` (the metric watch) and a human `che
 
 The kit's **eight correctness contracts** (four verdict-gating, four budget/tuning) — and the soak verdict rule (N-consecutive-breach vs the gate-start baseline) — live in `references/signal-kit-telemetry.md`. **Do not construct a guard verdict from this summary alone**; a guard that skips the contracts PASSes on the common cutover failure modes (no-traffic-drain, half-fleet read).
 
+## The review-gate primitive (a consensus gate)
+
+A **review-gate** is the third gate kind: where a `checkpoint` waits on a *human* and a `guard` watches a *live signal*, a review-gate reads a **`/cross-review` review-ledger + a declared check set**. It makes *"merge once the reviewer slate is unanimously RATIFY (zero open concerns) and the declared automated checks pass"* — the strongest gate operators actually use — a **declarable, enforceable** primitive instead of a conversational hand-off. It is the machine counterpart of `pr-sign-off`: the operator pre-delegates the *routine* merge decision; the human still owns every one-way door.
+
+**It composes `/cross-review` (PLT-535), it does not reimplement it.** `/cross-review` owns the slate, the routing, the blinded dispatch, the assigned dissent, and the **review-ledger** schema + gate-read contract. The review-gate is the ledger's **consumer**: it *reads* the ledger fail-closed and *invokes* the slate (via the verify-to-convergence loop). There is one contract — `/cross-review`'s gate-read contract — and this gate follows it; it never re-derives review state from the transcript.
+
+### The review-gate ledger entry
+
+A third ledger entry kind, declared up front alongside checkpoints and guards:
+
+```
+- review-gate: <short identifier, kebab-case>
+  slate:    <the declared reviewer slate — or "routed by /cross-review per change-class">
+  checks:   <the declared automated checks that must be green — e.g. cursor-bugbot, named CI workflows>
+  ledger:   <the /cross-review review-ledger path — target-derivable per PLT-535; the gate computes it from the target, no registry>
+  satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL (per /cross-review's gate-read contract) AND Convergence is unanimous (the consensus refinement — see "The review-gate enforcement spine") AND every declared check has passed
+  on_fail:  surface + route to a PRE-DECLARED human checkpoint (e.g. pr-sign-off) — never self-merge on a fail
+```
+
+### The review-gate enforcement spine
+
+1. **Read the ledger fail-closed — never re-derive review state.** Compute the review-ledger path from the target (PLT-535's target-derivable rule), read the **latest round's** header block, and apply `/cross-review`'s passing-terminal gate-read **verbatim** (the provider's ledger-validity check: passing-terminal `State` + `OpenFindings: 0` + parseable in-enum `Convergence` + non-empty `Dissenter` + cross-field consistency), **then the review-gate's consensus refinement: `Convergence: unanimous`** (a recorded `split` latest round is not merge-ready). An **absent, malformed, out-of-enum, self-contradictory, or `split`** ledger ⇒ **FAIL**, identical to `State: OPEN`. Never read the transcript, an author's frontmatter assertion, or your own memory of the reviews — only the committed ledger. **Never error-into-pass:** no clean passing terminal found ⇒ FAIL, never a skipped check that proceeds.
+2. **Unanimous RATIFY = zero open concerns — not "the open ones look minor."** An open per-lens DISSENT, an open MISMATCH/MISSING, or `OpenFindings ≥ 1` fails the gate. Resolving it, or the operator explicitly accepting a *named* risk (a new ledger round), is the only path to pass. The gate cannot be self-relaxed.
+3. **All declared checks must actually pass.** A check still running, errored, neutral, or never reported is **not** green — fail closed on it, the same way a guard fails closed on an inconclusive read. Pending is not pass.
+4. **The up-front declaration is the authorization; it is not self-waivable.** Declaring a review-gate is the operator pre-authorizing the merge *conditioned on* the bar — it replaces the per-PR token, it does not let you invent or lower the bar. A review-gate added, widened, or relaxed silently mid-workstream is not a gate.
+5. **A review-gate never gates a one-way door.** For a persisted-schema / wire-format / signed-ID / prod-touching step, council's one-way-door **human** checkpoint stands; the review-gate may sit alongside (the slate still reviews) but does not discharge the irreversible call. Same rule as the guard primitive.
+
+**On a fail, `on_fail` surfaces the specific reason + the ledger evidence and routes to a pre-declared human checkpoint** — it does not loop unboundedly and does not self-merge. When the failure is *open review findings*, the verify-to-convergence loop (lifecycle step 3) is what drives them to resolution; the gate is the *reader* of the result, not the fixer. See `references/review-gate.md` for the full contract and the verify-to-convergence loop.
+
 ## The lifecycle (the procedural scaffold)
 
 `workstream` walks the Coral lifecycle, inserting checkpoints at the seams. It **invokes** the existing skills at the right moments; it does **not** auto-drive them (the operator still confirms phase transitions). Full recommended flow in `references/composition.md`.
 
 1. **Declare + surface the ledger; confirm scope.** Echo the scope (objective + the council scope tier) and the checkpoint ledger — default ledger: `design-approval` after design capture, `pr-sign-off` before merge / dependent work, plus any custom checkpoints the operator names — and get the operator's go-ahead **before** step 2 (per Guardrail 4).
 2. **Scope-tier the work via `council`.** Invoke `/council` (it owns the four scope tiers and produces the design content). Do not reimplement tiers.
-3. **Verify via `/cross-review`.** Run blinded multi-specialist review on the design **before** capture (cross-review precedes `/design` — design captures what's been reviewed, it doesn't review).
+3. **Verify via `/cross-review` — iterate to convergence.** Run blinded multi-specialist review on the integrated artifact **before** capture (cross-review precedes `/design` — design captures what's been reviewed, it doesn't review). This is a **loop, not a single step**: invoke `/cross-review` (it classifies, routes the slate, dispatches blinded, synthesizes the review-ledger); if the ledger's latest round is not a passing terminal (open findings, a DISSENT, a split), **apply the fixes and re-invoke `/cross-review`, which appends a new round** — repeat until the latest round is a passing terminal or the `OPEN-BLOCKED` fail-to-human exit. The loop's record **is** the review-ledger's appended rounds — don't keep a second convergence log. **Compose, never reimplement:** the workstream sequences the rounds and applies the fixes; `/cross-review` owns how each round is dispatched and recorded. See `references/review-gate.md`.
 4. **Capture via `/design`.** Offer `/design` to write the reviewed design as a durable doc.
 5. **`design-approval` checkpoint.** STOP; surface the captured, reviewed design; obtain explicit sign-off before implementing.
 6. **Implement** to the approved design. (Council's one-way-door gate fires here if a persisted-schema / wire-format / signed-ID change appears — honor it as a checkpoint even though it wasn't pre-declared.)
 7. **Capture deferred slices via `/issue` — conditionally.** Only if a slice was cut. Don't reflexively file an empty issue.
 8. **Decorate lineage via `/execution-plan`.** Call it to stamp the bet label + design link (delegated; never duplicated). Its first-label-creation confirm is a *separate* gate it owns — not subsumed by the ledger.
-9. **`pr-sign-off` checkpoint.** STOP; surface the ready PR; obtain explicit confirmation before merge / dependent work.
+9. **Ship — `pr-sign-off` *or* `review-gate`.** Either a human `pr-sign-off` checkpoint (STOP; surface the ready PR; obtain explicit confirmation before merge) **or**, if the operator declared a `review-gate` up front, the review-gate is evaluated: read the review-ledger fail-closed + confirm every declared check is green ⇒ on satisfied, merge per the pre-authorized declaration (no per-PR token). On fail, surface the reason and route to the pre-declared human checkpoint. The two are alternatives the operator chooses at declaration time — the review-gate is additive, never an automatic replacement. **It never gates a one-way door:** a persisted-schema / wire-format / signed-ID / prod-touching merge keeps council's one-way-door human checkpoint even when the slate is unanimous.
 
 ## Rationalization table
 
@@ -127,6 +157,10 @@ The pressure says… → the rule is…
 | "The Stop hook is a live signal; the checkpoint is a stale note — live wins." | The hook governs *stopping*. It cannot manufacture an approval the human never gave. A pre-committed gate is *more* trustworthy than present-you under pressure, not less. STOP; surface the gate. |
 | "I'll close the ticket to satisfy the hook, then surface the concern after." | Closing to satisfy the hook is walking through the door and reporting it afterward. Surface *before*, not after. An unsatisfied hook is the system correctly reflecting unfinished work. |
 | "It's my own checkpoint, so I can waive my own note." | Past-you set it with the most context and least pressure precisely for present-you to honor. Self-waivable = never a checkpoint. |
+| "The one open DISSENT is minor / stale — the review-gate is effectively satisfied, merge." | Unanimous RATIFY means *zero* open concerns. The gate reads the committed ledger fail-closed; "effectively satisfied" is the self-relaxed rubber-stamp the gate exists to forbid. Resolve it or have the operator accept the *named* risk (a new ledger round) — then read pass. |
+| "Three reviewers told me in chat they ratified — that's the consensus, merge." | The review-gate reads the *committed review-ledger*, never the transcript or an author's assertion. No ledger / no passing terminal ⇒ FAIL closed, identical to a human gate with no confirmation. |
+| "Bugbot is still running but the reviews are clean — close enough, merge." | A declared check that is pending/neutral/absent is **not** green. Fail closed on it; pending is not pass. |
+| "The slate is unanimous, so I can merge this persisted-schema change myself." | A review-gate never gates a one-way door. The slate reviewing it does not discharge the irreversible call — council's one-way-door human checkpoint stands. |
 
 ## Red flags — STOP and honor the gate
 
@@ -135,6 +169,8 @@ The pressure says… → the rule is…
 - Treating "I can't stop" as "I may approve this myself"
 - Adding or relaxing a checkpoint silently mid-workstream
 - Closing the ticket / satisfying the hook as the *way* to get past a gate
+- Calling a `review-gate` satisfied while a DISSENT / MISMATCH / `OpenFindings ≥ 1` is open, or while a declared check is pending — or from a chat assertion instead of the committed review-ledger
+- About to discharge a one-way-door merge with a `review-gate` instead of council's human gate
 
 All of these mean: stop, surface the gate, wait for explicit confirmation. The Stop hook never converts to approval — that conversion is the failure every flag above names.
 
@@ -146,6 +182,8 @@ Stop and surface rather than proceeding when:
 - **A one-way door appears that no ledger entry covers** — reuse council's one-way-door gate; treat it as a checkpoint even though it wasn't pre-declared.
 - **The work is too small for a workstream** — redirect to `/coral`; don't manufacture ceremony.
 - **A composed skill is unavailable** (council/cross-review/design/issue/execution-plan absent) — surface the gap; run the lifecycle phases you can and name what's missing, rather than reimplementing the skill.
+- **A declared `review-gate` cannot be satisfied from the committed ledger** — the review-ledger is absent / malformed / self-contradictory, a finding is open, or a declared check is not green ⇒ FAIL closed; surface the reason + ledger evidence and route to the pre-declared human checkpoint. Never merge, never accept a chat assertion as the evidence.
+- **A `review-gate` would discharge a one-way-door merge** — it doesn't; surface that council's one-way-door human checkpoint owns the irreversible call even when the slate is unanimous.
 
 ## State
 
@@ -156,7 +194,8 @@ Per-run scratch (the in-progress ledger, phase notes) lives in `state/` (gitigno
 - `references/checkpoint-ledger.md` — the ledger format, the two canonical types, the custom-checkpoint contract, worked examples.
 - `references/composition.md` — the full lifecycle, which skill is invoked at each seam, and where the checkpoints sit.
 - `references/signal-kit-telemetry.md` — the first signal kit (gate mode): the guard's read adapter, citable query vocabulary, decision semantics, and non-negotiable correctness contracts.
+- `references/review-gate.md` — the review-gate contract: the ledger entry shape, the fail-closed gate-read (composing `/cross-review`'s contract), and the verify-to-convergence loop.
 
 ## What this skill defers
 
-The `/goal` Stop-hook *mechanism* wiring (this ships the discipline as prose — defer the hook integration until the prose proves insufficient under goal-pressure in an eval); auto-driving phase transitions without operator confirmation (defer until an operator runs the same sequence ≥3 times by hand); a machine-parsed, resumable checkpoint manifest (defer until the primitive is validated).
+The `/goal` Stop-hook *mechanism* wiring (this ships the discipline as prose — defer the hook integration until the prose proves insufficient under goal-pressure in an eval); auto-driving phase transitions without operator confirmation (defer until an operator runs the same sequence ≥3 times by hand); a machine-parsed, resumable checkpoint manifest (defer until the primitive is validated); programmatic check-status polling and a fully-unattended multi-PR auto-merge pipeline for the review-gate (MVP reads the declared checks' status at gate-evaluation time and merges the single pre-authorized PR — defer the pipeline until the single-gate primitive is validated).
