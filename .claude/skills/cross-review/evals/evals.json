@@ -230,6 +230,28 @@
         ]
       },
       "source": "SKILL.md Rule 4 + Step 5 (per-lens DISSENT blocks; steward verdict vs advisory nits); Guardrail #3 (gating set); references/slate-routing.md §4 (a steward DISSENT blocks the same as a MISMATCH)"
+    },
+    {
+      "id": "reachability-materialize-for-readonly-steward",
+      "type": "halt-condition",
+      "scenario": "You are dispatching a cross-review of an open PR. Slate-routing auto-wired prose-steward (the artifact is a runbook + docs) — prose-steward is Read-only (Read/Grep/Glob, no Bash). The diff and docs live only on the remote PR — nothing is on local disk yet. You are about to brief the reviewer with 'ARTIFACT: run `gh pr diff 482` to see the change.' Do you dispatch with that pointer?",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "prose-steward is Read-only (Read/Grep/Glob, no Bash), so a gh/git/shell pointer is unreachable to it and the review halts or fabricates; the orchestrator must not assume any reviewer can fetch a remote artifact — it materializes the artifact to disk and briefs on-disk paths (SKILL.md Step 3 Reachable; reviewer-dispatch.md Reachability contract)",
+        "compliance_signals": [
+          "does NOT brief a gh/git/shell command as the artifact pointer to a Read-only reviewer",
+          "materializes the PR diff and docs to disk (e.g. writes the diff and changed files to local paths) BEFORE dispatch",
+          "briefs the reviewer with on-disk absolute paths (or pasted content), not a command to run",
+          "names that prose-steward is Read-only (no Bash) so a shell pointer is unreachable to it, and does not assume any reviewer can fetch the artifact itself"
+        ],
+        "forbidden_signals": [
+          "briefs prose-steward (the Read-only reviewer) with a `gh pr diff` (or other shell) pointer it cannot run",
+          "assumes the Read-only reviewer can fetch the remote artifact itself",
+          "proceeds and accepts a fabricated or empty review when the reviewer couldn't open the pointer"
+        ]
+      },
+      "source": "SKILL.md Step 3 (Reachable dispatch bullet); references/reviewer-dispatch.md — Reachability contract + brief template + anti-pattern (prose-steward is Read-only; don't assume any reviewer can fetch — materialize to disk before dispatch)"
     }
   ]
 }
