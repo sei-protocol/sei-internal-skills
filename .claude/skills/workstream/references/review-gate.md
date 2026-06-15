@@ -71,14 +71,22 @@ When the ship step is reached and a `review-gate` was declared, evaluate it:
    satisfied ⇒** surface the specific reason + the ledger evidence and route to the pre-declared
    human checkpoint (`on_fail`). Never self-merge on a fail; never error-into-pass.
 
-**Fail-closed is the load-bearing property.** An **absent** review-ledger, an **unparseable /
-missing** field, an **out-of-enum** `Convergence`, a `Convergence: split` latest round (the
-consensus refinement), an **empty** `Dissenter`, a **self-contradictory** header (e.g.
-`State: RESOLVED` with `OpenFindings: 3`), **or a malformed latest round** — which, per the
-contract this gate reads verbatim, *includes* an out-of-sequence `Round:` / round-number gap, and
-**never falls back** to an earlier round ⇒ the gate **FAILS**, identical to `State: OPEN`. A grep
-that finds `RESOLVED` without cross-checking the count, or a chat assertion that "the reviewers
-ratified it," is exactly the error this gate forbids — the committed ledger is the only evidence.
+**Fail-closed is the load-bearing property.** Two sources of FAIL, kept distinct:
+
+- **Provider-owned (the contract this gate reads verbatim — `/cross-review`'s gate-read contract):**
+  an **absent** review-ledger, an **unparseable / missing** field, an **out-of-enum** `Convergence`,
+  an **empty** `Dissenter`, a **self-contradictory** header (e.g. `State: RESOLVED` with
+  `OpenFindings: 3`), **or a malformed latest round** — which, per that contract, *includes* an
+  out-of-sequence `Round:` / round-number gap, and **never falls back** to an earlier round.
+- **The review-gate's own consensus refinement (not the provider's — the provider *passes*
+  `Convergence: split` as in-enum):** a `Convergence: split` latest round fails *this gate* because
+  a split is not merge-ready consensus, even though it passes the provider's ledger-validity check.
+
+Any of the above ⇒ the gate **FAILS**, identical to `State: OPEN`. A grep that finds `RESOLVED`
+without cross-checking the count, or a chat assertion that "the reviewers ratified it," is exactly
+the error this gate forbids — the committed ledger is the only evidence. (Do not "correct" the
+provider's enum to reject `split`; the provider legitimately passes it, and other consumers may
+merge on a resolved split — the `split`-rejection is *this* gate's policy, not the contract's.)
 
 ## The verify-to-convergence loop (lifecycle step 3)
 

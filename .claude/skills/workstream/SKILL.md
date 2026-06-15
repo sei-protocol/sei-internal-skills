@@ -117,7 +117,7 @@ A third ledger entry kind, declared up front alongside checkpoints and guards:
   slate:    <the declared reviewer slate — or "routed by /cross-review per change-class">
   checks:   <the declared automated checks that must be green — e.g. cursor-bugbot, named CI workflows>
   ledger:   <the /cross-review review-ledger path — target-derivable per PLT-535; the gate computes it from the target, no registry>
-  satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL (per /cross-review's gate-read contract) AND every declared check has passed
+  satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL (per /cross-review's gate-read contract) AND Convergence is unanimous (the consensus refinement — see "The review-gate enforcement spine") AND every declared check has passed
   on_fail:  surface + route to a PRE-DECLARED human checkpoint (e.g. pr-sign-off) — never self-merge on a fail
 ```
 
