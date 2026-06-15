@@ -68,7 +68,7 @@ Non-negotiable. Every step exists to enforce one or more.
 1. **Read the artifact, review the whole.** You review what's actually written, and you review the *integrated* artifact — including the parts each specialist didn't author. The boundaries are the point.
 2. **Independent before synthesized.** Each reviewer commits findings before seeing peers'. Convergence only counts as corroboration if it was reached independently.
 3. **Findings carry evidence.** Every finding names the specific contract / field / signature / line. Provider owns the interface; consumers adapt — that's the tie-break when reviewers disagree.
-4. **Resolve before pass.** MISMATCH and MISSING block a COMPATIBLE verdict until fixed or explicitly accepted. A clean table with open findings is a lie.
+4. **Resolve before pass.** A passing verdict requires *every* lens's correctness-grade findings closed — MISMATCH/MISSING, correctness-grade idiom *and* prose findings, and any per-lens DISSENT (incl. pinned stewards) — fixed or explicitly accepted-with-risk (see Step 5). A clean table with open findings is a lie.
 
 ## Procedure
 
@@ -84,7 +84,7 @@ between them. State, in this first turn:
 - **The boundaries at stake** — the interfaces/contracts where components meet (a provider produces, a consumer adapts). Cross-review's value concentrates here.
 - **Provider and consumer per boundary** — name them. This sets who owns each interface and who must adapt.
 - **The classification (§0)** — emit `Class:`/`Tier:`/slate, derived *from* the artifact you just read and the boundaries you just framed. This is the HALT gate before any dispatch (Step 3).
-- **What "done" looks like** — a resolved findings table, or a labeled punt with the open items.
+- **What "done" looks like** — a **committed review ledger** (`references/review-ledger.md`) whose latest-round `State:` is a passing terminal (`RESOLVED`/`RESOLVED-WITH-ACCEPTED-RISK`, `OpenFindings: 0`) or the `OPEN-BLOCKED` fail-to-human terminal — not merely an in-conversation findings table.
 
 If the artifact can't be read, halt (Guardrail #1) — you cannot classify or review what you
 haven't read. If the read-and-frame yields no resolvable `Class:`, halt (§0) before dispatching.
@@ -131,9 +131,11 @@ Dispatch contract (mandatory — see `references/reviewer-dispatch.md` for the b
 
 Write the durable synthesis record per `references/review-ledger.md` — the committed, target-
 derivable ledger at `<artifact-dir>/cross-review/<target-slug>.md` (or `.cross-review/<slug>.md`
-at repo root when the target has no natural directory). It carries the typed header
-(`Class:`/`Tier:`/`State:`/`OpenFindings:`/`Convergence:`/`Blinded:`/`Dissenter:`, one-per-line,
-exact-token — they are PLT-536's review-gate contract), the per-lens RATIFY/DISSENT verdicts, the
+at repo root when the target has no natural directory). It carries the typed header — target-scoped
+`Class:`/`Tier:` once at top, and the per-round `State:`/`OpenFindings:`/`Convergence:`/`Blinded:`/`Dissenter:`
+(one-per-line, exact-token). **PLT-536's review-gate reads the latest round's five
+`State:`/`OpenFindings:`/`Convergence:`/`Blinded:`/`Dissenter:` lines** (not `Class:`/`Tier:`) — per the
+gate-read contract in `references/review-ledger.md`. The ledger also carries the per-lens RATIFY/DISSENT verdicts, the
 boundary table below, the Idiom/Prose addenda, and the **Rejected findings** table (Rule 4 made
 auditable — a finding the orchestrator rejected, who raised it, and *how the rejection was
 verified*). A re-review **appends a new `## Round N`** — never edits a prior round in place.
