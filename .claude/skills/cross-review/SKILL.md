@@ -26,7 +26,7 @@ Cross-review operates on **a concrete artifact, reviewed by independent speciali
    - **Accept convergence as corroboration when reviewers were not blinded.** If reviewers saw each other's assessments before committing (a shared thread, a summarized peer view in the brief), their agreement is anchoring, not independent confirmation — consensus theater. Re-run with independent briefs.
    - **Accept bare approval.** "LGTM" / "looks good" is not a finding. Every COMPATIBLE, MISMATCH, or MISSING must cite the specific contract, field, signature, or line it is about. A finding with no evidence is noise.
    - **Launder a sign-off through wording.** Phrasing it "their input was incorporated" instead of "they approved" does not convert production into review. If the specialists did not review the final artifact, the cross-review did not happen.
-   - **Declare COMPATIBLE while MISMATCH or MISSING findings are open.** Open findings are resolved (artifact updated, provider/consumer reconciled) or explicitly accepted by the user with the risk named — never silently dropped.
+   - **Declare COMPATIBLE / stamp a passing `State:` while *any* correctness-grade finding is open** — MISMATCH/MISSING, correctness-grade idiom *or* prose, or a per-lens DISSENT (incl. a pinned steward). All are resolved (artifact updated, provider/consumer reconciled) or explicitly accepted-with-risk by the user — never silently dropped. (The full gating set; see Rule 4 / Step 5.)
    - **Drop a pinned steward, or proceed without one.** A `skill-package` change pins `audit-skill` + `author-skill` + `prose-steward` *unconditionally* (per `references/slate-routing.md` — by file-type-present, never by change-size). If a pinned steward is absent from the `.claude/agents/` roster, **HALT** — never silently proceed pin-less; the operator may override only with a stated reason. (Also a Halt Condition.)
 
 See `references/reviewer-dispatch.md` for the blinded dispatch contract, `references/findings-protocol.md` for the findings schema, `references/slate-routing.md` for the change-type → slate routing rule (shared with `/coral`), and `references/review-ledger.md` for the durable synthesis record.
@@ -203,7 +203,7 @@ Stop and report to the user if:
 - A reviewer returns bare approval with no cited evidence — re-dispatch with the evidence requirement.
 - Reviewers were not blinded (saw each other's assessments first) — the convergence is invalid; re-run with independent briefs.
 - Reviewers split on a boundary and the provider-owns tie-break doesn't resolve it — surface the disagreement and ask the user / provider for the call.
-- MISMATCH or MISSING findings remain open and the user has not explicitly accepted the risk — do not stamp COMPATIBLE.
+- *Any* correctness-grade finding remains open — MISMATCH/MISSING, correctness-grade idiom/prose, or a per-lens DISSENT (incl. a pinned steward) — and the user has not explicitly accepted the risk. Do not stamp a passing ledger `State:` (`RESOLVED`/`RESOLVED-WITH-ACCEPTED-RISK`); set `OPEN` or `OPEN-BLOCKED` (see Rule 4 / Step 5).
 
 **Never declare COMPATIBLE to be helpful.** An honest OPEN verdict with named findings is the valuable output; a premature green light is the failure this skill exists to prevent.
 
