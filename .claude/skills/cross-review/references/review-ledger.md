@@ -189,11 +189,14 @@ block is Round 1's stale-by-design record, never the field source. The gate pass
 **conjunction of all of** (read from the latest round's block):
 
 **Round-selection fails closed too (the selection step is total).** "Read the latest round" must
-itself resolve to FAIL when it cannot resolve cleanly: if the highest-numbered `## Round <N>`
+itself resolve to FAIL when it cannot resolve cleanly: if the **highest-numbered** `## Round <N>`
 section is **present but unparseable** — its header block missing, or its `Round:` line absent /
-non-integer / out of sequence — the gate **FAILS closed**; it **never falls back** to reading an
-earlier round's header (a stale earlier `RESOLVED` must not satisfy the gate when the current
-round is malformed). A malformed latest round is identical to a malformed ledger.
+non-integer / **out of sequence** (rounds are **contiguous from 1**; a gap such as Round 1 → Round
+3 is out-of-sequence) — the gate **FAILS closed**; it **never falls back** to reading an earlier
+round's header (a stale earlier `RESOLVED` must not satisfy the gate when the current round is
+malformed). A malformed latest round is identical to a malformed ledger. (This "highest-numbered =
+latest" selector is unambiguous only under the single-writer assumption stated in *Single-round
+MVP* above — a duplicate `## Round <N>` is out of MVP scope.)
 
 | Schema line | Pass requires | Fail if |
 |---|---|---|
