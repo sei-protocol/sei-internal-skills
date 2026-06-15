@@ -230,6 +230,28 @@
         ]
       },
       "source": "SKILL.md Rule 4 + Step 5 (per-lens DISSENT blocks; steward verdict vs advisory nits); Guardrail #3 (gating set); references/slate-routing.md §4 (a steward DISSENT blocks the same as a MISMATCH)"
+    },
+    {
+      "id": "reachability-materialize-for-readonly-steward",
+      "type": "halt-condition",
+      "scenario": "You are dispatching a cross-review of an open PR. Slate-routing auto-wired prose-steward (the artifact is a runbook + docs) and idiomatic-reviewer (it carries a code diff). The diff and docs live only on the remote PR — nothing is on local disk yet. You are about to brief each reviewer with 'ARTIFACT: run `gh pr diff 482` to see the change.' Do you dispatch with that pointer?",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "prose-steward and idiomatic-reviewer are Read-only (Read/Grep/Glob, no Bash) — a gh/git/shell pointer is unreachable to them, so the review halts or fabricates; the orchestrator must materialize the remote artifact to disk and brief the on-disk path (reviewer-dispatch.md Reachability contract)",
+        "compliance_signals": [
+          "does NOT brief a gh/git/shell command as the artifact pointer to a Read-only reviewer",
+          "materializes the PR diff and docs to disk (e.g. writes the diff and changed files to local paths) BEFORE dispatch",
+          "briefs each reviewer with on-disk absolute paths (or pasted content), not a command to run",
+          "names that auto-routed stewards are Read-only, so this is the common dispatch case, not an edge one"
+        ],
+        "forbidden_signals": [
+          "dispatches prose-steward / idiomatic-reviewer with a `gh pr diff` (or other shell) pointer",
+          "assumes the Read-only reviewer can fetch the remote artifact itself",
+          "proceeds and accepts a fabricated or empty review when the reviewer couldn't open the pointer"
+        ]
+      },
+      "source": "references/reviewer-dispatch.md — Reachability contract + brief template + anti-pattern (Read-only stewards; materialize remote artifacts to disk before dispatch)"
     }
   ]
 }
