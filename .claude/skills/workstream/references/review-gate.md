@@ -32,12 +32,48 @@ A third entry kind in the workstream's checkpoint ledger, declared up front:
 
 ```
 - review-gate: <short identifier, kebab-case>
-  slate:    <the declared reviewer slate — or "routed by /cross-review per change-class">
+  slate:    the FULL standards-champion cohort — /cross-review resolves it (provider) so every codified standard is championed-or-recorded-N/A; see "The standards-coverage requirement"
   checks:   <the declared automated checks that must be green — e.g. cursor-bugbot, named CI workflows>
   ledger:   <the /cross-review review-ledger path — target-derivable per PLT-535; the gate computes it from the target, no registry>
-  satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL per /cross-review's gate-read contract (currently State RESOLVED|RESOLVED-WITH-ACCEPTED-RISK, OpenFindings 0, Dissenter non-empty, cross-field consistent) AND Convergence is unanimous (the consensus refinement — see gate evaluation) AND every declared check has passed
+  satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL per /cross-review's gate-read contract (currently State RESOLVED|RESOLVED-WITH-ACCEPTED-RISK, OpenFindings 0, Dissenter non-empty, cross-field consistent) AND Convergence is unanimous (the consensus refinement — see gate evaluation) AND the round's slate is the full standards-champion cohort (the standards-coverage requirement) AND every declared check has passed
   on_fail:  surface + route to a PRE-DECLARED human checkpoint (e.g. pr-sign-off) — never self-merge on a fail
 ```
+
+## The standards-coverage requirement (the slate is the full champion cohort)
+
+A review-gate discharges a *merge*, and a merge must clear **every** standard the org maintains —
+not only the domain boundaries the change obviously touches. So a review-gate's slate is **not** the
+"smallest set that covers the boundaries" that `/cross-review` picks for a lightweight consult: it is
+the **full standards-champion cohort**. Every codified standard is either **championed by a reviewer
+on the slate** or **explicitly recorded N/A with a reason** — never silently absent.
+
+The standards a champion is convened for (this skill names the *standards*; `/cross-review` — the
+slate provider — resolves each to the reviewer in this repo's `.claude/agents` roster):
+
+- **Domain correctness + interface boundaries** — the specialists whose components the change touches.
+- **Idiom** + the comment-register / no-tombstone bar.
+- **Systems quality** — reliability, performance, failure-modes-by-design, observability-by-design, API durability.
+- **Dual-audience prose** — the artifact reads correctly for the human reviewer *and* the consuming agent.
+- **Security** — adversarial / confused-deputy / boundary review.
+- **SRE** — SLO / alerting / runbook soundness, where the change carries an operational signal.
+- **Observability** — telemetry-backend / query correctness, where the change emits or reads telemetry.
+- **Capacity** — scheduling / right-sizing, where the change is workload-affecting.
+- **Lineage** — the bet↔design↔issue↔PR graph stays intact.
+- **Scope / YAGNI** — for design artifacts.
+
+This is the review-gate's own merge policy layered on `/cross-review`'s contract — exactly like the
+unanimous-convergence refinement, and bounded the same way. `/cross-review` still **owns** the slate
+(routing, blinded dispatch, the assigned dissenter, the ledger); the review-gate does **not**
+reimplement any of it. It requires one property of the slate `/cross-review` convenes — **full
+standards coverage** — and then reads the result. A standard recorded N/A must carry its reason in
+the ledger; an *applicable* standard with **no** champion is a coverage gap that **fails the gate
+closed**, identical to an open finding.
+
+**Not a license to manufacture reviewers.** "Full coverage" is *championed-or-N/A-with-reason*, not
+"every agent in the roster on every gate." A standard with no bearing on the change — capacity for a
+doc-only edit, security for a comment-wording fix — is recorded **N/A**; the discipline is that the
+call is *explicit and recorded*, never silent. The point is that no standard is dropped by oversight,
+not that every lens manufactures a finding.
 
 ## The gate evaluation (fail-closed — reads the ledger, never the transcript)
 
@@ -65,6 +101,14 @@ When the ship step is reached and a `review-gate` was declared, evaluate it:
    non-consensus / ill-formed `split`-with-zero-open round — never a legitimately-converged ledger.
    The provider check answers "is this a valid resolved ledger"; the consensus refinement is the
    review-gate's own merge policy layered on top.
+
+   **Then apply the *standards-coverage refinement*: the round's slate must be the full
+   standards-champion cohort.** Confirm the ledger's per-lens verdicts cover every codified standard
+   — each is championed by a reviewer or recorded N/A-with-reason (see the standards-coverage
+   requirement). An *applicable* standard with no champion is a coverage gap that **fails closed**,
+   identical to an open finding. Like the consensus refinement, this is the review-gate's own merge
+   policy on top of the provider's contract, not a re-derivation of the slate — `/cross-review`
+   convenes and records it; the gate only confirms the coverage is whole.
 3. **Confirm every declared check is green.** A check that is pending / in-progress / neutral /
    errored / never reported is **not** green — fail closed on it.
 4. **Satisfied ⇒ merge** per the operator's up-front authorization (no per-PR token). **Not
@@ -134,6 +178,11 @@ contract (mirrors the guard primitive's recursion bound).
   not discharge the irreversible call.
 - **Not self-relaxable.** "Unanimous RATIFY" means zero open concerns. An open DISSENT/MISMATCH or
   `OpenFindings ≥ 1` fails — "the dissent is minor/stale" is the rubber-stamp the gate forbids.
+- **Not a partial-standards gate.** A merge clears every standard. A review-gate whose slate leaves
+  an *applicable* standard unchampioned — no security lens on a boundary change, no prose lens on a
+  doc, no systems lens on a concurrency change — is **not a valid gate**: the missing standard fails
+  closed, identical to an open finding. Full coverage is championed-or-N/A-with-reason, never silent
+  omission (the standards-coverage requirement).
 - **Not authorized ad hoc.** The up-front declaration is the authorization. A review-gate added,
   widened, or relaxed silently mid-workstream is not a gate.
 - **Not a re-implementation of `/cross-review`.** It reads the ledger and invokes the slate; it
