@@ -35,7 +35,7 @@ A third entry kind in the workstream's checkpoint ledger, declared up front:
   slate:    <the declared reviewer slate — or "routed by /cross-review per change-class">
   checks:   <the declared automated checks that must be green — e.g. cursor-bugbot, named CI workflows>
   ledger:   <the /cross-review review-ledger path — target-derivable per PLT-535; the gate computes it from the target, no registry>
-  satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL (per /cross-review's gate-read contract) AND every declared check has passed
+  satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL per /cross-review's gate-read contract (currently State RESOLVED|RESOLVED-WITH-ACCEPTED-RISK, OpenFindings 0, Dissenter non-empty, cross-field consistent) AND Convergence is unanimous (the consensus refinement — see gate evaluation) AND every declared check has passed
   on_fail:  surface + route to a PRE-DECLARED human checkpoint (e.g. pr-sign-off) — never self-merge on a fail
 ```
 
@@ -45,14 +45,26 @@ When the ship step is reached and a `review-gate` was declared, evaluate it:
 
 1. **Compute the review-ledger path** from the target (PLT-535's target-derivable rule — no
    registry, no handoff token).
-2. **Read the latest round's header block** and apply `/cross-review`'s gate-read contract
-   **verbatim**. The gate passes only on the **conjunction**:
+2. **Read the latest round's header block** and apply `/cross-review`'s passing-terminal gate-read
+   **verbatim** (the provider's ledger-validity check — see the *Gate-read contract* table in
+   `/cross-review/references/review-ledger.md`; this gate reads that table, it does not re-list or
+   re-derive it):
    - `State:` is a passing terminal (`RESOLVED` | `RESOLVED-WITH-ACCEPTED-RISK`), **and**
    - `OpenFindings:` parses to integer `0`, **and**
-   - `Convergence:` is in-enum (`unanimous` | `split`), **and**
+   - `Convergence:` is present + parseable + in-enum, **and**
    - `Dissenter:` is non-empty (a dissenter was assigned), **and**
    - cross-field consistency holds (a passing terminal with `OpenFindings ≠ 0`, or `OPEN-BLOCKED`
      with `OpenFindings: 0`, is a self-contradictory header that fails closed).
+
+   **Then apply the review-gate's *consensus refinement*: the latest round's `Convergence:` must be
+   `unanimous`.** A review-gate is a *consensus* gate — a recorded `Convergence: split` latest round
+   means the slate has not converged to consensus and is **not merge-ready**, so it does not satisfy
+   the gate even with `OpenFindings: 0`. This is not a fork of the provider's contract: per
+   `/cross-review`'s own rule a *resolved* split is re-recorded `unanimous` (and a genuinely
+   unresolved split is `OPEN-BLOCKED`, `OpenFindings ≥ 1`), so requiring `unanimous` rejects only a
+   non-consensus / ill-formed `split`-with-zero-open round — never a legitimately-converged ledger.
+   The provider check answers "is this a valid resolved ledger"; the consensus refinement is the
+   review-gate's own merge policy layered on top.
 3. **Confirm every declared check is green.** A check that is pending / in-progress / neutral /
    errored / never reported is **not** green — fail closed on it.
 4. **Satisfied ⇒ merge** per the operator's up-front authorization (no per-PR token). **Not
@@ -60,12 +72,13 @@ When the ship step is reached and a `review-gate` was declared, evaluate it:
    human checkpoint (`on_fail`). Never self-merge on a fail; never error-into-pass.
 
 **Fail-closed is the load-bearing property.** An **absent** review-ledger, an **unparseable /
-missing** field, an **out-of-enum** `Convergence`, an **empty** `Dissenter`, a **self-
-contradictory** header (e.g. `State: RESOLVED` with `OpenFindings: 3`), **or a malformed latest
-round** (which never falls back to an earlier round) ⇒ the gate **FAILS**, identical to
-`State: OPEN`. A grep that finds `RESOLVED` without cross-checking the count, or a chat assertion
-that "the reviewers ratified it," is exactly the error this gate forbids — the committed ledger is
-the only evidence.
+missing** field, an **out-of-enum** `Convergence`, a `Convergence: split` latest round (the
+consensus refinement), an **empty** `Dissenter`, a **self-contradictory** header (e.g.
+`State: RESOLVED` with `OpenFindings: 3`), **or a malformed latest round** — which, per the
+contract this gate reads verbatim, *includes* an out-of-sequence `Round:` / round-number gap, and
+**never falls back** to an earlier round ⇒ the gate **FAILS**, identical to `State: OPEN`. A grep
+that finds `RESOLVED` without cross-checking the count, or a chat assertion that "the reviewers
+ratified it," is exactly the error this gate forbids — the committed ledger is the only evidence.
 
 ## The verify-to-convergence loop (lifecycle step 3)
 
@@ -77,10 +90,21 @@ loop:
   invoke /cross-review on the integrated artifact
     → it classifies, routes the slate, dispatches blinded, synthesizes the review-ledger round
   read the latest round (the gate-read contract above)
-  if passing terminal:        converged → the review-gate can read pass
+  if passing terminal (incl. Convergence: unanimous):  converged → the review-gate can read pass
   elif OPEN-BLOCKED:           honest fail-to-human exit (a genuine split the tie-break didn't resolve)
   else (open findings):        apply the fixes → re-invoke /cross-review (it appends a NEW round) → repeat
 ```
+
+**Loop bound (the open-findings branch is bounded by the human-driven serial model — MVP).** The
+re-review branch always fails *closed* (an `OpenFindings ≥ 1` round never merges), but it has no
+*progress* bound: a fix→re-review cycle that keeps surfacing new findings without splitting has no
+declared terminal of its own. In the MVP the loop is **human-driven and serial** (the operator
+sequences each round), so an unbounded spin is implausible — that is the de-facto bound. The
+*mechanism* (a max-rounds-then-route-to-`on_fail`, or a no-progress detector that escalates when
+round N's open set isn't shrinking) is **deferred** — un-defer the moment `/workstream` ever drives
+the verify loop programmatically or unattended (the same trigger as the review-ledger's single-
+writer/locking deferral). Stated here so the next implementer does not inherit it as an unstated
+contract (mirrors the guard primitive's recursion bound).
 
 - The loop's record **is** the review-ledger's appended rounds (per-round headers, per-lens
   verdicts, rejected-findings). The workstream keeps **no second convergence log** — "show that
