@@ -63,7 +63,7 @@ See `references/handoff-to-council.md` for detection criteria in detail.
 
 ## What Coral Doesn't Do
 
-- No scope-tier process
+- No scope-tier **ceremony** — coral does not run `/council`'s scope-tier process (the formal tiering, phase gates, and review rounds). It **does** read the change-class tier off the shared routing table (`references/slate-routing.md` §3) to size its specialist slate — reading the tier is not running the ceremony.
 - No mandatory cross-review
 - No workstream checkpoint file (coral sessions complete in one sitting)
 - No formal escalation files — if a specialist says "the design is wrong," relay it to the user immediately

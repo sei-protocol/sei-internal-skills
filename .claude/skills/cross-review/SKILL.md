@@ -26,7 +26,7 @@ Cross-review operates on **a concrete artifact, reviewed by independent speciali
    - **Accept convergence as corroboration when reviewers were not blinded.** If reviewers saw each other's assessments before committing (a shared thread, a summarized peer view in the brief), their agreement is anchoring, not independent confirmation — consensus theater. Re-run with independent briefs.
    - **Accept bare approval.** "LGTM" / "looks good" is not a finding. Every COMPATIBLE, MISMATCH, or MISSING must cite the specific contract, field, signature, or line it is about. A finding with no evidence is noise.
    - **Launder a sign-off through wording.** Phrasing it "their input was incorporated" instead of "they approved" does not convert production into review. If the specialists did not review the final artifact, the cross-review did not happen.
-   - **Declare COMPATIBLE / stamp a passing `State:` while *any* correctness-grade finding is open** — MISMATCH/MISSING, correctness-grade idiom *or* prose, or a per-lens DISSENT (incl. a pinned steward). All are resolved (artifact updated, provider/consumer reconciled) or explicitly accepted-with-risk by the user — never silently dropped. (The full gating set; see Rule 4 / Step 5.)
+   - **Declare COMPATIBLE / stamp a passing `State:` while *any* correctness-grade finding is open** — a MISMATCH/MISSING, a correctness-grade idiom *or* prose finding, or a per-lens DISSENT (including a pinned steward). All are resolved (artifact updated, provider/consumer reconciled) or explicitly accepted-with-risk by the user — never silently dropped. (This is the gating set, stated identically in Rule 4, Step 5, and Halt Conditions.)
    - **Drop a pinned steward, or proceed without one.** A `skill-package` change pins `audit-skill` + `author-skill` + `prose-steward` *unconditionally* — all three, **regardless of which file-types the diff touches** and never demoted by change-size (per `references/slate-routing.md` §4). (This is distinct from `shared-stack`, whose stewards *are* wired by file-type-present.) If a pinned steward is absent from the `.claude/agents/` roster, **HALT** — never silently proceed pin-less; the operator may override only with a stated reason. (Also a Halt Condition.)
 
 See `references/reviewer-dispatch.md` for the blinded dispatch contract, `references/findings-protocol.md` for the findings schema, `references/slate-routing.md` for the change-type → slate routing rule (shared with `/coral`), and `references/review-ledger.md` for the durable synthesis record.
@@ -68,7 +68,7 @@ Non-negotiable. Every step exists to enforce one or more.
 1. **Read the artifact, review the whole.** You review what's actually written, and you review the *integrated* artifact — including the parts each specialist didn't author. The boundaries are the point.
 2. **Independent before synthesized.** Each reviewer commits findings before seeing peers'. Convergence only counts as corroboration if it was reached independently.
 3. **Findings carry evidence.** Every finding names the specific contract / field / signature / line. Provider owns the interface; consumers adapt — that's the tie-break when reviewers disagree.
-4. **Resolve before pass.** A passing verdict requires *every* lens's correctness-grade findings closed — MISMATCH/MISSING, correctness-grade idiom *and* prose findings, and any per-lens DISSENT (incl. pinned stewards) — fixed or explicitly accepted-with-risk (see Step 5). A clean table with open findings is a lie.
+4. **Resolve before pass.** A passing verdict requires *every* lens's correctness-grade findings closed — a MISMATCH/MISSING, a correctness-grade idiom *or* prose finding, or a per-lens DISSENT (including a pinned steward) — fixed or explicitly accepted-with-risk (see Step 5). A clean table with open findings is a lie.
 
 ## Procedure
 
@@ -103,11 +103,12 @@ The slate is **routed, not re-derived by hand.** Apply the shared routing table
    specialist — security boundary → `security-specialist`; capacity/cost →
    `k8s-capacity-management`; etc.). The orchestrator's remaining judgment is *which domain
    specialists* cover the boundaries; the depth and steward wiring are mechanical.
-4. **Auto-wire the stewards** by file-type-present (table §4): `prose-steward` on any prose;
-   `idiomatic-reviewer` on any code diff; `audit-skill`+`author-skill` on a `.claude/` skill
-   body. **A `skill-package` change pins `audit-skill` + `author-skill` + `prose-steward`
-   unconditionally** — dropping any of the three requires an operator override with a stated
-   reason.
+4. **Auto-wire the stewards** by file-type-present (table §4) — the rule for `shared-stack` and
+   every other class: `prose-steward` on any prose; `idiomatic-reviewer` on any code diff;
+   `audit-skill`+`author-skill` on a `.claude/` skill body. **`skill-package` is the exception:
+   it pins `audit-skill` + `author-skill` + `prose-steward` *unconditionally* — regardless of
+   which file-types the diff touches** — and dropping any of the three requires an operator
+   override with a stated reason.
 5. **Assign the dissenter** (see The Four Rules / Step 3) and record it.
 
 The stewards report on their own axes (Idiom addendum / Prose addendum / per-lens RATIFY-DISSENT
@@ -203,7 +204,7 @@ Stop and report to the user if:
 - A reviewer returns bare approval with no cited evidence — re-dispatch with the evidence requirement.
 - Reviewers were not blinded (saw each other's assessments first) — the convergence is invalid; re-run with independent briefs.
 - Reviewers split on a boundary and the provider-owns tie-break doesn't resolve it — surface the disagreement and ask the user / provider for the call.
-- *Any* correctness-grade finding remains open — MISMATCH/MISSING, correctness-grade idiom/prose, or a per-lens DISSENT (incl. a pinned steward) — and the user has not explicitly accepted the risk. Do not stamp a passing ledger `State:` (`RESOLVED`/`RESOLVED-WITH-ACCEPTED-RISK`); set `OPEN` or `OPEN-BLOCKED` (see Rule 4 / Step 5).
+- *Any* correctness-grade finding remains open — a MISMATCH/MISSING, a correctness-grade idiom *or* prose finding, or a per-lens DISSENT (including a pinned steward) — and the user has not explicitly accepted the risk. Do not stamp a passing ledger `State:` (`RESOLVED`/`RESOLVED-WITH-ACCEPTED-RISK`); set `OPEN` or `OPEN-BLOCKED` (see Rule 4 / Step 5).
 
 **Never declare COMPATIBLE to be helpful.** An honest OPEN verdict with named findings is the valuable output; a premature green light is the failure this skill exists to prevent.
 

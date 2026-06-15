@@ -52,8 +52,9 @@ down).
 | **T3 — full + stewards** | full domain slate **plus** the auto-wired standards-stewards (§4) | `shared-stack`, `skill-package` |
 
 **The floor rule:** a `shared-stack` or `skill-package` change is **T3 by default and cannot
-drop below T2.** That floor is the dogfood lesson — the canonical-stack change is the one that
-must not get a rubber-stamp slate.
+drop below T2** — not by blast-radius and **not by operator override** (§5: an override may lower
+the *default* tier but never pierces this floor). That floor is the dogfood lesson — the
+canonical-stack change is the one that must not get a rubber-stamp slate.
 
 ### 3a. `doc-only` T1-vs-T2 split (a stated test, not a vibe)
 
@@ -65,10 +66,11 @@ reviewer who can judge it). When in doubt, **T2**.
 **The mechanical-equivalent carve-out is `doc-only` ONLY.** A `skill-package` change has **no
 triviality exemption** — it routes by **file-type-present, not change-size**: a one-line typo in
 a `.claude/` skill body is still `skill-package` (T3, floor T2, audit+author+prose pinned). "It's
-just a typo in a skill" does **not** demote it to `mechanical`. The pin keys off *what kind of
-file changed*, not how many lines — a skill is prose + discipline + an authored artifact whether
-the diff is one line or a hundred. Dropping the pin requires an **operator override with a stated
-reason, never a size judgment**.
+just a typo in a skill" does **not** demote it to `mechanical`. The *classification* keys off
+*what kind of file changed* (a `.claude/` skill body present → `skill-package`), not how many
+lines; the audit+author+prose pin then follows from that class **unconditionally** — a skill is
+prose + discipline + an authored artifact whether the diff is one line or a hundred. Dropping the
+pin requires an **operator override with a stated reason, never a size judgment**.
 
 ## 4. Auto-wired standards-stewards
 
@@ -86,7 +88,8 @@ change can pull a steward without that steward owning a boundary):
 **The load-bearing wiring rule (state it in the citing skill):**
 
 > A **`skill-package` change auto-pulls `audit-skill` + `author-skill` + `prose-steward`** —
-> always, at T3, not subject to silent omission. A skill *is* prose (→ prose-steward), it *is*
+> always (T3 by default; the pin survives a tier override down to the T2 floor, see §5), not
+> subject to silent omission. A skill *is* prose (→ prose-steward), it *is*
 > a discipline that must survive pressure (→ audit-skill), and it *is* an authored artifact
 > with triggers/guardrails/evals (→ author-skill). Dropping any of the three on a skill change
 > requires an **operator override with a stated reason**.
@@ -116,10 +119,20 @@ The stewards report on their **own axes**, not the boundary table:
 
 The operator may name the slate or the tier explicitly (e.g. "cross-review this as T2, drop the
 prose-steward — it's a code-only refactor"). An override is **recorded in the ledger's Routing
-section** with the operator's stated reason — never silent. An override may **lower** the tier;
-lowering a `skill-package` change below T2, or dropping an auto-wired steward, **requires the
-operator to state the risk** (mirrors the skill's "explicitly accepted by the user with the
-risk named" guardrail).
+section** with the operator's stated reason — never silent.
+
+**An override may lower the *default* tier, but never below the T2 floor for `shared-stack` /
+`skill-package`** (the §3 floor rule is absolute — an override does not pierce it; the lowest a
+`shared-stack`/`skill-package` change can be routed is T2). Lowering any change's default tier is
+recorded with the operator's stated reason.
+
+**The `skill-package` steward pin survives a tier override.** Lowering a `skill-package` change
+from T3 to its T2 floor does **not** drop the unconditional `audit-skill` + `author-skill` +
+`prose-steward` pin (§4) — the pin keys off the **class** (`skill-package`) and is unconditional
+regardless of which file-types the diff touches, so it is orthogonal to tier. Dropping any pinned
+steward is a **separate, explicit override with its own stated reason** (mirrors the skill's
+"explicitly accepted by the user with the risk named" guardrail) — never a side effect of lowering
+the tier.
 
 ## 6. The dissenter (the floor — §4 of Design 08)
 
