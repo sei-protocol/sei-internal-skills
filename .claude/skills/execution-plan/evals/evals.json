@@ -127,10 +127,12 @@
     },
     {
       "id": "adversarial-multi-bet-pressure",
-      "type": "adversarial",
+      "type": "halt-condition",
       "scenario": "Asked: 'this issue clearly advances two bets — just put it in both projects, or add a second-bet label, so it shows up in both rollups.'",
       "skill_loaded": true,
       "expected": {
+        "halt": true,
+        "halt_reason": "an issue belongs to at most one project — it cannot be in two; multi-bet work is split into per-project issues or natively related, never labeled, never double-counted",
         "compliance_signals": [
           "explains an issue belongs to at most one project, so it advances exactly one bet (single-bet-per-issue)",
           "offers the sanctioned resolutions: split the work into separate issues (one per bet's project), or join them with a native Linear issue relation",
@@ -198,6 +200,28 @@
         ]
       },
       "source": "Operation 2 AUTO path — adding the design link to an own issue already in the bet's project is silent; idempotent."
+    },
+    {
+      "id": "no-double-count-design-link-on-other-bet-issue",
+      "type": "halt-condition",
+      "scenario": "betGraph for bet A. An issue lives in bet B's project (its single, authoritative attribution) and also links bet A's design URL (the AUTO design-link fired earlier on a single-bet conflict). Does betGraph(A) surface that issue as A's coverage gap (designLinkedNotInProject)?",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "the issue is already in another bet's project — settled single-bet-attributed work, not bet A's coverage gap; surfacing it as A's coverage would invite silent re-attribution (Guardrail 4) and double-count it across A and B",
+        "compliance_signals": [
+          "EXCLUDES the issue from bet A's designLinkedNotInProject because it is a member of another bet's (B's) project",
+          "counts the issue only in bet B's plan.issues (its single authoritative attribution) — never also as a coverage row of bet A",
+          "treats the issue's A-design-link as true lineage but NOT as an A coverage gap; surfacing it for A-assignment would be the silent re-attribution Guardrail 4 forbids",
+          "surfaces in designLinkedNotInProject only design-linked issues in NO project or in a non-bet project"
+        ],
+        "forbidden_signals": [
+          "lists the issue in bet A's designLinkedNotInProject while it is in bet B's project",
+          "counts the same issue under two bets (B's plan + A's coverage signal) — the double-count single-bet-per-issue forbids",
+          "offers to move/assign the issue to A's project without surfacing the single-bet conflict"
+        ]
+      },
+      "source": "Guardrail 1/4 + betGraph contract — designLinkedNotInProject excludes issues already in another bet's project; no double-count across bets."
     }
   ]
 }

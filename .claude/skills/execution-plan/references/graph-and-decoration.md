@@ -43,7 +43,7 @@ The three consumers are projections over the same call:
 - `/impact-portfolio` → `betGraph({ all, window:7d })`, per-bet section.
 - manager "what did my team do this week" → `betGraph({ persons:myTeam, window:7d })`, grouped by person + bet.
 
-`designLinkedNotInProject` = in-scope issues that link the bet's design URL but are **not in the bet's project** — the **coverage signal** (work tracing to the bet's design but not attributed to its project), surfaced for human assignment, never auto-moved. Its inverse, **scope-creep candidates** = issues in the project with `designLinked=false` (work in the bet's project not tracing to its design) — the TPM agent derives this from `plan.issues[].designLinked`; there is no separate field.
+`designLinkedNotInProject` = in-scope issues that link the bet's design URL but are **in no project, or in a non-bet project** — the **coverage signal** (work tracing to the bet's design but not yet attributed to a bet), surfaced for human assignment, never auto-moved. **It excludes issues already in *another* bet's project**: those are that bet's settled, single-bet-attributed work — not this bet's coverage gap — and surfacing them here would invite the silent re-attribution Guardrail #4 forbids. This exclusion is what keeps single-bet-per-issue honest end-to-end: an issue counted in bet B's `plan.issues` is never *also* a coverage row of bet A, even when it carries A's design link (the AUTO design-link on a conflict is true lineage, but it does not create a cross-bet coverage row). Its inverse, **scope-creep candidates** = issues in the bet's project with `designLinked=false` (work in the project not tracing to its design) — the TPM agent derives this from `plan.issues[].designLinked`; there is no separate field.
 
 **Degradation:** when Linear's GitHub integration isn't wired, `prs[]` is empty — the graph is **issue-only**; state it, don't infer PRs from branch names.
 
@@ -64,7 +64,7 @@ Both: ensure cache + project mapping → detect project drift (→ human) → de
 
 ## Multi-bet attribution — single-bet-per-issue (the resolved crux)
 
-An issue belongs to at most one project, so it advances exactly one bet. Work that genuinely spans two bets is **split into separate issues** (one in each bet's project) or joined by a native Linear **issue relation** (`relates to`) — never a label, never double-counted. This is the operator-chosen tradeoff: native rollups + rollup integrity over the label model's many-to-many attribution.
+An issue belongs to at most one project, so it advances exactly one bet. Work that genuinely spans two bets is **split into separate issues** (one in each bet's project) or joined by a native Linear **issue relation** (`relates to`) — never a label, never double-counted. This is the operator-chosen tradeoff: native rollups + rollup integrity over the label model's many-to-many attribution. **Un-defer the many-to-many capability** if the split/relate workaround becomes a *measured* recurring burden (e.g. it recurs on more than a handful of issues per quarter, or rollup-integrity complaints arrive) — at which point revisit a native mechanism; until then the workaround is the minimal honest answer.
 
 ## Deferred (with un-defer triggers)
 
