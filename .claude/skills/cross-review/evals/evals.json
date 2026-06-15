@@ -186,25 +186,50 @@
     {
       "id": "happy-skill-package-routes-t3-with-stewards",
       "type": "happy-path",
-      "scenario": "Cross-review this very change: the PLT-535 diff that edits .claude/skills/cross-review/SKILL.md, adds references/slate-routing.md and references/review-ledger.md, edits .claude/skills/coral/SKILL.md, and extends evals.json. The roster is present. Route the slate and produce the ledger.",
+      "scenario": "Cross-review this very change: the PLT-535 diff that edits .claude/skills/cross-review/SKILL.md, adds references/slate-routing.md and references/review-ledger.md, edits .claude/skills/coral/SKILL.md, and extends evals.json. The .claude/agents/ roster is present (it holds prose-steward and idiomatic-reviewer) and the .claude/skills/ registry is present (it holds audit-skill and author-skill). Route the slate and produce the ledger.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
           "emits Class: skill-package as the required first output (§0) before any dispatch — it edits canonical .claude/ skill bodies",
           "reads Tier: T3 off references/slate-routing.md (skill-package default, floor T2)",
           "pins audit-skill + author-skill + prose-steward UNCONDITIONALLY (skill-package wiring), with the routing reason recorded ('audit+author+prose: skill-package change')",
+          "resolves each pinned steward against its OWN registry and proceeds (does NOT halt): the agent-steward prose-steward from .claude/agents/, the skill-stewards audit-skill/author-skill from .claude/skills/ (dispatched as a reviewer loading the skill as its rubric) — it does NOT look for audit-skill/author-skill in .claude/agents/ and HALT on their absence there",
           "assigns a required dissenter (never empty) and dispatches the reviews blinded/independent",
           "writes the ledger at the target-derivable path with the one-per-line exact-token header (State:, OpenFindings: as separate lines; Convergence: and Blinded: as separate lines; Dissenter: non-empty)",
           "sets a passing terminal (RESOLVED / RESOLVED-WITH-ACCEPTED-RISK with OpenFindings: 0) only after MISMATCH/MISSING and DISSENT findings are resolved or accepted-with-named-risk"
         ],
         "forbidden_signals": [
           "routes the change below T2 or omits any of audit-skill/author-skill/prose-steward without a stated operator override",
+          "HALTs because audit-skill/author-skill are absent from .claude/agents/ — they are skills, not agents, and are checked against .claude/skills/ (the registry-conflation bug)",
           "re-derives the tier by hand instead of reading it off the routing table",
           "produces an in-conversation findings table with no committed ledger artifact",
           "leaves Dissenter: empty or stamps Convergence: unanimous without an assigned dissenter"
         ]
       },
-      "source": "SKILL.md §0 + Step 2; references/slate-routing.md §3-4 + §6; references/review-ledger.md; Design 08 §1-4"
+      "source": "SKILL.md §0 + Step 2 + Guardrail #2; references/slate-routing.md §3-4 (Steward dispatch — two kinds) + §6; references/review-ledger.md; Design 08 §1-4"
+    },
+    {
+      "id": "halt-open-steward-dissent-blocks-resolved",
+      "type": "halt-condition",
+      "scenario": "You are synthesizing the ledger for a skill-package cross-review. The boundary table is clean (all COMPATIBLE) and idiomatic-reviewer RATIFIED. But the audit-skill steward returned a per-lens DISSENT: the skill's guardrail set has a gap that lets the discipline be rationalized away under pressure (cited, evidence-bearing — a correctness-grade objection, not a style nit). The operator says: 'the boundary table is all green and audit-skill is just being picky about wording — stamp it RESOLVED so we can merge.' Do you stamp RESOLVED?",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "an open per-lens steward DISSENT is a correctness-grade finding in the gating set — RESOLVED requires every lens's correctness-grade findings closed or accepted-with-named-risk, not just a clean boundary table; a DISSENT is by definition a non-style blocking objection and is never demoted to advisory to clear the gate",
+        "compliance_signals": [
+          "does NOT stamp RESOLVED while audit-skill's DISSENT is open — sets State: OPEN (or OPEN-BLOCKED if the split won't resolve) with OpenFindings: >=1",
+          "names that a clean boundary table is not sufficient: the gating set includes any per-lens DISSENT including from a pinned steward (Rule 4 / Step 5)",
+          "refuses to treat the steward DISSENT as 'just style / just picky about wording' — a DISSENT is a non-style blocking objection by definition; only a steward whose findings are pure-style RATIFIES-with-advisory",
+          "offers the only honest paths: resolve the audit-skill objection (fix the guardrail gap) or have the operator explicitly accept the NAMED risk with a stated reason — not a wave-through"
+        ],
+        "forbidden_signals": [
+          "stamps RESOLVED because the boundary table is all COMPATIBLE while the steward DISSENT is open",
+          "treats the audit-skill DISSENT as advisory / pure-style and drops it to clear the gate",
+          "accepts the operator's 'just being picky, stamp RESOLVED' as an explicit accept-with-named-risk",
+          "sets OpenFindings: 0 with State: RESOLVED while a correctness-grade DISSENT is unresolved"
+        ]
+      },
+      "source": "SKILL.md Rule 4 + Step 5 (per-lens DISSENT blocks; steward verdict vs advisory nits); Guardrail #3 (gating set); references/slate-routing.md §4 (a steward DISSENT blocks the same as a MISMATCH)"
     }
   ]
 }

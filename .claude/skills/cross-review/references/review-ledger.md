@@ -167,6 +167,15 @@ records its conclusions in a **new round with its own header block**, not by edi
 or its header. The reader (and 536's gate) reads the **latest round's** header block — the
 top-of-file block is Round 1's; the latest `## Round <N>` block is authoritative once it exists.
 
+**Concurrency assumption (single writer per target).** "The latest round is unambiguous" holds
+only under a **single writer per target per re-review** — the MVP's human-driven, serial model.
+Two concurrent re-reviews of the same target could both compute the same next round number and
+both append `## Round <N>`, making "read the latest round" ambiguous. Concurrent re-review of one
+target is **out of MVP scope**; the locking / round-number-CAS *mechanism* is deferred (YAGNI)
+until `/workstream` ever drives cross-reviews programmatically or in parallel — but the
+single-writer **assumption** is stated here so the next implementer does not trip on it as an
+unstated contract.
+
 *(Multi-round in-place merge + cross-round dedup is CUT from MVP — deferred until a single target
 is re-reviewed ≥2× and append-only history is demonstrably noisy enough to justify a row-merge
 engine.)*
@@ -179,13 +188,20 @@ round's header block** — for a one-round ledger that is the top-of-file block 
 block is Round 1's stale-by-design record, never the field source. The gate passes only on the
 **conjunction of all of** (read from the latest round's block):
 
+**Round-selection fails closed too (the selection step is total).** "Read the latest round" must
+itself resolve to FAIL when it cannot resolve cleanly: if the highest-numbered `## Round <N>`
+section is **present but unparseable** — its header block missing, or its `Round:` line absent /
+non-integer / out of sequence — the gate **FAILS closed**; it **never falls back** to reading an
+earlier round's header (a stale earlier `RESOLVED` must not satisfy the gate when the current
+round is malformed). A malformed latest round is identical to a malformed ledger.
+
 | Schema line | Pass requires | Fail if |
 |---|---|---|
 | `State:` | `RESOLVED` or `RESOLVED-WITH-ACCEPTED-RISK` (exact token) | `OPEN`, `OPEN-BLOCKED`, any other/missing token |
 | `OpenFindings:` | parses to integer `0` | non-zero, non-integer, or absent |
 | `Convergence:` | `unanimous` or `split` (present, parseable, **latest round only, tokens only — never free prose**) | absent, unparseable, or **any token other than `unanimous`\|`split`** (out-of-enum fails identical to absent) |
-| `Dissenter:` | non-empty (a dissenter was assigned) | empty / absent |
 | `Blinded:` | `yes` or `no` (advisory — `no` downgrades confidence, does not fail) | — |
+| `Dissenter:` | non-empty (a dissenter was assigned) | empty / absent |
 | **Cross-field consistency** | `State` and `OpenFindings` agree | `State: RESOLVED`\|`RESOLVED-WITH-ACCEPTED-RISK` with `OpenFindings ≠ 0`, **OR** `OPEN-BLOCKED` with `OpenFindings: 0` — a contradictory-but-parseable header **fails closed identical to an absent one**. (`OPEN` fails on the `State:` row regardless of count — it is not a cross-field case; per the enum, `OPEN` may carry either count.) |
 
 **Fail closed — the load-bearing correctness property.** The gate fails closed on an **absent,

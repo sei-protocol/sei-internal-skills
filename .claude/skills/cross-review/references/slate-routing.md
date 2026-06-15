@@ -94,10 +94,25 @@ change can pull a steward without that steward owning a boundary):
 > with triggers/guardrails/evals (→ author-skill). Dropping any of the three on a skill change
 > requires an **operator override with a stated reason**.
 
-A **pinned** steward (audit/author/prose) absent from the calling repo's `.claude/agents/` roster
-is a **HALT, not a silent drop** — same posture as dropping the pin. The skill cannot quietly run
-a `skill-package` review with two of three stewards because the third has no agent file; it halts
-and asks the operator (who may then override with a stated reason).
+### Steward dispatch — two kinds (agent-stewards vs skill-stewards)
+
+The four stewards are **not all the same kind of artifact**, and the availability check keys off
+the right registry per steward:
+
+| Steward | Kind | Registry | How it's dispatched |
+|---|---|---|---|
+| `prose-steward` | **agent** (backed by `/lingua`) | `.claude/agents/` | dispatched as a subagent |
+| `idiomatic-reviewer` | **agent** (backed by `/idiomatic`) | `.claude/agents/` | dispatched as a subagent |
+| `audit-skill` | **skill** | `.claude/skills/` | a dispatched reviewer **loads the skill as its review rubric** |
+| `author-skill` | **skill** | `.claude/skills/` | a dispatched reviewer **loads the skill as its review rubric** |
+
+A **pinned** steward (audit/author/prose) absent from **its own registry** is a **HALT, not a
+silent drop** — same posture as dropping the pin. A skill-steward (`audit-skill`/`author-skill`)
+is checked against `.claude/skills/`; the agent-steward (`prose-steward`) against `.claude/agents/`.
+The skill cannot quietly run a `skill-package` review with two of three stewards because the third
+is absent from its registry; it halts and asks the operator (who may then override with a stated
+reason). (`audit-skill`/`author-skill` will **never** appear in `.claude/agents/` — they are
+skills, not agents — so checking them against the agent roster is the bug this rule forecloses.)
 
 `idiomatic-reviewer` stays wired to **code presence**. `shared-stack` pulls stewards
 **by file-type-present** (idiom if code, prose if prose, audit/author only if a `.claude/`
