@@ -12,8 +12,9 @@ and enforceable as a CI lint / a session-launch precondition:
 
 2. **Roster-discoverable guard** (a fail-closed *check* — returns a message; the
    caller raises). What the omnigent source actually establishes (verified
-   against ``inner/bundle_skills.py:82-114`` + ``inner/claude_sdk_executor.py``
-   ``:1004-1014``, omnigent==0.1.1): ``skills_filter: "none"`` emits
+   against the local ``omnigent`` 0.1.0 checkout — ``inner/bundle_skills.py``
+   ``:82-114`` + ``inner/claude_sdk_executor.py:1004-1014``; deploy pins 0.1.1
+   (``sei_omnigent.PINNED_OMNIGENT``)): ``skills_filter: "none"`` emits
    ``--setting-sources ""``, which suppresses *host setting-source discovery*
    (``~/.claude/skills/`` and the cwd's project ``.claude/`` scope). omnigent
    documents this for **skills**; it does not document — and this module does
@@ -41,9 +42,9 @@ cwd is the Tide repo — design §2.2/§2.5) and whether some *other* arg path
 emitted ``--setting-sources ""`` (the independent ``setting_sources_suppressed``
 signal below). The canary needs a running claude session and is deferred to the
 session-launch wiring (PLT-672), like the header-posture behavioral test.
-``--strict-mcp-config`` (named in design §2.5) does not appear in omnigent==0.1.1
-source — no check is wired for a flag the pinned runtime never emits; re-confirm
-on bump.
+``--strict-mcp-config`` (named in design §2.5) does not appear in the local
+omnigent 0.1.0 source — no check is wired for a flag the pinned runtime never
+emits; re-confirm against the 0.1.1 wheel on bump.
 
 Non-goal: roster *tampering* (a malicious agent *added* to ``.claude/agents/``).
 The count guard detects subtraction, not addition; content/digest pinning of the
@@ -70,7 +71,7 @@ REQUIRED_SKILLS_FILTER = "all"
 ROSTER_BASELINE = 19
 
 
-def assert_harness_invariant(*, harness: str, skills_filter: object) -> None:
+def assert_harness_invariant(*, harness: str, skills_filter: str | list[str]) -> None:
     """Raise unless a session launches under claude-native with skills_filter='all'.
 
     A hard launch *precondition*: an illegal harness/filter is a config/program
@@ -98,7 +99,7 @@ def assert_harness_invariant(*, harness: str, skills_filter: object) -> None:
 
 def roster_discoverable_error(
     *,
-    skills_filter: object,
+    skills_filter: str | list[str],
     setting_sources_suppressed: bool,
     discovered_agent_count: int,
     baseline: int = ROSTER_BASELINE,

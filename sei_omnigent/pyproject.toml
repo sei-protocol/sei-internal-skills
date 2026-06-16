@@ -11,6 +11,16 @@ dependencies = [
     "omnigent==0.1.1",
 ]
 
+# Test deps. The pure overlay tests (seam/posture/policy/harness) run without an
+# omnigent install (the omnigent-touching paths are AST-guarded / skip-if-absent),
+# so `pip install .[test]` is enough for the unit suite. `pytest` is declared
+# here because the suite now imports it as a library (pytest.raises), not just as
+# the collector.
+[project.optional-dependencies]
+test = [
+    "pytest>=7",
+]
+
 # NOTE: no [project.scripts] yet. build_server(cfg) returns a FastAPI app but
 # does not load config or bind/serve — the runnable `sei-omnigent-serve` console
 # script (config load + uvicorn bind) is added in PLT-672 (deploy). Wiring it
