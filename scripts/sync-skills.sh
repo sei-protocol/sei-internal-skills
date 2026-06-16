@@ -81,6 +81,7 @@ SKILL_AUTHORING=(
 CODE_QUALITY=(
   idiomatic
   systems
+  ebpf
 )
 
 WRITING_QUALITY=(
