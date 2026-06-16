@@ -24,6 +24,10 @@ sync-agents: ## Install Tide's portable agents into ~/.claude/agents/
 sync-skills: ## Install Tide's portable skills into ~/.claude/skills/
 	@./scripts/sync-skills.sh --target ~/ --categories portable --force
 
+.PHONY: sync-doctrine-self
+sync-doctrine-self: ## Re-inject the operating-doctrine block into this repo's own AGENTS.md (dogfood; run after editing scripts/tide-doctrine.md)
+	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/tide-doctrine.md" false'
+
 .PHONY: update-agent-permissions
 update-agent-permissions: ## Install canonical read-only allow-list into ./.claude/settings.json (DRY_RUN=1 to preview)
 	@./scripts/update-agent-permissions.sh

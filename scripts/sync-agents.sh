@@ -11,6 +11,9 @@
 #                aliases: portable (all non-Sei agents), sei (sei-network-specialist), all
 # --dry-run:     print what would be copied without copying
 # --force:       overwrite existing target files without prompting
+# --inject-doctrine: also inject the Tide operating-doctrine managed block into
+#                <target>/AGENTS.md (+ a CLAUDE.md pointer). Off by default;
+#                intended for a consuming package, not user-scope ($HOME).
 #
 # Source of truth: the portable / sei lists below. Update the lists here
 # when agents are added, renamed, or re-categorized.
@@ -19,6 +22,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 AGENTS_DIR="$(cd "$SCRIPT_DIR/../.claude/agents" && pwd)"
+
+# shellcheck source=lib/inject-doctrine.sh
+. "$SCRIPT_DIR/lib/inject-doctrine.sh"
 
 # --- Category lists (source of truth) ---------------------------------------
 
@@ -105,6 +111,7 @@ TARGET=""
 CATEGORIES="portable"
 DRY_RUN=false
 FORCE=false
+INJECT_DOCTRINE=false
 
 usage() {
   grep '^#' "$0" | sed 's/^# \{0,1\}//' | grep -v '^!'
@@ -120,6 +127,8 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN=true; shift ;;
     --force)
       FORCE=true; shift ;;
+    --inject-doctrine)
+      INJECT_DOCTRINE=true; shift ;;
     -h|--help)
       usage; exit 0 ;;
     *)
@@ -137,6 +146,14 @@ fi
 # Expand ~ if present
 TARGET="${TARGET/#\~/$HOME}"
 TARGET_AGENTS="${TARGET%/}/.claude/agents"
+
+# Doctrine injection writes a managed block to the package root (AGENTS.md +
+# CLAUDE.md pointer). Refuse $HOME — that is the user's global config, not a
+# package; an opinionated managed block there would reappear on every sync.
+if $INJECT_DOCTRINE && [[ "${TARGET%/}" == "${HOME%/}" ]]; then
+  echo "Error: --inject-doctrine refuses \$HOME ($HOME) — target a package directory." >&2
+  exit 2
+fi
 
 # --- Build agent list from categories ---------------------------------------
 
@@ -177,6 +194,10 @@ echo "Target: $TARGET_AGENTS"
 echo "Categories: $CATEGORIES"
 echo "Agents to sync (${#AGENTS_TO_SYNC[@]}):"
 printf '  - %s\n' "${AGENTS_TO_SYNC[@]}"
+
+if $INJECT_DOCTRINE; then
+  inject_doctrine "$TARGET" "$SCRIPT_DIR/tide-doctrine.md" "$DRY_RUN"
+fi
 
 if $DRY_RUN; then
   echo ""
