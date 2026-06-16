@@ -137,6 +137,7 @@ For findings that need *judgment* the static pack can't carry (e.g. "is this rec
 - `references/examples-typescript.md` — on-demand worked good/bad pairs for the TS pack; each lint-anchored pair verified by running `eslint`/`tsc` (anchors + preset + type-info status demonstrated).
 - `references/language-pack-solidity.md` — the Solidity idiom pack (Solidity Style Guide + Security Considerations + Common Patterns, OpenZeppelin, the SWC registry, Slither, Solhint) — plus §7 Slither/Solhint/solc anchors (with Slither Impact+Confidence, the `[SEC→defer]` idiom-vs-security boundary, and a judgment-only list). Maps to the `solidity-developer` specialist.
 - `references/examples-solidity.md` — on-demand worked good/bad pairs for the Solidity pack; each lint-anchored pair verified by running `slither`/`solhint`/`solc` (anchors demonstrated).
+- `references/language-pack-bash.md` — the bash idiom pack (Google Shell Style Guide, ShellCheck wiki, Bash manual, the BashFAQ/Pitfalls corpus) — plus the strict-mode / BSD-macOS-3.2-userland / sourced-library overlays, the quoting + `set -e`-holes + parse-`ls` divergences, and §7 ShellCheck `SC` anchors **each verified by running `shellcheck` on a bad snippet**, with style/default caveats and an explicit judgment-only list (the `[[ ]]` preference, the `set -e` holes, bash-3.2/BSD portability). Maps to the `platform-engineer` specialist.
 - `references/datastructure-standard.md` — the package data-structure documentation standard + reusable `doc.go` template + toolchain.
 
 ## What this skill defers
