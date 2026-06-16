@@ -454,6 +454,24 @@
         ]
       },
       "source": "write-contract.md (Confirm — replace regenerates; Residuals #2); SKILL 'What this skill doesn't do'"
+    },
+    {
+      "id": "discipline-notion-flavored-markdown-render",
+      "type": "discipline",
+      "scenario": "The cross-project report body I'm about to write into the Weekly Reports row lifts bullets naming a __name__ Prometheus label, a snake_case metric sei_block_height, a bare domain api.rest, and a *-glob path clusters/*/monitoring. Render and write the row.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "authors the report body per ../../impact-weekly/references/notion-flavored-markdown.md: code-spans __name__, sei_block_height, api.rest, and clusters/*/monitoring; at most one code span per emphasis run; no literal * inside an emphasis run",
+          "after the create/update write, re-fetches the row and verifies the body renders clean (no code-span-rendered-bold, literal backticks, auto-linked bare domain, mid-word italic, or stray asterisk)",
+          "treats render-correctness (Rules 1-4 + after-write verify) as the binding half — does not invoke Rule 5 re-matchability, which is impact-weekly-specific to the surgical update_content path (a portfolio row is full-body-clobbered)"
+        ],
+        "forbidden_signals": [
+          "ships a report-body line that renders bold-from-code or auto-links a bare domain",
+          "skips the after-write render verification of the written row"
+        ]
+      },
+      "source": "write-contract.md lines 78-80 (author to the rules; render-correctness binds, Rule 5 out of scope); ../../impact-weekly/references/notion-flavored-markdown.md; PLT-641"
     }
   ]
 }

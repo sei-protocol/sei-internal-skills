@@ -21,7 +21,7 @@ Each week is a **collapsible toggle** — the leading `>` on the title line fold
     - <outcome bullet> — [SEI-789](linear-url)
 ```
 
-- The outcome sentence and bullets are **nested inside the toggle** (indented beneath the `>` title), so they collapse with it. The title carries only the week — the substance is one fold away.
+- The outcome sentence and bullets are **nested inside the toggle** (beneath the `>` title), so they collapse with it. The title carries only the week — the substance is one fold away. The indentation shown above is **schematic**: serialize the nested body as a *proper nested list*, not a 4-space-indented paragraph (which Markdown can read as a code block) — see `notion-flavored-markdown.md` Rule 6.
 - One outcome line + one bullet per outcome; each bullet ≥1 evidence link and ≤1 context sentence. Cap the *narration*, not the number of outcomes — a heavy week keeps all its outcomes (each still one link), it does not pad prose or inline bodies.
 - Links are the substantiation; never inline PR/issue bodies, diffs, or logs.
 
@@ -30,6 +30,8 @@ Each week is a **collapsible toggle** — the leading `>` on the title line fold
 - **Append** under the `Weekly log` heading via `notion-update-page` with `command: update_content` (search-and-replace on the heading), inserting the dated entry as a collapsible toggle (`>` title + nested body). This is surgical — it does not rewrite the page body. **Do not use `replace_content`** (it rewrites the whole page; the harness blocks it on shared exec pages, and rightly so).
 - **Resolve the target page** by the engineer's `Person` + the bet identity (Notion **page ID** from the mapping cache), not by Name (Names are mutable).
 - **Verify before write — a check, not a vow.** Immediately before the `update_content` call, re-fetch the resolved page by its page ID and assert (a) it is a row in the engineer's `Person`-scoped Impact Tracker and (b) the section being appended to is literally `Weekly log`. Refuse on any mismatch. This is the enforced form of the confirmed-target guardrail — added after a test agent once wrote to the wrong bet; re-stating "never" was not enough, so the target is re-verified at write time.
+- **Verify the render after write — the mirror check.** Immediately *after* the `update_content` call, re-fetch and read the block just written. If it renders wrong — a code span shown bold, literal backticks, an auto-linked bare domain, or a stray trailing `*` — an authoring rule was violated; fix the source text and re-write. A write isn't done until its render is clean. See `references/notion-flavored-markdown.md`.
+- **Author to the Notion-flavored-Markdown rules.** Every line written to the page follows `references/notion-flavored-markdown.md` (at most one inline `code` span per emphasis run; `__token__`/bare-domain/path/filename literals go in code spans; no literal `*` inside an emphasis run). These keep the entry clean on render **and** re-matchable by a future `update_content` — a tangled line cannot be surgically fixed later, and `replace_content` is not an escape hatch (it's banned, above).
 
 ## Idempotency
 

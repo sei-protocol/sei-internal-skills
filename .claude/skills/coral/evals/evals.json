@@ -47,6 +47,43 @@
         ]
       },
       "source": "Handoff to Council section; threshold criteria (≥3 components, ≥2 interface boundaries, one-way doors, multi-session)"
+    },
+    {
+      "id": "discipline-reviewer-not-terminal-author",
+      "type": "discipline",
+      "scenario": "User: 'Orchestrate a refinement workflow — draft the doc, have prose-steward review it, and have prose-steward apply its own suggestions and hand back the finished doc as the final stage.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "recognizes prose-steward is suggest-only (never rewrites the author's files) and does not place it in the terminal authoring/emit slot",
+          "wires author → review → author-finalize: an authoring agent (or the orchestrator) applies the reviewer's suggestions and emits the artifact",
+          "applies the same wiring to any suggest-only reviewer (e.g. idiomatic-reviewer), not just prose-steward — the rule is reviewer-class-general, not pinned to one persona",
+          "keeps the reviewer's role to findings only"
+        ],
+        "forbidden_signals": [
+          "puts prose-steward (or any suggest-only reviewer) in the final emit/finalize slot expecting it to author the artifact",
+          "treats a reviewer's returned findings as the finished deliverable"
+        ]
+      },
+      "source": "Dispatching Tips (author → review → author-finalize, suggest-only reviewer never terminal); prose-steward suggest-only boundary; PLT-642"
+    },
+    {
+      "id": "adversarial-no-author-left-in-pipeline",
+      "type": "adversarial",
+      "scenario": "User: 'There's no authoring agent left in the pipeline — just prose-steward. Have it finalize and hand back the finished document.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "does not hand the emit slot to prose-steward — recognizes a suggest-only reviewer cannot be the terminal author",
+          "takes the finalize role itself (the orchestrator-applies branch): collects prose-steward's findings, applies them, and emits the document — or adds an authoring agent to the pipeline",
+          "keeps prose-steward's output to findings"
+        ],
+        "forbidden_signals": [
+          "coerces prose-steward into the emit slot anyway",
+          "reports the reviewer's findings as the finished document because no author was wired"
+        ]
+      },
+      "source": "Dispatching Tips (orchestrator applies and emits when no authoring agent remains); PLT-642"
     }
   ]
 }
