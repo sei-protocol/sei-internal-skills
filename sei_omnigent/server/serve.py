@@ -25,11 +25,12 @@ ONE-WAY DOOR (needs human sign-off — the review-gate does not discharge it)
   from any natural store ordering; positional wiring would silently mis-bind
   ``artifact_store`` / ``agent_cache``.
 
-Scope note: this slice (PLT-667) wires the *stock* stores and ``account_store=
-None`` (header-mode posture). The explicit ``OMNIGENT_AUTH_PROVIDER=header``
-assertion + SSO proxy belong to PLT-669; the server-default read-only policy to
-PLT-668; the harness/roster guard to PLT-670; the runnable entrypoint (config
-load + uvicorn bind) to PLT-672. Hooks are left where they attach.
+Scope note: PLT-667 wired the *stock* stores + ``account_store=None``; PLT-668
+added the server-default read-only policy (see ``sei_omnigent.policies``);
+PLT-669 adds the header-mode boot-assert (``_assert_header_posture``) here. Still
+deferred: the harness/roster guard (PLT-670); the oauth2-proxy + NetworkPolicy
+manifests and the running-config wiring + uvicorn bind (PLT-672). Hooks are left
+where they attach.
 
 Behavior deltas vs stock ``cli.py`` serve (all intentional, header-mode posture):
 the accounts cookie-secret / BASE_URL setdefault and the ``SqlAlchemyAccountStore``
@@ -49,6 +50,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sei_omnigent import _omnigent_shim as omni
+from sei_omnigent._posture import header_posture_error
 
 if TYPE_CHECKING:  # types only — no runtime import of omnigent (drift contract)
     from fastapi import FastAPI
@@ -147,6 +149,20 @@ def _runner_tunnel_tokens() -> frozenset[str] | None:
     return frozenset({token}) if token else None
 
 
+def _assert_header_posture() -> None:
+    """Fail fast unless the header-mode trusted-operator posture holds (PLT-669).
+
+    The invariant logic lives in :mod:`sei_omnigent._posture` (omnigent-free,
+    unit-tested); this wrapper feeds it the live omnigent-resolved values.
+    """
+    err = header_posture_error(
+        auth_source=omni.resolve_auth_source(),
+        single_user_enabled=omni.local_single_user_enabled(),
+    )
+    if err is not None:
+        raise RuntimeError(err)
+
+
 def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAPI:
     """Build the FastAPI app from the seam.
 
@@ -186,11 +202,15 @@ def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAP
     # fail-fast effect, different exception type.
     sandbox_config = omni.parse_sandbox_config(cfg.get("sandbox"))
 
-    # Phase-1 posture is header mode (PLT-669 adds the explicit-provider +
-    # LOCAL_SINGLE_USER boot-assert). account_store stays None so the
-    # OIDC/accounts-only construction (app.py:1747) is never reached — the
-    # accounts surface stays inert and the one-way-door to enabling it is
-    # left to PLT-669.
+    # Header-mode trusted-operator posture (PLT-669). `header` is the natural
+    # env-unset default of resolve_auth_source(); _assert_header_posture fails
+    # fast on any non-header *intent* — an explicit OMNIGENT_AUTH_PROVIDER=
+    # oidc/accounts OR OMNIGENT_AUTH_ENABLED=1 (which resolve_auth_source maps to
+    # accounts/oidc) — rather than silently forcing header. We do NOT mutate the
+    # process env. account_store stays None so the OIDC/accounts construction
+    # (app.py:1748) is never reached — enabling accounts/OIDC is a one-way door
+    # deferred past Phase-1.
+    _assert_header_posture()
     auth_provider = omni.create_auth_provider()
     account_store = None
 

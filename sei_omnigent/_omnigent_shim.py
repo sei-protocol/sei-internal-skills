@@ -47,6 +47,7 @@ from omnigent.spec import parse_default_policies, parse_server_llm
 from omnigent.server.managed_hosts import parse_sandbox_config
 from omnigent.server.auth import (
     create_auth_provider,
+    local_single_user_enabled,
     resolve_auth_source,
     UnifiedAuthProvider,
 )
@@ -108,6 +109,7 @@ __all__ = [
     "parse_server_llm",
     "parse_sandbox_config",
     "create_auth_provider",
+    "local_single_user_enabled",
     "resolve_auth_source",
     "UnifiedAuthProvider",
     # store ABCs (seam types)
