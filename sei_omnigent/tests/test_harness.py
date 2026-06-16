@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from sei_omnigent.harness import (
     CLAUDE_NATIVE_HARNESS,
     REQUIRED_SKILLS_FILTER,
@@ -22,22 +24,21 @@ from sei_omnigent.harness import (
 _AGENTS_DIR = Path(__file__).resolve().parents[2] / ".claude" / "agents"
 
 
-def _raises(**kw) -> bool:
-    try:
-        assert_harness_invariant(**kw)
-        return False
-    except RuntimeError:
-        return True
-
-
 def test_harness_invariant_accepts_claude_native_all() -> None:
     assert_harness_invariant(harness=CLAUDE_NATIVE_HARNESS, skills_filter=REQUIRED_SKILLS_FILTER)
 
 
-def test_harness_invariant_rejects_claude_sdk_and_bad_filter() -> None:
-    assert _raises(harness="claude-sdk", skills_filter="all")
-    assert _raises(harness=CLAUDE_NATIVE_HARNESS, skills_filter="none")
-    assert _raises(harness=CLAUDE_NATIVE_HARNESS, skills_filter=["coral", "council"])
+def test_harness_invariant_rejects_claude_sdk() -> None:
+    with pytest.raises(RuntimeError, match="claude-native"):
+        assert_harness_invariant(harness="claude-sdk", skills_filter="all")
+
+
+def test_harness_invariant_rejects_non_all_filter() -> None:
+    # "none" and a named-list subset both fail — the invariant only accepts "all".
+    with pytest.raises(RuntimeError, match="skills_filter"):
+        assert_harness_invariant(harness=CLAUDE_NATIVE_HARNESS, skills_filter="none")
+    with pytest.raises(RuntimeError, match="skills_filter"):
+        assert_harness_invariant(harness=CLAUDE_NATIVE_HARNESS, skills_filter=["coral", "council"])
 
 
 def test_roster_guard_passes_when_healthy() -> None:
@@ -55,7 +56,8 @@ def test_roster_guard_fails_closed() -> None:
     assert roster_discoverable_error(
         skills_filter="none", setting_sources_suppressed=False, discovered_agent_count=99
     )
-    # setting-sources suppressed (the empirically-verified silent-suppression path)
+    # setting-sources suppressed via an *independent* arg path (skills_filter is
+    # "all" yet the sources are suppressed) — the check is not subsumed by #1.
     assert roster_discoverable_error(
         skills_filter="all", setting_sources_suppressed=True, discovered_agent_count=99
     )
