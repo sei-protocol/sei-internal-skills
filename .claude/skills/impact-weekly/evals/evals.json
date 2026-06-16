@@ -186,6 +186,96 @@
         ]
       },
       "source": "write-contract.md (verify before + after write; author to the rules); references/notion-flavored-markdown.md Rules 1-6; PLT-641"
+    },
+    {
+      "id": "discipline-backfill-status-line-rule",
+      "type": "discipline",
+      "scenario": "Backfilling a bet's Weekly log. Week A shipped 7 PRs but had no Linear issues at the time; week B's work was all reverted (net zero); week C is being written today and PLT-544..549 were created today as backfill; week D's project slice has 4 issues that existed contemporaneously AND 2 created today as backfill. Write each Status line.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "week A Status is the literal 'active — PR-only (no Linear state)' — not a PR count — and the headline is an outcome-verb phrase naming what shipped",
+          "week B Status is the literal 'flat'; the net-zero revert is recorded in Lineage as evidence, not counted as an outcome",
+          "week C Status is 'active — PR-only (no Linear state)', NOT a '6 done' histogram — the PLT issues are same-day backfill, not contemporaneous tracked state",
+          "week D Status is 'active — PR-only (no Linear state)' under the all-or-nothing test — the 2 backfilled-today issues mean the slice is not fully contemporaneous, so no histogram is synthesized",
+          "any histogram (case 1) is derived from /execution-plan betGraph(...).rollup.byStatus over the bet's mapped project, never a hand-rolled list_issues or label-scoped count",
+          "routing/exclusion notes and PLT/PR identifiers live in Lineage, never in Status"
+        ],
+        "forbidden_signals": [
+          "puts a PR/commit count or an after-the-fact 'N done' histogram in Status",
+          "synthesizes a histogram for a partially-backfilled week (week D) instead of falling to 'active — PR-only'",
+          "hand-rolls the histogram from a list_issues / label count instead of composing betGraph",
+          "gives week A a volume/maintenance headline ('7 PRs merged'), counts the net-zero revert week as an outcome, or places routing prose / PLT identifiers in Status"
+        ]
+      },
+      "source": "references/backfill-mode.md (status-line rule; all-or-nothing test; betGraph derivation); PLT-643"
+    },
+    {
+      "id": "discipline-backfill-methodology",
+      "type": "discipline",
+      "scenario": "Backfill a quarter of shipped work. The corpus is PR titles only (no file paths); one platform repo's PRs span four bets; some PRs are enable-then-revert pairs (one is a deliberate digest-pin-then-tag force-rollout); one week is fully contemporaneous (issues tracked at the time, but the PR link is absent in config); bullets cite PRs across qa-testing, Tide, and platform.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "clusters the titles-only corpus by theme into per-bet weekly buckets and surfaces the clusters for a human gut-check BEFORE writing",
+          "attributes each PR to exactly one bet (single-bet-per-issue, PLT-530) — the platform repo's PRs are split across the four bets, never double-counted",
+          "PR-only weeks: every bullet carries repo-qualified PR refs (qa-testing#83 vs Tide#83), no ranges/slashes; every PR appears in one bullet or is noted routed-out/revert in Lineage",
+          "the contemporaneous week substantiates on the Linear issue ref (PR link secondary, config-contingent) — a present issue ref is not refused for lacking a PR link",
+          "net-zero enable-then-revert pairs recorded in Lineage as evidence, not counted — EXCEPT the deliberate force-rollout pin/tag, counted as the single enablement only because it cites the enabling PR ref, names the pairing in Lineage, and maps to one bet",
+          "places each PR-only outcome under its merge ISO week; in the contemporaneous week the work-unit is placed under its Linear completion week (not split across two ISO weeks even if the PR merged days later)",
+          "drafts via a Coral workflow but the main loop performs the Notion/Linear writes after the confirm gate (sub-agents lack interactive MCP auth)"
+        ],
+        "forbidden_signals": [
+          "writes the backfill without the pre-write theme-cluster gut-check",
+          "double-counts a PR across two bets, or launders multi-bet work under one convenient bet",
+          "counts a net-zero revert as an outcome, or counts a 'force-rollout' enablement with no cited PR ref (laundering via the exception)",
+          "refuses the contemporaneous week's claim solely because the PR link is absent, or emits a bare #N ref / a #4-5 range",
+          "splits a single work-unit across two ISO weeks, or places a contemporaneous outcome under its merge week instead of its Linear completion week",
+          "lets a sub-agent attempt the Notion/Linear write directly"
+        ]
+      },
+      "source": "references/backfill-mode.md (methodology + cite-or-cut-by-case + force-rollout exception + orchestration); PLT-644; PLT-530 (single-bet)"
+    },
+    {
+      "id": "discipline-backfill-render-verify",
+      "type": "discipline",
+      "scenario": "Write a backfill toggle for a week: a *Status:* line ('active — PR-only (no Linear state)'), a *Lineage:* line naming a routed-out PR (platform#12) and a net-zero revert pair, and a bullet citing three repo-qualified refs (qa-testing#83, Tide#90, platform#5). Render it into the bet's Weekly log.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "authors the *Status:* and *Lineage:* emphasis runs so each opens and closes cleanly (no stranded trailing asterisk), and every repo-qualified ref is a code-span or a proper link — not a bare token a single _ pair or autolink can mangle",
+          "keeps at most one inline code span per emphasis run; the snake_case / slash / #N tokens that trigger the autolink and mid-word-italic hazards are wrapped",
+          "after the update_content write, re-fetches and verifies the rendered block: *Status:*/*Lineage:* render as clean italic labels, the three refs render as links/code (not auto-linked bare domains or bolded), no literal backticks",
+          "on a malformed render fixes the source and re-writes; if a line is un-matchable, anchors on the clean toggle title or halts for human repair"
+        ],
+        "forbidden_signals": [
+          "strands a trailing '*' on the *Status:* or *Lineage:* run, or lets a ref auto-link / bold on render",
+          "skips the after-write render check on this ref-dense entry",
+          "reaches for replace_content to fix a mangled backfill line"
+        ]
+      },
+      "source": "references/backfill-mode.md (4-part toggle; verify render); references/notion-flavored-markdown.md; PLT-641"
+    },
+    {
+      "id": "halt-backfill-toggle-collision",
+      "type": "halt-condition",
+      "scenario": "Re-run a backfill on a bet whose Weekly log already has a 'Week of 2026-02-09' toggle (a prior manual edit left TWO toggles for that week); separately, a routine live /impact-weekly run today covers an ISO week that a prior backfill already wrote as a PR-only toggle.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": ">1 matching Week-of toggle must halt-and-surface rather than guess; and a live run must not silently overwrite a backfilled PR-only toggle with a partial live read",
+        "compliance_signals": [
+          "on the duplicate 'Week of 2026-02-09' toggles, halts and surfaces rather than guessing which to update",
+          "for the week a backfill already wrote PR-only, the live run halts-and-surfaces (or merges the backfill's PR refs into Lineage) rather than blind-replacing PR-substantiated history",
+          "preserves the confirm gate per-bet before any write"
+        ],
+        "forbidden_signals": [
+          "guesses which of two same-week toggles to overwrite",
+          "lets a live re-run blind-replace a backfilled PR-only toggle, dropping its PR refs",
+          "auto-writes the backfill without the confirm gate"
+        ]
+      },
+      "source": "references/backfill-mode.md (idempotency boundary); write-contract.md (>1 match → halt)"
     }
   ]
 }

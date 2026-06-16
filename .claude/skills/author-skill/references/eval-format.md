@@ -83,6 +83,15 @@ Compliance signals:
 - Same as happy-path, but under harder conditions.
 - Bonus: agent self-corrects mid-response when they detect they're rationalizing.
 
+### `discipline`
+
+A scenario that exercises a *standing rule the skill must hold every time it acts* — an authoring/formatting contract, an attribution invariant, a per-case substantiation rule — rather than a single procedure run or a stop-and-report halt. Scored with **happy-path semantics**: pass only if *all* `compliance_signals` match and *no* `forbidden_signals` match. Use it when the rule is always-on (e.g. "every written line renders clean", "Status carries exactly one of three literals") and a plain happy-path eval wouldn't pin the specific defect the rule exists to prevent. A `discipline` scenario whose correct behavior is to *stop* (a `>1 match → halt`) is better written as a `halt-condition`; reserve `discipline` for the must-always-hold rules.
+
+Compliance signals:
+
+- Applies the rule under the named pressure without being reminded of it.
+- Rejects the specific defect the rule prevents (the forbidden_signals are the historical failure modes).
+
 ## Running evals
 
 Evals don't run automatically inside author-skill — they're shipped *with* the skill so a future invocation (or a CI job) can run them.

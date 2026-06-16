@@ -26,12 +26,12 @@ A bet maps to one Linear project. The common case is **mapping to an existing pr
 Inputs: `scope = { persons[], betPageIds[] | all, window }`.
 
 1. **Resolve bets (Notion):** for each in scope, read `{ pageId, name, confidence, owner }` from the Impact Tracker, then the mapped `projectId` from the cache. Read-only.
-2. **Read membership + native state (Linear):** for each bet's project → `list_issues(project=projectId, updatedAt ≥ window.start)` → for each issue pull **native** fields: `status, assignee, completedAt, parent, prs[]` (linked PR attachments). `designLinked` = does the issue link the bet's design URL. Also read the **native project rollup**: `projectProgress, projectStatus, projectTargetDate, projectHealth`.
+2. **Read membership + native state (Linear):** for each bet's project → `list_issues(project=projectId, window [start,end])` — **bounded on both ends** (the union of `updatedAt`- and `completedAt`-in-window, so a ticket finished in-window but last touched earlier isn't missed, and a long-running ticket updated after the window doesn't leak into an earlier slice) → for each issue pull **native** fields: `createdAt, status, assignee, completedAt, parent, prs[]` (linked PR attachments). `designLinked` = does the issue link the bet's design URL. Also read the **native project rollup**: `projectProgress, projectStatus, projectTargetDate, projectHealth`.
 3. **Compute (never store):**
 ```
 BetGraph {
   bet:    { pageId, name, projectId, confidence, owner }
-  plan:   { issues: [ { id, title, status, assignee, completedAt, prs[], designLinked } ] }   // derived set = project's issues
+  plan:   { issues: [ { id, createdAt, title, status, assignee, completedAt, prs[], designLinked } ] }   // derived set = project's issues
   rollup: { byStatus, byAssignee, completedInWindow,
             projectProgress, projectStatus, projectTargetDate, projectHealth,   // native, gained from the project model
             designLinkedNotInProject }                                          // coverage signal
