@@ -33,6 +33,10 @@ sync-doctrine-self-check: ## Fail if this repo's AGENTS.md doctrine block has dr
 	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/tide-doctrine.md" check' \
 		&& echo "doctrine block in sync ✓"
 
+.PHONY: test-doctrine
+test-doctrine: ## Run the doctrine-injector regression suite (scripts/tests/inject-doctrine.test.sh)
+	@./scripts/tests/inject-doctrine.test.sh
+
 .PHONY: update-agent-permissions
 update-agent-permissions: ## Install canonical read-only allow-list into ./.claude/settings.json (DRY_RUN=1 to preview)
 	@./scripts/update-agent-permissions.sh
