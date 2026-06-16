@@ -49,6 +49,10 @@ Why: in clinical-LLM debate studies, *forced* disagreement substantially reduces
 
 The orchestrator collects all hypothesis tables, then merges into a single combined table. Specialists see the merged table only after they've submitted their own. Only then is collaborative discussion of the surviving hypotheses appropriate.
 
+### 6. Proposer designs the gating retrieval; the orchestrator runs it
+
+A specialist's brief asks for the *retrieval command* that would obtain each falsification observation — the proposer **designs** it. But the command whose output **advances a step transition** (SKILL.md Step 4) is run by the **orchestrator**, so the gating evidence is the orchestrator's own harness-captured tool result, not a record relayed back in a sub-agent's message. A relayed `Command`/`Output` block is forgeable prose; output the orchestrator caused is not. Specialists may pre-explore with their own retrievals, but the gate reads the orchestrator's. (This refines the older "the proposer owns the retrieval" rule for gate integrity; the limit — it does not force the orchestrator to *enter* the gate — is noted in SKILL.md Step 4.)
+
 ## Briefing template
 
 For a single specialist:
