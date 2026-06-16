@@ -84,6 +84,7 @@ Keep it terse. Coral is the fast path.
 - If a specialist asks for info you don't have, go to the user rather than guessing.
 - Trust domain judgment. If the specialist says "this pattern is wrong for the stack," relay it instead of overriding.
 - **Specialists give max scope; you pick min scope.** When a brief produces three deep, opinionated outputs, the synthesis temptation is to include all of it. Resist. Cut to MVP, mark the rest deferred with the trigger condition that would un-defer it.
+- **A suggest-only reviewer is never the terminal authoring stage — author → review → author-finalize.** Reviewer personas (`prose-steward`, `idiomatic-reviewer`, and any agent whose description says *suggest-only / never rewrites the author's files*) produce *findings*, not the artifact. In a multi-stage dispatch or a `Workflow` pipeline, never put one in the **final/emit slot** expecting it to apply its own suggestions and hand back the finished artifact — it will correctly refuse and the stage is wasted. **The shape: an authoring agent (or you, the orchestrator) drafts → the reviewer suggests → an authoring agent or the orchestrator applies the suggestions and emits.** (Learned the hard way: a refinement workflow wired `prose-steward` as the finalize stage; it returned a review instead of the document and the cycle had to be re-run from the upstream draft. Sei Agentic Mesh / PLT-642.)
 
 ## Multi-cycle iteration
 

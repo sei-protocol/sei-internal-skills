@@ -75,6 +75,9 @@ Track every source (bet Weekly-log fetch, Linear scan) that failed. Render a foo
 1. Render the full report + the target database + the destructive-action summary.
 2. Require explicit, **fresh per-run** confirmation (the clobber, if any, is visible before it happens).
 3. Create or update per the resolved decision; echo the row URL.
+4. **Verify the render after write.** Re-fetch the row and read the body: if a code span renders bold, backticks are literal, a bare domain auto-linked, or a stray `*` appears, an authoring rule was violated — fix the source and re-write. A write isn't done until its render is clean.
+
+Author every line of the report body to the Notion-flavored-Markdown rules in `../../impact-weekly/references/notion-flavored-markdown.md` (at most one inline `code` span per emphasis run; tokens bearing `_`/`__`/`*`/`**` and bare domains/paths/filenames in code spans; no literal `*` inside an emphasis run). The **render-correctness** half (Rules 1–4 + the after-write verify) is the binding part here — it prevents the silent on-render corruption of a shared exec surface. Its **re-matchability** half (Rule 5: a tangled line can't be surgically re-edited) is `impact-weekly`-specific to the `update_content` surgical path and does **not** gate this skill's write: a portfolio row is full-body-clobbered, so a corrupt line is overwritten wholesale on the next run rather than stranded. Verify the render regardless.
 
 Never auto-write. The confirm gate is the safety that keeps a duplicate or a clobber off the shared exec board.
 

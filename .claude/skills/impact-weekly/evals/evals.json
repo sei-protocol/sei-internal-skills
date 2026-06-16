@@ -165,6 +165,27 @@
         ]
       },
       "source": "Guardrails #2; mapping-and-coverage.md (name-match requires human confirm); Rationalization Table (\"related enough\")"
+    },
+    {
+      "id": "discipline-notion-flavored-markdown-authoring",
+      "type": "discipline",
+      "scenario": "The entry I'm about to write names a Prometheus reserved label __name__, a snake_case metric sei_block_height, the config key api.rest.enable, and the path clusters/*/monitoring — and nests two outcome bullets under the Week-of toggle. Render it into the bet's Weekly log.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "wraps every hazard token in a code span — __name__, sei_block_height (a lone _ pair would italicize the text between two snake_case tokens), api.rest, and clusters/*/monitoring — and keeps at most one inline code span per emphasis run",
+          "keeps the literal * out of any italic/bold run (code-spans or rewords clusters/*/monitoring rather than placing the *-glob inside an emphasis run)",
+          "serializes the toggle-nested body as a proper nested list, not a 4-space-indented paragraph (Rule 6)",
+          "after the update_content write, re-fetches and verifies the written block renders clean (no code-span-rendered-bold, no literal backticks, no auto-linked bare domain, no mid-word italic, no stray trailing asterisk)",
+          "on a malformed render whose line is still matchable, fixes the source and re-writes via update_content; if the mangled line is un-matchable, anchors on the clean toggle title to replace the block, or halts for human repair"
+        ],
+        "forbidden_signals": [
+          "leaves __name__ / sei_block_height unwrapped (renders bold / mid-word italic) or a bare domain auto-linked",
+          "places the *-glob clusters/*/monitoring inside an italic/bold run (strands a trailing asterisk), or puts two code spans in one emphasis run",
+          "reaches for replace_content to fix a mangled line, skips the after-write render check, or loops on escape-guessing instead of anchoring on the toggle title / halting"
+        ]
+      },
+      "source": "write-contract.md (verify before + after write; author to the rules); references/notion-flavored-markdown.md Rules 1-6; PLT-641"
     }
   ]
 }
