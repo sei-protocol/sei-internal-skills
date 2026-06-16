@@ -38,22 +38,35 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     # Types only, via the shim — keeps the "only the shim imports omnigent"
     # contract (this module makes zero runtime omnigent imports).
-    from sei_omnigent._omnigent_shim import PolicyEvent, PolicyResponse
+    from sei_omnigent._omnigent_shim import PolicyCallable, PolicyEvent, PolicyResponse
 
-# Tool-name families, matching omnigent/policies/builtins/safety.py exactly
-# (sys_os_* MCP tools · Claude/Codex native · Pi native lowercase).
-_READ_TOOLS = frozenset(
-    {"sys_os_read", "Read", "Glob", "Grep", "read"}
-)
+# Tool-name families: sys_os_* MCP tools · Claude/Codex native · Pi native
+# (lowercase). Built from omnigent's `safety.py` families AND extended for the
+# native edit set: omnigent/policies/builtins/safety.py::_NATIVE_OS_TOOLS omits
+# `MultiEdit`/`NotebookEdit`, but omnigent's own server treats them as
+# first-class native file-edit tools (server/routes/sessions.py:486-488) and
+# they arrive verbatim in the PreToolUse tool_call event. They MUST be denied,
+# or a native multi-file / notebook write slips through on a read-only server.
+# (Re-verify this set against safety.py + sessions.py on each pinned-tag bump.)
+_READ_TOOLS = frozenset({"sys_os_read", "Read", "Glob", "Grep", "read"})
 _FILE_MUTATION_TOOLS = frozenset(
-    {"sys_os_write", "sys_os_edit", "Write", "Edit", "write", "edit"}
+    {
+        "sys_os_write",
+        "sys_os_edit",
+        "Write",
+        "Edit",
+        "MultiEdit",
+        "NotebookEdit",
+        "write",
+        "edit",
+    }
 )
 _SHELL_TOOLS = frozenset({"sys_os_shell", "Bash", "bash"})
 
 _ALLOW: "PolicyResponse" = {"result": "ALLOW"}
 
 
-def deny_mutating_os(*, deny_shell: bool = False) -> Any:  # -> PolicyCallable
+def deny_mutating_os(*, deny_shell: bool = False) -> "PolicyCallable":
     """Factory: a server-default policy that DENYs non-GitHub OS file mutations.
 
     :param deny_shell: When ``True``, also DENY shell tools (``Bash``/
@@ -94,7 +107,7 @@ def deny_mutating_os(*, deny_shell: bool = False) -> Any:  # -> PolicyCallable
         # github_policy / settings.json / other defaults decide).
         return _ALLOW
 
-    return evaluate
+    return evaluate  # type: ignore[return-value]
 
 
 # Scanned by omnigent.policies.registry.load_registry(extra_modules=...) so the

@@ -10,8 +10,22 @@ from __future__ import annotations
 from sei_omnigent.policies.read_only import (
     POLICY_REGISTRY,
     READ_ONLY_POLICY_MODULES,
+    _FILE_MUTATION_TOOLS,
+    _READ_TOOLS,
+    _SHELL_TOOLS,
     deny_mutating_os,
     read_only_default_policies,
+)
+
+# The known OS-tool universe the three families must partition: omnigent's
+# sys_os_* MCP tools + Claude/Codex native (incl. MultiEdit/NotebookEdit per
+# server/routes/sessions.py) + Pi native lowercase. Re-verify on tag bump.
+_OS_TOOL_UNIVERSE = frozenset(
+    {
+        "sys_os_read", "sys_os_write", "sys_os_edit", "sys_os_shell",
+        "Read", "Write", "Edit", "MultiEdit", "NotebookEdit", "Glob", "Grep", "Bash",
+        "read", "write", "edit", "bash",
+    }
 )
 
 
@@ -21,8 +35,27 @@ def _call(tool: str, *, deny_shell: bool = False) -> dict:
 
 
 def test_file_mutation_tools_are_denied() -> None:
-    for tool in ("Write", "Edit", "sys_os_write", "sys_os_edit", "write", "edit"):
+    # MultiEdit / NotebookEdit included — native edit tools omnigent's server
+    # treats as first-class (sessions.py:486-488); omitting them silently allows
+    # a multi-file / notebook write on a read-only server.
+    for tool in (
+        "Write", "Edit", "MultiEdit", "NotebookEdit",
+        "sys_os_write", "sys_os_edit", "write", "edit",
+    ):
         assert _call(tool)["result"] == "DENY", f"{tool} must be DENY"
+
+
+def test_tool_families_partition_the_os_universe() -> None:
+    """The three families are pairwise disjoint and cover the known OS-tool set —
+    so no OS tool is unclassified (the M1 failure mode: a write absent from every set)."""
+    assert _READ_TOOLS.isdisjoint(_FILE_MUTATION_TOOLS)
+    assert _READ_TOOLS.isdisjoint(_SHELL_TOOLS)
+    assert _FILE_MUTATION_TOOLS.isdisjoint(_SHELL_TOOLS)
+    covered = _READ_TOOLS | _FILE_MUTATION_TOOLS | _SHELL_TOOLS
+    assert covered == _OS_TOOL_UNIVERSE, (
+        f"unclassified OS tools: {_OS_TOOL_UNIVERSE - covered}; "
+        f"unexpected: {covered - _OS_TOOL_UNIVERSE}"
+    )
 
 
 def test_read_tools_are_allowed() -> None:

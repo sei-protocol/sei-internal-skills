@@ -82,7 +82,7 @@ from omnigent.server.server_config import config_str_list
 # can type-hint their handlers under TYPE_CHECKING without importing omnigent
 # directly (keeps the single-coupling-surface contract). The PolicyEvent ->
 # PolicyResponse contract: omnigent/policies/schema.py.
-from omnigent.policies.schema import PolicyEvent, PolicyResponse
+from omnigent.policies.schema import PolicyCallable, PolicyEvent, PolicyResponse
 
 # --- Private CLI helpers (the drift-prone half — re-verify on every bump) ----
 # These five live only in omnigent/cli.py. NOTE: `import omnigent.cli` is a
@@ -127,6 +127,7 @@ __all__ = [
     "SqlAlchemyPermissionStore",
     "HostStore",
     # policy types (for overlay policy-handler type hints)
+    "PolicyCallable",
     "PolicyEvent",
     "PolicyResponse",
     # config + private cli helpers
