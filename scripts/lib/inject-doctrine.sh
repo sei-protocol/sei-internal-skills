@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 # inject-doctrine.sh — shared managed-block injector for the Tide sync scripts.
 #
 # Sourced (not executed) by sync-agents.sh and sync-skills.sh. Injects the
@@ -77,9 +78,11 @@ inject_doctrine() {
   # hand-edit) would make the replace pass swallow to EOF and delete package
   # content. Refuse and let a human reconcile rather than destroy content.
   if [[ -f "$agents_md" ]]; then
+    # `|| true`: grep -c exits 1 on a zero count, which would abort the function
+    # under a `set -e` caller before this guard runs (it still prints "0").
     local nbegin nend
-    nbegin=$(grep -cF -- "$DOCTRINE_BEGIN" "$agents_md")
-    nend=$(grep -cF -- "$DOCTRINE_END" "$agents_md")
+    nbegin=$(grep -cF -- "$DOCTRINE_BEGIN" "$agents_md" || true)
+    nend=$(grep -cF -- "$DOCTRINE_END" "$agents_md" || true)
     if [[ "$nbegin" != "$nend" ]]; then
       echo "  ! $agents_md has a malformed tide-managed block (BEGIN=$nbegin END=$nend); fix by hand, then re-sync." >&2
       return 1
