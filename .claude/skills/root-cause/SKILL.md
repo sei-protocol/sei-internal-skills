@@ -89,7 +89,7 @@ No hypothesis is acted on until at least two are on the table. Single-hypothesis
 
 ### Step 4 — Retrieve evidence
 
-For each hypothesis, run the falsification observation. **The specialist who proposed the hypothesis owns the retrieval** — they know the tool, the query, and the expected shape of the answer. Every retrieval produces a record:
+For each hypothesis, run its falsification observation. **The proposing specialist designs the observation** — the command and the expected shape of the answer — but the **orchestrator runs the decisive gating command itself**, so the evidence that advances the step is the orchestrator's own harness-captured tool result, not a record relayed back by a sub-agent. This is *provenance, not shape*: a `Command`/`Output` block a sub-agent returns is forgeable prose; output the orchestrator *caused* is not — the harness, not the model, produced those bytes, and the orchestrator cannot make it return output for a command it never ran. Every gating retrieval produces a record:
 
 ```
 Hypothesis #N
@@ -99,6 +99,8 @@ Output: <verbatim excerpt, ≤30 lines or pointer to full output>
 Interpretation: <what this shows, what it doesn't show>
 Status: confirms / falsifies / inconclusive
 ```
+
+**What this gate does and does not guarantee.** Running the gating command as the orchestrator closes *relayed-record fabrication* — a sub-agent (or the orchestrator paraphrasing one) cannot pass a verdict off on evidence that was never produced. It does **not** force the orchestrator to *enter* the gate: under the documented "narrate what the data probably shows" pressure, an orchestrator can still skip the retrieval and assert a verdict from prior context. Closing that — *skip-the-gate* — needs a checker external to the orchestrator's own attestation (an independent verifier agent, or a harness audit of the actual tool-call log) and is out of scope here (PLT-635 phase 2). Until then, hold the line manually: a ranked factor whose gating command does not appear as an actual tool call in this session is `unverified`.
 
 The Sei/K8s "first five commands" ladder (see `references/sei-k8s-signal-ladder.md`) is the floor — for any K8s-shaped incident, those signals are pulled before any hypothesis-specific query. They localize the failure and reveal hypotheses you wouldn't have written.
 
@@ -143,6 +145,21 @@ Recommended next actions:
 ```
 
 If the investigation can't reach Step 6 — too many surviving hypotheses, evidence gaps the team can't close — that is a valid output. Say so explicitly: "investigation paused, three hypotheses surviving, need access to X to falsify further." A clean punt with stated obstacles beats a fabricated conclusion.
+
+### The loop — advance gates and survivor routing
+
+The six steps are a **loop the orchestrator drives**, not a single pass. Each step's halt/refusal conditions are **advance gates**: do not proceed to step N+1 until step N's gate reads true — Step 1's five fields present; Step 3's ≥2 hypotheses each with a falsification observation; Step 4's gating evidence as orchestrator-run records with none `unverified`; Step 6's multi-cause ranking with every factor traced to a Step-4 record. A gate that can't be satisfied is a halt, not something to narrate past.
+
+After Step 4 falsification, the surviving-hypothesis count routes the loop:
+
+| Survivors after Step 4 | Transition |
+|------------------------|------------|
+| **0** (all falsified) | the effect statement or signal ladder is wrong — re-enter **Step 1** (re-frame); at the iteration cap, punt naming the mis-frame as the obstacle |
+| **1** | proceed to Steps 5–6 — a single surviving factor is a valid conclusion (distinct from Step 3's "only one hypothesis at merge," which is a halt) |
+| **>1, a falsification observation remains unrun** | re-enter **Step 2** (re-dispatch with the survivor set) — carry it forward so the loop compounds |
+| **>1, no further evidence obtainable** | Step 6 / clean punt — the observability gap is the finding |
+
+**Iteration cap — default 2 cycles.** At exhaustion, force a ranked commitment (Step 6) or a clean punt; never an open-ended re-cycle. This makes the existing "after two hypothesis cycles, force a ranked commitment" discipline the explicit loop bound.
 
 ## Rationalization Table
 
