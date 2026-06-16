@@ -26,7 +26,12 @@ sync-skills: ## Install Tide's portable skills into ~/.claude/skills/
 
 .PHONY: sync-doctrine-self
 sync-doctrine-self: ## Re-inject the operating-doctrine block into this repo's own AGENTS.md (dogfood; run after editing scripts/tide-doctrine.md)
-	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/tide-doctrine.md" false'
+	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/tide-doctrine.md" write'
+
+.PHONY: sync-doctrine-self-check
+sync-doctrine-self-check: ## Fail if this repo's AGENTS.md doctrine block has drifted from scripts/tide-doctrine.md (read-only; CI guard)
+	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/tide-doctrine.md" check' \
+		&& echo "doctrine block in sync ✓"
 
 .PHONY: update-agent-permissions
 update-agent-permissions: ## Install canonical read-only allow-list into ./.claude/settings.json (DRY_RUN=1 to preview)

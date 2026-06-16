@@ -211,7 +211,9 @@ else
 fi
 
 if $INJECT_DOCTRINE; then
-  inject_doctrine "$TARGET" "$SCRIPT_DIR/tide-doctrine.md" "$DRY_RUN"
+  doctrine_mode="write"
+  if $DRY_RUN; then doctrine_mode="dry-run"; fi
+  inject_doctrine "$TARGET" "$SCRIPT_DIR/tide-doctrine.md" "$doctrine_mode"
 fi
 
 if $DRY_RUN; then

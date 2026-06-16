@@ -6,6 +6,11 @@
 # one-line pointer to the package's CLAUDE.md. Re-running replaces only the bytes
 # between the markers; the package's own content is never touched.
 #
+# Three modes (the third positional arg): write (inject), dry-run (report, write
+# nothing), check (report drift to stderr and return non-zero, write nothing —
+# the CI drift-guard). check is the read-only inverse of write: it passes only
+# when a write would be a no-op.
+#
 # The marker strings are a distribution contract: once a consumer has a block,
 # changing the marker text orphans it (a re-sync appends a fresh block instead of
 # replacing the old one). They are locked here.
@@ -19,34 +24,41 @@ DOCTRINE_BEGIN='<!-- BEGIN tide-managed (do not edit; managed by Tide sync scrip
 DOCTRINE_END='<!-- END tide-managed -->'
 DOCTRINE_POINTER='> Operating doctrine for the Tide-synced skills and agents lives in [AGENTS.md](./AGENTS.md).'
 
-# inject_claude_pointer <claude_md_path> <dry_run:true|false>
-# Adds the one-line AGENTS.md pointer to CLAUDE.md, append-only, idempotent.
+# inject_claude_pointer <claude_md_path> <mode:write|dry-run|check>
+# Ensures the one-line AGENTS.md pointer is in CLAUDE.md (append-only, idempotent).
+# In check mode, returns non-zero when the pointer is absent (drift).
 inject_claude_pointer() {
-  local claude_md="$1" dry_run="$2"
+  local claude_md="$1" mode="$2"
 
   if [[ -f "$claude_md" ]] && grep -qF -- "$DOCTRINE_POINTER" "$claude_md"; then
     return 0
   fi
 
-  if [[ "$dry_run" == true ]]; then
-    echo "  (dry-run) would add AGENTS.md pointer to $claude_md"
-    return 0
-  fi
-
-  mkdir -p "$(dirname "$claude_md")"
-  if [[ ! -f "$claude_md" ]]; then
-    printf '%s\n' "$DOCTRINE_POINTER" > "$claude_md"
-  else
-    printf '\n%s\n' "$DOCTRINE_POINTER" >> "$claude_md"
-  fi
-  echo "  ✓ AGENTS.md pointer → $claude_md"
+  case "$mode" in
+    check)
+      echo "  ✗ drift: $claude_md is missing the AGENTS.md pointer" >&2
+      return 1 ;;
+    dry-run)
+      echo "  (dry-run) would add AGENTS.md pointer to $claude_md"
+      return 0 ;;
+    *)
+      mkdir -p "$(dirname "$claude_md")"
+      if [[ ! -f "$claude_md" ]]; then
+        printf '%s\n' "$DOCTRINE_POINTER" > "$claude_md"
+      else
+        printf '\n%s\n' "$DOCTRINE_POINTER" >> "$claude_md"
+      fi
+      echo "  ✓ AGENTS.md pointer → $claude_md" ;;
+  esac
 }
 
-# inject_doctrine <target_dir> <doctrine_body_file> <dry_run:true|false>
-# Injects the managed block into <target_dir>/AGENTS.md (creating the file, and
-# the directory, if absent) and the pointer into <target_dir>/CLAUDE.md.
+# inject_doctrine <target_dir> <doctrine_body_file> <mode:write|dry-run|check>
+# write: inject the managed block into <target_dir>/AGENTS.md (creating the file,
+#   and the directory, if absent) and the pointer into <target_dir>/CLAUDE.md.
+# dry-run: report what write would do; write nothing.
+# check: return non-zero if the block or the pointer is out of sync; write nothing.
 inject_doctrine() {
-  local target_dir="$1" body_file="$2" dry_run="$3"
+  local target_dir="$1" body_file="$2" mode="$3"
   local agents_md="$target_dir/AGENTS.md"
 
   if [[ ! -f "$body_file" ]]; then
@@ -84,7 +96,7 @@ inject_doctrine() {
   } > "$block_tmp"
 
   # Compute the desired AGENTS.md into a temp in $TMPDIR — the target directory
-  # may not exist yet (fresh package), and a dry-run must write nothing under it.
+  # may not exist yet (fresh package), and dry-run/check must write nothing under it.
   local out_tmp; out_tmp="$(mktemp)" || { rm -f "$block_tmp"; return 1; }
   if [[ ! -f "$agents_md" ]]; then
     {
@@ -120,25 +132,49 @@ inject_doctrine() {
     ' "$agents_md" > "$out_tmp"
   fi
 
+  # Is the on-disk AGENTS.md already byte-identical to the desired output?
+  local agents_in_sync=0
   if [[ -f "$agents_md" ]] && cmp -s "$out_tmp" "$agents_md"; then
-    rm -f "$block_tmp" "$out_tmp"           # byte-identical — true no-op on re-run
-  elif [[ "$dry_run" == true ]]; then
-    if [[ -f "$agents_md" ]]; then
-      echo "  (dry-run) would update tide-managed block in $agents_md"
-    else
-      echo "  (dry-run) would create $agents_md with the tide-managed block"
-    fi
-    rm -f "$block_tmp" "$out_tmp"
-  else
-    mkdir -p "$target_dir"
-    # Stage in a temp in the SAME directory as the destination so the rename is
-    # an atomic, single-filesystem operation.
-    local final_tmp; final_tmp="$(mktemp "${target_dir%/}/.AGENTS.md.XXXXXX")" || { rm -f "$block_tmp" "$out_tmp"; return 1; }
-    cat "$out_tmp" > "$final_tmp"
-    mv "$final_tmp" "$agents_md"
-    rm -f "$block_tmp" "$out_tmp"
-    echo "  ✓ doctrine block → $agents_md"
+    agents_in_sync=1
   fi
 
-  inject_claude_pointer "$target_dir/CLAUDE.md" "$dry_run"
+  case "$mode" in
+    check)
+      local drift=0
+      if [[ "$agents_in_sync" -eq 0 ]]; then
+        if [[ -f "$agents_md" ]]; then
+          echo "  ✗ drift: $agents_md is out of sync with $body_file (run: make sync-doctrine-self)" >&2
+        else
+          echo "  ✗ drift: $agents_md is missing the tide-managed block (run: make sync-doctrine-self)" >&2
+        fi
+        drift=1
+      fi
+      rm -f "$block_tmp" "$out_tmp"
+      inject_claude_pointer "$target_dir/CLAUDE.md" check || drift=1
+      return "$drift" ;;
+    dry-run)
+      if [[ "$agents_in_sync" -eq 0 ]]; then
+        if [[ -f "$agents_md" ]]; then
+          echo "  (dry-run) would update tide-managed block in $agents_md"
+        else
+          echo "  (dry-run) would create $agents_md with the tide-managed block"
+        fi
+      fi
+      rm -f "$block_tmp" "$out_tmp"
+      inject_claude_pointer "$target_dir/CLAUDE.md" dry-run ;;
+    *)
+      if [[ "$agents_in_sync" -eq 1 ]]; then
+        rm -f "$block_tmp" "$out_tmp"          # byte-identical — true no-op on re-run
+      else
+        mkdir -p "$target_dir"
+        # Stage in a temp in the SAME directory as the destination so the rename
+        # is an atomic, single-filesystem operation.
+        local final_tmp; final_tmp="$(mktemp "${target_dir%/}/.AGENTS.md.XXXXXX")" || { rm -f "$block_tmp" "$out_tmp"; return 1; }
+        cat "$out_tmp" > "$final_tmp"
+        mv "$final_tmp" "$agents_md"
+        rm -f "$block_tmp" "$out_tmp"
+        echo "  ✓ doctrine block → $agents_md"
+      fi
+      inject_claude_pointer "$target_dir/CLAUDE.md" write ;;
+  esac
 }
