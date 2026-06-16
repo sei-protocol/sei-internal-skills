@@ -75,6 +75,7 @@ Three skills sharing one write-contract + brevity/substantiation discipline, **a
 | **`impact-weekly`** | Friday: gather the engineer's Linear week → map each item to its Impact project → draft an exec progress entry → confirm → append to the project's **Weekly log**. | **MVP** |
 | `impact-portfolio` | **Weekly cross-project exec report**: a human-confirmed report page per week (exec summary + per-project sections, owner + confidence + ≤3 substantiated bullets). Scope evolved from the original read-only sketch — see `docs/designs/impact-portfolio-weekly-report.md`. | Phase 2 |
 | `impact-eoq` | Per-engineer quarter rollup of substantiated outcomes into the **Retrospective** section. | Phase 2 |
+| `impact-standup` | **Prospective standup / sync agenda**: per-person talking points — a linked spine (in-flight / in-review / just-shipped) + a discussion layer (risks / decisions / blockers / asks / forward) mined-and-cited or prompted, never fabricated. Window = *since last sync* (not ISO week). **Zero-write** — renders only; persistence is `impact-weekly`/`impact-portfolio`. | Added (zero-write sibling) |
 
 ### `impact-weekly` flow
 

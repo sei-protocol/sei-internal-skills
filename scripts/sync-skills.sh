@@ -96,6 +96,7 @@ PROJECT_MANAGEMENT=(
   execution-plan
   impact-weekly
   impact-portfolio
+  impact-standup
 )
 
 RELEASE_OPERATIONS=(
