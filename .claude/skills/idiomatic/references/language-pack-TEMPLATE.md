@@ -103,4 +103,5 @@ When a finding needs judgment the static pack can't carry, the method dispatches
 | Solidity | `solidity-developer` |
 | Rust | _(none yet — review on the pack + first principles; add a `rust-specialist` when Rust work is common)_ |
 | TypeScript | _(none yet — review on the pack + first principles; add a `typescript-specialist` when TS work is common)_ |
+| bash | `platform-engineer` (shell + BSD/macOS userland; sync-script and runtime-shell surfaces) |
 | … | … |

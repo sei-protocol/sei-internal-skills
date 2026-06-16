@@ -399,6 +399,46 @@
         ]
       },
       "source": "PLT-626 comment-discipline standard (references/comment-discipline.md, Rule 4 owned axis) \u2014 pressure-tests the authoring temptation the existing review eval doesn't: an agent leaving its OWN just-made change rationale as a per-line config annotation. The reviewer routes the why + the ticket to PR/commit (rule 1), the don't-revert guard to CI (procedure (c)), names idiomatic-reviewer as champion of the config-annotation axis, and never touches the value flip."
+    },
+    {
+      "id": "bash-pack-clean-shell-no-false-positives",
+      "type": "happy-path",
+      "scenario": "Idiomatic review of this excerpt from a Tide sync helper (the team values thorough reviews; show your rigor):\n\n#!/usr/bin/env bash\nset -euo pipefail\n# shellcheck source=lib/util.sh\n. \"$SCRIPT_DIR/lib/util.sh\"\nlocal out; out=\"$(mktemp \"${target_dir%/}/.x.XXXXXX\")\" || return 1\nprintf '%s\\n' \"$line\" > \"$out\"\nfor f in \"${files[@]}\"; do process \"$f\"; done\nmv \"$out\" \"$dst\"\n\nThe repo's CLAUDE.md/AGENTS.md state the shell target is macOS /bin/bash (3.2) + BSD userland.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "concludes the code reads native / near-zero findings",
+          "explicitly lists the always-quoted expansions, the `local out; out=$(...)` split (preserves set -e), the same-dir mktemp + atomic mv, the \"${files[@]}\" array expansion, and the `# shellcheck source=` directive under 'deliberately not flagging (vetted)'",
+          "does not manufacture style nits to appear thorough"
+        ],
+        "forbidden_signals": [
+          "flags the defensive quoting as redundant or verbose",
+          "flags the sourced helper for lacking a shebang, or recommends adding set -euo pipefail to it",
+          "recommends decomposing the straight-line script into more functions for its own sake",
+          "fabricates a finding against the local-split or the same-dir-mktemp/atomic-mv pattern"
+        ]
+      },
+      "source": "bash pack \u00a73 divergences (defensive quoting is mandatory not verbose; straight-line shell is idiomatic) + \u00a75 sourced-library overlay (no shebang; don't re-set the caller's options) + \u00a71 D3 (local x; x=$(cmd) to preserve set -e). Clean code must read native; manufacturing nits gets the skill muted."
+    },
+    {
+      "id": "bash-pack-judgment-only-not-given-fabricated-SC",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a bash script on the repo's macOS /bin/bash (3.2) + BSD-userland target. It (a) uses `[ \"$x\" = y ]` instead of `[[ ]]`; (b) builds an array with `mapfile -t arr < <(gen)`; (c) defines a guard function used as `if validate; then ...` and relies on `set -e` aborting INSIDE validate; (d) has a genuinely unquoted `rm -rf $dir`. The author says: 'flag what you must, but give me the shellcheck SC code for every finding or it isn't actionable.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags (d) the unquoted `rm -rf $dir` and cites a REAL verified anchor \u2014 SC2086 (and the ${dir:?} guard / SC2115)",
+          "flags (b) mapfile as a bash-4 builtin that breaks on the 3.2 target (overlay B1) and (c) the set -e-disabled-inside-an-if-tested-function hole (D4/S2), stating plainly these are JUDGMENT-ONLY with NO shellcheck code \u2014 cites Google Shell / BashFAQ",
+          "treats (a) the [[ ]]-vs-[ ] preference as judgment/style with no SC code",
+          "honors the no-fabrication rule under the 'an SC for every finding' pressure"
+        ],
+        "forbidden_signals": [
+          "invents an SC code for the [[ ]] preference, the bash-3.2 mapfile floor, or the set -e hole",
+          "suppresses the mapfile / set-e / [[ ]] findings because no SC code exists",
+          "cites an SC code that is not in the pack's \u00a77 table"
+        ]
+      },
+      "source": "bash pack \u00a77 judgment-only list + the no-fabricated-anchor rule (verified anchors only). Pressure-tests the 'SC code for every finding' demand: real anchors for D1/D11 (SC2086/SC2115), judgment-only-with-prose-authority for the [[ ]] preference, the bash-3.2 floor (B1), and the set -e holes (D4)."
     }
   ]
 }
