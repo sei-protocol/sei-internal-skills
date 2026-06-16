@@ -64,19 +64,7 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 
 The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
-## Working Agreement
-
-Design and review work follows the engineering principles in `CLAUDE.md`:
-
-1. **Two-Way Doors Only** — prefer reversible decisions; one-way doors require explicit approval.
-2. **YAGNI** — if it's not required by a current-phase need, exclude it (and say so).
-3. **Interfaces First** — exact signatures, types, errors, contracts.
-4. **Errors Are Interface** — every error condition is documented.
-5. **Provider Owns the Interface** — consumers adapt.
-
-**Output discipline.** Every agent that authors PR descriptions or in-code comments applies `/brevity` (`.claude/skills/brevity/`) before shipping a PR body or WHY-style comment. The skill self-determines when input is at floor — agents do not pre-skip.
-
-**Pre-PR review.** Before invoking `gh pr create`, agents apply `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body. Findings surface inline for revision; suggestive only — no merge gating. Post-PR, the user may invoke `/pr-quality <PR>` to post a comment with findings.
+The operating doctrine — engineering principles, output discipline, the workflow skills and when each applies, the cross-review discipline, and the key rules — is the `tide-managed` block below. It is maintained once in `scripts/tide-doctrine.md` and distributed to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
 
 ## Install
 
@@ -109,6 +97,52 @@ For sibling-repo or finer-grained installs, call the scripts directly:
 
 Categories: `portable` (default), `sei`, `all`. Both scripts are non-destructive by default — they refuse to overwrite changed files in the target unless `--force` is passed. The Make targets pass `--force` so subsequent runs pick up Tide updates cleanly.
 
-## How to Use These Agents
+<!-- BEGIN tide-managed (do not edit; managed by Tide sync scripts) -->
+## Operating with Tide resources
 
-Agent personas are dispatched by the `/coral`, `/council`, `/cross-review`, and `/root-cause` skills (see `CLAUDE.md`). For direct single-expert consultations, use the Agent tool with the agent name as `subagent_type`.
+This package consumes portable Claude Code skills and specialist agents authored in Sei's Tide library and installed under `.claude/`. The skills are invoked as the slash-commands below; the agents are dispatched by those skills. What follows is the opinionated doctrine for operating with them — the *way* to work, not a description of the library.
+
+### Engineering principles
+
+- **Interfaces first** — the primary deliverable of a design is exact signatures, types, errors, and contracts. Implementation guidance is secondary.
+- **YAGNI** — only build what traces to a current-phase need. Everything else is explicitly deferred, not silently omitted.
+- **Two-way doors only** — prefer reversible decisions. One-way doors (irreversible choices: persisted schema/field names, public API contracts, on-disk or wire formats, anything other systems come to depend on) require explicit human approval before finalizing.
+- **Errors are interface** — every error condition is part of the public contract.
+- **Provider owns the interface** — when a provider and consumer disagree, the provider's definition is canonical and consumers adapt.
+
+### Output discipline
+
+- **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the component in scope.
+- **Comments & documentation.** Present-state only — never change/history/why-removed inline (that belongs in the PR/commit); sparingly; top-located (package/file/type doc, not the body); comprehensive context in one centralized doc. Champions: `idiomatic-reviewer` owns in-source comments + config annotations (`/idiomatic`); `prose-steward` owns doc artifacts + header-doc prose (`/lingua`). The full rules and the champion-boundary decision procedure live in those two skills.
+
+### Using the skills
+
+- **`/coral`** — lightweight expert iteration on a defined slice; the fast path. Hands off to `/council` when the work outgrows it (≥3 components, interface changes, one-way doors, multi-session).
+- **`/cross-review`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to coral's "produce."
+- **`/council`** — full-ceremony workflow for multi-component, multi-session design; gates one-way doors.
+- **`/bugbash`** — long-running adversarial review of an existing component before launch.
+- **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
+- **Handoffs:** `/design` captures *this* work as a durable design doc; `/issue` files *next* work as a tracked issue.
+
+### Cross-review discipline
+
+When the relevant specialists review a produced artifact (design, plan, diff, or a set of expert outputs):
+
+- **Blinded and independent** — each reviewer commits its findings before seeing the others'; no reviewer's view is summarized into another's brief.
+- **An assigned dissenter** — one reviewer is tasked to argue against the emerging consensus and surface the strongest counter-case.
+- **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) *and*, for doc artifacts, the prose axis (`prose-steward`) — not domain experts alone.
+- **Automated review is co-equal** — treat an automated reviewer (e.g. Cursor Bugbot) as a peer input, not noise; an unresolved flag blocks.
+- **Confirmed-consensus iteration** — after a fix, re-dispatch the reviewer that raised the finding to confirm closure; merge only on unanimous sign-off with no open concerns. `/cross-review` owns the procedure.
+
+### Key rules
+
+- **Provider owns the interface.** Consumers adapt.
+- **YAGNI.** Only features tracing to current-phase needs.
+- **Errors are interface.** Every error is part of the public contract.
+- **One-way-door gate.** Irreversible decisions require explicit human approval before finalizing.
+- **Conventional commits.** Reference the component in scope.
+
+### Roles, not roster
+
+Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose, `/lingua`). The full roster of available specialists lives in the synced `.claude/agents/` files.
+<!-- END tide-managed -->

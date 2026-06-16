@@ -25,6 +25,9 @@
 #                (output-quality — brevity, pr-quality — is Tide-local, not synced)
 # --dry-run:     print what would be copied without copying
 # --force:       overwrite existing target skills without prompting
+# --inject-doctrine: also inject the Tide operating-doctrine managed block into
+#                <target>/AGENTS.md (+ a CLAUDE.md pointer). Off by default;
+#                intended for a consuming package, not user-scope ($HOME).
 #
 # Source of truth: the portable / sei lists below. Update these when skills
 # are added, renamed, or re-categorized.
@@ -39,6 +42,9 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_DIR="$(cd "$SCRIPT_DIR/../.claude/skills" && pwd)"
+
+# shellcheck source=lib/inject-doctrine.sh
+. "$SCRIPT_DIR/lib/inject-doctrine.sh"
 
 # --- Category lists (source of truth) ---------------------------------------
 
@@ -115,6 +121,7 @@ TARGET="$HOME"
 CATEGORIES="portable"
 DRY_RUN=false
 FORCE=false
+INJECT_DOCTRINE=false
 
 usage() {
   grep '^#' "$0" | sed 's/^# \{0,1\}//' | grep -v '^!'
@@ -130,6 +137,8 @@ while [[ $# -gt 0 ]]; do
       DRY_RUN=true; shift ;;
     --force)
       FORCE=true; shift ;;
+    --inject-doctrine)
+      INJECT_DOCTRINE=true; shift ;;
     -h|--help)
       usage; exit 0 ;;
     *)
@@ -141,6 +150,15 @@ done
 # Expand ~ if present
 TARGET="${TARGET/#\~/$HOME}"
 TARGET_SKILLS="${TARGET%/}/.claude/skills"
+
+# Doctrine injection writes a managed block to the package root (AGENTS.md +
+# CLAUDE.md pointer). Refuse $HOME — the default target — since that is the
+# user's global config, not a package; a managed block there would reappear on
+# every sync. Inject only into an explicit package directory.
+if $INJECT_DOCTRINE && [[ "${TARGET%/}" == "${HOME%/}" ]]; then
+  echo "Error: --inject-doctrine refuses \$HOME ($HOME) — target a package directory." >&2
+  exit 2
+fi
 
 # --- Build skill list from categories ---------------------------------------
 
@@ -190,6 +208,10 @@ if [[ ${#SKILLS_TO_SYNC[@]} -eq 0 ]]; then
   echo "  (none — selected categories are empty)"
 else
   printf '  - %s\n' "${SKILLS_TO_SYNC[@]}"
+fi
+
+if $INJECT_DOCTRINE; then
+  inject_doctrine "$TARGET" "$SCRIPT_DIR/tide-doctrine.md" "$DRY_RUN"
 fi
 
 if $DRY_RUN; then
