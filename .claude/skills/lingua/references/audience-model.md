@@ -91,6 +91,31 @@ in typography. When color and explicitness compete for the same line, explicitne
 Stated-opinion as a precedence rule (falsification: *we'd revise if dual-purpose prose consistently
 carried constraints without loss for agent readers*); the underlying scan behavior is Cited (NN/g).
 
+## Doc-artifact prose discipline (prose-steward owned)
+
+`prose-steward` is the **owner of record** for the documentation/prose axis: design docs (HLD/LLD/PRD/1-pager), READMEs, runbooks, and file/package/module **header-doc prose**. It defines this axis, tie-breaks it, and enforces it every cross-review cycle. It does **not** cover in-source comments interleaved with code or config-field annotations — that axis is owned by `idiomatic-reviewer` (`/idiomatic`); see Boundary. These four are the doc-axis specialization of R1–R5 (*Tier:* the **convention** — present-state, sparing, top-located, dual-aligned — is Cited as a repo-profile rule, PLT-626, may carry a `Basis:` and may block; but the **agent-cognition rationale** embedded in D1/D3/D4 — *"reads as a current instruction," "weights what it reads first," nothing load-bearing "only in a diagram"* — inherits the **Stated-opinion** tier of the R4/R5 reader-model claims it specializes, and is advisory, not a blocking citation).
+
+**D1 — Present state only.** A doc artifact states what is true *now* — never change, history, or why-removed (that is the PR/commit's job). Banned in durable docs: "this used to…", "we changed X to Y", "(was: …)", migration-pin hints. To the linearly-ingesting agent, "we removed the X path" reads as a current instruction. Present-state rationale ("X is foo because the registry owns the type") is fine; history ("X used to be bar") is not.
+
+**D2 — Sparingly and centralized.** Comprehensive context → one dense, cohesive owner-doc, not scattered shallow notes that drift in N directions. Everything else points to it rather than re-stating it.
+
+**D3 — Top-located.** Header docs lead the file/package/module they describe — a unit-governing constraint must not be buried mid-file or only inside one example; the agent weights what it reads first.
+
+**D4 — Dual-audience legibility.** Human-scannable (load-bearing lead, decision up front, skimmable headings) **and** agent-ingestible (constraints anchored locally to what they govern; ambiguity typed as ambiguity; terms defined before use; nothing load-bearing living only in a diagram, a table color, or an aside).
+
+**Fidelity guard.** A suggested rewrite never invents a commitment, never promotes a soft modal to a requirement, never weakens a decided constraint to read friendlier. Removing history under D1 removes *history*, not the present-state contract it wrapped; undecided stays typed-undecided.
+
+### Boundary — doc artifacts vs. in-source comments
+
+This table is the **canonical home** for the cross-champion boundary; the in-source axis (`/idiomatic` `references/comment-discipline.md`) points here rather than restating it.
+
+| Axis | Owner | Surface |
+|---|---|---|
+| Documentation artifacts + prose | `prose-steward` (`/lingua`) | design docs, READMEs, runbooks; the **narrative prose** of a file/package/module header doc |
+| In-source comments + config annotations | `idiomatic-reviewer` (`/idiomatic`) | comments **interleaved with code**, inline/config-field annotations; **whether a header-doc comment should exist and where it sits** |
+
+The dividing line is **the unit being described, not the file extension** — *and, for a header doc, the aspect*. Whether a top-of-file package/type doc should exist and where it sits is `idiomatic-reviewer`'s call (placement/existence); the quality of its narrative wording is `prose-steward`'s (prose). A comment three lines into a function is wholly `idiomatic-reviewer`. When one artifact carries both (an LLD with embedded code), the two review separately with no shared findings; disputes on existence/placement resolve to `idiomatic-reviewer`, disputes on narrative wording to `prose-steward`. The shared PLT-626 philosophy means rulings converge rather than conflict.
+
 ## Precedence
 
 Repo profile > artifact pack > this model. The profile can establish an exception to any rule here —

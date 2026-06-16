@@ -21,6 +21,7 @@ These principles govern design and review work across the skills (notably `/coun
 - **Brevity.** Apply `/brevity` (`.claude/skills/brevity/`) before writing PR bodies or in-code comments. The skill self-determines floor; agents do not pre-skip.
 - **PR-quality.** Before invoking `gh pr create`, apply `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body. Findings surface inline for revision. Post-PR: invoke `/pr-quality <PR>` to post a comment with findings. (Brevity runs during authoring; pr-quality runs on the final diff — they don't chain.)
 - **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the skill or component in scope.
+- **Comments & documentation.** Present-state only — never change/history/why-removed inline (that belongs in the PR/commit); sparingly; top-located (package/file/type doc, not the body); comprehensive context in one centralized doc. Champions: `idiomatic-reviewer` owns in-source comments + config annotations (`/idiomatic`); `prose-steward` owns doc artifacts + header-doc prose (`/lingua`). Full rules + decision procedure live in those skills.
 
 ## Using the Skills
 
