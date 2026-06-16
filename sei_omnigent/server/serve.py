@@ -35,7 +35,10 @@ Behavior deltas vs stock ``cli.py`` serve (all intentional, header-mode posture)
 the accounts cookie-secret / BASE_URL setdefault and the ``SqlAlchemyAccountStore``
 construction are omitted (dead under header mode); ``parse_sandbox_config`` is
 called without the stock ``ValueError -> click.ClickException`` rewrap (no Click
-context here) — a ``sandbox:`` typo surfaces as a raw ``ValueError``.
+context here) — a ``sandbox:`` typo surfaces as a raw ``ValueError``. Relative
+``artifact_location`` resolution against the config-file dir (stock cli.py:2927)
+is NOT done here — ``make_stores`` takes a pre-loaded ``cfg`` dict and never sees
+``config_path``; that resolution belongs to the config-load step (PLT-672).
 """
 
 from __future__ import annotations
@@ -84,15 +87,15 @@ class Stores:
     required ``create_app`` / ``init_runtime`` input (cross-review C8).
     """
 
-    agent: "AgentStore"
-    file: "FileStore"
-    conversation: "ConversationStore"
-    comment: "CommentStore"
-    policy: "PolicyStore"
-    permission: "PermissionStore"
-    artifact: "ArtifactStore"
-    host: "HostStore"
-    agent_cache: "AgentCache"
+    agent: AgentStore
+    file: FileStore
+    conversation: ConversationStore
+    comment: CommentStore
+    policy: PolicyStore
+    permission: PermissionStore
+    artifact: ArtifactStore
+    host: HostStore
+    agent_cache: AgentCache
 
 
 def _resolve_locations(cfg: dict[str, Any]) -> tuple[str, str]:
@@ -144,7 +147,7 @@ def _runner_tunnel_tokens() -> frozenset[str] | None:
     return frozenset({token}) if token else None
 
 
-def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> "FastAPI":
+def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAPI:
     """Build the FastAPI app from the seam.
 
     Mirrors the stock serve boot sequence (init_runtime → telemetry → agent
