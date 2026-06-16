@@ -31,31 +31,104 @@ def test_non_header_modes_are_rejected() -> None:
         assert err is not None and "header-mode only" in err, f"{source!r} must be rejected"
 
 
-def test_build_server_wires_the_boot_assert_and_header_default() -> None:
-    """Structural guard: build_server must call _assert_header_posture and default
-    OMNIGENT_AUTH_PROVIDER to 'header' (the posture can't be enforced if unwired)."""
+def _build_server_body() -> list[ast.stmt]:
     tree = ast.parse(_SERVE.read_text())
-    build = next(
+    fn = next(
         n for n in ast.walk(tree)
         if isinstance(n, ast.FunctionDef) and n.name == "build_server"
     )
-    calls = [
-        n.func.id
-        for n in ast.walk(build)
-        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
-    ]
-    assert "_assert_header_posture" in calls, "build_server must call _assert_header_posture"
+    return fn.body
 
-    # setdefault("OMNIGENT_AUTH_PROVIDER", "header") present in build_server
-    setdefaults = [
-        n for n in ast.walk(build)
-        if isinstance(n, ast.Call)
-        and isinstance(n.func, ast.Attribute)
-        and n.func.attr == "setdefault"
-        and any(isinstance(a, ast.Constant) and a.value == "OMNIGENT_AUTH_PROVIDER" for a in n.args)
-    ]
-    assert setdefaults, "build_server must default OMNIGENT_AUTH_PROVIDER to header"
-    assert any(
-        isinstance(a, ast.Constant) and a.value == "header"
-        for sd in setdefaults for a in sd.args
-    ), "the AUTH_PROVIDER default must be 'header'"
+
+def _direct_call_index(body: list[ast.stmt], name: str) -> int | None:
+    """Index of a top-level (non-nested) Expr-statement call ``name(...)``, else None."""
+    for i, stmt in enumerate(body):
+        if (
+            isinstance(stmt, ast.Expr)
+            and isinstance(stmt.value, ast.Call)
+            and isinstance(stmt.value.func, ast.Name)
+            and stmt.value.func.id == name
+        ):
+            return i
+    return None
+
+
+def test_posture_assert_runs_on_the_main_path_before_auth() -> None:
+    """build_server must call _assert_header_posture as a direct (non-nested,
+    non-dead) statement that runs BEFORE create_auth_provider — guards against a
+    refactor reordering it below the provider build or hiding it under a branch.
+    (The AST walk only proves presence; this proves placement on the executed path.)"""
+    body = _build_server_body()
+    assert_idx = _direct_call_index(body, "_assert_header_posture")
+    assert assert_idx is not None, "_assert_header_posture must be a direct statement in build_server"
+    auth_idx = next(
+        (
+            i for i, s in enumerate(body)
+            if isinstance(s, ast.Assign)
+            and isinstance(s.value, ast.Call)
+            and isinstance(s.value.func, ast.Attribute)
+            and s.value.func.attr == "create_auth_provider"
+        ),
+        None,
+    )
+    assert auth_idx is not None, "create_auth_provider call not found in build_server body"
+    assert assert_idx < auth_idx, "posture assert must precede create_auth_provider (and the create_app return)"
+
+
+def test_serve_omni_attrs_are_exported_by_the_shim() -> None:
+    """Every ``omni.<attr>`` serve.py reaches must be in the shim's __all__ — an
+    unexported name AttributeErrors at boot (the exact class of bug that shipped
+    a self-crashing posture guard)."""
+    used = {
+        n.attr
+        for n in ast.walk(ast.parse(_SERVE.read_text()))
+        if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == "omni"
+    }
+    shim = ast.parse((_SERVE.parent.parent / "_omnigent_shim.py").read_text())
+    exported = {
+        elt.value
+        for node in ast.walk(shim)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets)
+        for elt in node.value.elts
+        if isinstance(elt, ast.Constant)
+    }
+    missing = used - exported
+    assert not missing, f"serve.py uses omni attrs absent from the shim __all__: {sorted(missing)}"
+
+
+def test_assert_header_posture_raises_behaviorally() -> None:
+    """Behavioral: with omnigent installed, _assert_header_posture raises on a
+    non-header provider and on LOCAL_SINGLE_USER. Skipped in unit CI (no omnigent);
+    runs in the omnigent-installed integration job — closes the executed-path gap
+    the pure + AST tests structurally cannot."""
+    try:
+        from sei_omnigent.server import serve  # noqa: PLC0415
+    except Exception:  # omnigent absent (unit CI) — integration job covers this
+        return
+
+    import os  # noqa: PLC0415
+
+    saved = {k: os.environ.get(k) for k in ("OMNIGENT_AUTH_PROVIDER", "OMNIGENT_LOCAL_SINGLE_USER")}
+    try:
+        os.environ["OMNIGENT_AUTH_PROVIDER"] = "oidc"
+        os.environ.pop("OMNIGENT_LOCAL_SINGLE_USER", None)
+        try:
+            serve._assert_header_posture()
+            raise AssertionError("oidc auth source must raise")
+        except RuntimeError:
+            pass
+
+        os.environ["OMNIGENT_AUTH_PROVIDER"] = "header"
+        os.environ["OMNIGENT_LOCAL_SINGLE_USER"] = "1"
+        try:
+            serve._assert_header_posture()
+            raise AssertionError("OMNIGENT_LOCAL_SINGLE_USER must raise")
+        except RuntimeError:
+            pass
+    finally:
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v

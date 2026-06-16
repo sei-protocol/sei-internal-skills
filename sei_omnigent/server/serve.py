@@ -202,13 +202,14 @@ def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAP
     # fail-fast effect, different exception type.
     sandbox_config = omni.parse_sandbox_config(cfg.get("sandbox"))
 
-    # Header-mode trusted-operator posture (PLT-669). Default the entrypoint to
-    # header (the stock entrypoint's LOCAL_SINGLE_USER auto-set is bypassed by
-    # this custom serve, so we set the provider explicitly rather than rely on
-    # env defaults), then fail fast if the posture is violated. account_store
-    # stays None so the OIDC/accounts-only construction (app.py:1747) is never
-    # reached — enabling accounts/OIDC is a one-way door deferred past Phase-1.
-    os.environ.setdefault("OMNIGENT_AUTH_PROVIDER", "header")
+    # Header-mode trusted-operator posture (PLT-669). `header` is the natural
+    # env-unset default of resolve_auth_source(); _assert_header_posture fails
+    # fast on any non-header *intent* — an explicit OMNIGENT_AUTH_PROVIDER=
+    # oidc/accounts OR OMNIGENT_AUTH_ENABLED=1 (which resolve_auth_source maps to
+    # accounts/oidc) — rather than silently forcing header. We do NOT mutate the
+    # process env. account_store stays None so the OIDC/accounts construction
+    # (app.py:1748) is never reached — enabling accounts/OIDC is a one-way door
+    # deferred past Phase-1.
     _assert_header_posture()
     auth_provider = omni.create_auth_provider()
     account_store = None
