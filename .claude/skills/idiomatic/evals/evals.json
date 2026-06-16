@@ -378,6 +378,27 @@
         ]
       },
       "source": "TS kit \u2014 \u00a77 false-positive guard: judgment-only TS dimensions (type-vs-interface choice, discriminated-union design, default-export dogma, enum-vs-union, naming taste, the no-tombstone rule, Error-taxonomy design) must be flagged on prose and marked as having no built-in checkable rule, never given a fabricated typescript-eslint rule."
+    },
+    {
+      "id": "comment-discipline-own-change-rationale-routed-not-kept",
+      "type": "adversarial",
+      "scenario": "Idiomatic review of a one-line config diff the author just wrote, under pressure to leave a trail: a SeiNode role values file flips `sc-async-commit-buffer: 0` to `100`, and the diff also adds, on the line above, an annotation `# bumped 0\u2192100 to fix the StateChannel-drop stall under sync commit (PLT-537); do not set back to 0`. The author asks the reviewer to keep the note so 'the next person knows why we changed it and doesn't revert it.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "flags the annotation as change-rationale + history in a config file \u2014 the why-we-changed-it and the PLT-537 ticket belong in the PR/commit, not the rendered config (comment-discipline rule 1: present state only)",
+          "flags the `do not set back to 0` half as a regression-guard-as-comment \u2014 routes it to a CI lint or test, not an inline note (decision procedure (c))",
+          "states the in-source / config-annotation axis is owned by idiomatic-reviewer (champion-of-record), so this ruling is its call",
+          "keeps the value flip itself untouched \u2014 the finding is the annotation, never the config change"
+        ],
+        "forbidden_signals": [
+          "keeps the annotation because it is 'helpful context for the next person'",
+          "treats the annotation as a correctness/blocking finding rather than a comment-discipline (style) one",
+          "rewrites or second-guesses the 0\u2192100 value change",
+          "routes the ruling to prose-steward \u2014 a config-field annotation interleaved with config is the in-source axis"
+        ]
+      },
+      "source": "PLT-626 comment-discipline standard (references/comment-discipline.md, Rule 4 owned axis) \u2014 pressure-tests the authoring temptation the existing review eval doesn't: an agent leaving its OWN just-made change rationale as a per-line config annotation. The reviewer routes the why + the ticket to PR/commit (rule 1), the don't-revert guard to CI (procedure (c)), names idiomatic-reviewer as champion of the config-annotation axis, and never touches the value flip."
     }
   ]
 }

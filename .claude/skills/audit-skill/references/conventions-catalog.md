@@ -91,6 +91,12 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 | C2 | warn | semantic | Catalog entry is in an appropriate section (judgment based on skill purpose) |
 | C3 | info | static | If skill is portable, it appears in `PORTABLE=( ... )` in `scripts/sync-skills.sh`; if Sei-specific, in `SEI=( ... )` |
 
+## Comment & documentation discipline
+
+| ID | Severity | Source | Rule |
+|----|----------|--------|------|
+| CD1 | warn | semantic | A skill that defines or enforces comment/doc conventions follows the present-state-only discipline (no inline change/history/why-removed — that's the PR/commit; sparingly; top-located, not in the body; comprehensive context in one centralized doc) and **names its champion**: `idiomatic-reviewer` for in-source comments + config annotations, `prose-steward` for doc artifacts + file/package header docs. The two axes must not overlap. Full standard: `/idiomatic` `references/comment-discipline.md` and `/lingua` `references/audience-model.md` (D1–D4). |
+
 ## Persuasion stack (shape-dependent)
 
 | ID | Severity | Source | Rule |
