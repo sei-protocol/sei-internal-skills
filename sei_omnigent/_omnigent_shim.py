@@ -78,6 +78,12 @@ from omnigent.stores.host_store import HostStore  # concrete — no ABC upstream
 # Public-ish config helper — lives in server_config, NOT a cli internal.
 from omnigent.server.server_config import config_str_list
 
+# Policy types — re-exported so overlay policy modules (sei_omnigent.policies.*)
+# can type-hint their handlers under TYPE_CHECKING without importing omnigent
+# directly (keeps the single-coupling-surface contract). The PolicyEvent ->
+# PolicyResponse contract: omnigent/policies/schema.py.
+from omnigent.policies.schema import PolicyEvent, PolicyResponse
+
 # --- Private CLI helpers (the drift-prone half — re-verify on every bump) ----
 # These five live only in omnigent/cli.py. NOTE: `import omnigent.cli` is a
 # heavy, side-effecting import — it builds the entire click command tree and
@@ -120,6 +126,9 @@ __all__ = [
     "SqlAlchemyPolicyStore",
     "SqlAlchemyPermissionStore",
     "HostStore",
+    # policy types (for overlay policy-handler type hints)
+    "PolicyEvent",
+    "PolicyResponse",
     # config + private cli helpers
     "config_str_list",
     "_create_artifact_store",
