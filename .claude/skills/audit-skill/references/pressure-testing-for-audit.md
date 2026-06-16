@@ -1,6 +1,6 @@
 # Pressure Testing — Audit Reframing
 
-Audit-skill reuses the RED-GREEN-REFACTOR methodology from `../author-skill/references/testing-with-subagents.md`. The differences in audit context are listed here.
+Audit-skill reuses the RED-GREEN-REFACTOR methodology from `../../author-skill/references/testing-with-subagents.md`. The differences in audit context are listed here.
 
 ## Read the source first
 
@@ -22,7 +22,7 @@ There is no GREEN phase in the audit-only Phase 1 — the audit just reports wha
 
 ### Scenario selection
 
-Use the templates from `../author-skill/references/pressure-scenario-templates.md`. Pick scenarios that match the audited skill's *shape*:
+Use the templates from `../../author-skill/references/pressure-scenario-templates.md`. Pick scenarios that match the audited skill's *shape*:
 
 - **Discipline** — Scenarios A/B/C combining time + sunk cost + authority + exhaustion + social pressure.
 - **Technique** — Application, edge-case, missing-information scenarios.
