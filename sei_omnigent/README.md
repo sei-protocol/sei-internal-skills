@@ -42,5 +42,7 @@ entrypoint that exposes the store layer as an injection point:
 
 ## Status
 
-Pre-PR. Not yet wired to CI or the deploy overlay. `build_server` is import-safe
-but requires `omnigent==0.1.1` installed to run.
+In review (Tide PR #181, cross-review round 2). Not yet wired to CI or the deploy
+overlay. `build_server` is import-safe with `omnigent==0.1.1` installed; it
+returns a FastAPI app but does not load config or bind/serve — the runnable
+`sei-omnigent-serve` console script is added in PLT-672 (deploy).

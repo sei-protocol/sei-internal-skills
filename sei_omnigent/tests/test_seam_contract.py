@@ -76,13 +76,18 @@ def test_only_the_shim_imports_omnigent() -> None:
         if py.name == "_omnigent_shim.py":
             continue
         for node in ast.walk(ast.parse(py.read_text())):
-            mod = None
+            # Collect every module name a node could import — including each
+            # name in a multi-name `import a, omnigent` statement (not just the
+            # first), which a naive node.names[0] check would miss.
+            mods: list[str] = []
             if isinstance(node, ast.ImportFrom):
-                mod = node.module
+                if node.module:
+                    mods.append(node.module)
             elif isinstance(node, ast.Import):
-                mod = node.names[0].name if node.names else None
-            if mod and (mod == "omnigent" or mod.startswith("omnigent.")):
-                offenders.append(f"{py.relative_to(_PKG)} imports {mod}")
+                mods.extend(alias.name for alias in node.names)
+            for mod in mods:
+                if mod == "omnigent" or mod.startswith("omnigent."):
+                    offenders.append(f"{py.relative_to(_PKG)} imports {mod}")
     assert not offenders, (
         "only sei_omnigent._omnigent_shim may import omnigent (DECISION-1 drift isolation): "
         + "; ".join(offenders)

@@ -18,7 +18,9 @@ ONE-WAY DOOR (needs human sign-off — the review-gate does not discharge it)
 ---------------------------------------------------------------------------
 * :class:`Stores` field set / names — the seam contract every Phase-2/3 store
   swap binds to. Named fields (not a positional tuple) deliberately defuse the
-  cross-review C2/C8 "tuple-order vs create_app signature-order" mis-bind risk.
+  cross-review C2/C8 "tuple-order vs create_app signature-order" mis-bind risk,
+  and the fields are typed to the upstream store ABCs so a *type* mis-bind
+  (e.g. ``host=`` vs ``agent_cache=``) is caught too.
 * ``create_app`` is called **by keyword only** — its parameter order differs
   from any natural store ordering; positional wiring would silently mis-bind
   ``artifact_store`` / ``agent_cache``.
@@ -26,7 +28,14 @@ ONE-WAY DOOR (needs human sign-off — the review-gate does not discharge it)
 Scope note: this slice (PLT-667) wires the *stock* stores and ``account_store=
 None`` (header-mode posture). The explicit ``OMNIGENT_AUTH_PROVIDER=header``
 assertion + SSO proxy belong to PLT-669; the server-default read-only policy to
-PLT-668; the harness/roster guard to PLT-670. Hooks are left where they attach.
+PLT-668; the harness/roster guard to PLT-670; the runnable entrypoint (config
+load + uvicorn bind) to PLT-672. Hooks are left where they attach.
+
+Behavior deltas vs stock ``cli.py`` serve (all intentional, header-mode posture):
+the accounts cookie-secret / BASE_URL setdefault and the ``SqlAlchemyAccountStore``
+construction are omitted (dead under header mode); ``parse_sandbox_config`` is
+called without the stock ``ValueError -> click.ClickException`` rewrap (no Click
+context here) — a ``sandbox:`` typo surfaces as a raw ``ValueError``.
 """
 
 from __future__ import annotations
@@ -38,8 +47,22 @@ from typing import TYPE_CHECKING, Any
 
 from sei_omnigent import _omnigent_shim as omni
 
-if TYPE_CHECKING:  # types only — avoids importing heavy modules at runtime
+if TYPE_CHECKING:  # types only — no runtime import of omnigent (drift contract)
     from fastapi import FastAPI
+
+    # Imported *through the shim* so the "only the shim imports omnigent" guard
+    # holds (the AST test keys on the `omnigent*` module name, not the shim).
+    from sei_omnigent._omnigent_shim import (
+        AgentCache,
+        AgentStore,
+        ArtifactStore,
+        CommentStore,
+        ConversationStore,
+        FileStore,
+        HostStore,
+        PermissionStore,
+        PolicyStore,
+    )
 
 
 # RuntimeCaps default; matches Omnigent's documented 2h execution timeout.
@@ -52,25 +75,24 @@ class Stores:
 
     Phase-1 holds the stock SqlAlchemy/Local implementations. Phase-2 replaces
     ``agent`` + ``artifact`` with chain-backed implementations; Phase-3 replaces
-    ``conversation`` with a TEE-sealed one. Each is a clean Omnigent store ABC,
-    so a swap is a one-line change *here* — no Omnigent fork.
+    ``conversation`` with a TEE-sealed one — via :func:`dataclasses.replace` or a
+    custom factory, a one-line change, no Omnigent fork.
 
-    ``agent_cache`` rides on the seam (it is derived from ``artifact`` and is a
-    required ``create_app`` / ``init_runtime`` input — cross-review C8). ``host``
-    is the one non-ABC store upstream (``HostStore`` is concrete); it is carried
-    here for completeness but is not cleanly swappable until upstream gives it an
-    ABC (tracked for Phase-3 attesting-host work).
+    Fields are typed to the upstream store ABCs (``host`` is the one concrete
+    type — ``HostStore`` has no ABC upstream, the known C10 carried cost).
+    ``agent_cache`` rides on the seam: it is derived from ``artifact`` and is a
+    required ``create_app`` / ``init_runtime`` input (cross-review C8).
     """
 
-    agent: Any
-    file: Any
-    conversation: Any
-    comment: Any
-    policy: Any
-    permission: Any
-    artifact: Any
-    host: Any
-    agent_cache: Any
+    agent: "AgentStore"
+    file: "FileStore"
+    conversation: "ConversationStore"
+    comment: "CommentStore"
+    policy: "PolicyStore"
+    permission: "PermissionStore"
+    artifact: "ArtifactStore"
+    host: "HostStore"
+    agent_cache: "AgentCache"
 
 
 def _resolve_locations(cfg: dict[str, Any]) -> tuple[str, str]:
@@ -118,7 +140,7 @@ def make_stores(cfg: dict[str, Any]) -> Stores:
 
 def _runner_tunnel_tokens() -> frozenset[str] | None:
     """Pre-shared tunnel token from the env, else None (accept any token-bound runner)."""
-    token = os.environ.get("OMNIGENT_RUNNER_TUNNEL_TOKEN")
+    token = (os.environ.get("OMNIGENT_RUNNER_TUNNEL_TOKEN") or "").strip()
     return frozenset({token}) if token else None
 
 
@@ -128,10 +150,10 @@ def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> "FastA
     Mirrors the stock serve boot sequence (init_runtime → telemetry → agent
     pre-registration → sandbox parse → auth → create_app), but sources every
     store from :func:`make_stores`. Pass ``stores=`` to inject a custom seam
-    (the Phase-2/3 path) without re-resolving locations.
+    (the Phase-2/3 path). Location resolution is owned by ``make_stores`` — this
+    function does not recompute it.
     """
-    db_uri, art_loc = _resolve_locations(cfg)
-    s = stores or make_stores(cfg)
+    s = stores if stores is not None else make_stores(cfg)
 
     caps = omni.RuntimeCaps(
         execution_timeout=int(cfg.get("execution_timeout") or _DEFAULT_EXECUTION_TIMEOUT_S),
@@ -156,12 +178,14 @@ def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> "FastA
     for agent_dir in cfg.get("agent_dirs", []) or []:
         omni._preregister_agent(Path(agent_dir), s.agent, s.artifact, s.agent_cache)
 
-    # Fail fast on a sandbox-config typo (stock serve raises here too).
+    # Fail fast on a sandbox-config typo. Stock serve rewraps this ValueError as
+    # a click.ClickException; here (no Click context) it surfaces raw — same
+    # fail-fast effect, different exception type.
     sandbox_config = omni.parse_sandbox_config(cfg.get("sandbox"))
 
     # Phase-1 posture is header mode (PLT-669 adds the explicit-provider +
     # LOCAL_SINGLE_USER boot-assert). account_store stays None so the
-    # OIDC/accounts-only construction (app.py:1748) is never reached — the
+    # OIDC/accounts-only construction (app.py:1747) is never reached — the
     # accounts surface stays inert and the one-way-door to enabling it is
     # left to PLT-669.
     auth_provider = omni.create_auth_provider()
