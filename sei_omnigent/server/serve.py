@@ -118,6 +118,15 @@ def make_stores(cfg: dict[str, Any]) -> Stores:
         stores = replace(stores, agent=ChainAgentStore(...))  # Phase-2
 
     or by subclassing this factory — without touching Omnigent or build_server.
+
+    SYNC-ONLY (boot path): this does blocking I/O — ``_ensure_sqlite_parent_dir``
+    (mkdir), the SqlAlchemy engine constructions, the artifact store, the agent
+    cache dir. Call it at boot, never from an ``async`` context. A Phase-2/3
+    re-invocation from a FastAPI ``lifespan`` or an async "reload config" route
+    would block the event loop and starve every in-flight request (and the
+    ``async`` ``/health`` probe → kubelet kill). If a later phase needs to rebuild
+    stores on a request path, run it in a threadpool (``run_in_executor`` / a
+    plain ``def`` route), not inline on the loop.
     """
     db_uri, art_loc = _resolve_locations(cfg)
 

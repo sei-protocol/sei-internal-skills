@@ -12,7 +12,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import os
+import pytest
 
 from sei_omnigent._config import (
     build_effective_config,
@@ -58,31 +58,21 @@ def test_scalar_policy_modules_string_is_coerced_not_split() -> None:
     assert _READ_ONLY_MODULE in cfg["policy_modules"]
 
 
-def test_int_env_handles_unset_empty_and_malformed() -> None:
+def test_int_env_handles_unset_empty_and_malformed(monkeypatch: pytest.MonkeyPatch) -> None:
     """Unset OR set-but-empty → default (manifest `value: ""` must not crash boot);
     a valid value parses; a malformed value fails loud (Bugbot finding)."""
     key = "SEI_TEST_INT_ENV"
-    saved = os.environ.get(key)
-    try:
-        os.environ.pop(key, None)
-        assert int_env(key, default=8000) == 8000  # unset → default
-        os.environ[key] = ""
-        assert int_env(key, default=8000) == 8000  # set-but-empty → default
-        os.environ[key] = "  "
-        assert int_env(key, default=8000) == 8000  # whitespace-only → default
-        os.environ[key] = "9090"
-        assert int_env(key, default=8000) == 9090  # valid → parsed
-        os.environ[key] = "not-an-int"
-        try:
-            int_env(key, default=8000)
-            raise AssertionError("malformed value must raise (fail-loud)")
-        except ValueError:
-            pass
-    finally:
-        if saved is None:
-            os.environ.pop(key, None)
-        else:
-            os.environ[key] = saved
+    monkeypatch.delenv(key, raising=False)
+    assert int_env(key, default=8000) == 8000  # unset → default
+    monkeypatch.setenv(key, "")
+    assert int_env(key, default=8000) == 8000  # set-but-empty → default
+    monkeypatch.setenv(key, "  ")
+    assert int_env(key, default=8000) == 8000  # whitespace-only → default
+    monkeypatch.setenv(key, "9090")
+    assert int_env(key, default=8000) == 9090  # valid → parsed
+    monkeypatch.setenv(key, "not-an-int")
+    with pytest.raises(ValueError):
+        int_env(key, default=8000)
 
 
 def test_policy_modules_union_is_deduped_and_order_preserving() -> None:

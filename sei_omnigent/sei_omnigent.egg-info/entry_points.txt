@@ -1,0 +1,2 @@
+[console_scripts]
+sei-omnigent-serve = sei_omnigent.server.serve_main:main

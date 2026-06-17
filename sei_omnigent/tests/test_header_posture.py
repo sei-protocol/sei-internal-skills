@@ -11,6 +11,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 from sei_omnigent._posture import header_posture_error
 
 _SERVE = Path(__file__).resolve().parent.parent / "server" / "serve.py"
@@ -97,7 +99,7 @@ def test_serve_omni_attrs_are_exported_by_the_shim() -> None:
     assert not missing, f"serve.py uses omni attrs absent from the shim __all__: {sorted(missing)}"
 
 
-def test_assert_header_posture_raises_behaviorally() -> None:
+def test_assert_header_posture_raises_behaviorally(monkeypatch: pytest.MonkeyPatch) -> None:
     """Behavioral: with omnigent installed, _assert_header_posture raises on a
     non-header provider and on LOCAL_SINGLE_USER. Skipped in unit CI (no omnigent);
     runs in the omnigent-installed integration job — closes the executed-path gap
@@ -105,30 +107,15 @@ def test_assert_header_posture_raises_behaviorally() -> None:
     try:
         from sei_omnigent.server import serve  # noqa: PLC0415
     except Exception:  # omnigent absent (unit CI) — integration job covers this
-        return
+        pytest.skip("omnigent not installed")
 
-    import os  # noqa: PLC0415
+    # monkeypatch auto-restores the env on teardown — no manual save/finally ladder.
+    monkeypatch.setenv("OMNIGENT_AUTH_PROVIDER", "oidc")
+    monkeypatch.delenv("OMNIGENT_LOCAL_SINGLE_USER", raising=False)
+    with pytest.raises(RuntimeError):
+        serve._assert_header_posture()
 
-    saved = {k: os.environ.get(k) for k in ("OMNIGENT_AUTH_PROVIDER", "OMNIGENT_LOCAL_SINGLE_USER")}
-    try:
-        os.environ["OMNIGENT_AUTH_PROVIDER"] = "oidc"
-        os.environ.pop("OMNIGENT_LOCAL_SINGLE_USER", None)
-        try:
-            serve._assert_header_posture()
-            raise AssertionError("oidc auth source must raise")
-        except RuntimeError:
-            pass
-
-        os.environ["OMNIGENT_AUTH_PROVIDER"] = "header"
-        os.environ["OMNIGENT_LOCAL_SINGLE_USER"] = "1"
-        try:
-            serve._assert_header_posture()
-            raise AssertionError("OMNIGENT_LOCAL_SINGLE_USER must raise")
-        except RuntimeError:
-            pass
-    finally:
-        for k, v in saved.items():
-            if v is None:
-                os.environ.pop(k, None)
-            else:
-                os.environ[k] = v
+    monkeypatch.setenv("OMNIGENT_AUTH_PROVIDER", "header")
+    monkeypatch.setenv("OMNIGENT_LOCAL_SINGLE_USER", "1")
+    with pytest.raises(RuntimeError):
+        serve._assert_header_posture()

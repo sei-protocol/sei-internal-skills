@@ -63,10 +63,10 @@ _FILE_MUTATION_TOOLS = frozenset(
 )
 _SHELL_TOOLS = frozenset({"sys_os_shell", "Bash", "bash"})
 
-_ALLOW: "PolicyResponse" = {"result": "ALLOW"}
+_ALLOW: PolicyResponse = {"result": "ALLOW"}
 
 
-def deny_mutating_os(*, deny_shell: bool = False) -> "PolicyCallable":
+def deny_mutating_os(*, deny_shell: bool = False) -> PolicyCallable:
     """Factory: a server-default policy that DENYs non-GitHub OS file mutations.
 
     :param deny_shell: When ``True``, also DENY shell tools (``Bash``/
@@ -78,7 +78,7 @@ def deny_mutating_os(*, deny_shell: bool = False) -> "PolicyCallable":
     :returns: a ``PolicyEvent -> PolicyResponse`` callable.
     """
 
-    def evaluate(event: "PolicyEvent") -> "PolicyResponse":
+    def evaluate(event: PolicyEvent) -> PolicyResponse:
         """DENY file-mutation tools (and shell iff deny_shell); abstain (ALLOW) otherwise."""
         if event.get("type") != "tool_call":
             return _ALLOW
@@ -107,6 +107,8 @@ def deny_mutating_os(*, deny_shell: bool = False) -> "PolicyCallable":
         # github_policy / settings.json / other defaults decide).
         return _ALLOW
 
+    # evaluate matches the PolicyCallable structural type; mypy can't prove the
+    # plain-dict return satisfies the PolicyResponse TypedDict shape.
     return evaluate  # type: ignore[return-value]
 
 
