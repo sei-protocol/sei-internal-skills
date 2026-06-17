@@ -20,7 +20,7 @@ Refusal conditions — they hold under time pressure and a checklist-completion 
 1. **No consequence → no finding** (Rule 1). Never flag a rule that doesn't bite for this system's load/criticality.
 2. **Cite every finding; stay copyright-clean.** An authority and/or repo rule per finding; never reproduce or closely-reword reserved source text.
 3. **Suggest-only.** Never rewrite the author's files — produce findings the human/calling agent applies.
-4. **Don't duplicate the idiom or ops lens** (Rule 3). Idiom → `/idiomatic`; operating the live system → the ops agents. *One carve-out:* a **tombstone** (removal-narration at a deletion site) is flagged as a correct-over-time hazard by **citing** the idiom comment-discipline dimension (Go `D10` / Rust `R11`) — see Rule 3.
+4. **Don't duplicate the idiom or ops lens** (Rule 3). Idiom → `/idiomatic`; operating the live system → the ops agents. *One carve-out:* a **tombstone** (removal-narration at a deletion site) is flagged as a correct-over-time hazard by **citing** the idiom comment-discipline dimension (its per-language id — e.g. Go `D10`, Python `P10`; full map in `references/safety-quality.md`) — see Rule 3.
 5. **One-way doors are flagged, not asserted.** A change to a published API/wire format goes to human approval.
 
 ## When to use / when not
@@ -41,7 +41,7 @@ Idiom ⊂ systems quality: `/idiomatic` answers "does it read native"; `/systems
 ## The method
 
 1. **Identify the work's systems surface** and load the relevant reference(s): `reliability` (remote calls, retries, queues, failure handling), `observability` (does it expose how it's doing), `performance` (hot paths, concurrency, latency), `safety-quality` (invariants, bounds, untrusted input), `api-design` (a published/wire interface).
-2. **Apply on top of the `/idiomatic` pass** — don't re-flag idiom (that's the other lens). The one exception: a **tombstone** (removal-narration at a deletion site) is in scope as a correct-over-time hazard — flag it by citing the idiom comment-discipline dimension (Go `D10` / Rust `R11`), don't re-derive the rule (Rule 3 carve-out).
+2. **Apply on top of the `/idiomatic` pass** — don't re-flag idiom (that's the other lens). The one exception: a **tombstone** (removal-narration at a deletion site) is in scope as a correct-over-time hazard — flag it by citing the idiom comment-discipline dimension (its per-language id — e.g. Go `D10`, Python `P10`; full map in `references/safety-quality.md`), don't re-derive the rule (Rule 3 carve-out).
 3. **Rank every finding by consequence under load** (severity model in each reference): correctness/safety > consequence-under-load > advisory.
 4. **Cite every finding** (an authority from `sources.md` and/or a repo rule) and suggest the fix. Suggest-only — never rewrite the author's files.
 
@@ -56,7 +56,7 @@ Every finding names the failure mode it prevents *for this system's actual load 
 Every finding names a canonical authority (Google SRE, AWS Builder's Library, OTel semconv, TIGER STYLE, Google AIP…) and/or a repo rule. No naked "this won't scale." The citation is a link, **never reproduced or closely-reworded reserved text** — half the sources are reserved (cite-only); copyright discipline is a spine rule here, not a footnote. An irreversible change (API/wire format) is **flagged for human approval**, not asserted.
 
 ### Rule 3 — Don't duplicate the idiom or the ops lens
-"Reads native" → `/idiomatic`. "Operate/run the live system" (postmortems, on-call, runtime cluster tuning) → the ops agents. `/systems` reviews how the *code and architecture* behave on the machine and over time — nothing else. The one comment class it still flags is the **tombstone** (removal-narration left at a deletion site): a correct-over-time hazard because stale narration misleads a future operator about *current* intent. Flag it by **citing the idiomatic pack's comment-discipline dimension** (Go `D10` / Rust `R11`) — cite the idiom lens, never re-derive it (see `references/safety-quality.md`).
+"Reads native" → `/idiomatic`. "Operate/run the live system" (postmortems, on-call, runtime cluster tuning) → the ops agents. `/systems` reviews how the *code and architecture* behave on the machine and over time — nothing else. The one comment class it still flags is the **tombstone** (removal-narration left at a deletion site): a correct-over-time hazard because stale narration misleads a future operator about *current* intent. Flag it by **citing the idiomatic pack's comment-discipline dimension** (its per-language id — e.g. Go `D10`, Python `P10`; full map in `references/safety-quality.md`) — cite the idiom lens, never re-derive it (see `references/safety-quality.md`).
 
 ### Rationalization table
 
@@ -66,7 +66,7 @@ Every finding names a canonical authority (Google SRE, AWS Builder's Library, OT
 | "This is clean code, but let me list some systems nits to be thorough." | Rule 1. On a sound system, say "behaves well — no findings." Padding gets the reviewer muted. |
 | "I'll quote the SRE Book / the article to make the point." | Rule 2. Cite-and-link; never reproduce reserved text. Summarize the idea in your own words. |
 | "The function's a bit long / the name's off." | Rule 3. That's `/idiomatic`. Don't duplicate the idiom lens. |
-| "It's just a stale comment narrating what got removed — that's idiom, skip it." | Rule 3 carve-out. A tombstone is in scope as a *correct-over-time* hazard (a future operator reads the removal-narration as current intent). Flag it — **cite the idiomatic comment-discipline dimension** (Go `D10` / Rust `R11`), don't re-derive the comment rule. The rest of comment idiom stays `/idiomatic`. |
+| "It's just a stale comment narrating what got removed — that's idiom, skip it." | Rule 3 carve-out. A tombstone is in scope as a *correct-over-time* hazard (a future operator reads the removal-narration as current intent). Flag it — **cite the idiomatic comment-discipline dimension** (its per-language id — e.g. Go `D10`, Python `P10`; full map in `references/safety-quality.md`), don't re-derive the comment rule. The rest of comment idiom stays `/idiomatic`. |
 | "Let me also tune the alert / write the runbook." | Rule 3. That's `sre-engineer`. This skill reviews the code, not the running system. |
 | "I'll just rename the API field to fix it." | Rule 2. A wire-format change is a one-way door — flag for human approval, don't assert. |
 
@@ -103,7 +103,7 @@ The `systems-engineer` persona's first step loads the relevant `/systems` refere
 Stop and ask / escalate rather than proceeding when:
 
 - **No target artifact** to review (the code/design can't be read) — halt and ask; never review from memory.
-- **The work is really another lens** — idiom (`/idiomatic`), line-level correctness (`/code-review`), or operating the live system (the ops agents) — redirect rather than stretch this skill over it. *Exception:* a **tombstone** (removal-narration at a deletion site) is not redirected away — it stays a systems finding (correct-over-time hazard), flagged by citing the idiom comment-discipline dimension (Go `D10` / Rust `R11`); see Rule 3.
+- **The work is really another lens** — idiom (`/idiomatic`), line-level correctness (`/code-review`), or operating the live system (the ops agents) — redirect rather than stretch this skill over it. *Exception:* a **tombstone** (removal-narration at a deletion site) is not redirected away — it stays a systems finding (correct-over-time hazard), flagged by citing the idiom comment-discipline dimension (its per-language id — e.g. Go `D10`, Python `P10`; full map in `references/safety-quality.md`); see Rule 3.
 - **A finding would set a one-way door** (API/wire-format change) — stop and escalate to a human instead of asserting the fix.
 
 ## What this skill defers
