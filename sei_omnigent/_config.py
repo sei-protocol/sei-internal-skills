@@ -53,8 +53,7 @@ def build_effective_config(raw_cfg: dict[str, Any], *, deny_shell: bool) -> dict
     (order-preserving, deduped) to populate the policy-registry *catalog* and
     permit runtime re-attach via the policy-write APIs.
 
-    Resolution TIMING (corrected per the refinement cross-review — the prior
-    "fires at boot" claim was wrong): omnigent's ``resolve_function_policy``
+    Resolution TIMING: omnigent's ``resolve_function_policy``
     instantiates a server-default policy by direct ``import_module`` — bypassing
     the registry allowlist (which gates only untrusted *attach* routes) — but it
     does so **lazily, per session** (``runtime/policies/builder.py`` ←

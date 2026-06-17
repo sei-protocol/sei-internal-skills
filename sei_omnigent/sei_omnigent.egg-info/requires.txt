@@ -1,4 +1,0 @@
-omnigent==0.1.1
-
-[test]
-pytest>=7
