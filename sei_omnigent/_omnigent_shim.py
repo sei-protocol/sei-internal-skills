@@ -32,7 +32,7 @@ re-confirm the private-helper locations against the 0.1.1 wheel on bump.
   - resolve_auth_source/create_auth_provider/UnifiedAuthProvider
                                      omnigent/server/auth.py
   - _create_artifact_store/_preregister_agent/_ensure_sqlite_parent_dir/
-    _default_db_uri/_default_artifact_location
+    _default_db_uri/_default_artifact_location/_server_uvicorn_log_config
                                      omnigent/cli.py  (private — re-verify on bump)
 """
 
@@ -103,6 +103,7 @@ from omnigent.cli import (
     _ensure_sqlite_parent_dir,
     _default_db_uri,
     _default_artifact_location,
+    _server_uvicorn_log_config,
 )
 
 __all__ = [
@@ -146,4 +147,5 @@ __all__ = [
     "_ensure_sqlite_parent_dir",
     "_default_db_uri",
     "_default_artifact_location",
+    "_server_uvicorn_log_config",
 ]

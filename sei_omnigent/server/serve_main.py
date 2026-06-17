@@ -43,7 +43,7 @@ _SHUTDOWN_TIMEOUT_ENV = "OMNIGENT_SERVER_SHUTDOWN_TIMEOUT_S"
 _SHUTDOWN_TIMEOUT_DEFAULT = 30
 
 
-def main(argv: list[str] | None = None) -> None:
+def main() -> None:
     """Load config → build the app via the seam → bind uvicorn.
 
     The omnigent-touching imports live here (not at module scope) so
@@ -66,10 +66,16 @@ def main(argv: list[str] | None = None) -> None:
     port = int(os.environ.get("OMNIGENT_SERVER_PORT", str(_DEFAULT_PORT)))
     shutdown_timeout = int(os.environ.get(_SHUTDOWN_TIMEOUT_ENV, str(_SHUTDOWN_TIMEOUT_DEFAULT)))
 
+    # Mirror omnigent cli.py's uvicorn bind EXACTLY (cli.py:3126-3132), including
+    # log_config — it installs RequestDurationAccessFormatter, the only source of
+    # per-request duration in the access log. create_app wires the middleware that
+    # populates the duration context (app.py:1019 -> performance_metrics), so the
+    # suffix is live. Dropping it would silently lose latency signal in the pod.
     uvicorn.run(
         app,
         host=host,
         port=port,
+        log_config=omni._server_uvicorn_log_config(),
         ws_max_size=omni.RUNNER_TUNNEL_MAX_MESSAGE_BYTES,
         timeout_graceful_shutdown=shutdown_timeout,
     )

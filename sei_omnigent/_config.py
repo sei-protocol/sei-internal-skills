@@ -32,8 +32,13 @@ def build_effective_config(raw_cfg: dict[str, Any], *, deny_shell: bool) -> dict
     ``admin__deny_mutating_os``) are **authoritative**: they are spread last, so
     they win on a key collision. An operator config may *add* policies but cannot
     silently drop the read-only backstop by reusing a key. ``READ_ONLY_POLICY_MODULES``
-    is unioned into ``policy_modules`` (order-preserving, deduped) so the
-    ``deny_mutating_os`` handler is allow-listed by ``load_registry``.
+    is unioned into ``policy_modules`` (order-preserving, deduped) to populate the
+    policy-registry *catalog* and permit runtime re-attach of the handler via the
+    policy-write APIs. Note: the backstop itself does **not** depend on this union —
+    server-default policies are instantiated by direct ``import_module`` in
+    omnigent's ``resolve_function_policy``, which bypasses the registry allowlist
+    (that allowlist gates only untrusted attach routes), so ``deny_mutating_os``
+    fires at boot whether or not the module is listed. The union is belt-and-suspenders.
     """
     cfg = dict(raw_cfg)
     cfg["policies"] = {
@@ -59,5 +64,5 @@ def load_config(path: str | None) -> dict[str, Any]:
         return {}
     import yaml  # noqa: PLC0415
 
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f) or {}

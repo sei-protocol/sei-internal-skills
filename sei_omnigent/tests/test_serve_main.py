@@ -60,6 +60,27 @@ def test_load_config_none_returns_empty() -> None:
     assert load_config("") == {}
 
 
+def test_uvicorn_bind_mirrors_omnigent_kwargs() -> None:
+    """The bind must mirror omnigent cli.py's uvicorn.run kwargs — in particular
+    ``log_config`` (installs RequestDurationAccessFormatter, the only per-request
+    duration in the access log), ``ws_max_size``, and ``timeout_graceful_shutdown``
+    (the C11 drain window). A refactor that silently drops one diverges from the
+    named source of truth with no other signal; this catches it."""
+    tree = ast.parse(_SERVE_MAIN.read_text())
+    call = next(
+        n for n in ast.walk(tree)
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "run"
+        and isinstance(n.func.value, ast.Name)
+        and n.func.value.id == "uvicorn"
+    )
+    kwargs = {k.arg for k in call.keywords if k.arg is not None}
+    required = {"host", "port", "log_config", "ws_max_size", "timeout_graceful_shutdown"}
+    missing = required - kwargs
+    assert not missing, f"uvicorn.run is missing kwargs that mirror omnigent's bind: {sorted(missing)}"
+
+
 def test_omnigent_imports_are_deferred_into_main() -> None:
     """The entrypoint's module-level imports must NOT pull omnigent/the shim/the
     seam/uvicorn — those live inside ``main`` so the pure helpers import without

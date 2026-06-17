@@ -9,6 +9,12 @@ requires-python = ">=3.12"
 # exact release. Bumping this pin is the trigger to re-run the shim drift check.
 dependencies = [
     "omnigent==0.1.1",
+    # serve_main binds uvicorn directly (the runnable entrypoint, PLT-672). It
+    # rides in transitively via omnigent today, but the entrypoint imports it by
+    # name, so declare it explicitly — a future omnigent pin that drops/extras
+    # uvicorn would otherwise break the console script at runtime (drift-watch
+    # tied to the shim's on-bump re-verify).
+    "uvicorn",
 ]
 
 # Test deps. The pure overlay tests (seam/posture/policy/harness) run without an
