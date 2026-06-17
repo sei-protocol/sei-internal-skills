@@ -154,7 +154,8 @@ def test_private_cli_helpers_resolve_in_omnigent() -> None:
 
 def test_pinned_omnigent_matches_pyproject() -> None:
     """The PINNED_OMNIGENT constant and the pyproject pin agree."""
-    import sei_omnigent  # no omnigent import in the top package
+    # deferred: this test asserts the top package imports without pulling omnigent.
+    import sei_omnigent  # noqa: PLC0415
 
     pyproject = tomllib.loads((_PKG / "pyproject.toml").read_text())
     deps = pyproject["project"]["dependencies"]
