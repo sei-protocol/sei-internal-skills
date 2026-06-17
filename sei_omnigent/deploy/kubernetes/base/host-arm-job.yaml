@@ -42,10 +42,23 @@ spec:
     spec:
       serviceAccountName: omnigent-host-arm
       restartPolicy: Never
+      # Pod-level PSS-restricted floor, matching the Deployments — so this Job
+      # is not rejected at admit under a restricted-PodSecurity namespace while
+      # the Deployments pass (cross-review idiom: consistent posture surface).
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       imagePullSecrets:
         - name: omnigent-ghcr
       containers:
         - name: arm
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            # readOnlyRootFilesystem left default — the k8s client / HostStore
+            # path may need scratch; tighten per-workload if confirmed safe.
           # Needs the omnigent package (for the HostStore path) + kubectl/k8s
           # client to write the Secret. Same pinned omnigent image; the arm
           # script uses the in-cluster ServiceAccount token for the Secret write.

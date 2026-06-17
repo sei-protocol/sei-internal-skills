@@ -38,10 +38,19 @@ spec:
         spec:
           serviceAccountName: omnigent-host-arm
           restartPolicy: Never
+          # Pod-level PSS-restricted floor (matches the arm Job + Deployments).
+          securityContext:
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           imagePullSecrets:
             - name: omnigent-ghcr
           containers:
             - name: rearm
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
               image: PLACEHOLDER_IMAGE:PLACEHOLDER_TAG
               env:
                 - name: OMNIGENT_HOST_ID

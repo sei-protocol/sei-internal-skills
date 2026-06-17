@@ -20,6 +20,12 @@ spec:
     spec:
       securityContext:
         fsGroup: 999 # postgres uid/gid in the alpine image — lets PVC be writable
+        seccompProfile:
+          type: RuntimeDefault
+        # NOTE: runAsNonRoot is deliberately NOT set — the official postgres
+        # entrypoint starts as root to initdb/chown the data dir, then drops to
+        # uid 999. Forcing non-root breaks first-boot. (Phase-1 in-cluster DB;
+        # a managed PG or a rootless image removes this carve-out.)
       containers:
         - name: postgres
           image: postgres:16-alpine

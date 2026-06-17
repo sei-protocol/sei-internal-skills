@@ -190,21 +190,41 @@ the `postgres-ingress` NetworkPolicy. No server code change.
 
 ---
 
-## Items flagged for cross-review refinement
+## Cross-review outcome + remaining pre-apply gates
 
-1. **`PLACEHOLDER_ARM_SCRIPT` (highest).** The exact `register_managed_host`
-   call (`host_store.py:524`) is "off the intended launcher path" — a DECISION-1
-   drift-watch surface. Preferred: a `python -c` reusing the server's `HostStore`
-   against the same `database_uri`. Pin and confirm acceptance against 0.1.1
-   before apply.
-2. **oauth2-proxy header mapping** (`--set-xauthrequest` / `--pass-user-headers`
-   → `X-Forwarded-Email`) — verify the exact flag behavior on v7.6.0; the strip
-   is load-bearing.
+**Resolved during cross-review (implemented in these manifests):**
+- **Arm script — IMPLEMENTED.** `host-arm-job.yaml` / `host-rearm-cronjob.yaml`
+  now run a real fail-closed `python -c` reusing `omnigent.stores.host_store.HostStore(dsn)`
+  + `register_managed_host(...)` (keyword signature + import verified vs omnigent
+  0.1.0; `HostStore.__init__(storage_location)` per `cli.py:3003`). The DB DSN is
+  sourced via `secretKeyRef` (no inline password). **Still a pre-apply gate:** the
+  synthetic-arming call must be re-confirmed accepted against the pinned **0.1.1**
+  (PLT-675), and the image must carry the `kubernetes` python client (or `kubectl`).
+- **oauth2-proxy header mapping — RESOLVED.** `--set-xauthrequest` removed (it fed
+  the rejected nginx auth-url pattern); `--pass-user-headers=true` is the load-bearing
+  control (sets + overwrites `X-Forwarded-Email` from the validated session, read
+  verbatim at `auth.py:353`). An ingress-level `more_clear_input_headers` inbound
+  strip was added as defense-in-depth.
+- **`commonLabels` → `labels` migration — DONE** (details below).
+- **securityContext floor** applied across Deployments + the arm/re-arm workloads
+  (PSS-restricted baseline; postgres keeps a documented root carve-out).
+
+**Remaining pre-apply gates (MUST pass before `kubectl apply`):**
+1. **0.1.0→0.1.1 auth-path re-diff** (PLT-675) — re-verify the 4 auth-path files
+   and the `register_managed_host`/`HostStore` shape against the pinned 0.1.1.
+2. **Forged-`X-Forwarded-Email` negative test** — a request carrying a client
+   `X-Forwarded-Email` through the full Ingress→oauth2-proxy chain MUST NOT
+   authenticate as that user.
 3. **PLT-674 live-rotation** — does token rotation re-auth the live tunnel or
    only the next dial? Determines whether a post-re-arm host restart is needed.
-4. **Ingress annotations** — written for nginx; translate buffering/timeout to
-   the actual `PLACEHOLDER_INGRESSCLASS` controller.
-5. **`commonLabels` → `labels` migration — DONE.** Both kustomizations now use
+4. **CNI enforcement** — confirm the target cluster's CNI enforces NetworkPolicy
+   (Cilium/Calico); the header-mode trust model collapses without it.
+5. **Ingress controller** — annotations are nginx-specific (buffering/timeout +
+   the `configuration-snippet` strip); translate for the actual
+   `PLACEHOLDER_INGRESSCLASS`, or confirm snippet annotations are enabled.
+
+### `commonLabels` → `labels` migration (DONE)
+Both kustomizations now use
    `labels:` with `includeSelectors: false`. This is not cosmetic: under the old
    `commonLabels`, the `app.kubernetes.io/*` labels were injected into EVERY
    podSelector — including the cross-namespace **kube-dns peer** in the
