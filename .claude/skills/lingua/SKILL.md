@@ -91,7 +91,7 @@ loaded). All three failed in ways this spine now counters:
 
 ## The method — Translate
 
-1. **Load the doctrine (gate a).** `references/audience-model.md` (the two reading models + the five
+1. **Load the doctrine (gate a).** `references/audience-model.md` (the two reading models + the six
    dual-aligned rules R1–R6 and their basis tiers) and the artifact pack for the doc type —
    `references/pack-hld.md`, `references/pack-lld.md`, or `references/pack-1pager.md`. No pack for the
    type → use `audience-model.md` + first principles and flag the missing-pack gap; don't invent a pack.

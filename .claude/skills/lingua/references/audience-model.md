@@ -105,20 +105,21 @@ carried constraints without loss for agent readers*); the underlying scan behavi
 **R6 — Distill for the human; layer for the agent.** The human reader has finite attention and needs the
 core points distilled to the right technical depth and delivered first — exactly as much as the decision
 requires, no more (the executive-summary intent). Condensing information-rich content to its load-bearing
-core is a **force multiplier**, not a courtesy — and it is the one place the two audiences genuinely
-diverge on *volume*: the agent ingests linearly and tolerates (often benefits from) the completeness a
-human would experience as noise. Resolve the divergence by **progressive disclosure**, not by choosing one
-reader — lead with the distilled answer/summary for the human who stops there (this composes R2's
-load-bearing lead), then layer the complete detail beneath for the agent and the human who needs depth.
+core is a **force multiplier**, not a courtesy. R6 turns the volume asymmetry R3 already names into a
+move: the agent ingests linearly and tolerates (often benefits from) the completeness a human would
+experience as noise, so layered detail costs the agent nothing while a distilled lead saves the human.
+Resolve the divergence by **progressive disclosure**, not by choosing one reader — lead with the distilled
+answer/summary for the human who stops there (this composes R2's load-bearing lead), then layer the
+complete detail beneath for the agent and the human who needs depth.
 **Fidelity bound:** distill the *altitude*, never the load-bearing content — the summary sits atop
 preserved detail, it never *replaces* it, and a decided constraint, number, or safety/rollback/migration
 section is never compressed away to save a line (R3/R4 outrank R6; summarization is lossy compression).
 *Tier:* the answer-first/distillation practice is **Cited** — convergent across four independent ecosystems
 (US Army BLUF; Minto's Pyramid Principle; the journalistic inverted pyramid; NN/g progressive disclosure —
 https://www.nngroup.com/articles/progressive-disclosure/) with Grice's maxim of Quantity as the linguistic
-root, and the executive-summary convention as the artifact form (USC Libraries —
-https://libguides.usc.edu/writingguide/executivesummary — explicit that the summary "does not replace the
-full document"). The *agent-benefits-from-what-a-human-finds-noisy* contrast inherits the **Stated-opinion**
+root, and the executive-summary convention as the artifact form — a decision-first, stand-alone overview
+(USC Libraries — https://libguides.usc.edu/writingguide/executivesummary). The fidelity bound above
+(distill the altitude, layer not replace) is **this skill's own** rule, not attributed to USC. The *agent-benefits-from-what-a-human-finds-noisy* contrast inherits the **Stated-opinion**
 tier of R3's length/redundancy claim it builds on (falsification: *we'd revise if distilled-but-layered docs
 measurably degraded agent task performance versus flat, complete ones*).
 

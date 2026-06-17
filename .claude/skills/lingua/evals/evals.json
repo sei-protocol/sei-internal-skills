@@ -98,7 +98,7 @@
       "expected_behavior": [
         "Distills the document's altitude (a decision-first lead/summary) but does NOT replace the detail with the summary \u2014 the flag-OFF ordering constraint and the irreversibility/double-count consequence are PRESERVED, layered beneath the lead (R6 fidelity bound; progressive disclosure, not substitution)",
         "Refuses to compress away a load-bearing, decided, one-way-door constraint to shorten the doc \u2014 R3/R4 outrank R6; 'summarization is lossy' is the named hazard",
-        "Surfaces that an executive summary sits ATOP preserved detail (it 'does not replace the full document'), and if the user wants the detail physically elsewhere, that is a typed decision, not a silent drop"
+        "Surfaces that an executive summary sits ATOP preserved detail — it layers, never replaces — and if the user wants the detail physically elsewhere, that is a typed decision, not a silent drop"
       ]
     }
   ]
