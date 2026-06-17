@@ -12,7 +12,11 @@ import ast
 import tomllib
 from pathlib import Path
 
-_PKG = Path(__file__).resolve().parent.parent
+# tests/ live at the PROJECT ROOT (Tide/sei_omnigent/tests/); the package moved
+# under src/ (PLT-689 src-layout). _ROOT is the project root (holds pyproject.toml
+# + tests/), _PKG is the importable package dir under src/.
+_ROOT = Path(__file__).resolve().parent.parent
+_PKG = _ROOT / "src" / "sei_omnigent"
 _SERVE = _PKG / "server" / "serve.py"
 
 # The seam contract (ONE-WAY DOOR): every Phase-2/3 store swap binds to this
@@ -86,7 +90,9 @@ def test_create_app_is_called_keyword_only() -> None:
 def test_only_the_shim_imports_omnigent() -> None:
     """Drift discipline: _omnigent_shim is the single Omnigent-coupling surface."""
     offenders: list[str] = []
-    for py in _PKG.rglob("*.py"):
+    # Scan from the project root so this covers BOTH the package (src/sei_omnigent)
+    # AND tests/ — a test importing omnigent directly is also a drift violation.
+    for py in _ROOT.rglob("*.py"):
         if py.name == "_omnigent_shim.py":
             continue
         for node in ast.walk(ast.parse(py.read_text())):
@@ -101,7 +107,7 @@ def test_only_the_shim_imports_omnigent() -> None:
                 mods.extend(alias.name for alias in node.names)
             for mod in mods:
                 if mod == "omnigent" or mod.startswith("omnigent."):
-                    offenders.append(f"{py.relative_to(_PKG)} imports {mod}")
+                    offenders.append(f"{py.relative_to(_ROOT)} imports {mod}")
     assert not offenders, (
         "only sei_omnigent._omnigent_shim may import omnigent (DECISION-1 drift isolation): "
         + "; ".join(offenders)
@@ -157,7 +163,7 @@ def test_pinned_omnigent_matches_pyproject() -> None:
     # deferred: this test asserts the top package imports without pulling omnigent.
     import sei_omnigent  # noqa: PLC0415
 
-    pyproject = tomllib.loads((_PKG / "pyproject.toml").read_text())
+    pyproject = tomllib.loads((_ROOT / "pyproject.toml").read_text())
     deps = pyproject["project"]["dependencies"]
     pin = next(d for d in deps if d.startswith("omnigent=="))
     assert pin == f"omnigent=={sei_omnigent.PINNED_OMNIGENT}", (

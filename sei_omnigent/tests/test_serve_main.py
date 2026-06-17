@@ -21,7 +21,10 @@ from sei_omnigent._config import (
     resolve_relative_locations,
 )
 
-_SERVE_MAIN = Path(__file__).resolve().parent.parent / "server" / "serve_main.py"
+# tests/ sit at the project root; the package moved under src/ (PLT-689).
+_SERVE_MAIN = (
+    Path(__file__).resolve().parent.parent / "src" / "sei_omnigent" / "server" / "serve_main.py"
+)
 
 _READ_ONLY_KEYS = {"admin__github_read_only", "admin__deny_mutating_os"}
 _READ_ONLY_MODULE = "sei_omnigent.policies.read_only"
