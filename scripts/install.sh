@@ -49,4 +49,4 @@ fi
 make -C "$TIDE_HOME" sync-all
 
 echo "✓ Tide toolkit synced into ~/.claude (checkout: $TIDE_HOME)"
-echo "  Re-run any time with:  make -C $TIDE_HOME update"
+echo "  Re-run any time with:  make -C \"$TIDE_HOME\" update"

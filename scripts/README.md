@@ -20,7 +20,9 @@ Utility scripts for Tide repo maintenance. Most are wrapped by Make targets at t
 gh api repos/sei-protocol/Tide/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
 ```
 
-It clones Tide to `~/.tide` (override with `TIDE_HOME`), then syncs ALL skills/agents into `~/.claude` and verifies the catalog. Idempotent — re-run any time.
+It clones Tide to `~/.tide` (override with `TIDE_HOME`), then syncs all portable + Sei skills/agents into `~/.claude` and verifies the catalog. Idempotent — re-run any time.
+
+> **Trust note.** This executes whatever is on `sei-protocol/Tide@main` against your `~/.claude` — the same trust as cloning Tide and running `make`. `gh` gates *who* can fetch (org members only); GitHub is the integrity anchor. It intentionally tracks `main` (no pinned ref) so you always get current. Prefer to read before you run? `gh repo clone sei-protocol/Tide ~/.tide && make -C ~/.tide update`.
 
 **Already have the repo?** From your checkout:
 
