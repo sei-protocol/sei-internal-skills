@@ -119,9 +119,9 @@ Direct user invocation when there's no active workstream or upstream issue — e
 
 7. **Write the file on confirmation.** On the user's "yes": create parent directories if needed; check for existing file at the resolved path and halt per Guardrail #2 if found; write the body.
 
-8. **Issue lineage (if --issue mode or coral session referenced an issue).** Offer to thread the lineage back to the source issue:
+8. **Issue lineage (if --issue mode or coral session referenced an issue).** Offer to thread the lineage back to the source issue. Use the design's **full URL** — the design lives in the DRI's `<name>-designs` repo, a *different* repo from the source issue, so a repo-relative path won't resolve on the issue:
    ```
-   Design captured: <relative-path-from-repo-root>
+   Design captured: <full URL to the design in the DRI designs repo>
    ```
    - **GitHub source** → comment via `gh issue comment` (default) or edit the References section via `gh issue edit`.
    - **Linear source** → comment via the `save_comment` MCP tool (`issueId: <identifier>`, default) or append to the References of the issue `description` via `save_issue` (`id: <identifier>`).
