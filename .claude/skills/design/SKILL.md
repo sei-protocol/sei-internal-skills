@@ -69,12 +69,13 @@ Direct user invocation when there's no active workstream or upstream issue — e
 
 - A markdown-friendly editor or pager (the skill writes a file; review happens in your editor of choice).
 - For issue-mode and lineage features: `gh` CLI installed and authenticated for a **GitHub** ref; the Linear MCP tools (`get_issue`, `save_comment`, `save_issue`, `list_comments`) connected and authenticated for a **Linear** ref. The Linear MCP is interactively-authenticated and may be absent in headless / cron runs — when a Linear ref is given and the MCP is unavailable, halt and surface it rather than fabricating issue content or a lineage link.
-- CWD is the target repo (where the design will land), unless `--repo owner/name` is specified.
+- CWD is the **working/source repo** (where a `--issue` source lives and lineage threads back), overridable with `--repo owner/name`. The design **file** lands in the DRI's designs repo, resolved in step 1 — typically a *different* repo (a sibling `<name>-designs`), not CWD.
 
 ## Procedure
 
-1. **Resolve target repo and output directory.**
-   - Repo: CWD's git repo (or `--repo owner/name`).
+1. **Resolve the designs repo + output directory.**
+   - **Source/issue repo** (for `--issue` lineage, comments, frontmatter): CWD's git repo, or `--repo owner/name`.
+   - **Designs repo** (where the file lands): resolved by the priority list below — the DRI's `<name>-designs` repo, **not** assumed to be CWD.
    - Output dir: in priority order:
      1. `--output-dir <path>` if provided.
      2. The DRI's designs repo (per Design 05). **Resolve it**, in order: (a) `--designs-repo <owner/name|path>` if given; (b) a sibling checkout matching the engineer's `<name>-designs` convention (a sibling dir of CWD, or the same git org's `<gh-user>-designs`); (c) otherwise **ask the user** which designs repo to use. Land arc-foldered as `designs/<arc>/<slug>.md` (component-tier LLDs keep `-lld.md`); ask which arc when ambiguous.
@@ -140,7 +141,7 @@ Stop and report rather than auto-recovering when:
 
 - **Cross-review the design.** That's coral/council's job *before* the design is captured. `/design` is the recording step.
 - **Maintain status across the doc's lifetime.** It writes Draft initially. Updates to "Under review", "Accepted", "Superseded" are manual edits to the file.
-- **Cross-repo federation.** A design that spans repos lives in the load-bearing repo (where the work happens); link out from there.
+- **Copy a design into a code package.** A design spanning multiple code repos still lives in **one** place — the DRI's `<name>-designs` repo (Design 05) — and each code repo's issues link to it by **full URL**, never a repo-relative path.
 - **Respect the DRI-repo model (Design 05).** Designs live in the engineer's `<name>-designs` repo, arc-foldered (`designs/<arc>/<slug>.md`), not in the code/skills package. The skill targets that repo; it falls back to in-repo `docs/designs/` only when no DRI repo is resolvable.
 
 ## Output

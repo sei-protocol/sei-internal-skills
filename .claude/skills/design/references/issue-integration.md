@@ -42,11 +42,12 @@ The forward link is set at creation time. It's a static reference — if the iss
 
 After `/design` writes the file, the skill offers to update the source issue:
 
-> Design captured at `designs/<arc>/seinode-mid-life-signing-key-drift-lld.md`.
+> Design captured at `<name>-designs/designs/<arc>/seinode-mid-life-signing-key-drift-lld.md`
+> (full URL `https://github.com/<org>/<name>-designs/blob/main/designs/<arc>/...lld.md`).
 >
 > Update issue <ref> with the design link?
-> 1. Add a comment: "Design captured: designs/<arc>/...lld.md"
-> 2. Edit the issue body's References section to include the design path
+> 1. Add a comment: "Design captured: <full URL>"
+> 2. Edit the issue body's References to include the design's **full URL** — the design lives in a *separate* repo (Design 05), so a repo-relative path won't resolve on the code-repo issue
 > 3. Both
 > 4. Skip — I'll update manually
 
