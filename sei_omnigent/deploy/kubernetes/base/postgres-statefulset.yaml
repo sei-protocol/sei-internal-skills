@@ -63,12 +63,15 @@ spec:
               cpu: "500m"
           readinessProbe:
             exec:
-              command: ["pg_isready", "-U", "omnigent"]
+              # Use the actual configured user (from the postgres Secret), not a
+              # hardcoded "omnigent" — else changing POSTGRES_USER makes the probe
+              # fail and the StatefulSet never goes Ready (blocking server + arm).
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER"']
             periodSeconds: 10
             timeoutSeconds: 5
           livenessProbe:
             exec:
-              command: ["pg_isready", "-U", "omnigent"]
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER"']
             initialDelaySeconds: 15
             periodSeconds: 30
             timeoutSeconds: 5

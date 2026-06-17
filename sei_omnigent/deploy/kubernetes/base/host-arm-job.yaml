@@ -123,6 +123,16 @@ spec:
               store = HostStore(dsn)
               # (b) VERIFIED keyword-only signature (host_store.py:524). For
               # re-arm, the SAME host_id + owner overwrites in place.
+              #
+              # NON-ATOMICITY (accepted, Phase-1): the DB write (here) and the
+              # Secret patch (below) are two systems and cannot be one transaction.
+              # If the Secret patch fails after this DB write, the DB trusts a token
+              # the Secret never received -> the host (on the OLD token) is rejected
+              # until reconciled. Mitigation: this Job is fail-closed with
+              # backoffLimit:3, and register_managed_host is IDEMPOTENT on host_id
+              # (a retry mints+registers+patches a fresh token and fully reconciles).
+              # Manual recovery if retries exhaust: re-run this Job. Live-host re-arm
+              # timing is the PLT-674 pre-apply gate.
               store.register_managed_host(
                   host_id=host_id,
                   name=name,
