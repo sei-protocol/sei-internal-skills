@@ -5,12 +5,17 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
 ## First time here?
 
 1. **Inside Tide, no setup needed.** Claude Code auto-discovers everything in this directory.
-2. **To use these skills outside Tide** (e.g. `/coral` or `/issue` from another repo), run the sync once:
+2. **Never cloned Tide? Get the full toolkit over the wire in one line** (uses your `gh` auth — Tide is internal):
    ```sh
-   ./scripts/sync-skills.sh
+   gh api repos/sei-protocol/Tide/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
    ```
-   This copies the portable skills (`bugbash`, `coral`, `council`, `cross-review`, `design`, `issue`, `author-skill`, `audit-skill`, `root-cause`, `prfaq`, `idiomatic`, `systems`, `ebpf`, `lingua`) into `~/.claude/skills/` so they're available everywhere.
-3. **Re-run after `git pull`** if these skills changed upstream. It's idempotent — safe to run any time.
+   It clones Tide to `~/.tide` (override `TIDE_HOME`), then syncs every portable + Sei skill and agent into `~/.claude`.
+3. **Already have the repo?** One command from your checkout:
+   ```sh
+   make update     # fast-forward this checkout (run from main) + sync ALL skills/agents into ~/.claude + verify
+   ```
+   (To install only the **portable** set into an external *consumer* repo, run `make bootstrap` instead.)
+4. **Re-run either any time** — both are idempotent.
 
 **Edit skills in Tide, never in `~/.claude/skills/`.** Local edits at user-scope get overwritten on next sync. To change a skill, edit it here and PR.
 
@@ -18,9 +23,9 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
 
 **Authoring standard:** read [`SKILL-TEMPLATE.md`](./SKILL-TEMPLATE.md) before creating a new skill.
 
-Claude Code discovers skills as **flat** direct subdirectories of `skills/` — nested folders and custom roots (e.g. `~/.claude/tide/`) are NOT discovered. So domain grouping is **metadata, not directories**, expressed in three mirrored places: each skill's `category:` SKILL.md frontmatter, the sync script's domain lists (`sync-skills.sh --categories <domain>`), and the sections of this catalog.
+Claude Code discovers skills as **flat** direct subdirectories of `skills/` — nested folders and custom roots (e.g. `~/.claude/tide/`) are NOT discovered. So domain grouping is **metadata, not directories**. The **single source of truth** is each skill's `category:` SKILL.md frontmatter: the sync scripts *derive* alias membership from it (no hand-maintained per-skill list), and `make verify-catalog` (CI) fails closed if any skill's category maps to no alias. The catalog sections below are descriptive — keep them in step with the skills present, but they are not what the sync reads.
 
-**Domains:** `workflow` · `workstream-bootstrap` · `hardening` · `investigation` · `skill-authoring` · `writing-quality` · `output-quality` (Tide-local) · `security` (Tide-local) · `product-management` · `project-management` · `release-operations` · `engineer-self-service`. Sync aliases cross-cut them: `portable`, `sei`, `all`.
+**Domains:** `workflow` · `workstream-bootstrap` · `hardening` · `investigation` · `skill-authoring` · `code-quality` · `performance` · `writing-quality` · `output-quality` (Tide-local) · `security` (Tide-local) · `product-management` · `project-management` · `release-operations` · `engineer-self-service`. The small domain→alias map at the top of `sync-skills.sh` assigns each domain to a sync alias: `portable`, `sei`, or Tide-local (never synced).
 
 ## Catalog
 
