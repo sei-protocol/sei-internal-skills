@@ -10,11 +10,12 @@ name: Verify sei_omnigent overlay
 # longer the no-op it was under the old flat layout.
 #
 # A separate wheel-smoke job (PLT-689) is the packaging regression guard: it
-# BUILDS the wheel, installs it into a clean env, and imports the package + the
-# modules behind the console-script entry. This is what proves `pip install .`
-# produces an importable package (the flat layout silently produced an empty
-# wheel — `top_level.txt` was empty — so the K8s `sei-omnigent-serve` entrypoint
-# would ModuleNotFoundError). It unblocks the PLT-688 integration job.
+# BUILDS the wheel, installs it into a clean env, imports the omnigent-free
+# surface (the package + a pure submodule), and asserts the console-script entry
+# is registered. This is what proves `pip install .` produces an importable
+# package (the flat layout silently produced an empty wheel — `top_level.txt`
+# was empty — so the K8s `sei-omnigent-serve` entrypoint would
+# ModuleNotFoundError). It unblocks the PLT-688 integration job.
 #
 # NOT yet wired: an omnigent-INSTALLED integration job that exercises the
 # skip-guarded behavioral tests (the shim-drift canary in test_seam_contract.py,
@@ -65,8 +66,8 @@ jobs:
         run: pytest
 
   # Packaging regression guard (PLT-689). Builds the wheel from the src/ layout,
-  # installs it into a CLEAN env, and imports the package + the two modules that
-  # back the `sei-omnigent-serve` console script. Proves the BUILT WHEEL exposes
+  # installs it into a CLEAN env, imports the omnigent-free surface, and asserts
+  # the console-script entry is registered. Proves the BUILT WHEEL exposes
   # an importable `sei_omnigent` — the exact failure the flat layout hid (empty
   # wheel ⇒ K8s entrypoint ModuleNotFoundError). Separate job so it runs in a
   # pristine interpreter (no editable install, no repo dir on sys.path) — an
@@ -87,8 +88,9 @@ jobs:
         # build a wheel from pyproject (PEP 517), install ONLY that wheel
         # (--no-deps ⇒ omnigent-free), then import from a dir OUTSIDE the source
         # tree so the import can only resolve via the installed wheel. The import
-        # exercises the package + server.serve_main (the entry target) +
-        # policies.read_only (a pure submodule) — all must come from site-packages.
+        # exercises the package + policies.read_only (a pure submodule) from
+        # site-packages (the omnigent-free surface); the entry target is checked
+        # by the console-script step (registration, no import).
         run: |
           python -m pip install --upgrade pip build
           # Default ISOLATED build: build provisions the pyproject-declared
@@ -98,7 +100,14 @@ jobs:
           ls -l dist/
           pip install dist/*.whl --no-deps
           cd /tmp
-          python -c "import sei_omnigent, sei_omnigent.server.serve_main, sei_omnigent.policies.read_only; print('wheel import OK:', sei_omnigent.__file__)"
+          # Import only the omnigent-FREE surface to prove the wheel ships an
+          # importable package: the top package + a pure submodule. NOT
+          # server.serve_main — its server/__init__ eagerly imports the seam ->
+          # the shim -> omnigent, which --no-deps intentionally omits (that path
+          # is exercised by the omnigent-installed integration job, PLT-688). The
+          # console-script step below proves the serve_main entry is registered
+          # without importing it.
+          python -c "import sei_omnigent, sei_omnigent.policies.read_only; print('wheel import OK:', sei_omnigent.__file__)"
 
       - name: Verify console-script entry point is installed
         # The wheel must also expose the `sei-omnigent-serve` entry point so the
