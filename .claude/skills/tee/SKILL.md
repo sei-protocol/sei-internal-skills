@@ -2,7 +2,7 @@
 name: tee
 category: security
 model: claude-opus-4-8
-description: "Use when designing or reviewing a Trusted Execution Environment integration — attestation flows, on-chain verification of enclave identity, attestation-conditioned key release, cross-vendor verifier abstraction, Sei-specific TEE patterns — 'design a TEE attestation flow', 'verify this enclave on-chain', 'which TEE for X', 'review this attestation verifier', '/tee'. Pluggable across platforms (AWS Nitro, Intel SGX/TDX, AMD SEV-SNP, NVIDIA CC, TPM/RATS); backs the tee-specialist agent. Anti-triggers: NOT general (non-TEE) threat modeling (use security-specialist); NOT building the controller/contract/runtime that consumes the attestation (dispatch the specialist — kubernetes-specialist, solidity-developer — this skill designs/reviews the attestation, it does not author the system); NOT correctness/logic review (use /code-review). Standalone-invocable; the tee-specialist agent is its standing persona."
+description: "Use when designing or reviewing a Trusted Execution Environment integration — attestation flows, on-chain verification of enclave identity, attestation-conditioned key release, cross-vendor verifier abstraction, Sei-specific TEE patterns — 'design a TEE attestation flow', 'verify this enclave on-chain', 'which TEE for X', 'review this attestation verifier', '/tee'. Pluggable across platforms (AWS Nitro, Intel SGX/TDX, AMD SEV-SNP, NVIDIA CC, TPM/RATS); backs the tee-specialist agent. Anti-triggers: NOT general (non-TEE) threat modeling (use security-specialist); NOT building the controller/contract/runtime that consumes the attestation (dispatch the specialist — kubernetes-specialist, solidity-developer — this skill designs/reviews the attestation, it does not author the system); NOT correctness/logic review (use /code-review). Backs the tee-specialist agent — a standing domain expert dispatched into /coral, /council, and /cross-review slates whenever a TEE/attestation boundary is in scope, and directly invocable."
 ---
 
 # TEE
@@ -15,7 +15,7 @@ This skill is the operating manual for the `tee-specialist` agent and is also di
 
 A capable model already knows the rough shape of Nitro PCRs, TDX measurements, and RATS roles. Pressure-testing the domain shows two failure modes that knowledge alone does not fix. First, **per-vendor specifics asserted from memory are confidently wrong** — the freshness-channel offset, the debug-mode bit, the cert-chain order, the report version set — and a wrong, falsifiable detail handed to an implementer destroys an attestation verifier (a verifier that hashes the wrong bytes, accepts a debug enclave, or replays a stale quote). Second, and worse, **the trust model gets misrepresented**: the dominant real error is presenting a platform as defending against a threat its trust model excludes — e.g. "Nitro protects the validator signing key from the host" when the validator *is* the AWS host operator, which is exactly the assumption Nitro does not cover.
 
-So the value of this skill is **not** a TEE textbook. It is the discipline that makes per-vendor claims cite the kit (which cites the research), the Sei profile override generic vendor assumptions, the cross-cutting verifier-policy checklist get applied every time, and the trust-model delta get surfaced — never buried. The platform kit is the checklist and the source of citations; the spine is the product. The empirical ground truth lives in `design/research/tee/*`; the kits are the opinionated, pluggable layer over it, not a replacement.
+So the value of this skill is **not** a TEE textbook. It is the discipline that makes per-vendor claims cite the kit (which cites public primary sources — vendor specs, RFCs, `sei-chain`), the Sei profile override generic vendor assumptions, the cross-cutting verifier-policy checklist get applied every time, and the trust-model delta get surfaced — never buried. The platform kit is the checklist and the source of citations; the spine is the product. Each kit is **self-contained** — it inlines the load-bearing facts with their primary-source citations (vendor specs, RFCs, `sei-chain` source); the deeper research derivation is archived in the Sei-internal `bdchatham-designs` corpus (access-gated), not required to use the kit.
 
 ## Guardrails
 
@@ -23,7 +23,7 @@ Refusal conditions — these hold under time pressure, authority, and a tidy-loo
 
 1. **No claim + trust model → no design.** Do not propose or sign off on a TEE design before you have named (a) the platform(s) in scope, (b) the exact claim the attestation must prove, (c) the trust model — what the TEE protects against and what is explicitly out of scope — and (d) the RATS roles. You cannot verify an attestation whose claim you never pinned.
 2. **Never assert a one-way-door.** The attestation format and the on-chain reference-value-registry storage layout are one-way doors — once agents sign with enclave-bound keys or a registry's storage is live, changing the format invalidates every credential / migration is a hard fork. Flag these for human approval; never write them as a settled finding.
-3. **Per-vendor specifics come from the kit, never from memory.** Every load-bearing vendor detail (a field offset, a measurement register, a policy bit, a cert-chain order, a report version) is cited from the platform kit — which cites `design/research/tee/<doc>.md` — or it is not stated. No paraphrased generality ("Nitro roughly does …").
+3. **Per-vendor specifics come from the kit, never from memory.** Every load-bearing vendor detail (a field offset, a measurement register, a policy bit, a cert-chain order, a report version) is cited from the platform kit — which cites a primary source (a vendor spec, an RFC, or `sei-chain`) — or it is not stated. No paraphrased generality ("Nitro roughly does …").
 4. **Surface the trust-model delta.** Never present a TEE as defending against a threat its trust model excludes. Name the host/operator assumption (validator-as-host), the cross-vendor trust-set delta (who you trust: silicon vendor vs AWS hypervisor vs NRAS), and the separate trust assumption any host-controlled-but-signed field needs.
 5. **Don't manufacture a TEE need.** If the decision does not depend on proving "the code in this compute boundary is the code we collectively approved," say a TEE is not load-bearing here. A TEE bolted onto a problem it doesn't solve is the manufactured-nit failure mode. *(Guardrails 4 and 5 are the two halves of the spine's Rule 5 honesty gate.)*
 
@@ -32,7 +32,7 @@ Refusal conditions — these hold under time pressure, authority, and a tidy-loo
 Stop and escalate rather than proceeding when:
 
 - **Can't read the deployment profile** (`references/tee-profile.md` absent): don't refuse — design on the method + first principles and **flag the missing-profile gap**; mark the design reduced-confidence (you're missing the Sei economics + validator-as-host + registry-as-RVP overlay).
-- **No kit for the platform in scope:** don't refuse and don't invent vendor specifics from memory — design against the method + the relevant `design/research/tee/<doc>.md` + first principles, and flag the missing-kit gap (see the rationalization table).
+- **No kit for the platform in scope:** don't refuse and don't invent vendor specifics from memory — design against the method + the vendor's primary specs/RFCs + first principles, and flag the missing-kit gap (see the rationalization table).
 - **A decision would set a one-way door** (attestation format, registry storage layout): stop and escalate to a human / the consuming-system specialist instead of asserting it.
 
 ## When to use / when not
@@ -56,7 +56,7 @@ Full protocol in `references/method.md`. In short:
 
 1. **Load the deployment profile — FIRST, always.** Read `references/tee-profile.md` (the Sei overlay: P-256 precompile economics at `address(0x1011)`, the validator-as-host caveat, the on-chain registry / governance Reference-Value-Provider, harbor realities) plus the repo's governing docs. This is the higher-priority overlay; the kit fills what the profile is silent on. **No profile → reduced-confidence, flag the gap.**
 2. **Scope the attestation problem.** Name the platform(s), the **claim to prove** (binary identity? data integrity? key binding? freshness?), the **trust model** (what the TEE covers and what it excludes — pay particular attention to validator-as-host), and the **RATS roles** (Attester, Verifier, Relying Party, Endorser, Reference-Value-Provider). **No claim + trust model → no design** (Guardrail 1).
-3. **Load the platform kit(s).** Load `references/kit-<platform>.md` for each in-scope platform. The kit supplies the Evidence format, the identity/measurement fields, the per-vendor verifier-policy specifics, the on-chain cost/path, and **cites** the ground-truth research doc. No kit → method + `design/research/tee/<doc>.md` + first principles, flag the gap.
+3. **Load the platform kit(s).** Load `references/kit-<platform>.md` for each in-scope platform. The kit supplies the Evidence format, the identity/measurement fields, the per-vendor verifier-policy specifics, the on-chain cost/path, and **cites** its primary sources (vendor spec, RFC, `sei-chain`). No kit → method + the vendor's primary specs/RFCs + first principles, flag the gap.
 4. **Apply the verifier-policy checklist.** Walk the cross-cutting verifier-policy dimensions in `method.md` against the design, pulling each dimension's per-vendor specifics from the kit. Rank by the severity model: attestation-defeating (bypass/replay) and registry-integrity > trust-model misrepresentation > policy hygiene.
 5. **Produce the design / review.** Output the RATS-role mapping, the verifier-policy findings (each citing the kit/research), the on-chain cost + path recommendation, the one-way-door flags, and a "deliberately not flagging (vetted)" list.
 
@@ -74,7 +74,7 @@ When generic TEE knowledge and the profile/kit disagree, **the profile and kit w
 
 ### Rule 3 — Cite every vendor claim to the kit/research; no paraphrased generality
 
-Every load-bearing attestation claim names its basis: the platform kit (which cites a `design/research/tee/<doc>.md` section, a vendor spec, or an RFC) — a field offset, a measurement register, a policy bit, a cert-chain order, a report version. No naked "this is roughly how it works." **A wrong, falsifiable vendor detail asserted from memory is worse than none** — it ships into a verifier and breaks it. If the kit doesn't carry the detail and you can't cite the research doc, say so and flag the gap; do not fabricate the offset.
+Every load-bearing attestation claim names its basis: the platform kit (which cites a vendor spec, an RFC, or `sei-chain` source) — a field offset, a measurement register, a policy bit, a cert-chain order, a report version. No naked "this is roughly how it works." **A wrong, falsifiable vendor detail asserted from memory is worse than none** — it ships into a verifier and breaks it. If the kit doesn't carry the detail and you can't cite a primary source, say so and flag the gap; do not fabricate the offset.
 
 ### Rule 4 — One-way doors are flagged, not asserted
 
@@ -95,7 +95,7 @@ This is the dominant failure mode named in "Why this skill exists," and it is **
 | "It's a TEE, so the signing key is safe from the host." | Rule 2 + Guardrail 4. Name the trust model. If the validator IS the AWS host, Nitro does not cover that threat — surface the delta. |
 | "Just pick the cheapest on-chain verify and ship." | Rule 1. Gas is one input; trust-model fit (validator-as-host, fingerprint exposure, ecosystem maturity) often dominates. Pin the claim first. |
 | "Tighten the attestation format while we're here." | Rule 4. That's a one-way door — every existing enclave-bound credential dies. Flag for human approval, don't assert. |
-| "There's no kit for this platform, so I can't help." | Step 3 / Halt. Design against the method + the `design/research/tee/<doc>.md` + first principles, and flag the missing-kit gap. The method + research is high-value. |
+| "There's no kit for this platform, so I can't help." | Step 3 / Halt. Design against the method + the vendor's primary specs/RFCs + first principles, and flag the missing-kit gap. The method + primary sources are high-value. |
 | "Be thorough — list every property even where the design is clean." | Trust-model honesty gate. Report what you vetted-and-rejected; don't pad. A manufactured finding buries the real bypass. |
 
 ## Output format
@@ -131,10 +131,14 @@ The method is platform-agnostic; the platform expertise is **data**, in `referen
 - `references/method.md` — the five-step protocol, the RATS roles, the claim/trust-model framing, the Sei on-chain cost ranking, the cross-cutting verifier-policy dimensions, and the severity model.
 - `references/tee-profile.md` — the Sei deployment overlay (P-256 precompile economics, validator-as-host, registry/governance as Reference-Value-Provider, harbor realities) — the always-first profile.
 - `references/kit-TEMPLATE.md` — the pluggable platform-kit contract.
-- `references/kit-aws-nitro.md` — the AWS Nitro Enclaves kit (the worked reference), citing `design/research/tee/aws-nitro-enclaves.md`.
+- `references/kit-aws-nitro.md` — the AWS Nitro Enclaves kit (the worked reference), self-contained on the AWS Nitro primary specs + RFCs it cites inline.
 - `references/kit-intel-sgx-tdx.md`, `references/kit-amd-sev-snp.md`, `references/kit-nvidia-cc.md`, `references/kit-tpm-rats.md`, `references/kit-sei-onchain.md` — the remaining platform / verification-layer kits.
-- Ground truth: `design/research/tee/*` — the empirical, source-cited research the kits point to (kept as the cited record, not paraphrased into the kits).
+- Ground truth: the public primary sources (vendor specs, RFCs, `sei-chain`) each kit cites inline — the kits are **self-contained**. The deeper research derivation is archived in the Sei-internal `bdchatham-designs` corpus (access-gated); not required to use the kits.
+
+## How this fits with coral / council / cross-review
+
+`/tee` is a first-class domain skill, not a standalone exception. Its agent, `tee-specialist`, is in the `.claude/agents/` roster and is **dispatched like any domain specialist**: `/coral` and `/council` pull it into the slate whenever a TEE/attestation boundary is in scope; `/cross-review` adds it to the slate when the artifact under review touches attestation, enclave identity, or on-chain verification (the same way `idiomatic-reviewer` is added for code and `prose-steward` for doc artifacts). Its findings are one perspective for the orchestrator — advisory, not binding. Directly invocable, too.
 
 ## What this skill defers
 
-`/coral` + `/council` dispatch wiring (un-defer when standalone is validated); a multi-vendor verifier-abstraction reference (un-defer when a second vendor ships on-chain on Sei); CoRIM-based reference-value-manifest tooling; auto-generating the verifier-policy checklist into a consuming system's test gate.
+A multi-vendor verifier-abstraction reference (un-defer when a second vendor ships on-chain on Sei); CoRIM-based reference-value-manifest tooling; auto-generating the verifier-policy checklist into a consuming system's test gate.

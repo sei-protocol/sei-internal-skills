@@ -1,6 +1,6 @@
 # Method — the attestation design/review protocol
 
-The reusable, platform-agnostic procedure. The SKILL.md gives the five steps; this file is the detail, the RATS vocabulary, the Sei cost ranking, and the cross-cutting verifier-policy dimensions every kit fills in. It is **vendor-agnostic**: per-platform specifics live in `kit-<platform>.md`, which cites `design/research/tee/<doc>.md`.
+The reusable, platform-agnostic procedure. The SKILL.md gives the five steps; this file is the detail, the RATS vocabulary, the Sei cost ranking, and the cross-cutting verifier-policy dimensions every kit fills in. It is **vendor-agnostic**: per-platform specifics live in `kit-<platform>.md`, which cites public primary sources (vendor specs, RFCs, `sei-chain`) and is self-contained.
 
 ## Step 1 — Load the deployment profile (first overlay)
 
@@ -19,7 +19,7 @@ Name four things before any design (Rule 1 of the spine):
 
 ## Step 3 — Load the platform kit(s)
 
-Load `kit-<platform>.md` for each in-scope platform. The kit supplies the Evidence format, identity/measurement fields, the per-vendor verifier-policy specifics (the §4 fill-ins for the dimensions below), the on-chain cost/path, and the key-release pattern — each **citing** `design/research/tee/<doc>.md`. No kit → design against the method + the research doc + first principles, and flag the missing-kit gap. **Never assert a per-vendor specific from memory** (Rule 3).
+Load `kit-<platform>.md` for each in-scope platform. The kit supplies the Evidence format, identity/measurement fields, the per-vendor verifier-policy specifics (the §4 fill-ins for the dimensions below), the on-chain cost/path, and the key-release pattern — each citing primary sources (vendor spec, RFC, `sei-chain`). No kit → design against the method + the vendor's primary specs/RFCs + first principles, and flag the missing-kit gap. **Never assert a per-vendor specific from memory** (Rule 3).
 
 ## Step 4 — Apply the verifier-policy checklist
 
@@ -46,7 +46,7 @@ These are the cross-cutting verifier-policy dimensions — the things a verifier
 
 ## The Sei on-chain verification cost ranking (decision input)
 
-Sei EVM has a P-256 precompile at `address(0x1011)` charging `300 gas/byte × 160 bytes = 48,000 gas per verify` (cheaper than Solidity P-256 ~200k, above EIP-7951's flat ~6k). Per-attestation, cold (from `design/research/tee/trusted-execution-on-sei.md` §decision-driver):
+Sei EVM has a P-256 precompile at `address(0x1011)` charging `300 gas/byte × 160 bytes = 48,000 gas per verify` (cheaper than Solidity P-256 ~200k, above EIP-7951's flat ~6k). Per-attestation, cold (from `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` §decision-driver):
 
 | Attester | Scheme | Sei EVM cost (cold) | Strategy |
 |---|---|---|---|
@@ -67,7 +67,7 @@ Rank every finding:
 
 ## Citation and anti-fabrication discipline (Rule 3)
 
-Every load-bearing vendor claim cites the kit (which cites `design/research/tee/<doc>.md` §, a vendor spec, or an RFC). A wrong, falsifiable detail (offset, register, bit, version, cert order) asserted from memory is worse than none — it ships into a verifier and breaks it. If the kit lacks the detail and you can't cite the research, say so and flag the gap; never fabricate the offset to satisfy a "show me the field" challenge.
+Every load-bearing vendor claim cites the kit (which cites a vendor spec, an RFC, or `sei-chain` source). A wrong, falsifiable detail (offset, register, bit, version, cert order) asserted from memory is worse than none — it ships into a verifier and breaks it. If the kit lacks the detail and you can't cite a primary source, say so and flag the gap; never fabricate the offset to satisfy a "show me the field" challenge.
 
 ## Trust-model-honesty discipline
 

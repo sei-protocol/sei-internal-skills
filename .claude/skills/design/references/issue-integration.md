@@ -42,10 +42,10 @@ The forward link is set at creation time. It's a static reference — if the iss
 
 After `/design` writes the file, the skill offers to update the source issue:
 
-> Design captured at `design/milestones/seinode-mid-life-signing-key-drift-lld.md`.
+> Design captured at `designs/<arc>/seinode-mid-life-signing-key-drift-lld.md`.
 >
 > Update issue <ref> with the design link?
-> 1. Add a comment: "Design captured: design/milestones/...lld.md"
+> 1. Add a comment: "Design captured: designs/<arc>/...lld.md"
 > 2. Edit the issue body's References section to include the design path
 > 3. Both
 > 4. Skip — I'll update manually
@@ -70,7 +70,7 @@ After `/design` writes the file, the skill offers to update the source issue:
 
 The most common path: a design doc isn't a final artifact on its own — it lives in a PR alongside the implementation. In that case:
 
-- The design doc path is `design/milestones/<slug>-lld.md` (or wherever).
+- The design doc path is `designs/<arc>/<slug>-lld.md` (or wherever).
 - The PR includes the design + the code that implements it.
 - The PR description references the source issue (standard `Closes #<n>`).
 - The issue, after merge, has the merged PR auto-linked by GitHub.

@@ -4,7 +4,7 @@ A platform kit is **data** the method loads. Every kit must provide the seven se
 
 This section schema is a **soft one-way door**: changing it churns every existing kit. Revise deliberately.
 
-The kit is the **opinionated, pluggable layer over the research** — it does not replace `design/research/tee/<doc>.md`. Every load-bearing claim **cites** that research doc (a `§` or load-bearing-claim number), a vendor spec, or an RFC; the kit never paraphrases the research into a second, drifting copy. If a fact isn't in the research doc, it doesn't belong in the kit (raise it as a research gap instead).
+The kit is **self-contained**: it inlines the load-bearing facts with their primary-source citations (a vendor spec, an RFC, or `sei-chain` source). It does **not** depend on the (access-gated, Sei-internal) research archive — the skill is portable, so a kit must stand on its inlined facts + public citations alone. The kit never paraphrases a source into a second, drifting copy. If a fact isn't citable to a primary source, it doesn't belong in the kit (raise it as a research gap instead).
 
 Copy the skeleton below and fill it. See `kit-aws-nitro.md` for a complete worked kit.
 
@@ -13,14 +13,14 @@ Copy the skeleton below and fill it. See `kit-aws-nitro.md` for a complete worke
 ```markdown
 # <Platform> kit
 
-> Ground truth: `design/research/tee/<doc>.md`. Every claim below cites it (§ or load-bearing claim #), a vendor spec, or an RFC. Do not paraphrase — cite.
+> Ground truth: the vendor specs, RFCs, and reference implementations cited inline below — this kit distills them and is **self-contained**. Every load-bearing claim cites a primary source (a vendor spec, an RFC, or `sei-chain` source); do not paraphrase — cite the primary source. Deeper derivation is archived in the Sei-internal `bdchatham-designs` TEE corpus (access-gated) — **provenance only, not required to use this kit**.
 
 ## 1. Identity & RATS roles
 
 - **What it is** — process-level enclave / VM-level CVM / GPU TEE; the boundary it protects.
 - **RATS role mapping** — Attester = <…>; Endorser = <the PKI / trust root>; typical Verifier = <on-chain contract / KMS / off-chain service>.
 - **Trust root / Endorser** — the root of trust to pin, and **whose trust set it is** (silicon vendor vs cloud hypervisor vs NRAS) — this feeds VP16.
-- **Ground-truth doc** — `design/research/tee/<doc>.md`.
+- **Provenance** — derived from the Sei-internal TEE research archive (`bdchatham-designs`, access-gated); the load-bearing facts are inlined here with their primary-source citations.
 
 ## 2. Evidence format
 
@@ -63,7 +63,7 @@ The platform's idiomatic secret-release / key-binding pattern (VP6) — e.g. att
 
 ## 7. Citations
 
-The research doc sections + the primary sources (vendor spec, RFC, reference verifier implementation) the kit's claims rest on. Cite the research doc by **repo-root-relative path as text** — `` `design/research/tee/<doc>.md` `` — **not** a markdown link (a working link from `references/` would need `../../../../`, which is brittle; cite the path as text and let the reader resolve from repo root). External primary sources cite by URL.
+The primary sources (vendor spec, RFC, reference verifier implementation, `sei-chain` source) the kit's claims rest on — cite each by name + URL where public. The kit must stand on these alone: it is **portable** (synced to user-scope and sibling repos), so it must not depend on the relocated research archive, which is Sei-internal (access-gated). Reference that archive at most **once**, as non-required provenance (`bdchatham-designs` `designs/sei-agentic-mesh/research/tee/<doc>.md`).
 ```
 
 ---

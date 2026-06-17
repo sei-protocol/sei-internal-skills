@@ -1,13 +1,13 @@
 # AMD SEV-SNP kit
 
-> Ground truth: `design/research/tee/amd-sev-snp.md`. Every claim below cites it (§ or load-bearing claim #), a vendor spec, or an RFC. Do not paraphrase — cite.
+> Ground truth: the vendor specs, RFCs, and reference implementations cited inline below — this kit distills them and is **self-contained**. Every load-bearing claim cites a primary source (a vendor spec, an RFC, or `sei-chain` source); do not paraphrase — cite the primary source. Deeper derivation is archived in the Sei-internal `bdchatham-designs` TEE corpus (access-gated) — **provenance only, not required to use this kit**.
 
 ## 1. Identity & RATS roles
 
 - **What it is** — a VM-level confidential VM (CVM): SEV-SNP encrypts and integrity-protects the **entire guest VM's** memory under a per-VM key, with the AMD Secure Processor (AMD-SP / PSP) attesting the launch state. The boundary is the whole machine image (firmware + kernel + initrd + cmdline via OVMF measured boot), not a process-level enclave. Attestation is point-in-time at launch — there is **no PCR-extend / runtime extend** (§4.4, load-bearing claim 7); re-request a report with a fresh nonce for freshness.
 - **RATS role mapping** — **Attester** = SEV-SNP guest + AMD-SP firmware; **Endorser** = the AMD silicon-vendor PKI (ARK/ASK + VCEK/VLEK from `kdsintf.amd.com`); **Verifier** = an on-chain contract or an off-chain service; **Relying Party** = the entity gating secret/privilege release on the verifier's result (§5.1).
 - **Trust root / Endorser** — pin the **per-generation AMD ARK** (the self-signed AMD Root Key, RSA-4096/SHA-384) and the **ASK** intermediate beneath it; the leaf **VCEK** (per-chip) or **VLEK** (per-CSP) signs the report (§2, §2.1–2.4). **Trust set = AMD silicon vendor PKI** (not a cloud hypervisor, not an NRAS) — feeds VP16. This is the key contrast with Nitro: Nitro roots in the **AWS hypervisor + AWS PKI**, so a relying party who *is* the AWS host operator is in-scope-trusted; SEV-SNP roots in AMD silicon and protects the guest **against** the hypervisor/host (full-machine memory encryption), which is exactly the validator-as-host posture Nitro cannot serve.
-- **Ground-truth doc** — `design/research/tee/amd-sev-snp.md`.
+- **Provenance** — derived from the Sei-internal TEE research archive (`bdchatham-designs`, access-gated); the load-bearing facts are inlined here with their primary-source citations.
 
 ## 2. Evidence format
 
@@ -62,6 +62,6 @@ SEV-SNP has **no AMD-operated attested-KMS** equivalent to Nitro's KMS condition
 
 ## 7. Citations
 
-- Ground truth: `design/research/tee/amd-sev-snp.md` §1 (struct/offsets), §1.2 (`POLICY` bits), §1.3 (`TCB_VERSION`), §1.4 (`PLATFORM_INFO`/BadRAM bit), §1.5–1.6 (signature + C header), §2 (signing chain ARK/ASK/VCEK/VLEK + KDS + revocation), §3 (generations), §4 (measurement / `HOST_DATA` / `REPORT_DATA` / no-extend), §5 (RATS/EAT/CoRIM/TCG), §6 (crypto primitives), §7 (on-chain cost), §8 (BadRAM / AMD-SB-3015) + load-bearing claims 1–10; `design/research/tee/trusted-execution-on-sei.md` §decision-driver (Sei cost ranking — SEV-SNP "~1.5–2M gas Solidity … Cheapest direct on-chain").
+- Ground truth: `bdchatham-designs/designs/sei-agentic-mesh/research/tee/amd-sev-snp.md` §1 (struct/offsets), §1.2 (`POLICY` bits), §1.3 (`TCB_VERSION`), §1.4 (`PLATFORM_INFO`/BadRAM bit), §1.5–1.6 (signature + C header), §2 (signing chain ARK/ASK/VCEK/VLEK + KDS + revocation), §3 (generations), §4 (measurement / `HOST_DATA` / `REPORT_DATA` / no-extend), §5 (RATS/EAT/CoRIM/TCG), §6 (crypto primitives), §7 (on-chain cost), §8 (BadRAM / AMD-SB-3015) + load-bearing claims 1–10; `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` §decision-driver (Sei cost ranking — SEV-SNP "~1.5–2M gas Solidity … Cheapest direct on-chain").
 - Primary: AMD SEV-SNP Firmware ABI Specification (pub. 56860, Table 23 `ATTESTATION_REPORT`, Table 5 `TCB_VERSION`); AMD VCEK Certificate & KDS Interface Specification (pub. 57230); AMD Security Bulletin **AMD-SB-3015** (BadRAM); AMD KDS `https://kdsintf.amd.com/`; RFC 9334 (RATS), RFC 9711 (EAT — AMD does not natively emit EAT; CoRIM `draft-deeglaze-amd-sev-snp-corim-profile-02` maps the report to CBOR).
 - Reference verifiers / implementations: AMDESE/sev-guest (`include/attestation.h`, canonical C layout); virtee/sev (`src/firmware/guest/types/snp.rs`, Rust v3/v5 types), virtee/snpguest; Automata DCAP / zkDCAP (Risc0/SP1 gas datapoints); Marlin SEV-SNP verifier; Phala dstack; Edgeless Contrast (`amd-details`); LIT-Protocol/sev-snp-utils.

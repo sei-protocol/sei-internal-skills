@@ -58,13 +58,14 @@ SKILLS_DIR="$(cd "$SCRIPT_DIR/../.claude/skills" && pwd)"
 # the three lists below. The coverage guard enforces this. `all` = PORTABLE+SEI
 # (Tide-local domains are deliberately never synced outward).
 
-PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation skill-authoring code-quality performance writing-quality product-management"
+PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation skill-authoring code-quality performance writing-quality product-management security"
 SEI_DOMAINS="project-management release-operations engineer-self-service"
 # Tide-local — deliberately NOT synced outward:
 #   output-quality (brevity, pr-quality) — Tide-development meta-skills.
-#   security (tee)  — its design/research/tee/* ground-truth corpus lives in
-#                     this repo; not portable until that corpus is (PLT-677).
-TIDE_LOCAL_DOMAINS="output-quality security"
+# NOTE: security (tee) is now PORTABLE — its kits are self-contained on public
+# primary sources (vendor specs, RFCs, sei-chain); the research corpus relocated
+# to bdchatham-designs (Design 05 / PLT-709) and is non-required provenance.
+TIDE_LOCAL_DOMAINS="output-quality"
 
 # --- small helpers ----------------------------------------------------------
 

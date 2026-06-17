@@ -1,13 +1,13 @@
 # AWS Nitro Enclaves kit
 
-> Ground truth: `design/research/tee/aws-nitro-enclaves.md`. Every claim below cites it (§ or load-bearing claim #), a vendor doc, or an RFC. Do not paraphrase — cite.
+> Ground truth: the vendor specs, RFCs, and reference implementations cited inline below — this kit distills them and is **self-contained**. Every load-bearing claim cites a primary source (a vendor spec, an RFC, or `sei-chain` source); do not paraphrase — cite the primary source. Deeper derivation is archived in the Sei-internal `bdchatham-designs` TEE corpus (access-gated) — **provenance only, not required to use this kit**.
 
 ## 1. Identity & RATS roles
 
 - **What it is** — a VM-isolated enclave carved from a parent EC2 instance: no persistent storage, no network, parent↔enclave only over `vsock` (§5). Attestation is point-in-time — re-attest for freshness.
 - **RATS role mapping** — **Attester** = enclave + Nitro Security Module (NSM); **Endorser** = the AWS Nitro Attestation PKI; **Verifier** = AWS KMS (verifier-as-a-service) or an on-chain contract; **Relying Party** = the entity gating secret/privilege release (§7).
 - **Trust root / Endorser** — pin **AWS Nitro Enclaves Root-G1** (PEM at `aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip`, SHA-256 fingerprint `64:1A:03:21:…:BB:5B`, 30-year lifetime). **Trust set = AWS hypervisor + AWS PKI** (not a silicon vendor) — feeds VP16 and the validator-as-host caveat below (§3, load-bearing claim 5).
-- **Ground-truth doc** — `design/research/tee/aws-nitro-enclaves.md`.
+- **Provenance** — derived from the Sei-internal TEE research archive (`bdchatham-designs`, access-gated); the load-bearing facts are inlined here with their primary-source citations.
 
 **Trust-model caveat (VP16 / profile Rule 2):** Nitro's model assumes the **AWS host is trusted**. It is the natural fit for harbor-hosted Tide agent runtimes and bridges (existing AWS EKS posture), but it does **not** defend against a relying party who *is* the AWS host operator — so it is the wrong fit for a validator-as-host MEV/ordering surface (`trusted-execution-on-sei.md` Application-categories §2 — MEV-resistant ordering — and load-bearing claim 5; not to be confused with `tee-profile.md` §2).
 
@@ -71,6 +71,6 @@ No EVM precompile for ECDSA-P384 or X.509 path validation — every primitive (P
 
 ## 7. Citations
 
-- Ground truth: `design/research/tee/aws-nitro-enclaves.md` §1–§10 + load-bearing claims 1–10; `design/research/tee/trusted-execution-on-sei.md` "decision-driver", Application-categories §6 (Tide agent runtimes), "Critical defense-in-depth" items #9/#11.
+- Ground truth: `bdchatham-designs/designs/sei-agentic-mesh/research/tee/aws-nitro-enclaves.md` §1–§10 + load-bearing claims 1–10; `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` "decision-driver", Application-categories §6 (Tide agent runtimes), "Critical defense-in-depth" items #9/#11.
 - Primary: AWS Nitro Enclaves User Guide (`set-up-attestation.html`, `verify-root.html`); `aws/aws-nitro-enclaves-nsm-api` `docs/attestation_process.md`; AWS KMS Nitro docs; RFC 8152 / 9052 (COSE), RFC 9334 (RATS), RFC 9711 (EAT — Nitro is EAT-*adjacent*, not a formal EAT, §7); RFC 8610 (CDDL).
 - Reference verifiers: Marlin NitroProver + Oyster docs; `base/nitro-validator`; `hf/nitrite` (Go); `veracruz-project/nitro-enclave-attestation-document`.

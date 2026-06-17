@@ -11,7 +11,7 @@ Turns an engineer's week of real work into a substantiated, executive-summary pr
 
 The genre rule, and the whole point: **the Impact doc is the index; Linear and the PRs are the record.** An entry that tries to *be* the record is the failure this skill exists to prevent.
 
-This is the synthesis tail of the work loop in `docs/designs/impact-hub-pm-skill-suite.md`. It is the one skill that writes to a shared, exec-facing Notion page — so it is deliberately narrow and confirmation-gated.
+This is the synthesis tail of the work loop in `bdchatham-designs/designs/impact-hub-pm-skill-suite/impact-hub-pm-skill-suite.md`. It is the one skill that writes to a shared, exec-facing Notion page — so it is deliberately narrow and confirmation-gated.
 
 ## Guardrails
 

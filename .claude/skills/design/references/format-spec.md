@@ -117,7 +117,7 @@ Convert the title to kebab-case for the filename:
 
 Truncate to ~60 characters. Strip articles (a, the) and stop-words. The filename is for humans skimming a directory listing.
 
-**Tide-specific suffix:** LLDs (component-tier designs) get `-lld.md`. The skill detects this when the output path is `design/milestones/`.
+**LLD suffix:** component-tier LLDs get `-lld.md` (detected by genre/arc).
 
 ## Output path resolution
 
@@ -125,7 +125,7 @@ In priority order:
 
 1. `--output-dir <path>` if provided.
 2. Repo-specific convention if detected:
-   - **Tide**: `design/milestones/` for component-tier LLDs, `design/high-level/` for system-tier designs. Ask which when ambiguous.
+   - **DRI designs repo (Design 05)**: `designs/<arc>/<slug>.md` — component-tier LLDs `-lld.md`, system-tier designs plain. Ask which arc when ambiguous.
    - **sei-protocol/sei-k8s-controller**: `docs/`.
    - **Other repos**: detect `docs/designs/`, `docs/`, or `design/`; prefer existing.
 3. Default: `docs/designs/`.

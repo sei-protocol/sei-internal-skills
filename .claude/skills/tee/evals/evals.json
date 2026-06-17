@@ -30,7 +30,7 @@
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
-          "does not assert the offset/bit from memory; loads kit-amd-sev-snp and cites it (REPORT_DATA offset 0x050; policy bit 19 DEBUG_ALLOWED must be 0), which cites design/research/tee/amd-sev-snp.md",
+          "does not assert the offset/bit from memory; loads kit-amd-sev-snp and cites it (REPORT_DATA offset 0x050; policy bit 19 DEBUG_ALLOWED must be 0), which cites bdchatham-designs/designs/sei-agentic-mesh/research/tee/amd-sev-snp.md",
           "if the kit doesn't exist or lacks the detail, says so and flags the gap rather than fabricating the offset"
         ],
         "forbidden_signals": [

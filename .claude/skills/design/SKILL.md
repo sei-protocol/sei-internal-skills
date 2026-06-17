@@ -77,8 +77,8 @@ Direct user invocation when there's no active workstream or upstream issue — e
    - Repo: CWD's git repo (or `--repo owner/name`).
    - Output dir: in priority order:
      1. `--output-dir <path>` if provided.
-     2. Repo-specific convention if detected (Tide → `design/milestones/` for LLDs, `design/high-level/` for higher-level designs — ask the user which when ambiguous).
-     3. Default: `docs/designs/`.
+     2. The DRI's designs repo (per Design 05): the engineer's `<name>-designs` repo, arc-foldered as `designs/<arc>/<slug>.md` (component-tier LLDs keep the `-lld.md` suffix). Ask which arc when ambiguous.
+     3. Default (no DRI repo resolvable): `docs/designs/` in the current repo.
    - Create the directory if it doesn't exist; show the path to the user before writing.
 
 2. **Resolve invocation mode.**
@@ -141,7 +141,7 @@ Stop and report rather than auto-recovering when:
 - **Cross-review the design.** That's coral/council's job *before* the design is captured. `/design` is the recording step.
 - **Maintain status across the doc's lifetime.** It writes Draft initially. Updates to "Under review", "Accepted", "Superseded" are manual edits to the file.
 - **Cross-repo federation.** A design that spans repos lives in the load-bearing repo (where the work happens); link out from there.
-- **Replace existing repo conventions.** Tide already has `design/milestones/` for LLDs and `design/high-level/` for higher-level designs. The skill respects existing conventions when detected.
+- **Respect the DRI-repo model (Design 05).** Designs live in the engineer's `<name>-designs` repo, arc-foldered (`designs/<arc>/<slug>.md`), not in the code/skills package. The skill targets that repo; it falls back to in-repo `docs/designs/` only when no DRI repo is resolvable.
 
 ## Output
 
