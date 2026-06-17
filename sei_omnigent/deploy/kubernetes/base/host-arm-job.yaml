@@ -133,12 +133,14 @@ spec:
                   token_expires_at=expires,
               )
 
-              # (c) Write the RAW token into the omnigent-host-token Secret via
-              # the in-cluster kubernetes python client. IMAGE REQUIREMENT: the
-              # `kubernetes` package must be present (see cross-review box).
+              # (c) PATCH the RAW token into the PRE-PROVISIONED omnigent-host-token
+              # Secret via the in-cluster kubernetes python client. The RBAC grants
+              # only get/patch/update on the named Secret (NO create — see
+              # host-arm-rbac.yaml), so the Secret MUST already exist; if it does
+              # not, the patch 404s and we fail closed LOUDLY (do not create).
+              # IMAGE REQUIREMENT: the `kubernetes` package must be present.
               # TODO(PLT-675): if the image cannot carry `kubernetes`, swap this
-              # block for a `kubectl create secret ... --dry-run=client -o yaml |
-              # kubectl apply -f -` shell-out; the HostStore call above stays.
+              # for `kubectl patch secret ...`; the HostStore call above stays.
               import base64
               from kubernetes import client, config
 
@@ -146,19 +148,20 @@ spec:
               ns = os.environ["POD_NAMESPACE"]
               sec_name = os.environ["TARGET_SECRET_NAME"]
               sec_key = os.environ["TARGET_SECRET_KEY"]
-              body = client.V1Secret(
-                  metadata=client.V1ObjectMeta(name=sec_name, namespace=ns),
-                  type="Opaque",
-                  data={sec_key: base64.b64encode(token.encode()).decode()},
-              )
               v1 = client.CoreV1Api()
               try:
-                  v1.replace_namespaced_secret(sec_name, ns, body)  # re-arm path
+                  v1.patch_namespaced_secret(
+                      sec_name, ns,
+                      {"data": {sec_key: base64.b64encode(token.encode()).decode()}},
+                  )
               except client.exceptions.ApiException as e:
                   if e.status == 404:
-                      v1.create_namespaced_secret(ns, body)  # first-arm path
-                  else:
-                      raise
+                      sys.exit(
+                          f"FATAL: Secret {ns}/{sec_name} not found. It MUST be "
+                          "pre-provisioned (empty ok) before arming — RBAC grants "
+                          "no create. See host-arm-rbac.yaml."
+                      )
+                  raise
 
               print(f"armed host_id={host_id} provider={provider} expires={expires.isoformat()}", file=sys.stderr)
           resources:

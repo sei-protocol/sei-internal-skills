@@ -23,7 +23,9 @@ metadata:
   labels:
     app: omnigent-host
 spec:
-  schedule: "0 3 */3 *" # ~every 3.5d effective with concurrency guard; tune to 50% of TTL
+  # 5 fields (min hour dom month dow) — K8s rejects a 4-field cron. Runs 03:00
+  # every 3rd day-of-month (~50% of the 7d token TTL); tune to your TTL.
+  schedule: "0 3 */3 * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3
@@ -120,6 +122,8 @@ spec:
                       token_expires_at=expires,
                   )
 
+                  # PATCH the pre-provisioned Secret (RBAC grants no create — the
+                  # Secret always exists by re-arm time since the arm Job ran first).
                   import base64
                   from kubernetes import client, config
 
@@ -127,19 +131,16 @@ spec:
                   ns = os.environ["POD_NAMESPACE"]
                   sec_name = os.environ["TARGET_SECRET_NAME"]
                   sec_key = os.environ["TARGET_SECRET_KEY"]
-                  body = client.V1Secret(
-                      metadata=client.V1ObjectMeta(name=sec_name, namespace=ns),
-                      type="Opaque",
-                      data={sec_key: base64.b64encode(token.encode()).decode()},
-                  )
                   v1 = client.CoreV1Api()
                   try:
-                      v1.replace_namespaced_secret(sec_name, ns, body)
+                      v1.patch_namespaced_secret(
+                          sec_name, ns,
+                          {"data": {sec_key: base64.b64encode(token.encode()).decode()}},
+                      )
                   except client.exceptions.ApiException as e:
                       if e.status == 404:
-                          v1.create_namespaced_secret(ns, body)
-                      else:
-                          raise
+                          sys.exit(f"FATAL: Secret {ns}/{sec_name} missing at re-arm; arm Job must run first.")
+                      raise
 
                   print(f"re-armed host_id={host_id} expires={expires.isoformat()}", file=sys.stderr)
               resources:

@@ -67,8 +67,11 @@ tracked degradation, not the target state.
    NetworkPolicies) and that the CNI enforces policy.
 2. **Secrets** (via SealedSecrets/ExternalSecrets — never the raw
    `secrets.example.yaml`): `omnigent-ghcr`, `oauth2-proxy`, `postgres`. Create
-   a throwaway `omnigent-host-token` so the host pod can schedule (the arm Job
-   overwrites it).
+   a throwaway (empty-data) `omnigent-host-token` so the host pod can schedule
+   **and** so the arm Job can patch it — the arm RBAC grants `get/patch/update`
+   only, NOT `create` (so `create` can't be abused to mint arbitrary Secrets), so
+   this Secret MUST exist before the arm Job runs (step 7), else the Job fails
+   closed.
 3. **NetworkPolicies + RBAC + ConfigMap + PVCs** (the base; the default-deny
    lands first within the set).
 4. **Postgres** StatefulSet + Service; wait for `pg_isready`.
@@ -142,7 +145,7 @@ ciphertext) or **ExternalSecrets** (commit a backend reference). Required:
 | `omnigent-ghcr` | dockerconfigjson for the private GHCR pull (`read:packages` PAT) |
 | `oauth2-proxy` | OIDC issuer/client-id/client-secret + cookie-secret |
 | `postgres` | `POSTGRES_DB`/`USER`/`PASSWORD` + `DATABASE_URI` (the full DSN the arm/re-arm Jobs read via `secretKeyRef`) |
-| `omnigent-host-token` | `OMNIGENT_HOST_TOKEN` — **written by the arm Job**, not pre-seeded |
+| `omnigent-host-token` | `OMNIGENT_HOST_TOKEN` — **pre-provision empty**, then the arm Job patches the real token in (RBAC has no `create`) |
 
 ---
 
