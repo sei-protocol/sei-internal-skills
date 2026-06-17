@@ -3,15 +3,23 @@ name: Verify sei_omnigent overlay
 # Lints + tests the sei_omnigent Omnigent overlay against the Python idiom pack
 # (PLT refinement). This is the omnigent-FREE unit job: the overlay's tests run
 # without omnigent installed (pure logic / AST guards / skip-if-absent), so we
-# install only the linter + test runner and the package itself with --no-deps so
-# `import sei_omnigent` resolves WITHOUT pulling omnigent. The omnigent-installed
-# behavioral tests (header-posture, the drift canary) skip here and are covered
-# by a separate integration job.
+# install only the linter + test runner. pytest resolves `import sei_omnigent`
+# via its rootdir-parent sys.path insertion (the repo dir contains the package
+# dir) — no editable install needed, and none is done so the job stays
+# omnigent-free.
+#
+# NOT yet wired: an omnigent-INSTALLED integration job that exercises the
+# skip-guarded behavioral tests (the shim-drift canary in test_seam_contract.py,
+# the header-posture behavioral test). Those currently skip here and run nowhere
+# — tracked in PLT-688. Until it lands, those tests do not gate.
 
 on:
   pull_request:
     paths:
       - 'sei_omnigent/**'
+      # The workflow's own path — so a workflow-only fix still exercises the job
+      # (else a broken install/command could merge without ever running here).
+      - '.github/workflows/verify-sei-omnigent.yml'
 
 jobs:
   lint-and-test:
@@ -27,10 +35,13 @@ jobs:
           python-version: "3.12"
 
       - name: Install tooling (omnigent-free)
+        # No `pip install -e .`: the flat layout's packages.find currently maps
+        # nothing (tracked: PLT-689), and pytest provides `import sei_omnigent`
+        # via sys.path anyway. Installing only the linter + runner keeps this job
+        # omnigent-free and honest about what's exercised.
         run: |
           python -m pip install --upgrade pip
           pip install ruff pytest
-          pip install -e . --no-deps
 
       - name: Ruff lint
         run: ruff check .
