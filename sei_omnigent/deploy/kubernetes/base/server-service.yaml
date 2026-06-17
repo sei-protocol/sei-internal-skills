@@ -1,0 +1,19 @@
+# Internal-only ClusterIP. Single Service/port for BOTH paths (human-via-proxy
+# and host-direct) — isolation rests on NetworkPolicy peer-selectors + the
+# credential branch, NOT separate listeners (one-way-door flag #10). The Ingress
+# controller is NOT permitted to reach this directly (see NetworkPolicies).
+apiVersion: v1
+kind: Service
+metadata:
+  name: omnigent-server
+  labels:
+    app: omnigent-server
+spec:
+  type: ClusterIP
+  selector:
+    app: omnigent-server
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8000
+      protocol: TCP

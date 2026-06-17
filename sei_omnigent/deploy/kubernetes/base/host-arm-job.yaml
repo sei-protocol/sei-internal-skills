@@ -1,0 +1,157 @@
+# Bootstrap arming Job (PLT-675). Runs ONCE before the omnigent-host pod can
+# authenticate. It:
+#   1. generates a raw token = secrets.token_urlsafe(32)
+#   2. calls register_managed_host(...) against the SERVER'S DB (host_store.py:524)
+#      with provider="k8s-static", sandbox_id="<pod>", owner="tide-host@sei.internal",
+#      token=<generated>, host_id=<PLACEHOLDER_HOST_ID>, name="tide-host",
+#      token_expires_at=now+7d (LONG ttl; the re-arm CronJob refreshes at 50%).
+#   3. writes the RAW token into Secret omnigent-host-token (key OMNIGENT_HOST_TOKEN).
+#
+# owner="tide-host@sei.internal" MUST be a NON-ADMIN identity kept OUT of the
+# config `admins:` roster (a host that could self-elevate defeats the policy).
+#
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ DRIFT-WATCH — this arm path is "OFF THE INTENDED LAUNCHER PATH" (DECISION-1║
+# ║ drift surface, §2.4a). The script below calls register_managed_host(...)   ║
+# ║ directly against the server DB via omnigent's HostStore — it does NOT go   ║
+# ║ through a server-launched SandboxLauncher. The exact call MUST be          ║
+# ║ re-verified ACCEPTED against the pinned omnigent 0.1.1 image before apply  ║
+# ║ (PLT-675 pre-apply gate): confirm register_managed_host's keyword-only     ║
+# ║ signature (host_store.py:524) and that a synthetically-registered managed  ║
+# ║ host is honored by the tunnel auth branch on 0.1.1.                        ║
+# ║                                                                            ║
+# ║ IMAGE REQUIREMENT: the arm script writes the K8s Secret with the in-cluster║
+# ║ kubernetes python client — the pinned omnigent image MUST carry the        ║
+# ║ `kubernetes` package (fallback: `kubectl` on PATH). If neither can be      ║
+# ║ guaranteed in the image, the register_managed_host portion below is real   ║
+# ║ and load-bearing; only the Secret-write client call would need swapping —  ║
+# ║ see the TODO marker in the script.                                        ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: omnigent-host-arm
+  labels:
+    app: omnigent-host
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app: omnigent-host-arm
+    spec:
+      serviceAccountName: omnigent-host-arm
+      restartPolicy: Never
+      imagePullSecrets:
+        - name: omnigent-ghcr
+      containers:
+        - name: arm
+          # Needs the omnigent package (for the HostStore path) + kubectl/k8s
+          # client to write the Secret. Same pinned omnigent image; the arm
+          # script uses the in-cluster ServiceAccount token for the Secret write.
+          image: PLACEHOLDER_IMAGE:PLACEHOLDER_TAG
+          env:
+            - name: OMNIGENT_HOST_ID
+              value: PLACEHOLDER_HOST_ID
+            - name: OMNIGENT_HOST_NAME
+              value: "tide-host" # MUST match the host Deployment's OMNIGENT_HOST_NAME
+            - name: OMNIGENT_HOST_OWNER
+              value: "tide-host@sei.internal" # NON-ADMIN — keep out of config admins
+            - name: OMNIGENT_HOST_PROVIDER
+              value: "k8s-static"
+            - name: OMNIGENT_HOST_TOKEN_TTL_SECONDS
+              value: "604800" # 7d; re-arm CronJob refreshes at ~3.5d
+            - name: TARGET_SECRET_NAME
+              value: "omnigent-host-token"
+            - name: TARGET_SECRET_KEY
+              value: "OMNIGENT_HOST_TOKEN"
+            # The pod's own namespace for the in-cluster Secret write.
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            # sandbox_id = this pod's name (a stable per-arm sandbox identifier).
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            # FIX 4 — DSN via secretKeyRef, NO plaintext password in pod env. The
+            # arm script connects to the SAME database the server uses so the
+            # token digest lands in the row the tunnel reads.
+            - name: OMNIGENT_DATABASE_URI
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: DATABASE_URI
+          # FIX 5 — REAL arm implementation (was an exit-1 stub). Fail-closed:
+          # any error → non-zero exit (set -e + Python raises propagate).
+          command:
+            - python
+            - -c
+            - |
+              import os, sys, secrets, datetime
+
+              # (a) Construct omnigent's HostStore against the server DB DSN.
+              # Import path verified vs omnigent 0.1.0 (cli.py:3003 uses
+              # HostStore(db_uri); __init__(storage_location: str)).
+              from omnigent.stores.host_store import HostStore  # noqa: E402
+
+              dsn = os.environ["OMNIGENT_DATABASE_URI"]
+              host_id = os.environ["OMNIGENT_HOST_ID"]
+              name = os.environ["OMNIGENT_HOST_NAME"]
+              owner = os.environ["OMNIGENT_HOST_OWNER"]
+              provider = os.environ["OMNIGENT_HOST_PROVIDER"]
+              sandbox_id = os.environ["POD_NAME"]
+              ttl = int(os.environ["OMNIGENT_HOST_TOKEN_TTL_SECONDS"])
+
+              token = secrets.token_urlsafe(32)
+              expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=ttl)
+
+              store = HostStore(dsn)
+              # (b) VERIFIED keyword-only signature (host_store.py:524). For
+              # re-arm, the SAME host_id + owner overwrites in place.
+              store.register_managed_host(
+                  host_id=host_id,
+                  name=name,
+                  owner=owner,
+                  token=token,
+                  provider=provider,
+                  sandbox_id=sandbox_id,
+                  token_expires_at=expires,
+              )
+
+              # (c) Write the RAW token into the omnigent-host-token Secret via
+              # the in-cluster kubernetes python client. IMAGE REQUIREMENT: the
+              # `kubernetes` package must be present (see cross-review box).
+              # TODO(PLT-675): if the image cannot carry `kubernetes`, swap this
+              # block for a `kubectl create secret ... --dry-run=client -o yaml |
+              # kubectl apply -f -` shell-out; the HostStore call above stays.
+              import base64
+              from kubernetes import client, config
+
+              config.load_incluster_config()
+              ns = os.environ["POD_NAMESPACE"]
+              sec_name = os.environ["TARGET_SECRET_NAME"]
+              sec_key = os.environ["TARGET_SECRET_KEY"]
+              body = client.V1Secret(
+                  metadata=client.V1ObjectMeta(name=sec_name, namespace=ns),
+                  type="Opaque",
+                  data={sec_key: base64.b64encode(token.encode()).decode()},
+              )
+              v1 = client.CoreV1Api()
+              try:
+                  v1.replace_namespaced_secret(sec_name, ns, body)  # re-arm path
+              except client.exceptions.ApiException as e:
+                  if e.status == 404:
+                      v1.create_namespaced_secret(ns, body)  # first-arm path
+                  else:
+                      raise
+
+              print(f"armed host_id={host_id} provider={provider} expires={expires.isoformat()}", file=sys.stderr)
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"

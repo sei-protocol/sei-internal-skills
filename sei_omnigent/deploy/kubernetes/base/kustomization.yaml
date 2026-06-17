@@ -1,0 +1,39 @@
+# Base — reusable manifest set. Env-specifics (namespace, image tag, the
+# PLACEHOLDER_* fills) are carried by overlays/sei. secrets.example.yaml is
+# DELIBERATELY excluded from resources: secrets come from SealedSecrets/
+# ExternalSecrets, never from this repo (see README + secrets.example.yaml).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# DESCRIPTIVE labels only — includeSelectors:false so app.kubernetes.io/* is NOT
+# injected into podSelectors / NetworkPolicy peers. The workload pod-selectors
+# use the stable bare `app:` key; injecting app.kubernetes.io/* into selectors
+# would pollute the foreign kube-dns peer in the allow-dns-egress policy (its
+# selector would gain app.kubernetes.io/* keys that match no real CoreDNS pod →
+# DNS egress breaks under an enforcing CNI). `labels:` replaces the deprecated
+# `commonLabels:`.
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: sei-omnigent
+    includeSelectors: false
+
+resources:
+  # Server control plane
+  - server-deployment.yaml
+  - server-service.yaml
+  - server-config.yaml
+  - server-pvc.yaml
+  # Postgres (Phase-1 in-cluster)
+  - postgres-statefulset.yaml
+  - postgres-service.yaml
+  # Human auth path
+  - oauth2-proxy-deployment.yaml
+  - oauth2-proxy-service.yaml
+  - ingress.yaml
+  # Agent execution host + arming
+  - host-deployment.yaml
+  - host-arm-rbac.yaml
+  - host-arm-job.yaml
+  - host-rearm-cronjob.yaml
+  # Security baseline
+  - networkpolicies.yaml

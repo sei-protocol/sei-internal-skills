@@ -1,0 +1,142 @@
+# Re-arm CronJob (PLT-674). The managed launch token has a finite TTL (7d here);
+# a long-lived host goes dark on reconnect once it expires (C11-bis). This
+# re-invokes the SAME arming with the SAME host_id + owner and a FRESH token,
+# overwriting the omnigent-host-token Secret. register_managed_host overwrites
+# the credential columns in place for an existing host_id, which ATOMICALLY
+# revokes the previous token (its digest no longer matches any row).
+#
+# Schedule: every 3.5 days = 50% of the 7d TTL → two refresh windows before any
+# expiry, so a single missed run is non-fatal.
+#
+# ┌──────────────────────────────────────────────────────────────────────────┐
+# │ PLT-674 OPEN QUESTION — verify against 0.1.1: does rotating the token (and │
+# │ the host re-reading the Secret) re-establish auth on the EXISTING live     │
+# │ connection, or only on the NEXT dial? If the live tunnel is NOT re-authed  │
+# │ on rotation, the host must be made to redial within the TTL (e.g. a rolling│
+# │ restart of omnigent-host shortly after each re-arm). Confirm before relying│
+# │ on uninterrupted operation across a rotation.                              │
+# └──────────────────────────────────────────────────────────────────────────┘
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: omnigent-host-rearm
+  labels:
+    app: omnigent-host
+spec:
+  schedule: "0 3 */3 *" # ~every 3.5d effective with concurrency guard; tune to 50% of TTL
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 3600
+  jobTemplate:
+    spec:
+      backoffLimit: 3
+      template:
+        metadata:
+          labels:
+            app: omnigent-host-rearm
+        spec:
+          serviceAccountName: omnigent-host-arm
+          restartPolicy: Never
+          imagePullSecrets:
+            - name: omnigent-ghcr
+          containers:
+            - name: rearm
+              image: PLACEHOLDER_IMAGE:PLACEHOLDER_TAG
+              env:
+                - name: OMNIGENT_HOST_ID
+                  value: PLACEHOLDER_HOST_ID # SAME id as the arm Job + host pod
+                - name: OMNIGENT_HOST_NAME
+                  value: "tide-host" # SAME name as the arm Job + host pod
+                - name: OMNIGENT_HOST_OWNER
+                  value: "tide-host@sei.internal"
+                - name: OMNIGENT_HOST_PROVIDER
+                  value: "k8s-static"
+                - name: OMNIGENT_HOST_TOKEN_TTL_SECONDS
+                  value: "604800"
+                - name: TARGET_SECRET_NAME
+                  value: "omnigent-host-token"
+                - name: TARGET_SECRET_KEY
+                  value: "OMNIGENT_HOST_TOKEN"
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                # FIX 4 — DSN via secretKeyRef, NO plaintext password in env.
+                - name: OMNIGENT_DATABASE_URI
+                  valueFrom:
+                    secretKeyRef:
+                      name: postgres
+                      key: DATABASE_URI
+              # FIX 5 — REAL re-arm implementation (was an exit-1 stub). Same
+              # logic as the arm Job: idempotent on host_id (overwrite-in-place),
+              # which ATOMICALLY revokes the prior token. Fail-closed. Keep this
+              # in lockstep with host-arm-job.yaml. DRIFT-WATCH + IMAGE REQUIREMENT
+              # (kubernetes python client) per host-arm-job.yaml's box; re-verify
+              # against omnigent 0.1.1 before apply (PLT-675 gate).
+              command:
+                - python
+                - -c
+                - |
+                  import os, sys, secrets, datetime
+
+                  # Import path verified vs omnigent 0.1.0 (omnigent.stores.host_store).
+                  from omnigent.stores.host_store import HostStore  # noqa: E402
+
+                  dsn = os.environ["OMNIGENT_DATABASE_URI"]
+                  host_id = os.environ["OMNIGENT_HOST_ID"]
+                  name = os.environ["OMNIGENT_HOST_NAME"]
+                  owner = os.environ["OMNIGENT_HOST_OWNER"]
+                  provider = os.environ["OMNIGENT_HOST_PROVIDER"]
+                  sandbox_id = os.environ["POD_NAME"]
+                  ttl = int(os.environ["OMNIGENT_HOST_TOKEN_TTL_SECONDS"])
+
+                  token = secrets.token_urlsafe(32)
+                  expires = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(seconds=ttl)
+
+                  store = HostStore(dsn)
+                  # Re-arm: SAME host_id + owner overwrites in place (verified
+                  # keyword-only signature, host_store.py:524).
+                  store.register_managed_host(
+                      host_id=host_id,
+                      name=name,
+                      owner=owner,
+                      token=token,
+                      provider=provider,
+                      sandbox_id=sandbox_id,
+                      token_expires_at=expires,
+                  )
+
+                  import base64
+                  from kubernetes import client, config
+
+                  config.load_incluster_config()
+                  ns = os.environ["POD_NAMESPACE"]
+                  sec_name = os.environ["TARGET_SECRET_NAME"]
+                  sec_key = os.environ["TARGET_SECRET_KEY"]
+                  body = client.V1Secret(
+                      metadata=client.V1ObjectMeta(name=sec_name, namespace=ns),
+                      type="Opaque",
+                      data={sec_key: base64.b64encode(token.encode()).decode()},
+                  )
+                  v1 = client.CoreV1Api()
+                  try:
+                      v1.replace_namespaced_secret(sec_name, ns, body)
+                  except client.exceptions.ApiException as e:
+                      if e.status == 404:
+                          v1.create_namespaced_secret(ns, body)
+                      else:
+                          raise
+
+                  print(f"re-armed host_id={host_id} expires={expires.isoformat()}", file=sys.stderr)
+              resources:
+                requests:
+                  memory: "256Mi"
+                  cpu: "100m"
+                limits:
+                  memory: "512Mi"
+                  cpu: "500m"

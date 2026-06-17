@@ -1,0 +1,132 @@
+# Server control plane — the omnigent FastAPI app via the Sei serve_main
+# entrypoint (PLT-672A). SINGLE-REPLICA IS STRUCTURAL, not a capacity choice:
+# the runner_id→live-WebSocket map is in-memory (registry.py); two pods both
+# holding tunnels is incoherent. Hence replicas:1 + strategy:Recreate
+# (maxSurge:0) — the old pod must fully release before the new one binds.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omnigent-server
+  labels:
+    app: omnigent-server
+spec:
+  replicas: 1 # MANDATORY — do not raise (see header). One-way-door flag #1.
+  strategy:
+    type: Recreate # never two pods at once → no double-tunnel-holder window
+  selector:
+    matchLabels:
+      app: omnigent-server
+  template:
+    metadata:
+      labels:
+        app: omnigent-server
+    spec:
+      # Private GHCR pull. MUST-FIX(a): without this the pinned image 403s.
+      imagePullSecrets:
+        - name: omnigent-ghcr
+      # 90s > the longest expected tool call so WS/SSE drain cleanly on rollout.
+      # Paired with OMNIGENT_SERVER_SHUTDOWN_TIMEOUT_S=85 below (C11): uvicorn's
+      # 30s graceful default would force-close mid-drain regardless of this.
+      terminationGracePeriodSeconds: 90
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: omnigent-server
+          # PINNED tag/sha — NEVER :latest (alpha 0.1.x churn, MUST-FIX(a)).
+          image: PLACEHOLDER_IMAGE:PLACEHOLDER_TAG
+          # The Sei serve_main entrypoint (PLT-672A) — deliberately bypasses
+          # omnigent's stock entrypoint.py, which auto-sets
+          # OMNIGENT_LOCAL_SINGLE_USER when AUTH_PROVIDER is unset (C3 footgun →
+          # every request becomes admin `local`). The console script
+          # `sei-omnigent-serve` is equivalent.
+          command: ["python", "-m", "sei_omnigent.server.serve_main"]
+          # FIX 7 — container hardening atop the pod-level runAsNonRoot +
+          # seccompProfile. readOnlyRootFilesystem:true — the app writes only
+          # under the /data PVC (writable mount) and /tmp (emptyDir below).
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          ports:
+            - containerPort: 8000
+              name: http
+          env:
+            # EXPLICIT header mode. Without it serve_main's posture boot-assert
+            # (PLT-669) crashloops fail-closed — that crashloop IS the intended
+            # safety behavior, not a misconfig. One-way-door flag #3.
+            - name: OMNIGENT_AUTH_PROVIDER
+              value: "header"
+            # C11: drain inside the 90s grace; below the pod's grace so uvicorn
+            # finishes before the kubelet SIGKILLs.
+            - name: OMNIGENT_SERVER_SHUTDOWN_TIMEOUT_S
+              value: "85"
+            - name: OMNIGENT_SERVER_HOST
+              value: "0.0.0.0" # pod is reachable only via Service; NetworkPolicy is the boundary
+            - name: OMNIGENT_SERVER_PORT
+              value: "8000"
+            # Server YAML lives in the mounted ConfigMap (absolute path).
+            - name: OMNIGENT_CONFIG
+              value: "/etc/omnigent/server.yaml"
+            # EXPLICIT, by security request — the read-only/shell-deny posture
+            # must be auditable in the manifest, not implicit in a default.
+            # false = the github_policy + deny_mutating_os backstops keep shell
+            # parsing on (DENY_SHELL=true would instead hard-deny all shell).
+            - name: SEI_OMNIGENT_DENY_SHELL
+              value: "false"
+            # NOTE: OMNIGENT_LOCAL_SINGLE_USER is deliberately UNSET. Setting it
+            # truthy aborts the boot-assert (intended). Do not add it.
+          volumeMounts:
+            # MUST-FIX(b): mount at /data (the PARENT), NOT /data/artifacts.
+            # admin-credentials, cookie-secret, the `admins` roster and
+            # `allowed_domains` persist at the /data parent (admin_list.py:50).
+            # Mounting only /data/artifacts silently empties the admin roster on
+            # restart. One-way-door flag #5.
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /etc/omnigent
+              readOnly: true
+            # Writable scratch under readOnlyRootFilesystem (FIX 7). Python/uvicorn
+            # and tooling expect a writable /tmp.
+            - name: tmp
+              mountPath: /tmp
+          resources:
+            requests:
+              # 256Mi OOM-loops at boot. 512Mi is the floor, not a target.
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+          # ~1min Alembic-over-network migration on first boot. 30×5s = 150s
+          # headroom before liveness/readiness start probing.
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            failureThreshold: 30
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: omnigent-data
+        - name: config
+          configMap:
+            name: omnigent-server-config
+        - name: tmp
+          emptyDir: {}
