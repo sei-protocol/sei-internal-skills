@@ -26,6 +26,21 @@ def bool_env(name: str, *, default: bool = False) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def int_env(name: str, *, default: int) -> int:
+    """Parse an int env var, falling back to *default* when unset OR set-but-empty.
+
+    A set-but-empty var (e.g. a manifest ``value: ""`` or an unresolved
+    ``valueFrom``) returns ``""`` from ``os.environ.get(name, default)``, and
+    ``int("")`` would crash the boot — so empty falls back to *default*. A
+    genuinely malformed value (e.g. ``"abc"``) still raises ``ValueError``
+    (fail-loud, the right behavior for a single-replica server with a bad port).
+    """
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    return int(raw)
+
+
 def build_effective_config(raw_cfg: dict[str, Any], *, deny_shell: bool) -> dict[str, Any]:
     """Merge the overlay's read-only server-default policies into a loaded config.
 
@@ -46,7 +61,12 @@ def build_effective_config(raw_cfg: dict[str, Any], *, deny_shell: bool) -> dict
         **(cfg.get("policies") or {}),
         **read_only_default_policies(deny_shell=deny_shell),  # overlay wins on collision
     }
-    modules = list(cfg.get("policy_modules") or [])
+    # A scalar string is a common one-item YAML form; list() on a str would
+    # split it into characters (corrupting the allow-list), so coerce first.
+    raw_modules = cfg.get("policy_modules") or []
+    if isinstance(raw_modules, str):
+        raw_modules = [raw_modules]
+    modules = list(raw_modules)
     for module in READ_ONLY_POLICY_MODULES:
         if module not in modules:
             modules.append(module)

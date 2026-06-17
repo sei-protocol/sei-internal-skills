@@ -28,7 +28,7 @@ from __future__ import annotations
 
 import os
 
-from sei_omnigent._config import bool_env, build_effective_config, load_config
+from sei_omnigent._config import bool_env, build_effective_config, int_env, load_config
 
 #: Bind all interfaces — the pod is reachable only through the Service, and the
 #: default-deny NetworkPolicy (PLT-672 §2.4a) gates ingress to oauth2-proxy +
@@ -62,9 +62,12 @@ def main() -> None:
     # aborts here, fail-closed, rather than booting an open server.
     app = build_server(cfg)
 
-    host = os.environ.get("OMNIGENT_SERVER_HOST", _DEFAULT_HOST)
-    port = int(os.environ.get("OMNIGENT_SERVER_PORT", str(_DEFAULT_PORT)))
-    shutdown_timeout = int(os.environ.get(_SHUTDOWN_TIMEOUT_ENV, str(_SHUTDOWN_TIMEOUT_DEFAULT)))
+    # `or _DEFAULT_HOST` handles a set-but-empty OMNIGENT_SERVER_HOST; int_env
+    # handles set-but-empty port/timeout (manifest `value: ""`) without crashing,
+    # while a genuinely malformed value still fails loud.
+    host = os.environ.get("OMNIGENT_SERVER_HOST") or _DEFAULT_HOST
+    port = int_env("OMNIGENT_SERVER_PORT", default=_DEFAULT_PORT)
+    shutdown_timeout = int_env(_SHUTDOWN_TIMEOUT_ENV, default=_SHUTDOWN_TIMEOUT_DEFAULT)
 
     # Mirror omnigent cli.py's uvicorn bind EXACTLY (cli.py:3126-3132), including
     # log_config — it installs RequestDurationAccessFormatter, the only source of

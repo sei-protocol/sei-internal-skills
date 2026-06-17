@@ -12,7 +12,14 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from sei_omnigent._config import build_effective_config, load_config, resolve_relative_locations
+import os
+
+from sei_omnigent._config import (
+    build_effective_config,
+    int_env,
+    load_config,
+    resolve_relative_locations,
+)
 
 _SERVE_MAIN = Path(__file__).resolve().parent.parent / "server" / "serve_main.py"
 
@@ -40,6 +47,42 @@ def test_operator_policies_are_preserved_alongside() -> None:
     cfg = build_effective_config({"policies": {"custom_audit": {"type": "function"}}}, deny_shell=False)
     assert "custom_audit" in cfg["policies"]
     assert _READ_ONLY_KEYS <= set(cfg["policies"])
+
+
+def test_scalar_policy_modules_string_is_coerced_not_split() -> None:
+    """A scalar-string policy_modules (a common one-item YAML form) must become a
+    one-element list, NOT be split into characters by list() (Bugbot finding)."""
+    cfg = build_effective_config({"policy_modules": "my.custom.module"}, deny_shell=False)
+    assert "my.custom.module" in cfg["policy_modules"]
+    assert "m" not in cfg["policy_modules"]  # not character-split
+    assert _READ_ONLY_MODULE in cfg["policy_modules"]
+
+
+def test_int_env_handles_unset_empty_and_malformed() -> None:
+    """Unset OR set-but-empty → default (manifest `value: ""` must not crash boot);
+    a valid value parses; a malformed value fails loud (Bugbot finding)."""
+    key = "SEI_TEST_INT_ENV"
+    saved = os.environ.get(key)
+    try:
+        os.environ.pop(key, None)
+        assert int_env(key, default=8000) == 8000  # unset → default
+        os.environ[key] = ""
+        assert int_env(key, default=8000) == 8000  # set-but-empty → default
+        os.environ[key] = "  "
+        assert int_env(key, default=8000) == 8000  # whitespace-only → default
+        os.environ[key] = "9090"
+        assert int_env(key, default=8000) == 9090  # valid → parsed
+        os.environ[key] = "not-an-int"
+        try:
+            int_env(key, default=8000)
+            raise AssertionError("malformed value must raise (fail-loud)")
+        except ValueError:
+            pass
+    finally:
+        if saved is None:
+            os.environ.pop(key, None)
+        else:
+            os.environ[key] = saved
 
 
 def test_policy_modules_union_is_deduped_and_order_preserving() -> None:
