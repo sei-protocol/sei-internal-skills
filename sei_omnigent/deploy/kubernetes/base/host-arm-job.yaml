@@ -203,6 +203,28 @@ spec:
                       )
                   raise
 
+              # (d) Restart the omnigent-host Deployment so it re-reads the new
+              # token. OMNIGENT_HOST_TOKEN is an env secretKeyRef (fixed at pod
+              # start; K8s does not re-inject on Secret change), so on a single
+              # `kubectl apply` the host pod may have started on the placeholder
+              # token before this Job armed it — without a restart it would stay
+              # on the placeholder. Tolerant of 404: on the ordered apply path the
+              # host Deployment does not exist yet (applied after this Job) and
+              # will start fresh with the real token, so a missing Deployment is
+              # fine. (Re-arm does the same restart; see host-rearm-cronjob.yaml.)
+              apps = client.AppsV1Api()
+              now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+              try:
+                  apps.patch_namespaced_deployment(
+                      "omnigent-host", ns,
+                      {"spec": {"template": {"metadata": {"annotations": {
+                          "kubectl.kubernetes.io/restartedAt": now_iso,
+                      }}}}},
+                  )
+              except client.exceptions.ApiException as e:
+                  if e.status != 404:  # 404 = host Deployment not yet applied (ordered path) — fine
+                      raise
+
               print(f"armed host_id={host_id} provider={provider} expires={expires.isoformat()}", file=sys.stderr)
           resources:
             requests:
