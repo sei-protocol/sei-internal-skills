@@ -10,7 +10,13 @@ Skills and agents are authored once here and synced out to your user-scope (`~/.
 
 ## Setup
 
-One-line install: clone, then
+One-liner
+
+```sh
+gh api repos/sei-protocol/Tide/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
+```
+
+Or clone, then
 
 ```sh
 make bootstrap
