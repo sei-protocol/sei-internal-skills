@@ -1,0 +1,116 @@
+# Python idiom pack
+
+> Authorities loaded by this pack are listed in §2; cite them in findings. Anchors in §7 were verified against the official Ruff rule registry + mypy error-code list **and by running `ruff` 0.15.17 / `mypy` 2.1.0 / `black` 26.5.1 on snippets** — never asserted from memory.
+>
+> Strategic stance: this pack enshrines the **language's own published standards** (PEPs, the official docs, the Google Python Style Guide) and the community-consolidated lint registry (Ruff) — not hand-rolled house rules. Where a rule is the team's, it says so.
+>
+> **Citing a §7 anchor:** cite a lint code only from §7, and carry its two-part caveat — (a) is it in Ruff's defaults or **opt-in** (most of `N`/`D`/`ANN`/`B`/`C4`/`PTH`/`I` are opt-in), and (b) does it need a configured **type checker** (the P2/`ANN` rules — TC1). If §7 marks a dimension **judgment-only**, say so and cite the PEP/doc authority — never fabricate a code.
+
+Sections: §1 dimensions · §2 authorities · §3 divergences (do **not** flag these) · §4 anti_patterns · §5 framework_overlays · §6 severity_model · §7 lint_anchors · language→specialist.
+
+## 1. dimensions[]
+
+| id | dimension | idiomatic rule | cue | authority |
+|----|-----------|----------------|-----|-----------|
+| P1 | Naming | `snake_case` functions/variables/modules; `CapWords` (PascalCase) classes; `UPPER_CASE` module-level constants; `_leading` for non-public, `__dunder__` only for the data model. | `getItem`/`MyVar` functions; `my_class` class; a module-level `Config` that's a constant. | PEP 8 *Naming Conventions*; lint `N801`/`N802`/`N803`/`N806` (§7) |
+| P2 | Typing & annotations | Annotate the **public boundary** (args + return); let locals infer. Modern forms (per target Python): `list[int]`/`dict[str,int]` (PEP 585, 3.9+) **not** `typing.List`; `X \| None` (PEP 604, 3.10+) **not** `Optional[X]`; PEP 695 generics (`class C[T]`, `type Alias = …`, 3.12+); `@override` (PEP 698, 3.12+). Structural typing via `Protocol` (PEP 544), not forced ABC inheritance. Run a type checker (mypy/pyright). | `Optional[X]`/`Union`/`typing.List` on 3.10+; an untyped public function; `Any` in a public signature where a `Protocol` fits. | PEP 484/526/585/604/695/698; `typing` docs; PEP 544; lint `UP006`/`UP035`/`UP045`, `ANN201`; mypy `[arg-type]`/`[return-value]`/`[no-untyped-def]` (§7) |
+| P3 | Docstrings | PEP 257 triple-double-quote docstrings on public modules/classes/functions/methods (incl. `__init__`); imperative mood ("Return …", not "Returns …"); one-line closes on the same line, multi-line summary + blank + body + closing quotes on their own line. The **section format** (Google `Args:`/`Returns:`/`Raises:`, NumPy, or reST) is a **project convention** layered on PEP 257 — pick one, don't mix. | a public function with no docstring; a docstring describing in past/indicative tense; mixed Google+NumPy formats. | PEP 257; Google Style Guide §3.8 (format); lint `D101`/`D103` (pydocstyle) (§7) |
+| P4 | EAFP control flow | "Easier to ask forgiveness than permission": assume validity and catch the specific exception, rather than pre-checking (LBYL), which is verbose and risks a TOCTOU race. Keep the `try` body and the `except` clause narrow. | a chain of `if key in d and d[key] is not None …` guarding a lookup; a broad pre-validation block mirroring the operation. | docs glossary (EAFP / LBYL); PEP 20 "Errors should never pass silently"; lint mostly judgment (`SIM105` `contextlib.suppress` adjacent) (§7) |
+| P5 | Comprehensions, builtins & stdlib | A comprehension (or generator) for a simple transform/filter, over a manual `for`-append loop or `map`/`filter`+`lambda`; but cap complexity (no multiple `for`/filter clauses — extract a loop). Reach for builtins/stdlib: `enumerate`, `zip`, `any`/`all`, `pathlib.Path` over `os.path` string-munging. | `result=[]; for…: result.append(…)`; `list(map(lambda…))`; a 3-clause comprehension; `os.path.join`. | tutorial *Data Structures* §5.1.3; Google §2.7; lint `C4xx` (e.g. `C416`), `PTH118`, `SIM` (§7) |
+| P6 | Data model, properties & protocols | Expose attributes directly; add `@property`/descriptors **only** when access needs behavior — no Java-style `get_x()`/`set_x()`. Implement protocols via dunders (`__len__`, `__iter__`, `__enter__`/`__exit__`); use `@dataclass` for data aggregates; `Protocol` for "looks-like-a-duck" interfaces. | `get_name()`/`set_name()` pairs over a plain attribute; a hand-rolled iterator without `__iter__`; a boilerplate `__init__`-only class that a `@dataclass` replaces. | data model §3.3; `property` / `dataclasses` docs; PEP 544; lint mostly judgment (§7) |
+| P7 | Mutable defaults & shared state | Never a **mutable default argument** (`def f(x=[])`/`={}`) — the default is evaluated once and shared across calls; default to `None` and construct inside. Same for mutable **class attributes** — annotate `ClassVar` or set in `__init__`. | `def f(x=[])` / `def f(x={})`; a `cache = {}` class attribute mutated per-instance. | flake8-bugbear + Ruff convention; PEP 20; lint `B006`/`B008`/`RUF012` (§7) |
+| P8 | Imports | One import per line; grouped **stdlib → third-party → local** with a blank line between groups; absolute imports; **no wildcard `from x import *`**. (Google §2.2 additionally imports modules, not symbols — exempting `typing`/`collections.abc`; treat as a project overlay.) | `import os, sys`; a third-party import among stdlib; `from x import *`; an unused import. | PEP 8 *Imports*; Google §2.2; lint `I001` (isort), `F401` (unused), `F403`/`F405` (wildcard) (§7) |
+| P9 | Errors & exceptions | Raise/catch **specific** `Exception` subclasses — never a bare `except:`. Don't silence silently (PEP 20): an intentional swallow says why. Preserve the cause with `raise New(...) from err` inside an `except`. Don't use exceptions for ordinary control flow beyond EAFP. | `except:` / `except Exception: pass`; `raise X()` inside `except` losing the cause; control flow on caught error messages. | PEP 8 (bare except); PEP 20; tutorial *Errors and Exceptions*; lint `E722` (bare except), `B904` (raise-without-from) (§7) |
+| P10 | Comment discipline | Comments are an **uncommon exception** — names + type hints carry intent; the sanctioned "above the code" doc is the **PEP 257 docstring** (P3). A deliberately-empty `except`/pass carries a one-line *why*. **No historical/changelog reasoning in code** ("we used to…", "removed because…") — that belongs in the PR/commit. **A deletion gets no tombstone**: when code is removed it is removed — no comment naming what was removed or why, and **no "load-bearing context for the deletion" exception** (not even a security-relevant removal); the code states only *current* intent. | a `# what` comment restating the next line; "previously…"/commented-out code; **a comment naming a removed function/block or why it was deleted (a tombstone), even pitched as security context**; a comment a rename would delete; a bare `# type: ignore`/`# noqa` with no reason. | Google *Comments and Docstrings*; PEP 8 (comments); the no-tombstone rule is **judgment-only** (§7) |
+| P11 | Formatting | Defer mechanical formatting to **`black`** (or `ruff format`) — deterministic, "uncompromising"; double-quote normalization, trailing-comma handling. **Line length is project-configurable**: black/Ruff default **88** (PEP 8 says 79 but sanctions up to 99 and warns against "a foolish consistency"). Don't hand-litigate whitespace a formatter owns — hand-formatting drifts from the formatter and produces review noise the formatter would erase. | hand-aligned dict/whitespace; arguing 79 vs 88 in review; single vs double quotes by hand. | black *code style*; PEP 8 (with its 99/"foolish consistency" carve-outs); lint `E501` (configurable) (§7) |
+
+**Required dimension — comment discipline:** P10 above. Cue the reviewer to flag *what*-comments, changelog/history comments, **tombstone/removal-narration comments (and refute the "but it's load-bearing context" excuse)**, commented-out code, and any comment a rename would delete; the PEP 257 docstring is the sanctioned exception.
+
+## 2. authorities[]
+
+- **PEP 8** — *Style Guide for Python Code* — https://peps.python.org/pep-0008/ — naming, layout, imports, line length, comparisons. The baseline.
+- **PEP 257** — *Docstring Conventions* — https://peps.python.org/pep-0257/ — docstring placement, quoting, mood, one-line vs multi-line.
+- **PEP 20** — *The Zen of Python* — https://peps.python.org/pep-0020/ — "explicit is better than implicit"; "errors should never pass silently"; "one obvious way."
+- **The typing PEPs** — 484 (hints), 526 (variable annotations), 585 (builtin generics), 604 (`X|Y` unions), 612 (ParamSpec), 646 (variadic), 695 (type-param syntax, 3.12), 698 (`@override`, 3.12) — https://peps.python.org/ — and the **`typing` module docs** https://docs.python.org/3/library/typing.html . **PEP 544** (`Protocol`, structural typing).
+- **Official Python documentation** — the tutorial (https://docs.python.org/3/tutorial/), the data model (https://docs.python.org/3/reference/datamodel.html), and the glossary (https://docs.python.org/3/glossary.html — EAFP/LBYL).
+- **Google Python Style Guide** — https://google.github.io/styleguide/pyguide.html — a widely-adopted **community** standard (not a PEP): Google-format docstrings, import-modules-not-symbols, complexity caps. Cite as community, layered on PEP 8.
+- **Tooling (the lint ecosystem):** **Ruff** (https://docs.astral.sh/ruff/ — the consolidated linter; re-implements 900+ rules from pycodestyle/Pyflakes/isort/pep8-naming/pydocstyle/pyupgrade/flake8-bugbear/-comprehensions/-simplify/-use-pathlib/-annotations + Ruff-specific; the 2026 de-facto standard, used by FastAPI/Pydantic/Pandas); **mypy** (https://mypy.readthedocs.io/) / **pyright** (https://github.com/microsoft/pyright — repo, no docs.* site) for type checking; **black** (https://black.readthedocs.io/) / `ruff format` for formatting.
+
+## 3. divergences[] — where Python rejects general / other-language wisdom
+
+Do **not** flag these — they are correct Python, not smells (the false-positive guard):
+
+- **EAFP over LBYL.** General defensive style says validate-everything-before-acting; Python prefers `try`/`except` (cleaner, and avoids the TOCTOU race a pre-check introduces). → Reviewer must NOT flag a well-scoped `try`/`except` as "missing pre-checks."
+- **Attributes over getters/setters.** Classic OOP encapsulation says private fields + accessors; Python exposes attributes and adds `@property` only when access needs behavior. → Must NOT flag a public attribute as "needs a getter/setter."
+- **Structural (duck) typing over interface inheritance.** Nominal-typing dogma says "implement the interface"; Python uses duck typing at runtime and `Protocol` (PEP 544) for static structural typing. → Must NOT flag "doesn't subclass the ABC" when a `Protocol` / duck match holds.
+- **Comprehensions over loops/`map`/`filter`.** → Must NOT flag a clear single-clause comprehension as "too clever."
+- **Module-level functions over class-wrapping.** Java's "everything in a class" is not Python; a module of functions is idiomatic. → Must NOT flag a stateless function for "not being in a class."
+- **Explicit + one obvious way (Zen).** Cuts against clever metaprogramming and DRY-at-all-costs magic. → Must NOT flag the explicit, obvious form as "verbose" or "not DRY" when a terser implicit/metaprogrammed one exists.
+- **Line length is project-configurable.** → Must NOT flag 88-column lines against a literal 79; PEP 8 itself sanctions 99 and the "foolish consistency" carve-out.
+
+## 4. anti_patterns[]
+
+Each is example-paired in `examples-python.md` (the bad snippet run through the tool, the observed diagnostic recorded).
+
+- **Mutable default argument** — cue: `def f(x=[])` / `={}`. Rewrite: `def f(x=None): x = [] if x is None else x`. (`B006`; mutable class attr → `RUF012`)
+- **Bare / swallowing except** — cue: `except:` or `except Exception: pass`. Rewrite: catch the specific type; intentional suppress → `contextlib.suppress(...)` + a one-line why. (`E722`; `SIM105`)
+- **Legacy typing** — cue: `Optional[int]` / `List[str]` / `Union[...]`. Rewrite: `int | None` / `list[str]` / `X | Y`. (`UP045`/`UP006`/`UP035`)
+- **Wildcard import** — cue: `from x import *`. Rewrite: explicit names. (`F403`/`F405`)
+- **Singleton / type comparison** — cue: `x == None` / `x == True` / `type(x) == int`. Rewrite: `x is None` / truthiness / `isinstance(x, int)`. (`E711`/`E712`/`E721`)
+- **`os.path` string-munging** — cue: `os.path.join(...)`. Rewrite: `Path(...) / ...`. (`PTH118`)
+- **Manual loop that's a comprehension** — cue: `r=[]; for…: r.append(…)`. Rewrite: `[… for … in …]`. (judgment; adjacent `C416` fires only on a *redundant* comprehension that's a plain copy, not on the loop→comprehension rewrite)
+- **f-string in a logging call** — cue: `logging.info(f"…{x}")` (formats eagerly even when the level is disabled). Rewrite: `logging.info("…%s", x)`. (`G004`; `flake8-logging-format`, opt-in)
+
+## 5. framework_overlays[]
+
+### Type-checking precondition (applies to all P2 annotation/type rules)
+| id | rule | cue | consequence |
+|----|------|-----|-------------|
+| TC1 | The type-quality dimension (P2 mypy/pyright codes + `ANN*`) requires a **configured type checker** (mypy/pyright) and, for `ANN*`, `flake8-annotations` selected in Ruff. | `ruff` defaults with no type checker / `ANN` not selected. | type-mismatch + missing-annotation defects **ship unflagged**; those dimensions fall back to **judgment-only** — say so. |
+
+### asyncio (overlay — runtime consequences rank above style)
+| id | rule | cue | consequence |
+|----|------|-----|-------------|
+| A1 | Never block the event loop inside an `async def` — no sync I/O, `time.sleep`, or blocking opens; use the async equivalent (`asyncio.sleep`, async file/HTTP/DB). | `time.sleep(...)`, `open(...)`, a sync DB/HTTP call inside `async def`. | the **whole event loop stalls** — every coroutine starves, not just this one. (`ASYNC251` sleep, `ASYNC230` blocking-open, `ASYNC110` busy-wait) |
+| A2 | Keep a reference to every `asyncio.create_task(...)`. | `asyncio.create_task(coro())` with the result discarded. | the task may be **garbage-collected before it finishes** and silently never complete. (`RUF006`) |
+
+### pytest (overlay)
+| id | rule | cue | consequence |
+|----|------|-----|-------------|
+| PT1 | Bare `assert` (pytest rewrites it for rich diffs), not `unittest` `self.assertEqual`; scope `pytest.raises(...)` to the specific exception; one logical check per assert. | `self.assertEqual(...)` in a pytest test; `pytest.raises(Exception)`; a composite `assert a and b`. | weaker failure diagnostics; an over-broad `raises` **passes on the wrong error**. (`PT009`, `PT011`, `PT018` — `flake8-pytest-style` `PT` set, opt-in) |
+
+Further sub-packs (deferred until the work is common — add each as a conforming overlay table when a repo needs it): **pydantic** (v2 model/validator patterns; frozen-model immutability), **Django** (ORM N+1 → `select_related`/`prefetch_related`; fat-model/thin-view), **FastAPI** (dependency injection, `response_model`, async-route discipline).
+
+## 6. severity_model
+
+- **correctness:** the mutable-default bug (`B006`/`RUF012`), a bare/swallowing `except` that hides failures (`E722`), a real type mismatch a checker flags (mypy `[arg-type]`/`[return-value]`), a `==`-on-singleton identity bug (`E711`). Always wins.
+- **idiom-divergence-with-consequence:** legacy typing that misleads tooling / breaks on `from __future__`-free runtime introspection (`UP006`/`UP045`), `os.path` vs `pathlib` portability, a wildcard import shadowing names (`F403`/`F405`), a missing public-boundary annotation (`ANN201`).
+- **style:** naming (`N8xx`), import ordering (`I001`), line length (`E501`), docstring presence (`D1xx`), formatting black owns. Bundle these; never lead with them.
+
+**Subordinate to the repo profile.** This pack is subordinate to `package-profile.md`, and Python is *more* profile-dependent than its peers: which `ruff` rule-sets are selected (`N`/`D`/`ANN`/`B`/`C4`/`PTH`/`I` are **opt-in**, not Ruff defaults), which docstring convention (`google`/`numpy`/`pep257`), the configured line length, and whether a type checker runs (TC1) are all the repo's call. Reconcile against the repo's `ruff`/`mypy`/`black` config + `CLAUDE.md` first — never cite `N802`/`ANN201`/`D103` as build-failing against a repo that never selected those sets.
+
+## 7. lint_anchors[]
+
+Anchors verified against the Ruff rule registry (https://docs.astral.sh/ruff/rules/) + the mypy error-code list, **and by running `ruff`/`mypy`/`black` on snippets**. Cite a lint code only from this table.
+
+| dimension | anchor(s) | tool · rule-set | autofix? | flags | caveat |
+|---|---|---|---|---|---|
+| P1 Naming | `N801` (class not CapWords); `N802` (function not snake_case); `N803` (argument not lowercase); `N806` (variable in function not lowercase) | Ruff · `pep8-naming` (`N`) | no | `class my_class`; `def getItem`; `def f(D=…)`; `X = …` local | the `N` set is **not** in Ruff defaults — must be selected; encodes PEP 8 naming |
+| P2 Typing | `UP006`/`UP035` (`typing.List`→`list`); `UP045` (`Optional[X]`→`X\|None`); `ANN201` (missing public return type); mypy `[arg-type]`/`[return-value]`/`[no-untyped-def]` | Ruff · `pyupgrade`(`UP`)/`flake8-annotations`(`ANN`) ; mypy | UP\* yes / ANN no | `Optional`/`List` on 3.10+; untyped public def; type mismatch | `ANN` + mypy need opt-in (TC1); `[no-untyped-def]` is on mypy's **optional** list (fires under `--strict`/`--disallow-untyped-defs`) |
+| P3 Docstrings | `D101` (undocumented public class); `D103` (undocumented public function) | Ruff · `pydocstyle` (`D`) | no | a public class/function with no docstring | `D` set is opt-in + has a convention (`google`/`numpy`/`pep257`) you must pick; conflicting `D203/D211`, `D212/D213` pairs — choose per convention; docstring *format* is judgment |
+| P4 EAFP | `SIM105` (`try/except/pass`→`contextlib.suppress`) — *adjacent* | Ruff · `flake8-simplify` (`SIM`) | yes | a `try: … except X: pass` block | EAFP-vs-LBYL *choice* is **judgment-only** — no linter says "this should have been try/except"; `SIM105` only tidies an existing suppress |
+| P5 Comprehensions/stdlib | `C416` (unnecessary comprehension); `C401`/`C417` (comprehension/`map` rewrites); `PTH118` (`os.path.join`→`pathlib`); `SIM` family | Ruff · `flake8-comprehensions`(`C4`)/`-use-pathlib`(`PTH`)/`-simplify`(`SIM`) | mostly yes | `[i for i in xs]`; `os.path.join`; nested `if` | `PTH` is opt-in; "comprehension vs loop *readability*" beyond the mechanical rewrites is judgment |
+| P6 Data model | — (no anchor) | — | — | getters/setters; hand-rolled iterator; boilerplate class | **judgment-only** — no linter flags a getter-pair or "should be a `@dataclass`/`Protocol`"; cite the data-model docs |
+| P7 Mutable defaults | `B006` (mutable arg default); `B008` (call in arg default); `RUF012` (mutable class attr needs `ClassVar`) | Ruff · `flake8-bugbear`(`B`)/Ruff-specific(`RUF`) | no | `def f(x=[])`; `def f(x=set())`; `cache = {}` class attr | `B`/`RUF` opt-in; `B006` exempts immutable-annotated params; **verified firing on a live snippet** |
+| P8 Imports | `I001` (unsorted/ungrouped); `F401` (unused); `F403`/`F405` (wildcard / name-via-wildcard) | Ruff · `isort`(`I`)/`Pyflakes`(`F`) | I/F401 yes | a third-party import among stdlib; unused import; `from x import *` | `F` is in Ruff defaults; `I` is opt-in; the Google import-modules-not-symbols rule is a **project overlay**, not lint-default |
+| P9 Errors | `E722` (bare `except`); `B904` (`raise` in `except` without `from`) | Ruff · `pycodestyle`(`E`)/`flake8-bugbear`(`B`) | no | `except:`; `raise X()` inside `except` | `E722` is in defaults; `B904` opt-in; "swallowed-but-should-reraise" beyond the bare case is judgment |
+| P10 Comment discipline | — (no anchor) | — | — | what-comments; changelog/history; **tombstone/removal-narration**; commented-out code | **judgment-only** — no linter flags a tombstone or a what-comment (`ERA001` catches *commented-out code* only); the docstring (P3) is the sanctioned exception |
+| P11 Formatting | `E501` (line too long); `black`/`ruff format` own the rest | Ruff · `pycodestyle`(`E`) ; black | format: yes | a >limit line; hand-formatted whitespace | `E501`'s limit is **project-configurable** (default 88 with the Ruff formatter; PEP 8 = 79; 99 sanctioned) — never assert a fixed 79 |
+
+**Anti-fabrication note:** every code above was confirmed to exist with the stated name via `ruff rule <code>` (Ruff 0.15.17) and demonstrated firing on a bad snippet; mypy codes confirmed under `mypy --strict` (2.1.0). When a dimension is marked **judgment-only**, cite the PEP/doc authority — do not invent a code. **Genuinely judgment-only — never fabricate a code:** P4 (EAFP-vs-LBYL *choice*), P6 (data-model / `@property` / `@dataclass` / `Protocol` *design*), P10 (the tombstone / what-comment rule), and `@override`/PEP-695 *adoption* under P2 — no checker enforces these.
+
+## Language → specialist agent
+
+| language | specialist agent |
+|----------|------------------|
+| Python | *(none yet — review on the pack + first principles; add a `python-specialist` when Python work is common, e.g. for "is this async/reconcile pattern idiomatic" judgment the static pack can't carry)* |
