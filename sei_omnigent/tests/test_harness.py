@@ -63,7 +63,9 @@ def test_roster_guard_fails_closed() -> None:
     )
     # reduced roster
     err = roster_discoverable_error(
-        skills_filter="all", setting_sources_suppressed=False, discovered_agent_count=ROSTER_BASELINE - 1
+        skills_filter="all",
+        setting_sources_suppressed=False,
+        discovered_agent_count=ROSTER_BASELINE - 1,
     )
     assert err is not None and "roster incomplete" in err
 

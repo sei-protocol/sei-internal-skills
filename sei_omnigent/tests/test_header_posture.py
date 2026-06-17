@@ -62,7 +62,9 @@ def test_posture_assert_runs_on_the_main_path_before_auth() -> None:
     (The AST walk only proves presence; this proves placement on the executed path.)"""
     body = _build_server_body()
     assert_idx = _direct_call_index(body, "_assert_header_posture")
-    assert assert_idx is not None, "_assert_header_posture must be a direct statement in build_server"
+    assert assert_idx is not None, (
+        "_assert_header_posture must be a direct statement in build_server"
+    )
     auth_idx = next(
         (
             i for i, s in enumerate(body)
@@ -74,7 +76,9 @@ def test_posture_assert_runs_on_the_main_path_before_auth() -> None:
         None,
     )
     assert auth_idx is not None, "create_auth_provider call not found in build_server body"
-    assert assert_idx < auth_idx, "posture assert must precede create_auth_provider (and the create_app return)"
+    assert assert_idx < auth_idx, (
+        "posture assert must precede create_auth_provider (and the create_app return)"
+    )
 
 
 def test_serve_omni_attrs_are_exported_by_the_shim() -> None:

@@ -25,6 +25,7 @@ dependencies = [
 [project.optional-dependencies]
 test = [
     "pytest>=7",
+    "ruff>=0.6",
 ]
 
 # The runnable entrypoint (PLT-672): config load + read-only-policy merge +
@@ -40,3 +41,34 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["sei_omnigent*"]
+
+# --- Lint / test enforcement (PLT refinement PR-2) -------------------------
+# The standard existed (the ~/.claude language-pack-python.md) but nothing RAN
+# it on the overlay. This wires ruff + pytest; a GitHub workflow gates PRs.
+[tool.ruff]
+line-length = 99  # mirror omnigent's parent config
+target-version = "py312"  # matches requires-python (overlay has no async/old-alias UP targets)
+
+[tool.ruff.lint]
+# MVP enforcement set: pycodestyle/pyflakes baseline (E/F), import sorting (I),
+# pyupgrade (UP), bugbear latent-bug catches (B), ruff-specific incl. RUF100
+# unused-noqa (RUF). PLC0415 + S104 are selected so the overlay's documented
+# deferred-import / bind-all-interfaces suppressions stay valid (else RUF100
+# flags them as unused). DEFERRED (per the refinement decision): ANN + a mypy
+# type gate — un-defer at the first Phase-2 store swap, where a seam type
+# mis-bind becomes a real boot risk; D (docstrings) — un-defer at an external
+# consumer. Expand toward omnigent's full parent select as the overlay grows.
+select = ["E", "F", "I", "UP", "B", "RUF", "PLC0415", "S104"]
+ignore = [
+    # The overlay's docstrings use typographic — / × / › intentionally (prose,
+    # not ASCII-confusable source). Mirror omnigent's parent rationale.
+    "RUF001",
+    "RUF002",
+    "RUF003",
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["sei_omnigent"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

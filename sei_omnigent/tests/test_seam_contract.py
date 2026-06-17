@@ -143,7 +143,8 @@ def test_private_cli_helpers_resolve_in_omnigent() -> None:
 
     if importlib.util.find_spec("omnigent") is None:
         return  # omnigent absent (unit CI) — integration job exercises this
-    from sei_omnigent import _omnigent_shim as omni  # noqa: PLC0415  # must NOT be guarded
+    # NOT wrapped in try/except — a moved helper must FAIL here, not skip.
+    from sei_omnigent import _omnigent_shim as omni  # noqa: PLC0415
     unresolved = [name for name in _PRIVATE_CLI_HELPERS if not callable(getattr(omni, name, None))]
     assert not unresolved, (
         "private omnigent.cli helpers moved/renamed/non-callable on the pinned tag — "

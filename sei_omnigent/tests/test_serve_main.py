@@ -36,7 +36,11 @@ def test_injects_read_only_policies_into_empty_config() -> None:
 def test_overlay_policies_win_on_key_collision() -> None:
     """An operator config cannot silently drop the read-only backstop by reusing
     a key — the overlay's policy is spread last and wins."""
-    tampered = {"policies": {"admin__github_read_only": {"type": "function", "function": {"path": "evil"}}}}
+    tampered = {
+        "policies": {
+            "admin__github_read_only": {"type": "function", "function": {"path": "evil"}}
+        }
+    }
     cfg = build_effective_config(tampered, deny_shell=False)
     assert cfg["policies"]["admin__github_read_only"]["function"]["path"] == (
         "omnigent.policies.builtins.github.github_policy"
@@ -44,7 +48,9 @@ def test_overlay_policies_win_on_key_collision() -> None:
 
 
 def test_operator_policies_are_preserved_alongside() -> None:
-    cfg = build_effective_config({"policies": {"custom_audit": {"type": "function"}}}, deny_shell=False)
+    cfg = build_effective_config(
+        {"policies": {"custom_audit": {"type": "function"}}}, deny_shell=False
+    )
     assert "custom_audit" in cfg["policies"]
     assert _READ_ONLY_KEYS <= set(cfg["policies"])
 
@@ -85,7 +91,8 @@ def test_policy_modules_union_is_deduped_and_order_preserving() -> None:
 
 def test_deny_shell_propagates_into_the_policy_arg() -> None:
     cfg = build_effective_config({}, deny_shell=True)
-    assert cfg["policies"]["admin__deny_mutating_os"]["function"]["arguments"]["deny_shell"] is True
+    args = cfg["policies"]["admin__deny_mutating_os"]["function"]["arguments"]
+    assert args["deny_shell"] is True
 
 
 def test_load_config_none_returns_empty() -> None:
@@ -137,7 +144,9 @@ def test_uvicorn_bind_mirrors_omnigent_kwargs() -> None:
     kwargs = {k.arg for k in call.keywords if k.arg is not None}
     required = {"host", "port", "log_config", "ws_max_size", "timeout_graceful_shutdown"}
     missing = required - kwargs
-    assert not missing, f"uvicorn.run is missing kwargs that mirror omnigent's bind: {sorted(missing)}"
+    assert not missing, (
+        f"uvicorn.run is missing kwargs that mirror omnigent's bind: {sorted(missing)}"
+    )
 
 
 def test_omnigent_imports_are_deferred_into_main() -> None:
@@ -154,4 +163,6 @@ def test_omnigent_imports_are_deferred_into_main() -> None:
         elif isinstance(node, ast.ImportFrom) and node.module:
             module_level.append(node.module)
     leaked = deferred & set(module_level)
-    assert not leaked, f"omnigent-touching imports must stay inside main(), found at module scope: {sorted(leaked)}"
+    assert not leaked, (
+        f"omnigent-touching imports must stay inside main(); at module scope: {sorted(leaked)}"
+    )
