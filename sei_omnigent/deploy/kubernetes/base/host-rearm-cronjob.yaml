@@ -47,6 +47,32 @@ spec:
               type: RuntimeDefault
           imagePullSecrets:
             - name: omnigent-ghcr
+          # FIX C — re-arm runs long after first boot (lower migration-race risk
+          # than the arm Job), but gate on server health for consistency: a
+          # re-arm fired during a server rollout/migration would otherwise fail
+          # closed. Same urllib poll as the arm Job. Requires rearm→server egress
+          # + server-ingress from the rearm pods (networkpolicies.yaml).
+          initContainers:
+            - name: wait-for-server
+              image: PLACEHOLDER_IMAGE:PLACEHOLDER_TAG
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              command:
+                - sh
+                - -c
+                - |
+                  until python -c "import sys,urllib.request; sys.exit(0 if urllib.request.urlopen('http://omnigent-server/health', timeout=5).status == 200 else 1)"; do
+                    echo "waiting for server/migrations (/health not 200 yet)"; sleep 5;
+                  done
+              resources:
+                requests:
+                  memory: "64Mi"
+                  cpu: "50m"
+                limits:
+                  memory: "128Mi"
+                  cpu: "200m"
           containers:
             - name: rearm
               securityContext:
@@ -142,7 +168,28 @@ spec:
                           sys.exit(f"FATAL: Secret {ns}/{sec_name} missing at re-arm; arm Job must run first.")
                       raise
 
-                  print(f"re-armed host_id={host_id} expires={expires.isoformat()}", file=sys.stderr)
+                  # FIX A — env vars do NOT refresh on Secret change. The host pod
+                  # read OMNIGENT_HOST_TOKEN at START; it keeps the STALE token until
+                  # restart, so the next tunnel reconnect would fail on the rotated
+                  # token. Trigger a rolling restart of the omnigent-host Deployment
+                  # by patching its pod-template restartedAt annotation (the same
+                  # mechanism as `kubectl rollout restart`) so the new pod re-reads
+                  # the fresh Secret. Fail-closed: any error here aborts non-zero
+                  # (DB + Secret already rotated, but the pod would still run the old
+                  # token — a failed restart MUST be loud, not silent). RBAC grants
+                  # get/patch on the named omnigent-host Deployment only
+                  # (host-arm-rbac.yaml). PLT-674: this restart is the live-rotation
+                  # mechanism — a brief host blip per rotation, acceptable Phase-1.
+                  apps = client.AppsV1Api()
+                  now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat()
+                  apps.patch_namespaced_deployment(
+                      "omnigent-host", ns,
+                      {"spec": {"template": {"metadata": {"annotations": {
+                          "kubectl.kubernetes.io/restartedAt": now_iso,
+                      }}}}},
+                  )
+
+                  print(f"re-armed host_id={host_id} expires={expires.isoformat()} restartedAt={now_iso}", file=sys.stderr)
               resources:
                 requests:
                   memory: "256Mi"

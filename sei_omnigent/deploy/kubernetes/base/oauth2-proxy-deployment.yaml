@@ -43,6 +43,12 @@ spec:
             - --http-address=0.0.0.0:4180
             - --upstream=http://omnigent-server.PLACEHOLDER_NAMESPACE.svc.cluster.local:80
             - --provider=oidc
+            # $(OIDC_ISSUER_URL) is INTENTIONAL and works: the kubelet expands
+            # $(VAR) in args at runtime because OIDC_ISSUER_URL is a declared
+            # container env var below (from secretKeyRef). kustomize does NOT
+            # expand it — seeing the literal in the render is expected/correct.
+            # Do NOT "fix" this to a hardcoded URL (that re-introduces the
+            # plaintext issuer this secretKeyRef indirection exists to avoid).
             - --oidc-issuer-url=$(OIDC_ISSUER_URL)
             - --email-domain=PLACEHOLDER_ALLOWED_DOMAIN
             - --cookie-secure=true

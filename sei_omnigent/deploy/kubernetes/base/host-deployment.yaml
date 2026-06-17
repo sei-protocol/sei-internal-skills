@@ -49,10 +49,22 @@ spec:
             readOnlyRootFilesystem: false
           # `omnigent host --server <in-cluster server URL>`. The host derives
           # the WSS tunnel URL (http→ws) and appends /v1/hosts/{host_id}/tunnel.
-          # Talk to the ClusterIP over :80 (Service maps 80→8000). The host
-          # reads OMNIGENT_HOST_TOKEN at each dial (re-arm support: a rotated
-          # Secret is picked up on reconnect — VERIFY live-rotation behavior
-          # against 0.1.1, PLT-674 open question, see README).
+          # Talk to the ClusterIP over :80 (Service maps 80→8000).
+          #
+          # TOKEN ROTATION (corrected): OMNIGENT_HOST_TOKEN is injected as an env
+          # var via secretKeyRef below, so the process reads it ONCE at pod
+          # START. K8s does NOT re-inject env vars when the Secret changes — a
+          # running pod keeps the value it booted with. So after the re-arm
+          # CronJob rotates the token, this pod would keep dialing with the STALE
+          # token and the next reconnect would fail. To make rotation take
+          # effect, the re-arm CronJob triggers a rolling RESTART of this
+          # Deployment (patches spec.template.metadata.annotations
+          # kubectl.kubernetes.io/restartedAt) right after it patches the Secret,
+          # so the new pod re-reads the fresh token. See host-rearm-cronjob.yaml.
+          # PLT-674 LIVE-ROTATION GATE: because rotation is a restart (not an
+          # in-place re-read of the live tunnel), each re-arm causes a brief host
+          # blip — acceptable for the single-host Phase-1. The FIRST-arm Job does
+          # NOT restart this Deployment (the host starts AFTER arming completes).
           command:
             ["omnigent", "host", "--server", "http://omnigent-server.PLACEHOLDER_NAMESPACE.svc.cluster.local:80"]
           env:

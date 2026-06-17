@@ -30,6 +30,16 @@ rules:
     resources: ["secrets"]
     resourceNames: ["omnigent-host-token"]
     verbs: ["get", "patch", "update"]
+  # FIX A — the re-arm CronJob must trigger a rolling restart of the
+  # omnigent-host Deployment after rotating the token (env vars don't refresh on
+  # Secret change; see host-deployment.yaml / host-rearm-cronjob.yaml). `patch`
+  # on a Deployment CAN be resourceName-scoped, so this stays tight to the single
+  # named Deployment — no namespace-wide deployment access. (The first-arm Job
+  # never restarts; only re-arm uses this, but both share this SA.)
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    resourceNames: ["omnigent-host"]
+    verbs: ["get", "patch"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding

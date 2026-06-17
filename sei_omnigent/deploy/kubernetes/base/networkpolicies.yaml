@@ -78,6 +78,16 @@ spec:
         - podSelector:
             matchLabels:
               app: omnigent-host
+        # FIX C — the arm/re-arm initContainer polls the server /health to wait
+        # out first-boot migrations before registering the host row. Allow those
+        # pods to reach the server. Port is the POD port 8000 (the Service maps
+        # 80→8000 and NetworkPolicy is evaluated post-DNAT on the pod's 8000).
+        - podSelector:
+            matchLabels:
+              app: omnigent-host-arm
+        - podSelector:
+            matchLabels:
+              app: omnigent-host-rearm
       ports:
         - protocol: TCP
           port: 8000
@@ -257,9 +267,20 @@ spec:
           port: 5432
 
 # 9) ARM/RE-ARM JOB EGRESS: to Postgres (register the host row) + the K8s API
-#    (write the Secret). The API-server egress is intentionally broad-port
-#    because the apiserver address varies; pin PLACEHOLDER_CIDR_K8S_APISERVER to
-#    your control-plane endpoint. DNS comes from the namespace-wide rule.
+#    (write the Secret; and, for re-arm, patch the omnigent-host Deployment to
+#    trigger the rotation restart — FIX A). The matchExpression below covers
+#    BOTH app: omnigent-host-arm AND omnigent-host-rearm, so the re-arm pods get
+#    apiserver egress for that Deployment patch too. DNS (resolving
+#    kubernetes.default.svc) comes from the namespace-wide allow-dns-egress rule.
+#
+#    PLACEHOLDER_CIDR_K8S_APISERVER — fill with the apiserver ENDPOINT IP CIDR,
+#    NOT a Service ClusterIP. The scripts call load_incluster_config(), which
+#    targets the kubernetes.default.svc ClusterIP; kube-proxy DNATs that to the
+#    real apiserver endpoint IPs, and NetworkPolicy egress is evaluated
+#    POST-DNAT against those endpoint IPs. On EKS these are the cluster-endpoint
+#    ENI IPs that back the kubernetes Service (a /32 per ENI, or the subnet
+#    CIDR). Discover them with: `kubectl -n default get endpoints kubernetes`.
+#    A ClusterIP here will silently break the Secret write + restart patch.
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
@@ -283,9 +304,20 @@ spec:
       ports:
         - protocol: TCP
           port: 5432
+    # FIX C — the wait-for-server initContainer polls the server /health before
+    # the arm/re-arm logic runs. Allow egress to the server. Port is the POD
+    # port 8000 (the Service maps 80→8000; NetworkPolicy is post-DNAT on 8000),
+    # paired with the server-ingress allow from these same pods above.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: omnigent-server
+      ports:
+        - protocol: TCP
+          port: 8000
     - to:
         - ipBlock:
-            cidr: PLACEHOLDER_CIDR_K8S_APISERVER # control-plane endpoint for the Secret write
+            cidr: PLACEHOLDER_CIDR_K8S_APISERVER # apiserver ENDPOINT IPs (post-DNAT), NOT a ClusterIP — see header
       ports:
         - protocol: TCP
           port: 443
