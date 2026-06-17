@@ -4,7 +4,7 @@ The second artifact pack. For each section of the LLD spine it rules **which aud
 dominate** and cites the corpus shape (`cite: lld/shape/<anchor>` → `exemplars/lld/canonical-shape.md#<anchor>`)
 and, per section, the single strongest harvested exemplar (`cite: lld/exemplar/<slug>` →
 `exemplars/lld/annotated-exemplars.md#<slug>` — the stable cite contract from PLT-478). Rule names
-(R1–R5) and basis tiers are owned by `audience-model.md`; rulings below inherit each rule's tier.
+(R1–R6) and basis tiers are owned by `audience-model.md`; rulings below inherit each rule's tier.
 
 An LLD's two audiences pull hardest in different places: the human reviewer decides at the top whether
 the design wins its design space; the implementing agent builds *to* the middle — and this is the

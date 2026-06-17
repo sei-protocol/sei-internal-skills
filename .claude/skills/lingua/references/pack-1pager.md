@@ -3,7 +3,7 @@
 The third artifact pack. For each section of the 1-pager spine it rules **which audience-model rules
 dominate** and cites the corpus shape (`cite: one-pager/shape/<anchor>` →
 `exemplars/one-pager/canonical-shape.md#<anchor>`) and the strongest exemplar
-(`cite: one-pager/exemplar/<slug>`). Rule names (R1–R5) and basis tiers are owned by
+(`cite: one-pager/exemplar/<slug>`). Rule names (R1–R6) and basis tiers are owned by
 `audience-model.md`; rulings below inherit each rule's tier.
 
 A 1-pager's two audiences pull hardest in different places: the human decider needs the ask before the

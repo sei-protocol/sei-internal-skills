@@ -2,7 +2,7 @@
 
 > **Corpus content (Design 03; harvested under PLT-490, verified 2026-06-12).** Positive exemplars only,
 > annotated in our own words against the HLD spine (`canonical-shape.md` — `cite: hld/shape/<anchor>`)
-> and audience-model rules R1–R5. Cite an entry as `cite: hld/exemplar/<slug>` → the `##` anchors below.
+> and audience-model rules R1–R6. Cite an entry as `cite: hld/exemplar/<slug>` → the `##` anchors below.
 > **The slugs are stable cite targets — renaming one is a breaking change for citing rules.** Inclusion
 > bar matches the LLD set: process-vetted (merged/Final/in-tree, or **org-owned** merged/Draft-under-review
 > per the `org-owned` class in `../../sources.md`), heavily reviewed, widely consumed.
