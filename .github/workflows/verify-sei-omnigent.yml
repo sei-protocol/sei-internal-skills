@@ -1,12 +1,18 @@
 name: Verify sei_omnigent overlay
 
-# Lints + tests the sei_omnigent Omnigent overlay against the Python idiom pack
-# (PLT refinement). This is the omnigent-FREE unit job: the overlay's tests run
-# without omnigent installed (pure logic / AST guards / skip-if-absent), so we
-# install only the linter + test runner. pytest resolves `import sei_omnigent`
-# via its rootdir-parent sys.path insertion (the repo dir contains the package
-# dir) — no editable install needed, and none is done so the job stays
-# omnigent-free.
+# Lints + tests the sei_omnigent Omnigent overlay against the Python idiom pack.
+# This is the omnigent-FREE unit job: the overlay's tests run without omnigent
+# installed (pure logic / AST guards / skip-if-absent), so we install only the
+# linter + test runner + an editable install of the overlay (`--no-deps`, so
+# omnigent is NOT pulled). The package lives at src/sei_omnigent/ and is NOT on
+# sys.path, so the editable install is how `import sei_omnigent` resolves.
+#
+# A separate wheel-smoke job is the packaging regression guard: it BUILDS the
+# wheel, installs it into a clean env, imports the omnigent-free surface (the
+# package + a pure submodule), and asserts the console-script entry is
+# registered — proving `pip install .` produces an importable package + a working
+# `sei-omnigent-serve` entrypoint for the K8s deploy. It unblocks the
+# omnigent-installed integration job (PLT-688).
 #
 # NOT yet wired: an omnigent-INSTALLED integration job that exercises the
 # skip-guarded behavioral tests (the shim-drift canary in test_seam_contract.py,
@@ -39,18 +45,75 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install tooling (omnigent-free)
-        # No `pip install -e .`: the flat layout's packages.find currently maps
-        # nothing (a follow-up packaging bug — `pip install .` yields an empty
-        # wheel), and pytest provides `import sei_omnigent` via sys.path anyway.
-        # Installing only the linter + runner keeps this job omnigent-free and
-        # honest about what's exercised.
+      - name: Install tooling + the overlay (omnigent-free)
+        # Editable install of the overlay (--no-deps ⇒ omnigent is NOT pulled, so
+        # this stays omnigent-free). The package is under src/ and not auto-on
+        # sys.path, so this install is how `import sei_omnigent` resolves for the
+        # suite. ruff + pytest are the linter + runner.
         run: |
           python -m pip install --upgrade pip
           pip install ruff pytest
+          pip install -e . --no-deps
 
       - name: Ruff lint
         run: ruff check .
 
       - name: Pytest (omnigent-free unit suite)
         run: pytest
+
+  # Packaging regression guard. Builds the wheel from the src/ layout, installs
+  # it into a CLEAN env, imports the omnigent-free surface, and asserts the
+  # console-script entry is registered. Proves the BUILT WHEEL exposes an
+  # importable `sei_omnigent` + a working `sei-omnigent-serve` entrypoint (an
+  # empty wheel would ⇒ K8s entrypoint ModuleNotFoundError). Separate job so it
+  # runs in a pristine interpreter (no editable install, no repo dir on sys.path)
+  # — an import that only works because of the source tree would be a false pass.
+  wheel-smoke:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sei_omnigent
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build wheel + import from clean install (no deps)
+        # build a wheel from pyproject (PEP 517), install ONLY that wheel
+        # (--no-deps ⇒ omnigent-free), then import from a dir OUTSIDE the source
+        # tree so the import can only resolve via the installed wheel. The import
+        # exercises the package + policies.read_only (a pure submodule) from
+        # site-packages (the omnigent-free surface); the entry target is checked
+        # by the console-script step (registration, no import).
+        run: |
+          python -m pip install --upgrade pip build
+          # Default ISOLATED build: build provisions the pyproject-declared
+          # backend (setuptools>=68) in a fresh build env — no reliance on the
+          # runner's ambient setuptools/wheel version.
+          python -m build --wheel
+          ls -l dist/
+          pip install dist/*.whl --no-deps
+          cd /tmp
+          # Import only the omnigent-FREE surface to prove the wheel ships an
+          # importable package: the top package + a pure submodule. NOT
+          # server.serve_main — its server/__init__ eagerly imports the seam ->
+          # the shim -> omnigent, which --no-deps intentionally omits (that path
+          # is exercised by the omnigent-installed integration job, PLT-688). The
+          # console-script step below proves the serve_main entry is registered
+          # without importing it.
+          python -c "import sei_omnigent, sei_omnigent.policies.read_only; print('wheel import OK:', sei_omnigent.__file__)"
+
+      - name: Verify console-script entry point is installed
+        # The wheel must also expose the `sei-omnigent-serve` entry point so the
+        # K8s deploy's equivalent command resolves. Assert it is registered (don't
+        # RUN it — `main` binds uvicorn and needs omnigent, absent in this job).
+        run: |
+          python - <<'PY'
+          from importlib.metadata import entry_points
+          eps = entry_points(group="console_scripts")
+          names = {ep.name: ep.value for ep in eps}
+          assert names.get("sei-omnigent-serve") == "sei_omnigent.server.serve_main:main", names
+          print("console-script OK:", names["sei-omnigent-serve"])
+          PY

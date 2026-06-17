@@ -12,8 +12,17 @@ import ast
 import tomllib
 from pathlib import Path
 
-_PKG = Path(__file__).resolve().parent.parent
+# tests/ live at the PROJECT ROOT (Tide/sei_omnigent/tests/); the importable
+# package is under src/. _ROOT holds pyproject.toml + tests/; _PKG is src/sei_omnigent.
+_ROOT = Path(__file__).resolve().parent.parent
+_PKG = _ROOT / "src" / "sei_omnigent"
 _SERVE = _PKG / "server" / "serve.py"
+
+# The Sei-owned source dirs the import-discipline scan walks — the package and
+# the tests. Scanning exactly these (not all of _ROOT) keeps a developer's local
+# .venv / build / dist out of the scan, which would otherwise false-flag vendored
+# third-party .py that legitimately import omnigent.
+_OWNED_SOURCE_DIRS = (_PKG, _ROOT / "tests")
 
 # The seam contract (ONE-WAY DOOR): every Phase-2/3 store swap binds to this
 # field set. A change here is a deliberate, human-signed-off contract change.
@@ -86,7 +95,10 @@ def test_create_app_is_called_keyword_only() -> None:
 def test_only_the_shim_imports_omnigent() -> None:
     """Drift discipline: _omnigent_shim is the single Omnigent-coupling surface."""
     offenders: list[str] = []
-    for py in _PKG.rglob("*.py"):
+    # Walk the Sei-owned source dirs only (package + tests) — a test importing
+    # omnigent directly is also a drift violation. Scoping to these (vs all of
+    # _ROOT) excludes a local .venv/build/dist whose vendored .py would false-flag.
+    for py in (p for base in _OWNED_SOURCE_DIRS for p in base.rglob("*.py")):
         if py.name == "_omnigent_shim.py":
             continue
         for node in ast.walk(ast.parse(py.read_text())):
@@ -101,7 +113,7 @@ def test_only_the_shim_imports_omnigent() -> None:
                 mods.extend(alias.name for alias in node.names)
             for mod in mods:
                 if mod == "omnigent" or mod.startswith("omnigent."):
-                    offenders.append(f"{py.relative_to(_PKG)} imports {mod}")
+                    offenders.append(f"{py.relative_to(_ROOT)} imports {mod}")
     assert not offenders, (
         "only sei_omnigent._omnigent_shim may import omnigent (DECISION-1 drift isolation): "
         + "; ".join(offenders)
@@ -157,7 +169,7 @@ def test_pinned_omnigent_matches_pyproject() -> None:
     # deferred: this test asserts the top package imports without pulling omnigent.
     import sei_omnigent  # noqa: PLC0415
 
-    pyproject = tomllib.loads((_PKG / "pyproject.toml").read_text())
+    pyproject = tomllib.loads((_ROOT / "pyproject.toml").read_text())
     deps = pyproject["project"]["dependencies"]
     pin = next(d for d in deps if d.startswith("omnigent=="))
     assert pin == f"omnigent=={sei_omnigent.PINNED_OMNIGENT}", (
