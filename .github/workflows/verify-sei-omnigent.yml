@@ -36,9 +36,10 @@ jobs:
 
       - name: Install tooling (omnigent-free)
         # No `pip install -e .`: the flat layout's packages.find currently maps
-        # nothing (tracked: PLT-689), and pytest provides `import sei_omnigent`
-        # via sys.path anyway. Installing only the linter + runner keeps this job
-        # omnigent-free and honest about what's exercised.
+        # nothing (a follow-up packaging bug — `pip install .` yields an empty
+        # wheel), and pytest provides `import sei_omnigent` via sys.path anyway.
+        # Installing only the linter + runner keeps this job omnigent-free and
+        # honest about what's exercised.
         run: |
           python -m pip install --upgrade pip
           pip install ruff pytest
