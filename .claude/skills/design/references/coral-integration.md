@@ -83,7 +83,7 @@ title: SeiNode mid-life SigningKey drift detection
 status: Draft
 issue: 14
 authors: kubernetes-specialist, platform-engineer, bdchatham
-output_dir: designs/<arc>/  # detected Tide convention
+output_dir: designs/<arc>/  # DRI designs-repo convention (Design 05)
 suffix: -lld.md  # detected Tide LLD convention
 
 background: |

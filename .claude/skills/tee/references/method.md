@@ -46,7 +46,7 @@ These are the cross-cutting verifier-policy dimensions — the things a verifier
 
 ## The Sei on-chain verification cost ranking (decision input)
 
-Sei EVM has a P-256 precompile at `address(0x1011)` charging `300 gas/byte × 160 bytes = 48,000 gas per verify` (cheaper than Solidity P-256 ~200k, above EIP-7951's flat ~6k). Per-attestation, cold (from `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` §decision-driver):
+Sei EVM has a P-256 precompile at `address(0x1011)` charging `300 gas/byte × 160 bytes = 48,000 gas per verify` (cheaper than Solidity P-256 ~200k, above EIP-7951's flat ~6k). Per-attestation, cold. The `48,000 gas/verify` precompile floor is anchored to `sei-chain/precompiles/p256/p256.go`; the Nitro ~63M-cold / ~3k-amortized figures track the **public Marlin Oyster/NitroProver** numbers and the Intel/AMD direct figures track the **public, Trail-of-Bits-audited Automata** on-chain DCAP numbers. The cross-vendor ranking below is a **synthesized planning estimate** (full derivation in the access-gated corpus) — weigh it as an estimate, not a cited primary fact, and treat the synthesized magnitudes as **unverified** where you cannot reach the derivation:
 
 | Attester | Scheme | Sei EVM cost (cold) | Strategy |
 |---|---|---|---|

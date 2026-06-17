@@ -71,6 +71,6 @@ No EVM precompile for ECDSA-P384 or X.509 path validation — every primitive (P
 
 ## 7. Citations
 
-- Ground truth: `bdchatham-designs/designs/sei-agentic-mesh/research/tee/aws-nitro-enclaves.md` §1–§10 + load-bearing claims 1–10; `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` "decision-driver", Application-categories §6 (Tide agent runtimes), "Critical defense-in-depth" items #9/#11.
-- Primary: AWS Nitro Enclaves User Guide (`set-up-attestation.html`, `verify-root.html`); `aws/aws-nitro-enclaves-nsm-api` `docs/attestation_process.md`; AWS KMS Nitro docs; RFC 8152 / 9052 (COSE), RFC 9334 (RATS), RFC 9711 (EAT — Nitro is EAT-*adjacent*, not a formal EAT, §7); RFC 8610 (CDDL).
+- Provenance (access-gated, not required): `bdchatham-designs/designs/sei-agentic-mesh/research/tee/aws-nitro-enclaves.md` §1–§10 + load-bearing claims 1–10; `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` "decision-driver", Application-categories §6 (Tide agent runtimes), "Critical defense-in-depth" items #9/#11.
+- Ground truth (primary sources): AWS Nitro Enclaves User Guide (`set-up-attestation.html`, `verify-root.html`); `aws/aws-nitro-enclaves-nsm-api` `docs/attestation_process.md`; AWS KMS Nitro docs; RFC 8152 / 9052 (COSE), RFC 9334 (RATS), RFC 9711 (EAT — Nitro is EAT-*adjacent*, not a formal EAT, §7); RFC 8610 (CDDL).
 - Reference verifiers: Marlin NitroProver + Oyster docs; `base/nitro-validator`; `hf/nitrite` (Go); `veracruz-project/nitro-enclave-attestation-document`.

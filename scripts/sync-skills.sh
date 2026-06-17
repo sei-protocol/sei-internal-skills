@@ -186,7 +186,7 @@ want_skill() {  # want_skill <category> <requested-token> -> 0 include / 1 exclu
     all)      [ "$al" = "portable" ] || [ "$al" = "sei" ] ;;
     portable) [ "$al" = "portable" ] ;;
     sei)      [ "$al" = "sei" ] ;;
-    output-quality|security)
+    output-quality)
       TIDE_LOCAL_REQUESTED=true; return 1 ;;
     *)        [ "$cat" = "$tok" ] ;;   # literal domain request
   esac
@@ -202,7 +202,7 @@ while IFS= read -r name; do
 done < <(list_skill_dirs)
 
 if $TIDE_LOCAL_REQUESTED; then
-  echo "Note: output-quality / security are Tide-local domains — their skills are not synced outward. Edit them in Tide." >&2
+  echo "Note: output-quality is a Tide-local domain — its skills are not synced outward. Edit them in Tide." >&2
 fi
 
 # Deduplicate while preserving order (bash 3.2 compatible)

@@ -28,7 +28,7 @@ The wire format the Attester produces and the Verifier consumes. Signature schem
 
 ## 3. Identity & measurement fields (VP2)
 
-What proves **binary identity** on this platform — the measurement register(s), their semantics, size, and hash. State exactly which fields are *required together* (a partial identity that's exploitable is a finding, e.g. TDX `MRTD` alone). Cite the field semantics to the research doc.
+What proves **binary identity** on this platform — the measurement register(s), their semantics, size, and hash. State exactly which fields are *required together* (a partial identity that's exploitable is a finding, e.g. TDX `MRTD` alone). Cite the field semantics to the primary source (the vendor spec / RFC).
 
 ## 4. Verifier-policy specifics — the per-vendor fill-ins
 
@@ -70,7 +70,7 @@ The primary sources (vendor spec, RFC, reference verifier implementation, `sei-c
 
 ## Notes for kit authors
 
-- **Cite, never paraphrase.** The research doc is the record; the kit is the opinionated checklist over it. A claim with no citation to the research / a spec / an RFC does not go in the kit.
+- **Cite, never paraphrase.** The primary sources (vendor spec, RFC, `sei-chain`) are the record; the kit is the **self-contained** checklist over them. A claim with no citation to a primary source does not go in the kit. The relocated research archive may appear as `§`-anchor breadcrumbs, but the citable authority is always the primary source — never the access-gated archive.
 - **Mark N/A dimensions explicitly** in §4 (e.g. "VP11 BadRAM — N/A, AMD-specific") so the reviewer cites the kit for "vetted, not applicable" rather than fabricating a field.
 - **The §4 table is the pluggability mechanism** — it is how this platform fills `method.md`'s cross-cutting dimensions. Keep the `method dimension` IDs verbatim so the method ↔ kit mapping stays mechanical.
 - **Non-attester / verification-layer kits may adapt the section shape** — a kit for a layer that is not an Attester (e.g. the on-chain Verifier) can repurpose §1/§2/§3/§6, but must mark each deviation with an explicit **`Template-fit note:`** so neither reader mistakes a deliberate adaptation for a gap, and must still address every VP1–VP16 in §4. See `kit-sei-onchain.md` for the worked adaptation.

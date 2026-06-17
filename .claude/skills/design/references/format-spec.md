@@ -127,8 +127,8 @@ In priority order:
 2. Repo-specific convention if detected:
    - **DRI designs repo (Design 05)**: `designs/<arc>/<slug>.md` — component-tier LLDs `-lld.md`, system-tier designs plain. Ask which arc when ambiguous.
    - **sei-protocol/sei-k8s-controller**: `docs/`.
-   - **Other repos**: detect `docs/designs/`, `docs/`, or `design/`; prefer existing.
-3. Default: `docs/designs/`.
+   - **Other repos**: detect `docs/designs/` or `docs/`; prefer existing.
+3. Default (no DRI repo resolvable): `docs/designs/`.
 
 Always show the user the resolved path before writing. Never overwrite without confirmation.
 

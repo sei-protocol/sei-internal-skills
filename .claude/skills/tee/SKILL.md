@@ -2,7 +2,7 @@
 name: tee
 category: security
 model: claude-opus-4-8
-description: "Use when designing or reviewing a Trusted Execution Environment integration — attestation flows, on-chain verification of enclave identity, attestation-conditioned key release, cross-vendor verifier abstraction, Sei-specific TEE patterns — 'design a TEE attestation flow', 'verify this enclave on-chain', 'which TEE for X', 'review this attestation verifier', '/tee'. Pluggable across platforms (AWS Nitro, Intel SGX/TDX, AMD SEV-SNP, NVIDIA CC, TPM/RATS); backs the tee-specialist agent. Anti-triggers: NOT general (non-TEE) threat modeling (use security-specialist); NOT building the controller/contract/runtime that consumes the attestation (dispatch the specialist — kubernetes-specialist, solidity-developer — this skill designs/reviews the attestation, it does not author the system); NOT correctness/logic review (use /code-review). Backs the tee-specialist agent — a standing domain expert dispatched into /coral, /council, and /cross-review slates whenever a TEE/attestation boundary is in scope, and directly invocable."
+description: "Use when designing or reviewing a Trusted Execution Environment integration — attestation flows, on-chain verification of enclave identity, attestation-conditioned key release, cross-vendor verifier abstraction, Sei-specific TEE patterns — 'design a TEE attestation flow', 'verify this enclave on-chain', 'which TEE for X', 'review this attestation verifier', '/tee'. Pluggable across platforms (AWS Nitro, Intel SGX/TDX, AMD SEV-SNP, NVIDIA CC, TPM/RATS); backs the tee-specialist agent. Anti-triggers: NOT general (non-TEE) threat modeling (use security-specialist); NOT building the controller/contract/runtime that consumes the attestation (dispatch the specialist — kubernetes-specialist, solidity-developer — this skill designs/reviews the attestation, it does not author the system); NOT correctness/logic review (use /code-review). Backs the tee-specialist agent, dispatched as a domain lens into /coral, /council, /cross-review on any TEE/attestation boundary; also directly invocable."
 ---
 
 # TEE
@@ -137,7 +137,7 @@ The method is platform-agnostic; the platform expertise is **data**, in `referen
 
 ## How this fits with coral / council / cross-review
 
-`/tee` is a first-class domain skill, not a standalone exception. Its agent, `tee-specialist`, is in the `.claude/agents/` roster and is **dispatched like any domain specialist**: `/coral` and `/council` pull it into the slate whenever a TEE/attestation boundary is in scope; `/cross-review` adds it to the slate when the artifact under review touches attestation, enclave identity, or on-chain verification (the same way `idiomatic-reviewer` is added for code and `prose-steward` for doc artifacts). Its findings are one perspective for the orchestrator — advisory, not binding. Directly invocable, too.
+`/tee` is a first-class domain skill, not a standalone exception. Its agent, `tee-specialist`, is in the `.claude/agents/` roster and is **dispatched like any domain specialist**: `/coral` and `/council` pull it into the slate whenever a TEE/attestation boundary is in scope; `/cross-review` selects it as a domain lens (like `kubernetes-specialist` or `solidity-developer`) when the artifact under review touches attestation, enclave identity, or on-chain verification. Its findings are one perspective for the orchestrator — advisory, not binding. Directly invocable, too.
 
 ## What this skill defers
 

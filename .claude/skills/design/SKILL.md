@@ -77,8 +77,8 @@ Direct user invocation when there's no active workstream or upstream issue — e
    - Repo: CWD's git repo (or `--repo owner/name`).
    - Output dir: in priority order:
      1. `--output-dir <path>` if provided.
-     2. The DRI's designs repo (per Design 05): the engineer's `<name>-designs` repo, arc-foldered as `designs/<arc>/<slug>.md` (component-tier LLDs keep the `-lld.md` suffix). Ask which arc when ambiguous.
-     3. Default (no DRI repo resolvable): `docs/designs/` in the current repo.
+     2. The DRI's designs repo (per Design 05). **Resolve it**, in order: (a) `--designs-repo <owner/name|path>` if given; (b) a sibling checkout matching the engineer's `<name>-designs` convention (a sibling dir of CWD, or the same git org's `<gh-user>-designs`); (c) otherwise **ask the user** which designs repo to use. Land arc-foldered as `designs/<arc>/<slug>.md` (component-tier LLDs keep `-lld.md`); ask which arc when ambiguous.
+     3. Fallback — **only after step 2c and only if the user confirms they have no designs repo**: `docs/designs/` in the current repo. Never silently fall through to this when a DRI repo is the intent — asking (2c) precedes the in-repo fallback.
    - Create the directory if it doesn't exist; show the path to the user before writing.
 
 2. **Resolve invocation mode.**

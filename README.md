@@ -90,7 +90,6 @@ Claude Code discovers skills/agents **flat** (`~/.claude/skills/<name>/`, `~/.cl
 AGENTS.md                   # Agent roster + how the skills dispatch them
 CLAUDE.md                   # Project context auto-loaded into every session
 assets/                     # Banner image
-design/                     # Durable design reference (TEE research, coral-exercise outputs)
 scripts/                    # sync-agents.sh, sync-skills.sh, permission tooling
 ```
 
@@ -121,4 +120,3 @@ scripts/                    # sync-agents.sh, sync-skills.sh, permission tooling
 | `.claude/skills/README.md` | Skill catalog and cross-repo sync guidance |
 | `.claude/skills/SKILL-TEMPLATE.md` | Authoring standard for new skills |
 | `scripts/README.md` | What each script does and when CI vs. humans run them |
-| `design/README.md` | Durable design reference kept in the repo |

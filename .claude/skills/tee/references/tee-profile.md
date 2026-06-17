@@ -1,6 +1,6 @@
 # Sei deployment profile — what THIS deployment mandates
 
-> Ground truth: the vendor specs, RFCs, and reference implementations cited inline below — this kit distills them and is **self-contained**. Every load-bearing claim cites a primary source (a vendor spec, an RFC, or `sei-chain` source); do not paraphrase — cite the primary source. Deeper derivation is archived in the Sei-internal `bdchatham-designs` TEE corpus (access-gated) — **provenance only, not required to use this kit**.
+> Ground truth: the vendor specs, RFCs, and reference implementations cited inline below — this profile distills them. Every load-bearing claim cites a primary source (a vendor spec, an RFC, or `sei-chain` source); do not paraphrase — cite the primary source. Deeper derivation is archived in the Sei-internal `bdchatham-designs` TEE corpus (access-gated) — **provenance only, not required to use this profile**.
 
 This is the **always-first overlay** (method Step 1). It is the higher-priority layer: where generic vendor knowledge and this profile disagree, the profile wins — **including in the hard direction**, where it establishes Sei-specific exceptions to a vendor's stated security property (method Rule 2). The kits fill in the per-vendor specifics around what this profile mandates; the profile gates the design. Absent → design reduced-confidence and flag the missing-profile gap (you lose the economics + validator-as-host + registry-as-RVP layer).
 
