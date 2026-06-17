@@ -9,6 +9,12 @@ requires-python = ">=3.12"
 # exact release. Bumping this pin is the trigger to re-run the shim drift check.
 dependencies = [
     "omnigent==0.1.1",
+    # serve_main binds uvicorn directly (the runnable entrypoint, PLT-672). It
+    # rides in transitively via omnigent today, but the entrypoint imports it by
+    # name, so declare it explicitly — a future omnigent pin that drops/extras
+    # uvicorn would otherwise break the console script at runtime (drift-watch
+    # tied to the shim's on-bump re-verify).
+    "uvicorn",
 ]
 
 # Test deps. The pure overlay tests (seam/posture/policy/harness) run without an
@@ -21,10 +27,12 @@ test = [
     "pytest>=7",
 ]
 
-# NOTE: no [project.scripts] yet. build_server(cfg) returns a FastAPI app but
-# does not load config or bind/serve — the runnable `sei-omnigent-serve` console
-# script (config load + uvicorn bind) is added in PLT-672 (deploy). Wiring it
-# here now would package a console script that crashes on invocation.
+# The runnable entrypoint (PLT-672): config load + read-only-policy merge +
+# uvicorn bind. The K8s deploy uses it as the container command (equivalently
+# `python -m sei_omnigent.server.serve_main`), bypassing omnigent's stock
+# entrypoint.py LOCAL_SINGLE_USER auto-set (C3).
+[project.scripts]
+sei-omnigent-serve = "sei_omnigent.server.serve_main:main"
 
 [build-system]
 requires = ["setuptools>=68"]

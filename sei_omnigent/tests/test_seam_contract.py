@@ -40,6 +40,7 @@ _PRIVATE_CLI_HELPERS = {
     "_ensure_sqlite_parent_dir",
     "_default_db_uri",
     "_default_artifact_location",
+    "_server_uvicorn_log_config",
 }
 
 

@@ -28,10 +28,11 @@ re-confirm the private-helper locations against the 0.1.1 wheel on bump.
   - parse_default_policies/_llm      omnigent/spec
   - parse_sandbox_config             omnigent/server/managed_hosts.py
   - config_str_list                  omnigent/server/server_config.py  (NOT a cli internal)
+  - RUNNER_TUNNEL_MAX_MESSAGE_BYTES   omnigent/runner/transports/ws_tunnel/limits.py
   - resolve_auth_source/create_auth_provider/UnifiedAuthProvider
                                      omnigent/server/auth.py
   - _create_artifact_store/_preregister_agent/_ensure_sqlite_parent_dir/
-    _default_db_uri/_default_artifact_location
+    _default_db_uri/_default_artifact_location/_server_uvicorn_log_config
                                      omnigent/cli.py  (private — re-verify on bump)
 """
 
@@ -79,6 +80,11 @@ from omnigent.stores.host_store import HostStore  # concrete — no ABC upstream
 # Public-ish config helper — lives in server_config, NOT a cli internal.
 from omnigent.server.server_config import config_str_list
 
+# WS tunnel frame ceiling — uvicorn.run(ws_max_size=...) must match what the
+# runner tunnel allows, or large frames are truncated at the socket (PLT-672
+# entrypoint mirrors cli.py's uvicorn bind).
+from omnigent.runner.transports.ws_tunnel.limits import RUNNER_TUNNEL_MAX_MESSAGE_BYTES
+
 # Policy types — re-exported so overlay policy modules (sei_omnigent.policies.*)
 # can type-hint their handlers under TYPE_CHECKING without importing omnigent
 # directly (keeps the single-coupling-surface contract). The PolicyEvent ->
@@ -97,6 +103,7 @@ from omnigent.cli import (
     _ensure_sqlite_parent_dir,
     _default_db_uri,
     _default_artifact_location,
+    _server_uvicorn_log_config,
 )
 
 __all__ = [
@@ -134,9 +141,11 @@ __all__ = [
     "PolicyResponse",
     # config + private cli helpers
     "config_str_list",
+    "RUNNER_TUNNEL_MAX_MESSAGE_BYTES",
     "_create_artifact_store",
     "_preregister_agent",
     "_ensure_sqlite_parent_dir",
     "_default_db_uri",
     "_default_artifact_location",
+    "_server_uvicorn_log_config",
 ]
