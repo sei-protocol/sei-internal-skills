@@ -45,16 +45,23 @@ def build_effective_config(raw_cfg: dict[str, Any], *, deny_shell: bool) -> dict
     """Merge the overlay's read-only server-default policies into a loaded config.
 
     The overlay's read-only policies (``admin__github_read_only`` /
-    ``admin__deny_mutating_os``) are **authoritative**: they are spread last, so
-    they win on a key collision. An operator config may *add* policies but cannot
-    silently drop the read-only backstop by reusing a key. ``READ_ONLY_POLICY_MODULES``
-    is unioned into ``policy_modules`` (order-preserving, deduped) to populate the
-    policy-registry *catalog* and permit runtime re-attach of the handler via the
-    policy-write APIs. Note: the backstop itself does **not** depend on this union —
-    server-default policies are instantiated by direct ``import_module`` in
-    omnigent's ``resolve_function_policy``, which bypasses the registry allowlist
-    (that allowlist gates only untrusted attach routes), so ``deny_mutating_os``
-    fires at boot whether or not the module is listed. The union is belt-and-suspenders.
+    ``admin__deny_mutating_os``) are **authoritative on a key collision**: spread
+    last, so an operator config may *add* policies but cannot silently drop a
+    backstop by reusing its key. (This is *key*-level precedence only — DENY
+    precedence among differently-named policies is omnigent's evaluator's job, not
+    asserted here.) ``READ_ONLY_POLICY_MODULES`` is unioned into ``policy_modules``
+    (order-preserving, deduped) to populate the policy-registry *catalog* and
+    permit runtime re-attach via the policy-write APIs.
+
+    Resolution TIMING: omnigent's ``resolve_function_policy``
+    instantiates a server-default policy by direct ``import_module`` — bypassing
+    the registry allowlist (which gates only untrusted *attach* routes) — but it
+    does so **lazily, per session** (``runtime/policies/builder.py`` ←
+    ``routes/sessions.py``), NOT at boot. So a malformed / un-importable spec
+    boots green and first surfaces at session-create, not as a boot crash. A
+    boot-time resolve probe that makes this fail **closed at boot** is tracked in
+    PLT-686. The module union here is belt-and-suspenders for catalog/re-attach,
+    not what makes the backstop fire.
     """
     cfg = dict(raw_cfg)
     cfg["policies"] = {

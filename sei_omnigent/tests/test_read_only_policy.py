@@ -85,7 +85,7 @@ def test_policy_registry_is_well_formed() -> None:
     assert "deny_shell" in entry["params_schema"]["properties"]
 
 
-def test_github_policy_config_includes_Bash_shell_tool() -> None:
+def test_github_policy_config_includes_bash_shell_tool() -> None:
     """The load-bearing fail-open guard: without Bash, native gh/git writes abstain->ALLOW."""
     cfg = read_only_default_policies()
     gh = cfg["admin__github_read_only"]["function"]

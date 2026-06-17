@@ -69,6 +69,19 @@ def main() -> None:
     port = int_env("OMNIGENT_SERVER_PORT", default=_DEFAULT_PORT)
     shutdown_timeout = int_env(_SHUTDOWN_TIMEOUT_ENV, default=_SHUTDOWN_TIMEOUT_DEFAULT)
 
+    # Fail loud on an out-of-range port (a `value: "0"`/negative manifest typo)
+    # with an actionable message — otherwise it surfaces as an opaque OSError
+    # deep in uvicorn's socket bind.
+    if not 1 <= port <= 65535:
+        raise ValueError(f"OMNIGENT_SERVER_PORT={port} out of range (1-65535)")
+
+    # NOTE: omnigent's CLI does a port-bindable preflight (`_assert_server_port_bindable`,
+    # cli.py:2808) for a clean "port in use" message; we omit it deliberately. The
+    # deploy is `replicas:1` + `strategy: Recreate` (server-deployment.yaml), so the
+    # old pod fully releases :8000 before the new one starts — no in-cluster bind
+    # race — and the startupProbe's 150s headroom absorbs a transient. If a future
+    # topology drops Recreate (rolling/HA), restore a preflight here for the diagnostic.
+
     # Mirror omnigent cli.py's uvicorn bind EXACTLY (cli.py:3126-3132), including
     # log_config — it installs RequestDurationAccessFormatter, the only source of
     # per-request duration in the access log. create_app wires the middleware that
