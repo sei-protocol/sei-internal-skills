@@ -21,10 +21,12 @@ test = [
     "pytest>=7",
 ]
 
-# NOTE: no [project.scripts] yet. build_server(cfg) returns a FastAPI app but
-# does not load config or bind/serve — the runnable `sei-omnigent-serve` console
-# script (config load + uvicorn bind) is added in PLT-672 (deploy). Wiring it
-# here now would package a console script that crashes on invocation.
+# The runnable entrypoint (PLT-672): config load + read-only-policy merge +
+# uvicorn bind. The K8s deploy uses it as the container command (equivalently
+# `python -m sei_omnigent.server.serve_main`), bypassing omnigent's stock
+# entrypoint.py LOCAL_SINGLE_USER auto-set (C3).
+[project.scripts]
+sei-omnigent-serve = "sei_omnigent.server.serve_main:main"
 
 [build-system]
 requires = ["setuptools>=68"]
