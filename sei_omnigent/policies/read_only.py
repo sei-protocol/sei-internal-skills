@@ -155,11 +155,16 @@ def read_only_default_policies(*, deny_shell: bool = False) -> dict[str, Any]:
     deploy (PLT-672) wires this into the running config.
 
     NOTE (one-way door — config/audit contract): the policy *names* below
-    (``sei_github_read_only`` / ``sei_deny_mutating_os``) are referenced by audit
-    tooling; renaming after deploy breaks deployed configs.
+    (``admin__github_read_only`` / ``admin__deny_mutating_os``) are referenced by
+    audit tooling; renaming after deploy breaks deployed configs. The ``admin__``
+    prefix follows omnigent's documented convention for server-default policies
+    (spec/parser.py ``parse_default_policies`` docstring examples), so an operator
+    reading the config sees the standard server-default marker. (Operator decision,
+    2026-06-16: adopt the upstream ``admin__`` convention over a Sei-specific
+    prefix — open-standards alignment.)
     """
     return {
-        "sei_github_read_only": {
+        "admin__github_read_only": {
             "type": "function",
             "function": {
                 "path": "omnigent.policies.builtins.github.github_policy",
@@ -171,7 +176,7 @@ def read_only_default_policies(*, deny_shell: bool = False) -> dict[str, Any]:
                 },
             },
         },
-        "sei_deny_mutating_os": {
+        "admin__deny_mutating_os": {
             "type": "function",
             "function": {
                 "path": "sei_omnigent.policies.read_only.deny_mutating_os",

@@ -88,7 +88,7 @@ def test_policy_registry_is_well_formed() -> None:
 def test_github_policy_config_includes_Bash_shell_tool() -> None:
     """The load-bearing fail-open guard: without Bash, native gh/git writes abstain->ALLOW."""
     cfg = read_only_default_policies()
-    gh = cfg["sei_github_read_only"]["function"]
+    gh = cfg["admin__github_read_only"]["function"]
     assert gh["path"] == "omnigent.policies.builtins.github.github_policy"
     assert "Bash" in gh["arguments"]["shell_tools"], "MUST include Bash or gh/git writes fail open"
     assert gh["arguments"]["write_repos"] == [], "default-deny: no write repos"
@@ -96,9 +96,9 @@ def test_github_policy_config_includes_Bash_shell_tool() -> None:
 
 def test_config_wires_both_policies_and_module() -> None:
     cfg = read_only_default_policies()
-    assert set(cfg) == {"sei_github_read_only", "sei_deny_mutating_os"}
+    assert set(cfg) == {"admin__github_read_only", "admin__deny_mutating_os"}
     assert (
-        cfg["sei_deny_mutating_os"]["function"]["path"]
+        cfg["admin__deny_mutating_os"]["function"]["path"]
         == "sei_omnigent.policies.read_only.deny_mutating_os"
     )
     # deny_mutating_os module must be in policy_modules so it is allow-listed.
@@ -106,6 +106,6 @@ def test_config_wires_both_policies_and_module() -> None:
 
 
 def test_deny_shell_propagates_into_config() -> None:
-    assert read_only_default_policies(deny_shell=True)["sei_deny_mutating_os"][
+    assert read_only_default_policies(deny_shell=True)["admin__deny_mutating_os"][
         "function"
     ]["arguments"]["deny_shell"] is True
