@@ -12,7 +12,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from sei_omnigent._config import build_effective_config, load_config
+from sei_omnigent._config import build_effective_config, load_config, resolve_relative_locations
 
 _SERVE_MAIN = Path(__file__).resolve().parent.parent / "server" / "serve_main.py"
 
@@ -58,6 +58,32 @@ def test_deny_shell_propagates_into_the_policy_arg() -> None:
 def test_load_config_none_returns_empty() -> None:
     assert load_config(None) == {}
     assert load_config("") == {}
+
+
+def test_relative_artifact_location_resolved_against_config_dir() -> None:
+    """Mirrors stock omnigent cli.py:2924 — a relative artifact_location must
+    resolve against the config-file dir, not the process CWD, or artifacts land
+    in the wrong place at boot (Bugbot finding)."""
+    cfg = resolve_relative_locations(
+        {"artifact_location": "artifacts"}, config_path="/etc/sei/server.yaml"
+    )
+    assert cfg["artifact_location"] == "/etc/sei/artifacts"
+
+
+def test_absolute_artifact_location_is_left_unchanged() -> None:
+    cfg = resolve_relative_locations(
+        {"artifact_location": "/data/artifacts"}, config_path="/etc/sei/server.yaml"
+    )
+    assert cfg["artifact_location"] == "/data/artifacts"
+
+
+def test_resolution_does_not_touch_database_uri_or_absent_keys() -> None:
+    # database_uri is NOT resolved (parity with stock omnigent — parent-dir only).
+    src = {"database_uri": "sqlite:///rel/app.db"}
+    assert resolve_relative_locations(src, config_path="/etc/sei/server.yaml") == src
+    # no artifact_location → input returned unchanged (same object).
+    empty: dict = {}
+    assert resolve_relative_locations(empty, config_path="/etc/sei/server.yaml") is empty
 
 
 def test_uvicorn_bind_mirrors_omnigent_kwargs() -> None:

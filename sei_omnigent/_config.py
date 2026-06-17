@@ -9,6 +9,7 @@ logic here is unit-testable without omnigent installed.
 from __future__ import annotations
 
 import os
+from pathlib import Path
 from typing import Any
 
 from sei_omnigent.policies.read_only import (
@@ -53,16 +54,40 @@ def build_effective_config(raw_cfg: dict[str, Any], *, deny_shell: bool) -> dict
     return cfg
 
 
+def resolve_relative_locations(cfg: dict[str, Any], *, config_path: str) -> dict[str, Any]:
+    """Resolve a relative ``artifact_location`` against the config file's directory.
+
+    Mirrors stock omnigent ``cli.py:2922-2925``: when ``artifact_location`` comes
+    from the config file and is relative, it is resolved against the config-file
+    dir — NOT the process CWD — or artifacts (and a SQLite artifact path) land in
+    the wrong place at boot. The overlay has no CLI override, so stock's
+    "artifact_location came from config, not CLI" guard is always true here.
+
+    ``database_uri`` is intentionally NOT resolved — stock omnigent doesn't either
+    (it only ensures the SQLite parent dir exists, which ``make_stores`` already
+    does via ``_ensure_sqlite_parent_dir``). Returns a shallow copy when it
+    rewrites, else the input unchanged.
+    """
+    art = cfg.get("artifact_location")
+    if isinstance(art, str) and art and not Path(art).is_absolute():
+        resolved = dict(cfg)
+        resolved["artifact_location"] = str(Path(config_path).parent / art)
+        return resolved
+    return cfg
+
+
 def load_config(path: str | None) -> dict[str, Any]:
     """Load the server YAML config (``yaml.safe_load``), or ``{}`` when no path.
 
-    Mirrors omnigent ``cli.py::_load_config``. ``yaml`` is imported lazily (it is
-    an omnigent dependency) so this module imports — and the no-path branch runs —
-    without it.
+    Mirrors omnigent ``cli.py::_load_config`` + the config-dir relative-path
+    resolution (``cli.py:2922-2925``, via :func:`resolve_relative_locations`).
+    ``yaml`` is imported lazily (it is an omnigent dependency) so this module
+    imports — and the no-path branch runs — without it.
     """
     if not path:
         return {}
     import yaml  # noqa: PLC0415
 
     with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f) or {}
+        cfg = yaml.safe_load(f) or {}
+    return resolve_relative_locations(cfg, config_path=path)
