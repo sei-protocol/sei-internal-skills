@@ -121,14 +121,11 @@ Truncate to ~60 characters. Strip articles (a, the) and stop-words. The filename
 
 ## Output path resolution
 
-In priority order:
+In priority order (mirrors `SKILL.md` step 1 — keep the two in sync):
 
 1. `--output-dir <path>` if provided.
-2. Repo-specific convention if detected:
-   - **DRI designs repo (Design 05)**: `designs/<arc>/<slug>.md` — component-tier LLDs `-lld.md`, system-tier designs plain. Ask which arc when ambiguous.
-   - **sei-protocol/sei-k8s-controller**: `docs/`.
-   - **Other repos**: detect `docs/designs/` or `docs/`; prefer existing.
-3. Default (no DRI repo resolvable): `docs/designs/`.
+2. **The DRI's designs repo (per Design 05).** Resolve it, in order: (a) `--designs-repo <owner/name|path>` if given; (b) a sibling `<name>-designs` checkout (a sibling dir of CWD, or the same git org's `<gh-user>-designs`); (c) otherwise **ask the user** which designs repo. Land arc-foldered as `designs/<arc>/<slug>.md` (component-tier LLDs `-lld.md`, system-tier plain); ask which arc when ambiguous. (When CWD *is* a code repo with its own doc layout — e.g. **sei-protocol/sei-k8s-controller**: `docs/` — honor it.)
+3. Fallback — **only after step 2c and only if the user confirms they have no designs repo**: `docs/designs/` in the current repo. Never silently fall through to this when a DRI repo is the intent.
 
 Always show the user the resolved path before writing. Never overwrite without confirmation.
 

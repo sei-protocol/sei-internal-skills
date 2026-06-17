@@ -15,7 +15,7 @@ Name four things before any design (Rule 1 of the spine):
 - **The trust model.** What the TEE protects against, and **what is explicitly out of scope.** The dominant error is leaving "out of scope" unstated. Always evaluate the **validator-as-host** case: a platform whose trust model assumes the host is honest (Nitro assumes the AWS host) does not defend against a relying party who *is* the host operator.
 - **The RATS roles** (RFC 9334): **Attester** (the TEE producing Evidence), **Verifier** (appraises Evidence against policy — an on-chain contract or off-chain service), **Relying Party** (consumes the Verifier's result to gate a decision), **Endorser** (vouches for the platform — the silicon/cloud vendor PKI), **Reference-Value-Provider** (supplies the expected measurements — governance / an on-chain registry).
 
-**Note on output format:** EAT (RFC 9711) is the **Verifier's *output*** format, not the on-chain *input* — on-chain Verifiers consume vendor-native Evidence (SNP report / TDX quote / Nitro COSE_Sign1 bytes) directly, and EAT enters only at a multi-vendor verifier-result abstraction layer (RFC 9711; `trusted-execution-on-sei.md` §open-standards, claim 7). Feeding EAT to an on-chain verifier is a category error.
+**Note on output format:** EAT (RFC 9711) is the **Verifier's *output*** format, not the on-chain *input* — on-chain Verifiers consume vendor-native Evidence (SNP report / TDX quote / Nitro COSE_Sign1 bytes) directly, and EAT enters only at a multi-vendor verifier-result abstraction layer (RFC 9711; `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` §open-standards, claim 7). Feeding EAT to an on-chain verifier is a category error.
 
 ## Step 3 — Load the platform kit(s)
 

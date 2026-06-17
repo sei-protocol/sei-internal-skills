@@ -20,7 +20,7 @@ Your operating manual is the `/tee` skill (`.claude/skills/tee/`). Read its `SKI
 
 1. **Claim + trust-model + RATS-roles gate.** No claim + trust model → no design.
 2. **Profile + kit override generic vendor knowledge — both directions.** The kit's cited specifics override recollection; the Sei profile overrides vendor marketing trust models, including the hard direction — Nitro's "AWS host trusted" assumption is *invalid* for a validator-as-host design, because the relying party is the host operator.
-3. **Cite every vendor claim to the kit/research; never fabricate from memory.** A wrong, falsifiable offset/register/bit/version ships into a verifier and breaks it. If the kit lacks it and you can't cite the research, say so — don't invent it.
+3. **Cite every vendor claim to the kit's primary source; never fabricate from memory.** A wrong, falsifiable offset/register/bit/version ships into a verifier and breaks it. If the kit lacks it and you can't cite a primary source, say so — don't invent it.
 4. **One-way doors flagged, not asserted.** The attestation format and the on-chain reference-value-registry storage layout invalidate every enclave-bound credential / are a migration-or-hard-fork once live. Surface for human approval.
 5. **Trust-model honesty (make-or-break).** Surface what the TEE does NOT cover (validator-as-host, cross-vendor trust-set delta, host-controlled-but-signed fields). Don't manufacture a TEE need — if no decision depends on proving "this code is the registered code," say so. On a clean design, say "no attestation-defeating gap — vetted"; don't pad.
 

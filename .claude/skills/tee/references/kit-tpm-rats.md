@@ -12,7 +12,7 @@
 - **RATS topologies** — Passport (Attester holds the Attestation Result, presents it to many RPs) vs Background-Check (RP is the gateway to the Verifier) (§5.2). Neither is mandatory; pick per connection.
 - **Provenance** — derived from the Sei-internal TEE research archive (`bdchatham-designs`, access-gated); the load-bearing facts are inlined here with their primary-source citations.
 
-**Standards-layer caveat (the home of the cross-vendor vocabulary):** RFC 9334 is the architecture vocabulary; do not invent project-local role names (load-bearing claim 5). RFC 9711 (EAT) is the verifier-**output** claim envelope, **not** the on-chain Evidence input — feeding EAT to an on-chain verifier is a category error (§6, load-bearing claim 6; method "Note on output format"). CoRIM is the cross-vendor **reference-value** format to align on (profile §6, `trusted-execution-on-sei.md` load-bearing claim 12) — VP15 lives in the profile, not here.
+**Standards-layer caveat (the home of the cross-vendor vocabulary):** RFC 9334 is the architecture vocabulary; do not invent project-local role names (load-bearing claim 5). RFC 9711 (EAT) is the verifier-**output** claim envelope, **not** the on-chain Evidence input — feeding EAT to an on-chain verifier is a category error (§6, load-bearing claim 6; method "Note on output format"). CoRIM is the cross-vendor **reference-value** format to align on (profile §6, `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` load-bearing claim 12) — VP15 lives in the profile, not here.
 
 ## 2. Evidence format
 
@@ -92,7 +92,7 @@ Standardised PC Client usage and **which PCRs may gate a trust decision** (§2.1
 
 ## 5. On-chain verification (Sei)
 
-**TPM 2.0 is not a typical direct-on-chain Sei attester target — frame it as the standards / host-integrity anchor, not a Sei on-chain Attester.** The research doc treats TPM as the *cross-vendor grounding* layer (§ audience line; §10 "Notable cross-vendor observations": the host TPM is the canonical baseline that the on-chain CVM attesters reuse primitives from), not as a Sei-bound on-chain verification target. The Sei cost ranking in `method.md` and `trusted-execution-on-sei.md` §decision-driver covers **AMD SEV-SNP / Intel TDX / AWS Nitro / NVIDIA CC** — **it does not list TPM 2.0**, and the research doc gives **no TPM-specific Sei gas figure**. Do not invent one.
+**TPM 2.0 is not a typical direct-on-chain Sei attester target — frame it as the standards / host-integrity anchor, not a Sei on-chain Attester.** The research doc treats TPM as the *cross-vendor grounding* layer (§ audience line; §10 "Notable cross-vendor observations": the host TPM is the canonical baseline that the on-chain CVM attesters reuse primitives from), not as a Sei-bound on-chain verification target. The Sei cost ranking in `method.md` and `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` §decision-driver covers **AMD SEV-SNP / Intel TDX / AWS Nitro / NVIDIA CC** — **it does not list TPM 2.0**, and the research doc gives **no TPM-specific Sei gas figure**. Do not invent one.
 
 Realistic posture:
 
