@@ -12,6 +12,7 @@ Ground-truth, source-cited reference material on Trusted Execution Environment a
 | [`aws-nitro-enclaves.md`](aws-nitro-enclaves.md) | Nitro attestation CDDL, COSE_Sign1 wrapping, PCR semantics, KMS `kms:RecipientAttestation:*` condition keys, Marlin Oyster amortization |
 | [`tpm-2.0-open-standards.md`](tpm-2.0-open-standards.md) | TPM 2.0 architecture + PCRs, IETF RATS (RFC 9334), EAT (RFC 9711), TCG attestation model, CCEL, DICE/DPE, SPDM, cross-vendor mapping |
 | [`trusted-execution-on-sei.md`](trusted-execution-on-sei.md) | Sei-domain framing: TEE applications fitting Sei's threat model, per-vendor fit on Sei, trust roots, Tide-specific patterns |
+| [`automata-onchain-attestation.md`](automata-onchain-attestation.md) | `/research` prior art: Automata Network's on-chain DCAP verifier (V3/V4/V5 contracts, on-chain PCCS), the zkVM gas table (RiscZero/SP1), SEV-SNP-via-zkVM, Trail-of-Bits audit, per-chain-PCCS + not-on-Sei caveats |
 
 ## How to read
 
