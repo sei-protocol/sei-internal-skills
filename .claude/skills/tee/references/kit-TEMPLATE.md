@@ -55,7 +55,7 @@ The table that plugs this platform into `method.md`'s cross-cutting dimensions. 
 
 ## 5. On-chain verification (Sei)
 
-The cost + path on Sei EVM: direct (with the precompile that applies), amortized (the secp256k1 / verify-once pattern), or ZK-proven — with the gas figure and the production posture. Cite the cost research (`<doc>.md` §on-chain + `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` decision-driver).
+The cost + path on Sei EVM: direct (with the precompile that applies), amortized (the secp256k1 / verify-once pattern), or ZK-proven — with the gas figure and the production posture. Cite the public cost sources (the `sei-chain` precompile, the public Marlin/Automata gas numbers); the archived corpus cost derivation is non-required provenance, never the citable authority (per §7).
 
 ## 6. Key-release / integration pattern
 

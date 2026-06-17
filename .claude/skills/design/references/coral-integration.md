@@ -18,7 +18,7 @@ Coral / council should *proactively* surface `/design` when **the deliverable is
 | One-way door surfaced and a decision was made | The decision is worth a permanent record |
 | Multiple alternatives were weighed before picking one | The reasoning is what matters six months later — capture it |
 
-The orchestrator phrases it as an offer: *"Want me to capture this as a design doc under `docs/designs/` (or `designs/<arc>/` in the DRI designs repo)?"* — user opts in.
+The orchestrator phrases it as an offer: *"Want me to capture this as a design doc in your designs repo (`designs/<arc>/<slug>.md`), or `docs/designs/` here if you have none?"* — user opts in.
 
 ## `/design` vs `/issue` at the handoff
 
