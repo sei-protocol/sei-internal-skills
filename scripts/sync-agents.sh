@@ -50,8 +50,12 @@ SEI_NAME_OVERRIDES="sei-network-specialist"
 
 in_list() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
-agent_category() {  # agent_category <name>
-  grep -m1 '^category:' "$AGENTS_DIR/$1.md" 2>/dev/null \
+agent_category() {  # agent_category <name> — declared `category:` (empty if none)
+  # `grep || true` so a no-match does NOT fail the pipeline and abort the caller
+  # under `set -e`/`pipefail` (the guard must print its diagnostic, not crash).
+  # `tr -d '\r'` strips a CRLF terminator GNU sed's [[:space:]] would leave.
+  { grep -m1 '^category:' "$AGENTS_DIR/$1.md" 2>/dev/null || true; } \
+    | tr -d '\r' \
     | sed 's/^category:[[:space:]]*//; s/[[:space:]]*$//; s/^["'"'"']//; s/["'"'"']$//'
 }
 

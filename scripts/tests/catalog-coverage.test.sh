@@ -17,6 +17,19 @@ no() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 silent() { "$@" >/dev/null 2>&1; }
 check()      { local d="$1"; shift; if silent "$@"; then ok "$d"; else no "$d"; fi; }   # PASS when cmd exits 0
 check_fail() { local d="$1"; shift; if silent "$@"; then no "$d"; else ok "$d"; fi; }   # PASS when cmd exits non-zero
+# PASS when cmd exits non-zero AND its combined output contains <pat> — guards
+# against a silent crash satisfying a bare exit-code assertion (the D1/D2 trap).
+check_fail_msg() {
+  local d="$1" pat="$2"; shift 2
+  local out rc
+  out="$("$@" 2>&1)"; rc=$?
+  if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q "$pat"; then ok "$d"; else no "$d"; fi
+}
+
+# Fixtures are created inside the live tree; clean them up even on interrupt so a
+# stray dir can't break the real `make verify-catalog` afterwards.
+TMP_FIXTURES=()
+trap 'rm -rf "${TMP_FIXTURES[@]}"' EXIT
 
 echo "coverage guard — the live catalog is complete"
 check      "skills --verify passes on the real tree" "$SKILLS_SH" --verify
@@ -31,20 +44,24 @@ check_fail "brevity is NOT synced (Tide-local output-quality)" bash -c "'$SKILLS
 check      "sei-network-specialist is in sei (name override)" bash -c "'$AGENTS_SH' --target /tmp/_cov --categories sei --dry-run 2>/dev/null | grep -q '^  - sei-network-specialist$'"
 check_fail "sei-network-specialist is NOT in portable"        bash -c "'$AGENTS_SH' --target /tmp/_cov --categories portable --dry-run 2>/dev/null | grep -q '^  - sei-network-specialist$'"
 
-echo "guard fails closed — an orphaned category is rejected"
+echo "guard fails closed (with a diagnostic) — an orphaned category is rejected"
 tmpskill="$SKILLS_DIR/__cov_test_orphan__"
+TMP_FIXTURES+=("$tmpskill")
 mkdir -p "$tmpskill"
 printf -- '---\nname: cov-test\ncategory: nonexistent-domain-xyz\n---\n' > "$tmpskill/SKILL.md"
-check_fail "skills --verify FAILS with an unmapped category" "$SKILLS_SH" --verify
-check_fail "sync refuses to run with an incomplete catalog"  "$SKILLS_SH" --target /tmp/_cov --categories all --dry-run
+check_fail_msg "skills --verify FAILS + names the bad category" "maps to no sync alias" "$SKILLS_SH" --verify
+check_fail     "sync refuses to run with an incomplete catalog" "$SKILLS_SH" --target /tmp/_cov --categories all --dry-run
 rm -rf "$tmpskill"
-check      "guard recovers after the orphan is removed"      "$SKILLS_SH" --verify
+check          "guard recovers after the orphan is removed"     "$SKILLS_SH" --verify
 
-echo "guard fails closed — a category-less skill is rejected"
+echo "guard fails closed (with a diagnostic) — a category-less skill is rejected"
 tmpskill2="$SKILLS_DIR/__cov_test_nocat__"
+TMP_FIXTURES+=("$tmpskill2")
 mkdir -p "$tmpskill2"
 printf -- '---\nname: cov-test2\n---\n' > "$tmpskill2/SKILL.md"
-check_fail "skills --verify FAILS with no category" "$SKILLS_SH" --verify
+# D1 regression: must EXIT non-zero AND print the "no category" message — not
+# crash silently under set -e/pipefail (which would satisfy a bare exit check).
+check_fail_msg "skills --verify FAILS + reports the missing category" "no 'category:'" "$SKILLS_SH" --verify
 rm -rf "$tmpskill2"
 
 echo ""

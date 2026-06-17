@@ -71,9 +71,15 @@ TIDE_LOCAL_DOMAINS="output-quality security"
 # in_list <needle> <space-separated-haystack>
 in_list() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
-# skill_category <skill-name> — its declared `category:` (empty if none)
+# skill_category <skill-name> — its declared `category:` (empty if none).
+# `grep || true` so a no-match (no category:) does NOT fail the pipeline and
+# abort the caller under `set -e`/`pipefail` — the coverage guard must still
+# print its "no category" diagnostic, not crash silently. `tr -d '\r'` strips a
+# CRLF terminator (GNU sed's [[:space:]] doesn't, so it would otherwise leak
+# into the category on Linux CI).
 skill_category() {
-  grep -m1 '^category:' "$SKILLS_DIR/$1/SKILL.md" 2>/dev/null \
+  { grep -m1 '^category:' "$SKILLS_DIR/$1/SKILL.md" 2>/dev/null || true; } \
+    | tr -d '\r' \
     | sed 's/^category:[[:space:]]*//; s/[[:space:]]*$//; s/^["'"'"']//; s/["'"'"']$//'
 }
 

@@ -5,12 +5,17 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
 ## First time here?
 
 1. **Inside Tide, no setup needed.** Claude Code auto-discovers everything in this directory.
-2. **To get the full toolkit everywhere, one command:**
+2. **Never cloned Tide? Get the full toolkit over the wire in one line** (uses your `gh` auth — Tide is internal):
    ```sh
-   make update     # pull latest Tide main + sync ALL skills/agents into ~/.claude + verify
+   gh api repos/sei-protocol/Tide/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
    ```
-   That keeps your `~/.claude` current with every portable + Sei skill and agent. (To install only the **portable** set into an external *consumer* repo, run `./scripts/sync-skills.sh` / `make bootstrap` instead.)
-3. **Re-run `make update` any time** — it's idempotent and pulls first, so it's the single "get current" step.
+   It clones Tide to `~/.tide` (override `TIDE_HOME`), then syncs every portable + Sei skill and agent into `~/.claude`.
+3. **Already have the repo?** One command from your checkout:
+   ```sh
+   make update     # fast-forward this checkout (run from main) + sync ALL skills/agents into ~/.claude + verify
+   ```
+   (To install only the **portable** set into an external *consumer* repo, run `make bootstrap` instead.)
+4. **Re-run either any time** — both are idempotent.
 
 **Edit skills in Tide, never in `~/.claude/skills/`.** Local edits at user-scope get overwritten on next sync. To change a skill, edit it here and PR.
 

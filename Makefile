@@ -14,9 +14,13 @@ help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-32s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
 .PHONY: update
-update: ## ⭐ One command to get current: pull latest Tide main + sync ALL skills/agents into ~/.claude + verify
-	@echo "→ pulling latest Tide main…"
+update: ## ⭐ Get current: fast-forward this checkout, then sync ALL skills/agents into ~/.claude + verify
+	@echo "→ fast-forwarding this Tide checkout (run on main)…"
 	@git pull --ff-only
+	@$(MAKE) --no-print-directory sync-all
+
+.PHONY: sync-all
+sync-all: ## Sync ALL skills+agents (portable+sei) into ~/.claude + verify — no git pull (used by `update` and the over-the-wire installer)
 	@echo "→ syncing all agents…"
 	@./scripts/sync-agents.sh --target ~/ --categories all --force
 	@echo "→ syncing all skills…"

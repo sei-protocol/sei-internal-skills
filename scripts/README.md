@@ -14,11 +14,21 @@ Utility scripts for Tide repo maintenance. Most are wrapped by Make targets at t
 
 ## Get current in one command
 
+**Never cloned Tide?** One line, straight over the wire — uses your `gh` auth (Tide is an internal repo, so a bare `curl` won't authenticate):
+
 ```bash
-make update     # pull latest Tide main + sync ALL skills/agents into ~/.claude + verify the catalog
+gh api repos/sei-protocol/Tide/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
 ```
 
-That is the only command you need to keep your environment current. `make bootstrap` installs only the **portable** set into a *consumer* repo (external use); for your own `~/.claude` use `make update`.
+It clones Tide to `~/.tide` (override with `TIDE_HOME`), then syncs ALL skills/agents into `~/.claude` and verifies the catalog. Idempotent — re-run any time.
+
+**Already have the repo?** From your checkout:
+
+```bash
+make update     # fast-forward this checkout + sync ALL skills/agents into ~/.claude + verify the catalog
+```
+
+These are the only commands you need to keep your environment current. `make bootstrap` installs only the **portable** set into a *consumer* repo (external use); for your own `~/.claude` use `make update` (or the over-the-wire one-liner above).
 
 **Single source of truth:** which alias (`portable` / `sei` / Tide-local) a skill or agent belongs to is **derived from its own `category:` frontmatter** via the small domain→alias map at the top of each sync script — there is no hand-maintained per-item list to drift. Add a skill/agent with a mapped `category:` and it syncs automatically. `make verify-catalog` (run in CI) fails closed if any item's category maps to no alias, so a miscategorized resource is caught, never silently dropped.
 
