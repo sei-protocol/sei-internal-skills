@@ -108,6 +108,8 @@ ENGINEER_SELF_SERVICE=(
 )
 
 # output-quality (brevity, pr-quality) is intentionally Tide-local — not synced.
+# security (tee) is intentionally Tide-local — its design/research/tee/* ground-truth
+# corpus lives in this repo; not synced until that corpus is portable (PLT-677).
 
 # Meta-aliases cross-cut the domains (back-compat with the Makefile / muscle memory):
 #   portable = workflow + workstream-bootstrap + hardening + investigation
@@ -183,6 +185,9 @@ for cat in "${CAT_ARRAY[@]}"; do
     all)       SKILLS_TO_SYNC+=("${WORKFLOW[@]}" "${WORKSTREAM_BOOTSTRAP[@]}" "${HARDENING[@]}" "${INVESTIGATION[@]}" "${SKILL_AUTHORING[@]}" "${CODE_QUALITY[@]}" "${WRITING_QUALITY[@]}" "${PRODUCT_MANAGEMENT[@]}" "${PROJECT_MANAGEMENT[@]}" "${RELEASE_OPERATIONS[@]}" "${ENGINEER_SELF_SERVICE[@]}") ;;
     output-quality)
       echo "output-quality (brevity, pr-quality) is a Tide-local domain — not synced. Edit it in Tide." >&2
+      exit 2 ;;
+    security)
+      echo "security (tee) is a Tide-local domain — its design/research/tee/* corpus lives in Tide; not synced. Edit it in Tide." >&2
       exit 2 ;;
     *)
       echo "Unknown category: $cat" >&2
