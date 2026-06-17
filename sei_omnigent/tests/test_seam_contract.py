@@ -30,6 +30,19 @@ _EXPECTED_STORE_FIELDS = {
 }
 
 
+# The 5 genuinely-private ``omnigent.cli`` helpers the clone reuses — the
+# drift-prone half of the shim (``_omnigent_shim.py:94-100``). A pinned-tag bump
+# that moves/renames any of them breaks the overlay at *server boot*; the
+# canaries below (PLT-673) surface it at CI instead.
+_PRIVATE_CLI_HELPERS = {
+    "_create_artifact_store",
+    "_preregister_agent",
+    "_ensure_sqlite_parent_dir",
+    "_default_db_uri",
+    "_default_artifact_location",
+}
+
+
 def _serve_ast() -> ast.Module:
     return ast.parse(_SERVE.read_text())
 
@@ -91,6 +104,49 @@ def test_only_the_shim_imports_omnigent() -> None:
     assert not offenders, (
         "only sei_omnigent._omnigent_shim may import omnigent (DECISION-1 drift isolation): "
         + "; ".join(offenders)
+    )
+
+
+def test_shim_reexports_the_private_cli_helpers() -> None:
+    """Static (always runs): the 5 drift-prone ``omnigent.cli`` helpers stay in the
+    shim ``__all__``. Catches an accidental drop without needing omnigent installed."""
+    shim = ast.parse((_PKG / "_omnigent_shim.py").read_text())
+    exported = {
+        elt.value
+        for node in ast.walk(shim)
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "__all__" for t in node.targets)
+        for elt in node.value.elts
+        if isinstance(elt, ast.Constant)
+    }
+    missing = _PRIVATE_CLI_HELPERS - exported
+    assert not missing, f"shim __all__ dropped private cli helpers: {sorted(missing)}"
+
+
+def test_private_cli_helpers_resolve_in_omnigent() -> None:
+    """Behavioral drift-canary (PLT-673): the 5 private ``omnigent.cli`` helpers the
+    clone depends on still import and are callable on the pinned tag — converting an
+    upstream rename/move from a server-boot crash into a CI failure.
+
+    Gate on whether the *base* ``omnigent`` package is installed, NOT on the shim
+    import: if a helper moved, the shim's ``from omnigent.cli import (...)`` raises,
+    and catching that would *skip* the exact drift this canary exists to catch. So —
+    omnigent absent ⇒ skip (unit CI; the integration job covers it); omnigent present
+    ⇒ the shim MUST import cleanly and expose all five as callables, else fail loudly.
+
+    Presence is probed via ``find_spec`` (a string, not a literal ``import
+    omnigent``) so the "only the shim imports omnigent" guard above does not flag
+    this test file.
+    """
+    import importlib.util  # noqa: PLC0415
+
+    if importlib.util.find_spec("omnigent") is None:
+        return  # omnigent absent (unit CI) — integration job exercises this
+    from sei_omnigent import _omnigent_shim as omni  # noqa: PLC0415  # must NOT be guarded
+    unresolved = [name for name in _PRIVATE_CLI_HELPERS if not callable(getattr(omni, name, None))]
+    assert not unresolved, (
+        "private omnigent.cli helpers moved/renamed/non-callable on the pinned tag — "
+        f"re-verify the shim against the new omnigent/cli.py: {sorted(unresolved)}"
     )
 
 
