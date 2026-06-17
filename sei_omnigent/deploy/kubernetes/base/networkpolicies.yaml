@@ -1,0 +1,323 @@
+# NetworkPolicy set — security's load-bearing requirement (§2.4a).
+#
+# ╔══════════════════════════════════════════════════════════════════════════╗
+# ║ CNI ENFORCEMENT IS A HARD PREREQUISITE. The entire header-mode trust model ║
+# ║ depends on the CNI actually ENFORCING NetworkPolicy (Cilium / Calico).     ║
+# ║ The server binds 0.0.0.0:8000; if the CNI ignores NetworkPolicy (vanilla   ║
+# ║ kubenet / a flannel build without policy), ANY in-cluster peer that can    ║
+# ║ reach :8000 can set X-Forwarded-Email and impersonate any user, including  ║
+# ║ admin. With no enforcement these manifests are inert and the deploy is a    ║
+# ║ blocking security finding. Also: FQDN egress filtering needs Cilium —      ║
+# ║ vanilla CNI degrades the :443 allowlist to CIDR-only (see README).         ║
+# ╚══════════════════════════════════════════════════════════════════════════╝
+
+# 1) Default-deny ALL ingress + egress, namespace-wide. Everything below is an
+#    additive narrow allow on top of this baseline.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  labels:
+    app: omnigent
+spec:
+  podSelector: {} # all pods in the namespace
+  policyTypes:
+    - Ingress
+    - Egress
+
+# 2) DNS egress for all pods (CoreDNS :53 TCP+UDP). Without this every pod fails
+#    name resolution under default-deny. Scoped to kube-dns by namespace+label.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns-egress
+  labels:
+    app: omnigent
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+
+# 3) SERVER INGRESS: ONLY from oauth2-proxy and omnigent-host → :8000. The
+#    Ingress controller is deliberately NOT allowed to reach the server directly
+#    (it must traverse oauth2-proxy — enforces "proxy is the sole human path" at
+#    L3, complementing the L7 X-Forwarded-Email strip).
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: server-ingress
+  labels:
+    app: omnigent-server
+spec:
+  podSelector:
+    matchLabels:
+      app: omnigent-server
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: oauth2-proxy
+        - podSelector:
+            matchLabels:
+              app: omnigent-host
+        # FIX C — the arm/re-arm initContainer polls the server /health to wait
+        # out first-boot migrations before registering the host row. Allow those
+        # pods to reach the server. Port is the POD port 8000 (the Service maps
+        # 80→8000 and NetworkPolicy is evaluated post-DNAT on the pod's 8000).
+        - podSelector:
+            matchLabels:
+              app: omnigent-host-arm
+        - podSelector:
+            matchLabels:
+              app: omnigent-host-rearm
+      ports:
+        - protocol: TCP
+          port: 8000
+
+# 4) SERVER EGRESS: closed allowlist, NO 0.0.0.0/0. Postgres :5432, DNS (via the
+#    namespace-wide DNS rule above), and a :443 ipBlock allowlist
+#    {GitHub, IdP, approved MCP, chain-RPC}. IMDS 169.254.169.254 is excluded by
+#    the closed allowlist (and backstopped at the node: IMDSv2 + hop-limit 1).
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: server-egress
+  labels:
+    app: omnigent-server
+spec:
+  podSelector:
+    matchLabels:
+      app: omnigent-server
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # :443 to the approved external CIDRs only. Replace each PLACEHOLDER CIDR
+    # with the resolved allowlist. Widening this is a SECURITY-REVIEW EVENT
+    # (one-way-door flag #11). Prefer Cilium CiliumNetworkPolicy with toFQDNs
+    # for these (see README) — ipBlock CIDR is the vanilla-CNI fallback.
+    - to:
+        - ipBlock:
+            cidr: PLACEHOLDER_CIDR_GITHUB # api.github.com / github.com ranges
+        - ipBlock:
+            cidr: PLACEHOLDER_CIDR_IDP # Sei IdP (only if the server calls it directly)
+        - ipBlock:
+            cidr: PLACEHOLDER_CIDR_MCP # approved MCP endpoint(s)
+        - ipBlock:
+            cidr: PLACEHOLDER_CIDR_CHAIN_RPC # chain RPC
+      ports:
+        - protocol: TCP
+          port: 443
+
+# 5) HOST EGRESS: closed allowlist — this is the C4 READ-ONLY BACKSTOP. The
+#    github_policy handler does NOT catch raw curl / gh api / git-over-HTTPS
+#    (abstain→ALLOW), so the network egress allowlist is the only thing that
+#    bounds what the agent host can reach. Same {GitHub, IdP, MCP, chain-RPC}
+#    set + Postgres is NOT included (the host does not talk to the DB). Any
+#    addition here weakens the read-only backstop (one-way-door flag #11).
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: host-egress
+  labels:
+    app: omnigent-host
+spec:
+  podSelector:
+    matchLabels:
+      app: omnigent-host
+  policyTypes:
+    - Egress
+  egress:
+    # Dial the server tunnel (ClusterIP :8000 via the Service).
+    - to:
+        - podSelector:
+            matchLabels:
+              app: omnigent-server
+      ports:
+        - protocol: TCP
+          port: 8000
+    # The read-only backstop allowlist (:443). C4: the ONLY bound on raw HTTP
+    # the agent can make — this is the MINIMAL tool-reachability set (one-way-door
+    # flag #11). Any addition here is a SECURITY-REVIEW EVENT. NOTE: the IdP CIDR
+    # is intentionally ABSENT — the host is the agent sandbox and does NO OIDC
+    # (only oauth2-proxy authenticates to the IdP). GitHub / MCP / chain-RPC are
+    # each CONDITIONAL: keep only those a host tool actually needs.
+    - to:
+        - ipBlock:
+            cidr: PLACEHOLDER_CIDR_GITHUB # conditional: only if a host tool needs GitHub
+        - ipBlock:
+            cidr: PLACEHOLDER_CIDR_MCP # conditional: only if a host tool needs MCP
+        - ipBlock:
+            cidr: PLACEHOLDER_CIDR_CHAIN_RPC # conditional: only if a host tool needs chain RPC
+      ports:
+        - protocol: TCP
+          port: 443
+
+# 6) OAUTH2-PROXY INGRESS: ONLY from the Ingress controller. Replace the
+#    PLACEHOLDER selector/namespace with the actual ingress-controller labels.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: oauth2-proxy-ingress
+  labels:
+    app: oauth2-proxy
+spec:
+  podSelector:
+    matchLabels:
+      app: oauth2-proxy
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: PLACEHOLDER_INGRESS_CONTROLLER_NAMESPACE
+          podSelector:
+            matchLabels:
+              PLACEHOLDER_INGRESS_CONTROLLER_LABEL_KEY: PLACEHOLDER_INGRESS_CONTROLLER_LABEL_VALUE
+      ports:
+        - protocol: TCP
+          port: 4180
+
+# 7) OAUTH2-PROXY EGRESS: to the server (:8000, upstream) + IdP (:443) for OIDC
+#    discovery/token exchange. No 0.0.0.0/0.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: oauth2-proxy-egress
+  labels:
+    app: oauth2-proxy
+spec:
+  podSelector:
+    matchLabels:
+      app: oauth2-proxy
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: omnigent-server
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
+        - ipBlock:
+            cidr: PLACEHOLDER_CIDR_IDP # Sei IdP OIDC endpoints
+      ports:
+        - protocol: TCP
+          port: 443
+
+# 8) POSTGRES INGRESS: ONLY from the server + the arm/re-arm Jobs (they register
+#    the host row directly in the DB) → :5432.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: postgres-ingress
+  labels:
+    app: postgres
+spec:
+  podSelector:
+    matchLabels:
+      app: postgres
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: omnigent-server
+        - podSelector:
+            matchLabels:
+              app: omnigent-host-arm
+        - podSelector:
+            matchLabels:
+              app: omnigent-host-rearm
+      ports:
+        - protocol: TCP
+          port: 5432
+
+# 9) ARM/RE-ARM JOB EGRESS: to Postgres (register the host row) + the K8s API
+#    (write the Secret; and, for re-arm, patch the omnigent-host Deployment to
+#    trigger the rotation restart — FIX A). The matchExpression below covers
+#    BOTH app: omnigent-host-arm AND omnigent-host-rearm, so the re-arm pods get
+#    apiserver egress for that Deployment patch too. DNS (resolving
+#    kubernetes.default.svc) comes from the namespace-wide allow-dns-egress rule.
+#
+#    PLACEHOLDER_CIDR_K8S_APISERVER — fill with the apiserver ENDPOINT IP CIDR,
+#    NOT a Service ClusterIP. The scripts call load_incluster_config(), which
+#    targets the kubernetes.default.svc ClusterIP; kube-proxy DNATs that to the
+#    real apiserver endpoint IPs, and NetworkPolicy egress is evaluated
+#    POST-DNAT against those endpoint IPs. On EKS these are the cluster-endpoint
+#    ENI IPs that back the kubernetes Service (a /32 per ENI, or the subnet
+#    CIDR). Discover them with: `kubectl -n default get endpoints kubernetes`.
+#    A ClusterIP here will silently break the Secret write + restart patch.
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: host-arm-egress
+  labels:
+    app: omnigent-host
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app
+        operator: In
+        values: ["omnigent-host-arm", "omnigent-host-rearm"]
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    # FIX C — the wait-for-server initContainer polls the server /health before
+    # the arm/re-arm logic runs. Allow egress to the server. Port is the POD
+    # port 8000 (the Service maps 80→8000; NetworkPolicy is post-DNAT on 8000),
+    # paired with the server-ingress allow from these same pods above.
+    - to:
+        - podSelector:
+            matchLabels:
+              app: omnigent-server
+      ports:
+        - protocol: TCP
+          port: 8000
+    - to:
+        - ipBlock:
+            cidr: PLACEHOLDER_CIDR_K8S_APISERVER # apiserver ENDPOINT IPs (post-DNAT), NOT a ClusterIP — see header
+      ports:
+        - protocol: TCP
+          port: 443

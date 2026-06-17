@@ -1,0 +1,87 @@
+# In-cluster Postgres for Phase-1. Swappable for managed PG (RDS/CloudSQL) when
+# point-in-time-recovery is required — see README. Credentials come from the
+# `postgres` Secret; the same password must match server-config.yaml's DSN.
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      securityContext:
+        fsGroup: 999 # postgres uid/gid in the alpine image — lets PVC be writable
+        seccompProfile:
+          type: RuntimeDefault
+        # NOTE: runAsNonRoot is deliberately NOT set — the official postgres
+        # entrypoint starts as root to initdb/chown the data dir, then drops to
+        # uid 999. Forcing non-root breaks first-boot. (Phase-1 in-cluster DB;
+        # a managed PG or a rootless image removes this carve-out.)
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+              name: postgres
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_DB
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_USER
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres
+                  key: POSTGRES_PASSWORD
+            # alpine image needs this when the PVC mounts a subdir.
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "100m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          readinessProbe:
+            exec:
+              # Use the actual configured user (from the postgres Secret), not a
+              # hardcoded "omnigent" — else changing POSTGRES_USER makes the probe
+              # fail and the StatefulSet never goes Ready (blocking server + arm).
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER"']
+            periodSeconds: 10
+            timeoutSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", 'pg_isready -U "$POSTGRES_USER"']
+            initialDelaySeconds: 15
+            periodSeconds: 30
+            timeoutSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: PLACEHOLDER_STORAGECLASS
+        resources:
+          requests:
+            storage: 10Gi

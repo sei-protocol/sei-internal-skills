@@ -1,0 +1,44 @@
+# Server YAML config, mounted at /etc/omnigent/server.yaml (OMNIGENT_CONFIG).
+# serve_main loads this, then merges the overlay's read-only server-default
+# policies (admin__github_read_only + admin__deny_mutating_os) ON TOP — the
+# overlay wins on key collision, so an operator config can ADD policies but
+# cannot silently drop the read-only backstop. Do not attempt to set the
+# read-only policies here; they are code-owned (sei_omnigent.policies.read_only).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: omnigent-server-config
+  labels:
+    app: omnigent-server
+data:
+  server.yaml: |
+    # In-cluster Postgres (Phase-1). Swap to a managed PG DSN when PITR is
+    # needed — see README. Credentials come from the postgres Secret; this DSN
+    # embeds them via the same values the StatefulSet is seeded with.
+    # NOTE: omnigent reads database_uri as a literal string and does NOT expand
+    # ${ENV}. If you do not want the password in the ConfigMap, move to a managed
+    # DSN injected via env/Secret and have the overlay drop database_uri here.
+    database_uri: "postgresql+psycopg://omnigent:PLACEHOLDER_PG_PASSWORD@postgres:5432/omnigent"
+
+    # ABSOLUTE path under the /data mount. serve_main resolves RELATIVE
+    # artifact_location against the config dir (/etc/omnigent) — which is a
+    # read-only ConfigMap mount — so an absolute /data path is mandatory here,
+    # not just clearest.
+    artifact_location: "/data/artifacts"
+
+    # Admin = global superuser (bypasses ALL per-session checks). Keep this a
+    # 1–2 person break-glass roster, version-controlled. These identities MUST
+    # match the verified IdP claim oauth2-proxy sets as X-Forwarded-Email.
+    # The host's owner identity (tide-host@sei.internal) MUST NOT appear here.
+    admins:
+      - PLACEHOLDER_ADMIN_EMAIL
+
+    # Header-mode account auto-provisioning domain allow-list. Restrict to the
+    # Sei IdP domain(s) so a verified-but-unexpected claim cannot self-serve.
+    allowed_domains:
+      - PLACEHOLDER_ALLOWED_DOMAIN
+
+    # Phase-1 runs the agent on a managed K8s host (omnigent-host) dialing the
+    # tunnel — NOT a server-launched sandbox. No `sandbox:` provider section is
+    # required for the static-host topology. If a future phase adds a
+    # server-launched SandboxLauncher, add the sandbox: block here.

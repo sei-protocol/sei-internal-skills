@@ -1,0 +1,92 @@
+# Agent execution host. Dials the server's WS tunnel
+# (WSS /v1/hosts/{host_id}/tunnel) DIRECTLY at the ClusterIP — bypassing
+# Ingress AND oauth2-proxy. It authenticates with the managed launch token
+# (X-Omnigent-Host-Token header), which the token branch (host_tunnel.py:138)
+# validates BEFORE get_user_id ever runs → X-Forwarded-Email is structurally
+# inert on this path (resolution H1, §2.4a). A free-standing pod with a guessed
+# token is rejected; the host must be pre-armed (omnigent-host-arm Job).
+#
+# replicas:1 — one armed host identity (host_id) per Secret. Scaling would need
+# distinct host_ids/tokens per replica; out of Phase-1 scope.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: omnigent-host
+  labels:
+    app: omnigent-host
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # one host_id at a time; avoid two pods reowning the same id
+  selector:
+    matchLabels:
+      app: omnigent-host
+  template:
+    metadata:
+      labels:
+        app: omnigent-host
+    spec:
+      imagePullSecrets:
+        - name: omnigent-ghcr
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: omnigent-host
+          # Same omnigent image, host target. Pin the SAME sha as the server.
+          image: PLACEHOLDER_IMAGE:PLACEHOLDER_TAG
+          # FIX 7 — container hardening atop pod-level runAsNonRoot + seccomp.
+          # readOnlyRootFilesystem is INTENTIONALLY false: this is the agent
+          # sandbox — it runs arbitrary tooling (git clone, file writes, package
+          # ops) that needs a writable rootfs. Locking it would break the host;
+          # the C4 read-only backstop is enforced by policy + the host-egress
+          # NetworkPolicy, not by an immutable filesystem here.
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: false
+          # `omnigent host --server <in-cluster server URL>`. The host derives
+          # the WSS tunnel URL (http→ws) and appends /v1/hosts/{host_id}/tunnel.
+          # Talk to the ClusterIP over :80 (Service maps 80→8000).
+          #
+          # TOKEN ROTATION (corrected): OMNIGENT_HOST_TOKEN is injected as an env
+          # var via secretKeyRef below, so the process reads it ONCE at pod
+          # START. K8s does NOT re-inject env vars when the Secret changes — a
+          # running pod keeps the value it booted with. So after the re-arm
+          # CronJob rotates the token, this pod would keep dialing with the STALE
+          # token and the next reconnect would fail. To make rotation take
+          # effect, the re-arm CronJob triggers a rolling RESTART of this
+          # Deployment (patches spec.template.metadata.annotations
+          # kubectl.kubernetes.io/restartedAt) right after it patches the Secret,
+          # so the new pod re-reads the fresh token. See host-rearm-cronjob.yaml.
+          # PLT-674 LIVE-ROTATION GATE: because rotation is a restart (not an
+          # in-place re-read of the live tunnel), each re-arm causes a brief host
+          # blip — acceptable for the single-host Phase-1. The FIRST-arm Job does
+          # NOT restart this Deployment (the host starts AFTER arming completes).
+          command:
+            ["omnigent", "host", "--server", "http://omnigent-server.PLACEHOLDER_NAMESPACE.svc.cluster.local:80"]
+          env:
+            # host_id + name MUST match what omnigent-host-arm registered (they
+            # must be set together — identity.py:77). Pinned, stable across
+            # re-arms so session bindings survive a token rotation.
+            - name: OMNIGENT_HOST_ID
+              value: PLACEHOLDER_HOST_ID # e.g. host_<32hex>; must equal the arm Job's host_id
+            - name: OMNIGENT_HOST_NAME
+              value: "tide-host"
+            # The managed launch token — raw value, mounted from the Secret the
+            # arm Job/CronJob writes. Atomic Secret overwrite revokes the old
+            # token (its digest stops matching).
+            - name: OMNIGENT_HOST_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: omnigent-host-token
+                  key: OMNIGENT_HOST_TOKEN
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
