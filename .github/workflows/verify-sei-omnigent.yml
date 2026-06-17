@@ -20,6 +20,11 @@ on:
       # The workflow's own path — so a workflow-only fix still exercises the job
       # (else a broken install/command could merge without ever running here).
       - '.github/workflows/verify-sei-omnigent.yml'
+      # The specialist roster — test_baseline_tracks_the_actual_roster compares
+      # harness.py's ROSTER_BASELINE to the live .claude/agents/ count, so a PR
+      # that adds/removes an agent must re-run this job or the baseline silently
+      # drifts undetected.
+      - '.claude/agents/**'
 
 jobs:
   lint-and-test:
