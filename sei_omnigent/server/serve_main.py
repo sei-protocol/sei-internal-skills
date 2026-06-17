@@ -55,7 +55,9 @@ def main() -> None:
     from sei_omnigent.server.serve import build_server  # noqa: PLC0415
 
     deny_shell = bool_env("SEI_OMNIGENT_DENY_SHELL", default=False)
-    cfg = build_effective_config(load_config(os.environ.get("OMNIGENT_CONFIG")), deny_shell=deny_shell)
+    cfg = build_effective_config(
+        load_config(os.environ.get("OMNIGENT_CONFIG")), deny_shell=deny_shell
+    )
 
     # build_server runs the header-mode posture boot-assert (PLT-669) before it
     # constructs the auth provider — a non-header / LOCAL_SINGLE_USER posture
