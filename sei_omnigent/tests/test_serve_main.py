@@ -21,7 +21,7 @@ from sei_omnigent._config import (
     resolve_relative_locations,
 )
 
-# tests/ sit at the project root; the package moved under src/ (PLT-689).
+# tests/ sit at the project root; the importable package is under src/.
 _SERVE_MAIN = (
     Path(__file__).resolve().parent.parent / "src" / "sei_omnigent" / "server" / "serve_main.py"
 )

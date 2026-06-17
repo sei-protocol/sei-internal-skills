@@ -15,9 +15,9 @@ import pytest
 
 from sei_omnigent._posture import header_posture_error
 
-# tests/ sit at the project root; the package moved under src/ (PLT-689). The
+# tests/ sit at the project root; the importable package is under src/. The
 # later `_SERVE.parent.parent / "_omnigent_shim.py"` then resolves to
-# src/sei_omnigent/_omnigent_shim.py.
+# src/sei_omnigent/_omnigent_shim.py (the shim sits one level above server/).
 _SERVE = Path(__file__).resolve().parent.parent / "src" / "sei_omnigent" / "server" / "serve.py"
 
 

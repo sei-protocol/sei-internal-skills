@@ -30,6 +30,19 @@ entrypoint that exposes the store layer as an injection point:
 - `create_app` keyword-only wiring (parameter order ≠ store order).
 - Auth mode `header` + `account_store=None` (PLT-669) — enabling accounts/OIDC later re-crosses the upstream `app.py:1748` construction.
 
+## Build & deploy
+
+`src/` layout: the package is at `src/sei_omnigent/`; `pyproject.toml` + `tests/`
+sit at the project root. Install with `pip install .` (or `pip install -e .` for
+dev) — this ships the package + the `sei-omnigent-serve` console script. The CI
+`wheel-smoke` job guards that the built wheel is importable.
+
+**Deploy image (PLT-672):** the operator builds `PLACEHOLDER_IMAGE` by
+`pip install .`-ing this overlay **into the pinned Omnigent base image** (the
+overlay declares `omnigent==0.1.1`, so installing it alongside omnigent gives the
+container both). The K8s entrypoint is `python -m sei_omnigent.server.serve_main`
+(≡ the `sei-omnigent-serve` script) — a dotted module path, layout-independent.
+
 ## Phase-1 slices
 
 | Issue | Adds |

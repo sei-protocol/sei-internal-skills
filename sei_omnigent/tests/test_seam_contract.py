@@ -12,11 +12,15 @@ import ast
 import tomllib
 from pathlib import Path
 
-# tests/ live at the PROJECT ROOT (Tide/sei_omnigent/tests/); the package moved
-# under src/ (PLT-689 src-layout). _ROOT is the project root (holds pyproject.toml
-# + tests/), _PKG is the importable package dir under src/.
+# tests/ live at the PROJECT ROOT (Tide/sei_omnigent/tests/); the importable
+# package is under src/. _ROOT holds pyproject.toml + tests/; _PKG is src/sei_omnigent.
 _ROOT = Path(__file__).resolve().parent.parent
 _PKG = _ROOT / "src" / "sei_omnigent"
+
+# Build/packaging artifact dirs to skip when walking _ROOT for source — `python
+# -m build` (the wheel-smoke command) drops copies of the package into build/,
+# which would otherwise perturb the import-discipline scan below.
+_ARTIFACT_DIRS = {"build", "dist"}
 _SERVE = _PKG / "server" / "serve.py"
 
 # The seam contract (ONE-WAY DOOR): every Phase-2/3 store swap binds to this
@@ -93,6 +97,10 @@ def test_only_the_shim_imports_omnigent() -> None:
     # Scan from the project root so this covers BOTH the package (src/sei_omnigent)
     # AND tests/ — a test importing omnigent directly is also a drift violation.
     for py in _ROOT.rglob("*.py"):
+        # Skip build artifacts (copies of the package) + the egg-info so the
+        # canary keys on real source, not a stray build/ a dev may have left.
+        if any(p in _ARTIFACT_DIRS or p.endswith(".egg-info") for p in py.parts):
+            continue
         if py.name == "_omnigent_shim.py":
             continue
         for node in ast.walk(ast.parse(py.read_text())):

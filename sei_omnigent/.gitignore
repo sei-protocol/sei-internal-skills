@@ -1,5 +1,7 @@
 __pycache__/
 *.pyc
 
-# Build artifacts (setuptools)
+# Build artifacts (setuptools / PEP 517 `python -m build`)
 *.egg-info/
+build/
+dist/

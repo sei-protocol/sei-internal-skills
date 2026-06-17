@@ -1,21 +1,18 @@
 name: Verify sei_omnigent overlay
 
-# Lints + tests the sei_omnigent Omnigent overlay against the Python idiom pack
-# (PLT refinement). This is the omnigent-FREE unit job: the overlay's tests run
-# without omnigent installed (pure logic / AST guards / skip-if-absent), so we
-# install only the linter + test runner + an editable install of the overlay
-# itself (`--no-deps`, so omnigent is NOT pulled). Under the src/ layout
-# (PLT-689) the package lives at src/sei_omnigent/ and is NOT on sys.path, so
-# `import sei_omnigent` requires the editable install — it is real here, no
-# longer the no-op it was under the old flat layout.
+# Lints + tests the sei_omnigent Omnigent overlay against the Python idiom pack.
+# This is the omnigent-FREE unit job: the overlay's tests run without omnigent
+# installed (pure logic / AST guards / skip-if-absent), so we install only the
+# linter + test runner + an editable install of the overlay (`--no-deps`, so
+# omnigent is NOT pulled). The package lives at src/sei_omnigent/ and is NOT on
+# sys.path, so the editable install is how `import sei_omnigent` resolves.
 #
-# A separate wheel-smoke job (PLT-689) is the packaging regression guard: it
-# BUILDS the wheel, installs it into a clean env, imports the omnigent-free
-# surface (the package + a pure submodule), and asserts the console-script entry
-# is registered. This is what proves `pip install .` produces an importable
-# package (the flat layout silently produced an empty wheel — `top_level.txt`
-# was empty — so the K8s `sei-omnigent-serve` entrypoint would
-# ModuleNotFoundError). It unblocks the PLT-688 integration job.
+# A separate wheel-smoke job is the packaging regression guard: it BUILDS the
+# wheel, installs it into a clean env, imports the omnigent-free surface (the
+# package + a pure submodule), and asserts the console-script entry is
+# registered — proving `pip install .` produces an importable package + a working
+# `sei-omnigent-serve` entrypoint for the K8s deploy. It unblocks the
+# omnigent-installed integration job (PLT-688).
 #
 # NOT yet wired: an omnigent-INSTALLED integration job that exercises the
 # skip-guarded behavioral tests (the shim-drift canary in test_seam_contract.py,
@@ -50,10 +47,9 @@ jobs:
 
       - name: Install tooling + the overlay (omnigent-free)
         # Editable install of the overlay (--no-deps ⇒ omnigent is NOT pulled, so
-        # this stays omnigent-free). Under the src/ layout (PLT-689) the package
-        # is NOT auto-on-sys.path, so this install is how `import sei_omnigent`
-        # resolves for the suite — real, not the no-op it was under the old flat
-        # layout. ruff + pytest are the linter + runner.
+        # this stays omnigent-free). The package is under src/ and not auto-on
+        # sys.path, so this install is how `import sei_omnigent` resolves for the
+        # suite. ruff + pytest are the linter + runner.
         run: |
           python -m pip install --upgrade pip
           pip install ruff pytest
@@ -65,13 +61,13 @@ jobs:
       - name: Pytest (omnigent-free unit suite)
         run: pytest
 
-  # Packaging regression guard (PLT-689). Builds the wheel from the src/ layout,
-  # installs it into a CLEAN env, imports the omnigent-free surface, and asserts
-  # the console-script entry is registered. Proves the BUILT WHEEL exposes
-  # an importable `sei_omnigent` — the exact failure the flat layout hid (empty
-  # wheel ⇒ K8s entrypoint ModuleNotFoundError). Separate job so it runs in a
-  # pristine interpreter (no editable install, no repo dir on sys.path) — an
-  # import that only works because of the source tree would be a false pass.
+  # Packaging regression guard. Builds the wheel from the src/ layout, installs
+  # it into a CLEAN env, imports the omnigent-free surface, and asserts the
+  # console-script entry is registered. Proves the BUILT WHEEL exposes an
+  # importable `sei_omnigent` + a working `sei-omnigent-serve` entrypoint (an
+  # empty wheel would ⇒ K8s entrypoint ModuleNotFoundError). Separate job so it
+  # runs in a pristine interpreter (no editable install, no repo dir on sys.path)
+  # — an import that only works because of the source tree would be a false pass.
   wheel-smoke:
     runs-on: ubuntu-latest
     defaults:
