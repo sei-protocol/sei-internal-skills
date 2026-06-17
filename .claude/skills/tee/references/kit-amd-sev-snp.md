@@ -1,0 +1,67 @@
+# AMD SEV-SNP kit
+
+> Ground truth: `design/research/tee/amd-sev-snp.md`. Every claim below cites it (§ or load-bearing claim #), a vendor spec, or an RFC. Do not paraphrase — cite.
+
+## 1. Identity & RATS roles
+
+- **What it is** — a VM-level confidential VM (CVM): SEV-SNP encrypts and integrity-protects the **entire guest VM's** memory under a per-VM key, with the AMD Secure Processor (AMD-SP / PSP) attesting the launch state. The boundary is the whole machine image (firmware + kernel + initrd + cmdline via OVMF measured boot), not a process-level enclave. Attestation is point-in-time at launch — there is **no PCR-extend / runtime extend** (§4.4, load-bearing claim 7); re-request a report with a fresh nonce for freshness.
+- **RATS role mapping** — **Attester** = SEV-SNP guest + AMD-SP firmware; **Endorser** = the AMD silicon-vendor PKI (ARK/ASK + VCEK/VLEK from `kdsintf.amd.com`); **Verifier** = an on-chain contract or an off-chain service; **Relying Party** = the entity gating secret/privilege release on the verifier's result (§5.1).
+- **Trust root / Endorser** — pin the **per-generation AMD ARK** (the self-signed AMD Root Key, RSA-4096/SHA-384) and the **ASK** intermediate beneath it; the leaf **VCEK** (per-chip) or **VLEK** (per-CSP) signs the report (§2, §2.1–2.4). **Trust set = AMD silicon vendor PKI** (not a cloud hypervisor, not an NRAS) — feeds VP16. This is the key contrast with Nitro: Nitro roots in the **AWS hypervisor + AWS PKI**, so a relying party who *is* the AWS host operator is in-scope-trusted; SEV-SNP roots in AMD silicon and protects the guest **against** the hypervisor/host (full-machine memory encryption), which is exactly the validator-as-host posture Nitro cannot serve.
+- **Ground-truth doc** — `design/research/tee/amd-sev-snp.md`.
+
+## 2. Evidence format
+
+The Evidence is the raw **`ATTESTATION_REPORT`** binary struct (AMD pub. 56860, Table 23) plus the VCEK/VLEK cert chain — **not** a CBOR/COSE envelope (contrast Nitro). The report is **1184 bytes (`0x4A0`)** total: body `0x000..0x29F` (672 bytes) + `SIGNATURE` `0x2A0..0x49F` (512 bytes) (§1.1, load-bearing claim 1):
+
+- **Signature scheme:** `SIGNATURE_ALGO` (offset `0x034`) = `1` → **ECDSA P-384 with SHA-384**, the only value defined today (§1.1, §6, load-bearing claim 2). Signed by VCEK or VLEK per the `SIGNING_KEY` selector in `KEY_INFO` (offset `0x048`, bits 2–4: `0`=VCEK, `1`=VLEK) (§1.1, §2.4, load-bearing claim 4).
+- **What is actually signed:** the firmware hashes `report[0x000:0x2A0]` — the **first 672 bytes only** (everything up to but excluding the `SIGNATURE` struct) — with SHA-384, then ECDSA-P384 verifies against the VCEK/VLEK public key (§1.5, §6, load-bearing claim 1). Hashing the wrong region (including the signature bytes, or the whole 1184) is the most common verifier bug.
+- **Signature shape (the parser gotcha):** the `SIGNATURE` struct (§1.5) is `r[72] || s[72] || reserved[368]`. Each P-384 coordinate is **48 bytes big-endian zero-padded to 72 bytes** inside the report. A verifier must strip the padding (and reverse if its crypto lib expects DER `SEQUENCE` rather than raw `r||s`) — the 72-byte padding is the source of many verifier bugs (§6, "Curve").
+- **Cert chain:** fetch ARK+ASK as a concatenated DER chain from `kdsintf.amd.com/vcek/v1/{gen}/cert_chain` (VLEK: `/vlek/v1/{gen}/cert_chain`, rooted at ASVK), and the leaf VCEK/VLEK separately (§2.1–2.4, §8). Transport is HTTPS / TLS 1.2 per the KDS spec (§2.3).
+- **VP13 version pinning:** `VERSION` (offset `0x000`) is `2` (Milan, early Genoa), `3` (Genoa+ adds `CPUID_FAM/MOD/STEP` at `0x188`–`0x18A`), or `5` (Turin adds `LAUNCH_MIT_VECTOR`/`CURRENT_MIT_VECTOR`). Pin the accepted set and reject downgrade — the `0x188` and `0x1E0` regions are *reserved* in v2 but carry live fields in v3/v5, so a parser that reads them under the wrong version reads garbage (§1.1, §1.6, §3).
+
+## 3. Identity & measurement fields (VP2)
+
+Binary identity is the single **`MEASUREMENT`** field at offset `0x090`, **48 bytes, SHA-384** — the launch measurement computed by the AMD-SP over guest pages + initial VMSA state during `SNP_LAUNCH_UPDATE`/`SNP_LAUNCH_FINISH` (§1.1, §4.1, load-bearing claim 7):
+
+- It is a **one-shot launch snapshot** — there is **no PCR bank and no extend-after-launch primitive** (§4.4, §5.3). Unlike Nitro's TPM-style PCR set, SEV-SNP exposes exactly one launch-time digest. Runtime integrity (kernel module loading, etc.) is **out of scope** for the report and must be enforced in-guest (IMA, dm-verity) and surfaced separately (§4.4, load-bearing claim 7).
+- For a Linux guest the digest covers kernel + initrd + cmdline **only because OVMF measures those into the launch hash before handoff** — the PSP itself hashes only what firmware commands load (VMSA, OVMF/firmware pages, `SNP_LAUNCH_UPDATE` pages) (§4.1).
+- Binary identity for a Tide agent image gates on `MEASUREMENT` matching a governance-approved reference value; the reference value enters via the on-chain registry / governance RVP (profile, VP7/VP15). Optionally bind `GUEST_SVN` (`0x004`), `FAMILY_ID` (`0x010`), `IMAGE_ID` (`0x020`), or the `ID_KEY_DIGEST` (`0x0E0`) when an ID block is used (§1.1).
+
+## 4. Verifier-policy specifics — the per-vendor fill-ins
+
+| method dimension | AMD SEV-SNP's specific | cite |
+|---|---|---|
+| VP1 freshness | `REPORT_DATA` at offset `0x050`, **64 bytes** — guest-supplied; verifier issues a nonce, the guest passes it verbatim, verifier checks `REPORT_DATA == challenge`. Anti-replay is the verifier's job, not AMD's. | §4.3, claim 6 |
+| VP2 binary binding | `MEASUREMENT` (`0x090`, 48B SHA-384) matches a governance-approved reference value; **launch-time only, no PCR-extend** (see §3) | §1.1, §4.1, claim 7 |
+| VP3 debug-mode | `POLICY` (`0x008`) **bit 19 `DEBUG_ALLOWED` must be 0** — a debug-allowed guest's memory is inspectable by the hypervisor; reject for any sensitive workload | §1.2, claim 9 |
+| VP4 anti-rollback | enforce `REPORTED_TCB >= minimum_acceptable_TCB` — the chip signs reports for **any historical TCB** that was once valid; AMD provides **no automatic CRL for stale TCBs**, so it is purely verifier policy | §1.3, §2.5, claim 8 |
+| VP5 cert-chain / generation | chain is **ARK → ASK → VCEK(/VLEK) → Report**; VCEK is **per-chip + per-`REPORTED_TCB`** — fetch `kdsintf.amd.com/vcek/v1/{gen}/{hwid}?blSPL=&teeSPL=&snpSPL=&ucodeSPL=` for the **exact `REPORTED_TCB`** (`0x180`), never cache by `CHIP_ID` alone (stale cert → "valid sig, lies about TCB/platform"); select `{gen}` (Milan/Genoa/Bergamo/Turin) from V3+ `CPUID_FAM/MOD/STEP` at `0x188`–`0x18A` or deployment config — generation ARKs are distinct (Milan ARK does **not** validate a Turin VCEK) | §1.3, §2.1–2.3, §3, claims 3 & 5 |
+| VP6 key isolation | → §6 (per-chip VCEK derived inside the AMD-SP; verify-once-then-bind for on-chain economics) | §6 |
+| VP7 revocation | → profile (governance-driven revocation in the on-chain reference-value registry); AMD's own KDS CRL at `/vcek/v1/{gen}/crl` is rarely used — min-TCB enforcement (VP4) is the practical revocation lever | profile + §2.5 |
+| VP8 joint-attester | **N/A** — single attester; CPU+GPU co-attestation binding is NVIDIA-specific | N/A (see kit-nvidia-cc) |
+| VP9 policy separation | parse the raw `ATTESTATION_REPORT` struct (§2) into a normalized claim set, then apply measurement / min-TCB / revoked-image policy as a **separate** layer; don't hard-code the byte offsets into the policy layer | method VP9 + §2 |
+| VP10 advisories | **N/A** — no advisory-ID field (Intel `advisoryIDs`-specific); AMD surfaces TCB SVNs in `REPORTED_TCB`, handled under VP4 | §1.3 |
+| VP11 known-CVE bits | **BadRAM** (De Meulemeester et al., S&P 2025) — require `PLATFORM_INFO` (`0x040`) **bit 5 `ALIAS_CHECK_COMPLETE` = 1** for chips in the affected window, proving the AMD-SB-3015 boot-time memory-alias-check mitigation ran. AMD is **the** platform carrying this CVE bit | §1.4, §8 (BadRAM / AMD-SB-3015) |
+| VP12 host-controlled-but-signed | `HOST_DATA` (`0x0C0`, **32B**) is hypervisor-supplied at `SNP_LAUNCH_FINISH`, **signed but NOT measured** into the launch hash — gating policy on it needs a separate trust assumption (it is evidence of host input, not enclave behavior) | §1.1, §4.2 |
+| VP13 version pinning | pin accepted `VERSION` (`0x000`) set {`2`,`3`,`5`} and reject downgrade; v2-reserved regions (`0x188`, `0x1E0`) carry live v3/v5 fields | §1.1, §1.6, §3 |
+| VP14 privacy / fingerprint | `CHIP_ID` (`0x1A0`, **64B, permanent per-chip**; `hwid` in the KDS URL — first 8B canonical on Turin) is a ledger-wide device fingerprint. Prefer **VLEK** (per-CSP-fleet, AMD sees CSP identity not chip) over **VCEK** (per-chip) for validator-as-attester; or use ZK to hide chip-unique fields. Setting `MASK_CHIP_KEY` zeroes `CHIP_ID` | §1.1, §2.4, claim 4 |
+| VP15 registry integrity | → profile (multisig + time-lock + transparency/CoRIM + emergency revocation on the reference-value registry) | profile |
+| VP16 cross-vendor delta | trust set = **AMD silicon-vendor PKI** (ARK/ASK + VCEK/VLEK from `kdsintf.amd.com`, §1) — surface it beside a cloud-hypervisor-rooted kit (Nitro = AWS hypervisor) or an NRAS-rooted kit (NVIDIA); `tee_type` is not a fungible switch | §1, §2 |
+
+## 5. On-chain verification (Sei)
+
+SEV-SNP is the **cheapest direct on-chain** attestation on Sei — a single P-384 verify on the leaf signature, no multi-cert P-256 overhead (contrast Intel DCAP) and no COSE/X.509-path floor (contrast Nitro). Sei EVM has **no P-384 precompile** (only `ecrecover`/secp256k1, `bn128`, `bls12-381`, and the P-256 precompile at `0x1011`); EIP-7212/RIP-7212 add P-256, not P-384, so all P-384 work is Solidity/Yul (§7.1, load-bearing claim 10):
+
+- **Direct (cheapest path):** **~1.5–2M gas** for the leaf P-384 verify in Solidity (~700k–1M with heavy Shamir/wNAF optimization), plus ~10k for SHA-384 of the 672-byte body; a full ARK→ASK→VCEK chain adds RSA-4096 `modexp` (precompile `0x05`) + DER parsing, landing the naive end-to-end around ~4–7M gas (§7.1–7.2). The single-P-384 number is what makes SEV-SNP rank **#1 cheapest direct** in the Sei cost ranking (`method.md` ranking; `trusted-execution-on-sei.md` §decision-driver: "~1.5–2M gas Solidity … Cheapest direct on-chain"). Acceptable on L2/L3, expensive on L1.
+- **ZK-proven (production path):** run the full P-384 + RSA + cert-parse pipeline in a zkVM (Risc0 / SP1) and post a ~200-byte proof verified on-chain for **~250k gas** (Risc0 Groth16 ~522k, SP1 Groth16 ~493k per the Automata DCAP datapoints; SEV-SNP follows the same shape) — the dominant production pattern (§7.2–7.3, claim 2 & 10).
+- **Verify-once amortization (VP6, §6):** verify one report on-chain, then accept secp256k1-signed statements from the bound key via `ecrecover` (~3k gas) for steady state — but rotate the binding key on TCB/image change and bound its validity window, or a stolen key outlives the report that minted it.
+
+## 6. Key-release / integration pattern (VP6)
+
+SEV-SNP has **no AMD-operated attested-KMS** equivalent to Nitro's KMS condition keys — AMD's role ends at signing the report (§5.1). The idiomatic correct-by-construction path is **bind a guest-generated key into the freshness channel**: the guest generates an ephemeral keypair, puts `SHA-384(pubkey)` (or the raw pubkey) into `REPORT_DATA` (`0x050`, 64B) when requesting the report, and the verifier — after validating `MEASUREMENT` (VP2), `DEBUG_ALLOWED=0` (VP3), `REPORTED_TCB` (VP4), the cert chain (VP5), and `ALIAS_CHECK_COMPLETE` (VP11) — treats that pubkey as "held only inside a known-good CVM" and releases/encrypts the secret to it (§4.3, §6). Because the report is launch-only with no extend, **rebind a fresh key per VM launch** and re-attest for freshness. On-chain, fold this into the verify-once-then-secp256k1 amortization (§5) so the expensive P-384 verify happens once and subsequent releases gate on `ecrecover`. The VCEK itself never leaves the AMD-SP — it is HKDF-derived from the chip secret + `TCB_VERSION` each boot (§2.3).
+
+## 7. Citations
+
+- Ground truth: `design/research/tee/amd-sev-snp.md` §1 (struct/offsets), §1.2 (`POLICY` bits), §1.3 (`TCB_VERSION`), §1.4 (`PLATFORM_INFO`/BadRAM bit), §1.5–1.6 (signature + C header), §2 (signing chain ARK/ASK/VCEK/VLEK + KDS + revocation), §3 (generations), §4 (measurement / `HOST_DATA` / `REPORT_DATA` / no-extend), §5 (RATS/EAT/CoRIM/TCG), §6 (crypto primitives), §7 (on-chain cost), §8 (BadRAM / AMD-SB-3015) + load-bearing claims 1–10; `design/research/tee/trusted-execution-on-sei.md` §decision-driver (Sei cost ranking — SEV-SNP "~1.5–2M gas Solidity … Cheapest direct on-chain").
+- Primary: AMD SEV-SNP Firmware ABI Specification (pub. 56860, Table 23 `ATTESTATION_REPORT`, Table 5 `TCB_VERSION`); AMD VCEK Certificate & KDS Interface Specification (pub. 57230); AMD Security Bulletin **AMD-SB-3015** (BadRAM); AMD KDS `https://kdsintf.amd.com/`; RFC 9334 (RATS), RFC 9711 (EAT — AMD does not natively emit EAT; CoRIM `draft-deeglaze-amd-sev-snp-corim-profile-02` maps the report to CBOR).
+- Reference verifiers / implementations: AMDESE/sev-guest (`include/attestation.h`, canonical C layout); virtee/sev (`src/firmware/guest/types/snp.rs`, Rust v3/v5 types), virtee/snpguest; Automata DCAP / zkDCAP (Risc0/SP1 gas datapoints); Marlin SEV-SNP verifier; Phala dstack; Edgeless Contrast (`amd-details`); LIT-Protocol/sev-snp-utils.
