@@ -2,7 +2,7 @@
 
 The first artifact pack. For each section of the HLD spine it rules **which audience-model rules dominate**
 and cites the corpus shape (`cite: hld/shape/<anchor>` → `exemplars/hld/canonical-shape.md#<anchor>` —
-the stable cite contract from PLT-478). Rule names (R1–R5) and basis tiers are owned by
+the stable cite contract from PLT-478). Rule names (R1–R6) and basis tiers are owned by
 `audience-model.md`; rulings below inherit each rule's tier.
 
 An HLD's two audiences pull hardest in different places: the human reviewer decides whether to trust

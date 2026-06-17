@@ -1,6 +1,6 @@
 # The audience model — how humans and agents read
 
-The doctrine's heart, and the **owner of the rule names** (R1–R5): other files (including the corpus's
+The doctrine's heart, and the **owner of the rule names** (R1–R6): other files (including the corpus's
 `exemplars/hld/canonical-shape.md`) reference these rules descriptively and track this file. Every rule
 carries a **basis tier**:
 
@@ -29,6 +29,17 @@ Scans first, reads second, holds little, asks when lost.
   Solving" (Cognitive Science 12(2), 1988) — https://doi.org/10.1207/s15516709cog1202_4
 - **Plain, front-loaded language lands.** Short sentences, one idea each, the point first. *Cited:* US
   federal plain-language guidance — https://digital.gov/guides/plain-language/ (public domain)
+- **Distillation is a force multiplier; volume is a cost.** A human needs the core points condensed to
+  the right technical depth and delivered first — exactly as much as the decision requires, no more.
+  Lead-with-the-answer is a *convergent* standard reached independently across four domains, which is
+  itself evidence it is fundamental, not fashion. *Cited:* US Army AR 25-50, *Preparing and Managing
+  Correspondence* — Bottom Line Up Front, "the reader must be able to understand the writer's ideas in a
+  single reading" — https://armypubs.army.mil/epubs/DR_pubs/DR_a/ARN42124-AR_25-50-007-WEB-13.pdf (public
+  domain); Minto, *The Pyramid Principle* (answer-first, grouped support, SCQA) — https://www.barbaraminto.com/
+  (cite-and-link); Purdue OWL, "The Inverted Pyramid" (most important first, stop-anywhere) —
+  https://owl.purdue.edu/owl/subject_specific_writing/journalism_and_journalistic_writing/the_inverted_pyramid.html ;
+  Grice, "Logic and Conversation" — maxim of Quantity, "make your contribution as informative as is
+  required" and "no more" — via SEP https://plato.stanford.edu/entries/grice/
 - **Failure under ambiguity is graceful:** a human who hits an unclear passage asks, or flags it.
   *Tier:* **Stated-opinion** — the contrast assumption to the agent's silent-completion claim
   (falsification: *we'd revise this if humans routinely built from ambiguous specs without asking*).
@@ -54,7 +65,7 @@ Ingests linearly, holds everything, weights explicit structure.
   disambiguation guidance, but the causal claim is ours. (Falsification: *we'd revise this if agents
   reliably surfaced soft-modal instructions as questions instead of completing them.*)
 
-## The five dual-aligned rules (R1–R5)
+## The six dual-aligned rules (R1–R6)
 
 **R1 — Structure explicit AND scannable.** Headings, lists, and defined terms serve the agent's
 structural weighting *and* the human's scan — these compose; there is no trade-off. *Tier:* Cited
@@ -91,9 +102,30 @@ in typography. When color and explicitness compete for the same line, explicitne
 Stated-opinion as a precedence rule (falsification: *we'd revise if dual-purpose prose consistently
 carried constraints without loss for agent readers*); the underlying scan behavior is Cited (NN/g).
 
+**R6 — Distill for the human; layer for the agent.** The human reader has finite attention and needs the
+core points distilled to the right technical depth and delivered first — exactly as much as the decision
+requires, no more (the executive-summary intent). Condensing information-rich content to its load-bearing
+core is a **force multiplier**, not a courtesy. R6 turns the volume asymmetry R3 already names into a
+move: the agent ingests linearly and tolerates (often benefits from) the completeness a human would
+experience as noise, so layered detail costs the agent nothing while a distilled lead saves the human.
+Resolve the divergence by **progressive disclosure**, not by choosing one reader — lead with the distilled
+answer/summary for the human who stops there (this composes R2's load-bearing lead), then layer the
+complete detail beneath for the agent and the human who needs depth.
+**Fidelity bound:** distill the *altitude*, never the load-bearing content — the summary sits atop
+preserved detail, it never *replaces* it, and a decided constraint, number, or safety/rollback/migration
+section is never compressed away to save a line (R3/R4 outrank R6; summarization is lossy compression).
+*Tier:* the answer-first/distillation practice is **Cited** — convergent across four independent ecosystems
+(US Army BLUF; Minto's Pyramid Principle; the journalistic inverted pyramid; NN/g progressive disclosure —
+https://www.nngroup.com/articles/progressive-disclosure/) with Grice's maxim of Quantity as the linguistic
+root, and the executive-summary convention as the artifact form — a decision-first, stand-alone overview
+(USC Libraries — https://libguides.usc.edu/writingguide/executivesummary). The fidelity bound above
+(distill the altitude, layer not replace) is **this skill's own** rule, not attributed to USC. The *agent-benefits-from-what-a-human-finds-noisy* contrast inherits the **Stated-opinion**
+tier of R3's length/redundancy claim it builds on (falsification: *we'd revise if distilled-but-layered docs
+measurably degraded agent task performance versus flat, complete ones*).
+
 ## Doc-artifact prose discipline (prose-steward owned)
 
-`prose-steward` is the **owner of record** for the documentation/prose axis: design docs (HLD/LLD/PRD/1-pager), READMEs, runbooks, and file/package/module **header-doc prose**. It defines this axis, tie-breaks it, and enforces it every cross-review cycle. It does **not** cover in-source comments interleaved with code or config-field annotations — that axis is owned by `idiomatic-reviewer` (`/idiomatic`); see Boundary. These four are the doc-axis specialization of R1–R5 (*Tier:* the **convention** — present-state, sparing, top-located, dual-aligned — is Cited as a repo-profile rule, PLT-626, may carry a `Basis:` and may block; but the **agent-cognition rationale** embedded in D1/D3/D4 — *"reads as a current instruction," "weights what it reads first," nothing load-bearing "only in a diagram"* — inherits the **Stated-opinion** tier of the R4/R5 reader-model claims it specializes, and is advisory, not a blocking citation).
+`prose-steward` is the **owner of record** for the documentation/prose axis: design docs (HLD/LLD/PRD/1-pager), READMEs, runbooks, and file/package/module **header-doc prose**. It defines this axis, tie-breaks it, and enforces it every cross-review cycle. It does **not** cover in-source comments interleaved with code or config-field annotations — that axis is owned by `idiomatic-reviewer` (`/idiomatic`); see Boundary. These four are the doc-axis specialization of R1–R6 (*Tier:* the **convention** — present-state, sparing, top-located, dual-aligned — is Cited as a repo-profile rule, PLT-626, may carry a `Basis:` and may block; but the **agent-cognition rationale** embedded in D1/D3/D4 — *"reads as a current instruction," "weights what it reads first," nothing load-bearing "only in a diagram"* — inherits the **Stated-opinion** tier of the R4/R5 reader-model claims it specializes, and is advisory, not a blocking citation).
 
 **D1 — Present state only.** A doc artifact states what is true *now* — never change, history, or why-removed (that is the PR/commit's job). Banned in durable docs: "this used to…", "we changed X to Y", "(was: …)", migration-pin hints. To the linearly-ingesting agent, "we removed the X path" reads as a current instruction. Present-state rationale ("X is foo because the registry owns the type") is fine; history ("X used to be bar") is not.
 
@@ -120,4 +152,5 @@ The dividing line is **the unit being described, not the file extension** — *a
 
 Repo profile > artifact pack > this model. The profile can establish an exception to any rule here —
 honoring documented local convention over generic doctrine is the spine, not a loophole. When two rules
-collide in one passage, constraint explicitness (R3/R4) outranks scan polish (R1/R2) outranks color (R5).
+collide in one passage, constraint explicitness (R3/R4) outranks scan polish and distillation (R1/R2/R6)
+outranks color (R5) — i.e. distillation (R6) never compresses away a constraint (R3/R4).

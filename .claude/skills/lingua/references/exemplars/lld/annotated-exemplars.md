@@ -4,7 +4,7 @@
 > Each entry is an our-own-words annotation **pointing at** a process-vetted document — **public**
 > (merged or Final; one deliberate exception, noted) **or org-owned** (an internal Sei doc, merged or
 > Draft-under-review; see the `org-owned` class in `../../sources.md`). Annotations name what
-> the exemplar demonstrates, keyed to `lld/shape/<anchor>` sections and audience-model rules (R1–R5).
+> the exemplar demonstrates, keyed to `lld/shape/<anchor>` sections and audience-model rules (R1–R6).
 > Cite an exemplar as `cite: lld/exemplar/<slug>` → the `##` anchors below. **The slugs are stable cite
 > targets — renaming one is a breaking change for citing rules.** Nothing is reproduced beyond nominative
 > titles and section names; license class per ecosystem is in `../../sources.md` (Linux entries are

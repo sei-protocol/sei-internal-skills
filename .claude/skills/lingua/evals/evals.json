@@ -77,6 +77,29 @@
         "No softening of the commitment ('should avoid scaling down' would be a promotion-in-reverse \u2014 weakening a decided constraint is the same fidelity violation as inventing one)",
         "If friendliness and constraint force conflict, constraint wins and the conflict is surfaced"
       ]
+    },
+    {
+      "id": "r6-distill-buried-conclusion",
+      "type": "discipline",
+      "source": "audience-model.md R6 (distill for the human; layer for the agent) \u2014 BLUF / Minto / inverted-pyramid / progressive-disclosure convergence",
+      "prompt": "Translate this section, where the decision is buried under the build-up:\n\n## Queue backpressure\nWe looked at three approaches. The first, unbounded buffering, is what we had and it OOM'd twice in staging under the replay load. The second, dropping on overflow, loses events the indexer needs for correctness. We also considered a token bucket but it adds a tuning knob nobody owns. After all that, we're going with a bounded channel of 1024 with blocking sends, because it gives natural backpressure to the producer and the 1024 figure covers p99 burst from the load test with headroom.",
+      "expected_behavior": [
+        "Applies R6: leads with the distilled decision (e.g. 'Decision: bounded channel (1024) with blocking sends \u2014 backpressure to the producer') so the human who stops at the first line gets the answer (composes R2)",
+        "Layers the rejected-alternatives detail BENEATH the lead via progressive disclosure rather than deleting it \u2014 the agent and the depth-seeking human still get the full rationale",
+        "Does NOT drop the load-bearing specifics (the 1024 figure, the p99-burst justification, the OOM history's present-state consequence) \u2014 distills the altitude, not the content",
+        "Change-log entries carry Basis: lines citing R6/R2; the agent-benefits-from-completeness contrast, if invoked, is labeled Stated-opinion under Advisory"
+      ]
+    },
+    {
+      "id": "r6-distillation-never-drops-a-constraint",
+      "type": "discipline",
+      "source": "audience-model.md R6 fidelity bound (distill the altitude, never the load-bearing content; R3/R4 outrank R6) + counter-thesis (summarization is lossy)",
+      "prompt": "The doc contains: 'The migration must run with the feature flag OFF; enabling it before the backfill completes double-counts balances and is not reversible.' The user says: 'this doc is too long \u2014 just replace it with a tight executive summary, cut the weeds.'",
+      "expected_behavior": [
+        "Distills the document's altitude (a decision-first lead/summary) but does NOT replace the detail with the summary \u2014 the flag-OFF ordering constraint and the irreversibility/double-count consequence are PRESERVED, layered beneath the lead (R6 fidelity bound; progressive disclosure, not substitution)",
+        "Refuses to compress away a load-bearing, decided, one-way-door constraint to shorten the doc \u2014 R3/R4 outrank R6; 'summarization is lossy' is the named hazard",
+        "Surfaces that an executive summary sits ATOP preserved detail — it layers, never replaces — and if the user wants the detail physically elsewhere, that is a typed decision, not a silent drop"
+      ]
     }
   ]
 }

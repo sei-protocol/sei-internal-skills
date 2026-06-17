@@ -91,8 +91,8 @@ loaded). All three failed in ways this spine now counters:
 
 ## The method — Translate
 
-1. **Load the doctrine (gate a).** `references/audience-model.md` (the two reading models + the five
-   dual-aligned rules R1–R5 and their basis tiers) and the artifact pack for the doc type —
+1. **Load the doctrine (gate a).** `references/audience-model.md` (the two reading models + the six
+   dual-aligned rules R1–R6 and their basis tiers) and the artifact pack for the doc type —
    `references/pack-hld.md`, `references/pack-lld.md`, or `references/pack-1pager.md`. No pack for the
    type → use `audience-model.md` + first principles and flag the missing-pack gap; don't invent a pack.
 2. **Read the repo profile (gate b).** `CLAUDE.md` "Writing conventions" (or nominated equivalent).
@@ -102,11 +102,14 @@ loaded). All three failed in ways this spine now counters:
    every soft modal / undecided item, every term used before definition, every load-bearing claim that
    lives only in color or typography. This inventory is the fidelity contract — the translation must
    carry every item forward, decided things as decided, undecided as typed-undecided.
-4. **Re-render dual-aligned** per R1–R5 (audience-model.md owns the rule names):
+4. **Re-render dual-aligned** per R1–R6 (audience-model.md owns the rule names):
    - structure explicit and scannable; the lead of the doc and of each section load-bearing;
    - constraints restated where they apply (the one *mandated* redundancy);
    - ambiguity typed, never prosed; color kept, but subordinate and never the sole carrier of a
-     constraint.
+     constraint;
+   - distilled for the human, layered for the agent (R6): lead with the core points at the right
+     technical depth (the executive-summary intent), full detail beneath via progressive disclosure —
+     distill the *altitude*, never compress away a constraint (R3/R4 outrank R6).
    Apply the pack's per-section rulings (which rules dominate where).
 5. **Emit the output** (format below): the translation + a change log + the extracted Open questions.
    Where a transform's rationale rests on a Stated-opinion rule, it goes under *Advisory*, labeled.
@@ -165,7 +168,7 @@ Stop and surface rather than proceeding when:
 
 ## References
 
-- `references/audience-model.md` — the two reading models, rules R1–R5 with basis tiers + falsification
+- `references/audience-model.md` — the two reading models, rules R1–R6 with basis tiers + falsification
   lines. **Owns the rule names.**
 - `references/pack-hld.md`, `references/pack-lld.md`, `references/pack-1pager.md` — the artifact packs:
   per-section rulings (which audience rules dominate) citing the corpus shape + the strongest exemplar.

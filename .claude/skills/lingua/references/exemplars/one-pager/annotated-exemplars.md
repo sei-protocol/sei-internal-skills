@@ -6,7 +6,7 @@
 > publicly accessible artifacts or doctrine — author-published or official; two famous candidates were
 > excluded for failing it (a memo public only as a court exhibit; a memo whose full text was never
 > verifiably published). Entries are annotated in our own words, keyed to `one-pager/shape/<anchor>`
-> sections and audience-model rules (R1–R5). Nothing is reproduced beyond nominative titles and section
+> sections and audience-model rules (R1–R6). Nothing is reproduced beyond nominative titles and section
 > names; license classes in `../../sources.md`. PD = public domain (17 U.S.C. §105; contractor and
 > state-government works excepted; embedded third-party material stays copyrighted).
 >
