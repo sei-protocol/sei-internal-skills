@@ -4,39 +4,45 @@
 # Sibling of sync-agents.sh. Tide is the canonical home; this pushes outward to
 # user-scope (~/.claude/skills/) and other repos so they stay current.
 #
-# Daily flow (defaults):
-#   ./scripts/sync-skills.sh
-#   # equivalent to: ./scripts/sync-skills.sh --target ~ --categories portable
+# SINGLE SOURCE OF TRUTH: each skill's own `category:` SKILL.md frontmatter.
+# Membership in a sync alias (portable / sei) is DERIVED from that category via
+# the small domain->alias map below — there is no hand-maintained per-skill list
+# to drift out of sync (the bug that silently orphaned gov-ops and ebpf). Adding
+# a skill = drop the dir with a `category:` that maps to an alias; it syncs
+# automatically. The coverage guard (--verify) fails closed if any skill's
+# category maps to no alias, so a miscategorized skill is caught in CI, never
+# silently dropped.
+#
+# Daily flow:
+#   make update                     # from the Tide repo: pull + sync everything + verify
+#   ./scripts/sync-skills.sh        # equivalent to: --target ~ --categories portable
 #
 # Usage:
-#   sync-skills.sh [--target <path>] [--categories portable,sei,all] [--dry-run] [--force]
+#   sync-skills.sh [--target <path>] [--categories portable,sei,all,<domain>] \
+#                  [--dry-run] [--force] [--verify] [--inject-doctrine]
 #
 # --target:      target directory (the script appends .claude/skills/). Default: $HOME.
-# --categories:  comma-separated list of categories. Default: portable.
-#                domains: workflow, workstream-bootstrap, hardening, investigation,
-#                         skill-authoring, code-quality, writing-quality,
-#                         product-management, project-management,
-#                         release-operations, engineer-self-service
-#                aliases: portable (workflow+workstream-bootstrap+hardening+
-#                           investigation+skill-authoring+code-quality+
-#                           writing-quality+product-management),
-#                         sei (project-management+release-operations+engineer-self-service),
-#                         all
-#                (output-quality — brevity, pr-quality — is Tide-local, not synced)
+# --categories:  comma-separated aliases or domains. Default: portable.
+#                aliases: portable, sei, all
+#                domains: any value a skill declares in `category:` (workflow,
+#                         code-quality, performance, release-operations, …)
 # --dry-run:     print what would be copied without copying
 # --force:       overwrite existing target skills without prompting
+# --verify:      run ONLY the coverage guard (every skill's category resolves to a
+#                known alias) and exit non-zero on any gap. No copying. For CI.
 # --inject-doctrine: also inject the Tide operating-doctrine managed block into
 #                <target>/AGENTS.md (+ a CLAUDE.md pointer). Off by default;
 #                intended for a consuming package, not user-scope ($HOME).
 #
-# Source of truth: the portable / sei lists below. Update these when skills
-# are added, renamed, or re-categorized.
+# To re-categorize a skill, edit its SKILL.md `category:` — not this script.
+# To add/rename a DOMAIN or change which alias it belongs to, edit the
+# domain->alias map below (the only hand-maintained categorization left).
 #
 # Skills are directories (SKILL.md + references/ + ...), not single files. Sync
-# uses cp -R, so target-only files are preserved (i.e. user customizations and
-# runtime artifacts like council/workspace/ in the target tree are not deleted).
-# If a tracked source file differs from its target counterpart, the skill is
-# reported as a conflict and skipped unless --force is set.
+# uses cp -R, so target-only files are preserved (user customizations and runtime
+# artifacts like council/workspace/ in the target tree are not deleted). If a
+# tracked source file differs from its target counterpart, the skill is reported
+# as a conflict and skipped unless --force is set.
 
 set -euo pipefail
 
@@ -46,77 +52,69 @@ SKILLS_DIR="$(cd "$SCRIPT_DIR/../.claude/skills" && pwd)"
 # shellcheck source=lib/inject-doctrine.sh
 . "$SCRIPT_DIR/lib/inject-doctrine.sh"
 
-# --- Category lists (source of truth) ---------------------------------------
+# --- Domain -> alias map (the ONLY hand-maintained categorization) ----------
+#
+# Every domain a skill may declare in `category:` must appear in exactly one of
+# the three lists below. The coverage guard enforces this. `all` = PORTABLE+SEI
+# (Tide-local domains are deliberately never synced outward).
 
-# Domain categories — the source-of-truth grouping (mirrors each skill's
-# `category:` frontmatter and the catalog README sections). Claude discovers
-# skills FLAT under ~/.claude/skills/; these domains are metadata for humans +
-# selective sync, NOT on-disk folders.
-WORKFLOW=(
-  coral
-  council
-  cross-review
-  workstream
-)
+PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation skill-authoring code-quality performance writing-quality product-management"
+SEI_DOMAINS="project-management release-operations engineer-self-service"
+# Tide-local — deliberately NOT synced outward:
+#   output-quality (brevity, pr-quality) — Tide-development meta-skills.
+#   security (tee)  — its design/research/tee/* ground-truth corpus lives in
+#                     this repo; not portable until that corpus is (PLT-677).
+TIDE_LOCAL_DOMAINS="output-quality security"
 
-WORKSTREAM_BOOTSTRAP=(
-  design
-  issue
-)
+# --- small helpers ----------------------------------------------------------
 
-HARDENING=(
-  bugbash
-)
+# in_list <needle> <space-separated-haystack>
+in_list() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
-INVESTIGATION=(
-  root-cause
-  research
-)
+# skill_category <skill-name> — its declared `category:` (empty if none)
+skill_category() {
+  grep -m1 '^category:' "$SKILLS_DIR/$1/SKILL.md" 2>/dev/null \
+    | sed 's/^category:[[:space:]]*//; s/[[:space:]]*$//; s/^["'"'"']//; s/["'"'"']$//'
+}
 
-SKILL_AUTHORING=(
-  author-skill
-  audit-skill
-)
+# alias_for_domain <domain> — echoes portable|sei|tide-local|UNKNOWN
+alias_for_domain() {
+  if   in_list "$1" "$PORTABLE_DOMAINS";   then echo portable
+  elif in_list "$1" "$SEI_DOMAINS";        then echo sei
+  elif in_list "$1" "$TIDE_LOCAL_DOMAINS"; then echo tide-local
+  else echo UNKNOWN; fi
+}
 
-CODE_QUALITY=(
-  idiomatic
-  systems
-  ebpf
-)
+# all skill dirs (those containing a SKILL.md), one per line, sorted
+list_skill_dirs() {
+  for d in "$SKILLS_DIR"/*/; do
+    [ -f "${d}SKILL.md" ] && basename "$d"
+  done | sort
+}
 
-WRITING_QUALITY=(
-  lingua
-)
-
-PRODUCT_MANAGEMENT=(
-  prfaq
-)
-
-PROJECT_MANAGEMENT=(
-  execution-plan
-  impact-weekly
-  impact-portfolio
-)
-
-RELEASE_OPERATIONS=(
-  chaos-suite
-  validate-release
-)
-
-ENGINEER_SELF_SERVICE=(
-  harbor-dev
-)
-
-# output-quality (brevity, pr-quality) is intentionally Tide-local — not synced.
-# security (tee) is intentionally Tide-local — its design/research/tee/* ground-truth
-# corpus lives in this repo; not synced until that corpus is portable (PLT-677).
-
-# Meta-aliases cross-cut the domains (back-compat with the Makefile / muscle memory):
-#   portable = workflow + workstream-bootstrap + hardening + investigation
-#              + skill-authoring + code-quality + writing-quality + product-management
-#   sei      = project-management + release-operations + engineer-self-service
-#   all      = every domain above
-# (output-quality is Tide-local — deliberately has no sync case below.)
+# --- coverage guard ---------------------------------------------------------
+# Fail closed if any skill lacks a category or its category maps to no alias.
+run_coverage_guard() {
+  local errs=0 name cat al
+  while IFS= read -r name; do
+    cat="$(skill_category "$name")"
+    if [ -z "$cat" ]; then
+      echo "  ✗ $name: no 'category:' in SKILL.md frontmatter" >&2
+      errs=$((errs+1)); continue
+    fi
+    al="$(alias_for_domain "$cat")"
+    if [ "$al" = "UNKNOWN" ]; then
+      echo "  ✗ $name: category '$cat' maps to no sync alias — add '$cat' to PORTABLE_DOMAINS, SEI_DOMAINS, or TIDE_LOCAL_DOMAINS in sync-skills.sh" >&2
+      errs=$((errs+1))
+    fi
+  done < <(list_skill_dirs)
+  if [ "$errs" -gt 0 ]; then
+    echo "skill catalog coverage: $errs problem(s) — every skill's category must map to an alias." >&2
+    return 1
+  fi
+  echo "skill catalog coverage ✓ (every skill's category resolves to portable/sei/tide-local)"
+  return 0
+}
 
 # --- Argument parsing -------------------------------------------------------
 
@@ -124,6 +122,7 @@ TARGET="$HOME"
 CATEGORIES="portable"
 DRY_RUN=false
 FORCE=false
+VERIFY=false
 INJECT_DOCTRINE=false
 
 usage() {
@@ -132,76 +131,78 @@ usage() {
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --target)
-      TARGET="$2"; shift 2 ;;
-    --categories)
-      CATEGORIES="$2"; shift 2 ;;
-    --dry-run)
-      DRY_RUN=true; shift ;;
-    --force)
-      FORCE=true; shift ;;
-    --inject-doctrine)
-      INJECT_DOCTRINE=true; shift ;;
-    -h|--help)
-      usage; exit 0 ;;
-    *)
-      echo "Unknown argument: $1" >&2
-      usage; exit 2 ;;
+    --target)     TARGET="$2"; shift 2 ;;
+    --categories) CATEGORIES="$2"; shift 2 ;;
+    --dry-run)    DRY_RUN=true; shift ;;
+    --force)      FORCE=true; shift ;;
+    --verify)     VERIFY=true; shift ;;
+    --inject-doctrine) INJECT_DOCTRINE=true; shift ;;
+    -h|--help)    usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
   esac
 done
+
+# --verify: coverage guard only, no target needed.
+if $VERIFY; then
+  run_coverage_guard
+  exit $?
+fi
 
 # Expand ~ if present
 TARGET="${TARGET/#\~/$HOME}"
 TARGET_SKILLS="${TARGET%/}/.claude/skills"
 
-# Doctrine injection writes a managed block to the package root (AGENTS.md +
-# CLAUDE.md pointer). Refuse $HOME — the default target — since that is the
-# user's global config, not a package; a managed block there would reappear on
-# every sync. Inject only into an explicit package directory.
+# Doctrine injection writes a managed block to the package root. Refuse $HOME.
 if $INJECT_DOCTRINE && [[ "${TARGET%/}" == "${HOME%/}" ]]; then
   echo "Error: --inject-doctrine refuses \$HOME ($HOME) — target a package directory." >&2
   exit 2
 fi
 
-# --- Build skill list from categories ---------------------------------------
+# Run the coverage guard first so a miscategorized skill fails loudly here too,
+# not just in CI.
+if ! run_coverage_guard >/dev/null 2>&1; then
+  run_coverage_guard >&2 || true
+  echo "Refusing to sync with an incomplete catalog (see above). Fix the category mapping first." >&2
+  exit 1
+fi
+
+# --- Build skill list from requested categories -----------------------------
+# A requested token is an alias (portable|sei|all) or a literal domain name.
+# A skill is included if its category's alias — or the category itself — matches.
+# Requesting a Tide-local domain by name is an explicit error.
+
+TIDE_LOCAL_REQUESTED=false
+want_skill() {  # want_skill <category> <requested-token> -> 0 include / 1 exclude
+  local cat="$1" tok="$2" al
+  al="$(alias_for_domain "$cat")"
+  case "$tok" in
+    all)      [ "$al" = "portable" ] || [ "$al" = "sei" ] ;;
+    portable) [ "$al" = "portable" ] ;;
+    sei)      [ "$al" = "sei" ] ;;
+    output-quality|security)
+      TIDE_LOCAL_REQUESTED=true; return 1 ;;
+    *)        [ "$cat" = "$tok" ] ;;   # literal domain request
+  esac
+}
 
 declare -a SKILLS_TO_SYNC=()
-IFS=',' read -ra CAT_ARRAY <<< "$CATEGORIES"
-for cat in "${CAT_ARRAY[@]}"; do
-  case "$cat" in
-    workflow)              SKILLS_TO_SYNC+=("${WORKFLOW[@]}") ;;
-    workstream-bootstrap)  SKILLS_TO_SYNC+=("${WORKSTREAM_BOOTSTRAP[@]}") ;;
-    hardening)             SKILLS_TO_SYNC+=("${HARDENING[@]}") ;;
-    investigation)         SKILLS_TO_SYNC+=("${INVESTIGATION[@]}") ;;
-    skill-authoring)       SKILLS_TO_SYNC+=("${SKILL_AUTHORING[@]}") ;;
-    code-quality)          SKILLS_TO_SYNC+=("${CODE_QUALITY[@]}") ;;
-    writing-quality)       SKILLS_TO_SYNC+=("${WRITING_QUALITY[@]}") ;;
-    product-management)    SKILLS_TO_SYNC+=("${PRODUCT_MANAGEMENT[@]}") ;;
-    project-management)    SKILLS_TO_SYNC+=("${PROJECT_MANAGEMENT[@]}") ;;
-    release-operations)    SKILLS_TO_SYNC+=("${RELEASE_OPERATIONS[@]}") ;;
-    engineer-self-service) SKILLS_TO_SYNC+=("${ENGINEER_SELF_SERVICE[@]}") ;;
-    portable)  SKILLS_TO_SYNC+=("${WORKFLOW[@]}" "${WORKSTREAM_BOOTSTRAP[@]}" "${HARDENING[@]}" "${INVESTIGATION[@]}" "${SKILL_AUTHORING[@]}" "${CODE_QUALITY[@]}" "${WRITING_QUALITY[@]}" "${PRODUCT_MANAGEMENT[@]}") ;;
-    sei)       SKILLS_TO_SYNC+=("${PROJECT_MANAGEMENT[@]}" "${RELEASE_OPERATIONS[@]}" "${ENGINEER_SELF_SERVICE[@]}") ;;
-    all)       SKILLS_TO_SYNC+=("${WORKFLOW[@]}" "${WORKSTREAM_BOOTSTRAP[@]}" "${HARDENING[@]}" "${INVESTIGATION[@]}" "${SKILL_AUTHORING[@]}" "${CODE_QUALITY[@]}" "${WRITING_QUALITY[@]}" "${PRODUCT_MANAGEMENT[@]}" "${PROJECT_MANAGEMENT[@]}" "${RELEASE_OPERATIONS[@]}" "${ENGINEER_SELF_SERVICE[@]}") ;;
-    output-quality)
-      echo "output-quality (brevity, pr-quality) is a Tide-local domain — not synced. Edit it in Tide." >&2
-      exit 2 ;;
-    security)
-      echo "security (tee) is a Tide-local domain — its design/research/tee/* corpus lives in Tide; not synced. Edit it in Tide." >&2
-      exit 2 ;;
-    *)
-      echo "Unknown category: $cat" >&2
-      exit 2 ;;
-  esac
-done
+while IFS= read -r name; do
+  cat="$(skill_category "$name")"
+  IFS=',' read -ra TOKENS <<< "$CATEGORIES"
+  for tok in "${TOKENS[@]}"; do
+    if want_skill "$cat" "$tok"; then SKILLS_TO_SYNC+=("$name"); break; fi
+  done
+done < <(list_skill_dirs)
 
-# Deduplicate while preserving order (bash 3.2 compatible — no assoc arrays)
+if $TIDE_LOCAL_REQUESTED; then
+  echo "Note: output-quality / security are Tide-local domains — their skills are not synced outward. Edit them in Tide." >&2
+fi
+
+# Deduplicate while preserving order (bash 3.2 compatible)
 if [[ ${#SKILLS_TO_SYNC[@]} -gt 0 ]]; then
   UNIQUE_LIST=$(printf '%s\n' "${SKILLS_TO_SYNC[@]}" | awk '!seen[$0]++')
   SKILLS_TO_SYNC=()
-  while IFS= read -r s; do
-    [[ -n "$s" ]] && SKILLS_TO_SYNC+=("$s")
-  done <<< "$UNIQUE_LIST"
+  while IFS= read -r s; do [[ -n "$s" ]] && SKILLS_TO_SYNC+=("$s"); done <<< "$UNIQUE_LIST"
 fi
 
 # --- Report plan ------------------------------------------------------------
@@ -217,83 +218,51 @@ else
 fi
 
 if $INJECT_DOCTRINE; then
-  doctrine_mode="write"
-  if $DRY_RUN; then doctrine_mode="dry-run"; fi
+  doctrine_mode="write"; $DRY_RUN && doctrine_mode="dry-run"
   inject_doctrine "$TARGET" "$SCRIPT_DIR/tide-doctrine.md" "$doctrine_mode"
 fi
 
 if $DRY_RUN; then
-  echo ""
-  echo "(dry-run — no files copied)"
-  exit 0
+  echo ""; echo "(dry-run — no files copied)"; exit 0
 fi
-
-if [[ ${#SKILLS_TO_SYNC[@]} -eq 0 ]]; then
-  exit 0
-fi
+[[ ${#SKILLS_TO_SYNC[@]} -eq 0 ]] && exit 0
 
 # --- Execute ----------------------------------------------------------------
 
 mkdir -p "$TARGET_SKILLS"
+COPIED=0; IN_SYNC=0; MISSING=0; CONFLICTS=0
 
-COPIED=0
-IN_SYNC=0
-MISSING=0
-CONFLICTS=0
-
-# Compare source-skill against target-skill at the file level.
-# Returns 0 if every file in source is present and identical in target
-# (target may have additional files; those are preserved by the cp -R sync).
-# Returns 1 otherwise.
+# Return 0 if every file in source is present and identical in target (target
+# may have additional files; those are preserved by the cp -R sync).
 source_subset_of_target() {
-  local src_dir="$1"
-  local dst_dir="$2"
+  local src_dir="$1" dst_dir="$2" src_file rel dst_file
   [[ -d "$dst_dir" ]] || return 1
   while IFS= read -r -d '' src_file; do
-    local rel="${src_file#"$src_dir"/}"
-    local dst_file="$dst_dir/$rel"
-    if [[ ! -f "$dst_file" ]] || ! cmp -s "$src_file" "$dst_file"; then
-      return 1
-    fi
+    rel="${src_file#"$src_dir"/}"
+    dst_file="$dst_dir/$rel"
+    if [[ ! -f "$dst_file" ]] || ! cmp -s "$src_file" "$dst_file"; then return 1; fi
   done < <(find "$src_dir" -type f -print0)
   return 0
 }
 
 for skill in "${SKILLS_TO_SYNC[@]}"; do
-  src="$SKILLS_DIR/$skill"
-  dst="$TARGET_SKILLS/$skill"
-
+  src="$SKILLS_DIR/$skill"; dst="$TARGET_SKILLS/$skill"
   if [[ ! -d "$src" ]]; then
-    echo "  ! source missing, skipping: $src" >&2
-    MISSING=$((MISSING+1))
-    continue
+    echo "  ! source missing, skipping: $src" >&2; MISSING=$((MISSING+1)); continue
   fi
-
   if [[ -d "$dst" ]]; then
-    if source_subset_of_target "$src" "$dst"; then
-      # source content already present in target — nothing to do
-      IN_SYNC=$((IN_SYNC+1))
-      continue
-    fi
+    if source_subset_of_target "$src" "$dst"; then IN_SYNC=$((IN_SYNC+1)); continue; fi
     if ! $FORCE; then
       echo "  ! conflict (target differs, use --force to overwrite): $dst" >&2
-      CONFLICTS=$((CONFLICTS+1))
-      continue
+      CONFLICTS=$((CONFLICTS+1)); continue
     fi
   fi
-
-  # cp -R copies dir contents on top of existing dir; missing target dir is
-  # created. Target-only files are preserved (cp does not delete).
-  mkdir -p "$dst"
-  cp -R "$src/." "$dst/"
-  echo "  ✓ $skill"
-  COPIED=$((COPIED+1))
+  mkdir -p "$dst"; cp -R "$src/." "$dst/"
+  echo "  ✓ $skill"; COPIED=$((COPIED+1))
 done
 
 echo ""
 echo "Copied: $COPIED   In sync: $IN_SYNC   Source missing: $MISSING   Conflicts: $CONFLICTS"
-
 if [[ $CONFLICTS -gt 0 ]]; then
-  echo "Re-run with --force to overwrite conflicting skills." >&2
-  exit 1
+  echo "Re-run with --force to overwrite conflicting skills." >&2; exit 1
 fi

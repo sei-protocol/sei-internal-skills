@@ -13,8 +13,24 @@ SHELL := /usr/bin/env bash
 help: ## Show this help
 	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-32s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
 
+.PHONY: update
+update: ## ⭐ One command to get current: pull latest Tide main + sync ALL skills/agents into ~/.claude + verify
+	@echo "→ pulling latest Tide main…"
+	@git pull --ff-only
+	@echo "→ syncing all agents…"
+	@./scripts/sync-agents.sh --target ~/ --categories all --force
+	@echo "→ syncing all skills…"
+	@./scripts/sync-skills.sh --target ~/ --categories all --force
+	@$(MAKE) --no-print-directory verify-catalog
+	@echo "✓ environment current with Tide $$(git rev-parse --short HEAD)"
+
+.PHONY: verify-catalog
+verify-catalog: ## Fail if any skill/agent declares a category that maps to no sync alias (orphaned-skill guard; CI)
+	@./scripts/sync-skills.sh --verify
+	@./scripts/sync-agents.sh --verify
+
 .PHONY: bootstrap
-bootstrap: sync-agents sync-skills update-agent-permissions ## One-shot: install agents, skills, and read-only permissions
+bootstrap: sync-agents sync-skills update-agent-permissions ## Install PORTABLE agents+skills+permissions into a consumer env (external repos). For your own env use `make update`.
 
 .PHONY: sync-agents
 sync-agents: ## Install Tide's portable agents into ~/.claude/agents/

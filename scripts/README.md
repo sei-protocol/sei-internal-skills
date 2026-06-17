@@ -4,17 +4,27 @@ Utility scripts for Tide repo maintenance. Most are wrapped by Make targets at t
 
 | Script | Purpose | Runs from |
 |--------|---------|-----------|
-| `sync-agents.sh` | Copy portable agents to other `.claude/agents/` directories | `make sync-agents`, manually |
-| `sync-skills.sh` | Copy portable skills to other `.claude/skills/` directories | `make sync-skills`, manually |
+| `sync-agents.sh` | Copy agents to other `.claude/agents/` directories (membership derived from each agent's `category:`) | `make update` / `make sync-agents`, manually |
+| `sync-skills.sh` | Copy skills to other `.claude/skills/` directories (membership derived from each skill's `category:`) | `make update` / `make sync-skills`, manually |
 | `update-agent-permissions.sh` | Install canonical read-only allow-list into `./.claude/settings.json` | `make update-agent-permissions` |
 | `verify-agent-permissions.sh` | Fail if `.claude/settings.json` contains mutating patterns or has drifted | `make verify-agent-permissions`, CI |
 | `agent-permissions.json` | Canonical read-only permission set (source of truth) | Read by both agent-permissions scripts |
 
 ---
 
+## Get current in one command
+
+```bash
+make update     # pull latest Tide main + sync ALL skills/agents into ~/.claude + verify the catalog
+```
+
+That is the only command you need to keep your environment current. `make bootstrap` installs only the **portable** set into a *consumer* repo (external use); for your own `~/.claude` use `make update`.
+
+**Single source of truth:** which alias (`portable` / `sei` / Tide-local) a skill or agent belongs to is **derived from its own `category:` frontmatter** via the small domain→alias map at the top of each sync script — there is no hand-maintained per-item list to drift. Add a skill/agent with a mapped `category:` and it syncs automatically. `make verify-catalog` (run in CI) fails closed if any item's category maps to no alias, so a miscategorized resource is caught, never silently dropped.
+
 ## `sync-agents.sh`
 
-Copies agent personas from `.claude/agents/` to a target `.claude/agents/` directory — typically user-level (`~/`) or a sibling repo. The category lists at the top of the script are the source of truth for which agents are portable.
+Copies agent personas from `.claude/agents/` to a target `.claude/agents/` directory — typically user-level (`~/`) or a sibling repo. Membership is derived from each agent's `category:` frontmatter; the domain→alias map at the top of the script is the only hand-maintained categorization.
 
 ```bash
 # Sync portable agents to user-level (default category)
@@ -27,7 +37,7 @@ Copies agent personas from `.claude/agents/` to a target `.claude/agents/` direc
 ./scripts/sync-agents.sh --target ~/ --dry-run
 ```
 
-Categories: agent **domains** (`platform-infra`, `observability`, `security`, `blockchain`, `product-management`, `release-operations`) or **aliases** `portable` (default, all non-Sei agents), `sei` (`sei-network-specialist`), `all`. Non-destructive by default — pass `--force` to overwrite changed files.
+Categories: agent **domains** (`platform-infra`, `observability`, `security`, `blockchain`, `code-quality`, `writing-quality`, `product-management`, `release-operations`, `project-management`) or **aliases** `portable` (default, all non-Sei agents), `sei`, `all`. `--verify` runs only the coverage guard (CI). Non-destructive by default — pass `--force` to overwrite changed files.
 
 ## `sync-skills.sh`
 
@@ -47,7 +57,7 @@ Sibling of `sync-agents.sh` — same shape, same flags. Copies skills from `.cla
 ./scripts/sync-skills.sh --target ~/ --dry-run
 ```
 
-Categories: skill **domains** (`workflow`, `workstream-bootstrap`, `hardening`, `investigation`, `skill-authoring`, `product-management`, `project-management`, `release-operations`, `engineer-self-service`) or **aliases** `portable` (default), `sei`, `all`. `output-quality` (brevity, pr-quality) is Tide-local and not synced. Update the domain lists at the top of the script when a skill is added, renamed, or re-categorized.
+Categories: skill **domains** (`workflow`, `workstream-bootstrap`, `hardening`, `investigation`, `skill-authoring`, `code-quality`, `performance`, `writing-quality`, `product-management`, `project-management`, `release-operations`, `engineer-self-service`) or **aliases** `portable` (default), `sei`, `all`. `output-quality` (brevity, pr-quality) and `security` (tee) are Tide-local and not synced. `--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script; only a new/renamed **domain** (or a change to which alias it belongs to) needs a script edit.
 
 ## `update-agent-permissions.sh` + `verify-agent-permissions.sh` + `agent-permissions.json`
 
