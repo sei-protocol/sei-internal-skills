@@ -256,6 +256,93 @@ Basis: asyncio overlay (pack §5 A1/A2). Anchor (observed): `ruff --select ASYNC
 
 ---
 
+## FastAPI (framework overlay — pack §5; enable Ruff's `FAST` set)
+
+### §5 FA1/FA2 · Annotated dependency style — the `B008` inversion
+The `= Depends(...)` default-value form loses static type info and trips generic `B008`; the `Annotated` form the docs prefer is clean under both `FAST` and `B008`.
+
+```python
+# bad
+from fastapi import FastAPI, Depends
+app = FastAPI()
+def common_params(q: str | None = None) -> dict:
+    return {"q": q}
+@app.get("/items/")
+async def read_items(commons: dict = Depends(common_params)):  # default-value form
+    return commons
+```
+```python
+# good
+from typing import Annotated
+from fastapi import Depends, FastAPI
+app = FastAPI()
+def common_params(q: str | None = None) -> dict:
+    return {"q": q}
+CommonsDep = Annotated[dict, Depends(common_params)]  # reusable; type preserved
+@app.get("/items/")
+async def read_items(commons: CommonsDep) -> dict:
+    return commons
+```
+Basis: FastAPI tutorial/dependencies — "Prefer to use the `Annotated` version if possible." Anchor (observed): `ruff --select FAST002,B008` on the bad → `FAST002 FastAPI dependency without \`Annotated\`` **and** `B008 Do not perform function call \`Depends\` in argument defaults`; the good passes `--select FAST,B008` clean ("All checks passed!"). Note FA2: in a real FastAPI repo, exempt the `B008` false positive via `lint.flake8-bugbear.extend-immutable-calls = ["fastapi.Depends","fastapi.params.Depends", …]` — the `Annotated` form above needs no exemption.
+
+### §5 FA3 · `response_model` only when output differs from the return type
+A `response_model=` that duplicates the return annotation is redundant; reserve it for the filtering/security case (return a richer object, declare a narrower output model).
+
+```python
+# bad
+@app.post("/items/", response_model=Item)   # duplicates the return type
+async def create_item(item: Item) -> Item:
+    return item
+```
+```python
+# good
+@app.post("/items/")                          # return annotation IS the output model
+async def create_item(item: Item) -> Item:
+    return item
+# (keep response_model= ONLY when the output differs — e.g. return UserIn under
+#  response_model=UserOut to strip `password` from the response.)
+```
+Basis: FastAPI tutorial/response-model. Anchor (observed): `ruff --select FAST001` on the bad → `FAST001 FastAPI route with redundant \`response_model\` argument`; the good passes `--select FAST` clean.
+
+### §5 FA4 · Every `{param}` in the route path has a same-named arg
+A `{param}` in the path string with no matching function argument is silently unbound — the route can't receive it.
+
+```python
+# bad
+@app.get("/things/{thing_id}")
+async def read_thing(query: str) -> dict:   # no `thing_id` arg
+    return {"query": query}
+```
+```python
+# good
+@app.get("/things/{thing_id}")
+async def read_thing(thing_id: int, query: str) -> dict:
+    return {"thing_id": thing_id, "query": query}
+```
+Basis: FastAPI tutorial/path-params (signature-name matching). Anchor (observed): `ruff --select FAST003` on the bad → `FAST003 Parameter \`thing_id\` appears in route path, but not in \`read_thing\` signature`; the good passes clean. (The separate `/users/me`-before-`/users/{id}` ordering footgun is judgment-only — no `FAST` rule covers it.)
+
+### §5 FA5 · Don't block the event loop in an `async def` route (correctness)
+A sync call in an `async def` route stalls every concurrent request. Use a plain `def` route (FastAPI runs it in a threadpool) or an async client + `await`.
+
+```python
+# bad
+import time, requests
+@app.get("/data/")
+async def get_data() -> dict:
+    time.sleep(1)                              # blocks the loop
+    return requests.get("https://x/api").json()  # sync HTTP in async route
+```
+```python
+# good — plain def: FastAPI runs it in a threadpool, the loop stays free
+import requests
+@app.get("/data/")
+def get_data() -> dict:
+    return requests.get("https://x/api").json()
+```
+Basis: FastAPI `/async/` — "If you just don't know, use normal `def`." Anchor (observed): `ruff --select ASYNC` on the bad → `ASYNC251 Async functions should not call \`time.sleep\`` **and** `ASYNC210 Async functions should not call blocking HTTP methods`; the good is a plain `def` (no async context → the `ASYNC` rules don't apply).
+
+---
+
 ## Type quality — requires a configured type checker (pack §5 TC1)
 
 ### §1 P2 · Public boundary annotated; types must match
