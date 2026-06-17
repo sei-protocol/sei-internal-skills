@@ -63,7 +63,7 @@ The platform's idiomatic secret-release / key-binding pattern (VP6) — e.g. att
 
 ## 7. Citations
 
-The primary sources (vendor spec, RFC, reference verifier implementation, `sei-chain` source) the kit's claims rest on — cite each by name + URL where public. The kit must stand on these alone: it is **portable** (synced to user-scope and sibling repos), so it must not depend on the relocated research archive, which is Sei-internal (access-gated). Reference that archive at most **once**, as non-required provenance (`bdchatham-designs` `designs/sei-agentic-mesh/research/tee/<doc>.md`).
+The primary sources (vendor spec, RFC, reference verifier implementation, `sei-chain` source) the kit's claims rest on — cite each by name + URL where public. The kit must stand on these alone: it is **portable** (synced to user-scope and sibling repos), so it must not depend on the relocated research archive, which is Sei-internal (access-gated). The relocated archive (`bdchatham-designs` `designs/sei-agentic-mesh/research/tee/<doc>.md`) may appear only as **non-required provenance** — a header/§7 banner plus optional `§`-anchor breadcrumbs in the body — never as a kit's citable authority.
 ```
 
 ---

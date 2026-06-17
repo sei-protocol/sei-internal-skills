@@ -31,7 +31,18 @@ idiomatic-reviewer, prose-steward, skill-authoring/audit lens, technical-program
 - **Mechanical:** evals citation assertion → primary source; `sync-skills.sh` stale `security` refusal arm removed; "How this fits" reworded (domain lens, not auto-wired steward); idiomatic style nits.
 - **Accepted-with-rationale (non-blocking):** kit-sei-onchain bare body breadcrumbs (LOW, facts inlined; the reframed header + §7 make authority unambiguous); historical `.cross-review/`+`docs/skill-audits/` pointers (immutable artifacts, covered by the rename map for Phase-D); the 2 TPM Phase-D handoffs.
 
-State: OPEN — round-2 verification pending (re-dispatch tee-specialist, prose-steward, skill-audit, dissenter + Bugbot).
-Convergence: pending.
-Dissenter: held (assigned, REFUTED round 1).
-OpenFindings: round-2 verification of the applied resolutions.
+## Round 2 — verification (re-dispatched the four blocking-finding reviewers, blinded)
+
+| Reviewer | Round-2 verdict | Confirmation |
+|---|---|---|
+| tee-specialist | RATIFY | B1+B2 resolved; every load-bearing offset (AMD `0x050`/bit-19, Intel `MRTD`, Sei `0x1011`) publicly anchored; archive uniformly non-required; M2 cost-honesty sufficient. |
+| prose-steward | RATIFY | All 4 cite-direction contradictions resolved; consistent across all 8 TEE docs; DRI-repo resolution actionable. |
+| skill-authoring/audit | CONFORMS | D2 = 994 chars (passes); evals/sync reconciled; dispatch claim accurate. `/tee` at /author-skill + /audit-skill ship standard. |
+| assigned dissenter | COULD-NOT-REFUTE | B1/B2/M1/M2 all resolved; exhaustive re-grep clean (no live dependency on a removed path); no new breakage. |
+
+Round-2 nit (resolved post-verification): kit-TEMPLATE "at most once" wording reconciled to "header/§7 banner + optional §-breadcrumbs, never the citable authority."
+
+State: RESOLVED.
+Convergence: unanimous (idiomatic + TPM RATIFY round 1; tee-specialist + prose-steward + skill-audit + dissenter converged round 2).
+Dissenter: held (assigned throughout; round-1 REFUTED → round-2 COULD-NOT-REFUTE).
+OpenFindings: 0. Checks: pending Bugbot + `verify` CI green on the final commit (gate completes when both pass).
