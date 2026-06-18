@@ -2,7 +2,7 @@
 
 The first signal kit. A **guard** (the gate-mode signal binding declared in the ledger — see SKILL.md "The guard primitive") uses this kit to watch a Prometheus/Thanos metric and gate a high-risk step on it staying healthy. This file is the kit: the read adapter, the citable query vocabulary, the decision semantics, and the **non-negotiable correctness contracts**. The spine (declare → fetch fail-closed → evaluate via cited query → act → capture provenance) is the workstream's; this kit supplies the telemetry realization of it.
 
-Design of record: `docs/designs/telemetry-signal-kit.md`.
+Design of record: `bdchatham-designs/designs/telemetry-signal-kit/telemetry-signal-kit.md` (Design 05 relocation).
 
 ## When this kit applies
 

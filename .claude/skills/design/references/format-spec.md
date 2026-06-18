@@ -117,18 +117,15 @@ Convert the title to kebab-case for the filename:
 
 Truncate to ~60 characters. Strip articles (a, the) and stop-words. The filename is for humans skimming a directory listing.
 
-**Tide-specific suffix:** LLDs (component-tier designs) get `-lld.md`. The skill detects this when the output path is `design/milestones/`.
+**LLD suffix:** component-tier LLDs get `-lld.md` (detected by genre/arc).
 
 ## Output path resolution
 
-In priority order:
+In priority order (mirrors `SKILL.md` step 1 — keep the two in sync):
 
 1. `--output-dir <path>` if provided.
-2. Repo-specific convention if detected:
-   - **Tide**: `design/milestones/` for component-tier LLDs, `design/high-level/` for system-tier designs. Ask which when ambiguous.
-   - **sei-protocol/sei-k8s-controller**: `docs/`.
-   - **Other repos**: detect `docs/designs/`, `docs/`, or `design/`; prefer existing.
-3. Default: `docs/designs/`.
+2. **The DRI's designs repo (per Design 05).** Resolve it, in order: (a) `--designs-repo <owner/name|path>` if given; (b) a sibling `<name>-designs` checkout (a sibling dir of CWD, or the same git org's `<gh-user>-designs`); (c) otherwise **ask the user** which designs repo. Land arc-foldered as `designs/<arc>/<slug>.md` (component-tier LLDs `-lld.md`, system-tier plain); ask which arc when ambiguous.
+3. Fallback — **only after step 2c and only if the user confirms they have no designs repo**: `docs/designs/` in the current repo. Never silently fall through to this when a DRI repo is the intent.
 
 Always show the user the resolved path before writing. Never overwrite without confirmation.
 

@@ -4,7 +4,7 @@ A platform kit is **data** the method loads. Every kit must provide the seven se
 
 This section schema is a **soft one-way door**: changing it churns every existing kit. Revise deliberately.
 
-The kit is the **opinionated, pluggable layer over the research** — it does not replace `design/research/tee/<doc>.md`. Every load-bearing claim **cites** that research doc (a `§` or load-bearing-claim number), a vendor spec, or an RFC; the kit never paraphrases the research into a second, drifting copy. If a fact isn't in the research doc, it doesn't belong in the kit (raise it as a research gap instead).
+The kit is a **self-contained kernel** of reusable knowledge: it inlines the load-bearing facts with their primary-source citations (a vendor spec, an RFC, or `sei-chain` source) and stands alone on those **public** sources — exactly as a `/idiomatic` language-pack enshrines the language's own published standards (PEPs, the official docs) and cites no private corpus. A kit cites **public primary sources only**; it does **not** depend on, cite, or reference any private/internal research archive. The kit never paraphrases a source into a second, drifting copy. If a fact isn't citable to a public primary source, either keep the claim and mark it inline as a **"synthesized estimate (no public primary source); treat as unverified"** (the way the cross-vendor gas ranking is handled), or raise it as a research gap — never cite a private corpus to substantiate it.
 
 Copy the skeleton below and fill it. See `kit-aws-nitro.md` for a complete worked kit.
 
@@ -13,14 +13,13 @@ Copy the skeleton below and fill it. See `kit-aws-nitro.md` for a complete worke
 ```markdown
 # <Platform> kit
 
-> Ground truth: `design/research/tee/<doc>.md`. Every claim below cites it (§ or load-bearing claim #), a vendor spec, or an RFC. Do not paraphrase — cite.
+> Ground truth: the vendor specs, RFCs, and reference implementations cited inline below — this kit is a **self-contained kernel** that stands alone on those **public** primary sources. Every load-bearing claim cites a primary source (a vendor spec, an RFC, or `sei-chain` source); do not paraphrase — cite the primary source. No dependency on any private/internal research archive.
 
 ## 1. Identity & RATS roles
 
 - **What it is** — process-level enclave / VM-level CVM / GPU TEE; the boundary it protects.
 - **RATS role mapping** — Attester = <…>; Endorser = <the PKI / trust root>; typical Verifier = <on-chain contract / KMS / off-chain service>.
 - **Trust root / Endorser** — the root of trust to pin, and **whose trust set it is** (silicon vendor vs cloud hypervisor vs NRAS) — this feeds VP16.
-- **Ground-truth doc** — `design/research/tee/<doc>.md`.
 
 ## 2. Evidence format
 
@@ -28,7 +27,7 @@ The wire format the Attester produces and the Verifier consumes. Signature schem
 
 ## 3. Identity & measurement fields (VP2)
 
-What proves **binary identity** on this platform — the measurement register(s), their semantics, size, and hash. State exactly which fields are *required together* (a partial identity that's exploitable is a finding, e.g. TDX `MRTD` alone). Cite the field semantics to the research doc.
+What proves **binary identity** on this platform — the measurement register(s), their semantics, size, and hash. State exactly which fields are *required together* (a partial identity that's exploitable is a finding, e.g. TDX `MRTD` alone). Cite the field semantics to the primary source (the vendor spec / RFC).
 
 ## 4. Verifier-policy specifics — the per-vendor fill-ins
 
@@ -55,7 +54,7 @@ The table that plugs this platform into `method.md`'s cross-cutting dimensions. 
 
 ## 5. On-chain verification (Sei)
 
-The cost + path on Sei EVM: direct (with the precompile that applies), amortized (the secp256k1 / verify-once pattern), or ZK-proven — with the gas figure and the production posture. Cite the cost research (`<doc>.md` §on-chain + `trusted-execution-on-sei.md` decision-driver).
+The cost + path on Sei EVM: direct (with the precompile that applies), amortized (the secp256k1 / verify-once pattern), or ZK-proven — with the gas figure and the production posture. Cite the public cost sources (the `sei-chain` precompile, the public Marlin/Automata gas numbers); where a cross-vendor magnitude has no public primary source, mark it inline as a "synthesized estimate (no public primary source); treat as unverified" — never cite a private corpus.
 
 ## 6. Key-release / integration pattern
 
@@ -63,14 +62,14 @@ The platform's idiomatic secret-release / key-binding pattern (VP6) — e.g. att
 
 ## 7. Citations
 
-The research doc sections + the primary sources (vendor spec, RFC, reference verifier implementation) the kit's claims rest on. Cite the research doc by **repo-root-relative path as text** — `` `design/research/tee/<doc>.md` `` — **not** a markdown link (a working link from `references/` would need `../../../../`, which is brittle; cite the path as text and let the reader resolve from repo root). External primary sources cite by URL.
+**Ground truth (primary sources):** the vendor specs, RFCs, reference verifier implementations, and `sei-chain` source the kit's claims rest on — cite each by name + URL where public. The kit must stand on these **alone**: it is **portable** (synced to user-scope and sibling repos), so it cites public primary sources only and depends on no private/internal research archive. At most one **non-load-bearing** credit footnote is allowed — e.g. "Distilled from Sei-internal TEE research; this kit stands alone on the public sources above." — with **no path, no `§`-anchor, and nothing the skill depends on**, exactly as a language-pack might credit a style guide without depending on it.
 ```
 
 ---
 
 ## Notes for kit authors
 
-- **Cite, never paraphrase.** The research doc is the record; the kit is the opinionated checklist over it. A claim with no citation to the research / a spec / an RFC does not go in the kit.
+- **Cite a public primary source, never paraphrase, never cite a private corpus.** The public primary sources (vendor spec, RFC, `sei-chain`) are the record; the kit is the **self-contained kernel** over them. A claim with no citation to a public primary source either gets the inline "synthesized estimate; treat as unverified" mark or stays out of the kit. The citable authority is always the public primary source — the kit depends on no private or internal research archive.
 - **Mark N/A dimensions explicitly** in §4 (e.g. "VP11 BadRAM — N/A, AMD-specific") so the reviewer cites the kit for "vetted, not applicable" rather than fabricating a field.
 - **The §4 table is the pluggability mechanism** — it is how this platform fills `method.md`'s cross-cutting dimensions. Keep the `method dimension` IDs verbatim so the method ↔ kit mapping stays mechanical.
 - **Non-attester / verification-layer kits may adapt the section shape** — a kit for a layer that is not an Attester (e.g. the on-chain Verifier) can repurpose §1/§2/§3/§6, but must mark each deviation with an explicit **`Template-fit note:`** so neither reader mistakes a deliberate adaptation for a gap, and must still address every VP1–VP16 in §4. See `kit-sei-onchain.md` for the worked adaptation.

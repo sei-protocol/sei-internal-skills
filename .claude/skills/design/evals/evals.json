@@ -9,7 +9,7 @@
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
-          "agent resolves repo and output dir (step 1) — uses Tide convention design/milestones/ for LLDs if detected, else docs/designs/",
+          "agent resolves repo and output dir (step 1) — resolves the DRI designs repo (flag → sibling <name>-designs checkout → ask the user) and lands designs/<arc>/<slug>-lld.md for LLDs; falls back to docs/designs/ only after the user confirms they have no designs repo (never silent fallthrough)",
           "agent resolves invocation mode (step 2) as coral handoff (mode 1)",
           "agent shows the pre-fill from the coral session in step 3, takes adjustments, doesn't re-prompt fields the session answered",
           "agent identifies candidate mermaid diagrams in step 4 (likely Sequence for the leader-election flow) and marks each with the verify-intent comment",
@@ -31,7 +31,7 @@
     {
       "id": "halt-condition-existing-file",
       "type": "halt-condition",
-      "scenario": "User invokes /design for a system already captured at design/milestones/seinode-controller-lld.md. The slug resolves to the same path.",
+      "scenario": "User invokes /design for a system already captured at designs/seinode-controller/seinode-controller-lld.md in the DRI repo. The slug resolves to the same path.",
       "skill_loaded": true,
       "expected": {
         "halt": true,

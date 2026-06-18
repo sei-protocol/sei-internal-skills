@@ -18,7 +18,7 @@ Coral / council should *proactively* surface `/design` when **the deliverable is
 | One-way door surfaced and a decision was made | The decision is worth a permanent record |
 | Multiple alternatives were weighed before picking one | The reasoning is what matters six months later — capture it |
 
-The orchestrator phrases it as an offer: *"Want me to capture this as a design doc under `docs/designs/` (or `design/milestones/` for Tide)?"* — user opts in.
+The orchestrator phrases it as an offer: *"Want me to capture this as a design doc in your designs repo (`designs/<arc>/<slug>.md`), or `docs/designs/` here if you have none?"* — user opts in.
 
 ## `/design` vs `/issue` at the handoff
 
@@ -69,7 +69,7 @@ The orchestrator has the session in head. Pre-fill, don't re-prompt. The skill's
 **Coral's offer at end of session:**
 
 > The synthesized design is ready to capture. Two natural artifacts:
-> - `/design` — write the LLD as `design/milestones/seinode-mid-life-signing-key-drift-lld.md`, threading back to issue #14.
+> - `/design` — write the LLD as `designs/<arc>/seinode-mid-life-signing-key-drift-lld.md`, threading back to issue #14.
 > - `/issue` — none right now; the follow-ups (mode switch, demoting to non-signing) are already in #14's Out of scope.
 >
 > Capture the design?
@@ -83,7 +83,7 @@ title: SeiNode mid-life SigningKey drift detection
 status: Draft
 issue: 14
 authors: kubernetes-specialist, platform-engineer, bdchatham
-output_dir: design/milestones/  # detected Tide convention
+output_dir: designs/<arc>/  # DRI designs-repo convention (Design 05)
 suffix: -lld.md  # detected Tide LLD convention
 
 background: |
@@ -123,7 +123,7 @@ references:
   - PR #136 (single-shot deployment)
 ```
 
-User reviews the rendered body, adjusts diagrams, confirms. File written to `design/milestones/seinode-mid-life-signing-key-drift-lld.md`. Skill offers to comment on issue #14: `Design captured: design/milestones/seinode-mid-life-signing-key-drift-lld.md`.
+User reviews the rendered body, adjusts diagrams, confirms. File written to `designs/<arc>/seinode-mid-life-signing-key-drift-lld.md`. Skill offers to comment on issue #14: `Design captured: designs/<arc>/seinode-mid-life-signing-key-drift-lld.md`.
 
 **Result:** the design is durable, the issue is now linked to its design, and a future engineer reading either the issue OR the design can navigate the lineage.
 

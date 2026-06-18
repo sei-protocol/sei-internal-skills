@@ -11,7 +11,7 @@ The leader-facing **synthesis tail** of the Impact Hub loop. `impact-weekly` is 
 
 It does **not** generate truth — it indexes truth that already exists in the bets' Weekly logs. That framing is the whole safety model: it is **read-only on every bet** and writes exactly one artifact — its own row in the Weekly Reports database.
 
-Each weekly report is a **row in the Weekly Reports database** (`collection://af6a7313-890d-4a8c-a936-59b7e94ef8f6`, under the Impact Hub page): identity = the `report_week` date property, provenance = the `generated_by` select. See `references/write-contract.md`. The design is captured at `docs/designs/impact-portfolio-weekly-report.md`.
+Each weekly report is a **row in the Weekly Reports database** (`collection://af6a7313-890d-4a8c-a936-59b7e94ef8f6`, under the Impact Hub page): identity = the `report_week` date property, provenance = the `generated_by` select. See `references/write-contract.md`. The design is captured at `bdchatham-designs/designs/impact-portfolio-weekly-report/impact-portfolio-weekly-report.md` (Design 05 relocation).
 
 ## Guardrails
 

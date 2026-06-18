@@ -56,7 +56,7 @@ Run **one** completeness pass: "what modality wasn't run, what claim is unverifi
 
 ## The artifact
 
-Capture as `design/research/<slug>.md` (the existing Tide research-doc home). Shape:
+Capture in the DRI's designs repo — the engineer's `<name>-designs` repo, under the work-arc folder as `designs/<arc>/research/<slug>.md` (per Design 05, research artifacts live in the DRI repo, not the code/skills package). **Resolve the DRI repo as `/design` does** (`--designs-repo` flag → a sibling `<name>-designs` checkout → ask the user); fall back to in-repo `docs/research/` only if the user confirms they have no designs repo. Shape:
 
 ```markdown
 # Research: <Title>
@@ -113,7 +113,7 @@ Stop and surface rather than proceeding when:
 
 ## State
 
-Per-run sweep notes and the in-progress finding ledger live in `state/` (gitignored). The durable output is the artifact in `design/research/`.
+Per-run sweep notes and the in-progress finding ledger live in `state/` (gitignored). The durable output is the findings artifact in the DRI's designs repo (`designs/<arc>/research/<slug>.md`).
 
 ## References
 
