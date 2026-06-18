@@ -1,15 +1,14 @@
 # AWS Nitro Enclaves kit
 
-> Ground truth: the vendor specs, RFCs, and reference implementations cited inline below — this kit distills them and is **self-contained**. Every load-bearing claim cites a primary source (a vendor spec, an RFC, or `sei-chain` source); do not paraphrase — cite the primary source. Deeper derivation is archived in the Sei-internal `bdchatham-designs` TEE corpus (access-gated) — **provenance only, not required to use this kit**.
+> Ground truth: the AWS Nitro primary specs, RFCs, and reference implementations cited inline below (see §7) — this kit is a **self-contained kernel** that stands alone on those **public** sources. Every load-bearing claim cites a primary source (a vendor spec, an RFC, or `sei-chain` source); do not paraphrase — cite the primary source. No dependency on any private/internal research archive.
 
 ## 1. Identity & RATS roles
 
 - **What it is** — a VM-isolated enclave carved from a parent EC2 instance: no persistent storage, no network, parent↔enclave only over `vsock` (§5). Attestation is point-in-time — re-attest for freshness.
 - **RATS role mapping** — **Attester** = enclave + Nitro Security Module (NSM); **Endorser** = the AWS Nitro Attestation PKI; **Verifier** = AWS KMS (verifier-as-a-service) or an on-chain contract; **Relying Party** = the entity gating secret/privilege release (§7).
-- **Trust root / Endorser** — pin **AWS Nitro Enclaves Root-G1** (PEM at `aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip`, SHA-256 fingerprint `64:1A:03:21:…:BB:5B`, 30-year lifetime). **Trust set = AWS hypervisor + AWS PKI** (not a silicon vendor) — feeds VP16 and the validator-as-host caveat below (§3, load-bearing claim 5).
-- **Provenance** — derived from the Sei-internal TEE research archive (`bdchatham-designs`, access-gated); the load-bearing facts are inlined here with their primary-source citations.
+- **Trust root / Endorser** — pin **AWS Nitro Enclaves Root-G1** (PEM at `aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip`, SHA-256 fingerprint `64:1A:03:21:…:BB:5B`, 30-year lifetime — AWS Nitro Enclaves User Guide `verify-root.html`). **Trust set = AWS hypervisor + AWS PKI** (not a silicon vendor) — feeds VP16 and the validator-as-host caveat below.
 
-**Trust-model caveat (VP16 / profile Rule 2):** Nitro's model assumes the **AWS host is trusted**. It is the natural fit for harbor-hosted Tide agent runtimes and bridges (existing AWS EKS posture), but it does **not** defend against a relying party who *is* the AWS host operator — so it is the wrong fit for a validator-as-host MEV/ordering surface (`bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` Application-categories §2 — MEV-resistant ordering — and load-bearing claim 5; not to be confused with `tee-profile.md` §2).
+**Trust-model caveat (VP16 / profile Rule 2):** Nitro's model assumes the **AWS host is trusted** (AWS Nitro Enclaves User Guide, isolation model). It is the natural fit for harbor-hosted Tide agent runtimes and bridges (existing AWS EKS posture), but it does **not** defend against a relying party who *is* the AWS host operator — so it is the wrong fit for a validator-as-host MEV/ordering surface (see `tee-profile.md` §2).
 
 ## 2. Evidence format
 
@@ -51,9 +50,9 @@ Binary identity for a Tide agent image gates on **PCR0** (and optionally PCR1/PC
 | VP9 policy separation | parse the COSE/CBOR Evidence (§2) into a normalized claim set; apply PCR/measurement policy as a separate layer | method VP9 + §2 |
 | VP10 advisories | **N/A** — no advisory-ID field (Intel-specific); freshness is the cert-validity window | §3 |
 | VP11 known-CVE bits | **N/A** — no platform-info mitigation bit (AMD BadRAM-specific) | — |
-| VP12 host-controlled-but-signed | `user_data` (≤1024 B) is **host-supplied, signed but NOT measured** — any policy gating on it needs a separate trust assumption | §1.1, `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` "Critical defense-in-depth" #9 |
+| VP12 host-controlled-but-signed | `user_data` (≤1024 B) is **host-supplied, signed but NOT measured** — any policy gating on it needs a separate trust assumption | §1.1; AWS Nitro NSM API `attestation_process.md` (`user_data` is caller-supplied) |
 | VP13 version pinning | pin accepted CDDL document shapes; reject downgrade | §7 |
-| VP14 privacy / fingerprint | `module_id` is a per-hypervisor identifier; raw on-chain attestations leak it — Nitro has **no per-chip ID** (fleet-friendlier than AMD `CHIP_ID`); prefer ZK for validator-as-attester | `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` "Critical defense-in-depth" #11 |
+| VP14 privacy / fingerprint | `module_id` is a per-hypervisor identifier; raw on-chain attestations leak it — Nitro has **no per-chip ID** (fleet-friendlier than AMD `CHIP_ID`); prefer ZK for validator-as-attester | §1.1 (`module_id` field); AWS Nitro NSM API `attestation_process.md` |
 | VP15 registry integrity | → profile (multisig + time-lock + transparency + emergency revocation on the reference-value registry) | profile |
 | VP16 cross-vendor delta | trust set = **AWS hypervisor + AWS PKI** (§1) — surface it when this kit sits beside a silicon-vendor or NRAS-rooted kit | §1 |
 
@@ -61,9 +60,9 @@ Binary identity for a Tide agent image gates on **PCR0** (and optionally PCR1/PC
 
 No EVM precompile for ECDSA-P384 or X.509 path validation — every primitive (P-384 field math, SHA-384, DER, COSE reconstruction) is Solidity/Yul. Floor is **3× P-384 verify** (root→interm, interm→leaf, leaf→COSE) plus SHA-384 + DER (§9.1):
 
-- **~63M gas cold** for a full unwarmed attestation (Marlin NitroProver, §9.2 / load-bearing claim 9); **<20M warm** with the cert chain cached on-chain. (The Sei cost ranking in `method.md` and `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` §decision-driver renders this same Marlin measurement as the **<70M** ceiling — one number, two roundings, not two measurements.) Above Sei's practical per-tx ceiling cold.
-- **Production path — Marlin Oyster amortization (load-bearing claim 10):** verify **one** "verifier-enclave" attestation on-chain once, then accept **secp256k1**-signed statements from that enclave via the `ecrecover` precompile (**~3k gas**) for every subsequent attestation. The only realistic posture for steady-state on Sei.
-- **Witness-key freshness (load-bearing concern, `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` §4):** the amortization pattern reuses a secp256k1 binding key — without per-message sequence numbers + binding-key rotation on TCB/image change + an on-chain validity window, a stolen binding key outlives the attestation it was minted under.
+- **~63M gas cold** for a full unwarmed attestation (public Marlin NitroProver numbers); **<20M warm** with the cert chain cached on-chain. (The Sei cost ranking in `method.md` renders this same Marlin measurement as the **<70M** ceiling — one number, two roundings, not two measurements.) Above Sei's practical per-tx ceiling cold.
+- **Production path — Marlin Oyster amortization:** verify **one** "verifier-enclave" attestation on-chain once, then accept **secp256k1**-signed statements from that enclave via the `ecrecover` precompile (**~3k gas**) for every subsequent attestation (public Marlin Oyster docs). The only realistic posture for steady-state on Sei.
+- **Witness-key freshness:** the amortization pattern reuses a secp256k1 binding key — without per-message sequence numbers + binding-key rotation on TCB/image change + an on-chain validity window, a stolen binding key outlives the attestation it was minted under (engineering discipline over the Marlin Oyster reuse pattern; see also `method.md` VP1/VP4).
 
 ## 6. Key-release / integration pattern (VP6)
 
@@ -71,6 +70,6 @@ No EVM precompile for ECDSA-P384 or X.509 path validation — every primitive (P
 
 ## 7. Citations
 
-- Provenance (access-gated, not required): `bdchatham-designs/designs/sei-agentic-mesh/research/tee/aws-nitro-enclaves.md` §1–§10 + load-bearing claims 1–10; `bdchatham-designs/designs/sei-agentic-mesh/research/tee/trusted-execution-on-sei.md` "decision-driver", Application-categories §6 (Tide agent runtimes), "Critical defense-in-depth" items #9/#11.
-- Ground truth (primary sources): AWS Nitro Enclaves User Guide (`set-up-attestation.html`, `verify-root.html`); `aws/aws-nitro-enclaves-nsm-api` `docs/attestation_process.md`; AWS KMS Nitro docs; RFC 8152 / 9052 (COSE), RFC 9334 (RATS), RFC 9711 (EAT — Nitro is EAT-*adjacent*, not a formal EAT, §7); RFC 8610 (CDDL).
-- Reference verifiers: Marlin NitroProver + Oyster docs; `base/nitro-validator`; `hf/nitrite` (Go); `veracruz-project/nitro-enclave-attestation-document`.
+- **Ground truth (primary sources):** AWS Nitro Enclaves User Guide (`set-up-attestation.html`, `verify-root.html`); `aws/aws-nitro-enclaves-nsm-api` `docs/attestation_process.md`; AWS KMS Nitro docs; RFC 8152 / 9052 (COSE), RFC 9334 (RATS), RFC 9711 (EAT — Nitro is EAT-*adjacent*, not a formal EAT); RFC 8610 (CDDL).
+- **Reference verifiers:** Marlin NitroProver + Oyster docs; `base/nitro-validator`; `hf/nitrite` (Go); `veracruz-project/nitro-enclave-attestation-document`.
+- Distilled from Sei-internal TEE research; this kit stands alone on the public sources above.

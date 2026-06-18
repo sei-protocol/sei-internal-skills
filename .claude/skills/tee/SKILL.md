@@ -15,7 +15,7 @@ This skill is the operating manual for the `tee-specialist` agent and is also di
 
 A capable model already knows the rough shape of Nitro PCRs, TDX measurements, and RATS roles. Pressure-testing the domain shows two failure modes that knowledge alone does not fix. First, **per-vendor specifics asserted from memory are confidently wrong** — the freshness-channel offset, the debug-mode bit, the cert-chain order, the report version set — and a wrong, falsifiable detail handed to an implementer destroys an attestation verifier (a verifier that hashes the wrong bytes, accepts a debug enclave, or replays a stale quote). Second, and worse, **the trust model gets misrepresented**: the dominant real error is presenting a platform as defending against a threat its trust model excludes — e.g. "Nitro protects the validator signing key from the host" when the validator *is* the AWS host operator, which is exactly the assumption Nitro does not cover.
 
-So the value of this skill is **not** a TEE textbook. It is the discipline that makes per-vendor claims cite the kit (which cites public primary sources — vendor specs, RFCs, `sei-chain`), the Sei profile override generic vendor assumptions, the cross-cutting verifier-policy checklist get applied every time, and the trust-model delta get surfaced — never buried. The platform kit is the checklist and the source of citations; the spine is the product. Each kit is **self-contained** — it inlines the load-bearing facts with their primary-source citations (vendor specs, RFCs, `sei-chain` source); the deeper research derivation is archived in the Sei-internal `bdchatham-designs` corpus (access-gated), not required to use the kit.
+So the value of this skill is **not** a TEE textbook. It is the discipline that makes per-vendor claims cite the kit (which cites public primary sources — vendor specs, RFCs, `sei-chain`), the Sei profile override generic vendor assumptions, the cross-cutting verifier-policy checklist get applied every time, and the trust-model delta get surfaced — never buried. The platform kit is the checklist and the source of citations; the spine is the product. Each kit is **self-contained** — it inlines the load-bearing facts with their primary-source citations (vendor specs, RFCs, `sei-chain` source) and stands alone on those public sources.
 
 ## Guardrails
 
@@ -133,7 +133,7 @@ The method is platform-agnostic; the platform expertise is **data**, in `referen
 - `references/kit-TEMPLATE.md` — the pluggable platform-kit contract.
 - `references/kit-aws-nitro.md` — the AWS Nitro Enclaves kit (the worked reference), self-contained on the AWS Nitro primary specs + RFCs it cites inline.
 - `references/kit-intel-sgx-tdx.md`, `references/kit-amd-sev-snp.md`, `references/kit-nvidia-cc.md`, `references/kit-tpm-rats.md`, `references/kit-sei-onchain.md` — the remaining platform / verification-layer kits.
-- Ground truth: the public primary sources (vendor specs, RFCs, `sei-chain`) each kit cites inline — the kits are **self-contained**. The deeper research derivation is archived in the Sei-internal `bdchatham-designs` corpus (access-gated); not required to use the kits.
+- Ground truth: the public primary sources (vendor specs, RFCs, `sei-chain`) each kit cites inline — the kits are **self-contained** and stand alone on those public sources.
 
 ## How this fits with coral / council / cross-review
 

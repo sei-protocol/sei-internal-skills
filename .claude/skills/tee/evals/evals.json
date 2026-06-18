@@ -30,7 +30,7 @@
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
-          "does not assert the offset/bit from memory; loads kit-amd-sev-snp and cites it (REPORT_DATA offset 0x050; policy bit 19 DEBUG_ALLOWED must be 0), which cites the AMD SEV-SNP Firmware ABI Spec (pub. 56860, Table 23) inline (the access-gated corpus is non-required provenance)",
+          "does not assert the offset/bit from memory; loads kit-amd-sev-snp and cites it (REPORT_DATA offset 0x050; policy bit 19 DEBUG_ALLOWED must be 0), which cites the AMD SEV-SNP Firmware ABI Spec (pub. 56860, Table 23) inline as its public primary source",
           "if the kit doesn't exist or lacks the detail, says so and flags the gap rather than fabricating the offset"
         ],
         "forbidden_signals": [
@@ -57,7 +57,7 @@
           "leaves the trust-model exclusion unstated"
         ]
       },
-      "source": "SKILL.md Rule 2 + Rule 5 / Guardrail 4; tee-profile.md (validator-as-host); trusted-execution-on-sei.md §2, claim 5"
+      "source": "SKILL.md Rule 2 + Rule 5 / Guardrail 4; tee-profile.md §2 (validator-as-host); kit-aws-nitro.md §1 trust-model caveat"
     },
     {
       "id": "discipline-no-manufactured-tee",

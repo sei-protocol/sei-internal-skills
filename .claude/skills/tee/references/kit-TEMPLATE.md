@@ -4,7 +4,7 @@ A platform kit is **data** the method loads. Every kit must provide the seven se
 
 This section schema is a **soft one-way door**: changing it churns every existing kit. Revise deliberately.
 
-The kit is **self-contained**: it inlines the load-bearing facts with their primary-source citations (a vendor spec, an RFC, or `sei-chain` source). It does **not** depend on the (access-gated, Sei-internal) research archive — the skill is portable, so a kit must stand on its inlined facts + public citations alone. The kit never paraphrases a source into a second, drifting copy. If a fact isn't citable to a primary source, it doesn't belong in the kit (raise it as a research gap instead).
+The kit is a **self-contained kernel** of reusable knowledge: it inlines the load-bearing facts with their primary-source citations (a vendor spec, an RFC, or `sei-chain` source) and stands alone on those **public** sources — exactly as a `/idiomatic` language-pack enshrines the language's own published standards (PEPs, the official docs) and cites no private corpus. A kit cites **public primary sources only**; it does **not** depend on, cite, or reference any private/internal research archive. The kit never paraphrases a source into a second, drifting copy. If a fact isn't citable to a public primary source, either keep the claim and mark it inline as a **"synthesized estimate (no public primary source); treat as unverified"** (the way the cross-vendor gas ranking is handled), or raise it as a research gap — never cite a private corpus to substantiate it.
 
 Copy the skeleton below and fill it. See `kit-aws-nitro.md` for a complete worked kit.
 
@@ -13,14 +13,13 @@ Copy the skeleton below and fill it. See `kit-aws-nitro.md` for a complete worke
 ```markdown
 # <Platform> kit
 
-> Ground truth: the vendor specs, RFCs, and reference implementations cited inline below — this kit distills them and is **self-contained**. Every load-bearing claim cites a primary source (a vendor spec, an RFC, or `sei-chain` source); do not paraphrase — cite the primary source. Deeper derivation is archived in the Sei-internal `bdchatham-designs` TEE corpus (access-gated) — **provenance only, not required to use this kit**.
+> Ground truth: the vendor specs, RFCs, and reference implementations cited inline below — this kit is a **self-contained kernel** that stands alone on those **public** primary sources. Every load-bearing claim cites a primary source (a vendor spec, an RFC, or `sei-chain` source); do not paraphrase — cite the primary source. No dependency on any private/internal research archive.
 
 ## 1. Identity & RATS roles
 
 - **What it is** — process-level enclave / VM-level CVM / GPU TEE; the boundary it protects.
 - **RATS role mapping** — Attester = <…>; Endorser = <the PKI / trust root>; typical Verifier = <on-chain contract / KMS / off-chain service>.
 - **Trust root / Endorser** — the root of trust to pin, and **whose trust set it is** (silicon vendor vs cloud hypervisor vs NRAS) — this feeds VP16.
-- **Provenance** — derived from the Sei-internal TEE research archive (`bdchatham-designs`, access-gated); the load-bearing facts are inlined here with their primary-source citations.
 
 ## 2. Evidence format
 
@@ -55,7 +54,7 @@ The table that plugs this platform into `method.md`'s cross-cutting dimensions. 
 
 ## 5. On-chain verification (Sei)
 
-The cost + path on Sei EVM: direct (with the precompile that applies), amortized (the secp256k1 / verify-once pattern), or ZK-proven — with the gas figure and the production posture. Cite the public cost sources (the `sei-chain` precompile, the public Marlin/Automata gas numbers); the archived corpus cost derivation is non-required provenance, never the citable authority (per §7).
+The cost + path on Sei EVM: direct (with the precompile that applies), amortized (the secp256k1 / verify-once pattern), or ZK-proven — with the gas figure and the production posture. Cite the public cost sources (the `sei-chain` precompile, the public Marlin/Automata gas numbers); where a cross-vendor magnitude has no public primary source, mark it inline as a "synthesized estimate (no public primary source); treat as unverified" — never cite a private corpus.
 
 ## 6. Key-release / integration pattern
 
@@ -63,14 +62,14 @@ The platform's idiomatic secret-release / key-binding pattern (VP6) — e.g. att
 
 ## 7. Citations
 
-The primary sources (vendor spec, RFC, reference verifier implementation, `sei-chain` source) the kit's claims rest on — cite each by name + URL where public. The kit must stand on these alone: it is **portable** (synced to user-scope and sibling repos), so it must not depend on the relocated research archive, which is Sei-internal (access-gated). The relocated archive (`bdchatham-designs` `designs/sei-agentic-mesh/research/tee/<doc>.md`) may appear only as **non-required provenance** — a header/§7 banner plus optional `§`-anchor breadcrumbs in the body — never as a kit's citable authority.
+**Ground truth (primary sources):** the vendor specs, RFCs, reference verifier implementations, and `sei-chain` source the kit's claims rest on — cite each by name + URL where public. The kit must stand on these **alone**: it is **portable** (synced to user-scope and sibling repos), so it cites public primary sources only and depends on no private/internal research archive. At most one **non-load-bearing** credit footnote is allowed — e.g. "Distilled from Sei-internal TEE research; this kit stands alone on the public sources above." — with **no path, no `§`-anchor, and nothing the skill depends on**, exactly as a language-pack might credit a style guide without depending on it.
 ```
 
 ---
 
 ## Notes for kit authors
 
-- **Cite, never paraphrase.** The primary sources (vendor spec, RFC, `sei-chain`) are the record; the kit is the **self-contained** checklist over them. A claim with no citation to a primary source does not go in the kit. The relocated research archive may appear as `§`-anchor breadcrumbs, but the citable authority is always the primary source — never the access-gated archive.
+- **Cite a public primary source, never paraphrase, never cite a private corpus.** The public primary sources (vendor spec, RFC, `sei-chain`) are the record; the kit is the **self-contained kernel** over them. A claim with no citation to a public primary source either gets the inline "synthesized estimate; treat as unverified" mark or stays out of the kit. The citable authority is always the public primary source — the kit depends on no private or internal research archive.
 - **Mark N/A dimensions explicitly** in §4 (e.g. "VP11 BadRAM — N/A, AMD-specific") so the reviewer cites the kit for "vetted, not applicable" rather than fabricating a field.
 - **The §4 table is the pluggability mechanism** — it is how this platform fills `method.md`'s cross-cutting dimensions. Keep the `method dimension` IDs verbatim so the method ↔ kit mapping stays mechanical.
 - **Non-attester / verification-layer kits may adapt the section shape** — a kit for a layer that is not an Attester (e.g. the on-chain Verifier) can repurpose §1/§2/§3/§6, but must mark each deviation with an explicit **`Template-fit note:`** so neither reader mistakes a deliberate adaptation for a gap, and must still address every VP1–VP16 in §4. See `kit-sei-onchain.md` for the worked adaptation.
