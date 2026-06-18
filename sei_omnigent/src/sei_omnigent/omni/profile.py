@@ -29,8 +29,8 @@ API_VERSION = "omni-profile/v1"
 class Disposition(StrEnum):
     """The single gate-disposition vocabulary — by reference to ``/workstream``'s gate-kinds.
 
-    NOT a second vocabulary: these mirror how ``/workstream`` already handles a
-    checkpoint / guard / review-gate. ``FAIL_CLOSED`` is the default for any
+    NOT a second vocabulary: these are by reference to how ``/workstream`` already
+    handles a checkpoint / guard / review-gate. ``FAIL_CLOSED`` is the default for any
     unclassified or unrecognized gate (one-way door #2) — a typo'd or
     future-dated disposition must degrade to halt-and-report, never to
     auto-proceed. ``ESCALATE_ASYNC`` is named in the enum but **unbuilt** for
@@ -304,10 +304,11 @@ def launch_refusal(
     allowed = set(deployed_egress)
     unlisted = [dest for dest in profile.required_egress if dest not in allowed]
     if unlisted:
+        allowed_str = ", ".join(repr(d) for d in sorted(allowed, key=str)) or "none"
         return (
             f"omni-profile for skill {profile.skill!r} requires egress to "
             f"{', '.join(repr(d) for d in unlisted)}, not in the deployed egress allowlist "
-            f"({', '.join(repr(d) for d in sorted(allowed)) or 'none'}). Refused at launch — "
+            f"({allowed_str}). Refused at launch — "
             "the profile cannot reach a destination the deployment does not permit."
         )
 
