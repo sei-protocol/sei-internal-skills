@@ -14,7 +14,7 @@ target:
 <artifact-dir>/xreview/<target-slug>.md
 ```
 
-For a design doc that is `designs/sei-agentic-mesh/xreview/08-xreview-slate-and-ledger.md`.
+For a design doc that is `designs/sei-agentic-mesh/xreview/08-cross-review-slate-and-ledger.md`.
 For a **diff/PR with no natural artifact directory**, the default is `.xreview/<target-slug>.md`
 at the repo root. Either way the rule is the same: **the path is target-derivable** (target path
 → ledger path) so a downstream gate finds it by construction without a registry.
