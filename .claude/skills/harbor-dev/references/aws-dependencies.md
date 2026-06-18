@@ -44,11 +44,11 @@ aws s3 cp s3://harbor-sei-snapshots/<chainID>/state-sync/latest.txt - \
 
 **Common chain IDs**: `pacific-1` (mainnet), `atlantic-2` (testnet), `arctic-1` (devnet). Confirm with `aws s3 ls s3://harbor-sei-snapshots/ --region eu-central-1 --profile <chosen>`.
 
-**Wiring into a SeiNodeDeployment**: the CRD field is `spec.template.spec.fullNode.snapshot.s3.targetHeight` (int64, minimum 1). Pass via `--set` on `seictl nd apply --dry-run`:
+**Wiring into a follower SeiNode**: the CRD field is `spec.fullNode.snapshot.s3.targetHeight` (int64, minimum 1; flat on SeiNode — no `spec.template`). Pass via `--set` on `seictl node apply --dry-run`:
 
 ```sh
-seictl nd apply <id>-rpc --preset rpc --chain-id <id> --image <ref> \
-  --set spec.template.spec.fullNode.snapshot.s3.targetHeight=<height> \
+seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --image <ref> --network <id> \
+  --set spec.fullNode.snapshot.s3.targetHeight=<height> \
   -n eng-<alias> --dry-run
 ```
 
@@ -85,14 +85,14 @@ Engineer-side AWS access (from the engineer's laptop, not from a Pod) uses the e
 |---|---|
 | `189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain` | The seid image autobake + benchmarks consume |
 
-Image digest resolution flow (used when the agent surfaces a digest in the plan echo before `seictl nd apply`):
+Image digest resolution flow (used when the agent surfaces a digest in the plan echo before `seictl network|node apply`):
 
 1. `aws ecr describe-images --repository-name sei/sei-chain --region us-east-2 --image-ids imageTag=<tag> --profile <chosen>` (`<chosen>` = the engineer's AWS profile from pre-flight gate 3)
 2. Extract `imageDetails[0].imageDigest`
 3. Short digest = `sha256:` stripped, first 12 chars
 4. Race-guard retry: 3 attempts, 60s sleep — sei-chain CI sometimes pushes after a request lands. Don't loop silently; surface the retry to the engineer.
 
-`seictl nd apply` itself does not enforce ECR-only images — `--image` accepts any ref the apiserver and downstream pull secrets can resolve. Pre-flight `--image` validation is the agent's responsibility, not the CLI's.
+`seictl network|node apply` itself does not enforce ECR-only images — `--image` accepts any ref the apiserver and downstream pull secrets can resolve. Pre-flight `--image` validation is the agent's responsibility, not the CLI's.
 
 ## IAM principals
 

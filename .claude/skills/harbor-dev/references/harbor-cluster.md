@@ -46,4 +46,4 @@ SEI_RESULT_EXPORT_PREFIX      shadow-results/
 SEI_GENESIS_BUCKET            harbor-sei-k8s-genesis-artifacts
 ```
 
-The controller watches `SeiNode` and `SeiNodeDeployment` cluster-wide.
+The controller watches `SeiNetwork` and `SeiNode` cluster-wide.

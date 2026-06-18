@@ -1,6 +1,6 @@
 # Pre-flight: getting an engineer on the rails
 
-The first job of any new session is to confirm — or establish — that the engineer can actually drive `seictl nd` against their namespace. Pre-flight is a sequenced ramp from "fresh laptop" to "ready to apply." Each gate either passes (continue), fails with an in-band recovery that runs through to completion, or fails with an out-of-band recovery to surface and halt on.
+The first job of any new session is to confirm — or establish — that the engineer can actually drive `seictl network` / `seictl node` against their namespace. Pre-flight is a sequenced ramp from "fresh laptop" to "ready to apply." Each gate either passes (continue), fails with an in-band recovery that runs through to completion, or fails with an out-of-band recovery to surface and halt on.
 
 ## Why pre-flight is a ramp, not just a gate
 
@@ -8,28 +8,28 @@ A pre-flight that just rejects on missing prereqs gives engineers an error and w
 
 The end state pre-flight delivers:
 
-- `seictl` ≥ v0.0.51 on PATH (the version that ships `--genesis-override`)
-- `yq` on PATH (the render path pipes `seictl nd apply --dry-run` through it)
+- `seictl` ≥ v0.0.59 on PATH (the version that ships the split `network`/`node` surface)
+- `yq` on PATH (the render path pipes `seictl network|node apply --dry-run` through it)
 - `flux` CLI on PATH (used to force-reconcile harbor after a merge instead of waiting on the natural poll interval)
 - AWS SSO session active under the engineer's chosen profile
 - `harbor` kubectl context present **and current**
-- kubectl can list `seinodedeployments` in `eng-<alias>` (proof of EKS access entry + RBAC)
+- kubectl can list `seinetworks` in `eng-<alias>` (proof of EKS access entry + RBAC)
 - `eng-<alias>` namespace exists and is reconciled by Flux
 
-That's the floor for `seictl nd apply`. Below this floor, no procedure can proceed safely.
+That's the floor for `seictl network|node apply`. Below this floor, no procedure can proceed safely.
 
 ## The gates
 
-### Gate 1: `seictl ≥ v0.0.51` installed
+### Gate 1: `seictl ≥ v0.0.59` installed
 
-**Verifies:** `seictl` is on `$PATH` and supports the `nodedeployment` verb tree with peer auto-wire and `--genesis-override`.
+**Verifies:** `seictl` is on `$PATH` and ships the split `network`/`node` surface.
 
 Two-part check:
 
 1. `command -v seictl` returns 0.
-2. `seictl nodedeployment apply --help` exits 0 and the help text includes `--genesis-override`. The `nodedeployment` verb tree ships in v0.0.41+; peer auto-wire (`spec.template.spec.peers[0].label.selector.sei.io/chain` populated automatically when `--chain-id` is set on the `rpc` preset) is v0.0.43+; `--genesis-override` is v0.0.51+. Without v0.0.51, genesis-param injection requires manual YAML editing — friction that's avoidable.
+2. `seictl node apply --help` exits 0 and the help text includes `--network`. `--network` is the peer-rail flag on the split `node` tree; it exists only in v0.0.59+, so its presence proves the binary has the split trees (the old `nd apply` had no such flag). It is the breaking-cut sentinel: an older binary that still carries `nd` but not the split trees fails this gate, which is correct — `nd` targets the deleted `SeiNodeDeployment` Kind and hard-fails at apply against new-CRD clusters. Optionally also probe `seictl network apply --help` for `--genesis-override`.
 
-**Why:** every engineer-facing verb is a `seictl nd …` invocation, and the auto-wire is what makes "spin up chain + RPC fleet on the same chain-id" a one-shot. Older binaries silently drop the wiring.
+**Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation, and `--network` auto-wire is what makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here is strictly better than a confusing `NotFound`-on-CRD at apply. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
 
 **Recovery (out-of-band):**
 
@@ -65,7 +65,7 @@ sudo mv build/seictl /usr/local/bin/
 
 **Don't** use `brew` (no tap exists for `sei-protocol/seictl`). **Don't** use `go install` directly — seictl's go.mod requires source-tree build-args that bare `go install` doesn't pass. `make install` is also `go install` under the hood; same caveat. Use `make build` then move the binary.
 
-Halt until both checks (PATH + `nodedeployment --help`) pass.
+Halt until both checks (PATH + `node apply --help` lists `--network`) pass.
 
 ### Gate 2: `yq` installed
 
@@ -75,7 +75,7 @@ Halt until both checks (PATH + `nodedeployment --help`) pass.
 command -v yq
 ```
 
-**Why:** the canonical render path is `seictl nd apply --dry-run | yq -P 'del(...)'` — JSON to clean YAML with server-side fields stripped (see `ephemeral-chain-flow.md`). Without `yq`, the agent has no way to produce the workspace-repo file.
+**Why:** the canonical render path is `seictl network|node apply --dry-run | yq -P 'del(...)'` — JSON to clean YAML with server-side fields stripped (see `ephemeral-chain-flow.md`). Without `yq`, the agent has no way to produce the workspace-repo file.
 
 **Recovery (in-band):**
 
@@ -167,7 +167,7 @@ Then run `aws configure sso --sso-session sei` — it reuses this session and pr
 
 **Verifies:** `kubectl config get-contexts -o name` lists `harbor`, AND `kubectl config current-context` returns `harbor`.
 
-**Why:** kubectl needs the cluster endpoint, CA cert, and auth provider config in the kubeconfig before any `kubectl …` (or `seictl nd …`, which reuses kubeconfig) can resolve harbor. `seictl nd apply` has no `--context` flag; it uses whatever context is currently set. If the engineer last used a different cluster, every `seictl nd …` invocation would silently hit that cluster instead of harbor.
+**Why:** kubectl needs the cluster endpoint, CA cert, and auth provider config in the kubeconfig before any `kubectl …` (or `seictl network|node …`, which reuses kubeconfig) can resolve harbor. `seictl network|node apply` has no `--context` flag; it uses whatever context is currently set. If the engineer last used a different cluster, every `seictl network|node …` invocation would silently hit that cluster instead of harbor.
 
 **Recovery (in-band):**
 
@@ -187,25 +187,25 @@ kubectl config use-context harbor
 
 ### Gate 5: kubectl can reach harbor with engineer-side reach
 
-**Verifies:** `kubectl auth can-i list seinodedeployments -n eng-<alias>` returns `yes`.
+**Verifies:** `kubectl auth can-i list seinetworks -n eng-<alias>` returns `yes`.
 
-**Why:** the EKS cluster authorizes principals via *access entries* — separate from kubeconfig presence. A fresh principal with a valid kubeconfig can still get `Forbidden` on every kubectl call until the access entry is added. The check is intentionally narrow (list SNDs in the engineer's namespace) — that's exactly what `seictl nd apply` and `seictl nd watch` need.
+**Why:** the EKS cluster authorizes principals via *access entries* — separate from kubeconfig presence. A fresh principal with a valid kubeconfig can still get `Forbidden` on every kubectl call until the access entry is added. The check is intentionally narrow (list SeiNetworks in the engineer's namespace) — that's exactly what `seictl network apply` and `seictl network watch` need. The eng-`<alias>` Role grants `seinetwork`/`seinode` CRUD; if the migration hasn't reached the Role, this gate false-negatives — verify the Role was migrated.
 
 **Recovery (out-of-band):** the platform team grants the access entry. Surface:
 
-> Your AWS principal can't list seinodedeployments in `eng-<alias>` on harbor. This means the EKS access entry isn't in place yet. Ask the platform team to add you — file a one-line request in `#harbor-onboarding` with your AWS principal ARN (the same one gate 4 echoed when it resolved your profile).
+> Your AWS principal can't list seinetworks in `eng-<alias>` on harbor. This means the EKS access entry isn't in place yet. Ask the platform team to add you — file a one-line request in `#harbor-onboarding` with your AWS principal ARN (the same one gate 4 echoed when it resolved your profile).
 
 Halt until the access entry lands. Same-day turnaround typically.
 
 **Edge case — alias not yet known.** On a brand-new engineer, the alias is captured in First Run (gate 6 path) before they have an `eng-<alias>` namespace. Run gate 6 against the *resolved* alias from First Run; if the engineer is mid-onboarding (PR open but not merged), gate 6 may still pass on namespace-list reach even though the namespace doesn't exist yet. Gate 6 covers the namespace-existence check.
 
-**Edge case — gate passes but `apply` later fails with `Forbidden`:** the access entry may be read-only. Surface that as a separate gap when `seictl nd apply` returns `metav1.Status.reason=Forbidden`. The platform team escalates the access entry to write.
+**Edge case — gate passes but `apply` later fails with `Forbidden`:** the access entry may be read-only. Surface that as a separate gap when `seictl network|node apply` returns `metav1.Status.reason=Forbidden`. The platform team escalates the access entry to write.
 
 ### Gate 6: namespace `eng-<alias>` reconciled
 
 **Verifies:** `kubectl get namespace eng-<alias>` returns 0.
 
-**Why:** every workload the engineer creates lives in their namespace. If the namespace doesn't exist, `seictl nd apply` fails immediately (`metav1.Status.reason=NotFound`).
+**Why:** every workload the engineer creates lives in their namespace. If the namespace doesn't exist, `seictl network|node apply` fails immediately (`metav1.Status.reason=NotFound`).
 
 **Recovery (out-of-band, with in-band lead):** if the engineer doesn't have an onboarding PR yet, route to **First Run** (capture the alias, generate the PR body, open the PR via `gh pr create`). Surface the PR URL and halt pending merge — Flux reconciles in ~60s once merged.
 
@@ -270,5 +270,5 @@ Total elapsed wall-clock: typically one platform-team turnaround (gate 5) plus o
 
 - **Provisioning the EKS access entry** (gate 5). That's a platform-team action. Pre-flight detects, surfaces, halts.
 - **Granting AWS SSO permissions** (gate 3). The engineer's IdP / IAM Identity Center role determines what SSO returns. Pre-flight only verifies the session is live.
-- **Validating image refs** (`seictl nd apply` does this when invoked — image not in registry surfaces as a `metav1.Status` on stderr). Pre-flight only confirms the registry is reachable; per-image digest resolution is a procedure step.
+- **Validating image refs** (`seictl network|node apply` does this when invoked — image not in registry surfaces as a `metav1.Status` on stderr). Pre-flight only confirms the registry is reachable; per-image digest resolution is a procedure step.
 - **Cluster headroom checks.** That's a procedure step in the chain-spinup flow, not a pre-flight gate.

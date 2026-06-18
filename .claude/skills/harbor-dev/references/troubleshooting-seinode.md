@@ -42,7 +42,10 @@ Symptoms after Ready:
 
 ### Phase: Failed (terminal)
 
-Once `.status.phase == Failed`, the controller stops reconciling — Failed is terminal, including across controller image upgrades. Recovery is delete-and-recreate so the parent SND rebuilds the SeiNode with the current pod template:
+Once `.status.phase == Failed`, the controller stops reconciling — Failed is terminal, including across controller image upgrades. Recovery is delete-and-recreate:
+
+- **A standalone follower SeiNode** (`role=node`, applied via `seictl node apply`): delete it and re-apply the manifest (Flux re-applies it from the workspace repo on next reconcile, or escape-hatch re-apply directly).
+- **A validator SeiNode** the SeiNetwork generated (`role=validator`): the SeiNetwork controller recreates it within seconds after deletion — don't hand-roll a replacement.
 
 ```sh
 kubectl get seinode <name> -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}'
@@ -50,25 +53,25 @@ kubectl get seinode <name> -o jsonpath='{.status.conditions[?(@.type=="Ready")].
 kubectl delete seinode <name> -n eng-<alias>
 ```
 
-The SND owner watcher recreates the SeiNode within seconds.
-
 **PVC behavior** — verify before deleting on stateful nodes:
 - For **imported** PVCs (`spec.import` set on the SeiNode): the PVC is preserved; the recreated SeiNode reuses existing data.
 - For **controller-managed** PVCs (no `spec.import`): the controller's `handleNodeDeletion` path deletes the PVC during teardown. Delete-and-recreate **wipes data**. Safe for ephemeral chains being recreated from genesis; not safe for archive nodes or any chain with state worth preserving.
 
-## SND plan stuck — "plan in progress, skipping SeiNode mutations"
+## SeiNetwork genesis plan stuck
 
-Symptom: child SeiNodes are missing or in an unexpected state, controller logs show `plan in progress, skipping SeiNode mutations` for the SND. Typically caused by an SND-level plan that can't advance (e.g., `assemble-and-upload-genesis` can't find an assembler because child SeiNodes were deleted mid-plan).
+Symptom: the SeiNetwork sits in `Initializing`, its validator SeiNodes are missing or in an unexpected state, and controller logs show a genesis-plan task (e.g. `assemble-and-upload-genesis`) that can't advance — typically because validator SeiNodes were deleted mid-plan and the assembler can't find a quorum.
 
-Recovery — delete the SND so Flux re-applies it from the workspace repo on next reconcile:
+Inspect the network's plan directly:
 
 ```sh
-kubectl delete snd <name> -n eng-<alias>
+seictl network get <id> -n eng-<alias> -o jsonpath='{.status.plan}' | jq
 ```
 
-Flux reconciles in ~60s and the controller rebuilds the plan from scratch.
+Recovery — because `spec.genesis` is immutable, you cannot re-apply to nudge the plan; the clean path is `delete` + re-create the SeiNetwork so the genesis ceremony restarts from scratch. Note its `spec.deletionPolicy` first (defaults `Retain`): with `Retain`, deleting the SeiNetwork orphans the generated validator SeiNodes — `git rm` the manifest and let Flux re-apply a fresh SeiNetwork, and clean up any orphaned validators before they collide.
 
-**Only safe with `spec.deletionPolicy: Delete`** (the default). If the SND has `deletionPolicy: Retain`, deleting orphans the child SeiNodes and their networking — the Flux re-apply creates a fresh SND that may collide with the orphaned resources. Check first with `kubectl get snd <name> -o jsonpath='{.spec.deletionPolicy}'`.
+```sh
+kubectl get seinetwork <id> -o jsonpath='{.spec.deletionPolicy}' -n eng-<alias>
+```
 
 ## apply-statefulset fails: rollingUpdate not allowed for OnDelete
 
@@ -134,24 +137,24 @@ If a `CiliumNetworkPolicy` is active in the namespace, check `kubectl get cilium
 
 A common wedge: the blockstore advances but the app falls behind. Compare the two — `lag = blockstore - app`. `lag = 0` is healthy; `lag = 1` sustained means the app-side commit handler is hung; `lag > 1` and growing means the app is structurally stuck.
 
-### With HTTPRoute (Istio Gateway hostname exposed)
+### With an engineer-rendered HTTPRoute (Istio Gateway hostname exposed)
 
-When the SND has `spec.networking.httproute` set, `.status.networking.routes[]` carries a public hostname per protocol. Query directly from your laptop — no `kubectl exec` needed.
+The controller exposes no HTTPRoute — if the chain is externally reachable, it's because the engineer rendered a Gateway-API `HTTPRoute` into their Flux dir (see the networking section in `ephemeral-chain-flow.md`). Read its hostname and query from your laptop — no `kubectl exec` needed.
 
 ```sh
-hostname=$(kubectl get snd <name> -n eng-<alias> \
-  -o jsonpath='{.status.networking.routes[?(@.protocol=="rpc")].hostname}')
+hostname=$(kubectl get httproute <route-name> -n eng-<alias> \
+  -o jsonpath='{.spec.hostnames[0]}')
 
 app=$(curl -s https://$hostname/abci_info | jq -r .result.response.last_block_height)
 store=$(curl -s https://$hostname/status   | jq -r .result.sync_info.latest_block_height)
 echo "app=$app blockstore=$store lag=$((store - app))"
 ```
 
-The aggregate hostname round-robins across replicas via the Istio Gateway (Envoy LB), so successive curls may hit different pods. For per-replica view (one pod wedged, others fine), use the exec recipe below.
+If the engineer also rendered an aggregate ClusterIP `Service` selecting `sei.io/seinetwork=<id>,sei.io/role=node`, that hostname round-robins across followers, so successive curls may hit different nodes. For a fixed node, use that follower's published `.status.endpoint` (one node = one stable URL) or the exec recipe below.
 
-### Without HTTPRoute (in-cluster only)
+### Without an HTTPRoute (in-cluster only — the default)
 
-If `.status.networking.routes` is empty or has no `rpc` protocol entry, the chain isn't externally reachable — go through the pod's loopback via `kubectl exec`.
+With no engineer-rendered route, the chain is in-cluster only — query a follower's published `.status.endpoint` from an in-namespace pod, or go through the pod's loopback via `kubectl exec`.
 
 ```sh
 # Per-pod
@@ -161,9 +164,9 @@ kubectl exec -n eng-<alias> <pod> -c seid -- sh -c '
   echo "app=$app blockstore=$store lag=$((store - app))"
 '
 
-# Fleet view — every pod on a chain
+# Fleet view — every pod on a network
 for pod in $(kubectl get pods -n eng-<alias> \
-    -l sei.io/chain=<chain-id> -o jsonpath='{.items[*].metadata.name}'); do
+    -l sei.io/seinetwork=<chain-id> -o jsonpath='{.items[*].metadata.name}'); do
   echo "=== $pod ==="
   kubectl exec -n eng-<alias> $pod -c seid -- sh -c '
     app=$(curl -s localhost:26657/abci_info | jq -r .result.response.last_block_height)
@@ -173,7 +176,7 @@ for pod in $(kubectl get pods -n eng-<alias> \
 done
 ```
 
-If validators and RPC fullnodes share a chain-id, filter further: `-l sei.io/chain=<chain-id>,sei.io/role=validator` or `,sei.io/role=node`.
+To split validators from followers, filter further: `-l sei.io/seinetwork=<chain-id>,sei.io/role=validator` or `,sei.io/role=node`.
 
 ### Reading the result
 
@@ -187,7 +190,7 @@ If validators and RPC fullnodes share a chain-id, filter further: `-l sei.io/cha
 
 ## Profiling (pprof)
 
-Dev SNDs applied via the seictl `genesis-chain` and `rpc` presets (v0.0.54+) carry `network.rpc.pprof_listen_address: "0.0.0.0:6060"` in `spec.template.spec.overrides` (see sei-protocol/seictl#194). seid exposes Go pprof at port 6060 inside the pod.
+Dev chains applied via the seictl `genesis-chain` and `rpc` presets carry `network.rpc.pprof_listen_address: "0.0.0.0:6060"` — in `spec.configOverrides` on a SeiNetwork, `spec.overrides` on a follower SeiNode. seid exposes Go pprof at port 6060 inside the pod.
 
 Access from the engineer's laptop — port-forward tunnels through the API server; no LB / HTTPRoute / external network involved:
 
@@ -213,19 +216,19 @@ curl http://localhost:6060/debug/pprof/
 
 Cost: idle pprof is essentially free (port listener + a few KB metadata). CPU profiling adds ~5% during the explicit capture window only; heap and goroutine snapshots are cheap.
 
-If the override didn't take (older seictl version, hand-rolled SND), confirm and recover:
+If the override didn't take (older seictl version, hand-rolled CR), confirm and recover:
 
 ```sh
 # Did the override land in config.toml?
 kubectl exec -n eng-<alias> <pod> -c seid -- grep pprof_listen_address /.sei/config/config.toml
 
-# Apply via --set on the SND (works regardless of preset)
-seictl nd apply <id> --preset rpc --chain-id <id> --image <ref> \
-  --set spec.template.spec.overrides."network.rpc.pprof_listen_address"="0.0.0.0:6060" \
+# Apply via --set on a follower SeiNode (overrides is flat — no spec.template)
+seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --network <id> --image <ref> \
+  --set spec.overrides."network.rpc.pprof_listen_address"="0.0.0.0:6060" \
   -n eng-<alias>
 ```
 
-**Production caveat**: seictl ships one set of presets (`genesis-chain`, `rpc`) used in both dev and prod; there is no separate prod preset. When promoting a chain to prod, strip the pprof override explicitly: `--set spec.template.spec.overrides."network.rpc.pprof_listen_address"=""`. Pprof must never be reachable in prod — it exposes profile dumps and memory state to anyone with HTTP access to port 6060.
+**Production caveat**: seictl ships one set of presets (`genesis-chain`, `rpc`) used in both dev and prod; there is no separate prod preset. When promoting a follower to prod, strip the pprof override explicitly: `--set spec.overrides."network.rpc.pprof_listen_address"=""`. Pprof must never be reachable in prod — it exposes profile dumps and memory state to anyone with HTTP access to port 6060.
 
 ## Preserving the data dir for debugging
 
@@ -262,6 +265,6 @@ kubectl exec -n eng-<alias> <pod> -c seid -- rm -rf /.sei/keep-<timestamp>
 
 PVC space won't fully release until the original files are also unlinked (compaction takes care of this naturally as seid runs).
 
-### vs. `deletionPolicy: retain`
+### vs. retained data on delete
 
-`SeiNodeDeployment.spec.deletionPolicy: retain` preserves the PVC across SND deletion — for when you're tearing down the SND but want the disk to survive for forensics. The hardlink trick above is for **live debugging** while the node continues running. They're complementary, not redundant.
+For a SeiNode, whether its PVC survives deletion is governed by `spec.import` (imported PVC = preserved) vs controller-managed (wiped on teardown) — documented under **Phase: Failed** above. A `SeiNetwork`'s `spec.deletionPolicy` (defaults `Retain`) governs whether the controller orphans its generated validator SeiNodes (and thus their PVCs) when the network is deleted — useful when tearing down a network but keeping a validator's disk for forensics. The hardlink trick above is for **live debugging** while the node continues running. They're complementary, not redundant.

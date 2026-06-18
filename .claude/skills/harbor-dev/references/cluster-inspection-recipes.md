@@ -5,137 +5,142 @@ Canonical invocations for extracting structured data from harbor-cluster resourc
 When in doubt about a field, check the live shape:
 
 ```sh
-kubectl explain seinodedeployment.status        # tree view of every field
-kubectl explain seinodedeployment.status.endpoints
+kubectl explain seinetwork.status              # tree view of the network's status fields
+kubectl explain seinode.status                 # a single node's status fields
+kubectl explain seinode.status.endpoint        # the per-node published endpoint (scalar leaf)
 ```
 
 If a recipe below disagrees with `kubectl explain` on a live cluster, **`kubectl explain` wins** and this doc is stale — file an issue.
 
 ## Resource-level conventions
 
-- **Short name**: `snd` for `SeiNodeDeployment`. `kubectl get snd ...` works the same as `kubectl get seinodedeployment ...`.
+- **Two Kinds**: `seinetwork` (the genesis validator pool, one per chain) and `seinode` (a single node — each follower is a standalone SeiNode; the controller also generates the network's validators as SeiNodes).
 - **Namespace**: every recipe assumes `-n eng-<alias>`. Drop the `-n` flag at your peril; `-A` is correct only for cross-namespace platform queries (rare for an engineer's session).
-- **Chain-identity labels** (stamped by the `genesis-chain` and `rpc` presets):
-  - `sei.io/chain=<chain-id>` — present on every SND in the chain.
-  - `sei.io/role=validator` — set by `genesis-chain` preset.
-  - `sei.io/role=node` — set by `rpc` preset.
-  - Selector pattern: `-l sei.io/chain=<chain-id>,sei.io/role=node` returns the chain's RPC SND only.
+- **Network-identity labels** (the producer↔consumer contract):
+  - `sei.io/seinetwork=<id>` — present on every SeiNode (validator or follower) belonging to the network.
+  - `sei.io/role=validator` — controller-generated validators of a SeiNetwork.
+  - `sei.io/role=node` — followers minted by `seictl node apply --network <id>`.
+  - Selector pattern: `-l sei.io/seinetwork=<id>,sei.io/role=node` returns the network's follower SeiNodes only (excludes validators, which serve no EVM).
 
 ## Recipes
 
 ### 1. RPC endpoints for a chain — point load tools here, not at validators
 
-Returns the aggregate EVM JSON-RPC URL of the chain's RPC SND (the one applied with `--preset rpc`). This is the URL `sei-load`, ad-hoc curl tests, and Foundry should target. **Validators are reachable but reject foreign tx submission and throttle differently — never point load traffic at them.**
+Returns the fleet of per-follower EVM JSON-RPC URLs for the network. These are the URLs `sei-load`, ad-hoc curl tests, and Foundry should target. **Validators serve no EVM (`ModeValidator` disables EVM HTTP/WS) — never point load traffic at them.** Each follower is one SeiNode publishing its own `.status.endpoint` scalar; the fleet is assembled *across* CRs via `node list`, not from a single object. There is no controller-created aggregate — a round-robin VIP is an engineer-owned Flux Service if wanted (see the networking section in `ephemeral-chain-flow.md`).
 
 ```sh
-# Aggregate EVM JSON-RPC (single URL behind ClusterIP, kube-proxy round-robin)
-kubectl get snd -n eng-<alias> -l sei.io/chain=<chain-id>,sei.io/role=node \
-  -o jsonpath='{.items[0].status.endpoints.evmJsonRpc[0]}'
-# → http://<rpc-snd-name>-internal.eng-<alias>.svc:8545
+# Fleet of per-follower EVM JSON-RPC URLs
+seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json \
+  | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'
 
-# Aggregate Tendermint RPC
-kubectl get snd -n eng-<alias> -l sei.io/chain=<chain-id>,sei.io/role=node \
-  -o jsonpath='{.items[0].status.endpoints.tendermintRpc[0]}'
-# → http://<rpc-snd-name>-internal.eng-<alias>.svc:26657
+# Fleet of per-follower Tendermint RPC URLs
+seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json \
+  | jq -r '[.items[].status.endpoint.tendermintRpc | select(.)]'
 
-# Per-pod EVM JSON-RPC (indices 1..N — useful for stable single-pod targeting)
-kubectl get snd -n eng-<alias> -l sei.io/chain=<chain-id>,sei.io/role=node \
-  -o jsonpath='{range .items[0].status.endpoints.evmJsonRpc[1:]}{@}{"\n"}{end}'
+# Per-follower EVM JSON-RPC, one URL per line (each follower has its own stable URL)
+seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json \
+  | jq -r '.items[].status.endpoint.evmJsonRpc | select(.)'
 
-# Per-pod EVM WebSocket (no aggregate — kube-proxy round-robin breaks WS subscription affinity)
-kubectl get snd -n eng-<alias> -l sei.io/chain=<chain-id>,sei.io/role=node \
-  -o jsonpath='{range .items[0].status.endpoints.evmWs[*]}{@}{"\n"}{end}'
+# Per-follower EVM WebSocket, one URL per line (WS subscription affinity = pick one follower)
+seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json \
+  | jq -r '.items[].status.endpoint.evmWs | select(.)'
 ```
 
-If `.items` is empty, no RPC SND has been applied for the chain yet — the engineer needs to `seictl nd apply <id>-rpc --preset rpc --chain-id <id>` first.
+`select(.)` drops a matched follower whose `.status.endpoint` is unset (not yet `Running`); the **selector** `sei.io/seinetwork=<id>,sei.io/role=node` does the real fleet-scoping at the apiserver (validators are `role=validator` and excluded). **Use the published URLs verbatim — never reconstruct them** (the controller owns the per-node headless DNS form, e.g. `http://<chain-id>-rpc-0.sei.svc:8545`).
 
-If `.items[0].status.endpoints` is empty, the RPC SND exists but hasn't reached `Ready` yet. Use recipe #2 to confirm phase, then `seictl nd watch <id>-rpc --until=Ready` to block.
+If `.items` is empty, no follower nodes exist for the network yet — `seictl node apply <id>-rpc-0 --preset rpc --chain-id <id> --network <id>` first.
 
-### 2. Phase + readiness for a single SND
+If `.items[].status.endpoint` is unset, the followers exist but none reached `Running` yet. Use recipe #2 to confirm phase, then `seictl node watch <id>-rpc-<k> --until=Running` to block.
+
+### 2. Phase + readiness for a network or a single node
 
 ```sh
-# Phase: Pending | Initializing | Running | Ready | Failed | Terminating
-seictl nd get <name> -n eng-<alias> -o jsonpath='{.status.phase}'
+# Network phase: Pending | Initializing | Ready | Paused | Degraded | Failed | Terminating
+seictl network get <id> -n eng-<alias> -o jsonpath='{.status.phase}'
 
-# Readiness math: <ready>/<total>
-seictl nd get <name> -n eng-<alias> -o jsonpath='{.status.readyReplicas}/{.status.replicas}'
+# Follower (node) phase: Pending | Initializing | Running | Failed | Terminating  (terminal is Running — no Ready)
+seictl node get <id>-rpc-<k> -n eng-<alias> -o jsonpath='{.status.phase}'
 
-# Reconcile freshness — observedGeneration matches metadata.generation when status reflects the latest spec
-seictl nd get <name> -n eng-<alias> \
+# Validator-pool readiness math on the NETWORK: <ready>/<total>
+seictl network get <id> -n eng-<alias> -o jsonpath='{.status.readyReplicas}/{.status.replicas}'
+# A single follower SeiNode is 1/1 when Running.
+
+# Reconcile freshness — observedGeneration matches metadata.generation when status reflects the latest spec (both trees)
+seictl network get <id> -n eng-<alias> \
   -o jsonpath='{.metadata.generation}/{.status.observedGeneration}'
 # Mismatch means the controller hasn't caught up to your last apply yet.
 ```
 
-### 3. Failed task on a stuck Initializing/Failed SND
+### 3. Failed task on a stuck Initializing/Failed network or node
 
-When `.status.phase` is `Failed` or stuck `Initializing`, the actionable error is in `.status.plan.failedTaskDetail.error` (also lifted to stderr by `seictl nd watch` on terminal Failed).
+When `.status.phase` is `Failed` or stuck `Initializing`, the actionable error is in `.status.plan.failedTaskDetail.error` (also lifted to stderr by `seictl network|node watch` on terminal Failed). The path is identical on both trees — use `network get` for genesis failures, `node get` for follower failures.
 
 ```sh
-# The failed task name + error message
-seictl nd get <name> -n eng-<alias> \
+# The failed task name + error message (network)
+seictl network get <id> -n eng-<alias> \
+  -o jsonpath='{.status.plan.failedTaskDetail.taskName}: {.status.plan.failedTaskDetail.error}'
+
+# Same, for a follower
+seictl node get <id>-rpc-<k> -n eng-<alias> \
   -o jsonpath='{.status.plan.failedTaskDetail.taskName}: {.status.plan.failedTaskDetail.error}'
 
 # Full task plan (every task's status; useful when failedTaskDetail is empty but phase is wrong)
-seictl nd get <name> -n eng-<alias> -o jsonpath='{.status.plan}' | jq
+seictl network get <id> -n eng-<alias> -o jsonpath='{.status.plan}' | jq
 ```
 
 Common failed-task → root-cause map: `snapshot-restore` → S3 / Pod Identity, `configure-genesis` → genesis URL, `discover-peers` → label selector mismatch, `mark-ready` → seid health (check pod logs).
 
-### 4. List chains + their phase, role, and ready replicas in one shot
+### 4. List a network + its follower SeiNodes in one shot
 
 ```sh
-# All SNDs in the namespace with chain-id, role, phase, readiness
-kubectl get snd -n eng-<alias> \
-  -o custom-columns='NAME:.metadata.name,CHAIN:.metadata.labels.sei\.io/chain,ROLE:.metadata.labels.sei\.io/role,PHASE:.status.phase,READY:.status.readyReplicas,DESIRED:.status.replicas'
+# The validator network: chain-id, phase, validator-pool readiness
+seictl network list -n eng-<alias> \
+  -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,READY:.status.readyReplicas,DESIRED:.status.replicas'
 
-# Same shape but only one chain (validator + rpc together)
-kubectl get snd -n eng-<alias> -l sei.io/chain=<chain-id> \
-  -o custom-columns='NAME:.metadata.name,ROLE:.metadata.labels.sei\.io/role,PHASE:.status.phase,READY:.status.readyReplicas'
+# The network's follower SeiNodes (a node is single, so no READY/DESIRED columns)
+seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id> \
+  -o custom-columns='NAME:.metadata.name,ROLE:.metadata.labels.sei\.io/role,PHASE:.status.phase'
 ```
 
 ### 5. Container image actually running (vs. requested)
 
-The spec image and the running pods can drift mid-rollout. The pod-side image is authoritative for "what's actually executing right now."
+The spec image and the running pods can drift mid-rollout. The pod-side image is authoritative for "what's actually executing right now." `spec.image` is flat on both Kinds (no `spec.template`).
 
 ```sh
-# Spec (what was requested by the latest apply)
-seictl nd get <name> -n eng-<alias> -o jsonpath='{.spec.template.spec.image}'
+# Spec (what was requested by the latest apply) — a follower
+seictl node get <id>-rpc-<k> -n eng-<alias> -o jsonpath='{.spec.image}'
 
-# Pod-side (what the kubelet actually pulled and ran — by SND label selector)
-kubectl get pods -n eng-<alias> -l sei.io/chain=<chain-id> \
+# Pod-side (what the kubelet actually pulled and ran — by network label selector)
+kubectl get pods -n eng-<alias> -l sei.io/seinetwork=<chain-id> \
   -o jsonpath='{range .items[*]}{.metadata.name}{"\t"}{.spec.containers[?(@.name=="seid")].image}{"\n"}{end}'
 ```
 
-A spec image set 30s ago but pods still on the old image is a normal mid-rollout state; check `.status.rollout` for progress.
+A spec image set 30s ago but pods still on the old image is a normal mid-rollout state.
 
-### 6. Per-pod services for granular targeting (stable per-pod URLs)
+### 6. A follower's stable URL (no round-robin needed)
 
-Per-pod headless services give you a stable URL per replica — needed for WS, gRPC streaming, or any case where round-robin breaks correctness.
+A SeiNode is a single node with its own headless Service, so its `.status.endpoint.evmJsonRpc` **is** the stable per-follower URL — there is no per-pod array to index. For WS subscription affinity or gRPC streaming where you want one fixed target, list the fleet (recipe #1) and pick a follower; its published URL stays put.
 
 ```sh
-# Names + namespaces of every per-pod service for a given SND
-seictl nd get <name> -n eng-<alias> \
-  -o jsonpath='{range .status.perPodServices[*]}{.name}.{.namespace}.svc{"\n"}{end}'
-
-# A specific pod's EVM HTTP URL (index 0 = pod 0, index 1 = pod 1, …)
-seictl nd get <name> -n eng-<alias> \
-  -o jsonpath='{.status.perPodServices[0].name}.{.status.perPodServices[0].namespace}.svc:{.status.perPodServices[0].ports.evmHttp}'
+# Every follower's name + its stable EVM HTTP URL
+seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json \
+  | jq -r '.items[] | "\(.metadata.name)\t\(.status.endpoint.evmJsonRpc // "<pending>")"'
 ```
 
-### 7. SeiNode (child) details — pod-level health behind a SND
+### 7. A network's nodes — validators vs followers
 
-A `SeiNodeDeployment` orchestrates `SeiNode` children. When a SND is unhealthy and the deployment-level recipes don't show why, drop down a level.
+There is no parent fleet object to drop down from: validators are SeiNodes the SeiNetwork controller generates; followers are standalone SeiNodes you applied. Both carry `sei.io/seinetwork=<id>`; the role label distinguishes them.
 
 ```sh
-# Children of a deployment
-kubectl get sn -n eng-<alias> -l sei.io/chain=<chain-id>
+# A network's validator SeiNodes
+kubectl get seinode -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=validator
 
-# Phase per child + age
-kubectl get sn -n eng-<alias> -l sei.io/chain=<chain-id> \
-  -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,AGE:.metadata.creationTimestamp'
+# Phase per node + age (whole network)
+kubectl get seinode -n eng-<alias> -l sei.io/seinetwork=<chain-id> \
+  -o custom-columns='NAME:.metadata.name,ROLE:.metadata.labels.sei\.io/role,PHASE:.status.phase,AGE:.metadata.creationTimestamp'
 
 # A specific SeiNode's last condition (most recent first)
-kubectl get sn <name> -n eng-<alias> \
+kubectl get seinode <name> -n eng-<alias> \
   -o jsonpath='{.status.conditions[-1:].type}: {.status.conditions[-1:].message}'
 ```
 
@@ -197,15 +202,15 @@ After the PR merges, Flux prunes the Job + ConfigMap on next reconcile. PVCs / P
 
 ## When a recipe doesn't match observed output
 
-The SND status surface is a public contract (per the type comments in `sei-protocol/sei-k8s-controller`'s `api/v1alpha1/`), but it does evolve. If a recipe's jsonpath returns nothing on a live SND that's clearly populated, in priority order:
+The SeiNetwork/SeiNode status surface is a public contract (per the type comments in `sei-protocol/sei-k8s-controller`'s `api/v1alpha1/`), but it does evolve. If a recipe's jsonpath returns nothing on a live CR that's clearly populated, in priority order:
 
-1. `kubectl explain seinodedeployment.status.<field-path>` to confirm the field still exists with the assumed name.
-2. `kubectl get snd <name> -n eng-<alias> -o yaml` and grep for the field — sometimes the optionals collapse and the path needs a `?(@...)` filter.
-3. Check `sei-protocol/sei-k8s-controller` `api/v1alpha1/seinodedeployment_types.go` for renames since this doc's last-verified date.
+1. `kubectl explain seinetwork.status.<field-path>` / `kubectl explain seinode.status.<field-path>` to confirm the field still exists with the assumed name.
+2. `kubectl get seinetwork|seinode <name> -n eng-<alias> -o yaml` and grep for the field — sometimes the optionals collapse and the path needs a `?(@...)` filter.
+3. Check `sei-protocol/sei-k8s-controller` `api/v1alpha1/seinetwork_types.go` / `seinode_types.go` for renames since this doc's last-verified date.
 4. File an issue against this skill with the live YAML excerpt + the recipe that broke.
 
 ## Out of scope
 
 - **Free-form troubleshooting flows** beyond field extraction — those live in `troubleshooting-seinode.md`.
 - **Recipes for resources outside `eng-<alias>`** — cluster-wide platform queries are platform-team work, not engineer-facing.
-- **Modifying resources** — these are pure read recipes. `seictl nd apply` / `delete` / `patch` is where mutation lives.
+- **Modifying resources** — these are pure read recipes. `seictl network|node apply` / `delete` is where mutation lives.
