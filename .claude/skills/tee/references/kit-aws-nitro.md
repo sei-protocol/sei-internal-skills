@@ -15,14 +15,14 @@
 CBOR `AttestationDocument` wrapped in a **COSE_Sign1** envelope (RFC 8152, CBOR tag 18), signed by the Nitro Hypervisor **on behalf of the enclave** — the NSM (§1) is the enclave-side request interface; the hypervisor holds the signing key (§1.1–1.2, load-bearing claim 1):
 
 - Protected header `{1: -35}` → `alg = ES384` (ECDSA P-384 + SHA-384); unprotected header empty `{}`.
-- Signature is **raw `r || s`, 96 bytes** (COSE convention) — **not** X.509 DER `SEQUENCE`. Verifiers using OpenSSL must convert (§4, §8.1).
+- Signature is **raw `r || s`, 96 bytes** (COSE convention) — **not** X.509 DER `SEQUENCE`. Verifiers using OpenSSL must convert (§4).
 - Mandatory fields: `module_id`, `digest = "SHA384"`, `timestamp` (ms since epoch), `pcrs`, `certificate` (leaf), `cabundle`. Optional ≤1024 B: `public_key`, `user_data`, `nonce` (§1.1, load-bearing claim 2).
 - **Parser gotchas (the common verifier bugs):** the signed `Sig_structure`'s `external_aad` MUST be the **empty byte string `h''`** — not absent, not an empty map (§1.3, §4); pass the `protected` bstr through verbatim (don't re-encode); `timestamp` is **milliseconds** (cert validity is seconds) (§4).
 - **VP13 version pinning:** the CDDL is evolving — pin accepted document shapes and reject downgrade (§7, method VP13).
 
 ## 3. Identity & measurement fields (VP2)
 
-PCRs are 48-byte SHA-384 measurements, TPM-style extend from an all-zero start (§2, §8.3–8.4):
+PCRs are 48-byte SHA-384 measurements, TPM-style extend from an all-zero start (§2):
 
 | PCR | binds | source |
 |---|---|---|
@@ -58,7 +58,7 @@ Binary identity for a Tide agent image gates on **PCR0** (and optionally PCR1/PC
 
 ## 5. On-chain verification (Sei)
 
-No EVM precompile for ECDSA-P384 or X.509 path validation — every primitive (P-384 field math, SHA-384, DER, COSE reconstruction) is Solidity/Yul. Floor is **3× P-384 verify** (root→interm, interm→leaf, leaf→COSE) plus SHA-384 + DER (§9.1):
+No EVM precompile for ECDSA-P384 or X.509 path validation — every primitive (P-384 field math, SHA-384, DER, COSE reconstruction) is Solidity/Yul. Floor is **3× P-384 verify** (root→interm, interm→leaf, leaf→COSE) plus SHA-384 + DER:
 
 - **~63M gas cold** for a full unwarmed attestation (public Marlin NitroProver numbers); **<20M warm** with the cert chain cached on-chain. (The Sei cost ranking in `method.md` renders this same Marlin measurement as the **<70M** ceiling — one number, two roundings, not two measurements.) Above Sei's practical per-tx ceiling cold.
 - **Production path — Marlin Oyster amortization:** verify **one** "verifier-enclave" attestation on-chain once, then accept **secp256k1**-signed statements from that enclave via the `ecrecover` precompile (**~3k gas**) for every subsequent attestation (public Marlin Oyster docs). The only realistic posture for steady-state on Sei.

@@ -19,7 +19,7 @@ The Attester produces **DMTF SPDM 1.1 `MEASUREMENTS` response messages**, signed
 - **Parser gotchas (the verifier-bug surface):**
   - **NVIDIA withholds per-index measurement semantics** — the relying party is expected to consume verifier *appraisal results* (RIM-matched pass/fail), **not** hand-parse measurement indices to assign meaning (§boundary-disclosure; claim 9). Hard-coding an index→meaning map is a fabrication trap (method Rule 3).
   - Golden values are checked **indirectly** against the NVIDIA RIM Service (CoRIM/SWID-tag, XML-signed) keyed on `(driver-version, GPU-model)` — the verifier never holds a flat allowlist of hashes (§2.3, §3.2 `RIM` module, §6.4).
-  - If consuming the NRAS path, you verify the **EAT JWT** (one P-384 verify + the L3→NRAS-CA chain), not the raw SPDM bytes; if consuming the Local path, you verify the **AK signature on the SPDM block + the device cert chain + the RIM signature** directly (§8.1).
+  - If consuming the NRAS path, you verify the **EAT JWT** (one P-384 verify + the L3→NRAS-CA chain), not the raw SPDM bytes; if consuming the Local path, you verify the **AK signature on the SPDM block + the device cert chain + the RIM signature** directly.
 - **VP13 version pinning:** pin the SPDM version (Hopper = **SPDM 1.1**; Blackwell TEE-I/O leans on **SPDM 1.2+** TDISP extensions), the EAT claims version (NRAS `1.0`), and the multi-GPU envelope (NRAS V3 / RATS §A.2.3 Detached EAT Bundle). Reject downgrade (§6.3, §3.1, §6.1).
 
 ## 3. Identity & measurement fields (VP2)
@@ -60,11 +60,11 @@ Binary identity is the set of **64 SPDM `MEASUREMENTS` records** appraised again
 
 ## 5. On-chain verification (Sei)
 
-No EVM **P-384** precompile exists; Sei EVM (chain ID 1329) inherits the standard precompile set (P-256 at `0x1011`, native `secp256k1` `ecrecover`) but not P-384, so every P-384 verify is pure Solidity (§8.2). A full attestation is **multiple** P-384 verifies — leaf cert chain + AK signature on evidence + RIM signature (claim 10). Three postures (the cross-vendor gas magnitudes below are a synthesized estimate — no public primary source; treat as unverified; the Estonian e-ID Solidity P-384 benchmark anchors the per-verify cost):
+No EVM **P-384** precompile exists; Sei EVM (chain ID 1329) inherits the standard precompile set (P-256 at `0x1011`, native `secp256k1` `ecrecover`) but not P-384, so every P-384 verify is pure Solidity. A full attestation is **multiple** P-384 verifies — leaf cert chain + AK signature on evidence + RIM signature (claim 10). Three postures (the cross-vendor gas magnitudes below are a synthesized estimate — no public primary source; treat as unverified; the Estonian e-ID Solidity P-384 benchmark anchors the per-verify cost):
 
-- **Direct on-chain — NOT viable: ~100M+ gas.** Pure-Solidity P-384 is ~20M gas/verify after heavy optimization (~500M naive, Estonian e-ID benchmark); the multi-verify full chain lands at **~100M+ gas**, above Sei's practical per-tx ceiling (§8.2, §8.4, claim 10).
-- **ZK-proven attestation — ~200k gas.** A SNARK proves "I hold a valid NRAS EAT chained to NVIDIA Root CA, measuring this workload, fresh within N hours"; on-chain verifies only the SNARK (~200k gas). Proving time is the bottleneck (P-384 ECDSA in-circuit ~10–30M constraints) (§8.3 #2, §8.5 #3, claim 10).
-- **Trusted relayer — ~3k gas.** A trusted relayer verifies the EAT off-chain, then submits a **secp256k1**-signed confirmation via `ecrecover` (~3k gas). Smallest cost, adds the relayer to the trust set (§8.3 #1, §8.5 #1, claim 10).
+- **Direct on-chain — NOT viable: ~100M+ gas.** Pure-Solidity P-384 is ~20M gas/verify after heavy optimization (~500M naive, Estonian e-ID benchmark); the multi-verify full chain lands at **~100M+ gas**, above Sei's practical per-tx ceiling (claim 10).
+- **ZK-proven attestation — ~200k gas.** A SNARK proves "I hold a valid NRAS EAT chained to NVIDIA Root CA, measuring this workload, fresh within N hours"; on-chain verifies only the SNARK (~200k gas). Proving time is the bottleneck (P-384 ECDSA in-circuit ~10–30M constraints) (claim 10).
+- **Trusted relayer — ~3k gas.** A trusted relayer verifies the EAT off-chain, then submits a **secp256k1**-signed confirmation via `ecrecover` (~3k gas). Smallest cost, adds the relayer to the trust set (claim 10).
 
 **Posture: direct on-chain is not viable; use ZK-proven attestation or a trusted relayer.** Apply the same witness-key-freshness discipline as the Nitro amortization pattern — without sequence numbers + binding-key rotation on TCB/version change + an on-chain validity window, a stolen relayer/binding key outlives the attestation it was minted under (`method.md` VP1/VP4; `kit-aws-nitro.md` §5).
 
