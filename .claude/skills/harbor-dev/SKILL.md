@@ -218,7 +218,7 @@ Engineer says "compare PR 3399 to main on sei-chain" or "bench latest sei-chain 
 
 1. **Pre-flight** — five gates from `preflight.md`. Halt on first failure.
 2. **Resolve both images** — image A (engineer's input — PR / commit / branch) and image B (baseline — engineer-supplied; no silent default). Per `references/image-resolution.md` for both. Halt if either is missing in registry; do not render half a comparison.
-3. **Resolve compare-tag** — Linear ticket → `<imageA-tag>-vs-<imageB-tag>` → explicit `--tag`. Validate the chain-tag length budget (≤24 chars, since the longest auto-suffix is `-a-rpc`).
+3. **Resolve compare-tag** — Linear ticket → `<imageA-tag>-vs-<imageB-tag>` → explicit `--tag`. Validate the chain-tag length budget (**≤22 chars**: the name regex caps at 30 and the longest auto-suffix is now `-a-rpc-<k>`, ≥8 chars for a single-digit ordinal). See `references/comparative-bench.md`.
 4. **Resolve `<COMPARE_RUN_ID>`** — same shape as single-bench. Branch is `feat/eng-<alias>-compare-<compare-tag>-*`; reuse on match, else mint.
 5. **Resolve profile + duration** — defaults `nightly_evm_transfer` / 10 min. Both sides use identical values; the skill enforces this.
 6. **Verify no CR name collisions** — the planned names (`<chain-tag>-{a,b}` networks + each side's `<chain-tag>-{a,b}-rpc-<k>` followers) must all be `NotFound` in `eng-<alias>`.
@@ -268,7 +268,7 @@ Stop and report to the user if:
 - **Follower `.status.endpoint` present but dial refused.** `Running` means config applied + sidecar self-marked ready, NOT that the EVM listener is accepting connections — there is a real post-Running window. Before driving load, probe `/status` for `catching_up=false AND height>1`. Halt with the follower's full status if it stays refused.
 - **Comparative bench: one side reaches Ready, the other Failed.** The comparison is invalid against half a setup. Surface the failed side's `.status.plan.failedTaskDetail.error`; offer to teardown the Ready side via `git rm` against just that sub-dir + commit. Don't run the bench against half a comparison.
 - **Comparative bench: config parity check fails post-render.** The two substituted profile JSONs differ on a field other than `seiChainId` / `endpoints`. Halt before push; the rendered manifests would produce a non-comparable result.
-- **Comparative bench: chain-tag exceeds the 24-char budget** when the `-{a,b}-rpc` suffix is added. Surface the overflow and ask the engineer to pick a shorter tag.
+- **Comparative bench: chain-tag exceeds the 22-char budget** when the `-{a,b}-rpc-<k>` follower suffix is added (the name regex caps at 30). Surface the overflow and ask the engineer to pick a shorter tag.
 - **Comparative bench: S3 GetObject fails on a report.** `NoSuchKey` means the upload sidecar didn't run — surface `kubectl logs -n eng-<alias> -l sei.io/compare-name=<COMPARE_RUN_ID>,sei.io/compare-side=<a|b> -c upload-results` to diagnose. `AccessDenied` means the engineer's profile lacks `s3:GetObject` (the engineer SA's IAM policy already covers it; the active profile is wrong).
 - **PR push rejected (non-fast-forward)** — engineer or another agent pushed to the same branch. Don't force-push. Halt; surface `git pull --rebase origin <branch>` and let the engineer resolve.
 

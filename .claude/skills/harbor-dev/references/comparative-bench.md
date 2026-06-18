@@ -405,7 +405,7 @@ Reports:
 
 1. **Pre-flight** — five gates from `preflight.md`. Halt on first failure.
 2. **Resolve both images** — image A (engineer's input) and image B (baseline; engineer-supplied, no silent default). Per `references/image-resolution.md`.
-3. **Resolve compare-tag** — Linear ticket → "<imageA-tag>-vs-<imageB-tag>" → explicit `--tag`. Validate `<chain-tag>` length budget (≤24 chars before the `-{a,b}-rpc` suffixes).
+3. **Resolve compare-tag** — Linear ticket → "<imageA-tag>-vs-<imageB-tag>" → explicit `--tag`. Validate `<chain-tag>` length budget (≤22 chars — the name regex caps at 30 and the longest follower suffix is `-{a,b}-rpc-<k>`; see the naming section above).
 4. **Resolve `<COMPARE_RUN_ID>`** — check for existing branch `feat/eng-<alias>-compare-<compare-tag>-*`; reuse on match, else mint `<compare-tag>-<UTC-timestamp>`.
 5. **Resolve profile + duration** — defaults `nightly_evm_transfer` / 10 min. Both sides use the same values.
 6. **Verify no CR name collisions** — `kubectl get seinetwork,seinode -n eng-<alias>` for the two planned SeiNetworks + their planned follower SeiNodes. Halt on any match.
