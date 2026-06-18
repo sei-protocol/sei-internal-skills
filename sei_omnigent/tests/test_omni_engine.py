@@ -156,6 +156,14 @@ def test_usage_rejects_non_finite_and_negative() -> None:
         _usage(queries=-1)
 
 
+def test_usage_rejects_bad_per_source_count() -> None:
+    # a NaN/negative per-source count would fail that sub-cap OPEN (get>=cap False forever)
+    with pytest.raises(ValueError, match="per_source_queries"):
+        _usage(per_source_queries={"thanos": float("nan")})
+    with pytest.raises(ValueError, match="per_source_queries"):
+        _usage(per_source_queries={"thanos": -1})
+
+
 # --- tripped_axis: names the unsurveyed axis for the §3.5 output ---------------
 
 
@@ -173,6 +181,13 @@ def test_tripped_axis_none_within_budget() -> None:
 ])
 def test_tripped_axis_names_the_hit_axis(usage_over: dict[str, object], axis: str) -> None:
     assert tripped_axis(_budget(), _usage(**usage_over)) == axis
+
+
+def test_per_source_axis_reported_before_iterations_when_both_hit() -> None:
+    # documented order puts queries:<source> ahead of iterations — naming the
+    # exhausted bulkhead is more informative than "iterations" for §3.5's line.
+    usage = _usage(queries=21, per_source_queries={"thanos": 20}, iterations=2)
+    assert tripped_axis(_budget(), usage) == "queries:thanos"
 
 
 def test_tripped_axis_and_budget_terminal_never_disagree() -> None:

@@ -155,6 +155,14 @@ class Usage:
             "iterations_since_progress": self.iterations_since_progress,
         }
         bad = [n for n, v in numerics.items() if not math.isfinite(v) or v < 0]
+        # Per-source counts get the same guard: a NaN/negative count makes
+        # `get(source, 0) >= cap` permanently False, failing that sub-cap OPEN while
+        # the rest of the engine stays fail-closed.
+        bad += [
+            f"per_source_queries[{s!r}]"
+            for s, v in self.per_source_queries.items()
+            if not math.isfinite(v) or v < 0
+        ]
         if bad:
             raise ValueError(
                 f"Usage values must be finite and non-negative; bad for: {', '.join(bad)}"
@@ -188,11 +196,11 @@ def tripped_axis(budget: Budget, usage: Usage) -> str | None:
         return "tokens"
     if usage.queries >= budget.queries:
         return "queries"
-    if usage.iterations >= budget.max_iterations:
-        return "iterations"
     for source, cap in budget.per_source_queries.items():
         if usage.per_source_queries.get(source, 0) >= cap:
             return f"queries:{source}"
+    if usage.iterations >= budget.max_iterations:
+        return "iterations"
     if usage.iterations_since_progress >= budget.no_progress_iterations:
         return _NO_PROGRESS_AXIS
     return None
