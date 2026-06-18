@@ -194,3 +194,57 @@ def test_read_only_profile_on_read_write_deploy_is_allowed() -> None:
         p, deployed_posture=Posture.READ_WRITE,
         deployed_egress=["pagerduty", "slack", "telemetry"],
     ) is None
+
+
+def test_bare_string_deployed_egress_is_rejected() -> None:
+    """A bare str iterates by character — set('pagerduty') = {'p','a',...} would fail
+    OPEN. launch_refusal must reject it, not silently char-split (the dissenter B1 trap)."""
+    p = load_profile(_valid_raw())
+    with pytest.raises(TypeError, match="bare str"):
+        launch_refusal(p, deployed_posture=Posture.READ_ONLY, deployed_egress="pagerduty")
+
+
+def test_empty_deployed_egress_refuses_a_profile_needing_egress() -> None:
+    p = load_profile(_valid_raw())  # needs pagerduty, slack, telemetry
+    err = launch_refusal(p, deployed_posture=Posture.READ_ONLY, deployed_egress=[])
+    assert err is not None and "pagerduty" in err
+
+
+# --- immutability: a loaded profile is isolated from source mutation -----------
+
+
+def test_loaded_profile_is_isolated_from_source_mutation() -> None:
+    raw = _valid_raw()
+    p = load_profile(raw)
+    raw["trigger"]["kind"] = "MUTATED"  # mutate the caller's retained source...
+    raw["trigger"]["match"]["severity"].append("info")  # ...including nested
+    assert p.trigger["kind"] == "pagerduty"  # ...the loaded profile is unaffected
+    assert "info" not in p.trigger["match"]["severity"]
+
+
+def test_loaded_mappings_are_read_only() -> None:
+    p = load_profile(_valid_raw())
+    with pytest.raises(TypeError):
+        p.trigger["kind"] = "x"  # type: ignore[index]  # MappingProxyType is read-only
+    with pytest.raises(TypeError):
+        p.output_sink["kind"] = "x"  # type: ignore[index]
+
+
+def test_review_gate_omitted_entirely_is_none() -> None:
+    raw = _valid_raw()
+    raw["gate_transposition"] = {"checkpoint": "fail-closed", "one_way_door": "fail-closed"}
+    p = load_profile(raw)
+    assert p.gates.review_gate is None
+
+
+@pytest.mark.parametrize("field,bad", [
+    ("skill", 0),
+    ("goal_template", False),
+    ("identity", ["not", "a", "string"]),
+])
+def test_non_string_scalar_field_is_rejected(field: str, bad: object) -> None:
+    """Falsy/wrong-type scalars (0, False, list) must be rejected, not str()-coerced."""
+    raw = _valid_raw()
+    raw[field] = bad
+    with pytest.raises(ProfileError, match="must be a string"):
+        load_profile(raw)

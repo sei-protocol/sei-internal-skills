@@ -19,6 +19,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 
 # ONE-WAY DOOR #1: the schema id every future profile binds to. A bump is a
 # deliberate, reviewed schema migration — not a silently-accepted variant.
@@ -88,11 +89,20 @@ class ProfileError(ValueError):
 
 @dataclass(frozen=True)
 class GateTransposition:
-    """How each ``/workstream`` gate-kind is transposed for headless execution.
+    """How a skill's ``/workstream`` gates are transposed for headless execution.
+
+    Slots follow Design 12 §1's ``gate_transposition`` YAML: ``checkpoint`` (a
+    reversible human checkpoint), ``one_way_door`` (the irreversible-checkpoint
+    case — ``/workstream`` models this as a one-way-door *checkpoint*, not a
+    separate kind), and ``review_gate``. ``/workstream``'s ``guard`` (signal-gate)
+    kind has **no slot in v1**: Phase-1 root-cause emits no guard, so a guard
+    disposition is deliberately deferred to the first guard-bearing skill (a
+    ``v1``→``v2`` schema question — one-way door #1). This is intentionally *not* a
+    1:1 mirror of ``/workstream``'s ``checkpoint``/``guard``/``review-gate`` triad.
 
     ``review_gate`` is ``None`` when the skill emits no review-gate
-    (``not-applicable`` in the profile YAML) — distinct from a gate that exists
-    and is set to ``FAIL_CLOSED``.
+    (``not-applicable`` in the YAML) — distinct from a gate that exists and is set
+    to ``FAIL_CLOSED``.
     """
 
     checkpoint: Disposition
@@ -129,12 +139,43 @@ _REQUIRED_FIELDS: tuple[str, ...] = (
 _NOT_APPLICABLE = "not-applicable"
 
 
+def _freeze(value: object) -> object:
+    """Recursively make a value immutable: mappings → read-only proxies, sequences
+    → tuples, scalars unchanged.
+
+    ``@dataclass(frozen=True)`` only blocks attribute *rebinding* — it does not
+    protect the contents of a mutable ``dict``/``list`` stored behind a field. A
+    loaded profile must be genuinely immutable so a caller that retains and mutates
+    the source mapping cannot mutate the validated profile underneath the launcher.
+    """
+    if isinstance(value, Mapping):
+        return MappingProxyType({k: _freeze(v) for k, v in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze(item) for item in value)
+    return value
+
+
+def _require_str(value: object, field: str) -> str:
+    """Require a string-typed scalar field; reject (never coerce) a non-string.
+
+    A ``0``/``False``/list where a name is expected is a profile authoring bug —
+    surfacing it (rather than ``str()``-coercing it to ``'0'``) matches the
+    reject-malformed stance applied to posture (one-way door #3's neighbor).
+    """
+    if not isinstance(value, str):
+        raise ProfileError(
+            f"omni-profile field {field!r} must be a string, got {type(value).__name__}"
+        )
+    return value
+
+
 def _require_mapping(value: object, field: str) -> Mapping[str, object]:
+    """Validate a mapping field and return a deep-frozen, alias-free copy."""
     if not isinstance(value, Mapping):
         raise ProfileError(
             f"omni-profile field {field!r} must be a mapping, got {type(value).__name__}"
         )
-    return value
+    return MappingProxyType({k: _freeze(v) for k, v in value.items()})
 
 
 def _parse_posture(value: object) -> Posture:
@@ -201,14 +242,14 @@ def load_profile(raw: Mapping[str, object]) -> OmniProfile:
 
     return OmniProfile(
         api_version=api_version,
-        skill=str(raw["skill"]),
+        skill=_require_str(raw["skill"], "skill"),
         trigger=_require_mapping(raw["trigger"], "trigger"),
-        goal_template=str(raw["goal_template"]),
+        goal_template=_require_str(raw["goal_template"], "goal_template"),
         gates=_parse_gates(_require_mapping(raw["gate_transposition"], "gate_transposition")),
         required_posture=_parse_posture(permissions["posture"]),
         required_egress=_parse_egress(permissions.get("egress", ())),
         output_sink=_require_mapping(raw["output_sink"], "output_sink"),
-        identity=str(raw["identity"]),
+        identity=_require_str(raw["identity"], "identity"),
     )
 
 
@@ -233,7 +274,25 @@ def launch_refusal(
 
     Mirrors ``_posture.py``'s ``header_posture_error`` shape (message-or-``None``)
     so the launch wrapper raises on a non-``None`` return.
+
+    Caveat (composition — boundary owned by the launch wrapper):
+    ``deployed_posture`` / ``deployed_egress`` MUST be derived from the same source
+    of truth that attaches the read-only server policies
+    (``policies.read_only.read_only_default_policies``) — a read-only deploy ⇒
+    ``READ_ONLY`` and the deploy's actual egress allowlist, never a free config
+    knob. This launcher trusts these inputs; it cannot detect a wrapper that passes
+    a wider posture/egress than the runtime actually enforces.
     """
+    if isinstance(deployed_egress, str):
+        # A bare str is an Iterable[str] of *characters*: set("pagerduty") would
+        # become {'p','a','g',...}, and the subset test below would fail OPEN
+        # (permit a destination never granted). _parse_egress guards the profile
+        # side against this same trap; the deployment side must guard it too.
+        raise TypeError(
+            "launch_refusal deployed_egress must be a collection of destination names "
+            "(e.g. a list/set), not a bare str — a str iterates by character and would "
+            "silently fail open."
+        )
     if _POSTURE_RANK[profile.required_posture] > _POSTURE_RANK[deployed_posture]:
         return (
             f"omni-profile for skill {profile.skill!r} requests posture "
