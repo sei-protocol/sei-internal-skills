@@ -8,6 +8,18 @@ launch wrapper, not here.
 
 from __future__ import annotations
 
+from sei_omnigent.omni.engine import (
+    Budget,
+    RunAdmission,
+    SourceOutcome,
+    TerminalReason,
+    Usage,
+    admit_post,
+    admit_run,
+    budget_terminal,
+    classify_source_read,
+    is_truncated,
+)
 from sei_omnigent.omni.profile import (
     API_VERSION,
     Disposition,
@@ -20,6 +32,7 @@ from sei_omnigent.omni.profile import (
 )
 
 __all__ = [
+    # profile (the per-skill contract + launcher core)
     "API_VERSION",
     "Disposition",
     "GateTransposition",
@@ -28,4 +41,15 @@ __all__ = [
     "ProfileError",
     "launch_refusal",
     "load_profile",
+    # engine (the goal+guardrail decision core)
+    "Budget",
+    "RunAdmission",
+    "SourceOutcome",
+    "TerminalReason",
+    "Usage",
+    "admit_post",
+    "admit_run",
+    "budget_terminal",
+    "classify_source_read",
+    "is_truncated",
 ]
