@@ -190,12 +190,22 @@ def _parse_posture(value: object) -> Posture:
 
 
 def _parse_egress(value: object) -> tuple[str, ...]:
-    if isinstance(value, str) or not isinstance(value, Iterable):
+    # Reject str/bytes (char/byte iteration) and Mapping (key iteration) — both are
+    # Iterable but neither is a "list of destination names". A Mapping would silently
+    # load its keys; a str would char-split. Require a genuine sequence of strings.
+    if isinstance(value, (str, bytes, Mapping)) or not isinstance(value, Iterable):
         raise ProfileError(
-            "omni-profile required_permissions.egress must be a list of destination names "
-            f"(e.g. ['pagerduty', 'telemetry']), got {type(value).__name__}"
+            "omni-profile required_permissions.egress must be a list of destination name "
+            f"strings (e.g. ['pagerduty', 'telemetry']), got {type(value).__name__}"
         )
-    egress = tuple(str(dest) for dest in value)
+    egress = tuple(value)
+    if not all(isinstance(dest, str) for dest in egress):
+        # Match the reject-don't-coerce stance applied to skill/goal_template/identity:
+        # a non-string entry (YAML null/bool/number) is an authoring bug, not "None"/"True".
+        raise ProfileError(
+            "omni-profile required_permissions.egress entries must all be strings "
+            "(destination names); a non-string entry is rejected, never coerced."
+        )
     if not egress:
         raise ProfileError(
             "omni-profile required_permissions.egress must name at least one destination"

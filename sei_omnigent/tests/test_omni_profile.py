@@ -114,7 +114,14 @@ def test_unknown_posture_is_rejected_not_coerced() -> None:
         load_profile(raw)
 
 
-@pytest.mark.parametrize("egress", [[], "pagerduty"])
+@pytest.mark.parametrize("egress", [
+    [],                       # empty
+    "pagerduty",              # bare str (char-split trap)
+    {"pagerduty": 1},         # mapping (key-iteration trap — Bugbot medium)
+    ["pagerduty", None],      # non-string element (Bugbot low — null→"None")
+    ["pagerduty", True],      # non-string element (bool→"True")
+    ["pagerduty", 5],         # non-string element (number→"5")
+])
 def test_bad_egress_is_rejected(egress: object) -> None:
     raw = _valid_raw()
     raw["required_permissions"] = {"posture": "read-only", "egress": egress}
