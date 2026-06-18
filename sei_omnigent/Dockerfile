@@ -31,14 +31,13 @@ COPY src ./src
 # pulls omnigent==0.1.1 + uvicorn (declared deps). --prefix=/install keeps the
 # tree copyable into the runtime without dragging build tooling along.
 #
-# --pre is REQUIRED, not optional: omnigent==0.1.1 constrains its
-# opentelemetry-instrumentation-* deps as `<1,>=0`, but those projects publish
-# ONLY pre-release (0.XXbN) versions on PyPI. Without --pre, pip excludes them
-# and resolution fails with "No matching distribution". This is an UPSTREAM
-# packaging quirk of the pinned omnigent release (flagged to the operator); the
-# Tide CI verify jobs never hit it because they install --no-deps. Re-evaluate
-# dropping --pre if a future omnigent pin tightens those constraints to finals.
-RUN pip install --pre --prefix=/install .
+# No --pre: the pre-release allowance is now SCOPED to exactly the OTel
+# instrumentation packages via explicit `==0.63b1` pins in pyproject.toml (pip
+# honors an exact-version pin to a pre-release without the global flag). The
+# blanket --pre was dropped so the rest of the closure resolves to stable finals
+# only. See the dependencies block in pyproject.toml for the rationale + the
+# on-bump re-evaluation note.
+RUN pip install --prefix=/install .
 
 # ---- runtime ---------------------------------------------------------------
 FROM python:3.12-slim AS runtime
