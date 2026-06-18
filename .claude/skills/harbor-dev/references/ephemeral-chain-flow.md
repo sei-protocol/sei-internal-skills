@@ -149,7 +149,7 @@ NDJSON stream of CR events on stdout, one per line. Exits 0 when `.status.phase 
 # Per follower: block to Running
 seictl node watch foo-rpc-0 --until=Running -n eng-x
 # Then read the fleet's published URLs (verbatim — never reconstruct):
-seictl node list -l sei.io/seinetwork=foo,sei.io/role=node -o json \
+seictl node list -n eng-<alias> -l sei.io/seinetwork=foo,sei.io/role=node -o json \
   | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'
 ```
 
@@ -178,7 +178,7 @@ Engineer says: "spin up a chain of 4 validators with seid sha=abc, then add an R
 10. **Surface and halt** — surface PR URL with: "after merge, Flux reconciles in ~60s; ping me to watch the network to Ready and report endpoints."
 11. **After merge — watch genesis to Ready** — `seictl network watch <id> --until=Ready --timeout=15m -n eng-<alias>`. NDJSON stream; exits 0 when `.status.phase=Ready`. Halt on non-zero with the `metav1.Status.reason` surfaced.
 12. **Watch each follower to Running** (if applicable) — per `k`: `seictl node watch <id>-rpc-<k> --until=Running --timeout=15m -n eng-<alias>` (terminal is `Running` — `--until=Ready` errors `Invalid` on a node).
-13. **Report** — assemble the fleet's endpoints across followers (the fleet is N CRs — there is no single object to read from). Use recipe #1 / `seictl node list -l sei.io/seinetwork=<id>,sei.io/role=node -o json | jq` and read each follower's scalar **verbatim** — never reconstruct the URL (the controller owns the per-node headless DNS form):
+13. **Report** — assemble the fleet's endpoints across followers (the fleet is N CRs — there is no single object to read from). Use recipe #1 / `seictl node list -n eng-<alias> -l sei.io/seinetwork=<id>,sei.io/role=node -o json | jq` and read each follower's scalar **verbatim** — never reconstruct the URL (the controller owns the per-node headless DNS form):
     - `.status.endpoint.evmJsonRpc` — EVM HTTP JSON-RPC URL (per follower)
     - `.status.endpoint.evmWs` — EVM WebSocket URL
     - `.status.endpoint.tendermintRpc` — Tendermint RPC URL

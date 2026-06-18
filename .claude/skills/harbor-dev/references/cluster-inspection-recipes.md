@@ -97,7 +97,9 @@ Common failed-task → root-cause map: `snapshot-restore` → S3 / Pod Identity,
 seictl network list -n eng-<alias> \
   -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,READY:.status.readyReplicas,DESIRED:.status.replicas'
 
-# The network's follower SeiNodes (a node is single, so no READY/DESIRED columns)
+# All SeiNodes in the network — the ROLE column distinguishes validators from followers.
+# Inventory view (no READY/DESIRED — a SeiNode is a single node). For RPC-load endpoints
+# use recipe #1, which filters to role=node and never includes validators.
 seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id> \
   -o custom-columns='NAME:.metadata.name,ROLE:.metadata.labels.sei\.io/role,PHASE:.status.phase'
 ```
