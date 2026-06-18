@@ -1,6 +1,6 @@
 # Findings Protocol
 
-The synthesized output of cross-review (Step 4) and the research grounding the discipline.
+The synthesized output of xreview (Step 4) and the research grounding the discipline.
 
 ## The findings table
 
@@ -37,7 +37,7 @@ Resolved findings move provider-first: update the interface source / provider de
 
 ## Research grounding (why the discipline is shaped this way)
 
-- **Independent preparation is the engine.** Fagan inspection's individual-preparation phase — reviewers commit findings before the group meeting — drove its high defect-detection rates. Cross-review's blinded dispatch replicates it. (Fagan inspection.)
+- **Independent preparation is the engine.** Fagan inspection's individual-preparation phase — reviewers commit findings before the group meeting — drove its high defect-detection rates. xreview's blinded dispatch replicates it. (Fagan inspection.)
 - **A confident voice anchors a group.** In Asch's conformity experiments ~75% conformed to an obviously-wrong majority at least once; a single independent dissenter restored judgment. Hence blinded reviews + an assigned dissenter. (Asch conformity experiments.)
 - **Rubber-stamping is the default failure.** "LGTM" approvals train teams to treat review as noise; evidence-bearing findings are the counter. (Code-review practice literature.)
 - **Multi-agent LLMs collapse into sycophantic consensus** when they see each other's outputs before committing — sometimes scoring *below* a single agent, and LLM judges can prefer a persuasive falsehood. Independence + evidence-anchored synthesis (not rhetorical synthesis) are the mitigations. (Multi-agent LLM debate / sycophancy literature, e.g. arXiv 2509.23055, 2509.05396; CONSENSAGENT, ACL 2025.)

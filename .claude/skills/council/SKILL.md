@@ -2,7 +2,7 @@
 name: council
 category: workflow
 model: claude-opus-4-8
-description: "Use when the user wants full-ceremony engineering: design a new system from scratch, plan a multi-component feature end-to-end, write a low-level design, or spin up an independent multi-session engineering workstream — 'use the council', 'convene the team', 'design this with the experts', 'one-way door', 'run this through council', '/council'. Also fires on explicit scope-tier requests (Product, System, Component, Feature). Anti-triggers: NOT for a standalone cross-review of a design / plan / diff / set of expert outputs (use /cross-review); NOT for lightweight expert iteration on a single system or feature (use /coral); NOT for adversarial hardening of an existing system (use /bugbash); NOT for capturing a finished design as a markdown doc (use /design); NOT for filing a deferred slice as a tracked issue (use /issue); NOT for in-conversation TODOs (use TaskCreate)."
+description: "Use when the user wants full-ceremony engineering: design a new system from scratch, plan a multi-component feature end-to-end, write a low-level design, or spin up an independent multi-session engineering workstream — 'use the council', 'convene the team', 'design this with the experts', 'one-way door', 'run this through council', '/council'. Also fires on explicit scope-tier requests (Product, System, Component, Feature). Anti-triggers: NOT for a standalone xreview of a design / plan / diff / set of expert outputs (use /xreview); NOT for lightweight expert iteration on a single system or feature (use /coral); NOT for adversarial hardening of an existing system (use /bugbash); NOT for capturing a finished design as a markdown doc (use /design); NOT for filing a deferred slice as a tracked issue (use /issue); NOT for in-conversation TODOs (use TaskCreate)."
 ---
 
 # Council
@@ -16,7 +16,7 @@ For single-system iteration with one or two experts, use `coral` — the lighter
 Council enforces full process when full process applies. Before any side-effecting action:
 
 1. **Scope-tier first.** No dispatch happens without an identified tier (Product / System / Component / Feature). When the tier is ambiguous, ask one focused question; don't dispatch on guesses.
-2. **Cross-review is its own phase — and its own skill.** Specialists giving input during their individual dispatches is NOT cross-review. Council runs cross-review by invoking `/cross-review` on the affected work, which produces a COMPATIBLE / MISMATCH / MISSING findings table. Resolve all MISMATCH and MISSING before proceeding.
+2. **xreview is its own phase — and its own skill.** Specialists giving input during their individual dispatches is NOT xreview. Council runs xreview by invoking `/xreview` on the affected work, which produces a COMPATIBLE / MISMATCH / MISSING findings table. Resolve all MISMATCH and MISSING before proceeding.
 3. **Interface source of truth is authoritative.** If a spec or code conflicts with it, the source of truth wins. Update the source first, then specs and code conform.
 4. **Provider owns the interface.** Consumers adapt. When provider and consumer disagree, the provider's definition is canonical.
 5. **One-way doors require explicit user approval.** Persisted schema / field names, public API contracts, on-disk or wire data formats, signed or indexed identifiers, and anything the repo's governing document flags as irreversible — STOP and present before finalizing.
@@ -59,11 +59,11 @@ Read `references/scope-tiers.md` for the detailed process per tier.
 
 **Product** — An entirely new MVP or major subsystem that doesn't exist yet. Multiple new components need to be designed from scratch, new interfaces, new deployment artifacts. Days to weeks.
 - Signals: "build a new…", "we need a whole new…", "design the system for…", "MVP for…"
-- Process: High-level design → component decomposition → full design cycle per component → cross-review → implementation
+- Process: High-level design → component decomposition → full design cycle per component → xreview → implementation
 
 **System** — An end-to-end feature that spans multiple existing components and their interfaces. Requires coordination across specialists because changes in one component ripple into others.
 - Signals: "add end-to-end support for…", "integrate X with Y", cross-component changes
-- Process: Impact analysis → interface source updates → design per affected component → cross-review → implementation
+- Process: Impact analysis → interface source updates → design per affected component → xreview → implementation
 
 **Component** — A new feature or significant change scoped to a single component. Needs a low-level design to get right, but doesn't require cross-component coordination.
 - Signals: "add X to the operator", "the review runtime needs…", "write the reconciliation loop for…"
@@ -89,7 +89,7 @@ The specialist roster comes from `.claude/agents/` in the target repo. When disp
 3. "Read the interface source of truth before starting" (registry if present, relevant LLDs otherwise)
 4. What output you expect (spec, code, findings table)
 
-For cross-review, invoke the `/cross-review` skill — it dispatches the relevant specialists to independently review the work and synthesizes the findings table. Don't fold cross-review into the individual dispatches; it is a distinct phase with a distinct output.
+For xreview, invoke the `/xreview` skill — it dispatches the relevant specialists to independently review the work and synthesizes the findings table. Don't fold xreview into the individual dispatches; it is a distinct phase with a distinct output.
 
 ## Dispatching Work
 
@@ -104,23 +104,23 @@ Example — parallel safe:
 Example — must sequentialize:
 - specialist A defines a new API contract (provider) → THEN specialist B updates the consumer
 
-### Cross-Review
+### xreview
 
-After any work touching interface boundaries, run a cross-review by invoking the `/cross-review` skill on the affected work:
+After any work touching interface boundaries, run a xreview by invoking the `/xreview` skill on the affected work:
 - The provider's spec or code
 - The consumer's spec or code
 - The relevant interface definitions
 
-`/cross-review` dispatches the relevant specialists for independent review and synthesizes a findings table: COMPATIBLE / MISMATCH / MISSING. Resolve all MISMATCH and MISSING before proceeding.
+`/xreview` dispatches the relevant specialists for independent review and synthesizes a findings table: COMPATIBLE / MISMATCH / MISSING. Resolve all MISMATCH and MISSING before proceeding.
 
-When the reviewed work includes **code or an implementation** (not solely specs/LLDs), `/cross-review` adds `idiomatic-reviewer` to the slate for the idiom-conformance lens — does the code read native to its language and the package's documented patterns. Its findings ride in a separate Idiom addendum; **correctness-grade idiom findings block the same as a MISMATCH** (style findings are advisory). This is inherited automatically — council does not dispatch `idiomatic-reviewer` itself.
+When the reviewed work includes **code or an implementation** (not solely specs/LLDs), `/xreview` adds `idiomatic-reviewer` to the slate for the idiom-conformance lens — does the code read native to its language and the package's documented patterns. Its findings ride in a separate Idiom addendum; **correctness-grade idiom findings block the same as a MISMATCH** (style findings are advisory). This is inherited automatically — council does not dispatch `idiomatic-reviewer` itself.
 
 ### Interface Changes
 
 When work changes an interface:
 1. Update the interface source of truth first (registry if used, provider's LLD otherwise)
 2. Then update specs and code to match
-3. Run `/cross-review` to verify consistency
+3. Run `/xreview` to verify consistency
 
 Provider owns the interface — if there's a disagreement, the provider's definition wins and consumers adapt.
 
@@ -162,7 +162,7 @@ phases:
       - "specialist-A: update component X"
       - "specialist-B: update component Y"
 
-  - name: "Cross-Review"
+  - name: "xreview"
     status: pending
 
   - name: "Implementation"
@@ -236,7 +236,7 @@ Format: "This involves a one-way door: [what's changing]. Once deployed, [conseq
 Stop and report rather than auto-recovering when:
 
 - **Escalations exist at session start** (`.council/escalations/*` files present) — read each, resolve or upgrade scope before any new work
-- **Cross-review surfaces MISMATCH or MISSING** — halt until provider and consumer specs align with the interface source of truth
+- **xreview surfaces MISMATCH or MISSING** — halt until provider and consumer specs align with the interface source of truth
 - **Workstream-in-progress detected** at session start (`.council/workstream.yaml` exists with unresolved phases) — surface and ask continue / new / archive
 - **Tier is genuinely ambiguous** — ask one focused question; if still ambiguous, halt and ask the user to scope
 - **One-way door triggers without approval pending** — never proceed silently
@@ -249,7 +249,7 @@ Pressure patterns that surface during full-ceremony work and the counters from t
 | Excuse | Reality |
 |---|---|
 | "We both know this is System tier — skip the scope-tier selection." | Scope-tier selection is the entry point that determines specialist slate AND one-way-door risk. State the tier, confirm in one question, then proceed — don't skip. |
-| "The specialists already gave input in their dispatches — skip cross-review." | Individual dispatch is NOT cross-review. Cross-review reads provider + consumer + interface source and produces a findings table. Different phase, different output. |
+| "The specialists already gave input in their dispatches — skip xreview." | Individual dispatch is NOT xreview. xreview reads provider + consumer + interface source and produces a findings table. Different phase, different output. |
 | "It's still in dev — the one-way-door rule is for prod." | The one-way-door gate is on change category, not deployment target. Dev-then-staging-then-prod is the path; the door's irreversibility lives in the *category* (persisted schema/field name, public API contract, on-disk/wire format, signed or indexed identifier), not the cluster. |
 | "Just update the spec to match what got implemented — provider already shipped." | Provider owns the interface, but provider-owns means provider defines BEFORE shipping, not after. Retroactive spec updates to match drift = the spec is now the implementation's documentation, which is exactly the failure mode the interface source of truth prevents. Update spec first, then re-implement to match. |
 | "We can do interface changes parallel — they're separable." | Parallel dispatch is for work that doesn't share interface boundaries. If both touch the same interface, provider goes first and consumer follows. Sequential, not parallel. |
@@ -276,7 +276,7 @@ All of these mean: re-read the relevant SKILL.md section, apply the rule as writ
 Every task ends with:
 1. **What was done** — files created or modified, with paths
 2. **Interface changes** — any updates, with before/after
-3. **Cross-review results** — the findings table if applicable
+3. **xreview results** — the findings table if applicable
 4. **One-way doors** — any decisions that need human sign-off
 5. **Next steps** — what the user should do next (review, test, deploy, PR)
 

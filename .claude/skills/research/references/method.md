@@ -27,7 +27,7 @@ Pick the angles the question needs (not all four mechanically). Inline for ≤3 
 
 ## Stage 3 — The refutation pass (the differentiator)
 
-This adapts `/cross-review`'s **assigned-dissent primitive** — "tag exactly one reviewer to red-team and produce the strongest objection" — to findings. It does **not** use cross-review's boundary table (provider/consumer/COMPATIBLE/MISMATCH/MISSING), which doesn't map onto a finding.
+This adapts `/xreview`'s **assigned-dissent primitive** — "tag exactly one reviewer to red-team and produce the strongest objection" — to findings. It does **not** use xreview's boundary table (provider/consumer/COMPATIBLE/MISMATCH/MISSING), which doesn't map onto a finding.
 
 Per material finding, take the skeptic stance and try to break it:
 

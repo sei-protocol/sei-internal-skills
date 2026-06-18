@@ -30,7 +30,7 @@ Match the issue's **surface area** to personas, not the issue's **wording**.
 | Product scope, MVP cut, deferral discipline | `product-manager` |
 | Cross-component architecture, novel coordination patterns | `product-engineer` |
 | Tracing, metrics, log pipelines, OTel SDK | `opentelemetry-expert` |
-| Cross-component interface consistency | `/cross-review` (dispatches the relevant specialists) |
+| Cross-component interface consistency | `/xreview` (dispatches the relevant specialists) |
 
 ## Sizing the list
 

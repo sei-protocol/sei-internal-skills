@@ -1,6 +1,6 @@
 # In-source comment discipline
 
-`idiomatic-reviewer` is the **champion-of-record** for the in-source comment axis — code comments and config-file (e.g. YAML) annotations. This file defines the standard, is the tie-break when it's in question, and the reviewer enforces it on every cross-review cycle. The adjacent doc/prose axis — design docs, READMEs, and file/package **header docs** as narrative — is owned by `prose-steward` via `/lingua`; see "Boundary" below.
+`idiomatic-reviewer` is the **champion-of-record** for the in-source comment axis — code comments and config-file (e.g. YAML) annotations. This file defines the standard, is the tie-break when it's in question, and the reviewer enforces it on every xreview cycle. The adjacent doc/prose axis — design docs, READMEs, and file/package **header docs** as narrative — is owned by `prose-steward` via `/lingua`; see "Boundary" below.
 
 ## The standard
 

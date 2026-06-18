@@ -2,14 +2,14 @@
 name: research
 category: investigation
 model: claude-opus-4-8
-description: "Use when a research question needs a durable, verified, lineage-threaded answer — 'research X', 'do a deep dive on Y', 'survey the options for Z', 'investigate the state of the art on W', 'gather evidence on whether ...', '/research'. Runs a scoped, multi-modal sweep, adversarially verifies each finding, runs a completeness pass, and captures a research artifact threaded to issues/bets. Anti-triggers: NOT incident/bug root-causing in the Sei platform stack (use /root-cause); NOT capturing a design decision (use /design — research discovers, design decides); NOT a quick one-off lookup that needs no durable artifact (just answer); NOT launching a workstream (a research effort may be checkpoint-gated by /workstream but never launches one). Reuses /cross-review's assigned-dissent primitive for finding-refutation; composes /design-style capture + /execution-plan lineage."
+description: "Use when a research question needs a durable, verified, lineage-threaded answer — 'research X', 'do a deep dive on Y', 'survey the options for Z', 'investigate the state of the art on W', 'gather evidence on whether ...', '/research'. Runs a scoped, multi-modal sweep, adversarially verifies each finding, runs a completeness pass, and captures a research artifact threaded to issues/bets. Anti-triggers: NOT incident/bug root-causing in the Sei platform stack (use /root-cause); NOT capturing a design decision (use /design — research discovers, design decides); NOT a quick one-off lookup that needs no durable artifact (just answer); NOT launching a workstream (a research effort may be checkpoint-gated by /workstream but never launches one). Reuses /xreview's assigned-dissent primitive for finding-refutation; composes /design-style capture + /execution-plan lineage."
 ---
 
 # Research
 
 Answer a research question with a **durable, verified, lineage-threaded** artifact — not a chat reply that evaporates. This is a *technique* skill (a four-stage method you adapt to the question) with a *discipline spine* (no finding ships unverified; a vague question is refused). It generalizes the skill-authoring research recipe (`author-skill/references/research-recipe.md`) into a first-class capability the rest of the stack can use.
 
-It composes the framework rather than reinventing it: it reuses `/cross-review`'s **assigned-dissent primitive** for finding-refutation (not the skill — see the spine), captures like `/design` does, and threads lineage via `/execution-plan`.
+It composes the framework rather than reinventing it: it reuses `/xreview`'s **assigned-dissent primitive** for finding-refutation (not the skill — see the spine), captures like `/design` does, and threads lineage via `/execution-plan`.
 
 ## Why this skill exists (read this first)
 
@@ -21,7 +21,7 @@ Refusal conditions — these hold under "just give me a quick answer" pressure:
 
 1. **No finding ships unverified.** Every material finding gets a refutation pass before it's trusted. A finding that survives refutation is **verified** (with the refutation move recorded — an *unattempted* refutation yields `unverified`, not `verified`); one the refutation *disproves* is **refuted** and dropped; one it can neither confirm nor disprove is **unverified**, kept only with that label. Never present an unverified finding as established.
 2. **Refuse a vague question; confirm scope before sweeping.** If the question doesn't name what a *useful answer* looks like (the decision it informs, the falsifiable claims sought), push back and sharpen it. Then **echo the scoped question** (decision + claims + scope boundary) and get the operator's go-ahead before the sweep — a sweep with no confirmed target returns noise.
-3. **Reuse the dissent primitive, don't invoke `/cross-review`.** `/cross-review` reviews *interface boundaries* (provider/consumer, COMPATIBLE/MISMATCH/MISSING) — that table doesn't map onto a research finding. `research` implements its **own** refutation pass *modeled on* cross-review's assigned-dissent primitive (tag a skeptic to argue the finding is wrong). Do not call `/cross-review` on findings.
+3. **Reuse the dissent primitive, don't invoke `/xreview`.** `/xreview` reviews *interface boundaries* (provider/consumer, COMPATIBLE/MISMATCH/MISSING) — that table doesn't map onto a research finding. `research` implements its **own** refutation pass *modeled on* xreview's assigned-dissent primitive (tag a skeptic to argue the finding is wrong). Do not call `/xreview` on findings.
 4. **Discover, don't decide.** Research surfaces findings + a recommendation; it does not capture a design decision (that's `/design`) or file work (that's `/issue`). Keep the artifact a *findings* artifact.
 5. **Never launch a workstream; surface a too-wide sweep.** A research effort may be *checkpoint-gated by* a `/workstream` (an `outcome-alignment` gate after synthesis), but it never *launches* one. Inline covers **≤3 sweep angles**; if the question needs more, **surface the limit** rather than running a narrow sweep silently — the parallel-sweep Workflow engine is deferred from MVP.
 
@@ -44,7 +44,7 @@ Inline for ≤3 angles (the MVP norm). Broader sweeps want a Workflow (deferred)
 
 ### 3. Adversarially verify (the differentiator)
 
-For each material finding, run a **refutation pass**: assign a skeptic stance and argue the finding is *wrong* — find the contradicting source, the stale citation, the overgeneralization, the sample-of-one. This reuses `/cross-review`'s assigned-dissent primitive (a tagged red-team), applied to findings rather than boundaries (Guardrail 3). Outcome per finding:
+For each material finding, run a **refutation pass**: assign a skeptic stance and argue the finding is *wrong* — find the contradicting source, the stale citation, the overgeneralization, the sample-of-one. This reuses `/xreview`'s assigned-dissent primitive (a tagged red-team), applied to findings rather than boundaries (Guardrail 3). Outcome per finding:
 
 - **verified** — survived refutation; cite the source and note what the refutation tried and failed to do.
 - **refuted** — dropped; note why (so the next sweep doesn't re-surface it).
@@ -97,7 +97,7 @@ Capture in the DRI's designs repo — the engineer's `<name>-designs` repo, unde
 | "This finding looks obviously right — verifying it wastes time." | Obvious-looking findings are exactly the ones that ship stale or overgeneralized. Run the refutation pass; cite what it tried and failed to do. |
 | "The operator wants an answer now — ship the sweep results." | A sweep is raw material, not an answer. Unverified findings shipped as established is the failure this skill exists to prevent. Label unverified as unverified. |
 | "I only found one source, but it's authoritative." | One source is a sample of one — the by-counter-thesis angle exists precisely to test it. Either corroborate or label unverified. |
-| "Cross-review is the verification skill — I'll just run `/cross-review` on the findings." | Cross-review's boundary table doesn't fit findings. Reuse only its assigned-dissent *primitive*; run the refutation pass yourself. |
+| "xreview is the verification skill — I'll just run `/xreview` on the findings." | xreview's boundary table doesn't fit findings. Reuse only its assigned-dissent *primitive*; run the refutation pass yourself. |
 | "I should capture this as a design so it threads lineage." | Research *discovers*; design *decides*. Capture a findings artifact; thread lineage the same way `/design` does, but don't masquerade findings as a decision. |
 | "I ran a quick refutation and nothing jumped out — that's verified." | A refutation that surfaces no recorded contradicting-source / freshness / overgeneralization / sample check was *not attempted*, not *passed*. No recorded refutation move → `unverified`, never `verified`. |
 

@@ -18,13 +18,13 @@ This package consumes portable Claude Code skills and specialist agents authored
 ### Using the skills
 
 - **`/coral`** — lightweight expert iteration on a defined slice; the fast path. Hands off to `/council` when the work outgrows it (≥3 components, interface changes, one-way doors, multi-session).
-- **`/cross-review`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to coral's "produce."
+- **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to coral's "produce."
 - **`/council`** — full-ceremony workflow for multi-component, multi-session design; gates one-way doors.
 - **`/bugbash`** — long-running adversarial review of an existing component before launch.
 - **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
 - **Handoffs:** `/design` captures *this* work as a durable design doc; `/issue` files *next* work as a tracked issue.
 
-### Cross-review discipline
+### xreview discipline
 
 When the relevant specialists review a produced artifact (design, plan, diff, or a set of expert outputs):
 
@@ -32,7 +32,7 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 - **An assigned dissenter** — one reviewer is tasked to argue against the emerging consensus and surface the strongest counter-case.
 - **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) *and*, for doc artifacts, the prose axis (`prose-steward`) — not domain experts alone.
 - **Automated review is co-equal** — treat an automated reviewer (e.g. Cursor Bugbot) as a peer input, not noise; an unresolved flag blocks.
-- **Confirmed-consensus iteration** — after a fix, re-dispatch the reviewer that raised the finding to confirm closure; merge only on unanimous sign-off with no open concerns. `/cross-review` owns the procedure.
+- **Confirmed-consensus iteration** — after a fix, re-dispatch the reviewer that raised the finding to confirm closure; merge only on unanimous sign-off with no open concerns. `/xreview` owns the procedure.
 
 ### Key rules
 

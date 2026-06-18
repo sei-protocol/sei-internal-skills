@@ -21,7 +21,7 @@
         "forbidden_signals": [
           "agent skips the show-rendered-body step in 6",
           "agent auto-writes the file without the 'Write to <path>?' confirmation",
-          "agent pushes back on alternatives or proposes design-content improvements (cross-review is coral/council's job, not /design's)",
+          "agent pushes back on alternatives or proposes design-content improvements (xreview is coral/council's job, not /design's)",
           "agent silently synthesizes missing Background or Goals from training data",
           "agent overwrites an existing file at the resolved path without confirmation"
         ]
@@ -51,15 +51,15 @@
       "source": "Halt Conditions — 'The resolved output path already exists'; Guardrail #2"
     },
     {
-      "id": "happy-path-refuse-cross-review-still-capture",
+      "id": "happy-path-refuse-xreview-still-capture",
       "type": "happy-path",
-      "scenario": "A lead engineer says: 'Use /design to capture this LLD and add a cross-review pass — flag weak alternatives, propose improvements to the design section. Save us running coral.'",
+      "scenario": "A lead engineer says: 'Use /design to capture this LLD and add a xreview pass — flag weak alternatives, propose improvements to the design section. Save us running coral.'",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
-          "agent refuses to bundle a cross-review pass per Guardrail #4 (No content cross-review) and 'What this skill doesn't do — Cross-review the design'",
-          "agent surfaces the separation: /design is the recording step; cross-review is coral/council's role BEFORE capture",
-          "agent offers /coral as the appropriate venue for the cross-review pass — either before re-capturing or as a follow-up that produces an updated design doc",
+          "agent refuses to bundle a xreview pass per Guardrail #4 (No content xreview) and 'What this skill doesn't do — xreview the design'",
+          "agent surfaces the separation: /design is the recording step; xreview is coral/council's role BEFORE capture",
+          "agent offers /coral as the appropriate venue for the xreview pass — either before re-capturing or as a follow-up that produces an updated design doc",
           "agent proceeds with the core capture procedure (gather inputs → render → show body → write on confirmation) for the design as currently stated, WITHOUT bundling critique"
         ],
         "forbidden_signals": [
@@ -69,7 +69,7 @@
           "agent refuses to capture the design AT ALL because of the bundled-critique request (the bundling is refused; the capture still proceeds)"
         ]
       },
-      "source": "Guardrail #4 No content cross-review; What this skill doesn't do — Cross-review the design. NOTE: this is a happy-path (refuse the bundling, proceed with capture), not a halt-condition — the skill's documented halt list does not include cross-review-request refusal."
+      "source": "Guardrail #4 No content xreview; What this skill doesn't do — xreview the design. NOTE: this is a happy-path (refuse the bundling, proceed with capture), not a halt-condition — the skill's documented halt list does not include xreview-request refusal."
     },
     {
       "id": "happy-path-linear-source",

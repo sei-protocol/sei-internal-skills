@@ -18,7 +18,7 @@ This skill writes one markdown file (the design doc) and optionally posts one is
 1. **Show-before-write.** Render the full body and the resolved path; ask "Write to `<path>`?" — never auto-write, even from a coral handoff with rich pre-fill.
 2. **Don't overwrite without confirmation.** If a file already exists at the resolved path, halt and ask: overwrite, suffix with a run number (`<slug>-2.md`), or abort.
 3. **Refuse on incoherent inputs.** If Title, Background, Goals, or Design are empty after gathering, halt and surface what's missing — `/design` is the recording step, not a generator that fills in blanks from training data.
-4. **No content cross-review.** `/design` records what the session decided; it does not push back on alternatives, propose improvements, or critique the design content. That work belongs to coral/council *before* `/design` captures.
+4. **No content xreview.** `/design` records what the session decided; it does not push back on alternatives, propose improvements, or critique the design content. That work belongs to coral/council *before* `/design` captures.
 5. **No status maintenance.** `/design` writes Status: `Draft` on first capture. Updates to "Under review", "Accepted", "Superseded" are manual edits or a separate workflow — `/design` does not schedule, remind, or auto-update.
 
 ## Three invocation modes
@@ -103,7 +103,7 @@ Direct user invocation when there's no active workstream or upstream issue — e
 
    **Output of this step:** a complete input set with all required fields filled. If any required field is empty after gathering, halt and surface what's missing per Guardrail #3.
 
-   **Idiom note for the Design section.** If the Design specifies concrete interface signatures, type definitions, or code sketches, they should be idiomatic to the target language and the package's documented patterns — that's the `idiomatic-reviewer` lens (via `/idiomatic`). `/design` captures; it does not review idiom. That pass belongs to the preceding coral/council cross-review, where `idiomatic-reviewer` is now on the slate when code is under review. Capture the sketches as they were validated there; flag any concrete interface that hasn't had an idiom pass as an Open question rather than presenting it as settled.
+   **Idiom note for the Design section.** If the Design specifies concrete interface signatures, type definitions, or code sketches, they should be idiomatic to the target language and the package's documented patterns — that's the `idiomatic-reviewer` lens (via `/idiomatic`). `/design` captures; it does not review idiom. That pass belongs to the preceding coral/council xreview, where `idiomatic-reviewer` is now on the slate when code is under review. Capture the sketches as they were validated there; flag any concrete interface that hasn't had an idiom pass as an Open question rather than presenting it as settled.
 
 4. **Mermaid diagrams.** During the **Design** section, identify candidate diagrams from the synthesized context:
    - **Sequence** — when an interaction across components matters (request flow, handoff order).
@@ -139,7 +139,7 @@ Stop and report rather than auto-recovering when:
 
 ## What this skill doesn't do
 
-- **Cross-review the design.** That's coral/council's job *before* the design is captured. `/design` is the recording step.
+- **xreview the design.** That's coral/council's job *before* the design is captured. `/design` is the recording step.
 - **Maintain status across the doc's lifetime.** It writes Draft initially. Updates to "Under review", "Accepted", "Superseded" are manual edits to the file.
 - **Copy a design into a code package.** A design spanning multiple code repos still lives in **one** place — the DRI's `<name>-designs` repo (Design 05) — and each code repo's issues link to it by **full URL**, never a repo-relative path.
 - **Respect the DRI-repo model (Design 05).** Designs live in the engineer's `<name>-designs` repo, arc-foldered (`designs/<arc>/<slug>.md`), not in the code/skills package. The skill targets that repo; it falls back to in-repo `docs/designs/` only when no DRI repo is resolvable.

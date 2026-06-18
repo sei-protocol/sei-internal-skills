@@ -8,18 +8,18 @@
 |---|---|---|
 | 1. Declare | — | write + surface the ledger |
 | 2. Scope-tier design | `/council` (owns the 4 scope tiers; produces design content) | — |
-| 3. Verify — **iterate to convergence** | `/cross-review` (blinded, assigned-dissent) — invoked in a loop: dispatch → synthesize ledger → fix → re-invoke (appends a round) → repeat until a passing terminal or `OPEN-BLOCKED` | — (the convergence record is `/cross-review`'s review-ledger; a `review-gate` reads it at ship) |
+| 3. Verify — **iterate to convergence** | `/xreview` (blinded, assigned-dissent) — invoked in a loop: dispatch → synthesize ledger → fix → re-invoke (appends a round) → repeat until a passing terminal or `OPEN-BLOCKED` | — (the convergence record is `/xreview`'s review-ledger; a `review-gate` reads it at ship) |
 | 4. Capture | `/design` (writes the reviewed design as a durable doc) | — |
 | 5. Sign off on the design | — | **`design-approval`** |
 | 6. Implement | (the work itself) | (council's one-way-door gate fires here for a one-way-door **change category** — persisted schema/field names, wire/on-disk formats, signed/indexed IDs — gated on category, not deployment target) |
 | 7. Capture deferred work | `/issue` — **only if a slice was cut** | — |
 | 8. Decorate lineage | `/execution-plan` (delegated; never duplicated) | (execution-plan's first-label confirm is its own gate) |
-| 9. Ship | — | **`pr-sign-off`** (human) **or** **`review-gate`** (consensus — reads `/cross-review`'s review-ledger fail-closed + confirms declared checks green; operator chooses at declaration) |
+| 9. Ship | — | **`pr-sign-off`** (human) **or** **`review-gate`** (consensus — reads `/xreview`'s review-ledger fail-closed + confirms declared checks green; operator chooses at declaration) |
 
 ## Ordering rules (load-bearing)
 
-- **`/cross-review` precedes `/design` capture.** `/design` records what a session decided; it does not review the design content. So verify first (cross-review), then capture (design). The `design-approval` checkpoint sits *after* capture — you can't sign off on a design that doesn't exist yet.
-- **Verify is a convergence loop, not a single pass.** Step 3 re-invokes `/cross-review` (which appends a new review-ledger round) after each fix until the latest round is a passing terminal or `OPEN-BLOCKED`. The workstream sequences the rounds and applies fixes; it **composes** `/cross-review` and **reads** its review-ledger — it never reimplements the slate, the dispatch, or the ledger schema (those are PLT-535's). A declared `review-gate` at ship reads that same ledger fail-closed as its done-evidence. See `review-gate.md`.
+- **`/xreview` precedes `/design` capture.** `/design` records what a session decided; it does not review the design content. So verify first (xreview), then capture (design). The `design-approval` checkpoint sits *after* capture — you can't sign off on a design that doesn't exist yet.
+- **Verify is a convergence loop, not a single pass.** Step 3 re-invokes `/xreview` (which appends a new review-ledger round) after each fix until the latest round is a passing terminal or `OPEN-BLOCKED`. The workstream sequences the rounds and applies fixes; it **composes** `/xreview` and **reads** its review-ledger — it never reimplements the slate, the dispatch, or the ledger schema (those are PLT-535's). A declared `review-gate` at ship reads that same ledger fail-closed as its done-evidence. See `review-gate.md`.
 - **`/issue` is conditional.** Fire it only when there's a genuine deferred slice. Wiring it as a mandatory phase produces reflexive empty-issue prompts.
 - **Lineage is delegated.** `workstream` calls `/execution-plan` to stamp the bet label + design link. It never re-implements identity/label/stamp logic — a second implementation mints a second identity. `/execution-plan`'s own first-label-creation confirm is a separate human gate it owns; the ledger does not subsume it.
 

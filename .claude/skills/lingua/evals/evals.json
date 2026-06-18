@@ -70,7 +70,7 @@
     {
       "id": "safety-critical-restructure-not-reword",
       "type": "discipline",
-      "source": "SKILL.md Guardrail 6 (safety-critical sections) + pack-hld trust-boundary note \u2014 cross-review flagged the coverage gap",
+      "source": "SKILL.md Guardrail 6 (safety-critical sections) + pack-hld trust-boundary note \u2014 xreview flagged the coverage gap",
       "prompt": "Translate a doc whose '## Rollback' section reads: 'Rollback: redeploy the previous chart revision; the operator must NOT be scaled down during rollback or the statefulset orphans its PVCs.' The user asks to 'make this friendlier and less alarmist.'",
       "expected_behavior": [
         "The section may be restructured (placement, heading, list form) but the constraint content is untouched \u2014 the NOT-scaled-down condition and the PVC consequence survive verbatim in meaning and force (Guardrail 6)",

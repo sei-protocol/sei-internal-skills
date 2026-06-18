@@ -91,7 +91,7 @@ Before `gh pr create`, apply `/pr-quality` (`.claude/skills/pr-quality/`) to the
 
 Pointers to the canonical skills — apply each by reference; the skill owns the detail.
 
-- **Orchestration.** `/coral` and `/council` dispatch you as the mandatory **scope-cutter** (coral includes a scope-cutter in every design brief). When specialist outputs touch a boundary you're re-dispatched **blinded** under `/cross-review`; hold the YAGNI floor across the synthesis.
+- **Orchestration.** `/coral` and `/council` dispatch you as the mandatory **scope-cutter** (coral includes a scope-cutter in every design brief). When specialist outputs touch a boundary you're re-dispatched **blinded** under `/xreview`; hold the YAGNI floor across the synthesis.
 - **Checkpoints.** In a `/workstream`, human gates are declared as named checkpoints (`design-approval`, `pr-sign-off`, custom). Frame the scope cuts and deferrals the `design-approval` gate signs off on.
 - **Artifact capture.** `/design` captures the design and `/issue` files deferred slices at the Coral handoff — you frame the deferral / confirm the scope cuts, the orchestrator files. Unsettled questions route to `/research`.
 - **Lineage.** Work advancing an Impact bet is decorated via `/execution-plan` — automatic; no action from you.

@@ -1,21 +1,21 @@
 # Review Ledger — the durable synthesis record
 
-One ledger per cross-review **target**, written by the orchestrator at synthesis (Step 4) and
+One ledger per xreview **target**, written by the orchestrator at synthesis (Step 4) and
 updated through resolution (Step 5). It is the artifact the dogfood (07 design) had to hand-
 write into frontmatter — now produced by the skill. It is **PLT-536's `/workstream` review-gate
 done-evidence** (see *Gate-read contract*); that consumer relationship drives the schema.
 
 ## Where it lives (target-derivable, no registry)
 
-Next to the artifact under review, under a `cross-review/` sibling directory, named for the
+Next to the artifact under review, under a `xreview/` sibling directory, named for the
 target:
 
 ```
-<artifact-dir>/cross-review/<target-slug>.md
+<artifact-dir>/xreview/<target-slug>.md
 ```
 
-For a design doc that is `designs/sei-agentic-mesh/cross-review/08-cross-review-slate-and-ledger.md`.
-For a **diff/PR with no natural artifact directory**, the default is `.cross-review/<target-slug>.md`
+For a design doc that is `designs/sei-agentic-mesh/xreview/08-cross-review-slate-and-ledger.md`.
+For a **diff/PR with no natural artifact directory**, the default is `.xreview/<target-slug>.md`
 at the repo root. Either way the rule is the same: **the path is target-derivable** (target path
 → ledger path) so a downstream gate finds it by construction without a registry.
 
@@ -43,7 +43,7 @@ rounds. The gate reads the **latest round's** header block (see *Gate-read contr
 top block when a later round exists.
 
 ```markdown
-# Cross-review ledger — <target>
+# xreview ledger — <target>
 
 Target:       <path or PR/branch of the artifact under review>
 Class:        <doc-only | mechanical | component | cross-component | shared-stack | skill-package>
@@ -160,7 +160,7 @@ header.
 **Dedup within a round:** one row per boundary, one row per lens, *within a single committed
 round*. That is the whole MVP dedup rule.
 
-**Resumability (read-forward, not merge-back):** a resumed or re-run cross-review **reads the
+**Resumability (read-forward, not merge-back):** a resumed or re-run xreview **reads the
 prior ledger first** for context (what the last round concluded, what was rejected and why) so it
 does not re-litigate settled findings or re-raise rejected ones without new evidence — but it
 records its conclusions in a **new round with its own header block**, not by editing the old one
@@ -220,6 +220,6 @@ count `0` *and* fields consistent) resolves to FAIL, never to a skipped check th
 pre-design "synthesis evaporated into the transcript" status quo — no ledger — must not pass the
 gate.)
 
-**Provider/consumer:** `/cross-review` is the **provider** of this schema; `/workstream`'s
+**Provider/consumer:** `/xreview` is the **provider** of this schema; `/workstream`'s
 review-gate is the **consumer**. Per the skill's tie-break, this schema is canonical; 536's gate
 adapts to it and reads the ledger, never re-deriving review state from the transcript.
