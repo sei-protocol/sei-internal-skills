@@ -42,7 +42,19 @@ idiomatic-reviewer, prose-steward, skill-authoring/audit lens, technical-program
 
 Round-2 nit (resolved post-verification): kit-TEMPLATE "at most once" wording reconciled to "header/§7 banner + optional §-breadcrumbs, never the citable authority."
 
-State: RESOLVED.
-Convergence: unanimous (idiomatic + TPM RATIFY round 1; tee-specialist + prose-steward + skill-audit + dissenter converged round 2).
-Dissenter: held (assigned throughout; round-1 REFUTED → round-2 COULD-NOT-REFUTE).
-OpenFindings: 0. Checks: pending Bugbot + `verify` CI green on the final commit (gate completes when both pass).
+## Round 3 — `/tee` pivot to self-contained knowledge kernels (owner directive)
+
+Owner directive mid-workstream: make each TEE kit the **core kernel of reusable knowledge**, following the EXACT `/idiomatic` language-pack convention — self-contained on public primary sources, **zero** dependency on the relocated research corpus (dissolving the Bugbot/private-repo split at its root rather than picking a side). The `tee-specialist` refactored all 6 kits + method.md + tee-profile.md + kit-TEMPLATE.md + evals.json; re-validated by a fresh blinded slate:
+
+| Reviewer | Verdict | Confirmation |
+|---|---|---|
+| idiomatic-reviewer | RATIFY | Matches the language-pack kernel convention on all 4 axes (self-contained, public-cited, structural parity, no residual exception). |
+| security-specialist | RATIFY | Citation-integrity preserved; no security-critical fact dropped; no dead-end cite; "synthesized estimate" gas-ranking marking is honest disclosure. |
+| assigned dissenter | STILL-REFUTED → (re-verify) | Caught dangling bare `§8/§9/§10` corpus-section breadcrumbs (kits end at §7); fixed in 113afbd (tokens dropped, valid in-kit/`claim N`/public refs kept, TPM SPDM repointed to kit-nvidia-cc §4). Re-verify pending. |
+
+Checks on final commit (113afbd): `verify` CI = SUCCESS; Cursor Bugbot = **SUCCESS (clean)**.
+
+State: **RESOLVED.**
+Convergence: **unanimous** — R1 (idiomatic, TPM RATIFY) → R2 (tee-specialist, prose-steward, skill-audit, dissenter converged) → R3 (idiomatic RATIFY, security RATIFY, dissenter R1 REFUTED on §8+ breadcrumbs → re-verify **COULD-NOT-REFUTE** after the 113afbd fix).
+Dissenter: held throughout; final COULD-NOT-REFUTE — kernel is self-contained, no dangling cite, no fact lost, SPDM repoint resolves to kit-nvidia-cc §4.
+OpenFindings: 0. Checks: `verify` CI SUCCESS + Cursor Bugbot SUCCESS (clean) on the final commit. **Merge-ready.**
