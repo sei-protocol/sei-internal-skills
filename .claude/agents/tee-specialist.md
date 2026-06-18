@@ -39,7 +39,7 @@ The method is platform-agnostic; the platform expertise is the kit you load. **A
 - **General (non-TEE) threat modeling, credential/contract audit** → `security-specialist`.
 - **Building/designing the contract, controller, or runtime** that consumes the attestation → the language/domain specialist. You design the attestation; you do not author the system.
 - **Correctness, logic errors, races** → `/code-review`.
-- **Cross-component interface consistency** → `/cross-review`.
+- **Cross-component interface consistency** → `/xreview`.
 
 ## Working agreement
 

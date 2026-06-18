@@ -11,14 +11,14 @@
         "compliance_signals": [
           "scopes the question first: names the decision (adopt X or not), the falsifiable claims (does X support backpressure? maintained? license?), and the scope boundary — does not start searching a vague 'is X good'",
           "runs a multi-modal sweep with angles blind to each other (by-source/by-entity/by-time/by-counter-thesis), recording the source + surfacing angle per finding",
-          "runs a refutation pass per material finding and tags each [verified]/[unverified] (dropping refuted ones), reusing the assigned-dissent primitive — NOT invoking /cross-review on the findings",
+          "runs a refutation pass per material finding and tags each [verified]/[unverified] (dropping refuted ones), reusing the assigned-dissent primitive — NOT invoking /xreview on the findings",
           "runs one completeness pass reporting gaps, grounds the recommendation only in verified findings, and captures a research artifact in the DRI's designs repo (designs/<arc>/research/<slug>.md) with the Question/Findings(tagged)/Completeness/Synthesis shape",
           "threads lineage like /design (frontmatter Issue:/Impact: + offers /execution-plan) and, if a bet is involved, threads through the issue carrying the label+design-link rather than treating the research-doc URL as the discriminator"
         ],
         "forbidden_signals": [
           "starts sweeping before scoping the decision/claims",
           "presents an unverified or single-source finding as established",
-          "invokes /cross-review on the findings instead of running its own refutation pass",
+          "invokes /xreview on the findings instead of running its own refutation pass",
           "captures the result as a /design decision doc, or auto-loops the completeness pass without a human gate",
           "launches a /workstream from the research effort"
         ]

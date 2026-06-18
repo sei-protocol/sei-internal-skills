@@ -2,7 +2,7 @@
 name: systems
 category: code-quality
 model: claude-opus-4-8
-description: "Use when reviewing or designing code/architecture for systems-level quality — reliability, performance, observability, safety, API durability — 'systems review', '/systems', 'will this hold under load', 'is this resilient/observable', 'is this API backward-compatible'. A citable standards corpus (Google SRE, AWS Builder's Library, OTel semconv, TigerBeetle TIGER STYLE, Google AIP, …) the systems-engineer agent hooks into; findings ranked by consequence-under-load, each cited. Anti-triggers: NOT for language-idiom conformance (use /idiomatic); NOT for line-level correctness bugs (use /code-review); NOT for cross-component interface consistency (use /cross-review); NOT for operating running services — SLOs/alerts/runbooks/incidents (sre-engineer), manifests/runtimes (platform-engineer), telemetry SDK/backend (the observability agents). Reviews how code behaves on the machine and over time; does not run the platform."
+description: "Use when reviewing or designing code/architecture for systems-level quality — reliability, performance, observability, safety, API durability — 'systems review', '/systems', 'will this hold under load', 'is this resilient/observable', 'is this API backward-compatible'. A citable standards corpus (Google SRE, AWS Builder's Library, OTel semconv, TigerBeetle TIGER STYLE, Google AIP, …) the systems-engineer agent hooks into; findings ranked by consequence-under-load, each cited. Anti-triggers: NOT for language-idiom conformance (use /idiomatic); NOT for line-level correctness bugs (use /code-review); NOT for cross-component interface consistency (use /xreview); NOT for operating running services — SLOs/alerts/runbooks/incidents (sre-engineer), manifests/runtimes (platform-engineer), telemetry SDK/backend (the observability agents). Reviews how code behaves on the machine and over time; does not run the platform."
 ---
 
 # Systems
@@ -31,7 +31,7 @@ Refusal conditions — they hold under time pressure and a checklist-completion 
 | A finding that names a consequence under load + cites an authority | — |
 | Does the code read native to the language + package patterns? | `/idiomatic` |
 | Line-level correctness bugs (races, nil derefs, logic) | `/code-review` |
-| Cross-component interface/boundary consistency | `/cross-review` |
+| Cross-component interface/boundary consistency | `/xreview` |
 | Operating the running system — SLOs, alerts, runbooks, incidents | `sre-engineer` |
 | Manifests, runtimes, cloud auth, GitOps | `platform-engineer` |
 | Telemetry SDK wiring / backend | `opentelemetry-expert` / `observability-platform-engineer` |

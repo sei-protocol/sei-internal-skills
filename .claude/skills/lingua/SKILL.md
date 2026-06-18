@@ -12,7 +12,7 @@ the AI agent that ingests it linearly and acts on it. This is a *technique* skil
 spine* — the prose sibling of `/idiomatic` (same mechanism: pluggable packs + a repo-profile overlay
 that always wins; same spine: cite every finding, don't flag clean prose). One mode ships: **Translate**.
 
-`prose-steward` is the **owner of record for the documentation/prose axis** (PLT-626): it defines the doc-artifact prose discipline (present-state framing, sparing/centralized context, top-located header docs, dual-audience legibility — D1–D4 in `references/audience-model.md`), tie-breaks when a doc's prose is in question, and enforces it on every cross-review cycle. The adjacent in-source comment axis (code comments + config annotations) is owned by `idiomatic-reviewer` via `/idiomatic` — see the Boundary note in `audience-model.md`.
+`prose-steward` is the **owner of record for the documentation/prose axis** (PLT-626): it defines the doc-artifact prose discipline (present-state framing, sparing/centralized context, top-located header docs, dual-audience legibility — D1–D4 in `references/audience-model.md`), tie-breaks when a doc's prose is in question, and enforces it on every xreview cycle. The adjacent in-source comment axis (code comments + config annotations) is owned by `idiomatic-reviewer` via `/idiomatic` — see the Boundary note in `audience-model.md`.
 
 ## Guardrails
 
@@ -87,7 +87,7 @@ loaded). All three failed in ways this spine now counters:
 | PRFAQ thesis, voice, falsification, verdict | `/prfaq` |
 | Reliability/perf/API durability of the *system described* | `/systems` |
 | Tightening a PR body or in-code comment | `/brevity` |
-| A standing review lens on artifacts in coral/cross-review | `prose-steward` (PLT-480) |
+| A standing review lens on artifacts in coral/xreview | `prose-steward` (PLT-480) |
 
 ## The method — Translate
 

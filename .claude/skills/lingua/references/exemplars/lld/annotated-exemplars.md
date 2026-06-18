@@ -190,7 +190,7 @@ class: **org-owned** (adapt w/ attribution).
 ## validation-substrate-ship-cut
 
 **seictl validation substrate** — `bdchatham-designs/designs/validation-substrate/validation-substrate.md` (relocated from seictl docs/, PLT-497) · Draft (coral
-cross-review) · License class: **org-owned** (adapt w/ attribution).
+xreview) · License class: **org-owned** (adapt w/ attribution).
 
 - The `v1 ship cut` table (Artifact | v1 | Trigger-to-un-defer) ships effectively no new code in v1 and
   lands each primitive only on a named trigger, "not speculatively." The cleanest corpus instance of a

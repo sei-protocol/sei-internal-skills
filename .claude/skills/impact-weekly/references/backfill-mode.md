@@ -93,7 +93,7 @@ with a partial live read.
 ## Orchestration (drafts via workflow → main loop writes)
 
 A months-long backfill is a fan-out: a Coral workflow drafts the per-bet weekly toggles + the high-level Linear
-tickets from the corpus (product-engineer / TPM authors; cross-review verifies). **Sub-agents lack the
+tickets from the corpus (product-engineer / TPM authors; xreview verifies). **Sub-agents lack the
 interactively-authenticated Notion/Linear MCP**, so they **draft only** — the **main loop does every Notion
 `update_content` and Linear write** after the confirm gate, following `notion-flavored-markdown.md` +
 verify-render-after-write. Reviewers in that workflow are suggest-only — never the terminal authoring stage

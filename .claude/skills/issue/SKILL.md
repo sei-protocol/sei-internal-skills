@@ -86,7 +86,7 @@ Preconditions are checked per sink, at the create step — not upfront. The body
 - **Triage or prioritize.** It files; humans (and `coral` / `council`) decide what to do with it.
 - **Cross-repo federation.** When a problem spans repos, file separate linked issues — one invocation per repo.
 - **Redact sensitive content.** The filer is responsible for keeping secrets, internal URLs, and customer data out of the body.
-- **Cross-review the proposed approach.** If the filer wants design feedback before filing, they should iterate in coral first; the skill captures whatever sketch is on the table.
+- **xreview the proposed approach.** If the filer wants design feedback before filing, they should iterate in coral first; the skill captures whatever sketch is on the table.
 
 ## Halt Conditions
 

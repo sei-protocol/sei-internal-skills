@@ -29,11 +29,11 @@ If `.council/workstream.yaml` exists with this effort, resume from the last in_p
 ### Phase 2: Component Design (repeat per component)
 For each component identified in Phase 1, run the Component tier process below. Order matters — design providers before consumers so interfaces are defined when consumers need them.
 
-### Phase 3: Cross-Review
+### Phase 3: xreview
 After all component LLDs are drafted:
-1. For each interface boundary, run `/cross-review` (it dispatches the relevant specialists for independent review).
-2. Collect findings into a cross-review document.
-3. Save to the repo's conventional cross-review location.
+1. For each interface boundary, run `/xreview` (it dispatches the relevant specialists for independent review).
+2. Collect findings into a xreview document.
+3. Save to the repo's conventional xreview location.
 4. Resolve all MISMATCH and MISSING findings:
    - Update the interface source of truth first
    - Then update the component LLDs to match
@@ -42,7 +42,7 @@ After all component LLDs are drafted:
 Run the Feature tier process for each component, in the same provider-first order.
 
 ### Phase 5: Integration Verification
-1. Run `/cross-review` across all interface boundaries one final time.
+1. Run `/xreview` across all interface boundaries one final time.
 2. Run the repo's test suite.
 3. Present the full summary to the user.
 
@@ -82,14 +82,14 @@ For each affected component:
 2. The specialist reads the updated interface source and adjusts their spec.
 3. If the change warrants a new LLD section, add it. If small, update in place.
 
-### Phase 4: Cross-Review
-Run `/cross-review` for every interface boundary touched. Focus on changed interfaces — don't re-review unchanged boundaries unless asked.
+### Phase 4: xreview
+Run `/xreview` for every interface boundary touched. Focus on changed interfaces — don't re-review unchanged boundaries unless asked.
 
 ### Phase 5: Implementation
 For each affected component, dispatch the owning specialist. Provider-first ordering.
 
 ### Phase 6: Verification
-1. Run `/cross-review` across changed interfaces.
+1. Run `/xreview` across changed interfaces.
 2. Run tests for all affected components.
 3. Present summary with interface change log.
 
@@ -120,7 +120,7 @@ For each affected component, dispatch the owning specialist. Provider-first orde
 3. LLD follows the repo's template (all sections, no TBD).
 
 ### Phase 3: Interface Check
-1. Run `/cross-review` to check the new/updated LLD against the interface source.
+1. Run `/xreview` to check the new/updated LLD against the interface source.
 2. If MISMATCH: resolve before implementation.
 3. If COMPATIBLE: proceed.
 

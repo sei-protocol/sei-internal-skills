@@ -1,6 +1,6 @@
 # Slate Routing — the shared change-type × blast-radius → slate rule
 
-The canonical routing rule for **both** `/cross-review` (review-phase slate) and `/coral`
+The canonical routing rule for **both** `/xreview` (review-phase slate) and `/coral`
 (production-phase specialist set). One mechanism, not two: this table is the source of truth;
 the citing skills apply it to their phase. If a skill's prose ever diverges from this table,
 **the table wins**.
@@ -132,7 +132,7 @@ The stewards report on their **own axes**, not the boundary table:
 
 ## 5. Operator override (recorded, never silent)
 
-The operator may name the slate or the tier explicitly (e.g. "cross-review this as T2, drop the
+The operator may name the slate or the tier explicitly (e.g. "xreview this as T2, drop the
 prose-steward — it's a code-only refactor"). An override is **recorded in the ledger's Routing
 section** with the operator's stated reason — never silent.
 
@@ -159,7 +159,7 @@ pass)`. Dissent is never waived because the slate is one — it gets folded.
 
 ## How each skill applies this table
 
-- **`/cross-review` (review phase)** — classify the artifact under review, read the tier off
+- **`/xreview` (review phase)** — classify the artifact under review, read the tier off
   §3, assemble the review slate (domain lenses covering the boundaries + the §4 stewards),
   name the §6 dissenter. The orchestrator's remaining judgment is *which domain specialists*
   cover the boundaries; the *depth* and *steward wiring* are mechanical.

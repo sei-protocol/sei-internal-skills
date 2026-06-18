@@ -6,7 +6,7 @@
 
 Tide is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It's the centralized, version-controlled home for the workflows and personas that help us research problems, groom work, document progress in git and tickets, author and iterate on designs and 1-pagers, automate operational processes like releases and root-cause analysis, and collaborate with specialist agents.
 
-Skills and agents are authored once here and synced out to your user-scope (`~/.claude/`) and sibling repos, so the same `/coral`, `/cross-review`, `/root-cause`, or `kubernetes-specialist` works the same way everywhere.
+Skills and agents are authored once here and synced out to your user-scope (`~/.claude/`) and sibling repos, so the same `/coral`, `/xreview`, `/root-cause`, or `kubernetes-specialist` works the same way everywhere.
 
 ## Setup
 
@@ -36,7 +36,7 @@ Run `make` with no args to list all targets.
 Most work starts with one of the collaboration skills:
 
 - **`/coral`** — lightweight expert iteration on a defined slice. Picks the right specialist(s) and iterates. The fast path; reach for it first.
-- **`/cross-review`** — have the relevant specialists independently review a design, plan, diff, or set of expert outputs, then synthesize a findings table. The review counterpart to coral's "produce."
+- **`/xreview`** — have the relevant specialists independently review a design, plan, diff, or set of expert outputs, then synthesize a findings table. The review counterpart to coral's "produce."
 - **`/council`** — full-ceremony engineering for multi-component design, scope-tier selection, and multi-session workstreams. The heavier sibling of coral.
 - **`/bugbash`** — long-running adversarial review of an existing system before launch.
 - **`/root-cause`** — disciplined, multi-expert investigation of a complex problem.
@@ -46,7 +46,7 @@ Coral and council offer **`/design`** (capture this work as a durable doc) and *
 ## What's in here
 
 - **Skills** (`.claude/skills/`) — self-contained Claude Code skills, grouped by domain:
-  - **Workflow** — `/coral`, `/council`, `/cross-review`
+  - **Workflow** — `/coral`, `/council`, `/xreview`
   - **Workstream bootstrap** — `/design`, `/issue`
   - **Hardening & investigation** — `/bugbash`, `/root-cause`
   - **Skill authoring** — `/author-skill`, `/audit-skill`
@@ -105,7 +105,7 @@ scripts/                    # sync-agents.sh, sync-skills.sh, permission tooling
 
 ## Contributing & conventions
 
-- **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the skill or component in scope (e.g. `feat(cross-review): ...`, `docs(readme): ...`).
+- **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the skill or component in scope (e.g. `feat(xreview): ...`, `docs(readme): ...`).
 - **Brevity discipline.** Apply `/brevity` before writing PR bodies or WHY-style in-code comments.
 - **PR-quality discipline.** Before `gh pr create`, apply `/pr-quality` to the staged diff + planned body.
 - **Edit skills here, not in `~/.claude/`.** User-scope copies are overwritten on the next sync. Change a skill in Tide and PR it.

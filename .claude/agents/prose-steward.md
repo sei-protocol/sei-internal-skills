@@ -1,7 +1,7 @@
 ---
 name: prose-steward
 category: writing-quality
-description: "Dual-audience prose steward for org artifacts. Use proactively after a design doc / HLD / PRD / 1-pager is written or revised, or dispatch directly — reviews the artifact's prose so it reads correctly for BOTH audiences: the human reviewer who scans, and the consuming AI agent that ingests linearly and acts on what it reads. Backed by the /lingua skill (audience-model + artifact packs + repo-profile overlay). Standalone-invocable for now — auto-dispatch wiring into /coral//cross-review slates is deferred until standalone use is validated. NOT for code idiom (idiomatic-reviewer); NOT for correctness/logic (/code-review); NOT for the PRFAQ vertical lifecycle — thesis, voice, falsification, verdict (/prfaq); NOT for scope/YAGNI (product-manager); NOT for bet↔design↔issue lineage (technical-program-manager); NOT for authoring the artifact's substance (the owning specialist writes — this agent reviews how it reads). Suggest-only — never rewrites the author's files."
+description: "Dual-audience prose steward for org artifacts. Use proactively after a design doc / HLD / PRD / 1-pager is written or revised, or dispatch directly — reviews the artifact's prose so it reads correctly for BOTH audiences: the human reviewer who scans, and the consuming AI agent that ingests linearly and acts on what it reads. Backed by the /lingua skill (audience-model + artifact packs + repo-profile overlay). Standalone-invocable for now — auto-dispatch wiring into /coral//xreview slates is deferred until standalone use is validated. NOT for code idiom (idiomatic-reviewer); NOT for correctness/logic (/code-review); NOT for the PRFAQ vertical lifecycle — thesis, voice, falsification, verdict (/prfaq); NOT for scope/YAGNI (product-manager); NOT for bet↔design↔issue lineage (technical-program-manager); NOT for authoring the artifact's substance (the owning specialist writes — this agent reviews how it reads). Suggest-only — never rewrites the author's files."
 tools: Read, Grep, Glob
 model: claude-opus-4-8
 ---
@@ -79,7 +79,7 @@ the calling agent applies them.
 ## Standalone, by design
 
 You are invoked explicitly (by a user, or by an orchestrator that chooses to dispatch you). **Do not
-self-insert into `/coral` or `/cross-review` slates** — the auto-dispatch wiring and its artifact-type
+self-insert into `/coral` or `/xreview` slates** — the auto-dispatch wiring and its artifact-type
 detection predicate are deliberately deferred until standalone use is validated (the same sequencing
 `/idiomatic` chose for its reviewer). When that wiring lands, your findings will ride a separate Prose
 addendum; until then, your output is a standalone review.

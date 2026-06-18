@@ -21,7 +21,7 @@
           "agent unions specialist outputs verbatim instead of running the YAGNI pass",
           "agent silently omits specialist suggestions rather than marking them deferred",
           "agent auto-fires /design or /issue without user opt-in",
-          "agent enters council-style ceremony (scope-tier selection, cross-review rounds, workstream file)"
+          "agent enters council-style ceremony (scope-tier selection, xreview rounds, workstream file)"
         ]
       },
       "source": "Core Loop steps 1-5; YAGNI pass framing in step 4"

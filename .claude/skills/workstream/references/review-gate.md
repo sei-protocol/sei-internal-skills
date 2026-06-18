@@ -1,4 +1,4 @@
-# The review-gate (a consensus gate that composes `/cross-review`)
+# The review-gate (a consensus gate that composes `/xreview`)
 
 The third gate kind, alongside the human `checkpoint` and the signal `guard`. A **review-gate**
 makes *"merge once the reviewer slate is unanimously RATIFY (zero open concerns) and the declared
@@ -11,12 +11,12 @@ still owns every one-way door.
 
 ## Compose, never reimplement — the one-direction coupling
 
-`/cross-review` (PLT-535 / Design 08) is the **provider**: it owns the slate, the routing, the
+`/xreview` (PLT-535 / Design 08) is the **provider**: it owns the slate, the routing, the
 blinded dispatch, the assigned dissent, and the **review-ledger** schema + gate-read contract. The
 review-gate is the **consumer**: it *invokes* the slate (the verify-to-convergence loop) and
 *reads* the review-ledger (the gate evaluation). 
 
-There is **one** coupling surface — `/cross-review`'s **gate-read contract** (Design 08, *How it
+There is **one** coupling surface — `/xreview`'s **gate-read contract** (Design 08, *How it
 composes*). The review-gate reads exactly the latest round's header fields that contract names, and
 nothing else. Per Design 08's stated tie-break, **that contract is canonical**; the review-gate
 adapts to it and never re-derives review state. If the contract changes, the review-gate follows
@@ -24,7 +24,7 @@ it — there are not two contracts.
 
 > **Never reimplement** the slate, the routing, the steward-wiring, or the review-ledger schema
 > here. If you find yourself defining how a round is dispatched or what the ledger header looks
-> like, stop — that is `/cross-review`'s, and duplicating it forks the contract.
+> like, stop — that is `/xreview`'s, and duplicating it forks the contract.
 
 ## The ledger entry
 
@@ -32,10 +32,10 @@ A third entry kind in the workstream's checkpoint ledger, declared up front:
 
 ```
 - review-gate: <short identifier, kebab-case>
-  slate:    <the declared reviewer slate — or "routed by /cross-review per change-class">
+  slate:    <the declared reviewer slate — or "routed by /xreview per change-class">
   checks:   <the declared automated checks that must be green — e.g. cursor-bugbot, named CI workflows>
-  ledger:   <the /cross-review review-ledger path — target-derivable per PLT-535; the gate computes it from the target, no registry>
-  satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL per /cross-review's gate-read contract (currently State RESOLVED|RESOLVED-WITH-ACCEPTED-RISK, OpenFindings 0, Dissenter non-empty, cross-field consistent) AND Convergence is unanimous (the consensus refinement — see gate evaluation) AND every declared check has passed
+  ledger:   <the /xreview review-ledger path — target-derivable per PLT-535; the gate computes it from the target, no registry>
+  satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL per /xreview's gate-read contract (currently State RESOLVED|RESOLVED-WITH-ACCEPTED-RISK, OpenFindings 0, Dissenter non-empty, cross-field consistent) AND Convergence is unanimous (the consensus refinement — see gate evaluation) AND every declared check has passed
   on_fail:  surface + route to a PRE-DECLARED human checkpoint (e.g. pr-sign-off) — never self-merge on a fail
 ```
 
@@ -45,9 +45,9 @@ When the ship step is reached and a `review-gate` was declared, evaluate it:
 
 1. **Compute the review-ledger path** from the target (PLT-535's target-derivable rule — no
    registry, no handoff token).
-2. **Read the latest round's header block** and apply `/cross-review`'s passing-terminal gate-read
+2. **Read the latest round's header block** and apply `/xreview`'s passing-terminal gate-read
    **verbatim** (the provider's ledger-validity check — see the *Gate-read contract* table in
-   `/cross-review/references/review-ledger.md`; this gate reads that table, it does not re-list or
+   `/xreview/references/review-ledger.md`; this gate reads that table, it does not re-list or
    re-derive it):
    - `State:` is a passing terminal (`RESOLVED` | `RESOLVED-WITH-ACCEPTED-RISK`), **and**
    - `OpenFindings:` parses to integer `0`, **and**
@@ -60,7 +60,7 @@ When the ship step is reached and a `review-gate` was declared, evaluate it:
    `unanimous`.** A review-gate is a *consensus* gate — a recorded `Convergence: split` latest round
    means the slate has not converged to consensus and is **not merge-ready**, so it does not satisfy
    the gate even with `OpenFindings: 0`. This is not a fork of the provider's contract: per
-   `/cross-review`'s own rule a *resolved* split is re-recorded `unanimous` (and a genuinely
+   `/xreview`'s own rule a *resolved* split is re-recorded `unanimous` (and a genuinely
    unresolved split is `OPEN-BLOCKED`, `OpenFindings ≥ 1`), so requiring `unanimous` rejects only a
    non-consensus / ill-formed `split`-with-zero-open round — never a legitimately-converged ledger.
    The provider check answers "is this a valid resolved ledger"; the consensus refinement is the
@@ -73,7 +73,7 @@ When the ship step is reached and a `review-gate` was declared, evaluate it:
 
 **Fail-closed is the load-bearing property.** Two sources of FAIL, kept distinct:
 
-- **Provider-owned (the contract this gate reads verbatim — `/cross-review`'s gate-read contract):**
+- **Provider-owned (the contract this gate reads verbatim — `/xreview`'s gate-read contract):**
   an **absent** review-ledger, an **unparseable / missing** field, an **out-of-enum** `Convergence`,
   an **empty** `Dissenter`, a **self-contradictory** header (e.g. `State: RESOLVED` with
   `OpenFindings: 3`), **or a malformed latest round** — which, per that contract, *includes* an
@@ -91,16 +91,16 @@ merge on a resolved split — the `split`-rejection is *this* gate's policy, not
 ## The verify-to-convergence loop (lifecycle step 3)
 
 The review-gate's *pass condition* is produced by the verify loop. The loop **composes**
-`/cross-review`:
+`/xreview`:
 
 ```
 loop:
-  invoke /cross-review on the integrated artifact
+  invoke /xreview on the integrated artifact
     → it classifies, routes the slate, dispatches blinded, synthesizes the review-ledger round
   read the latest round (the gate-read contract above)
   if passing terminal (incl. Convergence: unanimous):  converged → the review-gate can read pass
   elif OPEN-BLOCKED:           honest fail-to-human exit (a genuine split the tie-break didn't resolve)
-  else (open findings):        apply the fixes → re-invoke /cross-review (it appends a NEW round) → repeat
+  else (open findings):        apply the fixes → re-invoke /xreview (it appends a NEW round) → repeat
 ```
 
 **Loop bound (the open-findings branch is bounded by the human-driven serial model — MVP).** The
@@ -121,7 +121,7 @@ contract (mirrors the guard primitive's recursion bound).
 - The terminals are exactly the review-ledger's terminals: `RESOLVED` /
   `RESOLVED-WITH-ACCEPTED-RISK` (converged) or `OPEN-BLOCKED` (fails to a human; **never** relabeled
   to terminate the loop).
-- The workstream **sequences** the rounds and **applies** the fixes; `/cross-review` owns *how*
+- The workstream **sequences** the rounds and **applies** the fixes; `/xreview` owns *how*
   each round is dispatched and recorded. That is the compose/reimplement line.
 
 ## What the review-gate is NOT
@@ -136,5 +136,5 @@ contract (mirrors the guard primitive's recursion bound).
   `OpenFindings ≥ 1` fails — "the dissent is minor/stale" is the rubber-stamp the gate forbids.
 - **Not authorized ad hoc.** The up-front declaration is the authorization. A review-gate added,
   widened, or relaxed silently mid-workstream is not a gate.
-- **Not a re-implementation of `/cross-review`.** It reads the ledger and invokes the slate; it
+- **Not a re-implementation of `/xreview`.** It reads the ledger and invokes the slate; it
   owns neither.

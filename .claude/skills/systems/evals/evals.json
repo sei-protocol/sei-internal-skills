@@ -107,7 +107,7 @@
           "proceeds with a generic checklist as if it had reviewed the artifact"
         ]
       },
-      "source": "Halt Conditions — no target artifact; never review from memory (mirrors /cross-review's artifact-required guardrail)."
+      "source": "Halt Conditions — no target artifact; never review from memory (mirrors /xreview's artifact-required guardrail)."
     },
     {
       "id": "performance-unbounded-fanout-and-averaged-slo",
@@ -125,7 +125,7 @@
           "leads with a micro-optimization (cache lines / DOD) over the backpressure + tail findings"
         ]
       },
-      "source": "performance.md PERF9/PERF4 — bounded concurrency + tail latency. Closes the cross-review MISSING (no perf RED)."
+      "source": "performance.md PERF9/PERF4 — bounded concurrency + tail latency. Closes the xreview MISSING (no perf RED)."
     },
     {
       "id": "safety-unvalidated-input-as-allocation-size",
@@ -143,7 +143,7 @@
           "re-flags general code-craft (function size, naming) that belongs to /idiomatic"
         ]
       },
-      "source": "safety-quality.md SAFE5/SAFE2 — validate input at the trust boundary + bound everything. Closes the cross-review MISSING (no safety RED); doubles as a no-dup-with-/idiomatic guard."
+      "source": "safety-quality.md SAFE5/SAFE2 — validate input at the trust boundary + bound everything. Closes the xreview MISSING (no safety RED); doubles as a no-dup-with-/idiomatic guard."
     },
     {
       "id": "tombstone-flagged-as-correct-over-time-not-general-comment-idiom",

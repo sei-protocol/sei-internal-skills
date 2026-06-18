@@ -20,7 +20,7 @@ The 10 verbose-output rationalizations from SKILL.md, with source citations for 
 
 1. **Mid-rewrite**: if an excuse forms in your reasoning, scan the left column. If it matches, apply the counter from the right column of SKILL.md and continue.
 2. **Post-rewrite**: if the after-version still feels too short, scan the table for which row your "this needs more" is rationalizing.
-3. **Cross-review**: if a reviewer pushes back on a compression, ask which row from the table they think doesn't apply. Forces specific disagreement rather than vague "too short."
+3. **xreview**: if a reviewer pushes back on a compression, ask which row from the table they think doesn't apply. Forces specific disagreement rather than vague "too short."
 
 ## Sources (full URLs)
 
