@@ -1,20 +1,20 @@
 # Sei-load bench
 
-Engineer-driven load tests run as a `Job` + `ConfigMap` pair under the engineer's namespace. Sei-load is vanilla K8s (no CRD), so the rendering lives in this skill rather than `seictl nd`. The agent fills in the placeholders, opens a PR against `sei-protocol/harbor-engineering-workspace`, and the engineer's per-engineer Flux Kustomization reconciles the Job on merge.
+Engineer-driven load tests run as a `Job` + `ConfigMap` pair under the engineer's namespace. Sei-load is vanilla K8s (no CRD), so the rendering lives in this skill rather than `seictl network|node`. The agent fills in the placeholders, opens a PR against `sei-protocol/harbor-engineering-workspace`, and the engineer's per-engineer Flux Kustomization reconciles the Job on merge.
 
 ## Substrate facts the manifest depends on
 
 - **Sei-load image is distroless** — no shell, no `aws-cli`, no `bash`. Main container can't run a wrapper script. Upload happens from a separate sidecar.
 - **`engineer-service-account` is namespace-admin** in `eng-<alias>` (RoleBinding to built-in `admin` ClusterRole). Grants `pods/log get` (used by the sidecar) and S3 write via Pod Identity (`aws_iam_policy.engineer`, scoped to `harbor-validation-results/eng-<alias>/*`).
 - **Per-engineer Flux Kustomization SA has `update`+`patch` on `batch/jobs`** (sei-protocol/platform/clusters/harbor/engineers/base/rbac.yaml). Without those verbs, Flux's server-side apply fails on the second reconcile of any Job.
-- **Profile JSON has live placeholders** — `__SEI_CHAIN_ID__` and `__RPC_ENDPOINTS__` in `clusters/harbor/nightly/load/profiles/*.json`. The agent must substitute both at render time. `__RPC_ENDPOINTS__` is a comma-separated quoted list of per-pod RPC URLs from `seictl nd get <chain-id>-rpc -o jsonpath='{.status.endpoints.evmJsonRpc[1:]}'` — index `[0]` is the aggregate ClusterIP, which kube-proxy round-robins (breaks WS subscription affinity).
-- **The chain's rpc SND must be `Ready` at render time.** Per-pod URLs only exist in `.status.endpoints.evmJsonRpc[1:]` after the rpc SND has reconciled and per-pod Services are populated.
+- **Profile JSON has live placeholders** — `__SEI_CHAIN_ID__` and `__RPC_ENDPOINTS__` in `clusters/harbor/nightly/load/profiles/*.json`. The agent must substitute both at render time. `__RPC_ENDPOINTS__` is the fleet of per-follower RPC URLs read across the network's `rpc` SeiNodes: `seictl node list -n eng-<alias> -l sei.io/seinetwork=<id>,sei.io/role=node -o json | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'`. Each follower publishes its own `.status.endpoint` scalar (its stable per-node URL); there is no aggregate ClusterIP — assemble the fleet across CRs, never reconstruct a URL.
+- **The chain's rpc follower SeiNodes must be `Running` at render time.** Each follower's `.status.endpoint.evmJsonRpc` is published only after that SeiNode reaches `Running` (a SeiNode has no `Ready` phase — terminal is `Running`).
 
 ## Inputs the agent gathers
 
 | Input | Source / default |
 |---|---|
-| Chain ID | The genesis-chain SND name in the engineer's namespace. The bench targets the chain's rpc SND (named `<chain-id>-rpc`). |
+| Chain ID | The SeiNetwork name in the engineer's namespace. The bench targets the network's rpc follower SeiNodes (named `<chain-id>-rpc-0 .. <chain-id>-rpc-(N-1)`, selected by `sei.io/seinetwork=<chain-id>,sei.io/role=node`). |
 | Sei-load image | **Required input** — engineer specifies a PR / commit / branch / explicit `--image`; never silently default. Resolution per `references/image-resolution.md`. |
 | Profile | Default `nightly_evm_transfer`. Override via `--profile <name>` matching a file in `clusters/harbor/nightly/load/profiles/`. |
 | Duration (minutes) | Default 10. Override `--duration <minutes>`. |
@@ -24,8 +24,8 @@ Engineer-driven load tests run as a `Job` + `ConfigMap` pair under the engineer'
 
 Before writing any manifest:
 
-1. **Chain rpc SND exists and is `Ready`.** `seictl nd get <chain-id>-rpc -n eng-<alias> -o jsonpath='{.status.phase}'` returns `Ready`. Halt and ask the engineer to wait if not — per-pod URLs aren't populated otherwise.
-2. **Per-pod RPC URLs available.** `seictl nd get <chain-id>-rpc -n eng-<alias> -o jsonpath='{.status.endpoints.evmJsonRpc}'` returns a list with length ≥ 2 (index 0 aggregate + at least one per-pod entry).
+1. **At least one rpc follower SeiNode exists and is `Running`.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json | jq -r '[.items[].status.phase]'` shows at least one `Running` follower. Halt and ask the engineer to wait if not — per-follower URLs aren't published otherwise (a SeiNode has no `Ready` phase — terminal is `Running`).
+2. **Fleet RPC URLs available.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'` returns a non-empty list (one URL per `Running` follower).
 3. **Image resolved + verified in registry** per `references/image-resolution.md`'s sei-load section.
 
 ## `<RUN_ID>` derivation and re-render determinism
@@ -73,8 +73,8 @@ data:
 `<PROFILE_JSON_SUBSTITUTED>` is the content of `clusters/harbor/nightly/load/profiles/<profile>.json` with `seiChainId` set to the chain-id and `endpoints` set to the per-pod RPC URLs. Use `jq --argjson` rather than `sed` — robust against URL special characters and produces guaranteed-valid JSON:
 
 ```sh
-RPC_ENDPOINTS=$(seictl nd get <chain-id>-rpc -n eng-<alias> -o json \
-  | jq -c '.status.endpoints.evmJsonRpc[1:]')
+RPC_ENDPOINTS=$(seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json \
+  | jq -c '[.items[].status.endpoint.evmJsonRpc | select(.)]')
 
 PROFILE_RAW=$(gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/load/profiles/<profile>.json \
   --jq .content | base64 -d)
@@ -253,9 +253,9 @@ The agent appends `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `
 
 ## Halt conditions
 
-- **Chain rpc SND not found.** `seictl nd get <chain-id>-rpc -n eng-<alias>` returns `NotFound` (and `seictl nd watch` exits non-zero with the same `metav1.Status` reason). The chain has a genesis SND but no rpc SND yet — the engineer must apply one first via `seictl nd apply <chain-id>-rpc --preset rpc --chain-id <chain-id>` (PR-based or direct). Halt; do not attempt to render the bench.
-- **Chain rpc SND not Ready** at render time. Per-pod URLs aren't populated. Surface the phase + offer to poll (`seictl nd watch <chain-id>-rpc --until=Ready`) before continuing.
-- **Per-pod URLs absent** even though phase is Ready. Likely a pre-Service-population race. Sleep 30s and retry once; halt with the SND's full status if still empty.
+- **No rpc follower SeiNodes found.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json` returns an empty `.items`. The network exists but has no rpc followers yet — the engineer must apply at least one first via `seictl node apply <chain-id>-rpc-0 --preset rpc --chain-id <chain-id> --network <chain-id>` (PR-based or direct). Halt; do not attempt to render the bench.
+- **No follower `Running`** at render time. Per-follower URLs aren't published. Surface each follower's phase + offer to poll (`seictl node watch <chain-id>-rpc-<k> --until=Running` per follower) before continuing.
+- **Endpoints absent** even though a follower is `Running`. Likely a pre-endpoint-publication race (`PhaseRunning` precedes a serving EVM listener). Sleep 30s and retry once; halt with the followers' full status if still empty.
 - **Parent `engineers/<alias>/kustomization.yaml` missing.** The per-engineer Flux Kustomization has nothing to aggregate the new `bench-<RUN_ID>/` task dir into; merging the PR is a no-op for Flux. Onboarding (or a prior teardown sequence) didn't ship the parent kustomization. Halt; surface that the engineer's onboarding PR is incomplete or the parent file was removed manually.
 - **Profile JSON not in platform repo.** Surface available profiles (`gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/load/profiles --jq '.[].name'`); ask the engineer to pick.
 - **Bench-name collision** — `engineers/<alias>/bench-<RUN_ID>/` already exists with a closed PR. Halt and ask whether to bump the bench-tag or reuse.
