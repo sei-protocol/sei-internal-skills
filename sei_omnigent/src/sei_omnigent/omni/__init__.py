@@ -19,6 +19,7 @@ from sei_omnigent.omni.engine import (
     budget_terminal,
     classify_source_read,
     is_truncated,
+    tripped_axis,
 )
 from sei_omnigent.omni.profile import (
     API_VERSION,
@@ -52,4 +53,5 @@ __all__ = [
     "budget_terminal",
     "classify_source_read",
     "is_truncated",
+    "tripped_axis",
 ]

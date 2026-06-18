@@ -28,9 +28,11 @@ Design 12 §2, §3.5.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from types import MappingProxyType
 
 
 class TerminalReason(StrEnum):
@@ -42,6 +44,14 @@ class TerminalReason(StrEnum):
     ``NO_PROGRESS`` are *truncated* (cut short) — and §3.5 forbids a truncated run
     from rendering the clean-punt all-clear headline, so the distinction is
     load-bearing for the misleading-rate SLO (see :func:`is_truncated`).
+
+    Deliberately out of scope for Phase-1: a **gate-halt** terminal (the INV-1
+    HALT-and-report state — "absence of a human is a NO"). Report-only never crosses
+    a one-way-door gate, so the branch never fires (Design 12 §2); the day a
+    build-mode profile lands it is load-bearing and a gate-halt terminal must be
+    added (and must NOT be a surveyed terminal — it is not an all-clear). Recorded
+    here so a future build-mode author adds it rather than shoehorning a halt into
+    ``CLEAN_PUNT``/``INSUFFICIENT_CONTEXT``.
     """
 
     GOAL_REACHED = "goal-reached"  # structurally-complete, evidence-backed report
@@ -86,23 +96,39 @@ class Budget:
     no_progress_iterations: int
 
     def __post_init__(self) -> None:
-        positive = {
+        caps = {
             "wall_clock_s": self.wall_clock_s,
             "tokens": self.tokens,
             "queries": self.queries,
             "max_iterations": self.max_iterations,
             "no_progress_iterations": self.no_progress_iterations,
         }
-        non_positive = [name for name, value in positive.items() if value <= 0]
+        # Finiteness FIRST: a NaN/inf cap passes a "<= 0" test (nan<=0 and inf<=0 are
+        # both False) and would silently DISABLE that budget axis — a fail-open hole
+        # in the one module whose job is to bound a run against a degraded system.
+        non_finite = [name for name, value in caps.items() if not math.isfinite(value)]
+        if non_finite:
+            raise ValueError(
+                f"Budget caps must be finite; got non-finite: {', '.join(non_finite)}"
+            )
+        non_positive = [name for name, value in caps.items() if value <= 0]
         if non_positive:
             raise ValueError(
                 f"Budget caps must be positive; got non-positive: {', '.join(non_positive)}"
             )
-        bad_sub = [src for src, cap in self.per_source_queries.items() if cap <= 0]
+        bad_sub = [
+            src for src, cap in self.per_source_queries.items()
+            if not math.isfinite(cap) or cap <= 0
+        ]
         if bad_sub:
             raise ValueError(
-                f"Budget per-source caps must be positive; non-positive for: {', '.join(bad_sub)}"
+                f"Budget per-source caps must be finite + positive: {', '.join(bad_sub)}"
             )
+        # Defensive freeze: a caller mutating the dict it passed in must not change a
+        # validated cap under the frozen dataclass (mirrors profile.py's _freeze).
+        object.__setattr__(
+            self, "per_source_queries", MappingProxyType(dict(self.per_source_queries))
+        )
 
 
 @dataclass(frozen=True)
@@ -116,13 +142,60 @@ class Usage:
     iterations: int
     iterations_since_progress: int
 
+    def __post_init__(self) -> None:
+        # Non-finite usage is the symmetric fail-open of a non-finite cap: a NaN
+        # elapsed_s makes `elapsed_s >= wall_clock_s` False forever, so the axis
+        # never trips. Reject it (negative under-reports and trips late — less
+        # dangerous, but a finite-and-non-negative snapshot is the only honest one).
+        numerics = {
+            "elapsed_s": self.elapsed_s,
+            "tokens": self.tokens,
+            "queries": self.queries,
+            "iterations": self.iterations,
+            "iterations_since_progress": self.iterations_since_progress,
+        }
+        bad = [n for n, v in numerics.items() if not math.isfinite(v) or v < 0]
+        if bad:
+            raise ValueError(
+                f"Usage values must be finite and non-negative; bad for: {', '.join(bad)}"
+            )
+        object.__setattr__(
+            self, "per_source_queries", MappingProxyType(dict(self.per_source_queries))
+        )
 
-def _per_source_exceeded(budget: Budget, usage: Usage) -> bool:
-    """True if any sub-capped source has met or exceeded its per-source cap."""
-    return any(
-        usage.per_source_queries.get(source, 0) >= cap
-        for source, cap in budget.per_source_queries.items()
-    )
+
+_NO_PROGRESS_AXIS = "no-progress"
+
+
+def tripped_axis(budget: Budget, usage: Usage) -> str | None:
+    """Name the FIRST budget axis a usage snapshot has hit, or ``None`` if within budget.
+
+    The output renderer uses this for §3.5's "investigation truncated at budget;
+    unsurveyed: X" line — the axis name (``wall-clock`` / ``tokens`` / ``queries`` /
+    ``queries:<source>`` / ``iterations`` / ``no-progress``) IS X. Deriving it here,
+    from the same ``(Budget, Usage)`` the Stop hook reads, keeps the renderer from
+    re-deriving done-ness (the §2 "read, don't re-derive" discipline) — and keeps
+    :func:`budget_terminal` and the rendered axis from ever disagreeing.
+
+    Precondition (wrapper contract): an uncapped source is bounded only by the
+    aggregate ``queries``, so the wrapper MUST count every source's queries into
+    ``usage.queries`` (the per-source map and the aggregate are independent fields
+    the core cannot cross-check).
+    """
+    if usage.elapsed_s >= budget.wall_clock_s:
+        return "wall-clock"
+    if usage.tokens >= budget.tokens:
+        return "tokens"
+    if usage.queries >= budget.queries:
+        return "queries"
+    if usage.iterations >= budget.max_iterations:
+        return "iterations"
+    for source, cap in budget.per_source_queries.items():
+        if usage.per_source_queries.get(source, 0) >= cap:
+            return f"queries:{source}"
+    if usage.iterations_since_progress >= budget.no_progress_iterations:
+        return _NO_PROGRESS_AXIS
+    return None
 
 
 def budget_terminal(budget: Budget, usage: Usage) -> TerminalReason | None:
@@ -132,19 +205,15 @@ def budget_terminal(budget: Budget, usage: Usage) -> TerminalReason | None:
     iteration ceiling) is ``BUDGET_EXHAUSTED``; budget takes precedence over the
     no-progress detector. Reaching the no-progress window is ``NO_PROGRESS``. Both
     are *truncated* terminals (:func:`is_truncated`). Comparison is ``>=`` (the cap
-    is a ceiling the run must not cross, not exceed-by-one).
+    is a ceiling the run must not cross, not exceed-by-one). Shares its logic with
+    :func:`tripped_axis` so the terminal and the rendered axis never disagree.
     """
-    if (
-        usage.elapsed_s >= budget.wall_clock_s
-        or usage.tokens >= budget.tokens
-        or usage.queries >= budget.queries
-        or usage.iterations >= budget.max_iterations
-        or _per_source_exceeded(budget, usage)
-    ):
-        return TerminalReason.BUDGET_EXHAUSTED
-    if usage.iterations_since_progress >= budget.no_progress_iterations:
+    axis = tripped_axis(budget, usage)
+    if axis is None:
+        return None
+    if axis == _NO_PROGRESS_AXIS:
         return TerminalReason.NO_PROGRESS
-    return None
+    return TerminalReason.BUDGET_EXHAUSTED
 
 
 class SourceOutcome(StrEnum):
@@ -173,6 +242,15 @@ def classify_source_read(
     metric series or log window is "couldn't observe", not "observed nothing wrong"
     (the guard primitive's empty ≠ healthy). Never concludes on data it cannot
     confirm.
+
+    Caller obligation (the fail-closed guarantee is conditional on honest inputs):
+    the caller MUST set ``complete=False`` on ANY partial / error-envelope /
+    parse-failure / timeout / auth-error / rate-limited read — i.e. every "couldn't
+    fully confirm" mode collapses onto these four flags (a 200 wrapping an error is
+    *not* ``complete``). ``empty`` must reflect the post-parse result set, not HTTP
+    success. The dead-source backoff / circuit-breaker (so an ``INCONCLUSIVE`` source
+    isn't hammered, consuming the query budget — §2 per-source bulkhead) is the
+    wrapper's job; this function only classifies a single read.
     """
     if not reachable or not complete or stale or empty:
         return SourceOutcome.INCONCLUSIVE
@@ -199,6 +277,17 @@ def admit_run(*, incident_in_flight: bool) -> RunAdmission:
     fresh-``run_id``-supersedes: a crashed run is no longer in flight, so a later
     trigger correctly ``PROCEED``s from scratch under a new ``run_id`` — and
     :func:`admit_post` is the chokepoint that still prevents a double post.
+
+    **Atomicity precondition (the guarantee is the caller's, not this predicate's):**
+    this is a pure decode of an *already-read* in-flight bit. The caller MUST read
+    the in-flight state AND claim it (set in-flight for this ``incident_key``) under
+    a single atomic step (compare-and-set / conditional write / per-key lock) — a
+    non-atomic check-then-act lets two concurrent triggers both observe
+    ``incident_in_flight=False`` and both ``PROCEED``, voiding single-flight.
+    **The in-flight claim MUST be leased / TTL'd** (its counterpart to attach-not-
+    queue): a claim that is never released on crash wedges the incident permanently
+    in ``SHED`` — even legitimate retries shed. A bare boolean cannot provide either
+    property; the dedup/lock store (wrapper) must.
     """
     return RunAdmission.SHED if incident_in_flight else RunAdmission.PROCEED
 
@@ -210,5 +299,12 @@ def admit_post(*, incident_already_posted: bool) -> bool:
     kill-switch act). Returns ``True`` only if nothing has been posted for this
     incident yet — so a re-run after a crash, or a within-run post retry, cannot
     emit a second note for the same incident.
+
+    **Atomicity precondition:** same as :func:`admit_run` — the caller MUST commit
+    "posted" for this ``incident_key`` and emit the note as one atomic transition
+    (record-then-post under a per-key guard, or an idempotent conditional post). A
+    crash *between* this returning ``True`` and the record landing re-opens the
+    double-post window; the wrapper closes it (e.g. write-intent-then-post, or a
+    post idempotency key). A pure boolean cannot.
     """
     return not incident_already_posted

@@ -20,6 +20,7 @@ from sei_omnigent.omni import (
     budget_terminal,
     classify_source_read,
     is_truncated,
+    tripped_axis,
 )
 
 
@@ -124,8 +125,69 @@ def test_non_positive_caps_are_rejected(bad: dict[str, object]) -> None:
 
 
 def test_non_positive_per_source_cap_is_rejected() -> None:
-    with pytest.raises(ValueError, match="per-source caps must be positive"):
+    with pytest.raises(ValueError, match="per-source caps"):
         _budget(per_source_queries={"thanos": 0})
+
+
+def test_non_finite_caps_are_rejected() -> None:
+    # nan/inf pass a "<= 0" test but disable the axis (nan>=cap is always False) —
+    # reject at construction. (Budget precision is best-effort; this just prevents
+    # a silently-disabled axis, not a tracking guarantee.)
+    inf = float("inf")
+    nan = float("nan")
+    for bad in ({"wall_clock_s": inf}, {"wall_clock_s": nan}):
+        with pytest.raises(ValueError, match="must be finite"):
+            _budget(**bad)
+
+
+def test_loaded_budget_caps_are_isolated_from_source_mutation() -> None:
+    caps = {"thanos": 20, "loki": 20}
+    b = _budget(per_source_queries=caps)
+    caps["thanos"] = 0  # mutate the caller's dict after construction
+    assert b.per_source_queries["thanos"] == 20  # validated cap is frozen
+    with pytest.raises(TypeError):
+        b.per_source_queries["thanos"] = 1  # type: ignore[index]  # read-only proxy
+
+
+def test_usage_rejects_non_finite_and_negative() -> None:
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        _usage(elapsed_s=float("nan"))
+    with pytest.raises(ValueError, match="finite and non-negative"):
+        _usage(queries=-1)
+
+
+# --- tripped_axis: names the unsurveyed axis for the §3.5 output ---------------
+
+
+def test_tripped_axis_none_within_budget() -> None:
+    assert tripped_axis(_budget(), _usage(queries=3)) is None
+
+
+@pytest.mark.parametrize("usage_over,axis", [
+    ({"elapsed_s": 300.0}, "wall-clock"),
+    ({"tokens": 100_000}, "tokens"),
+    ({"queries": 40}, "queries"),
+    ({"iterations": 2}, "iterations"),
+    ({"queries": 21, "per_source_queries": {"thanos": 20}}, "queries:thanos"),
+    ({"iterations_since_progress": 2}, "no-progress"),
+])
+def test_tripped_axis_names_the_hit_axis(usage_over: dict[str, object], axis: str) -> None:
+    assert tripped_axis(_budget(), _usage(**usage_over)) == axis
+
+
+def test_tripped_axis_and_budget_terminal_never_disagree() -> None:
+    # both derive from the same logic; a no-progress axis ⇒ NO_PROGRESS, any other ⇒
+    # BUDGET_EXHAUSTED, and None ⇒ None.
+    for usage_over in ({"tokens": 100_000}, {"iterations_since_progress": 2}, {"queries": 1}):
+        u = _usage(**usage_over)
+        axis = tripped_axis(_budget(), u)
+        term = budget_terminal(_budget(), u)
+        if axis is None:
+            assert term is None
+        elif axis == "no-progress":
+            assert term is TerminalReason.NO_PROGRESS
+        else:
+            assert term is TerminalReason.BUDGET_EXHAUSTED
 
 
 # --- fail-closed source degradation --------------------------------------------
