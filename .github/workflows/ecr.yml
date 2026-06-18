@@ -2,14 +2,19 @@ name: ECR
 
 # Build + push the sei-tide-omnigent overlay server image to us-east-2 ECR
 # (PLT-735). Mirrors sei-k8s-controller's ecr.yml: OIDC into the common/gha role,
-# amazon-ecr-login + buildx, shared registry build-cache, ${{ github.sha }} tag.
+# amazon-ecr-login + buildx, a Tide-isolated registry build-cache ref,
+# ${{ github.sha }} tag.
 #
 # Path-filtered to sei_omnigent/** because Tide is a multi-purpose monorepo —
 # only changes under the overlay should publish a new image. The existing
 # verify-*.yml workflows are untouched (they own lint/test/packaging gates).
 #
-# eu-central-1 pulls this image CROSS-REGION from us-east-2 (no replication
-# rule added for eu-central-1; the node role's region-agnostic ECR read covers it).
+# eu-central-1 pulls this image CROSS-REGION from us-east-2 (operator decision,
+# no eu-central-1 replica); the image also replicates to eu-west-1 INCIDENTALLY
+# via the account's sei/* prefix rule, not relied on for the eu-central-1 pull.
+#
+# Transitives resolve live at build time; the pushed image is digest-immutable.
+# A hash-pinned lockfile is a tracked follow-up.
 
 on:
   push:
@@ -51,5 +56,7 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-tide-omnigent:${{ inputs.tag || github.sha }}
-          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:shared
-          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:shared,mode=max
+          # Tide-isolated cache ref — Tide CI must not read/write the :shared
+          # cache other repos' builds trust.
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-tide-omnigent
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-tide-omnigent,mode=max

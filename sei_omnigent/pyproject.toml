@@ -10,22 +10,23 @@ requires-python = ">=3.12"
 dependencies = [
     "omnigent==0.1.1",
     # serve_main binds uvicorn directly (the runnable entrypoint, PLT-672). It
-    # rides in transitively via omnigent today, but the entrypoint imports it by
-    # name, so declare it explicitly — a future omnigent pin that drops/extras
-    # uvicorn would otherwise break the console script at runtime (drift-watch
-    # tied to the shim's on-bump re-verify).
-    "uvicorn",
+    # rides in transitively via omnigent, but the entrypoint imports it by name,
+    # so declare it explicitly — a future omnigent pin that drops/extras uvicorn
+    # would otherwise break the console script at runtime (drift-watch tied to the
+    # shim's on-bump re-verify). Floor/ceiling mirrors omnigent's own
+    # `uvicorn[standard]>=0.30,<1` so the two constraints can never conflict at
+    # resolve time.
+    "uvicorn>=0.30,<1",
     # --- Scoped pre-release allowance (PLT-735) ----------------------------
     # omnigent==0.1.1 constrains its opentelemetry-instrumentation-* deps as
     # `<1,>=0`, and those OTel projects publish ONLY pre-releases (0.XXbN) on
     # PyPI — no stable final exists in range. pip honors an EXACT `==<prerelease>`
-    # pin WITHOUT global `--pre`, so these explicit pins replace the Dockerfile's
-    # blanket `--pre` (operator decision: scope the allowance to exactly these
-    # packages, don't open the whole resolve to betas). `-fastapi` and `-httpx`
-    # are omnigent's direct deps; the other four ride in transitively but release
-    # in lockstep on the same 0.63b train, so pin the whole set for a deterministic
-    # closure. Re-evaluate (and ideally drop) on the next omnigent pin bump — if a
-    # future omnigent tightens these to stable finals, delete this block.
+    # pin WITHOUT global `--pre`, so these explicit pins scope the allowance to
+    # exactly these packages (the whole resolve is not opened to betas).
+    # `-fastapi` and `-httpx` are omnigent's direct deps; the other four ride in
+    # transitively but release in lockstep on the same 0.63b train, so pin the
+    # whole set. Re-evaluate on the next omnigent pin bump — if a future omnigent
+    # tightens these to stable finals, delete this block.
     "opentelemetry-instrumentation==0.63b1",
     "opentelemetry-instrumentation-asgi==0.63b1",
     "opentelemetry-instrumentation-fastapi==0.63b1",

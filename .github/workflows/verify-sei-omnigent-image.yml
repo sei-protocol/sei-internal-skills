@@ -1,0 +1,56 @@
+name: Verify sei_omnigent image
+
+# PR-gated build smoke for the sei-tide-omnigent overlay image (PLT-735). Builds
+# sei_omnigent/Dockerfile and runs an import smoke of the BUILT image, so a
+# floated-transitive / missing-wheel break surfaces in the PR instead of on
+# push:main where ecr.yml publishes.
+#
+# Fork-safe by construction: NO push, NO registry login, NO id-token, NO AWS
+# OIDC, NO secrets. The build is the gate; nothing leaves the runner.
+
+on:
+  pull_request:
+    paths:
+      - 'sei_omnigent/**'
+      - '.github/workflows/verify-sei-omnigent-image.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the overlay image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: sei_omnigent
+          file: sei_omnigent/Dockerfile
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: sei-tide-omnigent:pr-smoke
+
+      - name: Import smoke of the built image
+        # Proves the resolved runtime can import the K8s entrypoint module — the
+        # serve_main path that ecr.yml's pushed image must serve. Catches a
+        # missing/floated transitive that a source-tree import would miss.
+        #
+        # Importing serve_main pulls server/__init__ -> the seam -> the shim ->
+        # omnigent, so an unresolved transitive raises HERE at import. The import
+        # has a server-boot side effect, so wrap it in `timeout`: a clean import
+        # (124 = timed out while alive) OR a clean exit (0) both PASS; any other
+        # code is a real import failure. No socket is bound to the host.
+        run: |
+          docker run --rm sei-tide-omnigent:pr-smoke \
+            timeout 30 python -c "import sei_omnigent.server.serve_main"
+          rc=$?
+          if [ "$rc" = "0" ] || [ "$rc" = "124" ]; then
+            echo "import smoke OK (rc=$rc)"
+          else
+            echo "import smoke FAILED (rc=$rc)"; exit "$rc"
+          fi
