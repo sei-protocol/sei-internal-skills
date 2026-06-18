@@ -41,16 +41,12 @@ jobs:
         # missing/floated transitive that a source-tree import would miss.
         #
         # Importing serve_main pulls server/__init__ -> the seam -> the shim ->
-        # omnigent, so an unresolved transitive raises HERE at import. The import
-        # has a server-boot side effect, so wrap it in `timeout`: a clean import
-        # (124 = timed out while alive) OR a clean exit (0) both PASS; any other
-        # code is a real import failure. No socket is bound to the host.
+        # omnigent, so an unresolved transitive raises HERE at import. This is a
+        # pure import: `uvicorn.run` lives in main() behind an `if __name__ ==
+        # "__main__"` guard, so import resolves the closure and returns — it does
+        # NOT bind a socket or boot a server. rc=0 is the healthy path. The outer
+        # `timeout` is only a runaway-hang cap (e.g. an import-time deadlock); a
+        # timeout (124) is therefore a FAILURE, not a pass.
         run: |
           docker run --rm sei-tide-omnigent:pr-smoke \
-            timeout 30 python -c "import sei_omnigent.server.serve_main"
-          rc=$?
-          if [ "$rc" = "0" ] || [ "$rc" = "124" ]; then
-            echo "import smoke OK (rc=$rc)"
-          else
-            echo "import smoke FAILED (rc=$rc)"; exit "$rc"
-          fi
+            timeout 60 python -c "import sei_omnigent.server.serve_main"
