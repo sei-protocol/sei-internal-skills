@@ -20,6 +20,11 @@ permissions:
 jobs:
   build-smoke:
     runs-on: ubuntu-latest
+    # Hard backstop: this job builds one image + runs one import (~2 min). Cap it
+    # at 10 min so a stalled runner/daemon fails fast. (2026-06-18: a host-level
+    # `docker run` stalled and the job burned GitHub's full 6h max before cancel —
+    # a transient, but the job had no tighter bound. This is that bound.)
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
 
@@ -36,17 +41,27 @@ jobs:
           tags: sei-tide-omnigent:pr-smoke
 
       - name: Import smoke of the built image
-        # Proves the resolved runtime can import the K8s entrypoint module — the
-        # serve_main path that ecr.yml's pushed image must serve. Catches a
-        # missing/floated transitive that a source-tree import would miss.
+        # Proves the resolved runtime can import the K8s entrypoint module
+        # (`python -m sei_omnigent.server.serve_main`): importing serve_main pulls
+        # server/__init__ -> the seam -> the shim -> omnigent, so an unresolved
+        # transitive raises HERE at import. Verified side-effect-free — `uvicorn.run`
+        # is behind `if __name__ == "__main__"`, so a bare import resolves the
+        # closure and returns in seconds; it does NOT bind a socket or boot. rc=0
+        # is the healthy path.
         #
-        # Importing serve_main pulls server/__init__ -> the seam -> the shim ->
-        # omnigent, so an unresolved transitive raises HERE at import. This is a
-        # pure import: `uvicorn.run` lives in main() behind an `if __name__ ==
-        # "__main__"` guard, so import resolves the closure and returns — it does
-        # NOT bind a socket or boot a server. rc=0 is the healthy path. The outer
-        # `timeout` is only a runaway-hang cap (e.g. an import-time deadlock); a
-        # timeout (124) is therefore a FAILURE, not a pass.
+        # Two hang defenses (the import is fast, so any hang is a regression or a
+        # runner/daemon stall — never normal):
+        #   * outer `timeout --kill-after=15s 90s docker run ...` bounds the HOST
+        #     `docker run`. If the daemon stalls starting the container the inner
+        #     python timeout never runs, so this is the cap that actually fires
+        #     (the prior `timeout 60 python` ran INSIDE the container and could not
+        #     bound a host-level stall — that is how the 6h burn happened).
+        #   * inner `faulthandler.dump_traceback_later(60, exit=True)` dumps every
+        #     thread's stack and exits non-zero if the IMPORT itself blocks 60s, so
+        #     a future import-time deadlock fails WITH a stack, not a blind hang.
+        # A timeout from either layer exits non-zero = FAILURE, not a pass.
+        timeout-minutes: 3
         run: |
-          docker run --rm sei-tide-omnigent:pr-smoke \
-            timeout 60 python -c "import sei_omnigent.server.serve_main"
+          timeout --kill-after=15s 90s \
+            docker run --rm sei-tide-omnigent:pr-smoke \
+            python -X faulthandler -c "import faulthandler; faulthandler.dump_traceback_later(60, exit=True); import sei_omnigent.server.serve_main"
