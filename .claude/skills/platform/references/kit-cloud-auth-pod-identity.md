@@ -21,7 +21,7 @@ Workloads get AWS credentials via **EKS Pod Identity** — the `eks-pod-identity
 
 ## 4. Review cues
 
-- **Dimension 6 (cloud-identity boundary):** Pod-Identity association per (cluster, ns, SA); no IRSA annotation; session-tag scoping; no node-role bleed/IMDS exposure. *Basis:* profile §3, `sources.md` §irsa/§nsa-cisa.
+- **Dimension 6 (cloud-identity boundary):** Pod-Identity association per (cluster, ns, SA) as the default; a `role-arn` IRSA annotation is OK **only** with the documented old-SDK justification (§2) — flag an *unjustified* one, ratify a justified one; session-tag scoping; no node-role bleed/IMDS exposure. *Basis:* profile §3, `sources.md` §irsa/§nsa-cisa.
 - **Dimension 1 (security/least-privilege):** the role's actions scoped minimal, not wildcard. *Basis:* `sources.md` §nsa-cisa.
 
 ## 5. One-way doors in this concern

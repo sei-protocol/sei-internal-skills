@@ -23,7 +23,7 @@ Grounded in the external canon (`sources.md`) and specialized by the profile.
 
 5. **Supply-chain integrity.** Minimal/pinned base images (the static-musl seid build), digest/tag pinning, no `:latest`; provenance via ECR; the in-cluster GHA runner trust scope. *Basis:* `sources.md` §nsa-cisa; profile §8.
 
-6. **Cloud-identity boundary.** **EKS Pod Identity** scoped per (cluster, namespace, ServiceAccount) with a tight association (not IRSA OIDC annotations here); session-tag S3 scoping; no node-role credential bleed / IMDS exposure; external-dns Deny-on-Condition IAM intact. *Basis:* `sources.md` §irsa (the generic the profile overrides), §nsa-cisa; profile §3.
+6. **Cloud-identity boundary.** **EKS Pod Identity** scoped per (cluster, namespace, ServiceAccount) with a tight association as the default (an IRSA OIDC `role-arn` annotation is the documented exception — fine *with* the old-SDK justification, flag an unjustified reflex one); session-tag S3 scoping; no node-role credential bleed / IMDS exposure; external-dns Deny-on-Condition IAM intact. *Basis:* `sources.md` §irsa (the generic the profile defaults away from), §nsa-cisa; profile §3.
 
 ## Design discipline (when authoring, not just reviewing)
 

@@ -40,7 +40,7 @@ Refusal conditions — they hold under time pressure and a "just ship the manife
 |---|---|
 | Flux GitOps — GitRepository → Kustomization per cell, reconcile ordering, SOPS decryption | `references/kit-gitops-flux.md` |
 | Kustomize composition — the two-layer `clusters/base` + `manifests/base` model, patches/components/replacements | `references/kit-kustomize-composition.md` |
-| Cloud auth — EKS **Pod Identity** (not IRSA), per-workload TF associations, session-tag scoping | `references/kit-cloud-auth-pod-identity.md` |
+| Cloud auth — EKS **Pod Identity** default (IRSA = documented old-SDK exception), per-workload TF associations, session-tag scoping | `references/kit-cloud-auth-pod-identity.md` |
 | Secrets — **SOPS-in-git + per-cell KMS** delivery (not CSI/ESO/Sealed), the encrypt-from-cell-dir footgun | `references/kit-secrets-sops-kms.md` |
 | Pod Security — PSS `restricted` (version-pinned) + the CEL ValidatingAdmissionPolicy for the vectors PSS misses | `references/kit-pod-security-vap.md` |
 | `cell-networking`, `terraform-cell-provisioning`, `container-runtime`, `legacy-ec2-sei-infra` | *(deferred — see `references/kit-TEMPLATE.md` roster; add by use)* |
