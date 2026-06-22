@@ -29,7 +29,7 @@ Refusal conditions — they hold under time pressure and a "just ship the contra
 
 `references/method.md` holds the full method; the spine:
 
-1. **Load the profile + the kit(s)** for the concern (precompiles, parity/gas, address/association, foundry tooling, upgrade safety, indexing). Read the Sei repo's `AGENTS.md` if working in it.
+1. **Load the profile + the kit(s)** for the concern (precompiles, parity/gas, address/association, foundry tooling, upgrade safety, indexing, randomness/VRF). Read the Sei repo's `AGENTS.md` if working in it.
 2. **Design or review against the profile first, the external canon second.** The profile (Pectra-no-blobs, instant finality, governance gas, prevrandao-not-random, IAVL proofs, dual-address, precompiles) is what applies on Sei; `sources.md` is the generic floor the profile sits on and sometimes overrides.
 3. **Score/identify by the six dimensions** (`method.md`): security & exploitability · access-control & privilege · upgrade & storage-layout safety · external-call & value handling · gas & efficiency · testing & verification adequacy.
 4. **Cite every finding** and rank one-way-door / exploit findings above style. Flag one-way doors for human approval; defer exploit-depth to `security-specialist`.
