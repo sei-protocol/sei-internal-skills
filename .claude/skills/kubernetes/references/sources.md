@@ -1,0 +1,25 @@
+# Sources — the controller canon
+
+The upstream best-practice this skill cites. **Cite-and-link**; never reproduce reserved text. Verified against the primary source (quoted phrase) during authoring. The Sei-specific patterns are grounded separately in `sei-controller-profile.md` + the kits (cited to sei-k8s-controller file paths); these are the generic floor beneath them.
+
+- **§api-conventions — Kubernetes API conventions.** spec vs status; **level-based not edge-based** ("The system will drive toward the most recent `spec`… the system's behavior is _level-based_ rather than _edge-based_"); optional vs required; conditions; `observedGeneration`. The single highest-value anchor. — https://github.com/kubernetes/community/blob/main/contributors/devel/sig-architecture/api-conventions.md (CC-BY-4.0 / Apache-2.0)
+
+- **§api_changes — the compatibility law (the "one-way door").** "Any API call… that succeeded before your change must succeed after your change." Plus the prohibitions: don't change existing semantics / default meaning, don't alter which fields are required, don't make mutable fields immutable, don't invalidate previously-valid values. The grounding for "a served field is a one-way door once consumed." — https://github.com/kubernetes/community/blob/main/contributors/devel/sig-architecture/api_changes.md (CC-BY-4.0 / Apache-2.0)
+
+- **§reconcile — controller-runtime Reconciler contract.** "reconcile implementations compare the state specified in an object… against the actual cluster state, and then perform operations to make the actual cluster state reflect the state specified." "It does NOT contain information about any specific Event or the object contents itself." "Reconciliation is level-based." Requeue: "result.RequeueAfter… requeued using exponential backoff." — https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/reconcile (Apache-2.0). Manager: https://pkg.go.dev/sigs.k8s.io/controller-runtime/pkg/manager ("A Manager is required to create Controllers").
+
+- **§crd-versioning — CRD versioning / storage version / conversion.** "One and only one version must be marked as the storage version." "If the conversion involves schema changes and requires custom logic, a conversion webhook should be used." — https://kubernetes.io/docs/tasks/extend-kubernetes/custom-resources/custom-resource-definition-versioning/ (CC-BY-4.0)
+
+- **§finalizers — finalizer/deletion flow.** "Finalizers allow controllers to implement asynchronous pre-delete hooks." Flow: detect `DeletionTimestamp` → run idempotent cleanup → remove finalizer → update. "Ensure that the pre-delete logic is idempotent." — https://book.kubebuilder.io/reference/using-finalizers (Apache-2.0 / CC)
+
+- **§conditions — status conditions.** "Conditions provide a standard mechanism for higher-level status reporting from a controller." "Condition type names should be named in PascalCase." Backed by KEP-1623. Manage with the apimachinery `meta` helpers: `meta.SetStatusCondition` / `meta.FindStatusCondition` ("LastTransitionTime is set to now if the new status differs"). — api-conventions.md §conditions; https://pkg.go.dev/k8s.io/apimachinery/pkg/api/meta (Apache-2.0)
+
+- **§observedGeneration.** "observedGeneration represents the .metadata.generation that the condition was set based upon… if .status.conditions[x].observedGeneration is 9 [and] .metadata.generation is 12, the condition is out of date." — api-conventions.md.
+
+- **§IRSA — controller AWS access (least-privilege).** "You can scope IAM permissions to a service account, and only Pods that use that service account have access to those permissions." IMDS gotcha: "Containers are not a security boundary… Pods configured with `hostNetwork: true` will always have IMDS access." (NB: the Sei platform fleet uses **EKS Pod Identity**, not IRSA — see `/platform`; IRSA remains the broadly-applicable controller pattern and the cited mechanism here.) — https://docs.aws.amazon.com/eks/latest/userguide/iam-roles-for-service-accounts.html (AWS docs; cite, don't copy)
+
+- **§rbac-markers — generated RBAC + CRD schema.** `controller-gen` + kubebuilder markers (`+kubebuilder:rbac:*`, `+kubebuilder:validation:*`, `+kubebuilder:object:root=true`, `+optional`) generate role.yaml + CRD OpenAPI + deepcopy; `make manifests generate` regenerates them and a clean-tree check (generated == committed) is the CI gate. — https://book.kubebuilder.io/reference/markers (Apache-2.0)
+
+- **§envtest — controller testing.** envtest / fake-client coverage of reconcile paths including deletion/finalizer and requeue branches (not just happy path). — kubebuilder book, testing chapters (Apache-2.0).
+
+**Provenance caveats (from the research that built this):** the no-panic guidance + the controller-runtime `RecoverPanic` knob are best-practice consensus (the failure mode + the option exist; not a single quoted godoc line). `golangci-lint` is the general Go meta-linter — not a controller-semantics checker; idiom is `/idiomatic`'s pass. **EKS Pod Identity** is AWS's newer alternative to IRSA and is what the Sei fleet actually uses (see `/platform`).
