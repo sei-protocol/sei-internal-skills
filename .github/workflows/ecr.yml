@@ -1,0 +1,62 @@
+name: ECR
+
+# Build + push the sei-tide-omnigent overlay server image to us-east-2 ECR
+# (PLT-735). Mirrors sei-k8s-controller's ecr.yml: OIDC into the common/gha role,
+# amazon-ecr-login + buildx, a Tide-isolated registry build-cache ref,
+# ${{ github.sha }} tag.
+#
+# Path-filtered to sei_omnigent/** because Tide is a multi-purpose monorepo —
+# only changes under the overlay should publish a new image. The existing
+# verify-*.yml workflows are untouched (they own lint/test/packaging gates).
+#
+# eu-central-1 pulls this image CROSS-REGION from us-east-2 (operator decision,
+# no eu-central-1 replica); the image also replicates to eu-west-1 INCIDENTALLY
+# via the account's sei/* prefix rule, not relied on for the eu-central-1 pull.
+#
+# Transitives resolve live at build time; the pushed image is digest-immutable.
+# A hash-pinned lockfile is a tracked follow-up.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'sei_omnigent/**'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (defaults to git sha)"
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::189176372795:role/common/gha
+          role-duration-seconds: 900
+          aws-region: us-east-2
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build and push sei-tide-omnigent image
+        uses: docker/build-push-action@v6
+        with:
+          context: sei_omnigent
+          file: sei_omnigent/Dockerfile
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-tide-omnigent:${{ inputs.tag || github.sha }}
+          # Tide-isolated cache ref — Tide CI must not read/write the :shared
+          # cache other repos' builds trust.
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-tide-omnigent
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-tide-omnigent,mode=max

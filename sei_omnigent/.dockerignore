@@ -1,0 +1,15 @@
+# Ignore everything by default, then re-include only what the image build needs.
+# Mirrors the sei-k8s-controller deny-all-then-re-include pattern. Context is
+# sei_omnigent/.
+**
+
+# Build inputs: the package manifest + the src/ tree (the package, incl. the
+# policies/ package dir which lives under src/sei_omnigent/policies — no separate
+# top-level policies/ data dir exists in this layout).
+!pyproject.toml
+!src/**
+
+# Keep tests, caches, build artifacts, and editable-install metadata OUT — none
+# are needed to `pip install .`, and shipping them only bloats the context/image.
+src/**/__pycache__
+src/*.egg-info

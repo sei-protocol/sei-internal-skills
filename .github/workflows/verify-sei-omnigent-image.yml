@@ -1,0 +1,73 @@
+name: Verify sei_omnigent image
+
+# PR-gated build smoke for the sei-tide-omnigent overlay image (PLT-735). Builds
+# sei_omnigent/Dockerfile and runs an import smoke of the BUILT image, so a
+# floated-transitive / missing-wheel break surfaces in the PR instead of on
+# push:main where ecr.yml publishes.
+#
+# Fork-safe by construction: NO push, NO registry login, NO id-token, NO AWS
+# OIDC, NO secrets. The build is the gate; nothing leaves the runner.
+
+on:
+  pull_request:
+    paths:
+      - 'sei_omnigent/**'
+      - '.github/workflows/verify-sei-omnigent-image.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build-smoke:
+    runs-on: ubuntu-latest
+    # Hard backstop: this job builds one image + runs one import (~2 min). Cap it
+    # at 10 min so a stalled runner/daemon fails fast. (2026-06-18: a host-level
+    # `docker run` stalled and the job burned GitHub's full 6h max before cancel —
+    # a transient, but the job had no tighter bound. This is that bound.)
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the overlay image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: sei_omnigent
+          file: sei_omnigent/Dockerfile
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: sei-tide-omnigent:pr-smoke
+
+      - name: Import smoke of the built image
+        # Proves the resolved runtime can import the K8s entrypoint module
+        # (`python -m sei_omnigent.server.serve_main`): importing serve_main pulls
+        # server/__init__ -> the seam -> the shim -> omnigent, so an unresolved
+        # transitive raises HERE at import. Verified side-effect-free — `uvicorn.run`
+        # is behind `if __name__ == "__main__"`, so a bare import resolves the
+        # closure and returns in seconds; it does NOT bind a socket or boot. rc=0
+        # is the healthy path.
+        #
+        # `--entrypoint python` is LOAD-BEARING: the image ENTRYPOINT is exec-form
+        # `["python","-m","sei_omnigent.server.serve_main"]`, so a bare
+        # `docker run <img> python -c ...` would APPEND those tokens to the
+        # entrypoint and run the real server (`-m serve_main ... ignored args`),
+        # which boots uvicorn and serves forever — NOT the import check. Overriding
+        # the entrypoint to `python` makes the `-c` import actually run. (This is
+        # the bug that made the old smoke run the server and hang to the 6h cap.)
+        #
+        # Defense-in-depth on hangs (the import is fast, so any hang is a
+        # regression or a runner/daemon stall — never normal):
+        #   * outer `timeout --kill-after=15s 90s docker run ...` bounds the HOST
+        #     `docker run` (a daemon/container-start stall — the inner python
+        #     timeout can't bound that).
+        #   * inner `faulthandler.dump_traceback_later(60, exit=True)` dumps every
+        #     thread's stack and exits non-zero if the import itself blocks 60s, so
+        #     a future import-time deadlock fails WITH a stack, not a blind hang.
+        # A timeout from either layer exits non-zero = FAILURE, not a pass.
+        timeout-minutes: 3
+        run: |
+          timeout --kill-after=15s 90s \
+            docker run --rm --entrypoint python sei-tide-omnigent:pr-smoke \
+            -X faulthandler -c "import faulthandler; faulthandler.dump_traceback_later(60, exit=True); import sei_omnigent.server.serve_main; print('import-ok')"
