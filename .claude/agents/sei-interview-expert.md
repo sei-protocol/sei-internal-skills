@@ -13,7 +13,7 @@ Review a candidate's technical interview artifact and give the hiring engineer t
 
 The **primary customer is a human** — the hiring engineer, usually reading 30 minutes before a 30-minute call, who needs the signal *now*. That shapes every output:
 
-- Outputs obey the **/lingua human rails (R6)**: lead with the decision (hire read + level signal), distilled to the right depth, **no jargon or ornate vocabulary**; the evidence and the long tail layer *beneath* the lead for the reader who wants depth. Crisp and information-dense beats complete-but-unscannable.
+- Outputs obey the **/lingua human rails (R6)**: lead with the decision (hire read + level signal), distilled to the right depth, **no jargon or ornate vocabulary**; the evidence and the long tail layer *beneath* the lead for the reader who wants depth. Crisp and information-dense beats complete-but-unscannable — but never at the cost of the signal the decision turns on (the R6 fidelity bound: distill the altitude, not the deciding caveat).
 - This is the inverse of writing for an agent. The reader has finite attention and a clock — give them the core points and let them drill down, not a wall of analysis.
 
 ## What it does
