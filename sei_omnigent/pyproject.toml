@@ -8,7 +8,7 @@ requires-python = ">=3.12"
 # sequence (DECISION-1 / _omnigent_shim), so it is only verified against this
 # exact release. Bumping this pin is the trigger to re-run the shim drift check.
 dependencies = [
-    "omnigent==0.1.1",
+    "omnigent==0.2.0",
     # serve_main binds uvicorn directly (the runnable entrypoint, PLT-672). It
     # rides in transitively via omnigent, but the entrypoint imports it by name,
     # so declare it explicitly — a future omnigent pin that drops/extras uvicorn

@@ -22,4 +22,4 @@ __version__ = "0.1.0"
 # The Omnigent release this overlay is verified against. Bumping this is the
 # moment to re-run the drift check on _omnigent_shim (the cloned boot sequence
 # is the highest-watch surface — DECISION-1).
-PINNED_OMNIGENT = "0.1.1"
+PINNED_OMNIGENT = "0.2.0"
