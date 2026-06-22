@@ -25,7 +25,7 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
 
 Claude Code discovers skills as **flat** direct subdirectories of `skills/` — nested folders and custom roots (e.g. `~/.claude/tide/`) are NOT discovered. So domain grouping is **metadata, not directories**. The **single source of truth** is each skill's `category:` SKILL.md frontmatter: the sync scripts *derive* alias membership from it (no hand-maintained per-skill list), and `make verify-catalog` (CI) fails closed if any skill's category maps to no alias. The catalog sections below are descriptive — keep them in step with the skills present, but they are not what the sync reads.
 
-**Domains:** `workflow` · `workstream-bootstrap` · `hardening` · `investigation` · `skill-authoring` · `code-quality` · `performance` · `writing-quality` · `output-quality` (Tide-local) · `security` · `product-management` · `project-management` · `release-operations` · `engineer-self-service`. The small domain→alias map at the top of `sync-skills.sh` assigns each domain to a sync alias: `portable`, `sei`, or Tide-local (never synced).
+**Domains:** `workflow` · `workstream-bootstrap` · `hardening` · `investigation` · `skill-authoring` · `code-quality` · `performance` · `writing-quality` · `output-quality` (Tide-local) · `security` · `product-management` · `project-management` · `release-operations` · `engineer-self-service` · `recruiting`. The small domain→alias map at the top of `sync-skills.sh` assigns each domain to a sync alias: `portable`, `sei`, or Tide-local (never synced).
 
 ## Catalog
 
@@ -99,6 +99,9 @@ These two are project-scoped disciplines applied during authoring inside Tide. T
 
 ### Engineer Self-Service
 - **`harbor-dev/`** — Engineer-facing interface to the harbor EKS cluster. Translates natural-language intent (spin up an ephemeral chain, attach an RPC fleet, run a bench, onboard me, tear it down) into `seictl nd` invocations and PR-based GitOps deliveries against `sei-protocol/harbor-engineering-workspace`. Built on `seictl` v0.0.43+.
+
+### Recruiting (Sei)
+- **`interview/`** — Evaluate a candidate's technical interview artifact (a coding take-home) against a behaviorally-anchored rubric grounded in structured-interview best practice (Google re:Work, BARS, work-sample validity), with an always-first Sei hiring-bar overlay, then derive deep-dive discussion verticals **tailored to the candidate's own implementation** (productionizing the system as the north star). Pluggable kits per interview format (first kit: the mempool take-home); the corpus the `sei-interview-expert` agent hooks into. **Primary customer is a human** (the hiring engineer) — outputs follow the `/lingua` R6 rails (distilled, decision-first, jargon-free). Evidence-grounded scoring, suggest-only (informs the human's hire/level call; never auto-rejects).
 
 ### Future Slots
 - _(planned)_ Add skills here as the team codifies more processes.

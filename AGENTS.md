@@ -62,6 +62,11 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 |-------|-------|
 | `platform-release-manager` | Release management and cut discipline |
 
+### recruiting
+| Agent | Scope |
+|-------|-------|
+| `sei-interview-expert` | Evaluates a candidate's technical interview artifact (a coding take-home) against a behaviorally-anchored rubric (the Sei hiring bar) and proposes deep-dive discussion verticals tailored to the candidate's own implementation (productionizing the system as the north star). Backed by the `/interview` skill (pluggable kits per format). **Primary customer is a human** — outputs follow the `/lingua` R6 rails (distilled, decision-first, jargon-free). Evidence-grounded; suggest-only (informs the human's hire/level call, never decides). Sei-scoped (`sei` sync alias). |
+
 The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
 The operating doctrine — engineering principles, output discipline, the workflow skills and when each applies, the xreview discipline, and the key rules — is the `tide-managed` block below. It is maintained once in `scripts/tide-doctrine.md` and distributed to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.

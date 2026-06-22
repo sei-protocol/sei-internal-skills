@@ -59,7 +59,7 @@ SKILLS_DIR="$(cd "$SCRIPT_DIR/../.claude/skills" && pwd)"
 # (Tide-local domains are deliberately never synced outward).
 
 PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation skill-authoring code-quality performance writing-quality product-management security"
-SEI_DOMAINS="project-management release-operations engineer-self-service"
+SEI_DOMAINS="project-management release-operations engineer-self-service recruiting"
 # Tide-local — deliberately NOT synced outward:
 #   output-quality (brevity, pr-quality) — Tide-development meta-skills.
 # NOTE: security (tee) is now PORTABLE — its kits are self-contained on public
