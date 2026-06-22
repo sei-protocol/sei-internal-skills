@@ -19,13 +19,13 @@ The controller-side half of every plan is **child-resource management** — gene
 - **Omitting `ForceOwnership`.** SSA without it → an `Apply` conflict error when another manager touched a field. Cue: SSA apply with no force option + conflict handling. Rewrite: `ForceOwnership` (the controller is the authority for its fields).
 - **Readiness-gated rollout.** Driving `replace-pod` on pod-Ready. Cue: a readiness wait before replacing. Rewrite: the replace is revision-gated and readiness-blind (a halted-at-upgrade node is not Ready by design).
 - **Adopting an impostor.** Acting on a same-named child without checking UID/owner. Cue: no `IsControlledBy`/UID check before mutate. Rewrite: verify ownership; delete-and-defer an impostor.
-- **Deleting data on Retain.** A finalizer cleanup that removes the PVC when the policy is Retain. Cue: unconditional child deletion in `handleDeletion`. Rewrite: on Retain, strip the owner ref (orphan), don't delete.
+- **Deleting data the preserve contract says to keep.** A finalizer cleanup that removes the PVC despite a preserve contract — and the contract differs by level. **SeiNetwork:** `DeletionPolicy: Retain` (the default) must *orphan* children (owner-ref strip), never delete. **SeiNode:** `deleteNodeDataPVC` deletes the data PVC but must **skip an imported/externally-managed PVC** (`Spec.DataVolume.Import.PVCName`) — there is no node-level Retain branch. Cue: a network-level child delete that ignores `DeletionPolicy`, or a node-level PVC delete with no imported-PVC guard. Rewrite: honor the level's contract — orphan at the SeiNetwork level; skip imported PVCs at the SeiNode level. **Not an anti-pattern:** node-level `handleNodeDeletion` → `deleteNodeDataPVC` deleting a *non-imported* data PVC is *correct* cleanup — flag only a delete that ignores the applicable guard, never node-level cleanup wholesale.
 - **Reading the child right after writing it (cache staleness).** Asserting read-your-write through the cached client immediately after an SSA. Cue: a cached `Get` of the child used to decide, same reconcile, right after the apply. Rewrite: rely on the level-triggered requeue, not read-after-write.
 
 ## 4. Review cues
 
 - **Dimension 1 (reconcile correctness):** SSA + `ForceOwnership`; revision-gated readiness-blind replace; image-observe freshness; no cache read-after-write assumption. *Basis:* profile §1, `sources.md` §api-conventions.
-- **Dimension 3 (failure handling):** finalizer cleanup idempotent + removal-gated; orphan-on-Retain; impostor delete-and-defer. *Basis:* `sources.md` §finalizers; profile §5.
+- **Dimension 3 (failure handling):** finalizer cleanup idempotent + removal-gated; the PVC lifecycle honors its contract per level (SeiNetwork orphan-on-Retain via owner-ref strip; SeiNode `deleteNodeDataPVC` deletes the data PVC, skipping only an imported/externally-managed PVC); impostor delete-and-defer. *Basis:* `sources.md` §finalizers; profile §5.
 - **Dimension 4 (RBAC):** the controller's role grants exactly the verbs for the children it manages (StatefulSet/Service/PVC/Job), nothing wildcard. *Basis:* `sources.md` §rbac-markers.
 
 ## 5. One-way doors in this concern
