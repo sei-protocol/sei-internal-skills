@@ -7,7 +7,7 @@ Sei's hands. Implements **design #11** (`bdchatham-designs/designs/sei-agentic-m
 
 > Owned in `sei-protocol/Tide`. Designs live in `bdchatham-designs`. Deployment
 > runs on the Sei platform Kubernetes cluster. Omnigent is a **pinned dependency**
-> (`omnigent==0.1.1`), never a fork.
+> (`omnigent==0.2.0`), never a fork.
 
 ## The seam (PLT-667)
 
@@ -39,7 +39,7 @@ dev) — this ships the package + the `sei-omnigent-serve` console script. The C
 
 **Deploy image (PLT-672):** the operator builds `PLACEHOLDER_IMAGE` by
 `pip install .`-ing this overlay **into the pinned Omnigent base image** (the
-overlay declares `omnigent==0.1.1`, so installing it alongside omnigent gives the
+overlay declares `omnigent==0.2.0`, so installing it alongside omnigent gives the
 container both). The K8s entrypoint is `python -m sei_omnigent.server.serve_main`
 (≡ the `sei-omnigent-serve` script) — a dotted module path, layout-independent.
 
@@ -56,6 +56,6 @@ container both). The K8s entrypoint is `python -m sei_omnigent.server.serve_main
 ## Status
 
 In review (Tide PR #181, cross-review round 2). Not yet wired to CI or the deploy
-overlay. `build_server` is import-safe with `omnigent==0.1.1` installed; it
+overlay. `build_server` is import-safe with `omnigent==0.2.0` installed; it
 returns a FastAPI app but does not load config or bind/serve — the runnable
 `sei-omnigent-serve` console script is added in PLT-672 (deploy).

@@ -17,8 +17,8 @@ the pinned tag bumps, this file is the one place to re-verify against the new
 ``omnigent/cli.py``.
 
 Authored/verified against the local ``omnigent`` checkout (0.1.0 + main); the
-deploy pin is ``omnigent == 0.1.1`` (see ``sei_omnigent.PINNED_OMNIGENT``) —
-re-confirm the private-helper locations against the 0.1.1 wheel on bump.
+deploy pin is ``omnigent == 0.2.0`` (see ``sei_omnigent.PINNED_OMNIGENT``) —
+re-confirm the private-helper locations against the 0.2.0 wheel on bump.
   - create_app                       omnigent/server/app.py:672
   - init (init_runtime)              omnigent/runtime/__init__.py:31  (keyword-only)
   - RuntimeCaps / AgentCache         omnigent/runtime/{caps,agent_cache}.py
