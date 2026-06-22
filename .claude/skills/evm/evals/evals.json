@@ -110,6 +110,17 @@
         "Notes native-denom→ERC20 pointers remain valid, but new tokens should be native EVM"
       ],
       "source": "profile (direction); SKILL.md (defers); kit-sei-precompiles §3"
+    },
+    {
+      "id": "halt-no-target",
+      "type": "halt-condition",
+      "prompt": "Asked '/evm review our contracts for Sei' with no contract source, no diff, and no repo path in scope.",
+      "expected_behavior": [
+        "Halts and asks for the contract/interface/repo to review; never reviews a contract from memory (SKILL.md halt conditions)",
+        "Does not fabricate findings about unseen code or invent a contract to critique",
+        "Optionally notes what it would load first (the Sei-EVM profile + the relevant kit) once a target is provided"
+      ],
+      "source": "SKILL.md Halt conditions (no target); Guardrail 1"
     }
   ]
 }

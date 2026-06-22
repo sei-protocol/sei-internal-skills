@@ -23,7 +23,7 @@ Grounded in the external canon (`sources.md`) and specialized by the Sei-EVM pro
 
 5. **Gas & efficiency.** Storage packing, transient storage (EIP-1153) where it fits, calldata/loop patterns, custom-error vs require-string reverts. **Sei-specific:** **gas params are governance-mutable — never hard-code SSTORE cost or min gas price; `eth_estimateGas` at runtime**; no block-level gas limit (per-tx only); OCC means hot-shared-state contention serializes — spread writes. *Basis:* profile §2, §10; `sources.md` §solidity, §foundry.
 
-6. **Testing & verification adequacy.** Fuzz + invariant coverage, fork tests against real chain state, `forge coverage`, Slither/Aderyn in CI, deploy-script + `forge verify-contract`. **Sei-specific:** fork-test against a Sei RPC (chain id 1329/1328), not mainnet-Ethereum assumptions; test precompile interactions on a local chain; assert event shape (events are one-way doors). *Basis:* `sources.md` §foundry, §trailofbits; profile §1.
+6. **Testing & verification adequacy.** Fuzz + invariant coverage, fork tests against real chain state, `forge coverage`, Slither/Aderyn in CI, deploy-script + `forge verify-contract`. **Sei-specific:** fork-test against a Sei RPC (chain id 1329/1328), not mainnet-Ethereum assumptions; **fork-test precompile interactions against a Sei RPC** — local `anvil` has no precompiles, so mocking them tests a fiction (see `kit-foundry-tooling`); assert event shape (events are one-way doors). *Basis:* `sources.md` §foundry, §trailofbits; profile §1.
 
 ## Design discipline (when authoring, not just reviewing)
 
