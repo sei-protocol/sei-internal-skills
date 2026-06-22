@@ -49,19 +49,25 @@ jobs:
         # closure and returns in seconds; it does NOT bind a socket or boot. rc=0
         # is the healthy path.
         #
-        # Two hang defenses (the import is fast, so any hang is a regression or a
-        # runner/daemon stall — never normal):
+        # `--entrypoint python` is LOAD-BEARING: the image ENTRYPOINT is exec-form
+        # `["python","-m","sei_omnigent.server.serve_main"]`, so a bare
+        # `docker run <img> python -c ...` would APPEND those tokens to the
+        # entrypoint and run the real server (`-m serve_main ... ignored args`),
+        # which boots uvicorn and serves forever — NOT the import check. Overriding
+        # the entrypoint to `python` makes the `-c` import actually run. (This is
+        # the bug that made the old smoke run the server and hang to the 6h cap.)
+        #
+        # Defense-in-depth on hangs (the import is fast, so any hang is a
+        # regression or a runner/daemon stall — never normal):
         #   * outer `timeout --kill-after=15s 90s docker run ...` bounds the HOST
-        #     `docker run`. If the daemon stalls starting the container the inner
-        #     python timeout never runs, so this is the cap that actually fires
-        #     (the prior `timeout 60 python` ran INSIDE the container and could not
-        #     bound a host-level stall — that is how the 6h burn happened).
+        #     `docker run` (a daemon/container-start stall — the inner python
+        #     timeout can't bound that).
         #   * inner `faulthandler.dump_traceback_later(60, exit=True)` dumps every
-        #     thread's stack and exits non-zero if the IMPORT itself blocks 60s, so
+        #     thread's stack and exits non-zero if the import itself blocks 60s, so
         #     a future import-time deadlock fails WITH a stack, not a blind hang.
         # A timeout from either layer exits non-zero = FAILURE, not a pass.
         timeout-minutes: 3
         run: |
           timeout --kill-after=15s 90s \
-            docker run --rm sei-tide-omnigent:pr-smoke \
-            python -X faulthandler -c "import faulthandler; faulthandler.dump_traceback_later(60, exit=True); import sei_omnigent.server.serve_main"
+            docker run --rm --entrypoint python sei-tide-omnigent:pr-smoke \
+            -X faulthandler -c "import faulthandler; faulthandler.dump_traceback_later(60, exit=True); import sei_omnigent.server.serve_main; print('import-ok')"
