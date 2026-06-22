@@ -40,19 +40,19 @@ flagged for human approval, not asserted.
 - **Cite both layers:** the repo pattern (a file path in `platform`/`sei-infra`) AND the external canon (`sources.md`) it specializes or overrides. A claim with neither is not a kit entry.
 - The **profile** (`sei-platform-profile.md`) holds the cross-cutting hard conventions — kits reference it, don't restate it.
 - Where the fleet **overrides** a generic standard (Pod-Identity over IRSA, SOPS over CSI), say so explicitly and cite the generic as the floor (`sources.md`).
-- Keep review cues mapped to the six method dimensions so findings stay rankable.
+- Keep review cues mapped to the six method dimensions so findings stay rankable. **Always write the dimension as `Dimension N (name)`** — keep the parenthetical name, never a bare `Dimension N`. The number→name map lives only in `method.md`, so a kit pulled into a windowed context must carry the name with it.
 
 ## Kit roster (shipped + deferred)
 
 Shipped:
 - `kit-gitops-flux.md` — Flux GitRepository → Kustomization per cell; reconcile ordering.
 - `kit-kustomize-composition.md` — the two-layer `clusters/base` + `manifests/base` model.
-- `kit-cloud-auth-pod-identity.md` — EKS Pod Identity (not IRSA).
-- `kit-secrets-sops-kms.md` — SOPS-in-git + per-cell KMS (not Secrets-Manager/CSI).
+- `kit-cloud-auth-pod-identity.md` — EKS Pod Identity default; IRSA as the old-SDK exception.
+- `kit-secrets-sops-kms.md` — SOPS-in-git + per-cell KMS delivery (not CSI/ESO/Sealed).
+- `kit-pod-security-vap.md` — PSS `restricted` + enforce-version pin + the CEL ValidatingAdmissionPolicy for the vectors PSS misses.
 
 Deferred (add as a conforming kit when first encountered — the corpus grows by use):
-- `kit-pod-security-vap` — PSS `restricted` + enforce-version pin + the CEL ValidatingAdmissionPolicy for the vectors PSS misses.
-- `kit-cell-networking` — Cilium-vs-VPC-CNI split, cluster-pool IPAM / `cluster.id` / VXLAN, cilium#30111 hostNetwork, NLB `target-type: instance`, cross-region peering. (Shares a seam with `network-specialist` — keep to the platform-plumbing side.)
+- `kit-cell-networking` — Cilium-vs-VPC-CNI split, cluster-pool IPAM / `cluster.id` / VXLAN, cilium#30111 hostNetwork, NLB `target-type` (CNI-dependent: `ip` on VPC-CNI, `instance` on Cilium), cross-region peering. (Shares a seam with `network-specialist` — keep to the platform-plumbing side.)
 - `kit-terraform-cell-provisioning` — the per-cell `<region>/<cell>/` TF file-set, EKS/Karpenter/Flux-bootstrap, the cell-bootstrap phase sequence.
 - `kit-container-runtime` — the static-musl seid build (libwasmvm), genesis pre-bake, in-cluster GHA runner, seid StatefulSet entrypoint, waterway EVM proxy.
 - `kit-legacy-ec2-sei-infra` — the EC2 validator/snapshotter/state-syncer ops, `keys/` rotation. **Read-mostly** — the EKS fleet is the migration target.

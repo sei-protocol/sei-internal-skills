@@ -2,7 +2,7 @@
 
 ## 1. What this concern is
 
-Secrets are **SOPS-encrypted in git, decrypted by Flux at apply time, keyed to a per-cell KMS CMK**. The generic mental models — a Secrets Store **CSI `SecretProviderClass`** pulling from AWS Secrets Manager, or External Secrets Operator, or Sealed Secrets — are all reasonable patterns *elsewhere* but **none are used here**; reaching for a SecretProviderClass is wrong for this fleet. *Cited:* `clusters/<cell>/.sops.yaml`, `clusters/prod/arctic-1/validators/.../*-signing-key.secret.yaml`, `cell-bootstrap.md` Appendix B; `sources.md` §secrets (the generic this overrides).
+Secrets are **delivered into the cluster as SOPS-encrypted files in git, decrypted by Flux at apply time, keyed to a per-cell KMS CMK**. The generic *delivery* mental models — a Secrets Store **CSI `SecretProviderClass`**, External Secrets Operator, or Sealed Secrets — are reasonable *elsewhere* but **none are used here**; reaching for a SecretProviderClass is wrong for this fleet. **Scope the claim carefully:** "no Secrets Manager" is true only of the *delivery path* — a workload may still **read** a cloud secret at runtime via its own role (the `heatseeker` workload does, via `secretsmanager:GetSecretValue` on its Pod-Identity role). Delivery ≠ a workload's runtime SDK fetch. *Cited:* `clusters/<cell>/.sops.yaml`, `clusters/prod/arctic-1/validators/.../*-signing-key.secret.yaml`, `terraform/aws/189176372795/eu-central-1/prod/heatseeker.tf:31-35` (the runtime SM read), `cell-bootstrap.md` Appendix B; `sources.md` §secrets (the generic this overrides).
 
 ## 2. The pattern (how this fleet does it)
 
@@ -14,7 +14,7 @@ Secrets are **SOPS-encrypted in git, decrypted by Flux at apply time, keyed to a
 
 ## 3. Anti-patterns / failure modes
 
-- **Reaching for CSI / Secrets Manager / ESO / Sealed Secrets.** A `SecretProviderClass`, an `ExternalSecret`, a `SealedSecret`, or an AWS Secrets Manager fetch. Cue: any of those kinds/CRDs. Rewrite: a SOPS-encrypted Secret in the cell tree. (Those patterns are valid knowledge — `sources.md` §secrets — just not this fleet's mechanism.)
+- **Reaching for CSI / ESO / Sealed Secrets as a *delivery* path.** A `SecretProviderClass`, an `ExternalSecret`, or a `SealedSecret` to get a secret *into* the cluster as a k8s Secret. Cue: any of those kinds/CRDs. Rewrite: a SOPS-encrypted Secret in the cell tree. (Those patterns are valid knowledge — `sources.md` §secrets — just not this fleet's delivery mechanism.) **Not an anti-pattern:** a workload reading a secret from AWS Secrets Manager *at runtime via its own Pod-Identity role* (e.g. `heatseeker`) — that's a legitimate runtime fetch, not a k8s-Secret delivery path; don't flag it as "no Secrets Manager."
 - **Plaintext secret material.** A Secret `data`/`stringData`, or a `.env`/token, committed unencrypted; a secret value in a ConfigMap. Cue: unencrypted `data:` in a Secret, secrets in a ConfigMap. Rewrite: SOPS-encrypt it (the `encrypted_regex` covers `data`/`stringData`).
 - **Encrypting from the wrong CWD.** Running `sops -e` outside the cell dir → wrong key → the cell's Flux can't decrypt. Cue: a secret that decrypts locally but fails in-cluster. Rewrite: encrypt from inside `clusters/<cell>/`.
 - **Cross-cell key reuse.** Encrypting a cell-B secret with cell-A's key. Cue: a `.sops.yaml` ARN that doesn't match the cell. Rewrite: one CMK per cell.
