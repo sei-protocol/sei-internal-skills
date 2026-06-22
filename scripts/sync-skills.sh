@@ -58,7 +58,7 @@ SKILLS_DIR="$(cd "$SCRIPT_DIR/../.claude/skills" && pwd)"
 # the three lists below. The coverage guard enforces this. `all` = PORTABLE+SEI
 # (Tide-local domains are deliberately never synced outward).
 
-PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation skill-authoring code-quality performance writing-quality product-management security platform-infra"
+PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation skill-authoring code-quality performance writing-quality product-management security platform-infra blockchain"
 SEI_DOMAINS="project-management release-operations engineer-self-service"
 # Tide-local — deliberately NOT synced outward:
 #   output-quality (brevity, pr-quality) — Tide-development meta-skills.

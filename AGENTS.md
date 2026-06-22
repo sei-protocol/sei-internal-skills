@@ -31,7 +31,7 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 ### blockchain
 | Agent | Scope |
 |-------|-------|
-| `solidity-developer` | Solidity / Foundry / OpenZeppelin / ERC standards |
+| `solidity-developer` | EVM smart-contract engineering on Sei — Solidity/Foundry, precompiles, gas/parity, address association, upgrade safety, on-chain event indexing. Backed by `/evm`. |
 
 ### code-quality
 | Agent | Scope |
