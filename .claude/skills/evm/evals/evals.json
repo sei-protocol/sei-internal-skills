@@ -18,7 +18,7 @@
       "prompt": "A contract picks a lottery winner using block.prevrandao. The author says 'prevrandao is the standard post-Merge randomness source.'",
       "expected_behavior": [
         "Flags it: on Sei block.prevrandao is DERIVED FROM BLOCK TIME, not randomness — it is griefable/predictable (profile §3, kit-evm-parity-gas)",
-        "Rewrite: use a VRF (Pyth Entropy V2 commit-reveal); cites the deferred kit-randomness-vrf",
+        "Rewrite: use a VRF (Pyth Entropy V2 commit-reveal); cites kit-randomness-vrf",
         "Ranks it as a security finding; notes blockhash/difficulty are equally unsafe here"
       ],
       "source": "profile §3; kit-evm-parity-gas §3"

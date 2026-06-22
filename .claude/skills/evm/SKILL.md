@@ -44,7 +44,8 @@ Refusal conditions — they hold under time pressure and a "just ship the contra
 | Foundry tooling — forge/cast/anvil, fuzz/invariant/fork testing, deploy + verify, Sei RPC/chain-IDs, Slither/Aderyn | `references/kit-foundry-tooling.md` |
 | Upgrade safety — ERC-1967/7201, UUPS vs Transparent, OZ Upgrades, the v4→v5 storage-brick hazard | `references/kit-upgrade-safety.md` |
 | EVM indexing & events — receiving on-chain events for agentic systems: the cross-VM log trap, no-pending, instant finality, indexers | `references/kit-evm-indexing-events.md` |
-| `pointers-tokens`, `randomness-vrf`, `oracles`, `account-abstraction`, `cross-vm-interop` (legacy) | *(deferred — see `references/kit-TEMPLATE.md` roster; add by use)* |
+| Randomness / VRF — Pyth Entropy commit-reveal (the answer to "prevrandao is not random") | `references/kit-randomness-vrf.md` |
+| `kit-pointers-tokens`, `kit-oracles`, `kit-account-abstraction`, `kit-cross-vm-interop` (legacy) | *(deferred — see `references/kit-TEMPLATE.md` roster; add by use)* |
 
 ## How the solidity-developer agent hooks in
 
@@ -58,4 +59,4 @@ The `solidity-developer` persona's first step loads `sei-evm-profile.md` + the k
 
 ## What this skill defers
 
-The deferred kits in `references/kit-TEMPLATE.md`'s roster (`pointers-tokens`, `randomness-vrf`, `oracles`, `account-abstraction`, `cross-vm-interop`) — add by use. **`cross-vm-interop` is legacy** — Cosmos/CosmWasm is being deprecated in favor of EVM-only (Prop 115 froze new CW); don't anchor new work on CW↔EVM interop. The Sei-EVM profile is a *snapshot* — Sei is governance-tunable and fast-moving; when working in a Sei repo its live `AGENTS.md` + docs are authoritative, and gas/feature values must be queried at runtime.
+The deferred kits in `references/kit-TEMPLATE.md`'s roster (`pointers-tokens`, `oracles`, `account-abstraction`, `cross-vm-interop`) — add by use. **`cross-vm-interop` is legacy** — Cosmos/CosmWasm is being deprecated in favor of EVM-only (Prop 115 froze new CW); don't anchor new work on CW↔EVM interop. The Sei-EVM profile is a *snapshot* — Sei is governance-tunable and fast-moving; when working in a Sei repo its live `AGENTS.md` + docs are authoritative, and gas/feature values must be queried at runtime.
