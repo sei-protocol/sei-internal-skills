@@ -48,9 +48,9 @@ Shipped:
 - `kit-plan-driven-reconciliation.md` — the ResolvePlan → persist → ExecutePlan model.
 - `kit-sidecar-task-integration.md` — the seictl HTTP task API.
 - `kit-crd-design.md` — discriminated unions, CEL validation/immutability, status subresource, the `kubectl wait` latch.
+- `kit-child-resource-lifecycle.md` — StatefulSet/Service/PVC/Job via server-side apply, SSA field-ownership, `OnDelete` + readiness-blind `replace-pod`, image-rollout observation, UID-impostor detection, owner refs + orphan-on-Retain finalizers.
 
 Deferred (add as a conforming kit when first encountered — the corpus grows by use):
-- `kit-child-resource-lifecycle` — StatefulSet/Service/PVC/Job via server-side apply, `OnDelete` + readiness-blind `replace-pod`, image-rollout observation, UID-impostor detection, owner refs + finalizers.
 - `kit-chain-bootstrap-modes` — genesis-ceremony two-level S3 rendezvous, the fail-closed state-sync witness gate (≥2 canonical syncers), the bootstrap-Job-then-teardown, replayer/archive.
 - `kit-watches-and-requeue` — `GenerationChangedPredicate`, `Owns` vs `Watches`, the child-phase-changed predicate, requeue cadences (5s task poll, 30s steady, immediate-persist).
 - `kit-controller-deployment-eks` — manager setup (leader election, secure metrics, OTel), kubebuilder RBAC markers, IRSA/Pod-Identity (cross-links `/platform`), Karpenter scheduling, S3 buckets. Keep thin; the deployment *manifests* are `/platform`.

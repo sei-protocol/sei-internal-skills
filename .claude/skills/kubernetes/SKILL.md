@@ -41,7 +41,7 @@ Refusal conditions — they hold under time pressure and a "just make it reconci
 | The plan-driven, level-triggered reconcile model (ResolvePlan → persist → ExecutePlan) | `references/kit-plan-driven-reconciliation.md` |
 | Signaling the per-node seictl sidecar over its HTTP task API | `references/kit-sidecar-task-integration.md` |
 | CRD design — discriminated unions, CEL immutability/validation, status subresource, the `kubectl wait` latch | `references/kit-crd-design.md` |
-| Child-resource (StatefulSet/Service/PVC/Job) lifecycle via server-side apply | *(deferred — `kit-child-resource-lifecycle`, add when first reviewed)* |
+| Child-resource (StatefulSet/Service/PVC/Job) lifecycle via server-side apply — SSA field-ownership, `OnDelete` replace-pod, impostor detection, orphan-on-Retain | `references/kit-child-resource-lifecycle.md` |
 | Chain-bootstrap modes (genesis ceremony, state-sync witness gate, snapshot Job, replayer/archive) | *(deferred — `kit-chain-bootstrap-modes`)* |
 | Watches/requeue (predicates, Owns vs Watches, requeue cadences) | *(deferred — `kit-watches-and-requeue`)* |
 | Controller deployment on EKS (manager setup, RBAC markers, IRSA/Pod-Identity, Karpenter) | *(deferred — cross-links `/platform`; `kit-controller-deployment-eks`)* |
@@ -60,4 +60,4 @@ The `kubernetes-specialist` persona's first step loads `sei-controller-profile.m
 
 ## What this skill defers
 
-The five deferred kits above (add by use); a controller-code eval-harness beyond the shipped evals; `/coral`+`/council` auto-dispatch wiring (un-defer when standalone is validated). The Sei-architecture profile is a *snapshot* of sei-k8s-controller's conventions — when working in that repo, its live `CLAUDE.md` is authoritative; this profile is the portable, cited distillation for work elsewhere and for review.
+The three deferred kits above (add by use); a controller-code eval-harness beyond the shipped evals; `/coral`+`/council` auto-dispatch wiring (un-defer when standalone is validated). The Sei-architecture profile is a *snapshot* of sei-k8s-controller's conventions — when working in that repo, its live `CLAUDE.md` is authoritative; this profile is the portable, cited distillation for work elsewhere and for review.

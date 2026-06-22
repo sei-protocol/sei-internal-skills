@@ -98,6 +98,17 @@
         "Stays on the controller code + CRD contract; does not stretch the skill over the adjacent domains (Guardrail 5)"
       ],
       "source": "Guardrail 5 (don't duplicate adjacent lenses)"
+    },
+    {
+      "id": "redirect-manifests-and-p2p-edges",
+      "type": "discipline",
+      "prompt": "Mid controller-code review, the work drifts: the user asks to also write the Kustomize overlay + HelmRelease that deploys the controller, and to wire the node's persistent-peers / P2P networking.",
+      "expected_behavior": [
+        "Redirects the deployment manifests (Kustomize/HelmRelease/the ?ref= staged rollout, manager-patch/config, IRSA/Pod-Identity wiring) to platform-engineer / /platform — 'you own the controller code; they own the manifests around it' (Guardrail 5, boundary)",
+        "Redirects the node P2P/persistent-peers/RPC networking to sei-network-specialist",
+        "Stays on the controller code + CRD contract; surfacing a Service-port/topology field the controller owns is in-scope, but the P2P wiring and the deploy manifests are not"
+      ],
+      "source": "Guardrail 5 + the profile's agent-boundary section (vs /platform and sei-network-specialist)"
     }
   ]
 }

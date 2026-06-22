@@ -7,7 +7,7 @@ The controller's primary side-effect channel to a running node is a **per-node s
 ## 2. The pattern (how this repo does it)
 
 - **The HTTP contract:** `SubmitTask` / `GetTask` / `Healthz` / `GetNodeID` against the node's sidecar. Params are `Validate()`'d **locally before submit**. *Cited:* `internal/task/task.go:140-147`.
-- **Completion by polling:** after submit, `GetTask` is polled on a 5s `TaskPollInterval`; `ErrNotFound` → still Running. **Fire-and-forget** tasks (`mark-ready`, `config-validate`) complete on the submit ack itself. *Cited:* `internal/task/sidecar.go:40-117`.
+- **Completion by polling:** after submit, `GetTask` is polled; `ErrNotFound` → still Running. **Fire-and-forget** tasks (`mark-ready`, `config-validate`) complete on the submit ack itself. *Cited:* `internal/task/sidecar.go:40-117` (the submit/poll/fire-and-forget mechanics); the 5s `TaskPollInterval` + bounded backoff live in `internal/planner/executor.go:21` (applied at :165/:178/:202), not in `sidecar.go`.
 - **Restart-safe submits:** deterministic UUIDv5 task IDs (`task/task.go:132-138`) let a restarted controller rejoin an in-flight task instead of double-submitting.
 - **The task-type registry is split** sidecar-backed vs controller-side (StatefulSet/Service/PVC/Job via SSA). A reviewer must know which side a task lives on. *Cited:* `internal/task/task.go:201-243`.
 - **Health drives re-approval:** a separate 2s `Healthz` probe sets `SidecarReady`; only `False/NotReady` (503) triggers a `mark-ready` re-approval plan. *Cited:* `internal/planner/sidecar_probe.go:17-59`.
@@ -19,7 +19,7 @@ The controller's primary side-effect channel to a running node is a **per-node s
 - **Submit-as-completion for a polled task.** Treating a `SubmitTask` ack as "done" for a task that is actually long-running. Cue: no `GetTask` poll loop for a non-fire-and-forget task. Rewrite: poll `GetTask`; `ErrNotFound` = still Running.
 - **Non-deterministic task IDs.** Random/timestamp IDs → a restart double-submits. Cue: `uuid.New()` instead of the UUIDv5 derivation. Rewrite: derive deterministically from the stable inputs.
 - **Skipping local `Validate()`.** Submitting params the sidecar will reject, turning a local error into a remote round-trip + opaque failure. Cue: submit without `params.Validate()`. Rewrite: validate before submit.
-- **Treating sidecar-unreachable as terminal.** A 503/unreachable sidecar should drive the `SidecarReady=False` re-approval path, not fail the plan. Cue: `Terminal(err)` on a health/connection error.
+- **Treating sidecar-unreachable as terminal.** A 503/unreachable sidecar should drive the `SidecarReady=False` re-approval path, not fail the plan. Cue: `Terminal(err)` on a health/connection error. Rewrite: classify it transient — drive the `SidecarReady=False` re-approval and requeue; don't fail the plan.
 
 ## 4. Review cues
 
