@@ -10,7 +10,7 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 | Agent | Scope |
 |-------|-------|
 | `kubernetes-specialist` | Go + controller-runtime, CRDs, event indexing, Job lifecycle |
-| `platform-engineer` | K8s manifests, Python container runtimes, cloud auth |
+| `platform-engineer` | Platform layer — Kustomize/Flux GitOps, EKS Pod Identity, SOPS/KMS secrets, Pod Security, terraform; the sei-k8s-controller deploy manifests. Backed by `/platform`. |
 | `network-specialist` | K8s and cloud networking, service mesh |
 | `k8s-capacity-management` | Capacity as a discipline: workload right-sizing from observed data, Karpenter NodePool design, DaemonSet overhead, PriorityClass tiers, HPA/VPA/KEDA tuning, scheduling primitives. |
 | `sei-network-specialist` | Sei node networking (seid ports, CometBFT P2P, Waterway, Istio quirks). Valuable to any Sei-adjacent work. *(sync alias: `sei`)* |
