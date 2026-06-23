@@ -17,7 +17,7 @@ The **data product** is the central unit — the architectural quantum (code + d
 - **The deprecated Data Contract Specification.** Cue: a new contract authored against datacontract.com's standalone spec. Rewrite: ODCS v3.x (the standalone spec's support ends end-2026). *Cited:* `sources.md` §data-contracts.
 - **A "data product" that's really a pipeline or a table.** Cue: a dataset with no contract, no SLOs, no owner, not independently deployable. Rewrite: the architectural quantum — code + data + infra + a contract + an accountable owner.
 - **Missing usability attributes.** Cue: not discoverable (no catalog entry), not addressable (no stable address), not self-describing (no schema/semantics), no published SLOs. Rewrite: satisfy all six attributes before calling it a product.
-- **Bonding/SLO-ing a claim that isn't re-checkable.** Cue: a correctness guarantee on a subjective/judgment output. Rewrite: see `kit-data-quality-observability` — only Class-I claims carry a correctness bond; judgment is a signed opinion + consumer policy.
+- **Bonding/SLO-ing a claim that can't back the guarantee.** Cue: a correctness bond on a subjective/judgment (Class-III) output. Rewrite: see `kit-data-quality-observability` — only **Class-I** (re-checkable) or **Class-II** (dispute-adjudicable, with a sound dispute layer) claims carry a correctness bond; Class-III judgment is a signed opinion + consumer policy.
 
 ## 4. Review cues
 
