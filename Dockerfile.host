@@ -1,0 +1,84 @@
+# syntax=docker/dockerfile:1
+#
+# sei-tide-omnigent-host — the WallE execution-substrate image (PLT-715).
+# Runs as uid 1000 (walle PSS-restricted). Build context is the REPO ROOT (the
+# `.claude/` overlay lives there, outside the server image's sei_omnigent/ context).
+# slim, not distroless: the claude-native toolchain (bash/git/tmux) needs a userland.
+# Why a sibling Dockerfile + the design trail: see the PR.
+#
+#   docker build -t sei-tide-omnigent-host:dev -f Dockerfile.host .
+
+ARG PYTHON_VERSION=3.12
+ARG NODE_VERSION=20
+
+# ---- builder ---------------------------------------------------------------
+FROM python:${PYTHON_VERSION}-slim AS builder
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+WORKDIR /src
+
+COPY sei_omnigent/pyproject.toml ./
+COPY sei_omnigent/src ./src
+
+RUN pip install --prefix=/install .
+
+# ---- node-runtime (alias) --------------------------------------------------
+# Same Debian base as python-slim, so the node binary COPY'd into `host` is
+# ABI-compatible — the invariant that makes the cross-stage COPY correct.
+FROM node:${NODE_VERSION}-slim AS node-runtime
+
+# ---- host runtime ----------------------------------------------------------
+FROM python:${PYTHON_VERSION}-slim AS host
+
+# IS_SANDBOX is a flag Claude Code reads (not a uid gate), so it survives on the
+# non-root image; omnigent forwards it host->runner via _RUNNER_ENV_ALLOWLIST.
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/usr/local/bin:${PATH}" \
+    IS_SANDBOX=1
+
+# git (workspace clone), tmux (claude-native terminals), curl + ca-certs (HTTPS).
+# No bubblewrap — claude-native pins its os_env sandbox to `none` (the host-build-smoke
+# asserts the toolchain; the bwrap-absence rationale is in the PR).
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends git tmux curl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+# Node (pinned, copied from the official image) + only @anthropic-ai/claude-code, EXACT-pinned:
+# this image is credential-bearing, so a floating `latest` is an unacceptable supply-chain vector
+# (a bump is a deliberate, reviewed change). Transitive-tree hash-pinning (npm ci) is the tracked
+# follow-up before prod promotion.
+ARG CLAUDE_CODE_VERSION=2.1.186
+COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
+COPY --from=node-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
+ && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
+ && npm install -g --no-audit --no-fund "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
+ && npm cache clean --force
+
+# git-over-HTTPS without writing creds to disk: the helper answers `git credential
+# get` from GIT_TOKEN/GIT_USERNAME (manifest-injected), emits nothing when unset.
+RUN git config --system credential.helper \
+      '!f() { [ "$1" = get ] || return 0; [ -n "$GIT_TOKEN" ] || return 0; printf "username=%s\npassword=%s\n" "${GIT_USERNAME:-x-access-token}" "$GIT_TOKEN"; }; f'
+
+COPY --from=builder /install /usr/local
+
+# Non-root uid:gid 1000 with a real /etc/passwd entry + writable HOME: the host
+# writes Path.home()/.omnigent logs and pwd.getpwuid(1000) must not KeyError.
+RUN useradd --uid 1000 --create-home --home-dir /home/host host
+ENV HOME=/home/host
+
+# The Tide `.claude/` overlay baked at the user-scope path claude-code loads from
+# (default skills_filter "all" → host ~/.claude + the workspace's project .claude).
+COPY --chown=1000:1000 .claude /home/host/.claude
+
+USER 1000:1000
+WORKDIR /home/host
+
+# The B1 launcher: patch the proxy-bearer, then exec `omnigent host` in-process.
+# The manifest supplies `--server <url>` + sets OMNIGENT_PROXY_BEARER_TOKEN_FILE.
+ENTRYPOINT ["python", "-m", "sei_omnigent.host_launch"]
