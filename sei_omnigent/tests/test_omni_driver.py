@@ -198,6 +198,35 @@ def test_no_progress_default_does_not_fire() -> None:
     assert session.cancel_calls == 0
 
 
+def test_cancel_that_raises_does_not_mask_truncation() -> None:
+    """A cancel() that itself raises must not lose the truncated outcome (best-effort swallow).
+
+    Guards driver.py's documented invariant ("a cancel that itself errors must not mask the
+    truncation we already decided") — the branch most likely to regress if someone tightens
+    the except. The budget breach is the truth; the partial outcome stands, cancelled=True.
+    """
+
+    class _RaisingCancelSession(_FakeSession):
+        async def cancel(self) -> None:
+            self.cancel_calls += 1
+            raise RuntimeError("cancel failed")
+
+    session = _RaisingCancelSession([{"iter": True, "tokens": 1} for _ in range(10)])
+    outcome = asyncio.run(
+        drive_to_terminal(
+            session,
+            _budget(max_iterations=2),
+            now=_fixed_clock(),
+            token_delta=_tokens,
+            is_iteration=_is_iter,
+        )
+    )
+    assert outcome.terminal_reason is TerminalReason.BUDGET_EXHAUSTED
+    assert outcome.truncated is True
+    assert outcome.cancelled is True  # cancel was attempted; the breach stands despite it raising
+    assert session.cancel_calls == 1
+
+
 def test_stream_failure_is_truncated_not_clean() -> None:
     """A mid-run stream error fails closed onto the truncated headline, never all-clear."""
 

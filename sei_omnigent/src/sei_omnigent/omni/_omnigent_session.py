@@ -35,6 +35,7 @@ Design 12 §2, §3.2.
 from __future__ import annotations
 
 from collections.abc import AsyncIterator, Callable
+from typing import Protocol
 
 # --- spike-grade private import (see module docstring); re-confirm on omnigent bump ---
 from omnigent_client._sessions_chat import (
@@ -61,9 +62,13 @@ def make_extractors() -> tuple[
         nonlocal seen_total
         if isinstance(event, _TURN_TERMINAL_EVENT_TYPES):
             usage = getattr(event.response, "usage", None)  # type: ignore[attr-defined]
-            total = getattr(usage, "total_tokens", 0) or 0
-            delta = max(0, int(total) - seen_total)
-            seen_total = max(seen_total, int(total))
+            total = int(getattr(usage, "total_tokens", 0) or 0)
+            # The wire reports MONOTONIC cumulative total_tokens per turn-terminal event;
+            # the max(0,...) clamp is correct for that. NAMED LIMITATION (not a silent gap):
+            # a regression (counter reset / out-of-order terminal) would under-count and fail
+            # the token axis OPEN — assumed-monotonic per run, so build a fresh triple per run.
+            delta = max(0, total - seen_total)
+            seen_total = max(seen_total, total)
             return delta
         return 0
 
@@ -77,6 +82,20 @@ def make_extractors() -> tuple[
     return token_delta, is_iteration, artifact_chunk
 
 
+class _ChatLike(Protocol):
+    """The ``SessionsChat`` surface :class:`GoalSession` adapts.
+
+    A typed inbound seam so the adapter carries no ``type: ignore`` and a rename of the
+    chat's ``send``/``cancel``/``status`` is caught structurally. ``SessionsChat`` satisfies
+    this (``send(input, *, files=None)`` matches a positional ``send(goal)`` call).
+    """
+
+    def send(self, goal: str) -> AsyncIterator[object]: ...
+    async def cancel(self) -> None: ...
+    @property
+    def status(self) -> str: ...
+
+
 class GoalSession:
     """Adapt a ``SessionsChat`` to :class:`omni.driver.SessionLike`, posting ``goal`` on stream.
 
@@ -86,16 +105,16 @@ class GoalSession:
     into a goal-posting one so the agent actually does work for the budget to bound.
     """
 
-    def __init__(self, chat: object, goal: str) -> None:
+    def __init__(self, chat: _ChatLike, goal: str) -> None:
         self._chat = chat
         self._goal = goal
 
     def stream(self) -> AsyncIterator[object]:
-        return self._chat.send(self._goal)  # type: ignore[attr-defined]
+        return self._chat.send(self._goal)
 
     async def cancel(self) -> None:
-        await self._chat.cancel()  # type: ignore[attr-defined]
+        await self._chat.cancel()
 
     @property
     def status(self) -> str:
-        return self._chat.status  # type: ignore[attr-defined]
+        return self._chat.status
