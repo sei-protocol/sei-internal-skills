@@ -53,7 +53,7 @@ Shipped:
 - `kit-federated-governance.md` — global/local policy split, computational/policy-as-code enforcement, the thin-neutral-registry moat, the org-boundary trust switch.
 - `kit-self-serve-platform.md` — the three platform planes, cognitive-load reduction, bounded/scoped/push-capable access.
 - `kit-data-quality-observability.md` — the five observability pillars, OpenLineage, SLOs, the claim-class taxonomy, authenticity≠correctness≠truth.
-- `kit-interoperability-lineage.md` — global addressing/identity, polyglot ports, extend-without-migration, the product-descriptor standards layer (ODCS/ODPS/DPDS).
+- `kit-interoperability-lineage.md` — global addressing/identity, polyglot ports, extend-without-migration, the descriptor standards (contract-level **ODCS** consolidating; product-level **ODPS/DPDS** unsettled).
 
 Deferred (add as a conforming kit when first encountered — the corpus grows by use):
 - `kit-lakehouse-fabric-adjacency` — data mesh vs data fabric vs lakehouse vs warehouse; when each fits; how they compose (the fit-check's deeper treatment).

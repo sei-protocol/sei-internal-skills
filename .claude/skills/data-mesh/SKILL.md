@@ -54,7 +54,7 @@ The `data-platform-architect` persona's first step loads `data-mesh-profile.md` 
 
 - **No target** to design/review — ask for the data architecture / domains / products in scope; never review from memory.
 - **Mesh isn't the right answer** — say so (the fit-check); recommend the simpler architecture rather than designing an unneeded mesh.
-- **A one-way door** (a namespace-authority binding, a published data-product contract/port, the shared ontology, a deployed gating/bonding governance config) — flag for human approval, don't assert.
+- **A one-way door** (a namespace-authority binding, a published data-product contract/port, the shared ontology, an EIP-712-style governance type hash, a deployed gating/bonding governance config) — flag for human approval, don't assert.
 - **The work is really another lens** — product→architecture (`product-engineer`), infra (`platform-engineer`), telemetry stack (observability agents), contract/attestation build (`/evm`, `/tee`) — redirect.
 
 ## What this skill defers
