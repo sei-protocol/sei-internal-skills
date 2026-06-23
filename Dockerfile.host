@@ -1,41 +1,17 @@
 # syntax=docker/dockerfile:1
 #
 # sei-tide-omnigent-host — the WallE execution-substrate image (PLT-715).
-#
-# The server image (sei_omnigent/Dockerfile) is coordinator-only: no claude /
-# tmux / git, so it cannot EXECUTE a harness. This is the inverse — the runnable
-# host: the overlay venv PLUS the claude-native toolchain (git / tmux / Node +
-# the claude-code CLI) PLUS the Tide `.claude/` overlay baked at $HOME, fronted
-# by the B1 launcher (sei_omnigent.host_launch). It runs the standing
-# omnigent-host Deployment in the walle namespace.
-#
-# Build context is the REPO ROOT (not sei_omnigent/), because the `.claude/`
-# overlay tree lives at the repo root, outside the server image's tight
-# sei_omnigent/ context. So this is a sibling Dockerfile, not a `host` target in
-# sei_omnigent/Dockerfile — the two builds keep distinct contexts.
+# Runs as uid 1000 (walle PSS-restricted). Build context is the REPO ROOT (the
+# `.claude/` overlay lives there, outside the server image's sei_omnigent/ context).
+# slim, not distroless: the claude-native toolchain (bash/git/tmux) needs a userland.
+# Why a sibling Dockerfile + the design trail: see the PR.
 #
 #   docker build -t sei-tide-omnigent-host:dev -f Dockerfile.host .
-#
-# NON-ROOT under PSS restricted. omnigent's own host image runs as root for the
-# IS_SANDBOX/bwrap OS-sandbox path; the walle namespace enforces
-# runAsNonRoot + allowPrivilegeEscalation:false + drop:[ALL], so this image runs
-# as uid 1000. The claude-native harness pins its os_env sandbox to `none` (see
-# the bwrap note below), so root is not required: claude/tmux/git resolve a
-# writable HOME and run unprivileged.
-#
-# slim, NOT distroless — mirrors the server image: a real shell for debug exec,
-# offset by the restricted PodSecurity + readOnlyRootFilesystem the manifest
-# sets. The harness toolchain (bash/git/tmux) needs a userland anyway.
 
 ARG PYTHON_VERSION=3.12
 ARG NODE_VERSION=20
 
 # ---- builder ---------------------------------------------------------------
-# Resolves the overlay + its pinned deps (omnigent==0.2.0 pulls the host/connect
-# + claude-native machinery transitively) into a relocatable prefix. Identical
-# resolve to the server image's builder; the host runtime just adds the
-# toolchain on top. Context is the repo root, so the package inputs are under
-# sei_omnigent/.
 FROM python:${PYTHON_VERSION}-slim AS builder
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -48,87 +24,61 @@ WORKDIR /src
 COPY sei_omnigent/pyproject.toml ./
 COPY sei_omnigent/src ./src
 
-# Resolve into a relocatable prefix. No --pre: the pre-release allowance is
-# scoped to the OTel instrumentation pins in pyproject.toml exactly as the server
-# image does (pip honors an exact pre-release pin without the global flag).
 RUN pip install --prefix=/install .
 
 # ---- node-runtime (alias) --------------------------------------------------
-# Pure alias so the host stage can COPY a version-pinned node out; same Debian
-# base as python-slim, so the binary is ABI-compatible (mirrors omnigent's host
-# stage — apt nodesource avoided to keep the version pinned to NODE_VERSION).
+# Same Debian base as python-slim, so the node binary COPY'd into `host` is
+# ABI-compatible — the invariant that makes the cross-stage COPY correct.
 FROM node:${NODE_VERSION}-slim AS node-runtime
 
 # ---- host runtime ----------------------------------------------------------
 FROM python:${PYTHON_VERSION}-slim AS host
 
-# IS_SANDBOX: the devcontainer-convention flag Claude Code consults before it
-# will run --dangerously-skip-permissions. It is a flag, root-independent — the
-# harness checks the env var, not the uid — so it stays set on the non-root
-# image. (omnigent forwards it host->runner via _RUNNER_ENV_ALLOWLIST.)
+# IS_SANDBOX is a flag Claude Code reads (not a uid gate), so it survives on the
+# non-root image; omnigent forwards it host->runner via _RUNNER_ENV_ALLOWLIST.
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PATH="/usr/local/bin:${PATH}" \
     IS_SANDBOX=1
 
-# Harness runtime needs. git (workspace clone/worktree), tmux (the terminal
-# sessions claude-native spawns), curl + ca-certificates (outbound HTTPS to the
-# LLM gateway + token endpoints). bubblewrap is DELIBERATELY ABSENT — the
-# claude-native path pins its os_env sandbox to `none` (omnigent
-# claude_native.py builds the spec with sandbox.type:none for both env and
-# terminals), so bwrap is never selected on this image's execution path; adding
-# it would only invite the unprivileged-userns node-gate without a consumer. See
-# the build-smoke + the PR note for the assessment.
+# git (workspace clone), tmux (claude-native terminals), curl + ca-certs (HTTPS).
+# No bubblewrap — claude-native pins its os_env sandbox to `none` (the host-build-smoke
+# asserts the toolchain; the bwrap-absence rationale is in the PR).
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git tmux curl ca-certificates \
  && rm -rf /var/lib/apt/lists/*
 
-# Node + the claude-code CLI for the claude-native harness. Copy node from the
-# pinned official image (not apt), then install ONLY @anthropic-ai/claude-code
-# globally — we drop codex + pi (omnigent's host image ships all three; WallE's
-# /root-cause is claude-native only). Unpinned on purpose, matching omnigent's
-# host stage: CI rebuilds track the same "latest" a fresh install would get.
+# Node (pinned, copied from the official image) + only @anthropic-ai/claude-code, EXACT-pinned:
+# this image is credential-bearing, so a floating `latest` is an unacceptable supply-chain vector
+# (a bump is a deliberate, reviewed change). Transitive-tree hash-pinning (npm ci) is the tracked
+# follow-up before prod promotion.
+ARG CLAUDE_CODE_VERSION=2.1.186
 COPY --from=node-runtime /usr/local/bin/node /usr/local/bin/node
 COPY --from=node-runtime /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -s /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
  && ln -s /usr/local/lib/node_modules/npm/bin/npx-cli.js /usr/local/bin/npx \
- && npm install -g --no-audit --no-fund @anthropic-ai/claude-code \
+ && npm install -g --no-audit --no-fund "@anthropic-ai/claude-code@${CLAUDE_CODE_VERSION}" \
  && npm cache clean --force
 
-# git over HTTPS for private repos without writing creds to disk: the helper
-# answers `git credential get` from GIT_TOKEN/GIT_USERNAME in the env (injected
-# by the manifest), emits nothing when GIT_TOKEN is unset (public clones stay
-# anonymous). --system so it applies to uid 1000. Mirrors omnigent's host stage.
+# git-over-HTTPS without writing creds to disk: the helper answers `git credential
+# get` from GIT_TOKEN/GIT_USERNAME (manifest-injected), emits nothing when unset.
 RUN git config --system credential.helper \
       '!f() { [ "$1" = get ] || return 0; [ -n "$GIT_TOKEN" ] || return 0; printf "username=%s\npassword=%s\n" "${GIT_USERNAME:-x-access-token}" "$GIT_TOKEN"; }; f'
 
-# The resolved overlay env (overlay + omnigent + uvicorn + OTel) from the builder.
 COPY --from=builder /install /usr/local
 
-# Non-root uid:gid 1000:1000 with a real /etc/passwd entry + writable HOME. The
-# host process writes logs under Path.home()/.omnigent (omnigent host/connect.py)
-# and the claude-code CLI resolves its config + the baked overlay under
-# $HOME/.claude, so HOME must exist, resolve via pwd.getpwuid(1000), and be
-# writable. uid matches the walle manifest's runAsUser/fsGroup: 1000.
+# Non-root uid:gid 1000 with a real /etc/passwd entry + writable HOME: the host
+# writes Path.home()/.omnigent logs and pwd.getpwuid(1000) must not KeyError.
 RUN useradd --uid 1000 --create-home --home-dir /home/host host
 ENV HOME=/home/host
 
-# The Tide `.claude/` overlay (skills + agents) baked at the user-scope path
-# claude-code loads from. With the default skills_filter ("all") the harness
-# emits NO --setting-sources, so the real claude binary uses its default setting
-# sources — host (~/.claude) + project (workspace .claude). User-scope is the
-# right home here: it is the canonical Tide sync target (AGENTS.md/CLAUDE.md),
-# HOME-resolved (works non-root), and independent of whatever repo the host
-# clones into its per-task workspace. Owned by uid 1000 so claude can read it.
+# The Tide `.claude/` overlay baked at the user-scope path claude-code loads from
+# (default skills_filter "all" → host ~/.claude + the workspace's project .claude).
 COPY --chown=1000:1000 .claude /home/host/.claude
 
 USER 1000:1000
 WORKDIR /home/host
 
-# ENTRYPOINT, not CMD — unlike omnigent's host image (which is CMD-only so
-# Modal's Image.from_registry can supply its own command), WallE runs this as a
-# standing k8s Deployment with a fixed launcher. The B1 launcher patches the
-# proxy-bearer, then execs `omnigent host` in-process. -m is explicit so the
-# command is legible in the manifest and PATH-shim-independent. The manifest
-# supplies `--server <url>` as args and sets OMNIGENT_PROXY_BEARER_TOKEN_FILE.
+# The B1 launcher: patch the proxy-bearer, then exec `omnigent host` in-process.
+# The manifest supplies `--server <url>` + sets OMNIGENT_PROXY_BEARER_TOKEN_FILE.
 ENTRYPOINT ["python", "-m", "sei_omnigent.host_launch"]

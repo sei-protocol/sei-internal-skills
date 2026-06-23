@@ -9,22 +9,12 @@ name: ECR
 # only changes under the overlay should publish a new image. The existing
 # verify-*.yml workflows are untouched (they own lint/test/packaging gates).
 #
-# TWO images publish from here (PLT-715):
-#   * the coordinator-only SERVER image (sei_omnigent/Dockerfile, tag <sha>), and
-#   * the runnable HOST image (Dockerfile.host, tag <sha>-host) — same
-#     sei/sei-tide-omnigent repo, distinct tag.
-# One repo, two tags (not two repos): they are the same overlay at the same git
-# sha, just server vs host runtime; a `<sha>` / `<sha>-host` pair off one commit
-# is easier to reason about than two repos to keep version-aligned, and the
-# account's sei/* replication + scan rules apply once. The host build adds
-# `.claude/**` to its path-filter because the baked overlay is a host-image input.
-#
-# eu-central-1 pulls this image CROSS-REGION from us-east-2 (operator decision,
-# no eu-central-1 replica); the image also replicates to eu-west-1 INCIDENTALLY
-# via the account's sei/* prefix rule, not relied on for the eu-central-1 pull.
-#
-# Transitives resolve live at build time; the pushed image is digest-immutable.
-# A hash-pinned lockfile is a tracked follow-up.
+# PLT-715: two images publish from here — the coordinator SERVER image
+# (sei_omnigent/Dockerfile, tag <sha>) and the runnable HOST image
+# (Dockerfile.host, tag <sha>-host), same sei/sei-tide-omnigent repo. The host
+# build adds `.claude/**` to the path-filter (the baked overlay is a host input).
+# Rationale (one-repo-two-tags, cross-region pull) + the hash-pinned-lockfile
+# follow-up: see the PR.
 
 on:
   push:
