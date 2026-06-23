@@ -29,7 +29,7 @@ Refusal conditions — they hold under time pressure and a "just ship the contra
 
 `references/method.md` holds the full method; the spine:
 
-1. **Load the profile + the kit(s)** for the concern (precompiles, parity/gas, address/association, foundry tooling, upgrade safety, indexing, randomness/VRF). Read the Sei repo's `AGENTS.md` if working in it.
+1. **Load the profile + the kit(s)** for the concern (precompiles, parity/gas, address/association, foundry tooling, upgrade safety, indexing, randomness/VRF, delegated authority). Read the Sei repo's `AGENTS.md` if working in it.
 2. **Design or review against the profile first, the external canon second.** The profile (Pectra-no-blobs, instant finality, governance gas, prevrandao-not-random, IAVL proofs, dual-address, precompiles) is what applies on Sei; `sources.md` is the generic floor the profile sits on and sometimes overrides.
 3. **Score/identify by the six dimensions** (`method.md`): security & exploitability · access-control & privilege · upgrade & storage-layout safety · external-call & value handling · gas & efficiency · testing & verification adequacy.
 4. **Cite every finding** and rank one-way-door / exploit findings above style. Flag one-way doors for human approval; defer exploit-depth to `security-specialist`.
@@ -45,6 +45,7 @@ Refusal conditions — they hold under time pressure and a "just ship the contra
 | Upgrade safety — ERC-1967/7201, UUPS vs Transparent, OZ Upgrades, the v4→v5 storage-brick hazard | `references/kit-upgrade-safety.md` |
 | EVM indexing & events — receiving on-chain events for agentic systems: the cross-VM log trap, no-pending, instant finality, indexers | `references/kit-evm-indexing-events.md` |
 | Randomness / VRF — Pyth Entropy commit-reveal (the answer to "prevrandao is not random") | `references/kit-randomness-vrf.md` |
+| Delegated authority — scoped/revocable/time-bounded cross-org access via ERC-7710/7715 caveat delegation on ERC-4337 session keys; the W3 boundary; registry hardening | `references/kit-delegated-authority.md` |
 | `kit-pointers-tokens`, `kit-oracles`, `kit-account-abstraction`, `kit-cross-vm-interop` (legacy) | *(deferred — see `references/kit-TEMPLATE.md` roster; add by use)* |
 
 ## How the solidity-developer agent hooks in

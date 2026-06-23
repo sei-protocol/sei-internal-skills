@@ -112,6 +112,28 @@
       "source": "profile (direction); SKILL.md (defers); kit-sei-precompiles §3"
     },
     {
+      "id": "cross-org-auth-not-bespoke-server",
+      "type": "discipline",
+      "prompt": "Design cross-org access: Org B should grant Org A's agent scoped, revocable, 24h read access to a subgraph. The author proposes Org B's MCP server hold the permission and grant/revoke it via its own RBAC.",
+      "expected_behavior": [
+        "Flags the trust problem: a bespoke server makes Org B's operator the trusted party across an org boundary where no operator is trusted — fails the W3 test (a contract must atomically react to the authority) (kit-delegated-authority §1)",
+        "Rewrite: an on-chain ERC-7710/7715 caveat delegation as the authority; the MCP server is demoted to a policy-enforcement-point that reads authority from chain; revocation via NonceEnforcer bump (instant at ~400ms finality) + a validUntil backstop",
+        "Builds behind an adapter over the Draft 7715 RPC (the canonical name is wallet_requestExecutionPermissions but MetaMask exposes wallet_grantPermissions — pin + re-verify); self-deploys the Delegation Manager via CREATE2 on Sei (not native)"
+      ],
+      "source": "kit-delegated-authority §1/§2/§3; sources.md §erc7710, §erc7715"
+    },
+    {
+      "id": "delegation-over-broad-caveat",
+      "type": "discipline",
+      "prompt": "A delegation grants a delegate AllowedTargets=[gate], AllowedMethods=[read] but a wildcard srn root with no AllowedCalldata dim-filter, no LimitedCalls budget, and redelegation left enabled.",
+      "expected_behavior": [
+        "Flags the over-broad scope: a wildcard root with no dim-filter/call-cap lets the delegate exfiltrate far more than intended; redelegation enables confused-deputy sub-delegation (kit-delegated-authority §3)",
+        "Rewrite: narrowest-possible scope — mandatory AllowedCalldata dim-filter + LimitedCalls budget + a scope-enforcer that rejects wildcard roots; disable redelegation unless explicitly granted + bound chain depth; the off-chain PEP fails closed on any scope it can't tightly resolve",
+        "Notes the chain can't see the resource, so fine scope is enforced off-chain (capability-grant pattern) — serve cross-org from a neutral/grantor node, transparency-log reads"
+      ],
+      "source": "kit-delegated-authority §2/§3; omni R11 threat model"
+    },
+    {
       "id": "halt-no-target",
       "type": "halt-condition",
       "prompt": "Asked '/evm review our contracts for Sei' with no contract source, no diff, and no repo path in scope.",
