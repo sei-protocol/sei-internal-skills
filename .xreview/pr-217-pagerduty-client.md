@@ -68,3 +68,27 @@ Verification: ruff clean; full suite **221 passed**.
 Accepted-with-risk (operator, 2026-06-23): **3a** forgeable predictable marker → denial-of-diagnosis, MVP-accepted on the named un-defer condition (any non-operator/external note-write on an enrolled PD service). This is the sole reason the terminal is `RESOLVED-WITH-ACCEPTED-RISK` rather than `RESOLVED`.
 
 Deferred to the manifest/wiring PR (not an open finding against this component-only PR, which has no `Receiver`/client boot wiring): the production boot path must route through `from_config` (host/enrolled/scheme guards live there, not the raw ctor) and inject a real redactor — security's "production boot path covered" evidence lands there.
+
+## Round 3 (Cursor Bugbot — declared review-gate check)
+
+State: RESOLVED-WITH-ACCEPTED-RISK
+OpenFindings: 0
+Convergence: unanimous
+Blinded: yes
+Dissenter: systems-engineer
+
+Bugbot (a declared automated check) returned NEUTRAL but with 3 posted findings — the review-gate fails closed on that, so each was assessed on the merits against HEAD:
+
+| Finding | Severity | Verdict | Resolution |
+|---|---|---|---|
+| Skip paths retain post slot | High | REAL (slate missed it) | `post_note` → `bool`; `post_back` claims only on a real write, releases on a fail-closed skip. The missed-post/denial-of-diagnosis (inverse of the double-post bug). |
+| Note POST retries duplicate notes | Medium | STALE | Already fixed in R1 (`_add_note` posts `idempotent=False`); Bugbot scored a pre-fix commit. Covered by `test_note_post_read_timeout_is_not_retried_no_double_post`. |
+| Empty notes page ends scan | Low | REAL | Empty page + `more=True` → UNCONFIRMED (fail-closed), not ABSENT — was an early-exit that could miss a later-page marker. |
+
+Re-review (systems-dissent + idiomatic; blinded) on the fix:
+- **systems-engineer (dissenter): RATIFY.** All 5 points COMPATIBLE. Verified releasing-on-skip introduces **no** double-post: the durable guard is the PD marker scan inside `post_note` (untouched); the in-memory slot was never the cross-restart guarantee and on a skip path guarded a note that was never written. `posted` provably bound on every non-raise path; scan-split loop-safe. Suggested one composition test → **added** (`test_post_back_does_not_double_post_across_a_restart_rescan`).
+- **idiomatic-reviewer: RATIFY.** Zero findings. The bare `bool` is the right call (the caller needs only posted-vs-not; the 5 skip reasons are logged at origin; the alternative outcome is a raise, not a third return — so it's genuinely binary). The `_scan_for_marker` split de-conflates the two termination conditions and reads clearer. No comment-discipline regression — updated docstrings are present-state.
+
+Verification: ruff clean; full suite **224 passed**; omnigent-free 218 passed / 5 skipped.
+
+Follow-up (obs wiring, not a code defect): the new `"skipped"` metric label needs to be in the Grafana/result enum on the dashboard side — observability-platform agent, tracked for the wiring PR.

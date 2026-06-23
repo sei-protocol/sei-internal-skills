@@ -372,6 +372,47 @@ def test_post_back_releases_the_slot_on_a_fail_closed_skip() -> None:
     assert dedup.claim_post("inc-1", "probe") is True
 
 
+def test_post_back_does_not_double_post_across_a_restart_rescan() -> None:
+    # The composition the slot-release fix turns on, pinned directly: run A posts a real note
+    # (True, keeps the slot); a restart loses the in-memory slot; run B re-fires against a FRESH
+    # dedup store and the poster now reports the marker is already in PD (False) → slot released,
+    # NO second note. Exactly one real write — the durable PD marker, not the in-memory slot, is
+    # the cross-restart guard.
+    class _MarkerAwarePoster:
+        def __init__(self) -> None:
+            self.writes = 0
+
+        async def post_note(self, incident_key: str, note: str) -> bool:
+            if self.writes == 0:  # first run: marker absent → a real write
+                self.writes += 1
+                return True
+            return False  # re-fire: the marker is already in PD → fail-closed skip
+
+    poster = _MarkerAwarePoster()
+    outcome = RunOutcome(
+        terminal_reason=TerminalReason.GOAL_REACHED, truncated=False, tripped=None,
+        cancelled=False, elapsed_s=1.0, tokens=10, iterations=1, artifact="findings",
+    )
+    metrics = _receiver(lambda c: None).metrics
+
+    async def _restart_rescan() -> None:
+        # Run A — fresh store, real post.
+        await post_back(
+            RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={}),
+            outcome, dedup=InMemoryDedupStore(now=lambda: 0.0), poster=poster,
+            redact=lambda n: n, metrics=metrics,
+        )
+        # Restart: a brand-new store (the in-memory slot is gone). Run B re-fires.
+        await post_back(
+            RunContext(incident_key="inc-1", run_id="run-b", goal="g", alert={}),
+            outcome, dedup=InMemoryDedupStore(now=lambda: 0.0), poster=poster,
+            redact=lambda n: n, metrics=metrics,
+        )
+
+    asyncio.run(_restart_rescan())
+    assert poster.writes == 1  # exactly one real note despite the re-fire after the lost slot
+
+
 def test_post_back_fails_closed_on_redaction_error() -> None:
     # A redaction failure must post NOTHING (never raw text) — fail-closed escalation. The
     # once-slot is RELEASED (post-then-claim claims only on success), so a corrected re-post
