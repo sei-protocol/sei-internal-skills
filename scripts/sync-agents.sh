@@ -37,7 +37,7 @@ AGENTS_DIR="$(cd "$SCRIPT_DIR/../.claude/agents" && pwd)"
 #
 # Every domain an agent declares in `category:` must appear in exactly one list.
 # `all` = PORTABLE+SEI. There are no Tide-local agents.
-PORTABLE_DOMAINS="platform-infra observability security blockchain code-quality writing-quality product-management release-operations"
+PORTABLE_DOMAINS="platform-infra observability security blockchain code-quality writing-quality product-management release-operations data-architecture"
 SEI_DOMAINS="project-management"
 
 # Cross-cutting exception: agents that are Sei-scoped despite a portable domain.

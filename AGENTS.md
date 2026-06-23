@@ -33,6 +33,11 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 |-------|-------|
 | `solidity-developer` | EVM smart-contract engineering on Sei — Solidity/Foundry, precompiles, gas/parity, address association, upgrade safety, on-chain event indexing. Backed by `/evm`. |
 
+### data-architecture
+| Agent | Scope |
+|-------|-------|
+| `data-platform-architect` | Data architecture — domain decomposition, data products & contracts (ODCS), federated computational governance, self-serve data platforms, data quality/observability — with federated/verifiable cross-organizational data sharing as the core use-case. Knows when a mesh is the *wrong* answer (the fit-check). Backed by `/data-mesh`. |
+
 ### code-quality
 | Agent | Scope |
 |-------|-------|
