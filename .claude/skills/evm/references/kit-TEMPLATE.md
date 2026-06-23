@@ -54,9 +54,10 @@ Shipped:
 - `kit-upgrade-safety.md` — ERC-1967/7201, UUPS vs Transparent, OZ Upgrades storage-layout checks, the v4→v5 storage-brick hazard.
 - `kit-evm-indexing-events.md` — receiving on-chain events for agentic consumers: the cross-VM synthetic-log/bloom trap, no-pending, instant-finality (no reorg), failure receipts, indexer options, event design.
 - `kit-randomness-vrf.md` — Pyth Entropy V2 commit-reveal VRF (the answer to "prevrandao isn't random").
+- `kit-delegated-authority.md` — scoped/revocable/time-bounded on-chain authority: ERC-7710/7715 caveat delegation on ERC-4337 session keys, the W3 boundary, the capability-grant pattern, registry hardening, the Sei self-deploy reality.
 
 Deferred (add as a conforming kit when first encountered — the corpus grows by use):
 - `kit-pointers-tokens` — native/IBC-denom→ERC20 pointers (first-class), CW20/CW721 pointers (legacy, already-deployed CW only), pointerview/pointer precompiles, versioned/no-pointer-to-pointer, USDC/LayerZero bridging.
 - `kit-oracles` — Pyth / Chainlink Data Streams / API3 / RedStone (the native oracle precompile is deprecated).
-- `kit-account-abstraction` — ERC-4337 (bundler/paymaster) + EIP-7702 SetCode; Thirdweb/Particle/Pimlico smart wallets.
+- `kit-account-abstraction` — general ERC-4337 wallet mechanics (bundler/paymaster/gas-sponsorship) + EIP-7702 SetCode; Thirdweb/Particle/Pimlico smart wallets. *(The 4337 session-key-as-delegation-substrate is already covered in `kit-delegated-authority`; this deferred kit is the broader wallet/paymaster surface.)*
 - `kit-cross-vm-interop` — the `wasmd` precompile + `wasmbinding` (CW↔EVM), the 1-hop write rule. **Legacy — Cosmos/CosmWasm is being deprecated; do not anchor new work here.**
