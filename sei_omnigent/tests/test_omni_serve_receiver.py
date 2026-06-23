@@ -97,14 +97,21 @@ def test_receiver_config_rejects_a_lease_below_the_budget_floor(
 # --- the PagerDuty poster from_config wiring ----------------------------------
 
 
-def _set_pd_env(monkeypatch: pytest.MonkeyPatch, **over: str) -> None:
-    monkeypatch.setenv(_PD_TOKEN_ENV, over.get("token", "pd-notes-only-token"))
+def _set_pd_env(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, **over: str
+) -> None:
+    # File-only PD token (SF1): the manifest mounts it from a Secret as a file — no inline env.
+    token_file = tmp_path / "pd-token"
+    token_file.write_text(over.get("token", "pd-notes-only-token"), encoding="utf-8")
+    monkeypatch.setenv(f"{_PD_TOKEN_ENV}_FILE", str(token_file))
     monkeypatch.setenv(_PD_FROM_EMAIL_ENV, over.get("email", "walle@seinetwork.io"))
     monkeypatch.setenv(_PD_ENROLLED_ENV, over.get("enrolled", "PSVC001, PSVC002"))
 
 
-def test_build_poster_wires_env_into_from_config(monkeypatch: pytest.MonkeyPatch) -> None:
-    _set_pd_env(monkeypatch)
+def test_build_poster_wires_env_into_from_config(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _set_pd_env(monkeypatch, tmp_path)
     poster = build_poster()
     assert poster.from_email == "walle@seinetwork.io"
     # Comma-split + whitespace-trimmed into the enrolled set (the structural authz boundary).
@@ -113,11 +120,11 @@ def test_build_poster_wires_env_into_from_config(monkeypatch: pytest.MonkeyPatch
 
 
 def test_build_poster_fails_closed_on_all_blank_enrolled_set(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     # A comma/space-only value is non-empty (passes _require_env) but splits to no service-ids;
     # from_config's empty-enrolled guard (a silent deny-all outage) then fails closed at boot.
-    _set_pd_env(monkeypatch, enrolled=" , ")
+    _set_pd_env(monkeypatch, tmp_path, enrolled=" , ")
     with pytest.raises(ValueError):
         build_poster()
 
@@ -133,12 +140,23 @@ def test_build_poster_fails_loud_on_unset_enrolled_env(
 
 
 def test_build_poster_fails_closed_on_off_pd_base_url(
-    monkeypatch: pytest.MonkeyPatch,
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     # from_config's host-allowlist guard: a tampered base_url pointing off-PD must not be
     # handed the token (exfiltration). Surfaced at boot.
-    _set_pd_env(monkeypatch)
+    _set_pd_env(monkeypatch, tmp_path)
     monkeypatch.setenv("WALLE_PD_BASE_URL", "https://evil.example.com")
+    with pytest.raises(ValueError):
+        build_poster()
+
+
+def test_build_poster_fails_closed_on_http_pd_base_url(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # SF1: a plaintext-http base_url (token sent in clear) must fail closed at boot, same as an
+    # off-PD host — the from_config scheme guard rejects http://.
+    _set_pd_env(monkeypatch, tmp_path)
+    monkeypatch.setenv("WALLE_PD_BASE_URL", "http://api.pagerduty.com")
     with pytest.raises(ValueError):
         build_poster()
 

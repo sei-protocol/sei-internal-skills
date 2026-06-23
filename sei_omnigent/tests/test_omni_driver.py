@@ -227,8 +227,13 @@ def test_cancel_that_raises_does_not_mask_truncation() -> None:
     assert session.cancel_calls == 1
 
 
-def test_stream_failure_is_truncated_not_clean() -> None:
-    """A mid-run stream error fails closed onto the truncated headline, never all-clear."""
+def test_stream_failure_is_errored_not_budget() -> None:
+    """A mid-run stream error is an ERRORED terminal (not BUDGET_EXHAUSTED) and stays truncated.
+
+    A transport drop / create reject is NOT a budget breach: it must not borrow the budget axis
+    (tripped is None) nor the all-clear headline (truncated stays True), and the failure detail
+    rides in the artifact so the rendered note is an honest "could not run".
+    """
 
     class _BoomSession(_FakeSession):
         async def stream(self):
@@ -246,9 +251,45 @@ def test_stream_failure_is_truncated_not_clean() -> None:
             artifact_chunk=_chunk,
         )
     )
+    assert outcome.terminal_reason is TerminalReason.ERRORED
+    assert outcome.terminal_reason is not TerminalReason.BUDGET_EXHAUSTED
     assert outcome.truncated is True
+    assert outcome.tripped is None  # no budget axis was hit — the run errored
     assert outcome.cancelled is False  # the stream died; we didn't cancel
-    assert outcome.artifact == "partial"  # what we had at the drop still stands
+    assert "partial" in outcome.artifact  # what we had at the drop still stands
+    assert "transport dropped" in outcome.artifact  # the failure detail is captured
+
+
+def test_first_iteration_raise_is_errored_not_budget() -> None:
+    """A stream whose FIRST iteration raises (a SessionsChat.create reject) → ERRORED.
+
+    This is the B1 path: a server-down / TokenReview-reject / bad-bundle failure surfaces inside
+    the stream loop and MUST be classified ERRORED, never laundered into BUDGET_EXHAUSTED.
+    """
+
+    class _CreateRejectSession(_FakeSession):
+        async def stream(self):
+            raise RuntimeError("SessionsChat.create rejected: 401 TokenReview")
+            if False:  # pragma: no cover — makes this an async generator
+                yield {}
+
+    session = _CreateRejectSession([])
+    outcome = asyncio.run(
+        drive_to_terminal(
+            session,
+            _budget(),
+            now=_fixed_clock(),
+            token_delta=_tokens,
+            is_iteration=_is_iter,
+            artifact_chunk=_chunk,
+        )
+    )
+    assert outcome.terminal_reason is TerminalReason.ERRORED
+    assert outcome.terminal_reason is not TerminalReason.BUDGET_EXHAUSTED
+    assert outcome.truncated is True
+    assert outcome.tripped is None
+    assert outcome.iterations == 0  # nothing ran
+    assert "TokenReview" in outcome.artifact  # the create-reject detail is captured
 
 
 def test_wall_clock_watchdog_bounds_a_silently_hung_stream() -> None:

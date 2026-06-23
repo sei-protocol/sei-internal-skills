@@ -88,7 +88,11 @@ _DEFAULT_NO_PROGRESS_ITERATIONS = 6
 #: Lease default = wall_clock + a generous post-back/release margin (must clear ReceiverConfig's
 #: floor of wall_clock + min_lease_margin_s). The manifest sets it from the profile wall_clock.
 _DEFAULT_LEASE_S = _DEFAULT_WALL_CLOCK_S + 120
-_DEFAULT_MAX_IN_FLIGHT = 16
+#: Default 1: the standing OmnigentClient is SHARED across concurrent sessions and its
+#: concurrency-safety is unproven — N-wide on it risks cross-stream bleed / pool starvation. The
+#: manifest overrides via OMNI_RECEIVER_MAX_IN_FLIGHT. UN-DEFER to a higher value only after a
+#: live N-concurrent soak shows no cross-stream bleed + bounded pool-wait on the shared client.
+_DEFAULT_MAX_IN_FLIGHT = 1
 
 
 def _require_env(name: str) -> str:
@@ -108,23 +112,28 @@ def _require_env(name: str) -> str:
 
 
 def _pd_token() -> str:
-    """The PD notes-only API token. File-first (Secret mount) then inline env, like the bearer.
+    """The PD notes-only API token, read from the Secret-mounted file ONLY (the secure path).
 
-    File-first so the manifest can mount it from a Secret without the token transiting the pod
-    env (where a process listing or a crash dump could surface it).
+    File-only (no inline env fallback): the manifest mounts the token from a Secret as a file so
+    it never transits the pod env, where a process listing or a crash dump could surface it. An
+    unset / unreadable / empty token file fails closed at boot — the receiver must never start
+    with no PD credential (a silent fail-closed egress: WallE posts nothing).
     """
-    path = os.environ.get(f"{_PD_TOKEN_ENV}_FILE")
-    if path:
-        try:
-            token = Path(path).read_text(encoding="utf-8").strip()
-        except OSError as exc:
-            raise RuntimeError(
-                f"{_PD_TOKEN_ENV}_FILE={path!r} is unreadable: {exc} (fail-closed at boot)."
-            ) from exc
-        if not token:
-            raise RuntimeError(f"{_PD_TOKEN_ENV}_FILE={path!r} is empty (fail-closed at boot).")
-        return token
-    return _require_env(_PD_TOKEN_ENV)
+    path = (os.environ.get(f"{_PD_TOKEN_ENV}_FILE") or "").strip()
+    if not path:
+        raise RuntimeError(
+            f"{_PD_TOKEN_ENV}_FILE is required (file-only — the manifest mounts the PD token "
+            "from a Secret as a file; no inline env fallback). Fail-closed at boot."
+        )
+    try:
+        token = Path(path).read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise RuntimeError(
+            f"{_PD_TOKEN_ENV}_FILE={path!r} is unreadable: {exc} (fail-closed at boot)."
+        ) from exc
+    if not token:
+        raise RuntimeError(f"{_PD_TOKEN_ENV}_FILE={path!r} is empty (fail-closed at boot).")
+    return token
 
 
 def build_budget() -> Budget:

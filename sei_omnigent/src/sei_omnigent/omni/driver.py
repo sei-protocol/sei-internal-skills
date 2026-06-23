@@ -210,22 +210,28 @@ async def drive_to_terminal(
                             iterations=acc.iterations,
                             artifact="".join(acc.artifact_parts),
                         )
-    except Exception:
-        # A stream/transport failure OR the wall-clock watchdog firing mid-run is a truncated
-        # run, not a clean punt: we surveyed only part of the space. Fail-closed onto the
-        # truncated headline so the renderer never presents a partial as all-clear (§3.5).
-        # (Receiver carry-forward: add a distinct FAILED terminal so a transport error reads
-        # differently from a budget cut — the enum has no errored-terminal today.)
+    except Exception as exc:
+        # A stream/transport failure (a SessionsChat.create reject, an SSE drop), OR the
+        # wall-clock watchdog firing mid-run, is an ERRORED run — the run died before
+        # completing, distinct from a budget cut. It MUST NOT be laundered into
+        # BUDGET_EXHAUSTED: a server-down / TokenReview-reject / bad-bundle failure is not a
+        # budget breach, and rendering it as one misdirects the on-call to the wrong axis.
+        # tripped=None (no budget axis was hit); the failure detail rides in the artifact so the
+        # rendered note is an honest "could not run — <reason>". truncated=True so the renderer
+        # still refuses the all-clear headline (§3.5).
         snapshot = _snapshot(acc, now() - start)
+        detail = f"{type(exc).__name__}: {exc}"
+        partial = "".join(acc.artifact_parts)
         return RunOutcome(
-            terminal_reason=TerminalReason.BUDGET_EXHAUSTED,
+            terminal_reason=TerminalReason.ERRORED,
             truncated=True,
-            tripped=tripped_axis(budget, snapshot),
+            tripped=None,
             cancelled=False,
             elapsed_s=snapshot.elapsed_s,
             tokens=acc.tokens,
             iterations=acc.iterations,
-            artifact="".join(acc.artifact_parts),
+            artifact=f"{partial}\n\n[run errored before completing: {detail}]" if partial
+            else f"[run errored before completing: {detail}]",
         )
 
     # Stream ended within budget → the run reached its own terminal.

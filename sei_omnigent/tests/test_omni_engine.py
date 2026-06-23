@@ -69,6 +69,20 @@ def test_surveyed_terminals_are_not_truncated(reason: TerminalReason) -> None:
     assert not is_truncated(reason)
 
 
+def test_errored_is_a_distinct_terminal_never_emitted_by_budget() -> None:
+    # ERRORED is a run that could not run / died before completing — distinct from a budget
+    # cut. budget_terminal never produces it (a budget breach is BUDGET_EXHAUSTED/NO_PROGRESS);
+    # the driver/supervisor classify it directly. It is NOT in the is_truncated set (the §3.5
+    # refusal of an all-clear rides on the outcome's explicit truncated flag + render_note's
+    # ERRORED branch, not on enum membership) — but it is its own enum member.
+    assert TerminalReason.ERRORED not in {
+        TerminalReason.BUDGET_EXHAUSTED,
+        TerminalReason.NO_PROGRESS,
+    }
+    assert not is_truncated(TerminalReason.ERRORED)
+    assert TerminalReason.ERRORED.value == "errored"
+
+
 # --- budget: within, and each axis ---------------------------------------------
 
 

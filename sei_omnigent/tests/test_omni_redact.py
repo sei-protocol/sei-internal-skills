@@ -93,3 +93,85 @@ def test_under_cap_note_is_not_truncated() -> None:
 def test_is_pure_and_deterministic() -> None:
     note = "key sk-ant-api03-" + "Q1w2E3r4" * 6 + " and AKIAIOSFODNN7EXAMPLE"
     assert redact(note) == redact(note)
+
+
+# --- S-HIGH: the six added patterns + the widened base64 rule -----------------
+
+
+def test_scrubs_pem_private_key_block() -> None:
+    block = (
+        "-----BEGIN RSA PRIVATE KEY-----\n"
+        "MIIEpAIBAAKCAQEA0Z3VS5JJcds3xfnygWyF0qZ3VS5JJcds3xfn\n"
+        "ygWyF0qZ3VS5JJcds3xfnygWyF0qZ3VS5JJcds3xfnygWyF0qZ3\n"
+        "-----END RSA PRIVATE KEY-----"
+    )
+    out = redact(f"the agent dumped a key:\n{block}\nin the transcript")
+    assert "BEGIN RSA PRIVATE KEY" not in out
+    assert "MIIEpAIBAAKCAQEA" not in out
+    assert _PLACEHOLDER in out
+
+
+def test_scrubs_bare_jwt() -> None:
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N7"
+    out = redact(f"the session carried {jwt} with no Bearer prefix")
+    assert jwt not in out
+    assert _PLACEHOLDER in out
+
+
+def test_scrubs_connection_string_password_keeping_context() -> None:
+    out = redact("DSN postgres://walle:s3cr3tP4ss@db.sei.internal:5432/incidents")
+    assert "s3cr3tP4ss" not in out  # the password is gone
+    assert "postgres://walle" in out  # the scheme + user survive (the note still reads)
+    assert "db.sei.internal" in out  # the host survives
+    assert _PLACEHOLDER in out
+
+
+def test_scrubs_authorization_basic_header() -> None:
+    secret = "d2FsbGU6c3VwZXJzZWNyZXRwYXNzd29yZA=="
+    out = redact(f"curl -H 'Authorization: Basic {secret}' https://api")
+    assert secret not in out
+    assert _PLACEHOLDER in out
+
+
+def test_scrubs_kv_labelled_secret_keeping_the_label() -> None:
+    # A bare (low-entropy) password the shape rules would miss, caught by the label rule. The
+    # label survives so the note still reads; only the value is scrubbed.
+    out = redact("config had password=hunter2 and api_key: short-key-99")
+    assert "hunter2" not in out
+    assert "short-key-99" not in out
+    assert "password" in out  # the label survives
+    assert "api_key" in out
+    assert _PLACEHOLDER in out
+
+
+def test_scrubs_slack_webhook_url() -> None:
+    url = "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+    out = redact(f"the runbook posts to {url} on alert")
+    assert "hooks.slack.com/services" not in out
+    assert "XXXXXXXXXXXXXXXXXXXXXXXX" not in out
+    assert _PLACEHOLDER in out
+
+
+def test_scrubs_standard_base64_blob() -> None:
+    # A bare STANDARD-base64 blob (uses `+`/`/`, not just url-safe `-`/`_`) — the widened rule
+    # must catch it where the url-safe-only rule would have missed the `+`/`/` chars.
+    blob = "QWxhZGRpbjpvcGVuIHNl+c2Ftf/ZWFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6QUJD"
+    assert "+" in blob and "/" in blob and len(blob) >= 40
+    out = redact(f"opaque blob {blob} in the dump")
+    assert blob not in out
+    assert _PLACEHOLDER in out
+
+
+def test_redact_is_idempotent() -> None:
+    # redact(redact(x)) == redact(x): re-running over already-scrubbed text must be a fixpoint
+    # (the placeholder must not re-trigger a pattern into a different result).
+    note = (
+        "key sk-ant-api03-" + "Q1w2E3r4" * 6 + " AKIAIOSFODNN7EXAMPLE "
+        "Authorization: Bearer " + "AbCdEf12" * 4 + " "
+        "postgres://walle:s3cr3tP4ss@db.sei.internal/incidents "
+        "password=hunter2 token: " + "Zm9vYmFy" * 6 + " "
+        "https://hooks.slack.com/services/T0/B0/XXXXXXXXXXXXXXXX "
+        "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0In0.dozjgNryP4J3jVmNHl0w5N7"
+    )
+    once = redact(note)
+    assert redact(once) == once

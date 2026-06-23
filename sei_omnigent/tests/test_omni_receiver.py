@@ -24,6 +24,7 @@ from sei_omnigent.omni.receiver import (
     Receiver,
     ReceiverConfig,
     RunContext,
+    _TaskTracker,
     build_app,
     post_back,
     render_note,
@@ -294,9 +295,9 @@ def test_supervise_posts_the_partial_on_a_truncated_terminal() -> None:
     assert dedup.claim_run("inc-1", "run-b", lease_s=100.0) is True
 
 
-def test_supervise_failure_still_posts_a_truncated_outcome() -> None:
-    # A session-factory blowup must NOT vanish silently — the operator is waiting; a
-    # truncated outcome is posted.
+def test_supervise_failure_still_posts_an_errored_outcome() -> None:
+    # A session-factory blowup must NOT vanish silently — the operator is waiting; an ERRORED
+    # outcome is posted (an honest "could not run", NOT a budget-axis TRUNCATED note).
     def boom_factory(ctx):
         raise RuntimeError("could not create session")
 
@@ -315,7 +316,10 @@ def test_supervise_failure_still_posts_a_truncated_outcome() -> None:
         )
     )
     assert len(poster.notes) == 1
-    assert "TRUNCATED" in poster.notes[0][1]
+    note = poster.notes[0][1]
+    assert "ERRORED" in note
+    assert "TRUNCATED" not in note  # a create failure is NOT a budget cut
+    assert "unsurveyed" not in note  # no budget axis is named
 
 
 def test_post_back_is_idempotent() -> None:
@@ -530,6 +534,25 @@ def test_render_note_surveyed_is_not_truncated() -> None:
     assert "complete" in note
 
 
+def test_render_note_errored_is_honest_not_budget_or_all_clear() -> None:
+    # An ERRORED run (create/transport failure, watchdog) must render an honest "could not run /
+    # errored" headline that escalates to the human — never a budget-axis TRUNCATED line and
+    # never the surveyed all-clear. The captured failure detail rides in the body.
+    ctx = RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={})
+    errored = RunOutcome(
+        terminal_reason=TerminalReason.ERRORED, truncated=True, tripped=None,
+        cancelled=False, elapsed_s=0.0, tokens=0, iterations=0,
+        artifact="[run errored before completing: RuntimeError: server down]",
+    )
+    note = render_note(errored, ctx)
+    assert "ERRORED" in note
+    assert "TRUNCATED" not in note  # not a budget cut
+    assert "unsurveyed" not in note  # no budget axis is named
+    assert "complete" not in note  # not an all-clear
+    assert "escalating to the human" in note
+    assert "server down" in note  # the failure detail reaches the human
+
+
 # --- the HTTP edge: body-bomb guard (build_app) -------------------------------
 
 
@@ -627,3 +650,84 @@ def test_receiver_aclose_closes_the_poster() -> None:
     rec = _receiver(lambda ctx: (_FakeSession([]), *_extractors()), poster=_ClosablePoster())
     asyncio.run(rec.aclose())
     assert closed["n"] == 1
+
+
+# --- B3: a run outliving the drain is CANCELLED, not abandoned-then-closed-under -----
+
+
+def test_drain_cancels_a_survivor_past_the_deadline() -> None:
+    # B3: a run still in flight at the drain deadline must be CANCELLED and its cancellation
+    # awaited — NOT abandoned-but-left-running (which would let it keep holding the shared
+    # session-factory client while the lifespan goes on to close that client).
+    tracker = _TaskTracker(drain_deadline_s=0.05, cancel_grace_s=1.0)
+    cancelled = {"hit": False}
+
+    async def _flow() -> None:
+        async def _long_run() -> None:
+            try:
+                await asyncio.Event().wait()  # never completes on its own
+            except asyncio.CancelledError:
+                cancelled["hit"] = True
+                raise
+
+        started = asyncio.Event()
+
+        async def _wrapped() -> None:
+            started.set()
+            await _long_run()
+
+        tracker.spawn(_wrapped())
+        await started.wait()
+        await tracker.drain()  # deadline elapses → survivor cancelled + awaited
+
+    asyncio.run(_flow())
+    assert cancelled["hit"] is True  # the survivor saw the cancellation (did not run on)
+
+
+def test_aclose_closes_factory_only_after_drain_completes() -> None:
+    # B3 ordering: the session-factory client must NOT be closed while a run may still hold it.
+    # Here a run is in flight at drain time; the drain cancels + awaits it, THEN aclose closes
+    # the factory — so the factory close never races a live run.
+    events: list[str] = []
+
+    class _ClosableFactory:
+        def __call__(self, ctx):
+            return _FakeSession([]), *_extractors()
+
+        async def aclose(self) -> None:
+            events.append("factory_closed")
+
+    class _ClosablePoster:
+        async def post_note(self, incident_key: str, note: str) -> bool:
+            return True
+
+        async def aclose(self) -> None:
+            events.append("poster_closed")
+
+    factory = _ClosableFactory()
+    rec = Receiver(
+        config=ReceiverConfig(budget=_budget(), lease_s=1_100.0, now=lambda: 0.0),
+        dedup=InMemoryDedupStore(now=lambda: 0.0),
+        session_factory=factory,
+        expected_token=_TOKEN,
+        poster=_ClosablePoster(),
+        redact=lambda n: n,
+    )
+    # Drive the lifespan order directly: drain (which records nothing here) then aclose.
+    rec._tracker.drain_deadline_s = 0.05
+
+    async def _shutdown() -> None:
+        # Spawn a survivor so the drain has something to cancel before the factory closes.
+        async def _long() -> None:
+            await asyncio.Event().wait()
+
+        rec._tracker.spawn(_long())
+        await asyncio.sleep(0)
+        await rec.drain()
+        events.append("drained")
+        await rec.aclose()
+
+    asyncio.run(_shutdown())
+    # The factory close happens AFTER the drain returned (no client-close under a live run).
+    assert events.index("drained") < events.index("factory_closed")
+    assert events.index("poster_closed") < events.index("factory_closed")
