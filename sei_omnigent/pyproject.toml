@@ -52,6 +52,9 @@ test = [
 # entrypoint.py LOCAL_SINGLE_USER auto-set (C3).
 [project.scripts]
 sei-omnigent-serve = "sei_omnigent.server.serve_main:main"
+# The standing omnigent-host launcher (PLT-715): installs the proxy-bearer patch (B1) then runs
+# `omnigent host` in-process. The walle host Deployment uses it (or `python -m sei_omnigent.host_launch`).
+sei-omnigent-host = "sei_omnigent.host_launch:main"
 
 [build-system]
 requires = ["setuptools>=68"]
