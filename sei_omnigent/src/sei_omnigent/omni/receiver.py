@@ -77,8 +77,10 @@ _DEFAULT_LEASE_S = 1800.0
 #: The global in-flight cap (back-pressure): the receiver admits at most this many
 #: concurrent investigations; beyond it a fresh incident SHEDs rather than the host (and the
 #: receiver's own task set) growing unbounded. Per-incident dedup is the first shed; this is
-#: the system-wide one. Sized to the host's concurrent-session capacity (manifest-tunable).
-_DEFAULT_MAX_IN_FLIGHT = 16
+#: the system-wide one. Default 1: the live session factory's OmnigentClient is shared across
+#: sessions and its concurrency-safety is unproven, so serialize until a live N-concurrent soak
+#: clears cross-stream bleed + bounded pool-wait. Manifest-tunable via the serve-wiring env.
+_DEFAULT_MAX_IN_FLIGHT = 1
 
 #: Hard cap on the inbound request body. The AM→receiver edge is authenticated, but the
 #: body is read BEFORE the bearer can be trusted, so an unauthenticated client can still
@@ -277,19 +279,29 @@ def verify_bearer(authorization: str | None, expected_token: str) -> bool:
 def render_note(outcome: RunOutcome, ctx: RunContext) -> str:
     """Render the propose-only PagerDuty note from a terminal outcome (§3.5).
 
-    A TRUNCATED outcome (``is_truncated`` — budget/no-progress/transport) MUST carry the
-    truncated headline, never the surveyed all-clear: a partial investigation that says
-    "all clear" is the misleading-rate SLO failure §3.5 forbids. The note is a PROPOSAL
-    (WallE never acts), so it states what was found + that it is truncated, and names the
-    tripped axis so the human knows what was NOT surveyed.
+    Three headline classes, none allowed to read as an all-clear it is not:
+
+    * ERRORED — the investigation could not run / died before completing (a session-create or
+      transport failure, the watchdog). It is NOT a budget cut: it carries the failure detail
+      and tells the human WallE is escalating, never a budget-axis "unsurveyed" line.
+    * TRUNCATED (``is_truncated`` — budget/no-progress) — a partial survey: PARTIAL findings,
+      NOT an all-clear (§3.5's misleading-rate SLO), naming the tripped axis so the human knows
+      what was NOT surveyed.
+    * surveyed (goal-reached / clean-punt / insufficient-context) — the run did its job.
     """
-    headline = (
-        f"WallE investigation TRUNCATED ({outcome.terminal_reason.value}"
-        + (f", unsurveyed: {outcome.tripped}" if outcome.tripped else "")
-        + ") — PARTIAL findings, NOT an all-clear:"
-        if is_truncated(outcome.terminal_reason)
-        else f"WallE investigation complete ({outcome.terminal_reason.value}):"
-    )
+    if outcome.terminal_reason is TerminalReason.ERRORED:
+        headline = (
+            "WallE investigation ERRORED — the investigation could not run / errored before "
+            "completing; escalating to the human. Details below, NOT an all-clear:"
+        )
+    elif is_truncated(outcome.terminal_reason):
+        headline = (
+            f"WallE investigation TRUNCATED ({outcome.terminal_reason.value}"
+            + (f", unsurveyed: {outcome.tripped}" if outcome.tripped else "")
+            + ") — PARTIAL findings, NOT an all-clear:"
+        )
+    else:
+        headline = f"WallE investigation complete ({outcome.terminal_reason.value}):"
     artifact = outcome.artifact or "(no artifact produced)"
     return f"[incident {ctx.incident_key}] {headline}\n\n{artifact}"
 
@@ -412,12 +424,12 @@ async def supervise_run(
     terminator, since the Stop hook is observer-only), then funnels the outcome through the
     single :func:`post_back` chokepoint.
 
-    Fail-closed end to end: ANY exception (session-create failure, an unexpected driver
-    error) is mapped to a truncated ``BUDGET_EXHAUSTED`` outcome and STILL posted — a run
-    that died must surface a truncated proposal, never silently vanish (the operator is
-    waiting on the page). The run-claim is released in ``finally`` so a fast natural end
-    frees the incident before the lease expires (the lease is the crash backstop, the
-    release is the happy path).
+    Fail-closed end to end: ANY exception (a session-create failure, an unexpected driver
+    error) is mapped to a truncated ``ERRORED`` outcome and STILL posted — a run that died
+    must surface an honest "could not run" proposal, never silently vanish (the operator is
+    waiting on the page) and never a budget-axis note (it was not a budget cut). The run-claim
+    is released in ``finally`` so a fast natural end frees the incident before the lease
+    expires (the lease is the crash backstop, the release is the happy path).
     """
     metrics.admitted(decision=RunAdmission.PROCEED.value)
     try:
@@ -433,20 +445,21 @@ async def supervise_run(
             )
         except Exception:
             # Session create / unexpected drive failure: the run produced nothing, but the
-            # operator is waiting — surface a truncated outcome (NOT an all-clear) so the
-            # post-back still fires. driver.py already fails closed on stream errors; this
-            # covers the create + the un-anticipated.
-            _log.exception("walle.supervise.failed incident_key=%s — truncated outcome",
+            # operator is waiting — surface an ERRORED outcome (NOT an all-clear, NOT a budget
+            # cut) so the post-back still fires with an honest "could not run". driver.py
+            # already classifies in-stream errors as ERRORED; this covers the create + the
+            # un-anticipated before the stream loop.
+            _log.exception("walle.supervise.failed incident_key=%s — errored outcome",
                            ctx.incident_key)
             outcome = RunOutcome(
-                terminal_reason=TerminalReason.BUDGET_EXHAUSTED,
+                terminal_reason=TerminalReason.ERRORED,
                 truncated=True,
-                tripped="run-error",
+                tripped=None,
                 cancelled=False,
                 elapsed_s=0.0,
                 tokens=0,
                 iterations=0,
-                artifact="WallE could not complete the investigation (internal error).",
+                artifact="WallE could not start the investigation (internal error).",
             )
         metrics.terminal(reason=outcome.terminal_reason.value)
         try:
@@ -484,8 +497,14 @@ class _TaskTracker:
 
     #: Bound on the shutdown drain. A wedged investigation (a poster that ignores its own
     #: deadline, say) must not hold the drain past the K8s SIGTERM grace window — at the
-    #: deadline the drain returns and the survivors are abandoned (logged, not awaited).
+    #: deadline the drain CANCELS the survivors and awaits their cancellation (bounded by
+    #: ``cancel_grace_s``) so no run is still holding the shared client when the factory closes.
     drain_deadline_s: float = 60.0
+    #: Bound on awaiting the cancellation of the survivors after the drain deadline. Short — a
+    #: cancelled task should unwind promptly; this only covers its finally/cleanup. If even this
+    #: elapses the tasks are abandoned (the SIGTERM grace at the K8s layer is the hard backstop),
+    #: but the factory close is still gated behind this await (it does not race a live stream).
+    cancel_grace_s: float = 5.0
     _tasks: set[asyncio.Task[None]] = field(default_factory=set, init=False, repr=False)
 
     def in_flight(self) -> int:
@@ -497,12 +516,16 @@ class _TaskTracker:
         task.add_done_callback(self._tasks.discard)
 
     async def drain(self) -> None:
-        """Await all in-flight tasks on shutdown, bounded by ``drain_deadline_s``.
+        """Await in-flight tasks on shutdown, then CANCEL + await any survivors (bounded).
 
         A copy is awaited because each task's done-callback mutates ``_tasks`` during drain.
-        Exceptions are swallowed (a dying task must not break shutdown); on deadline the
-        unfinished tasks are abandoned (logged, not cancelled) — the SIGTERM grace window at
-        the K8s layer is the hard backstop.
+        Exceptions are swallowed (a dying task must not break shutdown). On the drain deadline the
+        survivors are CANCELLED and their cancellation awaited (bounded by ``cancel_grace_s``):
+        this is the B3 guarantee — no run may still be holding the shared session-factory client
+        (the SSE stream / httpx pool slot) when the lifespan goes on to close that client. Closing
+        the client under a live stream yanks the pool from under it. If even the cancel-grace
+        elapses the tasks are abandoned (the SIGTERM grace at the K8s layer is the hard backstop),
+        but the factory close is still ordered AFTER this returns.
         """
         if not self._tasks:
             return
@@ -511,12 +534,27 @@ class _TaskTracker:
             async with asyncio.timeout(self.drain_deadline_s):
                 await asyncio.gather(*pending, return_exceptions=True)
         except TimeoutError:
-            abandoned = sum(1 for task in pending if not task.done())
+            survivors = [task for task in pending if not task.done()]
             _log.warning(
-                "walle.drain.timeout deadline_s=%s abandoned=%d — shutdown proceeding",
+                "walle.drain.timeout deadline_s=%s survivors=%d — cancelling before client close",
                 self.drain_deadline_s,
-                abandoned,
+                len(survivors),
             )
+            for task in survivors:
+                task.cancel()
+            # Await the cancellation so no survivor is still driving a stream when the factory
+            # client closes. Bounded again: a task that ignores cancellation is abandoned, but
+            # we never close the client WHILE a run is provably still live.
+            try:
+                async with asyncio.timeout(self.cancel_grace_s):
+                    await asyncio.gather(*survivors, return_exceptions=True)
+            except TimeoutError:
+                abandoned = sum(1 for task in survivors if not task.done())
+                _log.warning(
+                    "walle.drain.cancel_timeout grace_s=%s abandoned=%d — shutdown proceeding",
+                    self.cancel_grace_s,
+                    abandoned,
+                )
 
 
 @dataclass
@@ -642,12 +680,19 @@ class Receiver:
         await self._tracker.drain()
 
     async def aclose(self) -> None:
-        """Release the poster's resources (its HTTP pool) on shutdown — after the drain.
+        """Release owned resources (the poster's + the session factory's HTTP pools) on shutdown.
 
-        Drains first (in the lifespan) so in-flight investigations can post; then this closes
-        the client so a minted keep-alive connection pool is not leaked on a clean stop.
+        Drains first (in the lifespan) so in-flight investigations can post + finish; then this
+        closes the poster client and — if the session factory owns a closeable resource (the live
+        factory holds a standing omnigent client pool) — closes that too, so no minted keep-alive
+        connection pool is leaked on a clean stop. A factory with no ``aclose`` (the test fake) is
+        skipped. The factory closes AFTER the poster, both after the drain, so the last in-flight
+        investigation can still both reach its session and post its result.
         """
         await self.poster.aclose()
+        factory_aclose = getattr(self.session_factory, "aclose", None)
+        if callable(factory_aclose):
+            await factory_aclose()
 
 
 def build_app(receiver: Receiver) -> object:

@@ -180,7 +180,7 @@ async def drive_to_terminal(
 
     try:
         # Wall-clock watchdog (see docstring) + aclosing so the SSE generator is always closed.
-        async with asyncio.timeout(budget.wall_clock_s + watchdog_grace_s):
+        async with asyncio.timeout(budget.wall_clock_s + watchdog_grace_s) as watchdog:
             async with aclosing(session.stream()) as stream:
                 async for event in stream:
                     chunk = artifact_chunk(event)
@@ -210,22 +210,54 @@ async def drive_to_terminal(
                             iterations=acc.iterations,
                             artifact="".join(acc.artifact_parts),
                         )
-    except Exception:
-        # A stream/transport failure OR the wall-clock watchdog firing mid-run is a truncated
-        # run, not a clean punt: we surveyed only part of the space. Fail-closed onto the
-        # truncated headline so the renderer never presents a partial as all-clear (§3.5).
-        # (Receiver carry-forward: add a distinct FAILED terminal so a transport error reads
-        # differently from a budget cut — the enum has no errored-terminal today.)
+    except Exception as exc:
+        # Two distinct terminals share this handler, disambiguated by WHICH timeout fired:
+        #
+        # (a) The wall-clock watchdog: asyncio.timeout raises builtins TimeoutError on expiry AND
+        # marks ``watchdog.expired()``. That expiry IS a wall-clock BUDGET breach (a turn hung past
+        # wall_clock_s + grace with no events for the per-event axis to catch), NOT an error —
+        # BUDGET_EXHAUSTED on the wall-clock axis. The ``watchdog.expired()`` guard is required:
+        # a bare ``except TimeoutError`` would also swallow a TimeoutError raised from WITHIN the
+        # stream/session (an inner per-op deadline) and mislabel that genuine failure as a budget
+        # cut. elapsed_s is clamped to wall_clock_s because the watchdog fires on REAL event-loop
+        # time (independent of injected ``now``) — the deadline was reached by definition, so
+        # tripped_axis resolves to the wall-clock axis even if the injected clock did not advance.
+        if isinstance(exc, TimeoutError) and watchdog.expired():
+            await _best_effort_cancel(session)
+            elapsed = max(now() - start, budget.wall_clock_s)
+            snapshot = _snapshot(acc, elapsed)
+            return RunOutcome(
+                terminal_reason=TerminalReason.BUDGET_EXHAUSTED,
+                truncated=True,
+                tripped=tripped_axis(budget, snapshot),
+                cancelled=True,
+                elapsed_s=snapshot.elapsed_s,
+                tokens=acc.tokens,
+                iterations=acc.iterations,
+                artifact="".join(acc.artifact_parts),
+            )
+        # (b) Any other failure — a stream/transport failure (a SessionsChat.create reject, an SSE
+        # drop), OR a NON-watchdog TimeoutError raised inside the stream/session — is an ERRORED
+        # run: it died before completing, distinct from a budget cut. It MUST NOT be laundered into
+        # BUDGET_EXHAUSTED: a server-down / TokenReview-reject / bad-bundle / inner-deadline fault
+        # is not a budget breach, and rendering it as one misdirects the on-call to the wrong axis.
+        # (httpx transport timeouts are httpx.TimeoutException, NOT builtins TimeoutError — both
+        # land here.) tripped=None (no budget axis was hit); the failure detail rides in the
+        # artifact so the rendered note is an honest "could not run — <reason>". truncated=True so
+        # the renderer still refuses the all-clear headline (§3.5).
         snapshot = _snapshot(acc, now() - start)
+        detail = f"{type(exc).__name__}: {exc}"
+        partial = "".join(acc.artifact_parts)
         return RunOutcome(
-            terminal_reason=TerminalReason.BUDGET_EXHAUSTED,
+            terminal_reason=TerminalReason.ERRORED,
             truncated=True,
-            tripped=tripped_axis(budget, snapshot),
+            tripped=None,
             cancelled=False,
             elapsed_s=snapshot.elapsed_s,
             tokens=acc.tokens,
             iterations=acc.iterations,
-            artifact="".join(acc.artifact_parts),
+            artifact=f"{partial}\n\n[run errored before completing: {detail}]" if partial
+            else f"[run errored before completing: {detail}]",
         )
 
     # Stream ended within budget → the run reached its own terminal.
