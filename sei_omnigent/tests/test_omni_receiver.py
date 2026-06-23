@@ -13,13 +13,17 @@ from __future__ import annotations
 
 import asyncio
 
+import pytest
+
 from sei_omnigent.omni._dedup import InMemoryDedupStore
 from sei_omnigent.omni.driver import RunOutcome
 from sei_omnigent.omni.engine import Budget, TerminalReason
 from sei_omnigent.omni.receiver import (
+    _MAX_BODY_BYTES,
     Receiver,
     ReceiverConfig,
     RunContext,
+    build_app,
     post_back,
     render_note,
     supervise_run,
@@ -99,7 +103,7 @@ def _receiver(
 ) -> Receiver:
     return Receiver(
         config=ReceiverConfig(
-            budget=_budget(), lease_s=100.0, max_in_flight=max_in_flight, now=lambda: 0.0
+            budget=_budget(), lease_s=1_100.0, max_in_flight=max_in_flight, now=lambda: 0.0
         ),
         dedup=dedup if dedup is not None else InMemoryDedupStore(now=lambda: 0.0),
         session_factory=session_factory,
@@ -107,6 +111,21 @@ def _receiver(
         poster=poster if poster is not None else _RecordingPoster(),
         redact=redact if redact is not None else (lambda note: note),
     )
+
+
+# --- config validation (C1: the lease must outlive the budget) ----------------
+
+
+def test_lease_floor_guard_rejects_a_lease_that_underruns_the_budget() -> None:
+    # C1: a lease shorter than budget.wall_clock_s + margin would expire mid-run and let a
+    # re-fire double-launch the still-running incident — fail CLOSED at boot, not silently.
+    with pytest.raises(ValueError):
+        ReceiverConfig(budget=_budget(), lease_s=10.0)  # 10 < 1000 + 30 floor
+
+
+def test_lease_floor_guard_accepts_a_lease_above_the_floor() -> None:
+    cfg = ReceiverConfig(budget=_budget(), lease_s=_budget().wall_clock_s + 30.0)
+    assert cfg.lease_s == _budget().wall_clock_s + 30.0
 
 
 # --- bearer verification (401 vs proceed) -------------------------------------
@@ -360,3 +379,28 @@ def test_render_note_surveyed_is_not_truncated() -> None:
     note = render_note(surveyed, ctx)
     assert "TRUNCATED" not in note
     assert "complete" in note
+
+
+# --- the HTTP edge: body-bomb guard (build_app) -------------------------------
+
+
+def test_oversized_body_is_413_before_auth_and_parse() -> None:
+    # The body is buffered before the bearer can be trusted, so an unauthenticated client
+    # can still stream bytes — a body over the cap is rejected 413, unread, regardless of the
+    # (here absent) bearer. Starlette rides in via omnigent; skip cleanly where it's absent.
+    starlette_testclient = pytest.importorskip("starlette.testclient")
+    rec = _receiver(lambda ctx: (_FakeSession([]), *_extractors()))
+    client = starlette_testclient.TestClient(build_app(rec))
+    resp = client.post("/webhook", content=b"x" * (_MAX_BODY_BYTES + 1))
+    assert resp.status_code == 413
+    assert resp.json()["reason"] == "body_too_large"
+
+
+def test_within_cap_body_reaches_the_handler() -> None:
+    # A normal-sized body flows past the guard to the handler (here a bad/absent bearer → 401),
+    # proving the guard does not reject legitimate payloads.
+    starlette_testclient = pytest.importorskip("starlette.testclient")
+    rec = _receiver(lambda ctx: (_FakeSession([]), *_extractors()))
+    client = starlette_testclient.TestClient(build_app(rec))
+    resp = client.post("/webhook", json={"version": "4"})  # no bearer → handler returns 401
+    assert resp.status_code == 401

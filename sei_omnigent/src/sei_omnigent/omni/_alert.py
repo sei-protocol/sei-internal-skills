@@ -22,6 +22,7 @@ Design 12 §2, §3.5; INV-6.
 
 from __future__ import annotations
 
+import itertools
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
@@ -34,6 +35,10 @@ from dataclasses import dataclass
 _MAX_FIELD_LEN = 256  # a single allowlisted scalar (alertname/severity/namespace/chain_id)
 _MAX_SUMMARY_LEN = 1024  # the concatenated annotation summary
 _MAX_ANNOTATIONS = 8  # how many annotation entries fold into the summary
+# How many alert entries we parse from one webhook. extract_allowlisted reads only the
+# first alert, so a hostile body with thousands of entries would otherwise burn parse
+# CPU + memory building Alert objects no one reads. Capped at parse, before per-entry work.
+_MAX_ALERTS = 64
 
 # The annotation keys folded into the summary, in order. Anything else is dropped:
 # a new annotation key cannot reach the agent without being added here (allowlist,
@@ -107,6 +112,19 @@ def _cap(text: str, limit: int) -> str:
     return text if len(text) <= limit else text[:limit]
 
 
+def _neutralize(text: str) -> str:
+    """Escape angle brackets so an untrusted value cannot FORGE the ``<untrusted-data>`` frame.
+
+    Without this, an annotation value containing a literal ``</untrusted-data>`` could close
+    the frame early and smuggle the bytes after it out of the contained block — the framing
+    would be defeated by its own delimiter. Escaping ``<``/``>`` to ``&lt;``/``&gt;`` makes the
+    frame delimiters the ONLY real angle brackets in the rendered block. Applied AFTER the
+    length-cap (escaping expands a char up to 4×, so capping the input first keeps it bounded;
+    the output is bounded at 4× the cap, still finite).
+    """
+    return text.replace("<", "&lt;").replace(">", "&gt;")
+
+
 def _mapping(value: object) -> Mapping[str, object]:
     return value if isinstance(value, Mapping) else {}
 
@@ -129,9 +147,10 @@ def parse_webhook(body: object) -> Webhook:
     if isinstance(raw_alerts, (str, bytes)):
         raise WebhookError("AM webhook 'alerts' must be a list, got a string")
 
-    alerts = tuple(
-        _parse_alert(entry) for entry in (raw_alerts or ()) if isinstance(entry, Mapping)
-    )
+    # Cap the parsed entries (_MAX_ALERTS) before building any Alert: a hostile body cannot
+    # make us materialize an unbounded list of objects only the first of which is ever read.
+    capped = itertools.islice(raw_alerts or (), _MAX_ALERTS)
+    alerts = tuple(_parse_alert(entry) for entry in capped if isinstance(entry, Mapping))
     return Webhook(
         version=_str(body.get("version", "")),
         group_key=_str(body.get("groupKey", "")),
@@ -189,7 +208,7 @@ def _summarize_annotations(alert: Alert) -> str:
             parts.append(f"{key}: {value}")
         if len(parts) >= _MAX_ANNOTATIONS:
             break
-    return _cap(" | ".join(parts), _MAX_SUMMARY_LEN)
+    return _neutralize(_cap(" | ".join(parts), _MAX_SUMMARY_LEN))
 
 
 def extract_allowlisted(webhook: Webhook) -> Mapping[str, str]:
@@ -198,10 +217,11 @@ def extract_allowlisted(webhook: Webhook) -> Mapping[str, str]:
     The ONLY sanctioned path from an attacker-influenceable alert into agent context.
     Extracts a fixed field set — ``alertname`` / ``severity`` / ``namespace`` /
     ``chain_id`` / ``starts_at`` + a capped annotation summary — each capped to
-    ``_MAX_FIELD_LEN`` (the summary to ``_MAX_SUMMARY_LEN``), then frames the summary in
+    ``_MAX_FIELD_LEN`` (the summary to ``_MAX_SUMMARY_LEN``), angle-bracket-escaped (so no
+    value can FORGE the frame delimiter — :func:`_neutralize`), then frames the summary in
     ``<untrusted-data>`` so downstream prompt assembly can delimit untrusted text without
     trusting any byte inside it. The raw webhook is NEVER forwarded: this fixed-shape,
-    capped, framed dict is the entire blast radius an attacker controls.
+    capped, escaped, framed dict is the entire blast radius an attacker controls.
 
     Reads the FIRST alert's labels/annotations falling back to the group ``commonLabels``
     (AM puts shared labels at the group level; per-alert labels override). An empty
@@ -214,10 +234,12 @@ def extract_allowlisted(webhook: Webhook) -> Mapping[str, str]:
     }
 
     def label(name: str) -> str:
-        return _cap(labels.get(name, "").strip(), _MAX_FIELD_LEN)
+        return _neutralize(_cap(labels.get(name, "").strip(), _MAX_FIELD_LEN))
 
     summary = _summarize_annotations(first) if first is not None else ""
-    starts_at = _cap(first.starts_at.strip(), _MAX_FIELD_LEN) if first is not None else ""
+    starts_at = (
+        _neutralize(_cap(first.starts_at.strip(), _MAX_FIELD_LEN)) if first is not None else ""
+    )
 
     return {
         "alertname": label("alertname"),

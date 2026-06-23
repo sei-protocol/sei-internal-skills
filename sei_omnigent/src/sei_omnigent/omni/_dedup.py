@@ -15,22 +15,13 @@ LEASE (run-claim): the claim is TTL'd. A claim never released on crash would wed
 incident permanently in SHED — even legitimate retries shed. The lease expiry is the
 crash-recovery path: after ``lease_s`` a fresh trigger re-wins the claim.
 
-RESIDUAL — DOUBLE-PROPOSE WINDOW ON RESTART (the systems dissent, named not silently
-carried): the in-memory ``_posted`` set is process-local. On a receiver restart it is
-empty, so a re-fired incident that was already posted-to before the restart will
-``claim_post`` again → a SECOND PagerDuty note for one incident. ``admit_post``'s
-contract says a pure boolean cannot close this; neither can an in-memory set across a
-restart. The MVP accepts it (single-replica, restarts are rare, a duplicate note is
-annoying-not-dangerous). The un-defer, in preference order:
-
-  1. PD-side idempotency — post with an idempotency key = ``incident_key`` so PD itself
-     collapses the duplicate (the real fix; no durable state in the receiver). The
-     follow-up :class:`PagerDutyPoster` client SHOULD send it.
-  2. A small durable posted-claim (one row keyed by ``incident_key``, or a short-TTL
-     Redis SETNX) — closes the window without depending on PD's API.
-
-Un-defer trigger: the first multi-replica receiver deploy, OR the first observed
-double-post in an incident review. Until then this is documented, not built.
+Both state maps (``_posted`` and ``_runs``) are process-local and lost on restart. For
+``_runs`` that is benign — the runs they leased died with the process too. For ``_posted``
+it is a bounded double-propose window: a re-fired incident posted-to before a restart will
+``claim_post`` again → a second note. The MVP accepts it (single-replica, restarts rare, a
+duplicate note is annoying-not-dangerous); the close (PD-side idempotency key, else a
+durable posted-claim) lands with the PagerDutyPoster follow-up. Un-defer trigger + the
+fix-preference order are in Design 12 §2 / the PLT-715 follow-up PR.
 
 Design 12 §2; engine.admit_run / engine.admit_post preconditions.
 """

@@ -48,6 +48,7 @@ import asyncio
 import hmac
 import logging
 import os
+import time
 import uuid
 from collections.abc import Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
@@ -75,6 +76,12 @@ _DEFAULT_LEASE_S = 1800.0
 #: receiver's own task set) growing unbounded. Per-incident dedup is the first shed; this is
 #: the system-wide one. Sized to the host's concurrent-session capacity (manifest-tunable).
 _DEFAULT_MAX_IN_FLIGHT = 16
+
+#: Hard cap on the inbound request body. The AM→receiver edge is authenticated, but the
+#: body is read BEFORE the bearer can be trusted, so an unauthenticated client can still
+#: stream bytes at us: a body over this is rejected unread rather than buffered into JSON.
+#: AM webhook v4 bodies are kilobytes; this is generous headroom, not a tuning knob.
+_MAX_BODY_BYTES = 1 << 20  # 1 MiB
 
 
 # --- the post-back interface (the real client is a follow-up PR) ----------------
@@ -113,7 +120,12 @@ class LoggingPoster:
 # A factory the receiver calls to mint a goal-bound session for one investigation. The live
 # impl builds a GoalSession over the armed omnigent host (bound to host_id + the
 # omni-root-cause token); the test passes a fake. Returns the session + its extractor triple.
-SessionLaunch = tuple["SessionLike", Callable[[object], int], Callable[[object], bool], Callable[[object], str]]  # noqa: E501
+SessionLaunch = tuple[
+    "SessionLike",
+    Callable[[object], int],
+    Callable[[object], bool],
+    Callable[[object], str],
+]
 SessionFactory = Callable[["RunContext"], SessionLaunch]
 
 
@@ -132,6 +144,13 @@ class RunContext:
     alert: Mapping[str, str]
 
 
+#: Floor on how far the run-lease must exceed the budget wall-clock. The lease is the
+#: crash backstop that SHEDs re-fires for one incident; if it expires while the run is
+#: still inside its budget, a re-fire wins a fresh claim and double-launches. The margin
+#: covers the post-back + release that happen AFTER the budget wall-clock elapses.
+_DEFAULT_MIN_LEASE_MARGIN_S = 30.0
+
+
 @dataclass(frozen=True)
 class ReceiverConfig:
     """Static config the manifest injects (clock + caps + budget). Frozen — set at boot."""
@@ -139,26 +158,33 @@ class ReceiverConfig:
     budget: Budget
     lease_s: float = _DEFAULT_LEASE_S
     max_in_flight: int = _DEFAULT_MAX_IN_FLIGHT
-    now: Callable[[], float] = field(default=None)  # type: ignore[assignment]
+    min_lease_margin_s: float = _DEFAULT_MIN_LEASE_MARGIN_S
+    now: Callable[[], float] = time.monotonic
 
     def __post_init__(self) -> None:
-        if self.now is None:
-            import time  # noqa: PLC0415 -- deferred; the monotonic default never imports eagerly
-
-            object.__setattr__(self, "now", time.monotonic)
+        # C1: a lease that does not outlive the budget (plus a post-back/release margin) is a
+        # double-launch waiting to happen — fail CLOSED at boot rather than ship a config that
+        # silently voids single-flight. The manifest sets lease_s from the profile wall_clock.
+        floor = self.budget.wall_clock_s + self.min_lease_margin_s
+        if self.lease_s < floor:
+            raise ValueError(
+                f"lease_s={self.lease_s} must be >= budget.wall_clock_s "
+                f"({self.budget.wall_clock_s}) + min_lease_margin_s ({self.min_lease_margin_s}) "
+                f"= {floor}, or an expiring lease double-launches a still-running incident."
+            )
 
 
 # --- metrics seam (low-cardinality, keyed by decision; the backend is the obs agents') ---
 
 
 class Metrics(Protocol):
-    """The decision-point metric sink. Low-cardinality by contract — labels are the bounded
+    """The decision-point metric sink, low-cardinality by contract.
 
-    decision enums (``verified`` bool, ``decision`` in admitted-set, ``reason`` in
-    TerminalReason, ``result`` in post-result-set), NEVER the ``incident_key`` (unbounded
-    cardinality). ``incident_key`` goes to the structured LOG line, not the metric label.
-    The real sink (Prometheus counters via the OTel SDK) is the observability agents' wiring;
-    the receiver only decides WHAT to count + WHERE. The default is a no-op.
+    Labels are the bounded decision enums (``verified`` bool, ``decision`` in admitted-set,
+    ``reason`` in TerminalReason, ``result`` in post-result-set), NEVER the ``incident_key``
+    (unbounded cardinality). ``incident_key`` goes to the structured LOG line, not the metric
+    label. The real sink (Prometheus counters via the OTel SDK) is the observability agents'
+    wiring; the receiver only decides WHAT to count + WHERE. The default is a no-op.
     """
 
     def received(self, *, verified: bool) -> None: ...
@@ -168,6 +194,8 @@ class Metrics(Protocol):
 
 
 class _NoopMetrics:
+    """The default sink: counts nothing (the obs agents wire the real Prometheus backend)."""
+
     def received(self, *, verified: bool) -> None: ...
     def admitted(self, *, decision: str) -> None: ...
     def terminal(self, *, reason: str) -> None: ...
@@ -363,23 +391,41 @@ class _TaskTracker:
     The global in-flight CAP (admission back-pressure) is enforced against ``len`` here.
     """
 
+    #: Bound on the shutdown drain. A wedged investigation (a poster that ignores its own
+    #: deadline, say) must not hold the drain past the K8s SIGTERM grace window — at the
+    #: deadline the drain returns and the survivors are abandoned (logged, not awaited).
+    drain_deadline_s: float = 60.0
     _tasks: set[asyncio.Task[None]] = field(default_factory=set, init=False, repr=False)
 
     def in_flight(self) -> int:
         return len(self._tasks)
 
     def spawn(self, coro: Awaitable[None]) -> None:
-        task = asyncio.ensure_future(coro)
+        task = asyncio.create_task(coro)
         self._tasks.add(task)
         task.add_done_callback(self._tasks.discard)
 
     async def drain(self) -> None:
-        """Await all in-flight tasks on shutdown (best-effort; exceptions are swallowed).
+        """Await all in-flight tasks on shutdown, bounded by ``drain_deadline_s``.
 
         A copy is awaited because each task's done-callback mutates ``_tasks`` during drain.
+        Exceptions are swallowed (a dying task must not break shutdown); on deadline the
+        unfinished tasks are abandoned (logged, not cancelled) — the SIGTERM grace window at
+        the K8s layer is the hard backstop.
         """
-        if self._tasks:
-            await asyncio.gather(*tuple(self._tasks), return_exceptions=True)
+        if not self._tasks:
+            return
+        pending = tuple(self._tasks)
+        try:
+            async with asyncio.timeout(self.drain_deadline_s):
+                await asyncio.gather(*pending, return_exceptions=True)
+        except TimeoutError:
+            abandoned = sum(1 for task in pending if not task.done())
+            _log.warning(
+                "walle.drain.timeout deadline_s=%s abandoned=%d — shutdown proceeding",
+                self.drain_deadline_s,
+                abandoned,
+            )
 
 
 @dataclass
@@ -482,6 +528,9 @@ class Receiver:
     def _make_context(self, webhook: _alert.Webhook, incident_key: str, run_id: str) -> RunContext:
         """Build the contained :class:`RunContext` — only the allowlisted alert reaches it."""
         alert = _alert.extract_allowlisted(webhook)
+        # goal_template is TRUSTED (manifest-injected); the contained alert is the only
+        # untrusted input and it is interpolated as a {alert} VALUE, never promoted to the
+        # template position — so an alert value carrying its own "{...}" cannot re-template.
         goal = self.goal_template.format(alert=alert)
         return RunContext(incident_key=incident_key, run_id=run_id, goal=goal, alert=alert)
 
@@ -519,13 +568,30 @@ def build_app(receiver: Receiver) -> object:
 
     async def webhook(request: Request) -> JSONResponse:
         authorization = request.headers.get("authorization")
+        # Body-bomb guard: read the RAW bytes with a hard cap BEFORE JSON-parsing, since the
+        # body is buffered before the bearer can be trusted (an unauthenticated client can
+        # still stream at us). A Content-Length over the cap is rejected outright; absent/
+        # lying that, the streamed total is capped too. 413, not 5xx — it is a client fault.
+        declared = request.headers.get("content-length")
+        if declared is not None and declared.isdigit() and int(declared) > _MAX_BODY_BYTES:
+            return JSONResponse(
+                status_code=413, content={"status": "error", "reason": "body_too_large"}
+            )
+        raw = b""
+        async for chunk in request.stream():
+            raw += chunk
+            if len(raw) > _MAX_BODY_BYTES:
+                return JSONResponse(
+                    status_code=413, content={"status": "error", "reason": "body_too_large"}
+                )
         try:
-            body = await request.json()
+            import json  # noqa: PLC0415 -- deferred web glue
+
+            body = json.loads(raw) if raw else None
         except Exception:
             # A non-JSON body verified-or-not is handled the same as a parse error AFTER
-            # auth; but auth must run first, so pass a sentinel the handler rejects as a
-            # WebhookError. Defer the parse to handle_webhook (it owns the noop mapping) —
-            # here just hand it a non-mapping so it 200-noops, NOT 5xx.
+            # auth; but auth must run first, so hand the handler a non-mapping so it 200-noops
+            # (it owns the noop mapping), NOT 5xx.
             body = None
         status, payload = receiver.handle_webhook(authorization, body)
         return JSONResponse(status_code=status, content=dict(payload))
