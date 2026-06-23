@@ -78,10 +78,11 @@ _PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bgh[pousr]_[A-Za-z0-9]{20,}\b"), _PLACEHOLDER),
     # A connection-string with inline userinfo (`scheme://user:pass@host`): scrub ONLY the
     # `:pass` segment, preserving the scheme/user/host so the note still reads as a DSN. The
-    # password run is any non-`@`/non-`/` chars (URL passwords are percent-encoded). The
-    # backreference keeps the `scheme://user` + `@`; the placeholder replaces just the password.
+    # username is OPTIONAL (`redis://:pass@host` — a passwordful no-user DSN), and the password
+    # run is any non-`@` chars (it may contain `/`, e.g. `mongodb://u:p/w@h`). The backreference
+    # keeps the `scheme://[user]` + `@`; the placeholder replaces just the password.
     (
-        re.compile(r"(?P<pre>\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s:/@]+):[^\s/@]+@"),
+        re.compile(r"(?P<pre>\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s:/@]*):[^\s@]+@"),
         rf"\g<pre>:{_PLACEHOLDER}@",
     ),
     # An Authorization header value: `Authorization: Bearer/Token/Basic <secret>` (header name +

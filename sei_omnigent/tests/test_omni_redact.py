@@ -126,6 +126,22 @@ def test_scrubs_connection_string_password_keeping_context() -> None:
     assert _PLACEHOLDER in out
 
 
+def test_scrubs_no_username_dsn_password() -> None:
+    # A passwordful DSN with NO username (`redis://:pass@host`) — the password is still scrubbed.
+    out = redact("cache redis://:s3cretValue99@cache.sei.internal:6379/0")
+    assert "s3cretValue99" not in out
+    assert "redis://" in out and "cache.sei.internal" in out
+    assert _PLACEHOLDER in out
+
+
+def test_scrubs_dsn_password_containing_a_slash() -> None:
+    # A password with a `/` (`mongodb://u:p/w@h`) — scrubbed despite the slash.
+    out = redact("mongodb://admin:pa/ss/word@mongo.sei.internal:27017/incidents")
+    assert "pa/ss/word" not in out
+    assert "mongodb://admin" in out and "mongo.sei.internal" in out
+    assert _PLACEHOLDER in out
+
+
 def test_scrubs_authorization_basic_header() -> None:
     secret = "d2FsbGU6c3VwZXJzZWNyZXRwYXNzd29yZA=="
     out = redact(f"curl -H 'Authorization: Basic {secret}' https://api")

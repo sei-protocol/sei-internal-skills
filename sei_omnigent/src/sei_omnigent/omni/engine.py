@@ -63,8 +63,7 @@ class TerminalReason(StrEnum):
     INSUFFICIENT_CONTEXT = "insufficient-context"  # cannot localize; needs more context
     BUDGET_EXHAUSTED = "budget-exhausted"  # truncated at a budget axis
     NO_PROGRESS = "no-progress"  # truncated: no new evidence/hypothesis movement
-    ERRORED = "errored"  # the run could not run / failed before completing (transport/create
-    # failure, watchdog) — distinct from a budget cut; carries the exception detail, not an axis
+    ERRORED = "errored"  # could not run / died before completing — not a budget cut
 
 
 # Truncated terminals must not present as a surveyed clean-punt (§3.5). A run that
