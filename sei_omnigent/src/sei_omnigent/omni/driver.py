@@ -24,11 +24,18 @@ Design 12 §2, §3.5.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import AsyncIterator, Callable
+from contextlib import aclosing
 from dataclasses import dataclass, field
 from typing import Protocol
 
 from .engine import Budget, TerminalReason, Usage, budget_terminal, is_truncated, tripped_axis
+
+# Best-effort cancel must not itself hang the terminator: the cancel POSTs an interrupt to the
+# same backend that may be the degraded dependency which caused the breach. The breach is already
+# decided + the partial artifact stands, so a cancel that won't return in this bound is abandoned.
+_CANCEL_TIMEOUT_S = 10.0
 
 
 class SessionLike(Protocol):
@@ -105,6 +112,20 @@ def _snapshot(acc: _Acc, elapsed_s: float) -> Usage:
     )
 
 
+async def _best_effort_cancel(session: SessionLike) -> None:
+    """Cancel the session, time-bounded + swallowing — the breach is already decided.
+
+    Bounded by ``_CANCEL_TIMEOUT_S`` because the cancel POSTs an interrupt to the same backend
+    that may be the degraded dependency behind the breach; a cancel that raises OR hangs must
+    not mask the truncation we already decided (the partial artifact stands).
+    """
+    try:
+        async with asyncio.timeout(_CANCEL_TIMEOUT_S):
+            await session.cancel()
+    except Exception:
+        pass
+
+
 async def drive_to_terminal(
     session: SessionLike,
     budget: Budget,
@@ -115,6 +136,7 @@ async def drive_to_terminal(
     is_progress: ProgressSignal = lambda _event: True,
     artifact_chunk: ArtifactChunk = lambda _event: "",
     on_natural_end: TerminalReason = TerminalReason.GOAL_REACHED,
+    watchdog_grace_s: float = 15.0,
 ) -> RunOutcome:
     """Drive a session to a terminal, enforcing ``budget`` by cancelling on breach.
 
@@ -131,51 +153,69 @@ async def drive_to_terminal(
     the loop, which is why the budget check runs *before* awaiting the next event and the
     cancel is issued the instant any axis hits.
 
-    ``now`` is injected (monotonic seconds) so wall-clock is testable without sleeping.
-    The clock is read once per event into the snapshot — the wall-clock axis can only be
-    observed at an event boundary, so a truly hung run between events is bounded by the
-    session/transport timeout + the server-side ``max_turns`` backstop, not this driver
-    (named limitation, not a silent gap).
+    **Two termination paths, both load-bearing:**
+
+    * *Per-event budget axis* — ``now`` (injected monotonic seconds; testable without
+      sleeping) is read once per event into the snapshot, so the budget axes are observed
+      at every event boundary.
+    * *Wall-clock watchdog* — the per-event check cannot fire between events, so a turn
+      that hangs SILENTLY (the SSE stream open but emitting nothing) would never trip it.
+      An ``asyncio.timeout(budget.wall_clock_s + watchdog_grace_s)`` (REAL event-loop time,
+      independent of injected ``now``) makes ``wall_clock_s`` a hard deadline even with no
+      events; firing surfaces as the fail-closed truncated outcome below. ``watchdog_grace_s``
+      covers per-event check lag; lower it in tests to exercise the watchdog quickly.
+
+    **Resource lifecycle:** the stream is driven under :func:`contextlib.aclosing`, so the
+    underlying SSE async generator is ``aclose()``d on EVERY exit (breach-return, error,
+    natural end) — the real ``send()`` generator releases its httpx pool slot only on close,
+    and ``cancel()`` (a separate server-interrupt POST) does NOT close the client stream.
+
+    **Concurrency contract (for the receiver/host reusing this):** one ``drive_to_terminal``
+    per session (``GoalSession`` opens one SSE subscription per drive) and a FRESH extractor
+    triple per call (``make_extractors``' token closure is per-run state — sharing it across
+    concurrent drives under-counts tokens, failing the token axis OPEN).
     """
     acc = _Acc()
     start = now()
 
     try:
-        async for event in session.stream():
-            chunk = artifact_chunk(event)
-            if chunk:
-                acc.artifact_parts.append(chunk)
-            acc.tokens += token_delta(event)
-            if is_iteration(event):
-                acc.iterations += 1
-                acc.iterations_since_progress = (
-                    0 if is_progress(event) else acc.iterations_since_progress + 1
-                )
+        # Wall-clock watchdog (see docstring) + aclosing so the SSE generator is always closed.
+        async with asyncio.timeout(budget.wall_clock_s + watchdog_grace_s):
+            async with aclosing(session.stream()) as stream:
+                async for event in stream:
+                    chunk = artifact_chunk(event)
+                    if chunk:
+                        acc.artifact_parts.append(chunk)
+                    acc.tokens += token_delta(event)
+                    if is_iteration(event):
+                        acc.iterations += 1
+                        acc.iterations_since_progress = (
+                            0 if is_progress(event) else acc.iterations_since_progress + 1
+                        )
 
-            snapshot = _snapshot(acc, now() - start)
-            terminal = budget_terminal(budget, snapshot)
-            if terminal is not None:
-                # Load-bearing: stop the loop the Stop hook can't. Cancel best-effort —
-                # a cancel that itself errors must not mask the truncation we already
-                # decided (the budget breach is the truth; the partial artifact stands).
-                try:
-                    await session.cancel()
-                except Exception:
-                    pass
-                return RunOutcome(
-                    terminal_reason=terminal,
-                    truncated=is_truncated(terminal),
-                    tripped=tripped_axis(budget, snapshot),
-                    cancelled=True,
-                    elapsed_s=snapshot.elapsed_s,
-                    tokens=acc.tokens,
-                    iterations=acc.iterations,
-                    artifact="".join(acc.artifact_parts),
-                )
+                    snapshot = _snapshot(acc, now() - start)
+                    terminal = budget_terminal(budget, snapshot)
+                    if terminal is not None:
+                        # Load-bearing: stop the loop the Stop hook can't. The breach is the
+                        # truth + the partial artifact stands, so the cancel is best-effort AND
+                        # time-bounded (must not raise OR hang the terminator — _CANCEL_TIMEOUT_S).
+                        await _best_effort_cancel(session)
+                        return RunOutcome(
+                            terminal_reason=terminal,
+                            truncated=is_truncated(terminal),
+                            tripped=tripped_axis(budget, snapshot),
+                            cancelled=True,
+                            elapsed_s=snapshot.elapsed_s,
+                            tokens=acc.tokens,
+                            iterations=acc.iterations,
+                            artifact="".join(acc.artifact_parts),
+                        )
     except Exception:
-        # A stream/transport failure mid-run is a truncated run, not a clean punt: we
-        # surveyed only part of the space. Fail-closed onto the truncated headline so the
-        # renderer never presents a partial as all-clear (§3.5).
+        # A stream/transport failure OR the wall-clock watchdog firing mid-run is a truncated
+        # run, not a clean punt: we surveyed only part of the space. Fail-closed onto the
+        # truncated headline so the renderer never presents a partial as all-clear (§3.5).
+        # (Receiver carry-forward: add a distinct FAILED terminal so a transport error reads
+        # differently from a budget cut — the enum has no errored-terminal today.)
         snapshot = _snapshot(acc, now() - start)
         return RunOutcome(
             terminal_reason=TerminalReason.BUDGET_EXHAUSTED,

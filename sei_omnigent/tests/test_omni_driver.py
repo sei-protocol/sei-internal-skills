@@ -249,3 +249,35 @@ def test_stream_failure_is_truncated_not_clean() -> None:
     assert outcome.truncated is True
     assert outcome.cancelled is False  # the stream died; we didn't cancel
     assert outcome.artifact == "partial"  # what we had at the drop still stands
+
+
+def test_wall_clock_watchdog_bounds_a_silently_hung_stream() -> None:
+    """A turn that hangs with NO events is bounded by the wall-clock watchdog, not parked forever.
+
+    The per-event budget check can't fire when no events arrive; the asyncio.timeout watchdog
+    (real event-loop time) must terminate the drive at wall_clock_s + grace → a truncated outcome.
+    The outer wait_for is a safety net: if the watchdog were broken this fails fast, never hangs.
+    """
+
+    class _HangingSession(_FakeSession):
+        async def stream(self):
+            # An async generator that yields nothing and then blocks forever.
+            if False:  # pragma: no cover - makes this a generator without emitting an event
+                yield {}
+            await asyncio.Event().wait()
+
+    session = _HangingSession([])
+
+    async def _drive() -> object:
+        return await drive_to_terminal(
+            session,
+            _budget(wall_clock_s=0.05),
+            now=_fixed_clock(),  # per-event axis never fires (no events) — the watchdog must
+            token_delta=_tokens,
+            is_iteration=_is_iter,
+            watchdog_grace_s=0.05,  # fire at ~0.1s real time
+        )
+
+    outcome = asyncio.run(asyncio.wait_for(_drive(), timeout=2.0))
+    assert outcome.truncated is True
+    assert outcome.cancelled is False  # the watchdog fired before any breach-cancel
