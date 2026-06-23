@@ -210,12 +210,34 @@ async def drive_to_terminal(
                             iterations=acc.iterations,
                             artifact="".join(acc.artifact_parts),
                         )
+    except TimeoutError:
+        # The wall-clock watchdog fired: asyncio.timeout raises builtins TimeoutError on expiry,
+        # and that expiry IS a wall-clock BUDGET breach (a turn hung past wall_clock_s + grace with
+        # no events for the per-event axis to catch), NOT an error. Mirror the in-loop breach
+        # return: best-effort-cancel, then a truncated BUDGET_EXHAUSTED on the wall-clock axis.
+        # elapsed_s is clamped to wall_clock_s because the watchdog fires on REAL event-loop time
+        # (independent of injected ``now``) — the deadline was reached by definition, so
+        # tripped_axis resolves to the wall-clock axis even if the injected clock did not advance.
+        await _best_effort_cancel(session)
+        elapsed = max(now() - start, budget.wall_clock_s)
+        snapshot = _snapshot(acc, elapsed)
+        return RunOutcome(
+            terminal_reason=TerminalReason.BUDGET_EXHAUSTED,
+            truncated=True,
+            tripped=tripped_axis(budget, snapshot),
+            cancelled=True,
+            elapsed_s=snapshot.elapsed_s,
+            tokens=acc.tokens,
+            iterations=acc.iterations,
+            artifact="".join(acc.artifact_parts),
+        )
     except Exception as exc:
-        # A stream/transport failure (a SessionsChat.create reject, an SSE drop), OR the
-        # wall-clock watchdog firing mid-run, is an ERRORED run — the run died before
-        # completing, distinct from a budget cut. It MUST NOT be laundered into
+        # A stream/transport failure (a SessionsChat.create reject, an SSE drop) is an ERRORED run:
+        # the run died before completing, distinct from a budget cut. It MUST NOT be laundered into
         # BUDGET_EXHAUSTED: a server-down / TokenReview-reject / bad-bundle failure is not a
-        # budget breach, and rendering it as one misdirects the on-call to the wrong axis.
+        # budget breach, and rendering it as one misdirects the on-call to the wrong axis. (httpx
+        # transport timeouts are httpx.TimeoutException, NOT builtins TimeoutError, so they fall
+        # here and stay ERRORED — only the asyncio watchdog is the wall-clock-breach path above.)
         # tripped=None (no budget axis was hit); the failure detail rides in the artifact so the
         # rendered note is an honest "could not run — <reason>". truncated=True so the renderer
         # still refuses the all-clear headline (§3.5).

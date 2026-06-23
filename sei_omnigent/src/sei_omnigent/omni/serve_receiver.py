@@ -85,9 +85,11 @@ _DEFAULT_TOKENS = 400_000
 _DEFAULT_QUERIES = 1_000
 _DEFAULT_MAX_ITERATIONS = 40
 _DEFAULT_NO_PROGRESS_ITERATIONS = 6
-#: Lease default = wall_clock + a generous post-back/release margin (must clear ReceiverConfig's
-#: floor of wall_clock + min_lease_margin_s). The manifest sets it from the profile wall_clock.
-_DEFAULT_LEASE_S = _DEFAULT_WALL_CLOCK_S + 120
+#: Lease default cushion above wall_clock — a generous post-back/release margin that clears
+#: ReceiverConfig's floor of wall_clock + min_lease_margin_s (30s). The default lease is DERIVED
+#: from the EFFECTIVE wall_clock at boot (see build_receiver_config), not a fixed constant, so
+#: raising OMNI_RECEIVER_WALL_CLOCK_S without also setting the lease still clears the floor.
+_DEFAULT_LEASE_MARGIN_S = 120
 #: Default 1: the standing OmnigentClient is SHARED across concurrent sessions and its
 #: concurrency-safety is unproven — N-wide on it risks cross-stream bleed / pool starvation. The
 #: manifest overrides via OMNI_RECEIVER_MAX_IN_FLIGHT. UN-DEFER to a higher value only after a
@@ -157,13 +159,16 @@ def build_budget() -> Budget:
 def build_receiver_config(budget: Budget) -> ReceiverConfig:
     """Assemble the :class:`ReceiverConfig` (lease + in-flight cap) around a budget.
 
-    ``lease_s`` defaults to wall_clock + margin and the manifest sets it from the profile
-    wall_clock; ReceiverConfig.__post_init__ fails closed if it does not clear the floor (a
-    lease that underruns the budget double-launches a still-running incident).
+    ``lease_s`` defaults to the EFFECTIVE wall_clock + margin (DERIVED, not a fixed constant), so
+    raising OMNI_RECEIVER_WALL_CLOCK_S without also setting the lease still clears
+    ReceiverConfig.__post_init__'s floor (wall_clock + min_lease_margin_s) instead of failing the
+    boot. An explicit OMNI_RECEIVER_LEASE_S still overrides; the floor guard catches an explicit
+    lease that underruns the budget (a double-launch of a still-running incident).
     """
+    default_lease = int(budget.wall_clock_s) + _DEFAULT_LEASE_MARGIN_S
     return ReceiverConfig(
         budget=budget,
-        lease_s=float(int_env(_LEASE_S_ENV, default=_DEFAULT_LEASE_S)),
+        lease_s=float(int_env(_LEASE_S_ENV, default=default_lease)),
         max_in_flight=int_env(_MAX_IN_FLIGHT_ENV, default=_DEFAULT_MAX_IN_FLIGHT),
     )
 

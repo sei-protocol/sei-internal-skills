@@ -16,7 +16,7 @@ from pathlib import Path
 import pytest
 
 from sei_omnigent.omni.serve_receiver import (
-    _DEFAULT_LEASE_S,
+    _DEFAULT_LEASE_MARGIN_S,
     _PD_ENROLLED_ENV,
     _PD_FROM_EMAIL_ENV,
     _PD_TOKEN_ENV,
@@ -79,8 +79,23 @@ def test_budget_reads_env_overrides(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_receiver_config_default_lease_clears_the_floor() -> None:
     # The default lease must clear ReceiverConfig's floor (wall_clock + margin) — a default that
     # underran would fail every boot. build_receiver_config must produce a valid config.
-    config = build_receiver_config(build_budget())
-    assert config.lease_s == float(_DEFAULT_LEASE_S)
+    budget = build_budget()
+    config = build_receiver_config(budget)
+    assert config.lease_s == float(int(budget.wall_clock_s) + _DEFAULT_LEASE_MARGIN_S)
+
+
+def test_receiver_config_default_lease_derives_from_raised_wall_clock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # The regression #1 guards: raising wall_clock WITHOUT also setting the lease must still boot —
+    # the default lease is DERIVED from the effective wall_clock (not a fixed 1020), so it clears
+    # ReceiverConfig's floor instead of failing at __post_init__.
+    monkeypatch.setenv("OMNI_RECEIVER_WALL_CLOCK_S", "2000")
+    # OMNI_RECEIVER_LEASE_S intentionally unset
+    budget = build_budget()
+    config = build_receiver_config(budget)  # would ValueError if the lease defaulted to 1020
+    assert config.lease_s == 2000.0 + _DEFAULT_LEASE_MARGIN_S
+    assert config.lease_s >= budget.wall_clock_s + config.min_lease_margin_s
 
 
 def test_receiver_config_rejects_a_lease_below_the_budget_floor(

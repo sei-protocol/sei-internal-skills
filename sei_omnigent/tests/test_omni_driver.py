@@ -16,6 +16,8 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Callable
 
+import httpx
+
 from sei_omnigent.omni.driver import drive_to_terminal
 from sei_omnigent.omni.engine import Budget, TerminalReason
 
@@ -292,12 +294,15 @@ def test_first_iteration_raise_is_errored_not_budget() -> None:
     assert "TokenReview" in outcome.artifact  # the create-reject detail is captured
 
 
-def test_wall_clock_watchdog_bounds_a_silently_hung_stream() -> None:
-    """A turn that hangs with NO events is bounded by the wall-clock watchdog, not parked forever.
+def test_wall_clock_watchdog_is_budget_exhausted_not_errored() -> None:
+    """A silently hung turn → the watchdog fires → BUDGET_EXHAUSTED on the wall-clock axis.
 
-    The per-event budget check can't fire when no events arrive; the asyncio.timeout watchdog
-    (real event-loop time) must terminate the drive at wall_clock_s + grace → a truncated outcome.
-    The outer wait_for is a safety net: if the watchdog were broken this fails fast, never hangs.
+    Regression guard (Bugbot #4): the asyncio.timeout watchdog raises builtins TimeoutError on
+    expiry, which the prior blanket ``except Exception`` MIS-classified as ERRORED. The watchdog
+    firing IS a wall-clock BUDGET breach (a turn hung past wall_clock_s + grace with no events for
+    the per-event axis to catch), so it MUST be BUDGET_EXHAUSTED with the wall-clock axis tripped
+    and a best-effort cancel issued — NOT ERRORED (which would misdirect the on-call to a transport
+    fault). The outer wait_for is a safety net: a broken watchdog fails this fast, never hangs.
     """
 
     class _HangingSession(_FakeSession):
@@ -320,5 +325,40 @@ def test_wall_clock_watchdog_bounds_a_silently_hung_stream() -> None:
         )
 
     outcome = asyncio.run(asyncio.wait_for(_drive(), timeout=2.0))
+    assert outcome.terminal_reason is TerminalReason.BUDGET_EXHAUSTED
+    assert outcome.terminal_reason is not TerminalReason.ERRORED  # the regression this guards
+    assert outcome.tripped == "wall-clock"  # the watchdog firing IS the wall-clock breach
     assert outcome.truncated is True
-    assert outcome.cancelled is False  # the watchdog fired before any breach-cancel
+    assert outcome.cancelled is True  # best-effort cancel issued (mirrors the in-loop breach)
+    assert session.cancel_calls == 1
+    assert outcome.elapsed_s >= 0.05  # clamped to wall_clock_s so the wall-clock axis resolves
+
+
+def test_httpx_transport_timeout_stays_errored_not_budget() -> None:
+    """An httpx.TimeoutException is NOT builtins TimeoutError → it stays ERRORED, not budget.
+
+    The watchdog's ``except TimeoutError`` must catch ONLY the asyncio watchdog. A transport
+    timeout (httpx.TimeoutException) is a dependency fault, not a budget cut — it must fall to the
+    blanket ``except Exception`` and classify ERRORED, or the on-call is misdirected to wall-clock.
+    """
+
+    class _TransportTimeoutSession(_FakeSession):
+        async def stream(self):
+            yield {"iter": True, "tokens": 1, "text": "partial"}
+            raise httpx.ReadTimeout("transport read timed out")
+
+    session = _TransportTimeoutSession([])
+    outcome = asyncio.run(
+        drive_to_terminal(
+            session,
+            _budget(),  # generous — no budget axis is near
+            now=_fixed_clock(),
+            token_delta=_tokens,
+            is_iteration=_is_iter,
+            artifact_chunk=_chunk,
+        )
+    )
+    assert outcome.terminal_reason is TerminalReason.ERRORED
+    assert outcome.terminal_reason is not TerminalReason.BUDGET_EXHAUSTED
+    assert outcome.tripped is None  # no budget axis hit — it errored
+    assert "transport read timed out" in outcome.artifact

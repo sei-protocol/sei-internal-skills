@@ -31,10 +31,11 @@ module here, in ONE place, with this marker. Re-confirm on the next omnigent pin
 VERIFY ON FIRST LIVE RUN (env-coupled; not exercised by the unit suite):
   - whether a multi-turn ``/root-cause`` loop surfaces as repeated ``send()`` turns or one
     long turn (the extractors handle both — ``is_iteration`` counts turn-terminal events);
-  - the ``OmnigentClient`` construction + WHERE the per-create auth headers attach: whether
-    ``SessionsChat.create`` / ``OmnigentClient`` takes per-call ``headers`` (the bearer is read
-    fresh per create either way — if create takes none, apply it to the client header store
-    immediately before the create);
+  - that the server + kube-rbac-proxy sidecar READ the forwarded auth — the X-Forwarded-Email
+    principal off the static client header, the bearer off the per-request ``_FreshBearerAuth``
+    flow. (RESOLVED on installed 0.2.0: auth attaches to the CLIENT ctor — ``SessionsChat.create``
+    takes no per-call ``headers`` — and ``OmnigentClient`` forwards ``headers``/``auth`` onto its
+    underlying httpx client, so the bearer rotates via the Auth, read fresh per request.)
   - the ``SessionsChat.create`` namespace accessor + bundle source (see
     :class:`LiveSessionFactory` — the spike used ``client.sessions``; the 0.2.0 client exposes
     that attribute, but the per-investigation create + the agent-bundle provisioning are the
@@ -48,10 +49,12 @@ Design 12 §2, §3.2.
 from __future__ import annotations
 
 import os
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
+
+import httpx
 
 # --- spike-grade private import (see module docstring); re-confirm on omnigent bump ---
 from omnigent_client._sessions_chat import (
@@ -176,6 +179,24 @@ def _proxy_bearer_token(path: str) -> str:
     return token
 
 
+class _FreshBearerAuth(httpx.Auth):
+    """An ``httpx.Auth`` that re-reads the projected SA bearer from its token file PER REQUEST.
+
+    httpx invokes :meth:`auth_flow` on every outbound request, so the token file is read fresh
+    each call — the kubelet's in-place rotation (~hourly) is picked up without rebuilding the
+    standing client. Fail-closed by :func:`_proxy_bearer_token`: an unreadable/empty file raises
+    during the request, which surfaces through the driver as an ERRORED run rather than reaching
+    the sidecar with a stale/absent bearer and 401ing.
+    """
+
+    def __init__(self, token_file: str) -> None:
+        self._token_file = token_file
+
+    def auth_flow(self, request: httpx.Request) -> Iterator[httpx.Request]:
+        request.headers["Authorization"] = f"Bearer {_proxy_bearer_token(self._token_file)}"
+        yield request
+
+
 class _LiveGoalSession:
     """A :class:`omni.driver.SessionLike` that lazily mints a real ``SessionsChat`` per run.
 
@@ -186,21 +207,10 @@ class _LiveGoalSession:
     One investigation = one instance (no chat reuse across runs).
     """
 
-    def __init__(
-        self,
-        namespace: object,
-        bundle: bytes,
-        goal: str,
-        *,
-        auth_headers: Callable[[], dict[str, str]],
-    ) -> None:
+    def __init__(self, namespace: object, bundle: bytes, goal: str) -> None:
         self._namespace = namespace
         self._bundle = bundle
         self._goal = goal
-        #: Called at create-time to produce the per-create auth headers (the FRESH-read SA bearer
-        #: + the X-Forwarded-Email principal). A callable, not a baked dict, so the rotated token
-        #: is read at the create, not at factory-construction.
-        self._auth_headers = auth_headers
         self._chat: _ChatLike | None = None
 
     async def _events(self) -> AsyncIterator[object]:
@@ -209,16 +219,11 @@ class _LiveGoalSession:
         # docstring). The create is per-run so each investigation gets its own session.
         from omnigent_client._sessions_chat import SessionsChat  # noqa: PLC0415 -- impure seam
 
-        # FRESH per-create auth (S-CRIT): the projected SA bearer is read NOW, not at boot, so a
-        # rotated token is current. VERIFY-ON-LIVE: whether SessionsChat.create / OmnigentClient
-        # accepts per-call headers (vs only per-client) is live-coupled — if create takes no
-        # per-call headers on 0.2.0, the bearer must instead be applied to the client's header
-        # store immediately before this create. The mechanism is the open prove-the-run item; the
-        # read-fresh-per-create requirement is fixed.
-        headers = self._auth_headers()
-        chat = await SessionsChat.create(  # type: ignore[call-arg]
-            self._namespace, self._bundle, headers=headers
-        )
+        # Auth attaches to the standing client (the X-Forwarded-Email principal on its static
+        # header store + the per-request _FreshBearerAuth), NOT per-create: SessionsChat.create on
+        # 0.2.0 takes no per-call headers. The FRESH-read SA bearer (S-CRIT) is read per REQUEST by
+        # the Auth flow, so a kubelet-rotated token is current without rebuilding the client.
+        chat = await SessionsChat.create(self._namespace, self._bundle)
         self._chat = chat
         async for event in chat.send(self._goal):
             yield event
@@ -240,33 +245,29 @@ class LiveSessionFactory:
     """The production ``SessionFactory``: mint a goal-bound live session for one investigation.
 
     Holds the standing :class:`OmnigentClient` (one keep-alive client for the receiver's life;
-    closed via :meth:`aclose` on shutdown) + the boot-loaded agent bundle + the per-create auth
-    inputs (the trusted ``X-Forwarded-Email`` principal + the path to the projected SA bearer
-    token). Calling it with a ``RunContext`` returns the receiver's ``SessionLaunch`` tuple: a
-    lazy live session bound to ``ctx.goal`` + a FRESH extractor triple (the token-delta closure
-    must not leak state across runs — see :func:`make_extractors`).
+    closed via :meth:`aclose` on shutdown) + the boot-loaded agent bundle. Calling it with a
+    ``RunContext`` returns the receiver's ``SessionLaunch`` tuple: a lazy live session bound to
+    ``ctx.goal`` + a FRESH extractor triple (the token-delta closure must not leak state across
+    runs — see :func:`make_extractors`).
 
     Auth posture (S-CRIT; mirrors host_launch's B1): the kube-rbac-proxy sidecar fronting the
-    server TokenReviews an ``Authorization: Bearer <SA token>``; ``X-Forwarded-Email`` is the
-    app principal resolved WITHIN that authed channel (a spoofable claim on its own). The bearer
-    is the projected ``omnigent-api`` SA token read FRESH per session-create from a token file
-    (the kubelet rotates it ~hourly — a boot-time token goes stale), not baked at construction.
+    server TokenReviews an ``Authorization: Bearer <SA token>``; ``X-Forwarded-Email`` is the app
+    principal resolved WITHIN that authed channel (a spoofable claim on its own). Both attach to
+    the STANDING client (built in :meth:`from_env`): the static X-Forwarded-Email on the client's
+    header store, the bearer via :class:`_FreshBearerAuth` which re-reads the projected
+    ``omnigent-api`` SA token file per REQUEST (the kubelet rotates it ~hourly — a boot-time token
+    goes stale, so it is never baked once).
 
-    VERIFY-ON-LIVE (the prove-the-run is still open; see module docstring): the ``OmnigentClient``
-    construction, the ``client.sessions`` namespace accessor, and — the key open item — whether
-    ``SessionsChat.create`` / ``OmnigentClient`` accepts PER-CALL headers (vs per-client only),
-    which decides exactly where the fresh bearer attaches. Built to the best-known omnigent 0.2.0
-    client API — NOT asserted to work; the live run closes it.
+    VERIFY-ON-LIVE (the prove-the-run is still open; see module docstring): the ``client.sessions``
+    namespace accessor + that the server/sidecar READ the forwarded auth (the ctor-forwarding onto
+    the httpx client is verified against installed 0.2.0). Built to the best-known omnigent 0.2.0
+    client API — NOT asserted end-to-end; the live run closes it.
     """
 
     #: an omnigent_client.OmnigentClient — typed object so this stays import-light. repr=False:
-    #: the client may carry header/credential state in its repr; keep it off this dataclass's repr.
+    #: the client carries the auth/header state in its repr; keep it off this dataclass's repr.
     client: object = field(repr=False)
     bundle: bytes = field(repr=False)  # bundle bytes are noise in a repr; off it
-    #: The trusted app principal the header-mode server resolves the run under.
-    forwarded_email: str
-    #: Path to the projected SA token file, read FRESH per create (:func:`_proxy_bearer_token`).
-    proxy_bearer_file: str
     _closed: bool = field(default=False, init=False, repr=False)
 
     @classmethod
@@ -276,7 +277,8 @@ class LiveSessionFactory:
         Mirrors the receiver's boot discipline: a missing server URL / identity / bundle / bearer
         file is a misconfiguration that must fail at boot, not on the first webhook (a half-
         configured factory would error every investigation). The bundle is read once here; the
-        SA bearer is NOT read here (it is read fresh per create) — only its path is required.
+        SA bearer is NOT read here (the client's :class:`_FreshBearerAuth` reads it fresh per
+        request) — only its path is required.
         """
         server_url = (os.environ.get(SERVER_URL_ENV) or "").strip()
         forwarded_email = (os.environ.get(FORWARDED_EMAIL_ENV) or "").strip()
@@ -306,37 +308,24 @@ class LiveSessionFactory:
                 "be mounted and readable at boot."
             ) from exc
 
-        # VERIFY-ON-LIVE: OmnigentClient(base_url) — the standing client. The SA bearer + the
-        # X-Forwarded-Email principal are applied PER CREATE (read fresh) rather than baked here,
-        # so a rotated token is current and a stale boot-time bearer never reaches the sidecar.
+        # The standing client carries the auth: the static X-Forwarded-Email principal on its
+        # header store + the per-request _FreshBearerAuth (the SA bearer is read fresh per request,
+        # so a kubelet-rotated token is current and a stale boot-time bearer never reaches the
+        # sidecar). OmnigentClient forwards headers/auth onto its httpx client (verified on 0.2.0).
         from omnigent_client import OmnigentClient  # noqa: PLC0415 -- the single impure seam
 
-        client = OmnigentClient(base_url=server_url)
-        return cls(
-            client=client,
-            bundle=bundle,
-            forwarded_email=forwarded_email,
-            proxy_bearer_file=bearer_file,
+        client = OmnigentClient(
+            base_url=server_url,
+            headers={"X-Forwarded-Email": forwarded_email},
+            auth=_FreshBearerAuth(bearer_file),
         )
-
-    def _auth_headers(self) -> dict[str, str]:
-        # Built per-create: the SA bearer is read FRESH from the token file (rotation-safe), the
-        # X-Forwarded-Email is the app principal within that authed channel. VERIFY-ON-LIVE: the
-        # exact header names the sidecar + server expect (Authorization bearer for the sidecar
-        # TokenReview, X-Forwarded-Email for the server's header-mode identity).
-        return {
-            "Authorization": f"Bearer {_proxy_bearer_token(self.proxy_bearer_file)}",
-            "X-Forwarded-Email": self.forwarded_email,
-        }
+        return cls(client=client, bundle=bundle)
 
     def __call__(self, ctx: object) -> tuple[object, ...]:
         # ctx is an omni.receiver.RunContext (typed object so this module stays receiver-import-
         # light + the single-coupling seam carries no receiver dependency cycle). ctx.goal is the
         # contained, rendered investigation goal.
-        session = _LiveGoalSession(
-            self._namespace(), self.bundle, ctx.goal,  # type: ignore[attr-defined]
-            auth_headers=self._auth_headers,
-        )
+        session = _LiveGoalSession(self._namespace(), self.bundle, ctx.goal)
         return (session, *make_extractors())
 
     def _namespace(self) -> object:
@@ -354,6 +343,6 @@ class LiveSessionFactory:
         if self._closed:
             return
         self._closed = True
-        # VERIFY-ON-LIVE: OmnigentClient exposes async ``close()`` (not ``aclose``) on 0.2.0 —
-        # confirm on bump.
+        # OmnigentClient exposes async ``close()`` (NOT ``aclose``) — verified against installed
+        # omnigent 0.2.0 (close() is the real method; aclose does not exist). Re-confirm on bump.
         await self.client.close()  # type: ignore[attr-defined]
