@@ -108,3 +108,25 @@ def test_install_targets_existing_symbol_and_is_idempotent() -> None:
     patched_ref = host_process._build_connect_headers
     install_proxy_bearer_patch()  # second call is a no-op (marker check)
     assert host_process._build_connect_headers is patched_ref
+
+
+def test_patch_fires_on_the_real_method(monkeypatch: pytest.MonkeyPatch, tmp_path) -> None:
+    """Bind the drift-guard to the REAL upstream method (not a stand-in): install, then invoke the
+    patched HostProcess._build_connect_headers and assert the SA bearer is actually merged. Catches
+    an upstream signature/behaviour change the symbol-existence check misses -- the failure mode
+    most dangerous for an INV-2-gate client (the wrap silently no-ops or throws at connect time).
+
+    Driven via the managed-token path, which builds its headers from env only and never touches
+    ``self`` -- so a bare ``object()`` stands in for the host instance without a live server."""
+    shim = pytest.importorskip("sei_omnigent._omnigent_shim")
+    host_identity = pytest.importorskip("omnigent.host.identity")
+
+    token = tmp_path / "token"
+    token.write_text("sa-jwt")
+    monkeypatch.setenv(PROXY_BEARER_FILE_ENV, str(token))
+    monkeypatch.setenv(host_identity.HOST_TOKEN_ENV_VAR, "managed-tok")  # take the managed path
+
+    install_proxy_bearer_patch()
+    headers = shim.HostProcess._build_connect_headers(object())
+    assert headers.get("Authorization") == "Bearer sa-jwt"  # the wrap fired on the real method
+    assert headers.get("X-Omnigent-Host-Token") == "managed-tok"  # host-token preserved (B1)

@@ -24,6 +24,7 @@ coupling routes through ``_omnigent_shim`` (the single coupling surface); re-con
 
 from __future__ import annotations
 
+import functools
 import os
 import sys
 from collections.abc import Callable
@@ -59,15 +60,19 @@ def _wrap_build_headers(
 
     Augment-not-replace: call the original, then set ``Authorization`` from the projected token.
     Robust to omnigent internals -- whatever the managed/unmanaged branch returns, the SA bearer
-    the sidecar validates is the one that must be on the wire, so it wins.
+    the sidecar validates is the one that must be on the wire, so it wins. In B1's managed-token
+    deployment the original emits no ``Authorization`` (the managed path returns early), so the
+    merge is purely additive; the override only fires on the non-managed branch (defense-in-depth).
+    Keep it unconditional -- do not gate it, or a stale OIDC bearer could reach the sidecar.
     """
 
+    @functools.wraps(original)  # keep __name__/__doc__/__wrapped__ for introspection + tracebacks
     def patched(self) -> dict[str, str]:
         headers = original(self)
         headers.update(proxy_bearer_header())
         return headers
 
-    setattr(patched, _PATCH_MARKER, True)
+    setattr(patched, _PATCH_MARKER, True)  # idempotency guard (wraps provides none)
     return patched
 
 
@@ -87,6 +92,14 @@ def main(argv: list[str] | None = None) -> int:
     """Install the proxy-bearer patch, then run ``omnigent host`` in-process with the args.
 
     In-process is load-bearing: the patch must be live in the SAME process that opens the tunnel.
+    ``omnigent``'s CLI signals exit status via ``SystemExit`` (click), not a return value, so a
+    non-zero exit propagates through ``raise SystemExit(main())`` below; ``return 0`` is the clean
+    fall-through. Re-verify on bump that ``cli.main`` still exits via ``SystemExit`` -- were it to
+    RETURN a code, swallowing it would report a failed launch as success.
+
+    Note: omnigent's CLI inserts the CWD at sys.path[0] and this process holds the SA bearer, so
+    the host Deployment must pin a non-writable workingDir + readOnlyRootFilesystem (CWD must not
+    be an import-injection surface into the credential-bearing process; manifest-side hardening).
     """
     install_proxy_bearer_patch()
     args = sys.argv[1:] if argv is None else argv
@@ -94,7 +107,8 @@ def main(argv: list[str] | None = None) -> int:
     from ._omnigent_shim import omnigent_cli_main  # noqa: PLC0415 -- deferred (heavy shim import)
 
     sys.argv = ["omnigent", "host", *args]
-    return omnigent_cli_main() or 0
+    omnigent_cli_main()  # exits via SystemExit (click); see docstring
+    return 0
 
 
 if __name__ == "__main__":
