@@ -12,6 +12,8 @@ on:
   pull_request:
     paths:
       - 'sei_omnigent/**'
+      - 'Dockerfile.host'
+      - '.claude/**'
       - '.github/workflows/verify-sei-omnigent-image.yml'
 
 permissions:
@@ -71,3 +73,57 @@ jobs:
           timeout --kill-after=15s 90s \
             docker run --rm --entrypoint python sei-tide-omnigent:pr-smoke \
             -X faulthandler -c "import faulthandler; faulthandler.dump_traceback_later(60, exit=True); import sei_omnigent.server.serve_main; print('import-ok')"
+
+  host-build-smoke:
+    # PR-gated build smoke for the runnable HOST image (Dockerfile.host, PLT-715).
+    # Same fork-safe discipline as build-smoke (no push/login/secrets); the build
+    # is the gate. Context is the repo root (the baked `.claude/` overlay lives
+    # there). Beyond the server smoke's import check, the host image must prove
+    # the toolchain is present, the launcher resolves, and it runs NON-ROOT (the
+    # walle namespace is PSS restricted -> runAsNonRoot).
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the host image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.host
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: sei-tide-omnigent-host:pr-smoke
+
+      - name: Toolchain + non-root smoke
+        # The harness toolchain must be on PATH and the image must run as uid 1000
+        # (NOT root) — the walle PSS-restricted namespace rejects root. `id -u`
+        # asserts the baked USER; the binaries are what claude-native execs.
+        timeout-minutes: 2
+        run: |
+          timeout --kill-after=15s 90s \
+            docker run --rm --entrypoint bash sei-tide-omnigent-host:pr-smoke -lc '
+              set -euo pipefail
+              test "$(id -u)" = "1000" || { echo "FAIL: not uid 1000 (got $(id -u))"; exit 1; }
+              command -v git tmux node claude >/dev/null || { echo "FAIL: missing a harness binary"; exit 1; }
+              test -f "$HOME/.claude/settings.json" || { echo "FAIL: overlay not baked at \$HOME/.claude"; exit 1; }
+              echo "toolchain+nonroot-ok uid=$(id -u) home=$HOME"
+            '
+
+      - name: Launcher smoke
+        # Proves the B1 launcher resolves end to end: `python -m
+        # sei_omnigent.host_launch --help` installs the proxy-bearer patch (which
+        # imports HostProcess through the shim -> omnigent) then runs `omnigent
+        # host --help`, which click exits 0. So a missing omnigent symbol, a shim
+        # drift, or a broken console-script wiring fails HERE, not at deploy.
+        # --entrypoint python overrides the image's launcher entrypoint so `-m`
+        # runs the help path rather than a bare `omnigent host` that would try to
+        # open the WS tunnel and hang (the server-smoke's same lesson).
+        timeout-minutes: 2
+        run: |
+          timeout --kill-after=15s 90s \
+            docker run --rm --entrypoint python sei-tide-omnigent-host:pr-smoke \
+            -m sei_omnigent.host_launch --help
