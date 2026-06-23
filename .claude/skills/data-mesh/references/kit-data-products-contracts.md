@@ -22,7 +22,7 @@ The **data product** is the central unit — the architectural quantum (code + d
 ## 4. Review cues
 
 - **Dimension 2 (data-product design & contracts):** the product is the architectural quantum with all six usability attributes; the contract is ODCS v3.x (not the deprecated spec) with schema + semantics + SLOs + ports; cross-org, the product is a verifiable certificate (content-address + signature + provenance + verification class), not a trusted-pipeline output. *Basis:* `sources.md` §data-product, §data-contracts; profile §2.
-- **Dimension 5 (data quality & observability):** the verification class is set correctly and only re-checkable claims carry a correctness guarantee (authenticity ≠ correctness). *Basis:* profile §5.
+- **Dimension 5 (data quality & observability):** the verification class is set correctly and only **Class-I (re-checkable) or Class-II (dispute-adjudicable)** claims carry a correctness guarantee — never Class-III judgment (authenticity ≠ correctness). *Basis:* profile §5.
 
 ## 5. One-way doors in this concern
 
