@@ -31,7 +31,7 @@ Refusal conditions — they hold under "just design us a data mesh" pressure:
 
 1. **Load the profile + the kit(s)** for the concern (domain decomposition, data products & contracts, federated governance, self-serve platform, data quality/observability, interoperability/lineage).
 2. **Run the fit-check (stage 0)** — confirm mesh is the right answer before designing one.
-3. **Design or review against the profile first, the canon second.** The profile (cross-org, verifiable products, computational governance, provenance circuit-breaker, claim-class quality) is what applies here; `sources.md` is the generic floor it sits on and overrides.
+3. **Design or review against the profile first, the canon second.** The profile (cross-org, verifiable products, computational governance, provenance circuit-breaker, claim-class quality) is what applies here; `sources.md` is the generic floor the profile sits on and sometimes overrides.
 4. **Score/identify by the six dimensions** (`method.md`): domain decomposition & ownership · data-product design & contracts · federated computational governance & policy-as-code · self-serve platform leverage · data quality/observability/SLOs · interoperability & lineage. Cite every finding; rank trust/governance/one-way-door findings above style.
 
 ## Kit index
