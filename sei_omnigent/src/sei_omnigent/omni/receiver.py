@@ -642,12 +642,19 @@ class Receiver:
         await self._tracker.drain()
 
     async def aclose(self) -> None:
-        """Release the poster's resources (its HTTP pool) on shutdown — after the drain.
+        """Release owned resources (the poster's + the session factory's HTTP pools) on shutdown.
 
-        Drains first (in the lifespan) so in-flight investigations can post; then this closes
-        the client so a minted keep-alive connection pool is not leaked on a clean stop.
+        Drains first (in the lifespan) so in-flight investigations can post + finish; then this
+        closes the poster client and — if the session factory owns a closeable resource (the live
+        factory holds a standing omnigent client pool) — closes that too, so no minted keep-alive
+        connection pool is leaked on a clean stop. A factory with no ``aclose`` (the test fake) is
+        skipped. The factory closes AFTER the poster, both after the drain, so the last in-flight
+        investigation can still both reach its session and post its result.
         """
         await self.poster.aclose()
+        factory_aclose = getattr(self.session_factory, "aclose", None)
+        if callable(factory_aclose):
+            await factory_aclose()
 
 
 def build_app(receiver: Receiver) -> object:
