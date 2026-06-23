@@ -101,14 +101,14 @@ class PagerDutyPoster(Protocol):
     within-run retry or a restart-driven re-run re-scans and skips at the PD layer. The marker
     is best-effort (it narrows the window to PD's notes-list propagation lag), not an atomic
     once-guarantee. ``incident_key`` is the AM groupKey-derived dedup key the client maps to
-    PD's own ``incident_key``. A clean return means posted-or-deliberately-skipped (no open
-    incident / not enrolled / already-marked, all fail-closed); a raise means an unrecoverable
-    PD failure the chokepoint must escalate.
+    PD's own ``incident_key``. ``post_note`` returns ``True`` iff a note was actually written
+    and ``False`` on a fail-closed skip (no open incident / not enrolled / already-marked /
+    scan-unconfirmed); a raise means an unrecoverable PD failure the chokepoint must escalate.
 
     :meth:`aclose` releases the client's resources (the HTTP connection pool) on shutdown.
     """
 
-    async def post_note(self, incident_key: str, note: str) -> None: ...
+    async def post_note(self, incident_key: str, note: str) -> bool: ...
     async def aclose(self) -> None: ...
 
 
@@ -120,8 +120,9 @@ class LoggingPoster:
     networked implementation is :class:`_pagerduty.PagerDutyClient`.
     """
 
-    async def post_note(self, incident_key: str, note: str) -> None:
+    async def post_note(self, incident_key: str, note: str) -> bool:
         _log.info("walle.post_back incident_key=%s note_len=%d", incident_key, len(note))
+        return True
 
     async def aclose(self) -> None:
         # No network / no pool to release — the stub satisfies the Protocol with a no-op.
@@ -305,9 +306,11 @@ async def post_back(
     """The SINGLE egress chokepoint: redact → propose-only note → claim-ON-SUCCESS. Fail-closed.
 
     The one place a note leaves the receiver, ordered **post-then-claim** (claim provisionally,
-    post, keep the claim only on a clean post): claim under ``ctx.run_id`` → redact → post via
-    the client → on success keep the claim. A failed redact or post releases the claim (owner-
-    checked) and does NOT keep the slot, so the incident stays eligible for a corrected re-post.
+    post, keep the claim only when a note was actually written): claim under ``ctx.run_id`` →
+    redact → post via the client → keep the claim iff the poster reports it wrote a note. A
+    failed redact, a failed post, OR a fail-closed skip (the poster wrote nothing — no open
+    incident / not enrolled / already-marked / scan-unconfirmed) releases the claim (owner-
+    checked), so the incident stays eligible for a corrected re-post or a later re-fire.
     Double-propose across the in-memory claim's loss (restart) is narrowed at the PD layer: the
     client embeds a durable per-incident marker and skips a re-post whose marker is already
     visible. That guard is best-effort (it narrows the window to PD's notes-list propagation
@@ -345,7 +348,7 @@ async def post_back(
         return
 
     try:
-        await poster.post_note(ctx.incident_key, redacted)
+        posted = await poster.post_note(ctx.incident_key, redacted)
     except PagerDutyError:
         # The poster's designed fail-closed signal (timeout/4xx/exhausted retries). Release the
         # slot and re-raise so the supervisor escalates; this is recoverable (the PD marker keeps
@@ -367,6 +370,19 @@ async def post_back(
             ctx.incident_key,
         )
         raise
+
+    if not posted:
+        # The poster returned a fail-closed skip (no open incident / not enrolled / already-
+        # marked / scan-unconfirmed) — NO note was written. Release the slot so a later re-fire
+        # re-evaluates; keeping it would dedup away every future attempt for this incident. The
+        # PD marker (not this slot) is what prevents a double-post once a note actually exists.
+        dedup.unclaim_post(ctx.incident_key, ctx.run_id)
+        metrics.post(result="skipped")
+        _log.info(
+            "walle.post_back.skipped incident_key=%s — poster wrote nothing, slot released",
+            ctx.incident_key,
+        )
+        return
 
     metrics.post(result="posted")
     _log.info(

@@ -513,9 +513,30 @@ def test_scan_exhausts_a_short_list_then_posts() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    posted = asyncio.run(client.post_note(_KEY, "findings"))
+    assert posted is True  # a real write reports True
     assert len(rec.calls("POST", "/notes")) == 1
     assert len(rec.calls("GET", "/notes")) == 1  # one page exhausted the list
+
+
+def test_scan_empty_page_with_more_fails_closed_skips_post() -> None:
+    # PD returns an EMPTY notes page while still signalling `more` — the offset cannot advance
+    # and absence cannot be confirmed (a marker may sit on a later page). Treat as UNCONFIRMED
+    # (fail-closed skip), NOT as an exhausted list — else a marker is missed and a duplicate
+    # note is posted.
+    rec = _Recorder()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/incidents":
+            return _find_response([_incident()])
+        if request.url.path.endswith("/notes") and request.method == "GET":
+            return _notes_response([], more=True)  # empty page, but more pages claimed
+        return httpx.Response(201)
+
+    client = _client(handler, rec)
+    posted = asyncio.run(client.post_note(_KEY, "findings"))
+    assert posted is False  # fail-closed skip reports False
+    assert rec.calls("POST", "/notes") == []  # never posted on an unconfirmed scan
 
 
 # --- item 4: secrets are not in the repr --------------------------------------

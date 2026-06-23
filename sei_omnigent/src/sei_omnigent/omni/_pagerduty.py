@@ -254,12 +254,19 @@ class PagerDutyClient:
             "Content-Type": "application/json",
         }
 
-    async def post_note(self, incident_key: str, note: str) -> None:
+    async def post_note(self, incident_key: str, note: str) -> bool:
         """Find the WallE-enrolled open incident for ``incident_key`` and add ONE marked note.
 
-        Fail-closed at every gate: no open incident → skip; incident's service not enrolled →
-        skip; a WallE-marked note for this incident already exists → skip (idempotent). Only a
-        clean find + enrolled + un-marked incident gets the note. ``note`` is the
+        Returns ``True`` iff a note was actually written; ``False`` on every fail-closed skip.
+        The caller (``post_back``) keeps its dedup slot only on ``True`` — a skip releases it so
+        a later re-fire re-evaluates (the situation may have changed: an incident opened, or a
+        chatty incident's notes settled). ``False`` never risks a double-post: the PD marker is
+        the durable dedup, so a re-fire after a real post re-scans and skips.
+
+        Fail-closed at every gate (each returns ``False``): no open incident → skip; the id is
+        not a plain PD id → skip; the incident's service is not enrolled → skip; a WallE-marked
+        note already exists → skip (idempotent); the notes-scan is UNCONFIRMED (cap hit) → skip.
+        Only a clean find + enrolled + un-marked incident gets the note. ``note`` is the
         ALREADY-REDACTED text from the receiver's chokepoint — this client redacts nothing; it
         only prepends the idempotency marker before posting.
 
@@ -272,7 +279,7 @@ class PagerDutyClient:
                 "walle.pd.find.no_open_incident incident_key=%s — skipping (nothing to post to)",
                 incident_key,
             )
-            return
+            return False
 
         incident_id = str(incident.get("id", ""))
         service_id = str(_mapping(incident.get("service")).get("id", ""))
@@ -285,7 +292,7 @@ class PagerDutyClient:
                 incident_key,
                 incident_id,
             )
-            return
+            return False
 
         if service_id not in self.enrolled_service_ids:
             # DEFINING REQ 2: the found incident is not on a WallE-enrolled service. A forged
@@ -298,7 +305,7 @@ class PagerDutyClient:
                 incident_id,
                 service_id,
             )
-            return
+            return False
 
         scan = await self._scan_for_marker(incident_id, incident_key)
         if scan is _MarkerScan.FOUND:
@@ -310,7 +317,7 @@ class PagerDutyClient:
                 incident_key,
                 incident_id,
             )
-            return
+            return False
         if scan is _MarkerScan.UNCONFIRMED:
             # The notes-scan hit the page cap without finding the marker AND without exhausting
             # the list — we cannot confirm a prior WallE note is absent. Fail CLOSED: skip
@@ -322,7 +329,7 @@ class PagerDutyClient:
                 incident_id,
                 _NOTES_SCAN_MAX_PAGES,
             )
-            return
+            return False
 
         content = f"{note}\n\n{_marker(incident_key)}"
         await self._add_note(incident_id, content)
@@ -332,6 +339,7 @@ class PagerDutyClient:
             incident_id,
             len(content),
         )
+        return True
 
     async def _find_open_incident(self, incident_key: str) -> Mapping[str, object] | None:
         """GET the open (triggered/acknowledged) incident for the PD ``incident_key``, or None.
@@ -372,10 +380,14 @@ class PagerDutyClient:
             for entry in notes:
                 if isinstance(entry, Mapping) and marker in str(entry.get("content", "")):
                     return _MarkerScan.FOUND
-            if not _truthy(body.get("more")) or not notes:
-                # PD signals no further pages (or returned an empty page) → the list is
-                # exhausted and the marker is absent — safe to post.
+            if not _truthy(body.get("more")):
+                # PD signals no further pages → the list is exhausted and the marker is absent.
                 return _MarkerScan.ABSENT
+            if not notes:
+                # An empty page while ``more`` is still true: we cannot advance the offset (it
+                # would not move) and cannot confirm absence — a marker may sit on a later page.
+                # Fail CLOSED (UNCONFIRMED → the caller skips) rather than treat it as exhausted.
+                return _MarkerScan.UNCONFIRMED
             offset += len(notes)
         return _MarkerScan.UNCONFIRMED
 

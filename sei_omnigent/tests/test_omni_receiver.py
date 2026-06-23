@@ -95,8 +95,9 @@ class _RecordingPoster:
     def __init__(self) -> None:
         self.notes: list[tuple[str, str]] = []
 
-    async def post_note(self, incident_key: str, note: str) -> None:
+    async def post_note(self, incident_key: str, note: str) -> bool:
         self.notes.append((incident_key, note))
+        return True
 
 
 def _receiver(
@@ -337,6 +338,40 @@ def test_post_back_is_idempotent() -> None:
     assert len(poster.notes) == 1  # posted once; the second call shed
 
 
+def test_post_back_releases_the_slot_on_a_fail_closed_skip() -> None:
+    # The poster returned False (a fail-closed skip — no open incident / not enrolled / scan-
+    # unconfirmed): NO note was written, so the provisional slot must be RELEASED. Otherwise a
+    # later re-fire (when the incident opens / settles) is deduped away and never posts — the
+    # missed-post / denial-of-diagnosis the slot-retain bug would cause.
+    class _SkippingPoster:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def post_note(self, incident_key: str, note: str) -> bool:
+            self.calls += 1
+            return False  # always a fail-closed skip
+
+    poster = _SkippingPoster()
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
+    ctx = RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={})
+    outcome = RunOutcome(
+        terminal_reason=TerminalReason.GOAL_REACHED, truncated=False, tripped=None,
+        cancelled=False, elapsed_s=1.0, tokens=10, iterations=1, artifact="findings",
+    )
+    metrics = _receiver(lambda c: None).metrics
+
+    async def _twice() -> None:
+        for _ in range(2):
+            await post_back(ctx, outcome, dedup=dedup, poster=poster,
+                            redact=lambda n: n, metrics=metrics)
+
+    asyncio.run(_twice())
+    # Each re-fire re-attempts (the slot was released after the skip), not deduped away.
+    assert poster.calls == 2
+    # The slot is free — a corrected re-post / later re-fire can still claim it.
+    assert dedup.claim_post("inc-1", "probe") is True
+
+
 def test_post_back_fails_closed_on_redaction_error() -> None:
     # A redaction failure must post NOTHING (never raw text) — fail-closed escalation. The
     # once-slot is RELEASED (post-then-claim claims only on success), so a corrected re-post
@@ -370,11 +405,12 @@ def test_post_back_retries_after_a_transient_post_failure() -> None:
             self.attempts = 0
             self.notes: list[tuple[str, str]] = []
 
-        async def post_note(self, incident_key: str, note: str) -> None:
+        async def post_note(self, incident_key: str, note: str) -> bool:
             self.attempts += 1
             if self.attempts == 1:
                 raise RuntimeError("transient PD blip")
             self.notes.append((incident_key, note))
+            return True
 
     poster = _FlakyPoster()
     dedup = InMemoryDedupStore(now=lambda: 0.0)
@@ -403,7 +439,7 @@ def test_supervise_absorbs_a_post_failure_without_killing_the_task() -> None:
     # post_back re-raises a post failure; supervise_run absorbs it so the bg task ends cleanly
     # (no unretrieved-exception noise) and STILL releases the run-claim in finally.
     class _DeadPoster:
-        async def post_note(self, incident_key: str, note: str) -> None:
+        async def post_note(self, incident_key: str, note: str) -> bool:
             raise RuntimeError("PD unreachable after retries")
 
     dedup = InMemoryDedupStore(now=lambda: 0.0)
@@ -502,7 +538,7 @@ def test_supervise_surfaces_an_unexpected_poster_exception_distinctly(caplog) ->
     # post_failed warning — it is logged at exception level, distinct from a designed
     # PagerDutyError. The bg task still ends cleanly (finally runs, run-claim released).
     class _BuggyPoster:
-        async def post_note(self, incident_key: str, note: str) -> None:
+        async def post_note(self, incident_key: str, note: str) -> bool:
             raise KeyError("a programming bug in the poster")
 
         async def aclose(self) -> None:
@@ -542,7 +578,7 @@ def test_receiver_aclose_closes_the_poster() -> None:
     closed = {"n": 0}
 
     class _ClosablePoster:
-        async def post_note(self, incident_key: str, note: str) -> None: ...
+        async def post_note(self, incident_key: str, note: str) -> bool: ...
 
         async def aclose(self) -> None:
             closed["n"] += 1
