@@ -104,7 +104,13 @@ from omnigent.cli import (
     _default_db_uri,
     _default_artifact_location,
     _server_uvicorn_log_config,
+    main as omnigent_cli_main,
 )
+
+# Host-launcher coupling (PLT-715): the host-connect class the proxy-bearer patch wraps. Routed
+# through the shim so host_launch.py never imports omnigent directly (single-coupling-surface).
+# Re-verify HostProcess on bump. (The CLI `main` rides in the cli import block above.)
+from omnigent.host.connect import HostProcess
 
 __all__ = [
     "create_app",
@@ -148,4 +154,7 @@ __all__ = [
     "_default_db_uri",
     "_default_artifact_location",
     "_server_uvicorn_log_config",
+    # host-launcher coupling (PLT-715)
+    "omnigent_cli_main",
+    "HostProcess",
 ]
