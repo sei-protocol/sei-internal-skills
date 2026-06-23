@@ -12,6 +12,7 @@ Async tests run via ``asyncio.run`` (no pytest-asyncio dep — the suite stays p
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import pytest
 
@@ -357,7 +358,7 @@ def test_post_back_fails_closed_on_redaction_error() -> None:
     )
     assert poster.notes == []  # nothing posted — no raw-text leak
     # Once-slot released: a corrected re-post can re-claim (not stranded by a failed attempt).
-    assert dedup.claim_post("inc-1") is True
+    assert dedup.claim_post("inc-1", "probe") is True
 
 
 def test_post_back_retries_after_a_transient_post_failure() -> None:
@@ -395,7 +396,7 @@ def test_post_back_retries_after_a_transient_post_failure() -> None:
     asyncio.run(_flow())
     assert poster.attempts == 2
     assert len(poster.notes) == 1  # posted exactly once, on the retry
-    assert dedup.claim_post("inc-1") is False  # the once-slot is now claimed
+    assert dedup.claim_post("inc-1", "probe") is False  # the once-slot is now claimed
 
 
 def test_supervise_absorbs_a_post_failure_without_killing_the_task() -> None:
@@ -423,7 +424,7 @@ def test_supervise_absorbs_a_post_failure_without_killing_the_task() -> None:
     # The run-claim was released despite the post failure (finally ran); the once-slot is free
     # too (post failed → unclaimed), so a re-fire can re-attempt.
     assert dedup.claim_run("inc-1", "run-b", lease_s=100.0) is True
-    assert dedup.claim_post("inc-1") is True
+    assert dedup.claim_post("inc-1", "probe") is True
 
 
 # --- note rendering (the §3.5 truncated-vs-surveyed distinction) --------------
@@ -475,3 +476,77 @@ def test_within_cap_body_reaches_the_handler() -> None:
     client = starlette_testclient.TestClient(build_app(rec))
     resp = client.post("/webhook", json={"version": "4"})  # no bearer → handler returns 401
     assert resp.status_code == 401
+
+
+# --- item 5: the redactor must not default to a fail-open identity ------------
+
+
+def test_receiver_rejects_a_missing_redactor_at_boot() -> None:
+    # An unconfigured redactor is a fail-OPEN (raw text into PD) — boot must reject it loudly,
+    # matching the ReceiverConfig / load_webhook_token fail-closed-at-boot discipline.
+    with pytest.raises(ValueError, match="redact"):
+        Receiver(
+            config=ReceiverConfig(budget=_budget(), lease_s=1_100.0, now=lambda: 0.0),
+            dedup=InMemoryDedupStore(now=lambda: 0.0),
+            session_factory=lambda ctx: (_FakeSession([]), *_extractors()),
+            expected_token=_TOKEN,
+            # no redact= → the sentinel default → boot rejects it
+        )
+
+
+# --- item 8: an unexpected poster exception is surfaced distinctly ------------
+
+
+def test_supervise_surfaces_an_unexpected_poster_exception_distinctly(caplog) -> None:
+    # A PROGRAMMING bug in the poster (KeyError) must NOT degrade to the recoverable
+    # post_failed warning — it is logged at exception level, distinct from a designed
+    # PagerDutyError. The bg task still ends cleanly (finally runs, run-claim released).
+    class _BuggyPoster:
+        async def post_note(self, incident_key: str, note: str) -> None:
+            raise KeyError("a programming bug in the poster")
+
+        async def aclose(self) -> None:
+            return None
+
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
+    ctx = RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={})
+    with caplog.at_level(logging.ERROR, logger="sei_omnigent.omni.receiver"):
+        asyncio.run(
+            supervise_run(
+                ctx,
+                budget=_budget(),
+                session_factory=lambda c: (_FakeSession([]), *_extractors()),
+                dedup=dedup,
+                poster=_BuggyPoster(),
+                redact=lambda n: n,
+                now=lambda: 0.0,
+                metrics=_receiver(lambda c: None).metrics,
+            )
+        )
+    # Surfaced at exception/error level via the distinct unexpected-error log line, NOT the
+    # plain post_failed warning.
+    assert any(
+        rec.levelno >= logging.ERROR and "post_unexpected_error" in rec.message
+        for rec in caplog.records
+    )
+    assert not any("post_failed" in rec.message for rec in caplog.records)
+    # The bg task still ended cleanly: run-claim released, post-slot freed.
+    assert dedup.claim_run("inc-1", "run-b", lease_s=100.0) is True
+    assert dedup.claim_post("inc-1", "probe") is True
+
+
+# --- item 7: aclose closes the poster on shutdown -----------------------------
+
+
+def test_receiver_aclose_closes_the_poster() -> None:
+    closed = {"n": 0}
+
+    class _ClosablePoster:
+        async def post_note(self, incident_key: str, note: str) -> None: ...
+
+        async def aclose(self) -> None:
+            closed["n"] += 1
+
+    rec = _receiver(lambda ctx: (_FakeSession([]), *_extractors()), poster=_ClosablePoster())
+    asyncio.run(rec.aclose())
+    assert closed["n"] == 1

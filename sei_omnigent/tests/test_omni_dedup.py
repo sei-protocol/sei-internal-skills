@@ -77,6 +77,21 @@ def test_non_positive_lease_is_rejected() -> None:
 
 def test_post_claim_is_once_per_incident() -> None:
     store = InMemoryDedupStore(now=_Clock())
-    assert store.claim_post("inc-1") is True
-    assert store.claim_post("inc-1") is False  # the second post must shed (idempotent)
-    assert store.claim_post("inc-2") is True  # a different incident is independent
+    assert store.claim_post("inc-1", "run-a") is True
+    assert store.claim_post("inc-1", "run-b") is False  # the second post must shed (idempotent)
+    assert store.claim_post("inc-2", "run-a") is True  # a different incident is independent
+
+
+def test_unclaim_post_is_owner_checked() -> None:
+    # Owner-checked release (ABA guard, mirroring release_run): a non-owner unclaim is a no-op,
+    # the owner's unclaim frees the slot, and a stale owner's unclaim after a fresh claim does
+    # not free the new owner's slot.
+    store = InMemoryDedupStore(now=_Clock())
+    assert store.claim_post("inc-1", "run-a") is True
+    store.unclaim_post("inc-1", "run-b")  # not the owner → no-op
+    assert store.claim_post("inc-1", "run-c") is False  # still held by run-a
+    store.unclaim_post("inc-1", "run-a")  # the owner releases
+    assert store.claim_post("inc-1", "run-d") is True  # now re-claimable
+    # ABA: run-d holds it; run-a's stale unclaim must NOT free run-d's slot.
+    store.unclaim_post("inc-1", "run-a")
+    assert store.claim_post("inc-1", "run-e") is False

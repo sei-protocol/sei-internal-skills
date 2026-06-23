@@ -120,8 +120,8 @@ def _find_response(incidents: list[dict]) -> httpx.Response:
     return httpx.Response(200, json={"incidents": incidents})
 
 
-def _notes_response(notes: list[dict]) -> httpx.Response:
-    return httpx.Response(200, json={"notes": notes})
+def _notes_response(notes: list[dict], *, more: bool = False) -> httpx.Response:
+    return httpx.Response(200, json={"notes": notes, "more": more})
 
 
 # --- find-by-key --------------------------------------------------------------
@@ -397,3 +397,201 @@ def test_only_get_and_post_notes_methods_issued_at_runtime() -> None:
             assert req.url.path.endswith("/notes")
         else:
             raise AssertionError(f"unexpected method {req.method} {req.url.path}")
+
+
+# --- item 2: the non-idempotent POST is not blindly retried -------------------
+
+
+def test_note_post_read_timeout_is_not_retried_no_double_post() -> None:
+    # A POST that ReadTimeouts AFTER PD may have committed the note must NOT be re-issued — the
+    # transport must see exactly ONE POST (a re-POST would be a double note).
+    rec = _Recorder()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/incidents":
+            return _find_response([_incident()])
+        if request.url.path.endswith("/notes") and request.method == "GET":
+            return _notes_response([])
+        # The POST: simulate a read-timeout after the bytes were sent.
+        raise httpx.ReadTimeout("PD slow after commit", request=request)
+
+    client = _client(handler, rec, max_retries=5)
+    with pytest.raises(PagerDutyError):
+        asyncio.run(client.post_note(_KEY, "findings"))
+    assert len(rec.calls("POST", "/notes")) == 1  # exactly one POST — never re-issued
+
+
+def test_note_post_retryable_status_is_not_retried() -> None:
+    # A 503 on the POST: PD may have committed before erroring → do NOT re-POST (raise at once).
+    rec = _Recorder()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/incidents":
+            return _find_response([_incident()])
+        if request.url.path.endswith("/notes") and request.method == "GET":
+            return _notes_response([])
+        return httpx.Response(503)  # the POST
+
+    client = _client(handler, rec, max_retries=5)
+    with pytest.raises(PagerDutyError):
+        asyncio.run(client.post_note(_KEY, "findings"))
+    assert len(rec.calls("POST", "/notes")) == 1  # not retried on a retryable status either
+
+
+def test_note_post_connect_error_is_retried() -> None:
+    # A connect-phase error (bytes provably never sent) is the ONE retryable POST failure.
+    rec = _Recorder()
+    state = {"post_attempts": 0}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/incidents":
+            return _find_response([_incident()])
+        if request.url.path.endswith("/notes") and request.method == "GET":
+            return _notes_response([])
+        state["post_attempts"] += 1
+        if state["post_attempts"] == 1:
+            raise httpx.ConnectError("connection refused", request=request)
+        return httpx.Response(201)
+
+    client = _client(handler, rec)
+    asyncio.run(client.post_note(_KEY, "findings"))
+    assert state["post_attempts"] == 2  # the connect-phase failure was retried then succeeded
+    assert len(rec.calls("POST", "/notes")) == 2
+
+
+# --- item 3: paginated marker-scan + fail-closed on the hard cap --------------
+
+
+def test_marker_found_on_a_later_page_skips_the_post() -> None:
+    # The marker scrolls onto page 2 (page 1 is full + `more`); the scan paginates and finds it.
+    rec = _Recorder()
+    fillers = [{"content": f"human note {i}"} for i in range(100)]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/incidents":
+            return _find_response([_incident()])
+        if request.url.path.endswith("/notes") and request.method == "GET":
+            offset = int(request.url.params.get("offset", "0"))
+            if offset == 0:
+                return _notes_response(fillers, more=True)
+            return _notes_response([{"content": f"walle {_marker(_KEY)}"}], more=False)
+        return httpx.Response(201)
+
+    client = _client(handler, rec)
+    asyncio.run(client.post_note(_KEY, "findings"))
+    assert rec.calls("POST", "/notes") == []  # the marker on page 2 suppressed the post
+    assert len(rec.calls("GET", "/notes")) == 2  # paginated past page 1
+
+
+def test_scan_cap_hit_without_marker_fails_closed_skips_post() -> None:
+    # Every page is full + signals `more` and never carries the marker → the cap is hit without
+    # confirming absence → fail CLOSED (skip), never double-post on an unconfirmed scan.
+    rec = _Recorder()
+    full_page = [{"content": f"human note {i}"} for i in range(100)]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/incidents":
+            return _find_response([_incident()])
+        if request.url.path.endswith("/notes") and request.method == "GET":
+            return _notes_response(full_page, more=True)  # always more, never the marker
+        return httpx.Response(201)
+
+    client = _client(handler, rec)
+    asyncio.run(client.post_note(_KEY, "findings"))
+    assert rec.calls("POST", "/notes") == []  # cap hit, unconfirmed → fail-closed skip
+    assert len(rec.calls("GET", "/notes")) == 5  # bounded at the page cap
+
+
+def test_scan_exhausts_a_short_list_then_posts() -> None:
+    # A short list (no `more`) is fully scanned without the marker → ABSENT → posts.
+    rec = _Recorder()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/incidents":
+            return _find_response([_incident()])
+        if request.url.path.endswith("/notes") and request.method == "GET":
+            return _notes_response([{"content": "a human note"}], more=False)
+        return httpx.Response(201)
+
+    client = _client(handler, rec)
+    asyncio.run(client.post_note(_KEY, "findings"))
+    assert len(rec.calls("POST", "/notes")) == 1
+    assert len(rec.calls("GET", "/notes")) == 1  # one page exhausted the list
+
+
+# --- item 4: secrets are not in the repr --------------------------------------
+
+
+def test_repr_does_not_leak_token_or_email() -> None:
+    client = _client(lambda r: httpx.Response(200, json={"incidents": []}))
+    text = repr(client)
+    assert _TOKEN not in text
+    assert _FROM not in text
+
+
+# --- item 7: aclose closes the injected client --------------------------------
+
+
+def test_aclose_closes_the_injected_client() -> None:
+    client = _client(lambda r: httpx.Response(200, json={"incidents": []}))
+    asyncio.run(client.aclose())
+    assert client.http.is_closed
+
+
+# --- items 6 + 10 + 11: from_config boot guards + path-id validation ----------
+
+
+def _async_client() -> httpx.AsyncClient:
+    return httpx.AsyncClient(transport=httpx.MockTransport(lambda r: httpx.Response(200)))
+
+
+def test_from_config_rejects_empty_enrolled_set() -> None:
+    with pytest.raises(ValueError, match="enrolled_service_ids"):
+        PagerDutyClient.from_config(
+            from_email=_FROM, enrolled_service_ids=[], token=_TOKEN, http=_async_client()
+        )
+
+
+def test_from_config_rejects_whitespace_only_enrolled_ids() -> None:
+    with pytest.raises(ValueError, match="enrolled_service_ids"):
+        PagerDutyClient.from_config(
+            from_email=_FROM, enrolled_service_ids=["", "  "], token=_TOKEN, http=_async_client()
+        )
+
+
+def test_from_config_rejects_non_allowlisted_host() -> None:
+    with pytest.raises(ValueError, match="not a PagerDuty endpoint"):
+        PagerDutyClient.from_config(
+            from_email=_FROM,
+            enrolled_service_ids=[_ENROLLED],
+            token=_TOKEN,
+            base_url="https://evil.example.com",
+            http=_async_client(),
+        )
+
+
+def test_from_config_accepts_the_eu_endpoint() -> None:
+    client = PagerDutyClient.from_config(
+        from_email=_FROM,
+        enrolled_service_ids=[_ENROLLED],
+        token=_TOKEN,
+        base_url="https://api.eu.pagerduty.com",
+        http=_async_client(),
+    )
+    assert client.base_url == "https://api.eu.pagerduty.com"
+
+
+def test_malformed_incident_id_fails_closed_no_post() -> None:
+    # A PD response whose incident id is not a plain alphanumeric id (path-injection shaped)
+    # must fail closed — the id is never interpolated into a request path.
+    rec = _Recorder()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/incidents":
+            return _find_response([_incident(incident_id="../resolve")])
+        return httpx.Response(201)
+
+    client = _client(handler, rec)
+    asyncio.run(client.post_note(_KEY, "findings"))
+    assert rec.calls("POST", "/notes") == []  # never built a request from the bad id
+    assert rec.calls("GET", "/notes") == []

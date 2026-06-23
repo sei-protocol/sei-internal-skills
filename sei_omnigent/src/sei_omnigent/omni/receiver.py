@@ -59,6 +59,7 @@ from typing import Protocol
 
 from . import _alert
 from ._dedup import DedupStore
+from ._pagerduty import PagerDutyError
 from .driver import RunOutcome, SessionLike, drive_to_terminal
 from .engine import Budget, RunAdmission, TerminalReason, admit_post, admit_run, is_truncated
 
@@ -95,16 +96,20 @@ class PagerDutyPoster(Protocol):
     The receiver depends on this Protocol, never a concrete client. The real implementation is
     :class:`_pagerduty.PagerDutyClient`; :class:`LoggingPoster` is the no-network stub. The
     concrete client carries its OWN timeout + bounded retry (the chokepoint does not wrap it —
-    it fails closed on any raise) and makes the post idempotent on ``incident_key`` via a
-    durable per-incident note marker (PD notes have no native dedup), so a within-run retry OR
-    a restart-driven re-run is a no-op at the PD layer regardless of the receiver's in-memory
-    post-claim. ``incident_key`` is the AM groupKey-derived dedup key the client maps to PD's
-    own ``incident_key``. A clean return means posted-or-deliberately-skipped (no open
+    it fails closed on any raise) and narrows double-propose on ``incident_key`` via a durable
+    per-incident note marker (PD notes have no native dedup / conditional-create), so a
+    within-run retry or a restart-driven re-run re-scans and skips at the PD layer. The marker
+    is best-effort (it narrows the window to PD's notes-list propagation lag), not an atomic
+    once-guarantee. ``incident_key`` is the AM groupKey-derived dedup key the client maps to
+    PD's own ``incident_key``. A clean return means posted-or-deliberately-skipped (no open
     incident / not enrolled / already-marked, all fail-closed); a raise means an unrecoverable
     PD failure the chokepoint must escalate.
+
+    :meth:`aclose` releases the client's resources (the HTTP connection pool) on shutdown.
     """
 
     async def post_note(self, incident_key: str, note: str) -> None: ...
+    async def aclose(self) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -117,6 +122,20 @@ class LoggingPoster:
 
     async def post_note(self, incident_key: str, note: str) -> None:
         _log.info("walle.post_back incident_key=%s note_len=%d", incident_key, len(note))
+
+    async def aclose(self) -> None:
+        # No network / no pool to release — the stub satisfies the Protocol with a no-op.
+        return None
+
+
+def _require_redactor(_note: str) -> str:
+    """Sentinel default for ``Receiver.redact`` — its identity is the "unconfigured" marker.
+
+    Used only as a default-object identity check in ``Receiver.__post_init__``; never called
+    (a receiver that reaches a real post has a real redactor). If it ever is called, it
+    fail-closes loudly rather than leaking the raw note.
+    """
+    raise RuntimeError("Receiver.redact was not configured (fail-closed; see __post_init__).")
 
 
 # --- the session factory seam (the live glue is _omnigent_session) --------------
@@ -285,29 +304,29 @@ async def post_back(
 ) -> None:
     """The SINGLE egress chokepoint: redact → propose-only note → claim-ON-SUCCESS. Fail-closed.
 
-    The one place a note leaves the receiver, ordered **post-then-claim** (not claim-then-post):
-    redact → post via the client → and ONLY on a clean post ``dedup.claim_post`` (the in-memory
-    once-slot). The ordering is the reliability fix — a transient post failure now RAISES out of
-    here (so ``supervise_run`` surfaces it) WITHOUT having burned the once-slot, instead of the
-    old order's drop-the-note-forever. Double-propose is closed at the PD layer regardless of the
-    in-memory ``_posted``: the client embeds a durable per-incident marker and skips a re-post
-    whose marker already exists, so a retry OR a restart-driven re-run is a no-op even though the
-    restart lost ``_posted`` (the residual the ``_dedup`` module documented — now closed).
+    The one place a note leaves the receiver, ordered **post-then-claim** (claim provisionally,
+    post, keep the claim only on a clean post): claim under ``ctx.run_id`` → redact → post via
+    the client → on success keep the claim. A failed redact or post releases the claim (owner-
+    checked) and does NOT keep the slot, so the incident stays eligible for a corrected re-post.
+    Double-propose across the in-memory claim's loss (restart) is narrowed at the PD layer: the
+    client embeds a durable per-incident marker and skips a re-post whose marker is already
+    visible. That guard is best-effort (it narrows the window to PD's notes-list propagation
+    lag), not atomic — a true cross-process close is the multi-replica shared-store un-defer.
 
-    ``claim_post`` is checked FIRST as a cheap local fast-path: if THIS process already posted
-    for this incident, skip without a PD round-trip. It is no longer the load-bearing
-    once-guarantee (the PD marker is) — it is an in-process optimization that also keeps two
-    concurrent post_backs in one process from both hitting PD.
+    ``claim_post`` is the cheap local fast-path: if THIS process already holds the slot for this
+    incident, skip without a PD round-trip — it also keeps two concurrent post_backs in one
+    process from both hitting PD. It is a fast-path, not the durable guard (the PD marker is).
 
-    Fail-closed: a redaction error posts NOTHING (never raw text) and escalates; the once-slot
-    is NOT claimed, so the redaction-fail path leaves the incident eligible for a corrected
-    re-post. A post error likewise does not claim — it propagates so the supervisor logs the
-    escalation; the PD-side marker makes any subsequent re-attempt idempotent.
+    Fail-closed by error class: a redaction error or a designed ``PagerDutyError`` posts NOTHING
+    (never raw text), releases the claim, and escalates. A ``PagerDutyError`` is the poster's
+    own fail-closed signal → ``warning``; an UNEXPECTED exception from the poster (a programming
+    bug — ``KeyError``/``AttributeError``) is re-raised after logging at ``exception`` so it
+    surfaces distinctly, not folded into the recoverable post-failed narrative.
     """
-    if not admit_post(incident_already_posted=not dedup.claim_post(ctx.incident_key)):
-        # This process already posted for this incident — a within-process retry/re-run is a
-        # no-op (not an error): the human already has the proposal. (A cross-restart re-post is
-        # caught at the PD layer by the marker, not here.)
+    if not admit_post(incident_already_posted=not dedup.claim_post(ctx.incident_key, ctx.run_id)):
+        # This process already holds the post-slot for this incident — a within-process
+        # retry/re-run is a no-op (not an error): the human already has the proposal. (A
+        # cross-restart re-post is narrowed at the PD layer by the marker, not here.)
         metrics.post(result="deduped")
         _log.info("walle.post_back.deduped incident_key=%s", ctx.incident_key)
         return
@@ -315,9 +334,9 @@ async def post_back(
     try:
         redacted = redact(render_note(outcome, ctx))
     except Exception:
-        # Redaction fail-closed: NEVER fall through to raw text. Release the once-slot so a
-        # corrected re-post can still reach the human, and escalate.
-        dedup.unclaim_post(ctx.incident_key)
+        # Redaction fail-closed: NEVER fall through to raw text. Release the slot so a corrected
+        # re-post can still reach the human, and escalate.
+        dedup.unclaim_post(ctx.incident_key, ctx.run_id)
         metrics.post(result="error")
         _log.exception(
             "walle.post_back.redact_failed incident_key=%s — escalating, posted nothing",
@@ -327,14 +346,26 @@ async def post_back(
 
     try:
         await poster.post_note(ctx.incident_key, redacted)
-    except Exception:
-        # Post failure (after the client's own bounded retry exhausted): release the once-slot
-        # and re-raise so the supervisor escalates. The PD-side marker keeps any re-attempt
-        # from double-posting; the text was already redacted, so re-raising leaks nothing.
-        dedup.unclaim_post(ctx.incident_key)
+    except PagerDutyError:
+        # The poster's designed fail-closed signal (timeout/4xx/exhausted retries). Release the
+        # slot and re-raise so the supervisor escalates; this is recoverable (the PD marker keeps
+        # a re-attempt from double-posting). The text was already redacted → re-raising leaks
+        # nothing. warning, not exception — this is an expected failure mode, not a bug.
+        dedup.unclaim_post(ctx.incident_key, ctx.run_id)
         metrics.post(result="error")
-        _log.exception("walle.post_back.failed incident_key=%s — escalating, posted nothing",
-                       ctx.incident_key)
+        _log.warning("walle.post_back.failed incident_key=%s — escalating, posted nothing",
+                     ctx.incident_key)
+        raise
+    except Exception:
+        # An UNEXPECTED exception from the poster (e.g. a KeyError/AttributeError — a programming
+        # bug, not a fail-closed PD outcome). Release the slot and re-raise; log at exception so
+        # it is NOT folded into the recoverable post-failed narrative the supervisor absorbs.
+        dedup.unclaim_post(ctx.incident_key, ctx.run_id)
+        metrics.post(result="error")
+        _log.exception(
+            "walle.post_back.unexpected_error incident_key=%s — bug in the poster, escalating",
+            ctx.incident_key,
+        )
         raise
 
     metrics.post(result="posted")
@@ -406,12 +437,18 @@ async def supervise_run(
             await post_back(
                 ctx, outcome, dedup=dedup, poster=poster, redact=redact, metrics=metrics
             )
-        except Exception:
-            # post_back already escalated (logged + metric'd) and released the once-slot before
-            # re-raising; absorb it here so the bg task ends cleanly (no unretrieved-exception
-            # noise). The PD-side marker keeps a later re-fire's post idempotent — a dropped
-            # post here is recoverable, not a double-propose.
+        except PagerDutyError:
+            # A designed fail-closed PD failure: post_back already escalated (logged + metric'd)
+            # and released the slot before re-raising. Absorb it so the bg task ends cleanly (no
+            # unretrieved-exception noise) — the PD marker narrows a later re-fire's double-post,
+            # so a dropped post here is recoverable, not a double-propose.
             _log.warning("walle.supervise.post_failed incident_key=%s", ctx.incident_key)
+        except Exception:
+            # An UNEXPECTED exception escaped post_back (a programming bug, not a fail-closed PD
+            # outcome). Surface it distinctly at exception level — do NOT degrade a bug to the
+            # recoverable post_failed warning line. The bg task still ends cleanly (finally runs).
+            _log.exception("walle.supervise.post_unexpected_error incident_key=%s",
+                           ctx.incident_key)
     finally:
         dedup.release_run(ctx.incident_key, ctx.run_id)
 
@@ -482,10 +519,22 @@ class Receiver:
     session_factory: SessionFactory
     expected_token: str
     poster: PagerDutyPoster = field(default_factory=LoggingPoster)
-    redact: Callable[[str], str] = field(default=lambda note: note)
+    #: The redaction chokepoint. NO identity default — an identity redactor is a fail-OPEN that
+    #: pipes raw investigation text into PD. The sentinel default fails loud at boot
+    #: (__post_init__) so a receiver wired without a real redactor never starts.
+    redact: Callable[[str], str] = _require_redactor
     metrics: Metrics = field(default_factory=_NoopMetrics)
     goal_template: str = "Investigate this alert and root-cause it:\n{alert}"
     _tracker: _TaskTracker = field(default_factory=_TaskTracker, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        # Fail CLOSED at boot on a missing redactor (mirrors ReceiverConfig / load_webhook_token):
+        # a receiver with no redactor would leak raw text into PD on the first post.
+        if self.redact is _require_redactor:
+            raise ValueError(
+                "Receiver.redact is required: an unconfigured (identity) redactor would pipe "
+                "raw investigation text into PagerDuty. Inject the redaction chokepoint at boot."
+            )
 
     def handle_webhook(
         self, authorization: str | None, body: object
@@ -576,6 +625,14 @@ class Receiver:
         """Await in-flight investigations on shutdown (called from the app lifespan)."""
         await self._tracker.drain()
 
+    async def aclose(self) -> None:
+        """Release the poster's resources (its HTTP pool) on shutdown — after the drain.
+
+        Drains first (in the lifespan) so in-flight investigations can post; then this closes
+        the client so a minted keep-alive connection pool is not leaked on a clean stop.
+        """
+        await self.poster.aclose()
+
 
 def build_app(receiver: Receiver) -> object:
     """Adapt a :class:`Receiver` to a Starlette app with the ``/webhook`` route + lifespan.
@@ -600,9 +657,11 @@ def build_app(receiver: Receiver) -> object:
     @asynccontextmanager
     async def lifespan(app: object):
         yield
-        # Drain on shutdown so an in-flight investigation finishes (and posts) rather than
-        # being torn down mid-run — the SIGTERM grace window bounds it at the K8s layer.
+        # Drain on shutdown so an in-flight investigation finishes (and posts) rather than being
+        # torn down mid-run — the SIGTERM grace window bounds it at the K8s layer — THEN close
+        # the poster's HTTP pool (after the drain, so the last posts can still go out).
         await receiver.drain()
+        await receiver.aclose()
 
     async def webhook(request: Request) -> JSONResponse:
         authorization = request.headers.get("authorization")
