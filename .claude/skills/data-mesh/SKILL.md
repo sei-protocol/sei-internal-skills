@@ -44,7 +44,7 @@ Refusal conditions — they hold under "just design us a data mesh" pressure:
 | Self-serve platform — the three planes, cognitive load, bounded/scoped/push-capable access | `references/kit-self-serve-platform.md` |
 | Data quality & observability — the five pillars, OpenLineage, SLOs, the claim-class taxonomy, authenticity≠correctness | `references/kit-data-quality-observability.md` |
 | Interoperability & lineage — global addressing/identity, polyglot ports, extend-without-migration, the product-descriptor standards | `references/kit-interoperability-lineage.md` |
-| `lakehouse-fabric-adjacency`, `data-contract-tooling` | *(deferred — see `references/kit-TEMPLATE.md` roster; add by use)* |
+| `kit-lakehouse-fabric-adjacency`, `kit-data-contract-tooling`, `kit-migration-brownfield`, `kit-cost-finops` | *(deferred — see `references/kit-TEMPLATE.md` roster; add by use)* |
 
 ## How the data-platform-architect agent hooks in
 
@@ -59,4 +59,4 @@ The `data-platform-architect` persona's first step loads `data-mesh-profile.md` 
 
 ## What this skill defers
 
-The deferred kits in `references/kit-TEMPLATE.md`'s roster (`lakehouse-fabric-adjacency`, `data-contract-tooling`) — add by use. The data-mesh standards layer moves fast — treat ODCS version numbers, the ODPS/DPDS product-descriptor standards, and OpenLineage facets as point-in-time; query the current state at design time. The profile encodes a specific cross-org use-case; for a different data-architecture problem, apply the fit-check and the generic canon directly.
+The deferred kits in `references/kit-TEMPLATE.md`'s roster (`kit-lakehouse-fabric-adjacency`, `kit-data-contract-tooling`, `kit-migration-brownfield`, `kit-cost-finops`) — add by use. The data-mesh standards layer moves fast — treat ODCS version numbers, the ODPS/DPDS product-descriptor standards, and OpenLineage facets as point-in-time; query the current state at design time. The profile encodes a specific cross-org use-case; for a different data-architecture problem, apply the fit-check and the generic canon directly.

@@ -23,7 +23,7 @@ Making the data product's "**trustworthy**" attribute operational — measured S
 
 ## 4. Review cues
 
-- **Dimension 5 (data quality, observability & SLOs):** the five pillars monitored; SLOs published on products + breach-alerted; OpenLineage end-to-end; every claim carries a verification class; **only Class-I/II claims carry a correctness guarantee** (Class-III = signed opinion + consumer policy); authenticity is not conflated with correctness/truth; facts supersede rather than overwrite. *Basis:* `sources.md` §observability; profile §5, §3.
+- **Dimension 5 (data quality, observability & SLOs):** the five pillars monitored; SLOs published on products + breach-alerted; OpenLineage end-to-end; every claim carries a verification class; **only Class-I/II claims carry a correctness guarantee** (Class-III = signed opinion + consumer policy); authenticity is not conflated with correctness/truth; facts supersede rather than overwrite. **A Class-II claim is only as sound as its dispute layer's capture-resistance** — flag the challenge-window, bond-sizing, and adjudicator-selection as a security-review item for `/evm` + `security-specialist` (this is exactly where plutocratic capture bites). *Basis:* `sources.md` §observability; profile §5, §3.
 - **Dimension 2 (data products):** the contract's SLA/quality rules match what observability actually enforces. *Basis:* `sources.md` §data-contracts.
 
 ## 5. One-way doors in this concern

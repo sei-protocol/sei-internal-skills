@@ -58,3 +58,5 @@ Shipped:
 Deferred (add as a conforming kit when first encountered — the corpus grows by use):
 - `kit-lakehouse-fabric-adjacency` — data mesh vs data fabric vs lakehouse vs warehouse; when each fits; how they compose (the fit-check's deeper treatment).
 - `kit-data-contract-tooling` — deep ODCS v3.x authoring + the Data Contract CLI (validation, quality tests, format export) once contract tooling is in active use.
+- `kit-migration-brownfield` — incremental monolith/lakehouse→mesh adoption: strangler-fig domain extraction, dual-running contracts, the order to peel domains off (the "from here, how?" path, distinct from the cold-start single-player-first sequencing).
+- `kit-cost-finops` — cost discipline as a first-class review cue: per-assertion verifiable-certificate cost (content-addressing/signatures/anchors/proofs/attestation) vs claim value; reserve the expensive layers for large context or proven derivations.
