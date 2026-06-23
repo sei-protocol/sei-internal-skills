@@ -23,7 +23,7 @@ Grounded in the external canon (`sources.md`) and specialized by the profile's c
 
 5. **Data quality, observability & SLOs.** The five pillars (freshness, volume, distribution, schema, lineage) monitored; SLOs published on products; the "trustworthy" attribute made operational/measurable. Cross-org: the **claim-class taxonomy** governs what a quality guarantee can be — bond only **re-checkable Class-I** (re-execution/proof) **or dispute-adjudicable Class-II** (with a sound, capture-resistant dispute layer) claims; represent Class-III judgment as signed opinion + consumer policy, never a correctness bond; **authenticity ≠ correctness ≠ truth**. *Basis:* `sources.md` §observability; profile §5, §3.
 
-6. **Interoperability & lineage.** Global addressing/identity conventions; polyglot output ports; end-to-end lineage (**OpenLineage**); a coherent product-descriptor strategy (the unsettled ODCS/ODPS/DPDS layer — pick deliberately, don't assume a winner). Cross-org: the namespace **extends without migration** (dimensions ≠ identity); leaf grammars embed external standards verbatim. *Basis:* `sources.md` §interoperability, §observability; profile §7.
+6. **Interoperability & lineage.** Global addressing/identity conventions; polyglot output ports; end-to-end lineage (**OpenLineage**); a coherent contracts + product-descriptor strategy (contract-level **consolidating on ODCS**; the product-level **ODPS/DPDS** layer is unsettled — pick deliberately there, don't assume a winner). Cross-org: the namespace **extends without migration** (dimensions ≠ identity); leaf grammars embed external standards verbatim. *Basis:* `sources.md` §interoperability, §observability; profile §7.
 
 ## Design discipline (when authoring, not just reviewing)
 
