@@ -57,3 +57,34 @@ Verification: ruff clean; installed suite **270 passed**; omnigent-free **259 pa
 
 Carried VERIFY-ON-LIVE (honest, not asserted): the `OmnigentClient`/`SessionsChat.create` per-call `headers=` attachment mechanism — needs the prove-the-run.
 Routed to the manifest PR: the receiver SA + projected `omnigent-api` token volume (`OMNI_RECEIVER_PROXY_BEARER_TOKEN_FILE`) + the PD token mounted as a file + a default-deny netpol (AM→receiver ingress, receiver→server egress); agent-bundle integrity (supply-chain).
+
+## Round 3 (Cursor Bugbot — declared review-gate check)
+
+State: RESOLVED
+OpenFindings: 0
+Convergence: unanimous
+Blinded: yes
+Dissenter: systems-engineer
+
+Bugbot (NEUTRAL with 4 posted findings → gate fails closed → each assessed on merits against HEAD, two of them resolved by introspecting the INSTALLED omnigent 0.2.0 surface):
+
+| Finding | Sev | Verdict | Resolution |
+|---|---|---|---|
+| Watchdog timeout misclassified ERRORED | Med | REAL (regression from B1) | The `asyncio.timeout` watchdog raises builtins `TimeoutError`, which B1's blanket-except laundered into ERRORED. Added `except TimeoutError` → BUDGET_EXHAUSTED (wall-clock axis, cancelled) before the blanket. `httpx.TimeoutException` is NOT a `TimeoutError` subclass (verified) → transport timeouts correctly stay ERRORED. Both directions test-pinned. |
+| Live session auth wiring mismatch | High | REAL | `SessionsChat.create` has no `headers=` param (verified) — the per-create kwarg would `TypeError`. Auth moved to the `OmnigentClient` ctor: `headers={X-Forwarded-Email}` + `auth=_FreshBearerAuth` (httpx.Auth, fresh-per-request token read). Verified the client forwards `headers`/`auth` onto its shared httpx client + every namespace method/SSE stream uses it → both creds ride every request. |
+| Wrong OmnigentClient shutdown method | Med | FALSE POSITIVE | `OmnigentClient` has `close()`, NOT `aclose` (verified against installed 0.2.0) — Bugbot compared the stale spike. `client.close()` is correct; comment updated to verified-on-0.2.0. |
+| Lease default ignores wall clock | Med | REAL (footgun) | Default lease now derived = `wall_clock + 120` (clears the C1 `__post_init__` floor); a raised wall_clock boots instead of failing. 900→1020 unchanged. |
+
+Re-verify (systems-dissent + security; blinded) on the fix delta:
+- **systems-engineer (dissenter): RATIFY.** All 4 closed + verified against ground truth; watchdog×`aclosing` red-team clean (inner-to-outer unwind closes the stream before the single best-effort cancel); the auth rework also removed a latent `TypeError`. No cross-fix regression.
+- **security-specialist: APPROVE.** Verified the rework against the 0.2.0 *source* — the escalation is closed (X-Forwarded-Email can never travel without the bearer), fresh-per-request, fail-closed, no secret in repr.
+
+VERIFY-ON-LIVE collapsed this round (introspection-grounded, no longer assumed): `OmnigentClient.close()`, `SessionsChat.create`'s real signature, and the `headers`/`auth` forwarding onto the httpx client. **Remaining honest VERIFY-ON-LIVE:** that the server + kube-rbac-proxy sidecar actually *read* X-Forwarded-Email and TokenReview the bearer (env-dependent — the prove-the-run); `client.sessions` accessor + agent-bundle provisioning.
+
+Tracked non-blocking nits (recorded, not gating): the keystone test couples to the private `client._http` (add a "pinned-version internal" marker on the next omnigent bump); `_FreshBearerAuth.auth_flow` does a sync file read on the event loop (moot at `max_in_flight=1`; switch to async `auth_flow` at the N>1 un-defer soak).
+
+Verification: ruff clean; installed **274 passed**; omnigent-free **261 passed / 6 skipped**.
+
+### Round 3b (Bugbot re-scan on the fix — one follow-up)
+
+Bugbot re-scanned the #4 fix and flagged **"Stream TimeoutError misclassified as budget"** — a real refinement: my `except TimeoutError` over-caught, mapping ANY `TimeoutError` (incl. one raised *inside* the stream/session — an inner per-op deadline) to BUDGET_EXHAUSTED. (The R3 systems-dissent had called this exact case "acceptable/edge"; Bugbot escalated it correctly.) Fixed: gate the budget branch on `asyncio.timeout`'s `watchdog.expired()` (3.11+) — only a genuine watchdog expiry is BUDGET_EXHAUSTED; a non-watchdog `TimeoutError` falls through to ERRORED. New test `test_inner_timeouterror_stays_errored_not_budget`. ruff clean; installed **275 passed**; omnigent-free **262 passed / 6 skipped**.

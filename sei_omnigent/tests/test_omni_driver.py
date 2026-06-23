@@ -362,3 +362,34 @@ def test_httpx_transport_timeout_stays_errored_not_budget() -> None:
     assert outcome.terminal_reason is not TerminalReason.BUDGET_EXHAUSTED
     assert outcome.tripped is None  # no budget axis hit — it errored
     assert "transport read timed out" in outcome.artifact
+
+
+def test_inner_timeouterror_stays_errored_not_budget() -> None:
+    """A builtins TimeoutError raised from WITHIN the stream (an inner per-op deadline) → ERRORED.
+
+    Regression guard (Bugbot, on the #4 fix): the watchdog branch must gate on
+    ``watchdog.expired()``, NOT a bare ``except TimeoutError`` — else an inner TimeoutError (the
+    session/client's own per-operation deadline, not the wall-clock watchdog) is mislabeled a
+    BUDGET cut and misdirects the on-call to the wall-clock axis. The watchdog has NOT expired
+    here (the budget is generous, the raise is immediate), so this is a genuine run error.
+    """
+
+    class _InnerTimeoutSession(_FakeSession):
+        async def stream(self):
+            yield {"iter": True, "tokens": 1, "text": "partial"}
+            raise TimeoutError("inner per-operation deadline")  # builtins, NOT the watchdog
+
+    session = _InnerTimeoutSession([])
+    outcome = asyncio.run(
+        drive_to_terminal(
+            session,
+            _budget(),  # generous — the wall-clock watchdog is nowhere near
+            now=_fixed_clock(),
+            token_delta=_tokens,
+            is_iteration=_is_iter,
+            artifact_chunk=_chunk,
+        )
+    )
+    assert outcome.terminal_reason is TerminalReason.ERRORED  # NOT budget (watchdog didn't fire)
+    assert outcome.tripped is None
+    assert "inner per-operation deadline" in outcome.artifact
