@@ -363,8 +363,8 @@ def test_post_back_fails_closed_on_redaction_error() -> None:
 
 def test_post_back_retries_after_a_transient_post_failure() -> None:
     # Post-then-claim: a transient post failure does NOT consume the once-slot — it re-raises
-    # AND leaves the slot free, so a retry re-attempts the post (the old claim-then-post order
-    # dropped the note forever). On the retry's success the slot is claimed.
+    # AND leaves the slot free, so a retry re-attempts the post. On the retry's success the
+    # slot is claimed.
     class _FlakyPoster:
         def __init__(self) -> None:
             self.attempts = 0

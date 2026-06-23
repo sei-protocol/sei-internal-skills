@@ -106,7 +106,6 @@ def _client(handler, recorder: _Recorder | None = None, **over) -> PagerDutyClie
         # No real sleeps; deterministic backoff (rand=0 → sleep(0) on every retry).
         "sleep": _noop_sleep,
         "rand": lambda: 0.0,
-        "now": lambda: 0.0,
     }
     kwargs.update(over)
     return PagerDutyClient(**kwargs)
@@ -566,6 +565,19 @@ def test_from_config_rejects_non_allowlisted_host() -> None:
             enrolled_service_ids=[_ENROLLED],
             token=_TOKEN,
             base_url="https://evil.example.com",
+            http=_async_client(),
+        )
+
+
+def test_from_config_rejects_a_cleartext_http_endpoint() -> None:
+    # An allowlisted host over http:// would still send the PD token in cleartext — a passive
+    # MITM captures it. The scheme guard closes that exfil path alongside the host allowlist.
+    with pytest.raises(ValueError, match="not https"):
+        PagerDutyClient.from_config(
+            from_email=_FROM,
+            enrolled_service_ids=[_ENROLLED],
+            token=_TOKEN,
+            base_url="http://api.pagerduty.com",
             http=_async_client(),
         )
 

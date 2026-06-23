@@ -41,3 +41,30 @@ Verdicts: security = APPROVE-WITH-CHANGES · idiomatic = RATIFY (1 divergence-wi
 - **security 3a (MED) — forgeable predictable marker → denial-of-diagnosis.** Marker `[walle:run:<incident_key>]` is predictable; a PD-tenant insider with note-write can pre-plant it to suppress a real WallE diagnosis. Bounded: requires in-tenant note-write; WallE is propose-only (degrades a diagnostic aid, causes no wrong action); the human still has the original page. Fix = HMAC the marker under a manifest secret (removes forgeability, preserves restart idempotency). Security reviewer: defer-acceptable for MVP given a fully-trusted-operator PD tenant; **un-defer condition: any non-operator integration or external responder gains note-write on an enrolled service.** → **operator (Brandon) ACCEPTED-WITH-RISK for MVP, 2026-06-23**, on the named un-defer condition above (PD tenant is operator-only today). No code change this PR.
 
 Resolution plan: fix the 11 boundary findings (Round 2); 3a routed to the operator.
+
+## Round 2
+
+State: RESOLVED-WITH-ACCEPTED-RISK
+OpenFindings: 0
+Convergence: unanimous
+Blinded: yes
+Dissenter: systems-engineer
+
+Slate re-dispatched blinded on the fixed code, each verifying its own Round-1 findings closed (traced, not faith-accepted) + red-teaming the fixes.
+
+Verdicts:
+- **systems-engineer (dissenter): RATIFY.** All 4 HIGH/MED + LOW findings traced closed. Verified live that `ConnectTimeout` subclasses `TimeoutException` (not `ConnectError`) → the connect-vs-read retry split correctly retries only provably-unsent POSTs (B closed); pagination bounded + UNCONFIRMED fail-closed-skip confirmed (C closed); owner-token ABA tested, `admit_post` predicate wiring intact (F closed); prose now present-state best-effort (A closed). No new breaking bug.
+- **idiomatic-reviewer: RATIFY.** Round-1 carryovers resolved (history-prose gone; `base_url` single-source + allowlisted, internally consistent). New code (`_MarkerScan` enum, `idempotent` retry-split, `aclose`, `_require_redactor` sentinel, owner-token dict) reads native. One divergence-with-consequence (dead `now` seam) + 2 comment-discipline style nits — all applied (below).
+- **security-specialist: APPROVE-WITH-CHANGES → resolved.** All 5 Round-1 findings traced closed in code (host-allowlist confirmed a real `urlsplit` host parse — host-confusion/userinfo/path tricks rejected). One new finding + nits, all applied (below).
+
+Round-2 fix batch (commit pending) — applied exactly as specified:
+- **[security, correctness-grade] https-scheme guard** in `from_config` — completes 5a (host-allowlist left the cleartext-`http://` token-exfil vector open). Test `test_from_config_rejects_a_cleartext_http_endpoint`.
+- **[security, LOW] `_PD_ID_RE` → `\A[A-Z0-9]+\Z`** — closes the trailing-newline-slips-past-`$` residual (1a).
+- **[idiomatic, divergence-with-consequence] dropped the dead `now` injected seam** (+ `import time`, the test kwarg, 2 docstring refs) — config that read load-bearing but was wired to nothing (same class as the R1 `base_url` find).
+- **[idiomatic, style/comment-discipline] removed stale "follow-up PR" narration** at `receiver.py` banner + `LoggingPoster` docstring, and one test transition-narration parenthetical.
+
+Verification: ruff clean; full suite **221 passed**.
+
+Accepted-with-risk (operator, 2026-06-23): **3a** forgeable predictable marker → denial-of-diagnosis, MVP-accepted on the named un-defer condition (any non-operator/external note-write on an enrolled PD service). This is the sole reason the terminal is `RESOLVED-WITH-ACCEPTED-RISK` rather than `RESOLVED`.
+
+Deferred to the manifest/wiring PR (not an open finding against this component-only PR, which has no `Receiver`/client boot wiring): the production boot path must route through `from_config` (host/enrolled/scheme guards live there, not the raw ctor) and inject a real redactor — security's "production boot path covered" evidence lands there.

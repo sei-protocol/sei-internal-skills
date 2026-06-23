@@ -87,7 +87,7 @@ _DEFAULT_MAX_IN_FLIGHT = 16
 _MAX_BODY_BYTES = 1 << 20  # 1 MiB
 
 
-# --- the post-back interface (the real client is a follow-up PR) ----------------
+# --- the post-back interface ----------------------------------------------------
 
 
 class PagerDutyPoster(Protocol):
@@ -116,8 +116,8 @@ class PagerDutyPoster(Protocol):
 class LoggingPoster:
     """A no-op poster that logs the note — the spike's stand-in for the real PD client.
 
-    Lets the full flow (and its tests) run with NO PagerDuty token / network. The real
-    client lands in the follow-up PR; this one proves the chokepoint wiring end-to-end.
+    Lets the full flow (and its tests) run with NO PagerDuty token / network. The
+    networked implementation is :class:`_pagerduty.PagerDutyClient`.
     """
 
     async def post_note(self, incident_key: str, note: str) -> None:

@@ -45,7 +45,7 @@ note POST is NOT idempotent (no conditional-create) and a timeout after PD commi
 cannot be distinguished from a non-delivery, so it is NOT blindly retried: only a
 connect-phase error that guarantees the bytes were never sent is retried; any other POST
 failure raises and the next invocation's marker-scan dedups (best-effort, per the residual
-above). The http client + the clock + the sleep are injected so the timeout / retry /
+above). The http client and the sleep are injected so the timeout / retry /
 idempotency logic is provable against a fake transport with no live PagerDuty and no real
 wall-clock sleeps (mirrors ``driver.py`` / ``_dedup.py``'s injected-clock discipline).
 
@@ -62,7 +62,6 @@ import enum
 import logging
 import random
 import re
-import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from urllib.parse import urlsplit
@@ -81,7 +80,8 @@ _ALLOWED_HOSTS = frozenset({"api.pagerduty.com", "api.eu.pagerduty.com"})
 #: PD object ids are alphanumeric (e.g. ``PINCIDENT1``). Validated before an id is
 #: interpolated into a request path — defense-in-depth so the notes-only surface holds even
 #: against a compromised-PD response-injection (a crafted ``id`` cannot escape the path).
-_PD_ID_RE = re.compile(r"^[A-Z0-9]+$")
+#: ``\A..\Z`` (not ``^..$``) so a trailing newline cannot slip past the anchor.
+_PD_ID_RE = re.compile(r"\A[A-Z0-9]+\Z")
 
 #: The open-incident statuses the find-by-key query filters to. A resolved incident is not a
 #: live page — WallE has nothing to propose against a closed incident, so the find skips it.
@@ -161,8 +161,8 @@ class PagerDutyClient:
     """Propose-only PagerDuty REST v2 client: find-incident-by-dedup-key + add a marked note.
 
     Implements the receiver's ``PagerDutyPoster`` Protocol (``post_note(incident_key, note)``).
-    Fully dependency-injected — the ``httpx.AsyncClient``, the clock, and the sleep are passed
-    so the find / verify / idempotency / retry logic is provable against a fake transport.
+    Fully dependency-injected — the ``httpx.AsyncClient``, the sleep, and the jitter source are
+    passed so the find / verify / idempotency / retry logic is provable against a fake transport.
 
     Notes-only by construction: the only PD verbs this client issues are ``GET /incidents``,
     ``GET /incidents/{id}/notes``, and ``POST /incidents/{id}/notes``. No action endpoint is
@@ -182,8 +182,7 @@ class PagerDutyClient:
     max_retries: int = _DEFAULT_MAX_RETRIES
     backoff_base_s: float = _DEFAULT_BACKOFF_BASE_S
     backoff_max_s: float = _DEFAULT_BACKOFF_MAX_S
-    #: Injected for testability — defaults to real monotonic time + real async sleep.
-    now: Callable[[], float] = time.monotonic
+    #: Injected for testability — defaults to a real async sleep (a no-op in tests).
     sleep: Callable[[float], object] = asyncio.sleep
     #: Injected randomness for the jitter — seeded in tests for a deterministic backoff.
     rand: Callable[[], float] = random.random
@@ -210,7 +209,13 @@ class PagerDutyClient:
         allowlist (a tampered manifest must not redirect the token-bearing requests off-PD).
         """
         normalized_base = base_url.rstrip("/")
-        host = (urlsplit(normalized_base).hostname or "").lower()
+        split = urlsplit(normalized_base)
+        if split.scheme != "https":
+            raise ValueError(
+                f"base_url scheme {split.scheme!r} is not https; refusing to send the PD "
+                "token over cleartext (a passive MITM would capture it)."
+            )
+        host = (split.hostname or "").lower()
         if host not in _ALLOWED_HOSTS:
             raise ValueError(
                 f"base_url host {host!r} is not a PagerDuty endpoint "
