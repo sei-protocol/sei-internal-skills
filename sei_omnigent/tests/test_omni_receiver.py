@@ -12,6 +12,7 @@ Async tests run via ``asyncio.run`` (no pytest-asyncio dep — the suite stays p
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import pytest
 
@@ -94,8 +95,9 @@ class _RecordingPoster:
     def __init__(self) -> None:
         self.notes: list[tuple[str, str]] = []
 
-    async def post_note(self, incident_key: str, note: str) -> None:
+    async def post_note(self, incident_key: str, note: str) -> bool:
         self.notes.append((incident_key, note))
+        return True
 
 
 def _receiver(
@@ -336,9 +338,87 @@ def test_post_back_is_idempotent() -> None:
     assert len(poster.notes) == 1  # posted once; the second call shed
 
 
+def test_post_back_releases_the_slot_on_a_fail_closed_skip() -> None:
+    # The poster returned False (a fail-closed skip — no open incident / not enrolled / scan-
+    # unconfirmed): NO note was written, so the provisional slot must be RELEASED. Otherwise a
+    # later re-fire (when the incident opens / settles) is deduped away and never posts — the
+    # missed-post / denial-of-diagnosis the slot-retain bug would cause.
+    class _SkippingPoster:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def post_note(self, incident_key: str, note: str) -> bool:
+            self.calls += 1
+            return False  # always a fail-closed skip
+
+    poster = _SkippingPoster()
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
+    ctx = RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={})
+    outcome = RunOutcome(
+        terminal_reason=TerminalReason.GOAL_REACHED, truncated=False, tripped=None,
+        cancelled=False, elapsed_s=1.0, tokens=10, iterations=1, artifact="findings",
+    )
+    metrics = _receiver(lambda c: None).metrics
+
+    async def _twice() -> None:
+        for _ in range(2):
+            await post_back(ctx, outcome, dedup=dedup, poster=poster,
+                            redact=lambda n: n, metrics=metrics)
+
+    asyncio.run(_twice())
+    # Each re-fire re-attempts (the slot was released after the skip), not deduped away.
+    assert poster.calls == 2
+    # The slot is free — a corrected re-post / later re-fire can still claim it.
+    assert dedup.claim_post("inc-1", "probe") is True
+
+
+def test_post_back_does_not_double_post_across_a_restart_rescan() -> None:
+    # The composition the slot-release fix turns on, pinned directly: run A posts a real note
+    # (True, keeps the slot); a restart loses the in-memory slot; run B re-fires against a FRESH
+    # dedup store and the poster now reports the marker is already in PD (False) → slot released,
+    # NO second note. Exactly one real write — the durable PD marker, not the in-memory slot, is
+    # the cross-restart guard.
+    class _MarkerAwarePoster:
+        def __init__(self) -> None:
+            self.writes = 0
+
+        async def post_note(self, incident_key: str, note: str) -> bool:
+            if self.writes == 0:  # first run: marker absent → a real write
+                self.writes += 1
+                return True
+            return False  # re-fire: the marker is already in PD → fail-closed skip
+
+    poster = _MarkerAwarePoster()
+    outcome = RunOutcome(
+        terminal_reason=TerminalReason.GOAL_REACHED, truncated=False, tripped=None,
+        cancelled=False, elapsed_s=1.0, tokens=10, iterations=1, artifact="findings",
+    )
+    metrics = _receiver(lambda c: None).metrics
+
+    async def _restart_rescan() -> None:
+        # Run A — fresh store, real post.
+        await post_back(
+            RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={}),
+            outcome, dedup=InMemoryDedupStore(now=lambda: 0.0), poster=poster,
+            redact=lambda n: n, metrics=metrics,
+        )
+        # Restart: a brand-new store (the in-memory slot is gone). Run B re-fires.
+        await post_back(
+            RunContext(incident_key="inc-1", run_id="run-b", goal="g", alert={}),
+            outcome, dedup=InMemoryDedupStore(now=lambda: 0.0), poster=poster,
+            redact=lambda n: n, metrics=metrics,
+        )
+
+    asyncio.run(_restart_rescan())
+    assert poster.writes == 1  # exactly one real note despite the re-fire after the lost slot
+
+
 def test_post_back_fails_closed_on_redaction_error() -> None:
-    # A redaction failure must post NOTHING (never raw text) — fail-closed escalation.
+    # A redaction failure must post NOTHING (never raw text) — fail-closed escalation. The
+    # once-slot is RELEASED (post-then-claim claims only on success), so a corrected re-post
+    # is not locked out.
     poster = _RecordingPoster()
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
 
     def boom_redact(note: str) -> str:
         raise RuntimeError("redaction engine down")
@@ -349,10 +429,79 @@ def test_post_back_fails_closed_on_redaction_error() -> None:
         cancelled=False, elapsed_s=1.0, tokens=10, iterations=1, artifact="secrets here",
     )
     asyncio.run(
-        post_back(ctx, outcome, dedup=InMemoryDedupStore(now=lambda: 0.0), poster=poster,
+        post_back(ctx, outcome, dedup=dedup, poster=poster,
                   redact=boom_redact, metrics=_receiver(lambda c: None).metrics)
     )
     assert poster.notes == []  # nothing posted — no raw-text leak
+    # Once-slot released: a corrected re-post can re-claim (not stranded by a failed attempt).
+    assert dedup.claim_post("inc-1", "probe") is True
+
+
+def test_post_back_retries_after_a_transient_post_failure() -> None:
+    # Post-then-claim: a transient post failure does NOT consume the once-slot — it re-raises
+    # AND leaves the slot free, so a retry re-attempts the post. On the retry's success the
+    # slot is claimed.
+    class _FlakyPoster:
+        def __init__(self) -> None:
+            self.attempts = 0
+            self.notes: list[tuple[str, str]] = []
+
+        async def post_note(self, incident_key: str, note: str) -> bool:
+            self.attempts += 1
+            if self.attempts == 1:
+                raise RuntimeError("transient PD blip")
+            self.notes.append((incident_key, note))
+            return True
+
+    poster = _FlakyPoster()
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
+    ctx = RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={})
+    outcome = RunOutcome(
+        terminal_reason=TerminalReason.GOAL_REACHED, truncated=False, tripped=None,
+        cancelled=False, elapsed_s=1.0, tokens=10, iterations=1, artifact="findings",
+    )
+    metrics = _receiver(lambda c: None).metrics
+
+    async def _flow() -> None:
+        with pytest.raises(RuntimeError):
+            await post_back(ctx, outcome, dedup=dedup, poster=poster,
+                            redact=lambda n: n, metrics=metrics)
+        # The slot is free after the failed attempt → the retry re-attempts and succeeds.
+        await post_back(ctx, outcome, dedup=dedup, poster=poster,
+                        redact=lambda n: n, metrics=metrics)
+
+    asyncio.run(_flow())
+    assert poster.attempts == 2
+    assert len(poster.notes) == 1  # posted exactly once, on the retry
+    assert dedup.claim_post("inc-1", "probe") is False  # the once-slot is now claimed
+
+
+def test_supervise_absorbs_a_post_failure_without_killing_the_task() -> None:
+    # post_back re-raises a post failure; supervise_run absorbs it so the bg task ends cleanly
+    # (no unretrieved-exception noise) and STILL releases the run-claim in finally.
+    class _DeadPoster:
+        async def post_note(self, incident_key: str, note: str) -> bool:
+            raise RuntimeError("PD unreachable after retries")
+
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
+    ctx = RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={})
+
+    asyncio.run(
+        supervise_run(
+            ctx,
+            budget=_budget(),
+            session_factory=lambda c: (_FakeSession([]), *_extractors()),
+            dedup=dedup,
+            poster=_DeadPoster(),
+            redact=lambda n: n,
+            now=lambda: 0.0,
+            metrics=_receiver(lambda c: None).metrics,
+        )
+    )
+    # The run-claim was released despite the post failure (finally ran); the once-slot is free
+    # too (post failed → unclaimed), so a re-fire can re-attempt.
+    assert dedup.claim_run("inc-1", "run-b", lease_s=100.0) is True
+    assert dedup.claim_post("inc-1", "probe") is True
 
 
 # --- note rendering (the §3.5 truncated-vs-surveyed distinction) --------------
@@ -404,3 +553,77 @@ def test_within_cap_body_reaches_the_handler() -> None:
     client = starlette_testclient.TestClient(build_app(rec))
     resp = client.post("/webhook", json={"version": "4"})  # no bearer → handler returns 401
     assert resp.status_code == 401
+
+
+# --- item 5: the redactor must not default to a fail-open identity ------------
+
+
+def test_receiver_rejects_a_missing_redactor_at_boot() -> None:
+    # An unconfigured redactor is a fail-OPEN (raw text into PD) — boot must reject it loudly,
+    # matching the ReceiverConfig / load_webhook_token fail-closed-at-boot discipline.
+    with pytest.raises(ValueError, match="redact"):
+        Receiver(
+            config=ReceiverConfig(budget=_budget(), lease_s=1_100.0, now=lambda: 0.0),
+            dedup=InMemoryDedupStore(now=lambda: 0.0),
+            session_factory=lambda ctx: (_FakeSession([]), *_extractors()),
+            expected_token=_TOKEN,
+            # no redact= → the sentinel default → boot rejects it
+        )
+
+
+# --- item 8: an unexpected poster exception is surfaced distinctly ------------
+
+
+def test_supervise_surfaces_an_unexpected_poster_exception_distinctly(caplog) -> None:
+    # A PROGRAMMING bug in the poster (KeyError) must NOT degrade to the recoverable
+    # post_failed warning — it is logged at exception level, distinct from a designed
+    # PagerDutyError. The bg task still ends cleanly (finally runs, run-claim released).
+    class _BuggyPoster:
+        async def post_note(self, incident_key: str, note: str) -> bool:
+            raise KeyError("a programming bug in the poster")
+
+        async def aclose(self) -> None:
+            return None
+
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
+    ctx = RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={})
+    with caplog.at_level(logging.ERROR, logger="sei_omnigent.omni.receiver"):
+        asyncio.run(
+            supervise_run(
+                ctx,
+                budget=_budget(),
+                session_factory=lambda c: (_FakeSession([]), *_extractors()),
+                dedup=dedup,
+                poster=_BuggyPoster(),
+                redact=lambda n: n,
+                now=lambda: 0.0,
+                metrics=_receiver(lambda c: None).metrics,
+            )
+        )
+    # Surfaced at exception/error level via the distinct unexpected-error log line, NOT the
+    # plain post_failed warning.
+    assert any(
+        rec.levelno >= logging.ERROR and "post_unexpected_error" in rec.message
+        for rec in caplog.records
+    )
+    assert not any("post_failed" in rec.message for rec in caplog.records)
+    # The bg task still ended cleanly: run-claim released, post-slot freed.
+    assert dedup.claim_run("inc-1", "run-b", lease_s=100.0) is True
+    assert dedup.claim_post("inc-1", "probe") is True
+
+
+# --- item 7: aclose closes the poster on shutdown -----------------------------
+
+
+def test_receiver_aclose_closes_the_poster() -> None:
+    closed = {"n": 0}
+
+    class _ClosablePoster:
+        async def post_note(self, incident_key: str, note: str) -> bool: ...
+
+        async def aclose(self) -> None:
+            closed["n"] += 1
+
+    rec = _receiver(lambda ctx: (_FakeSession([]), *_extractors()), poster=_ClosablePoster())
+    asyncio.run(rec.aclose())
+    assert closed["n"] == 1

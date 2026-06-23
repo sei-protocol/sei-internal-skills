@@ -17,6 +17,12 @@ dependencies = [
     # `uvicorn[standard]>=0.30,<1` so the two constraints can never conflict at
     # resolve time.
     "uvicorn>=0.30,<1",
+    # The omni receiver + PagerDuty client import httpx by name (PLT-715). Like
+    # uvicorn it rides in transitively via omnigent, but the overlay imports it
+    # directly (and the omnigent-free unit suite mocks httpx.MockTransport), so
+    # declare it explicitly. Range mirrors omnigent's own `httpx>=0.27,<1` so the
+    # two constraints can never conflict at resolve time.
+    "httpx>=0.27,<1",
     # --- Scoped pre-release allowance (PLT-735) ----------------------------
     # omnigent==0.1.1 constrains its opentelemetry-instrumentation-* deps as
     # `<1,>=0`, and those OTel projects publish ONLY pre-releases (0.XXbN) on

@@ -16,12 +16,14 @@ incident permanently in SHED — even legitimate retries shed. The lease expiry 
 crash-recovery path: after ``lease_s`` a fresh trigger re-wins the claim.
 
 Both state maps (``_posted`` and ``_runs``) are process-local and lost on restart. For
-``_runs`` that is benign — the runs they leased died with the process too. For ``_posted``
-it is a bounded double-propose window: a re-fired incident posted-to before a restart will
-``claim_post`` again → a second note. The MVP accepts it (single-replica, restarts rare, a
-duplicate note is annoying-not-dangerous); the close (PD-side idempotency key, else a
-durable posted-claim) lands with the PagerDutyPoster follow-up. Un-defer trigger + the
-fix-preference order are in Design 12 §2 / the PLT-715 follow-up PR.
+``_runs`` that is benign — the runs they leased died with the process too. ``_posted`` is the
+within-process post fast-path + the post-then-claim provisional slot (``unclaim_post`` releases
+it on a failed post so a corrected re-post is not locked out); it is NOT the durable
+double-propose guard. The PD-layer guard is the ``PagerDutyClient``'s per-incident note
+marker, which NARROWS but does not atomically close the double-propose window (PD's notes
+endpoint has no conditional-create, so it remains best-effort under notes-list propagation
+lag). RESIDUAL: a true cross-process once-guarantee needs a shared claim store (the
+multi-replica un-defer).
 
 Design 12 §2; engine.admit_run / engine.admit_post preconditions.
 """
@@ -65,13 +67,26 @@ class DedupStore(Protocol):
         """
         ...
 
-    def claim_post(self, incident_key: str) -> bool:
-        """Atomically claim the post slot for ``incident_key`` (the egress chokepoint).
+    def claim_post(self, incident_key: str, owner_token: str) -> bool:
+        """Atomically claim the post slot for ``incident_key`` under ``owner_token``.
 
-        Returns ``True`` exactly once per incident (the first caller wins → posts),
-        ``False`` thereafter (a re-run / retry must NOT emit a second note). Feeds
-        ``engine.admit_post(incident_already_posted=not claim_post(...))``. See the module
-        RESIDUAL: an in-memory claim is lost on restart (double-propose window).
+        Returns ``True`` the first time a caller claims for this incident (→ proceed to
+        post), ``False`` thereafter. The claim is PROVISIONAL under the post-then-claim
+        ordering: the chokepoint claims, attempts the post, and :meth:`unclaim_post` releases
+        the slot (owner-checked) on a redaction/post failure so a corrected re-post is not
+        locked out. Feeds ``engine.admit_post(incident_already_posted=not claim_post(...))``.
+        This is a within-process fast-path, NOT a durable once-guarantee — the PD-layer guard
+        is the PagerDutyClient's per-incident note marker (best-effort, narrows the window).
+        """
+        ...
+
+    def unclaim_post(self, incident_key: str, owner_token: str) -> None:
+        """Release a provisional post-claim for ``incident_key`` IFF ``owner_token`` owns it.
+
+        Owner-checked (mirroring :meth:`release_run`): the chokepoint releases only the slot it
+        itself claimed, so a release racing a different caller's fresh claim does not free that
+        caller's slot (an ABA hazard a shared-store impl would otherwise carry). Unclaiming a
+        slot that was never claimed, or one now held by a different owner, is a no-op.
         """
         ...
 
@@ -99,7 +114,9 @@ class InMemoryDedupStore:
     now: Callable[[], float] = field(default=time.monotonic)
     _lock: threading.Lock = field(default_factory=threading.Lock, init=False, repr=False)
     _runs: dict[str, _Lease] = field(default_factory=dict, init=False, repr=False)
-    _posted: set[str] = field(default_factory=set, init=False, repr=False)
+    #: incident_key → the owner_token that holds the provisional post-slot (owner-checked
+    #: release, mirroring _runs). A non-membership means the slot is free.
+    _posted: dict[str, str] = field(default_factory=dict, init=False, repr=False)
 
     def claim_run(self, incident_key: str, run_id: str, *, lease_s: float) -> bool:
         if lease_s <= 0:
@@ -122,9 +139,14 @@ class InMemoryDedupStore:
             if existing is not None and existing.run_id == run_id:
                 del self._runs[incident_key]
 
-    def claim_post(self, incident_key: str) -> bool:
+    def claim_post(self, incident_key: str, owner_token: str) -> bool:
         with self._lock:
             if incident_key in self._posted:
                 return False
-            self._posted.add(incident_key)
+            self._posted[incident_key] = owner_token
             return True
+
+    def unclaim_post(self, incident_key: str, owner_token: str) -> None:
+        with self._lock:
+            if self._posted.get(incident_key) == owner_token:
+                del self._posted[incident_key]
