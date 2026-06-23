@@ -337,8 +337,11 @@ def test_post_back_is_idempotent() -> None:
 
 
 def test_post_back_fails_closed_on_redaction_error() -> None:
-    # A redaction failure must post NOTHING (never raw text) — fail-closed escalation.
+    # A redaction failure must post NOTHING (never raw text) — fail-closed escalation. The
+    # once-slot is RELEASED (post-then-claim claims only on success), so a corrected re-post
+    # is not locked out.
     poster = _RecordingPoster()
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
 
     def boom_redact(note: str) -> str:
         raise RuntimeError("redaction engine down")
@@ -349,10 +352,78 @@ def test_post_back_fails_closed_on_redaction_error() -> None:
         cancelled=False, elapsed_s=1.0, tokens=10, iterations=1, artifact="secrets here",
     )
     asyncio.run(
-        post_back(ctx, outcome, dedup=InMemoryDedupStore(now=lambda: 0.0), poster=poster,
+        post_back(ctx, outcome, dedup=dedup, poster=poster,
                   redact=boom_redact, metrics=_receiver(lambda c: None).metrics)
     )
     assert poster.notes == []  # nothing posted — no raw-text leak
+    # Once-slot released: a corrected re-post can re-claim (not stranded by a failed attempt).
+    assert dedup.claim_post("inc-1") is True
+
+
+def test_post_back_retries_after_a_transient_post_failure() -> None:
+    # Post-then-claim: a transient post failure does NOT consume the once-slot — it re-raises
+    # AND leaves the slot free, so a retry re-attempts the post (the old claim-then-post order
+    # dropped the note forever). On the retry's success the slot is claimed.
+    class _FlakyPoster:
+        def __init__(self) -> None:
+            self.attempts = 0
+            self.notes: list[tuple[str, str]] = []
+
+        async def post_note(self, incident_key: str, note: str) -> None:
+            self.attempts += 1
+            if self.attempts == 1:
+                raise RuntimeError("transient PD blip")
+            self.notes.append((incident_key, note))
+
+    poster = _FlakyPoster()
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
+    ctx = RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={})
+    outcome = RunOutcome(
+        terminal_reason=TerminalReason.GOAL_REACHED, truncated=False, tripped=None,
+        cancelled=False, elapsed_s=1.0, tokens=10, iterations=1, artifact="findings",
+    )
+    metrics = _receiver(lambda c: None).metrics
+
+    async def _flow() -> None:
+        with pytest.raises(RuntimeError):
+            await post_back(ctx, outcome, dedup=dedup, poster=poster,
+                            redact=lambda n: n, metrics=metrics)
+        # The slot is free after the failed attempt → the retry re-attempts and succeeds.
+        await post_back(ctx, outcome, dedup=dedup, poster=poster,
+                        redact=lambda n: n, metrics=metrics)
+
+    asyncio.run(_flow())
+    assert poster.attempts == 2
+    assert len(poster.notes) == 1  # posted exactly once, on the retry
+    assert dedup.claim_post("inc-1") is False  # the once-slot is now claimed
+
+
+def test_supervise_absorbs_a_post_failure_without_killing_the_task() -> None:
+    # post_back re-raises a post failure; supervise_run absorbs it so the bg task ends cleanly
+    # (no unretrieved-exception noise) and STILL releases the run-claim in finally.
+    class _DeadPoster:
+        async def post_note(self, incident_key: str, note: str) -> None:
+            raise RuntimeError("PD unreachable after retries")
+
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
+    ctx = RunContext(incident_key="inc-1", run_id="run-a", goal="g", alert={})
+
+    asyncio.run(
+        supervise_run(
+            ctx,
+            budget=_budget(),
+            session_factory=lambda c: (_FakeSession([]), *_extractors()),
+            dedup=dedup,
+            poster=_DeadPoster(),
+            redact=lambda n: n,
+            now=lambda: 0.0,
+            metrics=_receiver(lambda c: None).metrics,
+        )
+    )
+    # The run-claim was released despite the post failure (finally ran); the once-slot is free
+    # too (post failed → unclaimed), so a re-fire can re-attempt.
+    assert dedup.claim_run("inc-1", "run-b", lease_s=100.0) is True
+    assert dedup.claim_post("inc-1") is True
 
 
 # --- note rendering (the §3.5 truncated-vs-surveyed distinction) --------------

@@ -35,9 +35,11 @@ PARTIAL artifact (``is_truncated`` headline), never an all-clear.
 
 BOUNDARIES (the manifest injects, this module receives): the inbound bearer
 (``OMNIGENT_TRIGGER_WEBHOOK_TOKEN_FILE``), the ``omni-root-cause`` token + ``host_id`` the
-session factory binds to, and the PD token the real poster carries. The real
-:class:`PagerDutyPoster` client is a FOLLOW-UP PR — this module depends only on the
-Protocol; the spike ships :class:`LoggingPoster`.
+session factory binds to, and the PD token (notes-only) + WallE PD user email + enrolled
+service-set the real poster carries. The real client is
+:class:`_pagerduty.PagerDutyClient` (propose-only / notes-only, marker-idempotent); this
+module depends only on the :class:`PagerDutyPoster` Protocol and defaults to
+:class:`LoggingPoster` (the no-network stub).
 
 Design 12 §2, §3.5; INV-6.
 """
@@ -90,14 +92,16 @@ _MAX_BODY_BYTES = 1 << 20  # 1 MiB
 class PagerDutyPoster(Protocol):
     """The post-back seam: find the incident by dedup key, add a note. Propose-only.
 
-    The receiver depends on this Protocol, never a concrete client — the real PD client
-    (with its token, find-incident-by-dedup-key call, and the idempotency-key on the note
-    that closes the double-propose window) is a FOLLOW-UP PR. ``post_note`` MUST carry its
-    OWN timeout + bounded retry (the receiver does not wrap it — the chokepoint fails closed
-    on any raise). ``incident_key`` is the AM groupKey-derived dedup key; a real client maps
-    it to the PD incident (PD's own ``dedup_key``) and SHOULD send it as the note's
-    idempotency key (the preferred close for the restart double-propose window, see
-    ``_dedup`` RESIDUAL).
+    The receiver depends on this Protocol, never a concrete client. The real implementation is
+    :class:`_pagerduty.PagerDutyClient`; :class:`LoggingPoster` is the no-network stub. The
+    concrete client carries its OWN timeout + bounded retry (the chokepoint does not wrap it —
+    it fails closed on any raise) and makes the post idempotent on ``incident_key`` via a
+    durable per-incident note marker (PD notes have no native dedup), so a within-run retry OR
+    a restart-driven re-run is a no-op at the PD layer regardless of the receiver's in-memory
+    post-claim. ``incident_key`` is the AM groupKey-derived dedup key the client maps to PD's
+    own ``incident_key``. A clean return means posted-or-deliberately-skipped (no open
+    incident / not enrolled / already-marked, all fail-closed); a raise means an unrecoverable
+    PD failure the chokepoint must escalate.
     """
 
     async def post_note(self, incident_key: str, note: str) -> None: ...
@@ -279,34 +283,59 @@ async def post_back(
     redact: Callable[[str], str],
     metrics: Metrics,
 ) -> None:
-    """The SINGLE egress chokepoint: admit-once → redact → propose-only note. Fail-closed.
+    """The SINGLE egress chokepoint: redact → propose-only note → claim-ON-SUCCESS. Fail-closed.
 
-    The one place a note leaves the receiver. ``dedup.claim_post`` feeds
-    ``engine.admit_post`` so a re-run / retry posts AT MOST ONCE per incident (idempotent
-    under AM retry). Then the note is REDACTED before it leaves; a redaction OR post error
-    posts NOTHING and escalates (logs at error) — it never emits raw / unredacted text. The
-    poster owns its own timeout+retry (the Protocol contract); the chokepoint only enforces
-    once-ness, redaction, and fail-closed.
+    The one place a note leaves the receiver, ordered **post-then-claim** (not claim-then-post):
+    redact → post via the client → and ONLY on a clean post ``dedup.claim_post`` (the in-memory
+    once-slot). The ordering is the reliability fix — a transient post failure now RAISES out of
+    here (so ``supervise_run`` surfaces it) WITHOUT having burned the once-slot, instead of the
+    old order's drop-the-note-forever. Double-propose is closed at the PD layer regardless of the
+    in-memory ``_posted``: the client embeds a durable per-incident marker and skips a re-post
+    whose marker already exists, so a retry OR a restart-driven re-run is a no-op even though the
+    restart lost ``_posted`` (the residual the ``_dedup`` module documented — now closed).
+
+    ``claim_post`` is checked FIRST as a cheap local fast-path: if THIS process already posted
+    for this incident, skip without a PD round-trip. It is no longer the load-bearing
+    once-guarantee (the PD marker is) — it is an in-process optimization that also keeps two
+    concurrent post_backs in one process from both hitting PD.
+
+    Fail-closed: a redaction error posts NOTHING (never raw text) and escalates; the once-slot
+    is NOT claimed, so the redaction-fail path leaves the incident eligible for a corrected
+    re-post. A post error likewise does not claim — it propagates so the supervisor logs the
+    escalation; the PD-side marker makes any subsequent re-attempt idempotent.
     """
     if not admit_post(incident_already_posted=not dedup.claim_post(ctx.incident_key)):
-        # A note already went out for this incident — the retry/re-run is a no-op (not an
-        # error): the human already has the proposal.
+        # This process already posted for this incident — a within-process retry/re-run is a
+        # no-op (not an error): the human already has the proposal. (A cross-restart re-post is
+        # caught at the PD layer by the marker, not here.)
         metrics.post(result="deduped")
         _log.info("walle.post_back.deduped incident_key=%s", ctx.incident_key)
         return
 
     try:
         redacted = redact(render_note(outcome, ctx))
+    except Exception:
+        # Redaction fail-closed: NEVER fall through to raw text. Release the once-slot so a
+        # corrected re-post can still reach the human, and escalate.
+        dedup.unclaim_post(ctx.incident_key)
+        metrics.post(result="error")
+        _log.exception(
+            "walle.post_back.redact_failed incident_key=%s — escalating, posted nothing",
+            ctx.incident_key,
+        )
+        return
+
+    try:
         await poster.post_note(ctx.incident_key, redacted)
     except Exception:
-        # Fail-closed: a redaction or post failure must NEVER fall through to emitting raw
-        # text. Nothing is posted; the operator sees the escalation in the error log. (The
-        # claim_post already consumed the once-slot — a retry won't re-attempt the post; the
-        # MVP accepts a dropped note over a raw-text leak. Durable retry is a follow-up.)
+        # Post failure (after the client's own bounded retry exhausted): release the once-slot
+        # and re-raise so the supervisor escalates. The PD-side marker keeps any re-attempt
+        # from double-posting; the text was already redacted, so re-raising leaks nothing.
+        dedup.unclaim_post(ctx.incident_key)
         metrics.post(result="error")
         _log.exception("walle.post_back.failed incident_key=%s — escalating, posted nothing",
                        ctx.incident_key)
-        return
+        raise
 
     metrics.post(result="posted")
     _log.info(
@@ -373,7 +402,16 @@ async def supervise_run(
                 artifact="WallE could not complete the investigation (internal error).",
             )
         metrics.terminal(reason=outcome.terminal_reason.value)
-        await post_back(ctx, outcome, dedup=dedup, poster=poster, redact=redact, metrics=metrics)
+        try:
+            await post_back(
+                ctx, outcome, dedup=dedup, poster=poster, redact=redact, metrics=metrics
+            )
+        except Exception:
+            # post_back already escalated (logged + metric'd) and released the once-slot before
+            # re-raising; absorb it here so the bg task ends cleanly (no unretrieved-exception
+            # noise). The PD-side marker keeps a later re-fire's post idempotent — a dropped
+            # post here is recoverable, not a double-propose.
+            _log.warning("walle.supervise.post_failed incident_key=%s", ctx.incident_key)
     finally:
         dedup.release_run(ctx.incident_key, ctx.run_id)
 

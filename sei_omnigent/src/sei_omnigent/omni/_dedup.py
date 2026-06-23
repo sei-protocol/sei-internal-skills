@@ -17,11 +17,12 @@ crash-recovery path: after ``lease_s`` a fresh trigger re-wins the claim.
 
 Both state maps (``_posted`` and ``_runs``) are process-local and lost on restart. For
 ``_runs`` that is benign — the runs they leased died with the process too. For ``_posted``
-it is a bounded double-propose window: a re-fired incident posted-to before a restart will
-``claim_post`` again → a second note. The MVP accepts it (single-replica, restarts rare, a
-duplicate note is annoying-not-dangerous); the close (PD-side idempotency key, else a
-durable posted-claim) lands with the PagerDutyPoster follow-up. Un-defer trigger + the
-fix-preference order are in Design 12 §2 / the PLT-715 follow-up PR.
+the restart double-propose window is now CLOSED at the PD layer, not here: the
+``PagerDutyClient`` embeds a durable per-incident note marker and skips a re-post whose marker
+already exists, so a re-fired-then-restarted incident that ``claim_post``s again is still a
+no-op when the client checks PD. ``_posted`` is therefore a within-process fast-path + the
+post-then-claim provisional slot (``unclaim_post`` releases it on a failed post so a corrected
+re-post is not locked out), no longer the load-bearing once-guarantee.
 
 Design 12 §2; engine.admit_run / engine.admit_post preconditions.
 """
@@ -68,10 +69,24 @@ class DedupStore(Protocol):
     def claim_post(self, incident_key: str) -> bool:
         """Atomically claim the post slot for ``incident_key`` (the egress chokepoint).
 
-        Returns ``True`` exactly once per incident (the first caller wins → posts),
-        ``False`` thereafter (a re-run / retry must NOT emit a second note). Feeds
-        ``engine.admit_post(incident_already_posted=not claim_post(...))``. See the module
-        RESIDUAL: an in-memory claim is lost on restart (double-propose window).
+        Returns ``True`` the first time a caller claims for this incident (→ proceed to
+        post), ``False`` thereafter. The claim is PROVISIONAL under the post-then-claim
+        ordering: the chokepoint claims, attempts the post, and :meth:`unclaim_post` releases
+        the slot on a redaction/post failure so a corrected re-post is not locked out. Feeds
+        ``engine.admit_post(incident_already_posted=not claim_post(...))``. This is a
+        within-process fast-path, NOT the load-bearing once-guarantee — the durable
+        double-propose close is the PagerDutyClient's per-incident note marker (a restart that
+        loses this in-memory claim is still idempotent at the PD layer).
+        """
+        ...
+
+    def unclaim_post(self, incident_key: str) -> None:
+        """Release a provisional post-claim for ``incident_key`` (best-effort, idempotent).
+
+        Called by the post-then-claim chokepoint when the redact-or-post failed, so the
+        once-slot does not strand the incident: a corrected re-post can re-claim. Unclaiming a
+        slot that was never claimed is a no-op. (Cross-restart double-propose is closed at the
+        PD layer by the note marker, independent of this in-memory slot.)
         """
         ...
 
@@ -128,3 +143,7 @@ class InMemoryDedupStore:
                 return False
             self._posted.add(incident_key)
             return True
+
+    def unclaim_post(self, incident_key: str) -> None:
+        with self._lock:
+            self._posted.discard(incident_key)
