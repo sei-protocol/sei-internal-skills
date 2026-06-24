@@ -41,7 +41,7 @@ If the repo maintains an interface registry or equivalent source of truth, speci
 3. Read `.claude/agents/*.md` — the specialist roster. If absent, ask the user which experts to use.
 4. **Resolve-then-read the resume state, fail-LOUD (Design 13 §4).** The resume state and the findings log both live in the DRI repo, so before reading either, resolve the DRI repo via the `/design` resolver. If the DRI repo is **unresolvable, on an unexpected branch, mid-rebase, dirty-in-conflict, or behind-remote / un-fetched → HALT and surface** — never silently "start fresh," never conclude "no run in progress," never miss a resume point against a stale or wrong checkout. An unconfirmed read is `inconclusive ⇒ halt`. In a **non-interactive (headless/cron)** run where the resolver would fall to "ask," there is no user → **HALT (blocked)**, do not proceed. **The in-repo `.bugbash/<target>.yaml` is producer-write-only — never a session-start read source: a read that cannot resolve the DRI repo HALTS, it does not read the migration-emptied in-repo file and conclude "no run in progress."** Once the DRI repo is resolved, check for prior state:
    - `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (resume state) — if it exists, a previous session left an in-progress run. Read it before acting.
-   - The findings log at `designs/<arc>/bugbash/<target>.md` in the DRI repo (or the in-repo `docs/bugbash/<target>.md` fallback) — if it exists, it is the source of truth for what has already been reviewed.
+   - The findings log at `designs/<arc>/bugbash/<target>.md` in the DRI repo (resolved fail-loud per the step above — **never read from the migration-emptied in-repo `docs/bugbash/` dir**, which would resume from a stale/empty log) — if it exists, it is the source of truth for what has already been reviewed.
 
 When prior state exists, surface it to the user: "Found a bugbash in progress for `<target>` — pass <N>, <K> findings, convergence counter <C>/2. Continue, or archive and start over?"
 
@@ -117,6 +117,7 @@ Stop and report rather than auto-recovering when:
 - A specialist refuses to read the target (missing files, permissions). Report what was captured; ask the user to resolve.
 - The convergence counter never advances past 0 across 5+ passes — the target may be too broad. Report and suggest narrowing.
 - An expert posts don't-ship at the verdict round. Report the blocker; do not retry the verdict round automatically.
+- The DRI `<engineer>-designs` repo can't be resolved cleanly at session start — unresolvable / unexpected branch / mid-rebase / dirty-in-conflict / behind-remote, or headless with no user. **HALT fail-loud** rather than read the migration-emptied in-repo `docs/bugbash/`/`.bugbash/` and resume from a stale or empty state (Design 13 §4).
 - The user interrupts mid-pass. State is in `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (in-repo `.bugbash/<target>.yaml` fallback); next invocation offers resume.
 
 ## Rationalization Table

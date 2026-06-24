@@ -59,7 +59,7 @@ About to audit:
   skill:           <name>
   path:            <resolved-absolute-path>
   inferred shape:  <discipline|technique|pattern|reference|procedural>
-  report path:     <designs/<arc>/audits/<name>-<YYYY-MM-DD>.md in <engineer>-designs (DRI repo; in-repo docs/skill-audits/ only if no DRI repo)>
+  report path:     <designs/<arc>/audits/<name>-<YYYY-MM-DD>.md in <engineer>-designs (DRI repo; in-repo docs/skill-audits/ only if no DRI repo and the user confirms)>
   phase:           audit-only (refactor opt-in after report)
   protected:       <yes|no>
 

@@ -33,7 +33,7 @@ See `references/guardrails.md` for the detailed safety model.
 
 ### Phase 1 — Audit (default)
 
-Reads the target skill, runs static + semantic + pressure checks against the conventions catalog, and produces a findings report in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<date>.md` (Design 13 — process-lineage relocation; resolve the DRI repo as `/design` does, Tide's repo-default arc is `tide-skill-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable). Default mode — no edits.
+Reads the target skill, runs static + semantic + pressure checks against the conventions catalog, and produces a findings report in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<date>.md` (Design 13 — process-lineage relocation; resolve the DRI repo as `/design` does, Tide's repo-default arc is `tide-skill-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable and the user confirms). Default mode — no edits.
 
 ### Phase 2 — Refactor (opt-in via `--apply`)
 
@@ -133,7 +133,7 @@ state/run-<ts>/
 
 `state/` is gitignored at the repo level. On interrupted runs, the next invocation detects the latest incomplete `run-<ts>/` and offers **resume** / **archive** / **start-fresh**.
 
-The audit *report* (the durable lineage artifact) lives in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<YYYY-MM-DD>.md` (Design 13; Tide's repo-default arc is `tide-skill-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable) — outside `state/`, committable, the thing PRs reference.
+The audit *report* (the durable lineage artifact) lives in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<YYYY-MM-DD>.md` (Design 13; Tide's repo-default arc is `tide-skill-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable and the user confirms) — outside `state/`, committable, the thing PRs reference.
 
 ## What this skill doesn't do
 
