@@ -8,8 +8,9 @@ through a single redacted egress chokepoint.
 
 It depends only on Protocol seams — :class:`~sei_omnigent.omni.adapters.base.TriggerAdapter`,
 :class:`~sei_omnigent.omni.venues.base.Venue`, :class:`~sei_omnigent.omni._dedup.DedupStore`,
-:class:`Metrics`, the existing ``SessionFactory``, and an optional ``control_plane`` (a
-pass-through in this slice — the real fail-closed PDP is a later slice). The reliability core
+:class:`Metrics`, the existing ``SessionFactory``, and the fail-closed
+:class:`~sei_omnigent.omni.control_plane.ControlPlane` (the PDP — deny-by-default skill/venue/
+posture gating, evaluated before launch). The reliability core
 is :mod:`engine`, the loop terminator is :func:`driver.drive_to_terminal`, the live session
 glue is :mod:`_omnigent_session`. This module is the HTTP edge + the wiring, fully
 dependency-injected so the flow is provable without a live omnigent / venue.
@@ -53,6 +54,7 @@ from pathlib import Path
 from typing import Protocol
 
 from sei_omnigent.omni.adapters.base import NoOp, NormalizedTrigger, TriggerAdapter
+from sei_omnigent.omni.control_plane import RunPlan
 from sei_omnigent.omni.driver import RunOutcome, SessionLike, drive_to_terminal
 from sei_omnigent.omni.engine import (
     Budget,
@@ -125,6 +127,12 @@ class RunContext:
     raw venue event is NEVER carried here (INV-6). ``goal`` is the rendered goal. ``dedup_key``
     keys the single-flight; ``venue_handle`` is where the result posts back. Both metrics/logs
     key on ``dedup_key``.
+
+    ``bundle_ref`` / ``model_override`` / ``reasoning_effort`` ride from the resolved
+    :class:`~sei_omnigent.omni.control_plane.RunPlan` — the catalog key + model levers the
+    SessionFactory will APPLY in a later session-application slice. This slice carries them on the
+    context (they reach the factory via ``ctx``); it does NOT yet rewire ``create(bundle)`` /
+    ``set_model_override``.
     """
 
     dedup_key: str
@@ -132,6 +140,9 @@ class RunContext:
     run_id: str
     goal: str
     payload: Mapping[str, str]
+    bundle_ref: str = ""
+    model_override: str | None = None
+    reasoning_effort: str | None = None
 
 
 #: Floor on how far the run-lease must exceed the budget wall-clock. The lease is the crash
@@ -164,21 +175,18 @@ class RouterConfig:
             )
 
 
-# --- the control-plane seam (a pass-through in this slice) ----------------------
+# --- the control-plane seam (the fail-closed PDP) -------------------------------
 
 
-@dataclass(frozen=True)
-class _PassThroughControlPlane:
-    """The default control plane: admit every normalized trigger unchanged (this slice).
+class ControlPlaneLike(Protocol):
+    """The PDP seam the router routes every trigger through before launch.
 
-    The real fail-closed Policy Decision Point (ACL + per-skill gating + context/model select,
-    Design 13's ControlPlane) is a later slice — gated on the Blocking dependency. This
-    pass-through holds the seam open so the router takes a ``control_plane`` param now without
-    building the real one: it resolves a trigger to "admitted, unchanged".
+    The production impl is the fail-closed :class:`~sei_omnigent.omni.control_plane.ControlPlane`
+    (deny-by-default skill/venue/posture gating); a test passes a trivial double. The router
+    depends only on this ``resolve`` shape, never the concrete table.
     """
 
-    def resolve(self, trigger: NormalizedTrigger) -> NormalizedTrigger:
-        return trigger
+    def resolve(self, trigger: NormalizedTrigger) -> RunPlan: ...
 
 
 # --- metrics seam (low-cardinality, keyed by decision; the backend is the obs agents') ---
@@ -552,15 +560,16 @@ class Router:
     session_factory: SessionFactory
     expected_token: str
     venue: Venue
+    #: The control plane (PDP) — REQUIRED, no default: a default would have to be either a
+    #: fail-open admit-all (the bug this slice removes) or an empty fail-closed table (denies every
+    #: trigger). The serve-wiring injects the real declarative-table ControlPlane; a test passes a
+    #: trivial double. The handler routes every trigger through ``resolve`` before launch.
+    control_plane: ControlPlaneLike
     #: The redaction chokepoint. NO identity default — an identity redactor is a fail-OPEN that
     #: pipes raw investigation text into the venue. The sentinel default fails loud at boot
     #: (__post_init__) so a router wired without a real redactor never starts.
     redact: Callable[[str], str] = _require_redactor
     metrics: Metrics = field(default_factory=_NoopMetrics)
-    #: The control plane (PDP). Defaults to a pass-through (this slice) — the real fail-closed
-    #: decision function is a later slice gated on the Blocking dependency. Held as a seam so the
-    #: handler routes every trigger through ``resolve`` now without building the real one.
-    control_plane: _PassThroughControlPlane = field(default_factory=_PassThroughControlPlane)
     _tracker: _TaskTracker = field(default_factory=_TaskTracker, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -583,9 +592,10 @@ class Router:
 
         * **401** — bad/absent bearer (NOT 5xx: a 5xx invites a retry of an unverifiable body;
           a 401 tells the venue to stop).
-        * **200 + ``status: noop``** — verified but the adapter returned a ``NoOp`` (non-firing /
-          non-enrolled / unparseable — the page already routed to the human). The ``reason``
-          carries the distinct non-match class (``parse_error`` vs ``not_enrolled``).
+        * **200 + ``status: noop``** — verified but NOT admitted: the adapter returned a ``NoOp``
+          (non-firing / non-enrolled / unparseable — the page already routed to the human), OR the
+          control-plane denied the trigger (``not_permitted``). The ``reason`` carries the distinct
+          class (``parse_error`` / ``not_enrolled`` / ``not_permitted``).
         * **200 + ``status: deduped``** — SHED (a run owns the trigger, or the global in-flight
           cap is hit): attach, not queue.
         * **200 + ``status: launched``** — admitted; the investigation runs in the bg.
@@ -606,9 +616,19 @@ class Router:
             return 200, {"status": "noop", "reason": result.reason}
         trigger = result
 
-        # The control-plane (PDP) seam: a pass-through in this slice (admit unchanged). The real
-        # fail-closed decision is a later slice.
-        trigger = self.control_plane.resolve(trigger)
+        # The control-plane (PDP): fail-closed skill/venue/posture gating BEFORE launch. A deny is
+        # a 200-noop (the page already routed to the human; a 5xx would re-deliver), carrying a
+        # DISTINCT reason (not_permitted) alongside parse_error/not_enrolled so a denial flood is
+        # separable on-call. The allowed plan's per-trigger budget is what the run is supervised
+        # under (replacing the boot-time budget); the bundle/model levers ride on the context for
+        # the later session-application slice.
+        plan = self.control_plane.resolve(trigger)
+        if not plan.allowed:
+            self.metrics.admitted(decision=plan.deny_reason)
+            _log.info(
+                "omni.admit.denied dedup_key=%s reason=%s", trigger.dedup_key, plan.deny_reason
+            )
+            return 200, {"status": "noop", "reason": plan.deny_reason}
 
         # Global back-pressure: at the cap, SHED a fresh trigger rather than growing the task set
         # + host load unbounded. Checked BEFORE the claim so a shed does not consume a claim slot.
@@ -642,11 +662,14 @@ class Router:
             run_id=run_id,
             goal=trigger.goal,
             payload=trigger.payload,
+            bundle_ref=plan.bundle_ref,
+            model_override=plan.model_override,
+            reasoning_effort=plan.reasoning_effort,
         )
         self._tracker.spawn(
             supervise_run(
                 ctx,
-                budget=self.config.budget,
+                budget=plan.budget,
                 session_factory=self.session_factory,
                 dedup=self.dedup,
                 venue=self.venue,

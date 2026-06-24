@@ -35,7 +35,14 @@ import httpx
 from sei_omnigent._config import int_env
 from sei_omnigent.omni import _redact
 from sei_omnigent.omni._dedup import InMemoryDedupStore
-from sei_omnigent.omni.adapters.alertmanager import AlertmanagerAdapter
+from sei_omnigent.omni.adapters.alertmanager import (
+    AlertmanagerAdapter,
+    _AM_LOCUS,
+    _AM_ROOT_CAUSE_SKILL,
+    _AM_TRIGGER_KIND,
+    _AM_VENUE,
+)
+from sei_omnigent.omni.control_plane import ControlPlane, Posture, TableEntry
 from sei_omnigent.omni.engine import Budget
 from sei_omnigent.omni.router import (
     Router,
@@ -172,6 +179,35 @@ def build_receiver_config(budget: Budget) -> RouterConfig:
     )
 
 
+#: The bundle (skill/context) catalog key the PD-dogfood route resolves to. A catalog KEY a later
+#: session-application slice resolves to bytes (`create(bundle)`); this slice carries it on the
+#: RunPlan, does not load it. Manifest-overridable as the catalog grows.
+_PD_BUNDLE_REF_ENV = "OMNI_PD_BUNDLE_REF"
+_DEFAULT_PD_BUNDLE_REF = "root-cause"
+
+
+def build_control_plane(budget: Budget) -> ControlPlane:
+    """Assemble the fail-closed PDP with the PD-dogfood resolution table (the one MVP route).
+
+    A single declarative entry: the Alertmanager→PagerDuty root-cause route — venue/locus/
+    trigger_kind matching the AM adapter's declared route, granting the root-cause skill,
+    propose-only (the MVP floor, INV-7'), under the receiver's investigation budget. The
+    ControlPlane fails loud at construction on an empty/malformed table; this one entry is what
+    lets the dogfood path resolve to an allowed RunPlan end-to-end. The process-local table is the
+    MVP integrity posture; the signed/GitOps-gated catalog is the deferred INV-8 target.
+    """
+    return ControlPlane(
+        table={
+            (_AM_VENUE, _AM_LOCUS, _AM_TRIGGER_KIND): TableEntry(
+                bundle_ref=os.environ.get(_PD_BUNDLE_REF_ENV) or _DEFAULT_PD_BUNDLE_REF,
+                skills=frozenset({_AM_ROOT_CAUSE_SKILL}),
+                posture=Posture.PROPOSE_ONLY,
+                budget=budget,
+            ),
+        }
+    )
+
+
 def build_poster() -> PagerDutyClient:
     """Build the real notes-only PagerDuty venue from env via the security-reviewed from_config.
 
@@ -219,6 +255,7 @@ def main() -> None:
 
     budget = build_budget()
     config = build_receiver_config(budget)
+    control_plane = build_control_plane(budget)
     expected_token = load_webhook_token()
     venue = build_poster()
     # The live session factory binds the standing host + the omni-root-cause identity; from_env
@@ -232,6 +269,7 @@ def main() -> None:
         session_factory=session_factory,
         expected_token=expected_token,
         venue=venue,
+        control_plane=control_plane,
         redact=_redact.redact,
     )
     serve(router)
