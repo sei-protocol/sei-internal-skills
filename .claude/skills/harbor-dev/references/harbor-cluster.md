@@ -48,4 +48,4 @@ SEI_GENESIS_BUCKET            harbor-sei-k8s-genesis-artifacts
 
 The controller watches `SeiNetwork` and `SeiNode` cluster-wide.
 
-> **Note (PLT-451):** the `SEI_GATEWAY_*` vars are *loaded* by the controller but **no reconciler consumes them** — networking is GitOps-owned, not controller-orchestrated, so they're dead config pending removal. (The manager injects `SEI_GATEWAY_NAME`/`NAMESPACE`/`DOMAIN`; `SEI_GATEWAY_PUBLIC_DOMAIN` isn't injected at all.) Don't treat them as live controller behavior.
+> **Note (PLT-451):** the `SEI_GATEWAY_*` vars are *loaded* by the controller but **no reconciler consumes them** — networking is GitOps-owned, not controller-orchestrated, so they're dead config pending removal. Don't treat them as live controller behavior.
