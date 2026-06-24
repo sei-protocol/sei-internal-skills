@@ -26,6 +26,7 @@ This skill operates on **`<repo>/.claude/skills/<name>/`** (or `~/.claude/skills
    - `--apply` was passed without a prior audit-only pass on the same skill in this session (no skipping straight to edits).
    - The shape can't be inferred from the SKILL.md (no frontmatter, no recognizable sections) — halt and ask the user to classify.
    - The conventions catalog is missing or unreadable.
+   - The DRI `<engineer>-designs` repo where the report must land can't be resolved in a non-interactive run — **HALT and surface** rather than guessing a path or silently writing in-repo (Design 13 §4).
 
 See `references/guardrails.md` for the detailed safety model.
 

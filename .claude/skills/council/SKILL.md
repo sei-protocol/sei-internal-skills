@@ -21,6 +21,7 @@ Council enforces full process when full process applies. Before any side-effecti
 4. **Provider owns the interface.** Consumers adapt. When provider and consumer disagree, the provider's definition is canonical.
 5. **One-way doors require explicit user approval.** Persisted schema / field names, public API contracts, on-disk or wire data formats, signed or indexed identifiers, and anything the repo's governing document flags as irreversible — STOP and present before finalizing.
 6. **Force-coral when work is coral-sized.** If the work is single-component with no interface changes and doesn't warrant scope-tier ceremony, suggest `/coral` rather than running full process.
+7. **Session state reads fail-loud.** Coordination state (`workstream.yaml`/`escalations/`/`archive/`) lives in the DRI `<engineer>-designs` repo (Design 13 R3). At session start, resolve the DRI repo *first*; if the *expected* repo is unresolvable / on an unexpected branch / mid-rebase / behind-remote, or headless with no user to confirm the mode — **HALT and surface**, never silently start fresh or miss a live escalation (Design 13 §4).
 
 ## Locating the Target Repo and Its Conventions
 
