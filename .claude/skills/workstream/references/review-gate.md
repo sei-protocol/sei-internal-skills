@@ -34,7 +34,7 @@ A third entry kind in the workstream's checkpoint ledger, declared up front:
 - review-gate: <short identifier, kebab-case>
   slate:    <the declared reviewer slate — or "routed by /xreview per change-class">
   checks:   <the declared automated checks that must be green — e.g. cursor-bugbot, named CI workflows>
-  ledger:   <the /xreview review-ledger path — target-derivable per PLT-535; the gate computes it from the target, no registry>
+  ledger:   <the /xreview review-ledger path — target-derivable per PLT-535; the gate computes it from the target (DRI-repo designs/<arc>/xreview/ path or the in-repo .xreview/ fallback), no registry>
   satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL per /xreview's gate-read contract (currently State RESOLVED|RESOLVED-WITH-ACCEPTED-RISK, OpenFindings 0, Dissenter non-empty, cross-field consistent) AND Convergence is unanimous (the consensus refinement — see gate evaluation) AND every declared check has passed
   on_fail:  surface + route to a PRE-DECLARED human checkpoint (e.g. pr-sign-off) — never self-merge on a fail
 ```
