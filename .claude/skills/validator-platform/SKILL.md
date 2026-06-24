@@ -50,6 +50,7 @@ Refusal conditions — they hold under time pressure and a "just submit the task
 |---|---|
 | Controller-behavior invariants — ownership, sidecar execution at `:8443`, idempotency-per-kind, status-outputs-unpopulated, task-ID re-join, `requirePhase` terminality, structural RPC pin | `references/kit-platform-machinery.md` |
 | Authoring + GitOps-applying the 3 gov kinds as per-node manifests — payload encoding traps, keyring ladder, per-node fan-out (cite `/gov-ops`), poll/verify-on-chain | `references/kit-seinodetask-gov-manifests.md` |
+| Driving a shadow `result-export` (comparison-mode) task against a node already running the supported shadow features, then reading results — the typed-client gap (raw params map for the EVM/migration params), the L0/L1/L2 + watermark model, `migrationMode`, S3 + Prom outputs | `references/kit-shadow-comparison.md` |
 | `kit-gitops-networking` — SeiNetwork/SeiNode + manual-NLB/HTTPRoute model | *(deferred — un-defer at M2 (`/harbor-dev`); see `references/kit-TEMPLATE.md` roster)* |
 
 ## How platform-release-manager + /gov-ops hook in

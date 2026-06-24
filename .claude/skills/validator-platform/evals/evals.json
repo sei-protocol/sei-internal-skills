@@ -100,6 +100,18 @@
         "Confirms /gov-ops keeps its existing seinode-task anchor citations as-is — does not re-point it through this skill"
       ],
       "source": "Guardrail 2; method Dimension 5; sources.md §gov-ops"
+    },
+    {
+      "id": "shadow-comparison-raw-params-migration",
+      "type": "happy-path",
+      "prompt": "An operator wants to drive a shadow result-export comparison against a node that is already running the supported shadow features for a migrate-EVM (AppHash-breaking) migration. They want Layer 2 logical-state diffing with bucket sei-shadow-exports, region us-east-1, prefix arctic-1/migrate-evm/, canonicalRpc http://archive-0-rpc:26657, shadowEvmRpc http://localhost:8545, canonicalEvmRpc and traceRpc http://archive-0-evm:8545. Then they want to read the results.",
+      "expected_behavior": [
+        "Loads sei-validator-profile.md + kit-shadow-comparison.md before answering (Guardrail 1)",
+        "Drives the submission via the RAW params map — a client.TaskRequest{Type: result-export, Params: map[string]any{...}} through SubmitTask, or an equivalent POST /v0/tasks body — NOT seictl's typed ResultExportTask/SubmitResultExportTask, because the typed client carries only {bucket,prefix,region,canonicalRpc} and would silently drop shadowEvmRpc/canonicalEvmRpc/traceRpc/migrationMode (Dimension 1 (Manifest correctness & encoding); §seictl client/tasks.go:305-336)",
+        "Sets migrationMode: true for the AppHash-breaking migration so the verdict keys on LastResultsHash + receipts rather than reporting per-block AppHash divergence as a false divergence; confirms canonicalRpc is set as the comparison-mode discriminator and that Layer 2 needs both shadowEvmRpc and canonicalEvmRpc (with traceRpc defaulting to canonicalEvmRpc) (Dimension 4 (Result verification); §seictl comparator.go, result_compare.go)",
+        "Reaches the sidecar at :8443 (RBACProxyPort); reads results from S3 ({prefix}{start}-{end}.compare.ndjson.gz pages, divergence-{h}.report.json.gz reports) + Prometheus (seictl_shadow_blocks_compared_total, seictl_shadow_divergences_total{divergence_layer}), not status.outputs; treats node shadow-readiness as a precondition (does not teach config-patch/restart-seid); does not manufacture findings"
+      ],
+      "source": "kit-shadow-comparison §2/§3/§4; method Dimension 1/4; sources.md §seictl-shadow"
     }
   ]
 }
