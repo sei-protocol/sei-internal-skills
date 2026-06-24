@@ -1,30 +1,28 @@
-"""Runnable entrypoint for the omni-trigger receiver (PLT-715 — the production serve-wiring).
+"""Runnable entrypoint for the Alertmanager serve-wiring (Design 13 — the production wiring).
 
-``receiver.build_app(receiver)`` (the Starlette app + lifespan drain/aclose) was built but
-nothing assembled a real :class:`~omni.receiver.Receiver` or bound a socket — the security
-review deferred that to "the wiring PR". This module is that wiring: load config from env →
-assemble the receiver with its REAL seams (the PagerDuty poster, the redactor, the live
-session factory) → bind uvicorn on the app. It is the container ``command`` in the WallE
-receiver Deployment (mirrors ``server/serve_main.py``'s shape).
+``router.build_app(router)`` (the Starlette app + lifespan drain/aclose) is generic; this
+module is the Alertmanager-specific assembly: load config from env → assemble the router with
+its REAL seams (the Alertmanager adapter, the PagerDuty venue, the redactor, the live session
+factory) → bind uvicorn on the app. It is the container ``command`` in the receiver Deployment
+(mirrors ``server/serve_main.py``'s shape).
 
-Boot is FAIL-LOUD by construction (mirrors ``serve_main`` + the receiver's ``__post_init__``
+Boot is FAIL-LOUD by construction (mirrors ``serve_main`` + the router's ``__post_init__``
 guards): a missing inbound bearer, a missing/mis-scoped PD config, an empty enrolled-service
-set, a missing session-factory env, or an out-of-range port aborts here — the receiver never
-starts half-configured (a half-configured trigger receiver is a silent outage or, worse, a
+set, a missing session-factory env, or an out-of-range port aborts here — the router never
+starts half-configured (a half-configured trigger router is a silent outage or, worse, a
 fail-open egress).
 
 The omnigent-touching import is the live session factory (``_omnigent_session.LiveSessionFactory``
 → ``omnigent_client``); it is deferred into :func:`main` so the rest of this module — and the
-pure assembly helpers the unit suite exercises — import without omnigent. The PagerDuty client,
-the redactor, and the receiver core are all omnigent-free.
+pure assembly helpers the unit suite exercises — import without omnigent. The PagerDuty venue,
+the redactor, the adapter, and the router core are all omnigent-free.
 
 BOUNDARIES (the manifest injects, this module reads): the inbound AM bearer
-(``OMNIGENT_TRIGGER_WEBHOOK_TOKEN_FILE``), the PD notes-only token + WallE PD user email +
-enrolled service-id set, the bind host/port, the budget caps + the run-lease, and the live
-session factory's server URL / identity / agent bundle (the last three owned by
-``_omnigent_session``).
+(``OMNIGENT_TRIGGER_WEBHOOK_TOKEN_FILE``), the PD notes-only token + PD user email + enrolled
+service-id set, the bind host/port, the budget caps + the run-lease, and the live session
+factory's server URL / identity / agent bundle (the last three owned by ``_omnigent_session``).
 
-Design 12 §2, §3.5; INV-6, INV-7.
+Design 13; Design 12 §2, §3.5; INV-5, INV-6, INV-7.
 """
 
 from __future__ import annotations
@@ -37,14 +35,15 @@ import httpx
 from sei_omnigent._config import int_env
 from sei_omnigent.omni import _redact
 from sei_omnigent.omni._dedup import InMemoryDedupStore
-from sei_omnigent.omni._pagerduty import PagerDutyClient
+from sei_omnigent.omni.adapters.alertmanager import AlertmanagerAdapter
 from sei_omnigent.omni.engine import Budget
-from sei_omnigent.omni.receiver import (
-    Receiver,
-    ReceiverConfig,
+from sei_omnigent.omni.router import (
+    Router,
+    RouterConfig,
     build_app,
     load_webhook_token,
 )
+from sei_omnigent.omni.venues.pagerduty import PagerDutyClient
 
 #: Bind all interfaces — the pod is reachable only through its Service + the default-deny
 #: NetworkPolicy (mirrors serve_main: the bind breadth is not the trust boundary, the
@@ -156,17 +155,17 @@ def build_budget() -> Budget:
     )
 
 
-def build_receiver_config(budget: Budget) -> ReceiverConfig:
-    """Assemble the :class:`ReceiverConfig` (lease + in-flight cap) around a budget.
+def build_receiver_config(budget: Budget) -> RouterConfig:
+    """Assemble the :class:`RouterConfig` (lease + in-flight cap) around a budget.
 
     ``lease_s`` defaults to the EFFECTIVE wall_clock + margin (DERIVED, not a fixed constant), so
     raising OMNI_RECEIVER_WALL_CLOCK_S without also setting the lease still clears
-    ReceiverConfig.__post_init__'s floor (wall_clock + min_lease_margin_s) instead of failing the
+    RouterConfig.__post_init__'s floor (wall_clock + min_lease_margin_s) instead of failing the
     boot. An explicit OMNI_RECEIVER_LEASE_S still overrides; the floor guard catches an explicit
     lease that underruns the budget (a double-launch of a still-running incident).
     """
     default_lease = int(budget.wall_clock_s) + _DEFAULT_LEASE_MARGIN_S
-    return ReceiverConfig(
+    return RouterConfig(
         budget=budget,
         lease_s=float(int_env(_LEASE_S_ENV, default=default_lease)),
         max_in_flight=int_env(_MAX_IN_FLIGHT_ENV, default=_DEFAULT_MAX_IN_FLIGHT),
@@ -174,12 +173,12 @@ def build_receiver_config(budget: Budget) -> ReceiverConfig:
 
 
 def build_poster() -> PagerDutyClient:
-    """Build the real notes-only PagerDuty poster from env via the security-reviewed from_config.
+    """Build the real notes-only PagerDuty venue from env via the security-reviewed from_config.
 
     ``from_config`` carries the host/scheme allowlist + the empty-enrolled-set guard (never the
     raw ctor): a tampered base_url that points off-PD, or an empty enrolled set (a silent
-    deny-all outage), fails closed there. The receiver owns the minted ``AsyncClient``'s
-    lifecycle (the lifespan ``aclose`` releases its pool).
+    deny-all outage), fails closed there. The router owns the minted ``AsyncClient``'s lifecycle
+    (the lifespan ``aclose`` releases its pool).
     """
     enrolled = [s.strip() for s in _require_env(_PD_ENROLLED_ENV).split(",") if s.strip()]
     return PagerDutyClient.from_config(
@@ -191,47 +190,51 @@ def build_poster() -> PagerDutyClient:
     )
 
 
-def main() -> None:
-    """Assemble the receiver from env → build the app → bind uvicorn.
+def serve(router: Router) -> None:
+    """The generic serve core: build the app on a wired :class:`Router` and bind uvicorn.
 
-    The live session factory (the one omnigent-touching seam) is imported here, not at module
-    scope, so the pure assembly helpers above import without omnigent (the unit suite's
-    discipline — mirrors serve_main's deferred omnigent imports).
+    Venue-agnostic — every venue's serve-wiring assembles its own router (its adapter + venue)
+    and hands it here. The bind host/port/shutdown-window come from the shared env contract.
     """
     import uvicorn  # noqa: PLC0415 -- deferred (web glue only)
 
-    from sei_omnigent.omni._omnigent_session import LiveSessionFactory  # noqa: PLC0415 -- seam
-
-    budget = build_budget()
-    config = build_receiver_config(budget)
-    expected_token = load_webhook_token()
-    poster = build_poster()
-    # The live session factory binds the standing host + the omni-root-cause identity; from_env
-    # fails loud on a missing server URL / identity / agent bundle (its own boot guard).
-    session_factory = LiveSessionFactory.from_env()
-
-    receiver = Receiver(
-        config=config,
-        dedup=InMemoryDedupStore(),
-        session_factory=session_factory,
-        expected_token=expected_token,
-        poster=poster,
-        redact=_redact.redact,
-    )
-    app = build_app(receiver)
-
+    app = build_app(router)
     host = os.environ.get(_HOST_ENV) or _DEFAULT_HOST
     port = int_env(_PORT_ENV, default=_DEFAULT_PORT)
     shutdown_timeout = int_env(_SHUTDOWN_TIMEOUT_ENV, default=_SHUTDOWN_TIMEOUT_DEFAULT)
     if not 1 <= port <= 65535:
         raise ValueError(f"{_PORT_ENV}={port} out of range (1-65535)")
+    uvicorn.run(app, host=host, port=port, timeout_graceful_shutdown=shutdown_timeout)
 
-    uvicorn.run(
-        app,
-        host=host,
-        port=port,
-        timeout_graceful_shutdown=shutdown_timeout,
+
+def main() -> None:
+    """Assemble the Alertmanager router from env → serve it.
+
+    The Alertmanager-specific assembly: the AM adapter + the PD venue + the redactor + the live
+    session factory. The live session factory (the one omnigent-touching seam) is imported here,
+    not at module scope, so the pure assembly helpers above import without omnigent (the unit
+    suite's discipline — mirrors serve_main's deferred omnigent imports).
+    """
+    from sei_omnigent.omni._omnigent_session import LiveSessionFactory  # noqa: PLC0415 -- seam
+
+    budget = build_budget()
+    config = build_receiver_config(budget)
+    expected_token = load_webhook_token()
+    venue = build_poster()
+    # The live session factory binds the standing host + the omni-root-cause identity; from_env
+    # fails loud on a missing server URL / identity / agent bundle (its own boot guard).
+    session_factory = LiveSessionFactory.from_env()
+
+    router = Router(
+        config=config,
+        adapter=AlertmanagerAdapter(),
+        dedup=InMemoryDedupStore(),
+        session_factory=session_factory,
+        expected_token=expected_token,
+        venue=venue,
+        redact=_redact.redact,
     )
+    serve(router)
 
 
 if __name__ == "__main__":

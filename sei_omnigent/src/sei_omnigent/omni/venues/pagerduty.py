@@ -1,40 +1,42 @@
-"""The real :class:`PagerDutyPoster` for the omni-trigger receiver (PLT-715 follow-up).
+"""The real :class:`Venue` for PagerDuty — Venue #1 (Design 13).
 
-The receiver core (``receiver.py``) depends on the ``PagerDutyPoster`` Protocol and ships a
-``LoggingPoster`` stub; this module is the live client that funnels WallE's one terminal note
-into PagerDuty. It is **propose-only / notes-only** (INV-7): the entire surface is *read an
-incident* + *add a note*. There is NO resolve / ack / reassign / escalate / priority /
-responder / automation call anywhere in this module — the egress is structurally a comment,
-never an action. The PD token the manifest injects MUST be scoped to a notes-only role (the
-operator's dedicated WallE PD user); the client never exercises a wider scope, but a
-mis-scoped token is a privilege the client should not be handed.
+The router (``router.py``) depends on the ``Venue`` Protocol and ships a ``LoggingVenue``
+stub; this module is the live client that funnels the one terminal note into PagerDuty. It is
+**propose-only / notes-only** (INV-7): the entire surface is *read an incident* + *add a note*.
+There is NO resolve / ack / reassign / escalate / priority / responder / automation call
+anywhere in this module — the egress is structurally a comment, never an action. The PD token
+the manifest injects MUST be scoped to a notes-only role (a dedicated PD user); the client
+never exercises a wider scope, but a mis-scoped token is a privilege the client should not be
+handed.
 
-The propose-only flow, in order — every step's failure mode is fail-closed:
+The propose-only flow, in order — every step's failure mode is fail-closed (``handle`` is the
+PD incident key, the venue-handle the router routes a result to):
 
-1. **Find** the open incident by the AM-derived ``incident_key`` (= PD ``incident_key``):
+1. **Find** the open incident by the PD ``incident_key`` (= the AM-derived ``handle``):
    ``GET /incidents?incident_key=<key>&statuses[]=triggered&statuses[]=acknowledged``. No
-   open incident → fail-closed (log + skip); WallE does NOT create or post to nothing.
+   open incident → fail-closed (log + skip); the client does NOT create or post to nothing.
 2. **Verify enrollment** (DEFINING REQ 2 — closes groupKey-forge graffiti): the inbound
-   bearer authenticates AM-to-receiver, but an attacker holding it could forge a ``groupKey``
-   /dedup_key that maps to an *arbitrary* real PD incident. So before posting, confirm the
-   found incident's PD ``service.id`` is in the manifest-injected WallE-enrolled set. Not
+   bearer authenticates the trigger edge, but an attacker holding it could forge a
+   handle/dedup_key that maps to an *arbitrary* real PD incident. So before posting, confirm
+   the found incident's PD ``service.id`` is in the manifest-injected enrolled set. Not
    enrolled → fail-closed (log + skip). The enrolled-set is the structural authorization
-   boundary on what WallE may comment on, independent of who triggered the receiver.
+   boundary on what the client may comment on, independent of who triggered the router.
 3. **Idempotency marker — best-effort, NOT atomic** (DEFINING REQ 1): PD notes have no native
    dedup and the notes endpoint exposes no conditional-create / ``Idempotency-Key`` header
    (only the *Events API v2* trigger carries a ``dedup_key``; the REST notes endpoint does
-   not), so the portable, restart-durable mechanism is an **app-side marker**: every WallE
-   note carries a stable hidden ``[walle:run:<incident_key>]`` token, and before posting the
-   client paginates the incident's existing notes and SKIPS if a WallE-marked note for this
-   ``incident_key`` already exists. The marker lives in PD (durable), not in the receiver's
-   in-memory post-claim (lost on restart), so a retry or a restart re-run of ``post_note``
-   re-scans and skips. This **NARROWS** the double-propose window to PD's notes-list
-   read-after-write propagation lag — two posters that both scan before either's note is
-   visible can both post. RESIDUAL: a true close needs a durable cross-process claim store
-   (the multi-replica un-defer); the marker is the single-replica best-effort guard, not an
-   atomic once-guarantee.
+   not), so the portable, restart-durable mechanism is an **app-side marker**: every note
+   carries a stable hidden ``[walle:run:<handle>]`` token (a durable PD-side wire format — the
+   marker string is unchanged so it still matches notes already posted in production), and
+   before posting the client paginates the incident's existing notes and SKIPS if a marked
+   note for this ``handle`` already exists. The marker lives in PD (durable), not in the
+   router's in-memory post-claim (lost on restart), so a retry or a restart re-run of
+   ``post_result`` re-scans and skips. This **NARROWS** the double-propose window to PD's
+   notes-list read-after-write propagation lag — two posters that both scan before either's
+   note is visible can both post. RESIDUAL: a true close needs a durable cross-process claim
+   store (the multi-replica un-defer); the marker is the single-replica best-effort guard, not
+   an atomic once-guarantee.
 4. **Add note**: ``POST /incidents/{id}/notes`` with ``{"note": {"content": <marked,
-   already-redacted text>}}``, the ``From: <WallE PD user email>`` header (PD requires a valid
+   already-redacted text>}}``, the ``From: <PD user email>`` header (PD requires a valid
    requester email on a note write) and ``Authorization: Token token=<PD_API_TOKEN>``.
 
 Reliability (Design 12 §2; systems/reliability REL1, REL3, REL4): every PD call carries an
@@ -50,9 +52,10 @@ idempotency logic is provable against a fake transport with no live PagerDuty an
 wall-clock sleeps (mirrors ``driver.py`` / ``_dedup.py``'s injected-clock discipline).
 
 BOUNDARIES (the manifest injects, this module receives): ``PD_API_TOKEN`` (notes-only role),
-the WallE PD user email (the ``From`` header), and the WallE-enrolled PD service-id set.
+the PD user email (the ``From`` header), and the enrolled PD service-id set.
 
-Design 12 §2, §3.5; INV-7; systems/reliability REL1/REL3/REL4, api-design API2.
+Design 13 (Venue #1); Design 12 §2, §3.5; INV-7; systems/reliability REL1/REL3/REL4,
+api-design API2.
 """
 
 from __future__ import annotations
@@ -67,6 +70,8 @@ from dataclasses import dataclass, field
 from urllib.parse import urlsplit
 
 import httpx
+
+from sei_omnigent.omni.venues.base import VenueHandle
 
 _log = logging.getLogger("sei_omnigent.omni.pagerduty")
 
@@ -84,7 +89,7 @@ _ALLOWED_HOSTS = frozenset({"api.pagerduty.com", "api.eu.pagerduty.com"})
 _PD_ID_RE = re.compile(r"\A[A-Z0-9]+\Z")
 
 #: The open-incident statuses the find-by-key query filters to. A resolved incident is not a
-#: live page — WallE has nothing to propose against a closed incident, so the find skips it.
+#: live page — there is nothing to propose against a closed incident, so the find skips it.
 _OPEN_STATUSES = ("triggered", "acknowledged")
 
 #: Per-call deadline (connect + read). A PD call with no timeout is a coroutine we may never
@@ -124,8 +129,8 @@ _RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 class _MarkerScan(enum.Enum):
     """The outcome of the notes-scan idempotency check.
 
-    ``FOUND`` — a WallE marker for this incident is present (skip the post). ``ABSENT`` — the
-    notes list was fully scanned (or exhausted) and no marker was found (proceed to post).
+    ``FOUND`` — a marker for this incident is present (skip the post). ``ABSENT`` — the notes
+    list was fully scanned (or exhausted) and no marker was found (proceed to post).
     ``UNCONFIRMED`` — the page cap was hit before the list was exhausted and before a marker
     was found, so absence cannot be confirmed (fail-closed: skip, do NOT double-post).
     """
@@ -136,12 +141,14 @@ class _MarkerScan(enum.Enum):
 
 
 def _marker(incident_key: str) -> str:
-    """The stable, per-incident WallE signature embedded in (and scanned for in) the note.
+    """The stable, per-incident signature embedded in (and scanned for in) the note.
 
     Keyed on ``incident_key`` so the marker is identical across a retry and across a restart
     re-run of the SAME incident (the idempotency anchor), and distinct across incidents (a
     note for incident A never suppresses the note for incident B). Hidden-ish: a bracketed
-    token a human skims past but an exact substring match finds deterministically.
+    token a human skims past but an exact substring match finds deterministically. The literal
+    ``walle:run`` prefix is a DURABLE PD-side wire format — it is unchanged through the
+    de-personation so the scan still matches notes already posted in production.
     """
     return f"[walle:run:{incident_key}]"
 
@@ -149,8 +156,8 @@ def _marker(incident_key: str) -> str:
 class PagerDutyError(RuntimeError):
     """A PD call failed after exhausting retries, or returned a non-retryable error.
 
-    Part of the client's interface (errors-are-interface): ``post_note`` raises this on an
-    unrecoverable PD failure so the receiver's ``post_back`` chokepoint fails closed (logs +
+    Part of the client's interface (errors-are-interface): ``post_result`` raises this on an
+    unrecoverable PD failure so the router's ``post_back`` chokepoint fails closed (logs +
     escalates, posts nothing) rather than swallowing a silent drop. A *fail-closed skip*
     (no open incident, not enrolled, already-marked) is NOT this — those return cleanly.
     """
@@ -160,9 +167,10 @@ class PagerDutyError(RuntimeError):
 class PagerDutyClient:
     """Propose-only PagerDuty REST v2 client: find-incident-by-dedup-key + add a marked note.
 
-    Implements the receiver's ``PagerDutyPoster`` Protocol (``post_note(incident_key, note)``).
-    Fully dependency-injected — the ``httpx.AsyncClient``, the sleep, and the jitter source are
-    passed so the find / verify / idempotency / retry logic is provable against a fake transport.
+    Implements the router's ``Venue`` Protocol (``post_result(handle, body)``, with ``handle``
+    the PD incident key). Fully dependency-injected — the ``httpx.AsyncClient``, the sleep, and
+    the jitter source are passed so the find / verify / idempotency / retry logic is provable
+    against a fake transport.
 
     Notes-only by construction: the only PD verbs this client issues are ``GET /incidents``,
     ``GET /incidents/{id}/notes``, and ``POST /incidents/{id}/notes``. No action endpoint is
@@ -170,10 +178,10 @@ class PagerDutyClient:
     """
 
     http: httpx.AsyncClient
-    #: repr=False: the From header is the WallE PD user email — keep it out of logs/tracebacks.
+    #: repr=False: the From header is the PD user email — keep it out of logs/tracebacks.
     from_email: str = field(repr=False)
-    #: The manifest-injected set of WallE-enrolled PD service-ids. An incident whose service
-    #: is not in this set is NOT something WallE may comment on — fail-closed (DEFINING REQ 2).
+    #: The manifest-injected set of enrolled PD service-ids. An incident whose service is not
+    #: in this set is NOT something the client may comment on — fail-closed (DEFINING REQ 2).
     enrolled_service_ids: frozenset[str] = field(default=frozenset())
     #: repr=False: the PD API token is a secret — never let it surface in a repr/log/traceback.
     token: str = field(default="", repr=False)
@@ -200,12 +208,12 @@ class PagerDutyClient:
         """Build a client from the manifest-injected config, minting an ``AsyncClient`` if needed.
 
         The injected ``http`` path is the test seam (a fake transport); the default path mints a
-        keep-alive ``AsyncClient`` the caller is responsible for closing (the receiver owns its
+        keep-alive ``AsyncClient`` the caller is responsible for closing (the router owns its
         lifecycle alongside the host). ``enrolled_service_ids`` is frozen at construction —
         enrollment is boot config, not a per-request input.
 
         Fails CLOSED at boot on a misconfiguration: an empty enrolled set (a silent deny-all
-        that would make WallE a no-op outage), or a ``base_url`` whose host is not on the PD
+        that would make the venue a no-op outage), or a ``base_url`` whose host is not on the PD
         allowlist (a tampered manifest must not redirect the token-bearing requests off-PD).
         """
         normalized_base = base_url.rstrip("/")
@@ -224,7 +232,7 @@ class PagerDutyClient:
         enrolled = frozenset(s for s in enrolled_service_ids if s and s.strip())
         if not enrolled:
             raise ValueError(
-                "enrolled_service_ids is empty: WallE would have nothing to comment on (a "
+                "enrolled_service_ids is empty: the venue would have nothing to comment on (a "
                 "silent deny-all outage). Enroll at least one PD service-id at boot."
             )
         client = http or httpx.AsyncClient()
@@ -239,7 +247,7 @@ class PagerDutyClient:
     async def aclose(self) -> None:
         """Close the underlying ``AsyncClient`` (release the connection pool).
 
-        Called from the receiver's lifespan shutdown so a minted keep-alive pool is not leaked
+        Called from the router's lifespan shutdown so a minted keep-alive pool is not leaked
         on a clean stop. Idempotent — closing an already-closed client is a no-op in httpx.
         """
         await self.http.aclose()
@@ -254,30 +262,31 @@ class PagerDutyClient:
             "Content-Type": "application/json",
         }
 
-    async def post_note(self, incident_key: str, note: str) -> bool:
-        """Find the WallE-enrolled open incident for ``incident_key`` and add ONE marked note.
+    async def post_result(self, handle: VenueHandle, body: str) -> bool:
+        """Find the enrolled open incident for ``handle`` (the PD incident key) and add ONE note.
 
-        Returns ``True`` iff a note was actually written; ``False`` on every fail-closed skip.
-        The caller (``post_back``) keeps its dedup slot only on ``True`` — a skip releases it so
-        a later re-fire re-evaluates (the situation may have changed: an incident opened, or a
-        chatty incident's notes settled). ``False`` never risks a double-post: the PD marker is
-        the durable dedup, so a re-fire after a real post re-scans and skips.
+        Implements ``Venue.post_result``. Returns ``True`` iff a note was actually written;
+        ``False`` on every fail-closed skip. The caller (``post_back``) keeps its dedup slot only
+        on ``True`` — a skip releases it so a later re-fire re-evaluates (the situation may have
+        changed: an incident opened, or a chatty incident's notes settled). ``False`` never risks
+        a double-post: the PD marker is the durable dedup, so a re-fire after a real post re-scans
+        and skips.
 
         Fail-closed at every gate (each returns ``False``): no open incident → skip; the id is
-        not a plain PD id → skip; the incident's service is not enrolled → skip; a WallE-marked
-        note already exists → skip (idempotent); the notes-scan is UNCONFIRMED (cap hit) → skip.
-        Only a clean find + enrolled + un-marked incident gets the note. ``note`` is the
-        ALREADY-REDACTED text from the receiver's chokepoint — this client redacts nothing; it
+        not a plain PD id → skip; the incident's service is not enrolled → skip; a marked note
+        already exists → skip (idempotent); the notes-scan is UNCONFIRMED (cap hit) → skip. Only
+        a clean find + enrolled + un-marked incident gets the note. ``body`` is the
+        ALREADY-REDACTED text from the router's chokepoint — this client redacts nothing; it
         only prepends the idempotency marker before posting.
 
         Raises :class:`PagerDutyError` on an unrecoverable PD failure (so ``post_back`` fails
         closed); returns cleanly on every fail-closed skip (those are not errors).
         """
-        incident = await self._find_open_incident(incident_key)
+        incident = await self._find_open_incident(handle)
         if incident is None:
             _log.warning(
-                "walle.pd.find.no_open_incident incident_key=%s — skipping (nothing to post to)",
-                incident_key,
+                "omni.pd.find.no_open_incident handle=%s — skipping (nothing to post to)",
+                handle,
             )
             return False
 
@@ -288,54 +297,54 @@ class PagerDutyClient:
             # (empty, or carrying path/query characters) could only come from a malformed or
             # compromised PD response. Fail-closed — never build a request from it.
             _log.warning(
-                "walle.pd.find.bad_incident_id incident_key=%s incident_id=%r — skipping",
-                incident_key,
+                "omni.pd.find.bad_incident_id handle=%s incident_id=%r — skipping",
+                handle,
                 incident_id,
             )
             return False
 
         if service_id not in self.enrolled_service_ids:
-            # DEFINING REQ 2: the found incident is not on a WallE-enrolled service. A forged
-            # groupKey matching a real-but-unenrolled incident dies here — WallE will not
+            # DEFINING REQ 2: the found incident is not on an enrolled service. A forged
+            # groupKey matching a real-but-unenrolled incident dies here — the client will not
             # graffiti an incident it was never enrolled to comment on.
             _log.warning(
-                "walle.pd.enrollment.not_enrolled incident_key=%s incident_id=%s service_id=%s "
+                "omni.pd.enrollment.not_enrolled handle=%s incident_id=%s service_id=%s "
                 "— skipping (forged-key / cross-service guard)",
-                incident_key,
+                handle,
                 incident_id,
                 service_id,
             )
             return False
 
-        scan = await self._scan_for_marker(incident_id, incident_key)
+        scan = await self._scan_for_marker(incident_id, handle)
         if scan is _MarkerScan.FOUND:
-            # DEFINING REQ 1: a WallE-marked note already exists for this incident — a retry or
-            # a restart re-run is a no-op. The marker lives in PD, so this survives a receiver
+            # DEFINING REQ 1: a marked note already exists for this incident — a retry or a
+            # restart re-run is a no-op. The marker lives in PD, so this survives a process
             # restart that lost the in-memory post-claim.
             _log.info(
-                "walle.pd.idempotent.already_posted incident_key=%s incident_id=%s — skipping",
-                incident_key,
+                "omni.pd.idempotent.already_posted handle=%s incident_id=%s — skipping",
+                handle,
                 incident_id,
             )
             return False
         if scan is _MarkerScan.UNCONFIRMED:
             # The notes-scan hit the page cap without finding the marker AND without exhausting
-            # the list — we cannot confirm a prior WallE note is absent. Fail CLOSED: skip
-            # rather than risk a double-post on an over-long incident.
+            # the list — we cannot confirm a prior note is absent. Fail CLOSED: skip rather
+            # than risk a double-post on an over-long incident.
             _log.warning(
-                "walle.pd.idempotent.scan_capped incident_key=%s incident_id=%s pages=%d "
+                "omni.pd.idempotent.scan_capped handle=%s incident_id=%s pages=%d "
                 "— cannot confirm not-already-posted, skipping (fail-closed)",
-                incident_key,
+                handle,
                 incident_id,
                 _NOTES_SCAN_MAX_PAGES,
             )
             return False
 
-        content = f"{note}\n\n{_marker(incident_key)}"
+        content = f"{body}\n\n{_marker(handle)}"
         await self._add_note(incident_id, content)
         _log.info(
-            "walle.pd.posted incident_key=%s incident_id=%s note_len=%d",
-            incident_key,
+            "omni.pd.posted handle=%s incident_id=%s note_len=%d",
+            handle,
             incident_id,
             len(content),
         )
@@ -359,7 +368,7 @@ class PagerDutyClient:
         return None
 
     async def _scan_for_marker(self, incident_id: str, incident_key: str) -> _MarkerScan:
-        """Paginate the incident's notes for the per-incident WallE marker (DEFINING REQ 1).
+        """Paginate the incident's notes for the per-incident marker (DEFINING REQ 1).
 
         The portable, restart-durable best-effort idempotency check (NOT atomic — see module
         docstring): PD has no native note dedup, so this marker-scan IS the guard. Follows PD's

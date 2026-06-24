@@ -1,10 +1,12 @@
-"""Pure AM-webhook model + injection-containment allowlist (PLT-715) — no omnigent import.
+"""The Alertmanager trigger adapter: webhook model + injection containment (Design 13).
 
-The AM→receiver edge's parse half, kept pure + unit-testable (mirrors ``engine.py`` /
-``profile.py``): the omnigent-touching launch is the wrapper's job; this module holds
-only the *parse + containment* policy, which is what must be provably bounded.
+The first :class:`~sei_omnigent.omni.adapters.base.TriggerAdapter` — the AM webhook ingress.
+Its containment discipline (allowlist + neutralize + ``<untrusted-data>`` frame + caps) is the
+TEMPLATE every adapter must follow (INV-6). No omnigent import — pure + unit-testable (mirrors
+``engine.py`` / ``profile.py``): the omnigent-touching launch is the router's job; this module
+holds only the *parse + containment + normalize* policy, which is what must be provably bounded.
 
-Two load-bearing transforms, both pure:
+Three load-bearing transforms, all pure:
 
 1. **Field-allowlist + framing** (INV-6 prompt-injection containment) — the alert becomes
    agent context, so :func:`extract_allowlisted` extracts ONLY a fixed set of fields, caps
@@ -16,15 +18,25 @@ Two load-bearing transforms, both pure:
    field AM guarantees stable across re-fires of the same alert group) to the dedup /
    single-flight key. Webhook retries + duplicate alerts MUST collapse to the same key, or
    ``engine.admit_run``'s single-flight is voided.
+3. **Normalize** — :meth:`AlertmanagerAdapter.parse` wraps the parse → is_firing/is_enrolled →
+   extract_allowlisted → derive_incident_key chain into a venue-agnostic
+   :class:`~sei_omnigent.omni.adapters.base.NormalizedTrigger` (or a :class:`NoOp` carrying the
+   reason for a non-matching event). The AM path's initiator is a SYSTEM identity (no human — that
+   is the Slack slice's concern); ``venue_handle`` and ``dedup_key`` are both the incident key.
 
-Design 12 §2, §3.5; INV-6.
+Design 13 (TriggerAdapter #1); Design 12 §2, §3.5; INV-6.
 """
 
 from __future__ import annotations
 
 import itertools
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+
+from sei_omnigent.omni.adapters.base import NoOp, NormalizedTrigger
+
+_log = logging.getLogger("sei_omnigent.omni.adapters.alertmanager")
 
 # --- containment caps (INV-6) --------------------------------------------------
 # Every string the agent sees is capped here, not downstream. The numbers are
@@ -88,11 +100,12 @@ class Webhook:
 class WebhookError(ValueError):
     """An inbound payload is not a parseable AM webhook v4 body.
 
-    Distinct from a *non-match* (a well-formed webhook that is not WallE-enrolled or
-    not firing — the receiver answers those 200 + no-op): a ``WebhookError`` means the
-    body is malformed. The receiver maps it to a 200 no-op too (an unparseable body is
-    not retryable — a 5xx would only invite AM to re-deliver the same bad bytes), but
-    the distinction is in the metric (``parse_error`` vs ``not_enrolled``).
+    Distinct from a *non-match* (a well-formed webhook that is not enrolled or not
+    firing): a ``WebhookError`` means the body is malformed. Both normalize to a ``NoOp``
+    (an unparseable body is not retryable — a 5xx would only invite AM to re-deliver the same
+    bad bytes), but to DISTINCT reasons: the parse-error path carries ``NoOp("parse_error")``
+    and the non-match path ``NoOp("not_enrolled")``, so a malformed-body storm and a benign
+    not-enrolled flood stay separable on-call signals rather than one undifferentiated no-op.
     """
 
 
@@ -170,25 +183,26 @@ def _parse_alert(entry: Mapping[str, object]) -> Alert:
 
 
 def is_enrolled(webhook: Webhook) -> bool:
-    """True if this group is WallE-enrolled (a ``walle: enabled`` label + a runbook).
+    """True if this group is enrolled (a ``walle: enabled`` label + a runbook).
 
-    Non-enrolled ⇒ the receiver answers 200 + no-op: the page already routed to the
+    Non-enrolled ⇒ the adapter normalizes to ``NoOp``: the page already routed to the
     human, so a non-match is not an error. Enrollment is checked on the GROUP labels
-    (``commonLabels``), the level at which an alerting rule opts a group into WallE — a
-    per-alert opt-in is deliberately not supported in v1 (one knob, the group).
+    (``commonLabels``), the level at which an alerting rule opts a group in — a per-alert
+    opt-in is deliberately not supported in v1 (one knob, the group). The ``walle: enabled``
+    label key is a DURABLE AM-webhook data contract (alerting rules set it), kept verbatim.
     """
     if webhook.common_labels.get("walle", "").strip().lower() != "enabled":
         return False
-    # A runbook is required: WallE runs a runbook-driven investigation, so a group with
-    # no runbook annotation has nothing to drive and must route to the human untouched.
+    # A runbook is required: the investigation is runbook-driven, so a group with no runbook
+    # annotation has nothing to drive and must route to the human untouched.
     return any(alert.annotations.get("runbook_url", "").strip() for alert in webhook.alerts)
 
 
 def is_firing(webhook: Webhook) -> bool:
     """True if the webhook is a ``firing`` notification (not a ``resolved`` one).
 
-    A ``resolved`` webhook is a no-op for WallE: the incident cleared on its own, so
-    there is nothing to investigate (the receiver answers 200 + no-op).
+    A ``resolved`` webhook is a no-op: the incident cleared on its own, so there is nothing
+    to investigate (the adapter normalizes to ``NoOp``).
     """
     return webhook.status.strip().lower() == "firing"
 
@@ -274,3 +288,67 @@ def derive_incident_key(webhook: Webhook) -> str:
     alertname = labels.get("alertname", "").strip()
     namespace = labels.get("namespace", "").strip()
     return f"fallback:{alertname}:{namespace}"
+
+
+# --- the TriggerAdapter implementation (the normalize step) --------------------
+
+#: The system initiator for the AM path. The AM edge carries no human principal — the trigger
+#: is a machine/alerting-rule firing, so the initiator is this fixed system identity. The
+#: per-human-initiator principal is the Slack slice's concern (gated on the Blocking dependency).
+_AM_SYSTEM_INITIATOR = "system:alertmanager"
+
+#: The trust class the ControlPlane keys on for the AM path. A machine-origin trigger.
+_AM_TRUST = "system"
+
+#: The default goal template — the trusted (manifest-injected) frame the contained alert is
+#: interpolated INTO. The contained alert is a {alert} VALUE, never promoted to the template
+#: position, so an alert value carrying its own "{...}" cannot re-template.
+_DEFAULT_GOAL_TEMPLATE = "Investigate this alert and root-cause it:\n{alert}"
+
+
+@dataclass(frozen=True)
+class AlertmanagerAdapter:
+    """Normalize an AM webhook body into a :class:`NormalizedTrigger` (or a :class:`NoOp`).
+
+    Implements the webhook-shaped :class:`~sei_omnigent.omni.adapters.base.TriggerAdapter`. The
+    parse → is_firing/is_enrolled → extract_allowlisted → derive_incident_key chain is the
+    containment template every adapter follows (INV-6) — preserved verbatim here. A non-firing /
+    non-enrolled / unparseable body yields a :class:`NoOp` (the router answers a no-op, not an
+    error: the page already routed to the human).
+
+    ``goal_template`` is TRUSTED (manifest-injected). The contained alert is interpolated as the
+    ``{alert}`` value, never promoted to the template position.
+    """
+
+    goal_template: str = _DEFAULT_GOAL_TEMPLATE
+
+    def parse(self, body: object) -> NormalizedTrigger | NoOp:
+        """Parse + contain + normalize one AM webhook body, or return a :class:`NoOp`.
+
+        Wraps the existing pure chain, distinguishing the two non-match cases in the NoOp's
+        reason: unparseable → ``NoOp("parse_error")``; non-firing or non-enrolled →
+        ``NoOp("not_enrolled")``; otherwise the contained, framed alert (``extract_allowlisted``)
+        + the derived incident key become a :class:`NormalizedTrigger`. ``venue_handle`` and
+        ``dedup_key`` are both the incident key (for AM they coincide); the initiator is the
+        fixed system identity (no human principal on the AM path).
+        """
+        try:
+            webhook = parse_webhook(body)
+        except WebhookError:
+            # A malformed body — log the offender (it is attacker-influenceable) and surface the
+            # distinct reason so a parse-error storm is separable from a not-enrolled flood.
+            _log.exception("omni.am.parse_error — unparseable AM webhook body, no-op")
+            return NoOp("parse_error")
+        if not is_firing(webhook) or not is_enrolled(webhook):
+            return NoOp("not_enrolled")
+        incident_key = derive_incident_key(webhook)
+        alert = extract_allowlisted(webhook)
+        return NormalizedTrigger(
+            initiator=_AM_SYSTEM_INITIATOR,
+            goal=self.goal_template.format(alert=alert),
+            venue_handle=incident_key,
+            dedup_key=incident_key,
+            trust=_AM_TRUST,
+            requested_skills=(),
+            payload=alert,
+        )
