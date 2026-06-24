@@ -239,7 +239,7 @@ Engineer says "X is stuck" or "diagnose chain foo." `seictl` has no diagnose ver
 
 1. Read `.status.phase` via recipe #2 in `references/cluster-inspection-recipes.md` (`network get` for the genesis network, `node get` for a follower). If the CR is in `Failed` or stuck `Initializing`, recipe #3 returns the failed task name + error directly — don't try to re-derive the path.
 2. Branch on phase:
-   - **Pending** → check sei-k8s-controller pods + leader lease in `sei-system`
+   - **Pending** → check sei-k8s-controller pods + leader lease in `sei-k8s-controller-system`
    - **Initializing** → read `.status.plan` for the failing PlannedTask; map task name to root cause (snapshot-restore → S3 / Pod Identity, configure-genesis → genesis URL, discover-peers → label selector, mark-ready → seid health)
    - **Running** (node) / **Ready** (network) → check seid logs, pod restarts; for an engineer-owned exposure route, check the HTTPRoute they rendered (the controller creates none)
    - **Failed** → read `.status.plan.failedTaskDetail.error` (also lifted to stderr by `seictl network|node watch` on terminal Failed)
@@ -249,7 +249,7 @@ Engineer says "X is stuck" or "diagnose chain foo." `seictl` has no diagnose ver
 
 Pure invocations. Skill calls `seictl network|node <verb>` and surfaces the structured output to the engineer in plain English. No questions, no confirmation.
 
-## Halt conditions
+## Halt Conditions
 
 Stop and report to the user if:
 
