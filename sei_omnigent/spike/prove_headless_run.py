@@ -94,36 +94,48 @@ async def _run(args: argparse.Namespace) -> int:
     session_id: str | None = None
     resolved_owner = "<unread>"
     try:
-        # Verified 0.2.0 form: SessionsChat.create(namespace, bundle); namespace = client.sessions.
-        chat = await SessionsChat.create(client.sessions, bundle)
-        session_id = getattr(chat, "session_id", None)
-
-        # PURPOSE 2 probe — what principal did the SERVER resolve? Best-effort.
         try:
-            if session_id is not None:
-                info = await client.sessions.get(session_id)
-                resolved_owner = getattr(info, "owner", None) or "<no owner field on snapshot>"
-        except Exception as exc:  # the probe must never fail Purpose 1
-            resolved_owner = f"<unavailable: {type(exc).__name__}>"
+            # Verified 0.2.0 form: SessionsChat.create(namespace, bundle); ns = client.sessions.
+            chat = await SessionsChat.create(client.sessions, bundle)
+            session_id = getattr(chat, "session_id", None)
 
-        session = GoalSession(chat, args.goal)
-        token_delta, is_iteration, artifact_chunk = make_extractors()
-        budget = Budget(
-            wall_clock_s=args.wall_clock_s,
-            tokens=args.tokens,
-            queries=args.queries,
-            per_source_queries={},
-            max_iterations=args.max_iterations,
-            no_progress_iterations=args.no_progress_iterations,
-        )
-        outcome = await drive_to_terminal(
-            session,
-            budget,
-            now=time.monotonic,
-            token_delta=token_delta,
-            is_iteration=is_iteration,
-            artifact_chunk=artifact_chunk,
-        )
+            # PURPOSE 2 probe — what principal did the SERVER resolve? Best-effort.
+            try:
+                if session_id is not None:
+                    info = await client.sessions.get(session_id)
+                    resolved_owner = getattr(info, "owner", None) or "<no owner field on snapshot>"
+            except Exception as exc:  # the probe must never fail Purpose 1
+                resolved_owner = f"<unavailable: {type(exc).__name__}>"
+
+            session = GoalSession(chat, args.goal)
+            token_delta, is_iteration, artifact_chunk = make_extractors()
+            budget = Budget(
+                wall_clock_s=args.wall_clock_s,
+                tokens=args.tokens,
+                queries=args.queries,
+                per_source_queries={},
+                max_iterations=args.max_iterations,
+                no_progress_iterations=args.no_progress_iterations,
+            )
+            outcome = await drive_to_terminal(
+                session,
+                budget,
+                now=time.monotonic,
+                token_delta=token_delta,
+                is_iteration=is_iteration,
+                artifact_chunk=artifact_chunk,
+            )
+        except Exception as exc:
+            # The likely first-run failure: bad --server / auth / unreachable host / bad bundle.
+            # SessionsChat.create raises BEFORE the driver's internal ERRORED handling, so catch it
+            # here and render a clean diagnostic (exit 1), not a raw traceback.
+            print("=" * 72)
+            print("SPIKE RESULT: FAIL (Purpose 1) — could not run the live session.")
+            print(f"  {type(exc).__name__}: {exc}")
+            print("  check: --server reachable + header-mode, --bundle valid, ANTHROPIC_API_KEY on")
+            print("  the host/runner, and the X-Forwarded-Email identity the server admits.")
+            print("=" * 72)
+            return 1
     finally:
         await client.close()  # 0.2.0: OmnigentClient exposes close() (NOT aclose).
 
