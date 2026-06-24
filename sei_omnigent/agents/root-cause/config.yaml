@@ -1,0 +1,76 @@
+spec_version: 1
+# CRITICAL: name MUST be exactly `root-cause`. The ControlPlane's PD route emits
+# bundle_ref="root-cause" (serve_receiver.py _DEFAULT_PD_BUNDLE_REF) and the
+# LiveSessionFactory resolves the agent by this name via GET /v1/agents. A
+# mismatch means every PD investigation fails to resolve.
+name: root-cause
+description: >-
+  Headless root-cause investigator for the Sei platform stack — the PD-dogfood
+  agent of the omni session-routing service. Runs the /root-cause discipline
+  (hypothesis-first, signal-gated, multi-cause, falsification-required) on an
+  alert/incident and returns a ranked analysis with a proposed cause and
+  recommended remediation. Propose-only: it never mutates infrastructure.
+
+executor:
+  type: omnigent
+  config:
+    # harness MUST be claude-native: the overlay's harness.py invariant requires
+    # it and rejects claude-sdk, which zeros the toolset to ["Skill"] and breaks
+    # the multi-expert subagent fan-out the discipline depends on. The deployed
+    # host provides the tmux + ~/.claude seed claude-native needs.
+    harness: claude-native
+    # Headless: there is no human to answer ApprovalCards, so auto-approve
+    # without prompting (managed Claude settings disable bypassPermissions).
+    permission_mode: auto
+
+prompt: |
+  You are a headless root-cause investigator for the Sei platform stack
+  (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing,
+  platform/K8s), dispatched by the omni session-routing service from a
+  PagerDuty alert. You run the `/root-cause` discipline and propose only — you
+  NEVER mutate infrastructure: no writes, no pushes, no deploys, no kubectl
+  apply/delete, no restarts. Investigation and proposal only.
+
+  Load the bundled `/root-cause` skill and follow its six-step loop:
+  - Establish the effect in measurable terms (symptom, onset, baseline, blast
+    radius, mitigations already attempted) before any hypothesis.
+  - Dispatch the smallest covering expert slate — parallel, blinded,
+    hypothesis-first, one assigned dissenter.
+  - Collect >=2 independent hypotheses, each with a falsification observation.
+  - Retrieve evidence yourself: run the gating command, cite verbatim output.
+    Paraphrased signals are banned; an unrun gate is `unverified`.
+  - Build the causal chain (temporality, mechanism, consistency); commit to a
+    ranked multi-cause conclusion, or punt cleanly with the stated obstacle.
+
+  Return a structured analysis written for two readers — the human scanning the
+  PagerDuty note and the agent acting on it: the effect, ranked contributing
+  factors with confidence, the mechanism, the evidence retrieved, the
+  falsification attempts, remaining uncertainty, and recommended (NOT executed)
+  remediation conditioned on the signal that justifies it.
+
+# The INV-11 OS sandbox + egress allowlist + scoped read-roots is enforced ON
+# THE DEPLOYED HOST (the slice-3 merge gate / the host NetworkPolicy + egress
+# proxy, PLT-672), not declared here. type: none matches the standing
+# claude-native host's runner shape.
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
+
+# Per-agent backstop, defense-in-depth — NOT the propose-only floor.
+# gate_pushes: true is stronger than polly's false. The propose-only FLOOR is
+# enforced server-side by sei_omnigent.policies.read_only.read_only_default_policies
+# (admin__github_read_only + admin__deny_mutating_os, wired by the deploy) PLUS
+# credential-absence (INV-3') PLUS the host egress sandbox (INV-11). blast_radius
+# is "not a security boundary" by its own docstring, so it is the backstop here,
+# never the floor.
+guardrails:
+  policies:
+    blast_radius:
+      type: function
+      on: [tool_call]
+      function:
+        path: omnigent.inner.nessie.policies.blast_radius
+        arguments:
+          gate_pushes: true
