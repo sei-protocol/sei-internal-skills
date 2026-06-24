@@ -4,11 +4,11 @@
     {
       "id": "happy-path-clean-per-node-govvote",
       "type": "happy-path",
-      "prompt": "Review a per-node GovVote SeiNodeTask: it soft-name-refs one SeiNode via spec.target.nodeRef.name, encodes proposalId as the JSON string \"142\", sets option VOTE_OPTION_YES, uses keyName node_admin, and is one of N manifests fanned across the validators per /gov-ops's fan-out template. The flow verifies the vote by querying the chain.",
+      "prompt": "Review a per-node GovVote SeiNodeTask on apiVersion sei.io/v1alpha1: spec.kind is GovVote, it soft-name-refs one SeiNode via spec.target.nodeRef.name, and under spec.govVote it sets chainId arctic-1, proposalId 142 (unquoted JSON number), option yes (lowercase), keyName node_admin, fees 2000usei, and gas 200000. It is one of N manifests fanned across the validators per /gov-ops's fan-out template. The flow verifies the vote by querying the chain.",
       "expected_behavior": [
         "Loads sei-validator-profile.md + kit-seinodetask-gov-manifests.md before judging (Guardrail 1)",
-        "Concludes it conforms — cites the per-node fan-out (no selector), camelCase + integer-as-JSON-string encoding, node_admin via the keyring ladder, and chain-based verification as correct against the profile",
-        "Notes GovVote is chain-idempotent (last-write-wins) so re-apply is safe; defers the fan-out template + fee floor to /gov-ops rather than restating them; does not manufacture findings"
+        "Concludes it conforms — cites spec.kind discriminator with the payload nested under spec.govVote (keyName inside the payload), proposalId as an unquoted JSON number (uint64) and option as the lowercase enum, all required payload fields present (chainId/proposalId/option/fees/gas), node_admin via the keyring ladder, the per-node fan-out (no selector), and chain-based verification as correct against the profile",
+        "Notes GovVote is chain-idempotent (last-write-wins) so re-apply is safe; defers the fan-out template + fee floor to /gov-ops rather than restating them; does NOT invent an integer-as-string finding for proposalId (that convention is param-value-only); does not manufacture findings"
       ],
       "source": "method.md (5 dimensions); profile §1/§5/§6; kit-seinodetask-gov-manifests §2"
     },
@@ -37,11 +37,13 @@
     {
       "id": "encoding-trap-detection",
       "type": "discipline",
-      "prompt": "A PR adds a GovParamChange SeiNodeTask whose payload sets `height: 12750000` as a bare JSON number, uses snake_case `proposal_id`, and supplies the struct param `value` as an escaped JSON string \"{\\\"key\\\":...}\".",
+      "prompt": "A PR adds a SeiNodeTask that uses spec.type: GovParamChange (instead of spec.kind), quotes upgradeHeight as \"12750000\", uses snake_case `proposal_id`, puts a GovParamChange struct param `value` as an escaped JSON string \"{\\\"key\\\":...}\", and passes a large-integer param value as a bare number 86400000000000.",
       "expected_behavior": [
-        "Flags integer-as-JSON-number: height (and any string-typed integer like proposalId) must be quoted — \"12750000\" (Dimension 1 (Manifest correctness & encoding))",
-        "Flags the double-encode trap: a struct param value must be a JSON OBJECT, not an escaped JSON string (Dimension 1)",
-        "Flags snake_case: fields are camelCase; cites §controller (CRD payload) + §seictl (handler deserialization); does not restate the /gov-ops value-shape gate but may cite it"
+        "Flags the discriminator: the field is spec.kind (not spec.type), with the payload nested under spec.govParamChange (Dimension 1 (Manifest correctness & encoding))",
+        "Flags the double-encode trap: a GovParamChangeEntry.value that is a struct must be a JSON OBJECT, not an escaped JSON string — the sidecar stringifies the raw bytes exactly once (Dimension 1)",
+        "Flags the large-integer param value: it must be a JSON STRING (\"86400000000000\"), not a bare number — the integer-as-string convention applies to a GovParamChangeEntry.value only (Dimension 1)",
+        "Notes that typed numerics like proposalId/upgradeHeight must NOT be quoted (they are uint64/int64 JSON numbers) — so quoting upgradeHeight is the inverted error to call out, not to endorse",
+        "Flags snake_case: fields are camelCase; cites §controller (CRD payload + GovParamChangeEntry.value doc) + §seictl (paramChange.Value handler deserialization); does not restate the /gov-ops value-shape gate but may cite it"
       ],
       "source": "kit-seinodetask-gov-manifests §2/§3; method Dimension 1; profile encoding rules"
     },
