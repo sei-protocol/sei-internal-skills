@@ -47,7 +47,10 @@ When the ship step is reached and a `review-gate` was declared, evaluate it:
    registry, no handoff token). The ledger lives in the DRI repo at `designs/<arc>/xreview/<slug>.md`
    (Design 13): for a design-doc target the arc is the target's own path segment; for a code-PR/diff
    target the arc is the code repo's **default arc** (repo identity → fixed arc, e.g. `Tide` →
-   `tide-skill-stack`) — both computable with no prompt, per `/xreview/references/review-ledger.md`.
+   `tide-skill-stack`). The gate checks **two deterministic candidate paths** — that DRI-repo path,
+   then the in-repo `.xreview/<slug>.md` fallback (where the producer writes when no DRI repo was
+   resolvable) — both computable with no prompt, per `/xreview/references/review-ledger.md`; absent
+   from **both** ⇒ fail closed.
 2. **Read the latest round's header block** and apply `/xreview`'s passing-terminal gate-read
    **verbatim** (the provider's ledger-validity check — see the *Gate-read contract* table in
    `/xreview/references/review-ledger.md`; this gate reads that table, it does not re-list or

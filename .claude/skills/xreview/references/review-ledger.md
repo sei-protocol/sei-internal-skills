@@ -28,9 +28,14 @@ under the **code repo's deterministic default arc** (repo identity → a fixed a
   (headless/cron) run, HALT and surface — never write to a guessed path** (the `/design` headless-halt
   clause).
 - **Consumer (read-time, MUST be deterministic — no prompt, no registry).** The `/workstream`
-  review-gate computes the ledger path from the target alone: **arc** = the target's path segment
-  (design-doc) or the code repo's **default arc** (code-PR/diff); **slug** per below. The gate never
-  asks and never reads a registry — a wrong/unfound path fails the gate closed (it does not prompt).
+  review-gate computes the ledger location from the target alone and checks **two deterministic
+  candidate paths in order** (both target-derivable, so this is a fixed lookup, not a search):
+  **(1)** the DRI-repo path `designs/<arc>/xreview/<slug>.md` — **arc** = the target's path segment
+  (design-doc) or the code repo's **default arc** (code-PR/diff); **(2)** the in-repo
+  `.xreview/<slug>.md` fallback (where the producer writes when no DRI repo was resolvable). **slug**
+  per below, identical for both. The gate reads whichever exists; if **neither** exists it fails
+  closed. It never asks and never reads a registry — checking both known producer-output locations is
+  what keeps a fallback-written ledger findable without a prompt.
 
 **Slug derivation:** a single-artifact target → that artifact's slug. A **multi-file diff with no
 single artifact path** → `<target-slug>` is the **PR/branch identifier** (single-valued, still
