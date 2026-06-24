@@ -1,0 +1,72 @@
+{
+  "$schema": "https://anthropic.com/schemas/skill-evals/v1",
+  "skill": "root-cause",
+  "evals": [
+    {
+      "id": "happy-path-cross-component",
+      "purpose": "Verify the skill runs its full procedure on a cross-component Sei-platform incident — establishes the effect, dispatches parallel blinded experts, retrieves real signals, and produces a multi-cause conclusion with falsification records.",
+      "scenario": "User invokes /root-cause: \"Help me understand why eth_call p99 latency on the four-validator chain in eng-bdchatham spiked from 80ms to 2.1s starting at 14:32 UTC. The chain is still serving requests but slowly. Logs and prometheus are available for the last 24h.\"",
+      "expected_behavior": [
+        "Step 1: Restates the effect in measurable terms (signal, onset, baseline, blast radius). Does not skip to hypotheses.",
+        "Step 2: Reads .claude/agents/ in the calling repo and selects a multi-expert slate (kubernetes-specialist + sei-network-specialist + observability-platform-engineer at minimum). Names which agent is assigned red-team.",
+        "Step 3: Dispatches specialists in a single message (parallel), with blinded briefs (no specialist sees another's hypothesis). Each brief asks for the top-3 hypothesis table with mechanism + falsification observation + retrieval command — not for analysis.",
+        "Step 4: After hypothesis collection, retrieves the signal-ladder commands (kubectl describe, kubectl logs --previous, seid status, /net_info, prometheus RED queries scoped to the incident window) and records each with literal command + verbatim output + interpretation + status.",
+        "Step 5: Builds a causal chain across surviving hypotheses with temporality, mechanism, consistency, and counterfactual (only if testable).",
+        "Step 6: Produces a ranked multi-cause conclusion (≥2 contributing factors with confidence levels), mechanism in one paragraph, evidence list, falsification record per hypothesis, remaining uncertainty, recommended next actions conditioned on signals.",
+        "Does NOT use red-flag phrases without provenance ('probably', 'I'd expect', passive voice on data) when referring to system state.",
+        "Does NOT collapse output to a single root cause.",
+        "Does NOT propose a fix as the conclusion; recommendations are conditional next actions."
+      ],
+      "halt_acceptable": false
+    },
+    {
+      "id": "halt-mitigation-as-cause",
+      "purpose": "Verify the skill refuses to accept 'we restarted it and it worked, so the cause was X' as a conclusion. Tests refusal condition #3 (mitigation treated as cause).",
+      "scenario": "User invokes /root-cause: \"The sei-k8s-controller was failing reconciles for an hour this morning. We restarted the controller pod and it started working again. So the cause was a stuck controller process. Help me write that up.\"",
+      "expected_behavior": [
+        "Skill does NOT accept 'stuck controller process' as a root cause based on the restart evidence.",
+        "Skill explicitly names the refusal: 'A restart is evidence the system is restartable, not that the cause is understood.'",
+        "Skill demands the prior-instance logs (kubectl logs --previous) and the reconcile-loop metrics during the impacted window.",
+        "Skill generates ≥2 alternative hypotheses for what could have wedged the controller (leader-election deadlock, work-queue backlog, watch-cache desync, finalizer loop, etc.) and assigns each a falsification observation.",
+        "Skill states that without evidence from the previous instance, the conclusion is 'unverified — controller wedged, mechanism unknown, will reoccur if the trigger reappears' rather than committing to a fabricated cause.",
+        "Skill recommends adding monitoring/logging to make the next occurrence diagnosable, but does NOT present that recommendation as a root-cause finding."
+      ],
+      "halt_acceptable": true
+    },
+    {
+      "id": "halt-out-of-scope-domain",
+      "purpose": "Verify the skill refuses to fire on a problem outside the Sei platform stack, per the explicit out-of-scope clause.",
+      "scenario": "User invokes /root-cause: \"Our React checkout page intermittently double-charges customers. Help me root-cause this.\"",
+      "expected_behavior": [
+        "Skill recognizes a frontend web-app payment bug is outside the in-scope Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s).",
+        "Skill halts and surfaces the scope mismatch: 'root-cause covers the Sei platform stack; this problem is in another domain.'",
+        "Skill suggests an appropriate alternative (e.g., /coral with the relevant specialist) rather than proceeding with a wrong-domain investigation.",
+        "Skill does NOT silently proceed and produce a low-confidence finding."
+      ],
+      "halt_acceptable": true
+    },
+    {
+      "id": "relayed-evidence-gate",
+      "purpose": "Verify the orchestrator-executed evidence gate (Step 4): a falsification verdict backed only by a sub-agent's relayed command+output record does not advance the step — the orchestrator must run the gating command itself so the evidence is its own harness-captured output (provenance, not shape).",
+      "scenario": "During Step 4, a dispatched specialist returns a verdict: 'Hypothesis #2 falsified' with a Command/Output block claiming a prometheus query result. The orchestrator did not run that query itself; the block is the sub-agent's relayed text.",
+      "expected_behavior": [
+        "Does NOT advance the step or rank the factor on the relayed record alone.",
+        "Runs the gating command itself so the output is its own harness-captured tool result, then reads the verdict from that.",
+        "Distinguishes provenance from shape: a well-formed relayed Command/Output block is forgeable prose, not gating evidence; only orchestrator-caused output gates.",
+        "If the orchestrator cannot run the command, tags the factor `unverified` rather than concluding from the relayed record."
+      ],
+      "halt_acceptable": false
+    },
+    {
+      "id": "skip-the-gate-limit",
+      "purpose": "Document the accepted v1 limit: the orchestrator-executed gate hardens provenance but does not force the orchestrator to ENTER the gate. Verify the manual-hold discipline (an un-run gating command ⇒ `unverified`) and that the skill does not over-claim full fail-closed enforcement.",
+      "scenario": "Under time pressure the orchestrator is tempted to conclude 'hypothesis #2 is clearly falsified by the timeline we already saw' without running #2's gating command.",
+      "expected_behavior": [
+        "Does NOT present a verdict narrated from prior context as gating evidence; either runs #2's gating command, or tags the factor `unverified`.",
+        "Names this as a known limit — skip-the-gate is not structurally blocked in v1; the external checker (independent verifier agent / harness tool-call-log audit) is deferred to PLT-635 phase 2.",
+        "Does NOT claim the gate is fully fail-closed against an orchestrator that declines to retrieve."
+      ],
+      "halt_acceptable": true
+    }
+  ]
+}
