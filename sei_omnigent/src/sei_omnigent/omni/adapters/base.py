@@ -11,8 +11,8 @@ the webhook shape; the streaming shape is the seam a streaming adapter will add.
 CONTAINMENT IS THE TEMPLATE (INV-6): the Alertmanager adapter's allowlist + neutralize +
 ``<untrusted-data>`` frame + caps discipline is the contract every adapter must follow — venue
 user text (Slack/GitHub) is *more* attacker-influenceable than an AM annotation. A trigger that
-does not match (non-firing / non-enrolled / unparseable) normalizes to :data:`NoOp`, never an
-error.
+does not match (non-firing / non-enrolled / unparseable) normalizes to a :class:`NoOp` carrying
+the reason, never an error.
 
 Design 13 Component map (TriggerAdapter); INV-6 (containment), INV-10 (venue authenticity).
 """
@@ -21,24 +21,25 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import Protocol
 
 
-class _NoOp(Enum):
-    """A singleton sentinel: this venue event is not a trigger (no run to admit).
+@dataclass(frozen=True)
+class NoOp:
+    """A non-trigger sentinel CARRYING its reason: this venue event is not a run to admit.
 
     A well-formed-but-non-matching event (an AM webhook that is non-firing / non-enrolled, an
-    unparseable body) yields :data:`NoOp` — the router answers it as a no-op, NOT an error (the
-    page already routed to the human). Distinct from a :class:`NormalizedTrigger`, so the router
-    branches on identity rather than a nullable field.
+    unparseable body) yields a :class:`NoOp` — the router answers it as a no-op, NOT an error
+    (the page already routed to the human). Distinct from a :class:`NormalizedTrigger`, so the
+    router branches via ``isinstance(result, NoOp)`` rather than a nullable field.
+
+    ``reason`` is the bounded, low-cardinality discriminator the router emits as the admission
+    metric + the 200-body reason. The two non-match cases are DELIBERATELY distinguished
+    (``"parse_error"`` vs ``"not_enrolled"``): a malformed-body storm and a benign
+    not-enrolled flood must not collapse into one on-call signal.
     """
 
-    TOKEN = 0
-
-
-#: The "not a trigger" sentinel an adapter returns for a non-matching event (see :class:`_NoOp`).
-NoOp = _NoOp.TOKEN
+    reason: str
 
 
 @dataclass(frozen=True)
@@ -78,9 +79,10 @@ class TriggerAdapter(Protocol):
     """The per-venue ingress seam: normalize a venue event into a :class:`NormalizedTrigger`.
 
     The webhook shape (``parse``) is the only shape this slice ships. ``parse`` returns a
-    :class:`NormalizedTrigger` for a matching event or :data:`NoOp` for a non-matching one; it
-    must apply the containment discipline (INV-6) before anything attacker-influenceable reaches
-    the returned trigger. A streaming adapter (Slack) adds an async ``run()`` in a later slice.
+    :class:`NormalizedTrigger` for a matching event or a :class:`NoOp` (carrying its reason) for
+    a non-matching one; it must apply the containment discipline (INV-6) before anything
+    attacker-influenceable reaches the returned trigger. A streaming adapter (Slack) adds an
+    async ``run()`` in a later slice.
     """
 
-    def parse(self, body: object) -> NormalizedTrigger | _NoOp: ...
+    def parse(self, body: object) -> NormalizedTrigger | NoOp: ...

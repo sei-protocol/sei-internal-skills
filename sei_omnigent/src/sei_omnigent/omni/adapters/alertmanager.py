@@ -20,8 +20,8 @@ Three load-bearing transforms, all pure:
    ``engine.admit_run``'s single-flight is voided.
 3. **Normalize** — :meth:`AlertmanagerAdapter.parse` wraps the parse → is_firing/is_enrolled →
    extract_allowlisted → derive_incident_key chain into a venue-agnostic
-   :class:`~sei_omnigent.omni.adapters.base.NormalizedTrigger` (or :data:`NoOp` for a
-   non-matching event). The AM path's initiator is a SYSTEM identity (no human principal — that
+   :class:`~sei_omnigent.omni.adapters.base.NormalizedTrigger` (or a :class:`NoOp` carrying the
+   reason for a non-matching event). The AM path's initiator is a SYSTEM identity (no human — that
    is the Slack slice's concern); ``venue_handle`` and ``dedup_key`` are both the incident key.
 
 Design 13 (TriggerAdapter #1); Design 12 §2, §3.5; INV-6.
@@ -30,10 +30,13 @@ Design 13 (TriggerAdapter #1); Design 12 §2, §3.5; INV-6.
 from __future__ import annotations
 
 import itertools
+import logging
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from sei_omnigent.omni.adapters.base import NoOp, NormalizedTrigger, _NoOp
+from sei_omnigent.omni.adapters.base import NoOp, NormalizedTrigger
+
+_log = logging.getLogger("sei_omnigent.omni.adapters.alertmanager")
 
 # --- containment caps (INV-6) --------------------------------------------------
 # Every string the agent sees is capped here, not downstream. The numbers are
@@ -98,9 +101,11 @@ class WebhookError(ValueError):
     """An inbound payload is not a parseable AM webhook v4 body.
 
     Distinct from a *non-match* (a well-formed webhook that is not enrolled or not
-    firing — the adapter normalizes those to ``NoOp``): a ``WebhookError`` means the
-    body is malformed. The adapter normalizes it to ``NoOp`` too (an unparseable body is
-    not retryable — a 5xx would only invite AM to re-deliver the same bad bytes).
+    firing): a ``WebhookError`` means the body is malformed. Both normalize to a ``NoOp``
+    (an unparseable body is not retryable — a 5xx would only invite AM to re-deliver the same
+    bad bytes), but to DISTINCT reasons: the parse-error path carries ``NoOp("parse_error")``
+    and the non-match path ``NoOp("not_enrolled")``, so a malformed-body storm and a benign
+    not-enrolled flood stay separable on-call signals rather than one undifferentiated no-op.
     """
 
 
@@ -303,12 +308,12 @@ _DEFAULT_GOAL_TEMPLATE = "Investigate this alert and root-cause it:\n{alert}"
 
 @dataclass(frozen=True)
 class AlertmanagerAdapter:
-    """Normalize an AM webhook body into a :class:`NormalizedTrigger` (or :data:`NoOp`).
+    """Normalize an AM webhook body into a :class:`NormalizedTrigger` (or a :class:`NoOp`).
 
     Implements the webhook-shaped :class:`~sei_omnigent.omni.adapters.base.TriggerAdapter`. The
     parse → is_firing/is_enrolled → extract_allowlisted → derive_incident_key chain is the
     containment template every adapter follows (INV-6) — preserved verbatim here. A non-firing /
-    non-enrolled / unparseable body yields :data:`NoOp` (the router answers a no-op, not an
+    non-enrolled / unparseable body yields a :class:`NoOp` (the router answers a no-op, not an
     error: the page already routed to the human).
 
     ``goal_template`` is TRUSTED (manifest-injected). The contained alert is interpolated as the
@@ -317,21 +322,25 @@ class AlertmanagerAdapter:
 
     goal_template: str = _DEFAULT_GOAL_TEMPLATE
 
-    def parse(self, body: object) -> NormalizedTrigger | _NoOp:
-        """Parse + contain + normalize one AM webhook body, or return :data:`NoOp`.
+    def parse(self, body: object) -> NormalizedTrigger | NoOp:
+        """Parse + contain + normalize one AM webhook body, or return a :class:`NoOp`.
 
-        Wraps the existing pure chain: unparseable → :data:`NoOp`; non-firing or non-enrolled →
-        :data:`NoOp`; otherwise the contained, framed alert (``extract_allowlisted``) + the
-        derived incident key become a :class:`NormalizedTrigger`. ``venue_handle`` and
+        Wraps the existing pure chain, distinguishing the two non-match cases in the NoOp's
+        reason: unparseable → ``NoOp("parse_error")``; non-firing or non-enrolled →
+        ``NoOp("not_enrolled")``; otherwise the contained, framed alert (``extract_allowlisted``)
+        + the derived incident key become a :class:`NormalizedTrigger`. ``venue_handle`` and
         ``dedup_key`` are both the incident key (for AM they coincide); the initiator is the
         fixed system identity (no human principal on the AM path).
         """
         try:
             webhook = parse_webhook(body)
         except WebhookError:
-            return NoOp
+            # A malformed body — log the offender (it is attacker-influenceable) and surface the
+            # distinct reason so a parse-error storm is separable from a not-enrolled flood.
+            _log.exception("omni.am.parse_error — unparseable AM webhook body, no-op")
+            return NoOp("parse_error")
         if not is_firing(webhook) or not is_enrolled(webhook):
-            return NoOp
+            return NoOp("not_enrolled")
         incident_key = derive_incident_key(webhook)
         alert = extract_allowlisted(webhook)
         return NormalizedTrigger(

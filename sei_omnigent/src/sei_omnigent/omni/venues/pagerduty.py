@@ -350,14 +350,6 @@ class PagerDutyClient:
         )
         return True
 
-    async def post_note(self, incident_key: str, note: str) -> bool:
-        """Back-compat alias for :meth:`post_result` (``incident_key``/``note`` naming).
-
-        The Design-12 ``PagerDutyPoster`` Protocol named this ``post_note``; the Design-13
-        ``Venue`` Protocol is ``post_result``. This thin alias keeps the older name callable.
-        """
-        return await self.post_result(incident_key, note)
-
     async def _find_open_incident(self, incident_key: str) -> Mapping[str, object] | None:
         """GET the open (triggered/acknowledged) incident for the PD ``incident_key``, or None.
 

@@ -102,8 +102,22 @@ class _RecordingVenue:
         return True
 
 
+class _RecordingMetrics:
+    """A metrics sink that records the admission decisions for assertion."""
+
+    def __init__(self) -> None:
+        self.admissions: list[str] = []
+
+    def received(self, *, verified: bool) -> None: ...
+    def admitted(self, *, decision: str) -> None:
+        self.admissions.append(decision)
+
+    def terminal(self, *, reason: str) -> None: ...
+    def post(self, *, result: str) -> None: ...
+
+
 def _router(
-    session_factory, *, dedup=None, venue=None, max_in_flight=16, redact=None
+    session_factory, *, dedup=None, venue=None, max_in_flight=16, redact=None, metrics=None
 ) -> Router:
     return Router(
         config=RouterConfig(
@@ -115,6 +129,7 @@ def _router(
         expected_token=_TOKEN,
         venue=venue if venue is not None else _RecordingVenue(),
         redact=redact if redact is not None else (lambda body: body),
+        metrics=metrics if metrics is not None else _RecordingMetrics(),
     )
 
 
@@ -174,12 +189,47 @@ def test_non_enrolled_is_200_noop() -> None:
     assert body["status"] == "noop"
 
 
-def test_unparseable_body_is_200_noop_not_5xx() -> None:
-    rec = _router(lambda ctx: (_FakeSession([]), *_extractors()))
+def test_parse_error_is_200_noop_not_5xx_with_parse_error_metric() -> None:
+    # A malformed body MUST be a 200-noop, never a 5xx (a 5xx invites AM to re-deliver the same
+    # bad bytes). The distinction is in the reason/metric, not the status: the parse-error path
+    # emits decision="parse_error" so a malformed-body storm is visible on-call.
+    metrics = _RecordingMetrics()
+    rec = _router(lambda ctx: (_FakeSession([]), *_extractors()), metrics=metrics)
     status, body = rec.handle_webhook(f"Bearer {_TOKEN}", "not a json object")
+    assert status == 200  # 200, NOT 5xx — a bad body is not retryable
+    assert body["status"] == "noop"
+    assert body["reason"] == "parse_error"
+    assert metrics.admissions == ["parse_error"]
+
+
+def test_not_enrolled_is_200_noop_with_not_enrolled_metric() -> None:
+    # A well-formed-but-non-enrolled webhook is a 200-noop too, but a DISTINCT signal: the
+    # not_enrolled path emits decision="not_enrolled" so a benign not-enrolled flood does not
+    # look like a malformed-body storm.
+    metrics = _RecordingMetrics()
+    rec = _router(lambda ctx: (_FakeSession([]), *_extractors()), metrics=metrics)
+    status, body = rec.handle_webhook(
+        f"Bearer {_TOKEN}", _body(commonLabels={"severity": "critical"})
+    )
     assert status == 200
     assert body["status"] == "noop"
-    assert body["reason"] == "no_op"
+    assert body["reason"] == "not_enrolled"
+    assert metrics.admissions == ["not_enrolled"]
+
+
+def test_parse_error_and_not_enrolled_noops_are_distinguishable() -> None:
+    # The on-call signal restored: the two non-match classes must NOT collapse into one
+    # undifferentiated no-op — their reason + admission metric differ.
+    parse_metrics = _RecordingMetrics()
+    enroll_metrics = _RecordingMetrics()
+    parse_rec = _router(lambda ctx: (_FakeSession([]), *_extractors()), metrics=parse_metrics)
+    enroll_rec = _router(lambda ctx: (_FakeSession([]), *_extractors()), metrics=enroll_metrics)
+    _, parse_body = parse_rec.handle_webhook(f"Bearer {_TOKEN}", "not a json object")
+    _, enroll_body = enroll_rec.handle_webhook(
+        f"Bearer {_TOKEN}", _body(commonLabels={"severity": "critical"})
+    )
+    assert parse_body["reason"] != enroll_body["reason"]
+    assert parse_metrics.admissions != enroll_metrics.admissions
 
 
 def test_proceed_launches_and_acks_fast() -> None:

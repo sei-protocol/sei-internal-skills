@@ -20,7 +20,8 @@ THE EDGE (handle_webhook), in order — every step's failure mode is the design:
    the venue to retry an unverifiable body; a 401 tells it to stop).
 2. **Normalize** via the :class:`TriggerAdapter` into a bounded, framed
    :class:`~sei_omnigent.omni.adapters.base.NormalizedTrigger` (INV-6). A non-matching event
-   (the adapter returns ``NoOp``) → **200 + no-op** (the page already routed to the human).
+   (the adapter returns a ``NoOp`` carrying its reason) → **200 + no-op** (the page already
+   routed to the human); the reason (``parse_error`` vs ``not_enrolled``) is the metric label.
 3. **Admit**: ``dedup.claim_run`` atomically → ``engine.admit_run``. SHED → **200 + deduped**
    (attach, not queue). A global in-flight cap also SHEDs (back-pressure).
 4. **Launch** ``supervise_run`` as a tracked bg task and **ack 200 immediately** (the venue's
@@ -582,8 +583,9 @@ class Router:
 
         * **401** — bad/absent bearer (NOT 5xx: a 5xx invites a retry of an unverifiable body;
           a 401 tells the venue to stop).
-        * **200 + ``status: noop``** — verified but the adapter returned ``NoOp`` (non-firing /
-          non-enrolled / unparseable — the page already routed to the human).
+        * **200 + ``status: noop``** — verified but the adapter returned a ``NoOp`` (non-firing /
+          non-enrolled / unparseable — the page already routed to the human). The ``reason``
+          carries the distinct non-match class (``parse_error`` vs ``not_enrolled``).
         * **200 + ``status: deduped``** — SHED (a run owns the trigger, or the global in-flight
           cap is hit): attach, not queue.
         * **200 + ``status: launched``** — admitted; the investigation runs in the bg.
@@ -594,13 +596,15 @@ class Router:
             return 401, {"status": "unauthorized"}
         self.metrics.received(verified=True)
 
-        trigger = self.adapter.parse(body)
-        if trigger is NoOp:
-            # A non-matching event (non-firing / non-enrolled / unparseable) — answer a no-op,
-            # not an error (the page already routed to the human; a 5xx would re-deliver bad
-            # bytes). The adapter owns the match/contain policy.
-            self.metrics.admitted(decision="noop")
-            return 200, {"status": "noop", "reason": "no_op"}
+        result = self.adapter.parse(body)
+        if isinstance(result, NoOp):
+            # A non-matching event — answer a no-op, not an error (the page already routed to the
+            # human; a 5xx would re-deliver bad bytes). The NoOp carries its reason so the two
+            # non-match classes stay distinct on-call signals: a parse_error storm (malformed
+            # bodies) and a not_enrolled flood do NOT collapse into one undifferentiated metric.
+            self.metrics.admitted(decision=result.reason)
+            return 200, {"status": "noop", "reason": result.reason}
+        trigger = result
 
         # The control-plane (PDP) seam: a pass-through in this slice (admit unchanged). The real
         # fail-closed decision is a later slice.

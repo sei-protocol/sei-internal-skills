@@ -137,7 +137,7 @@ def test_find_queries_open_incident_by_dedup_key() -> None:
         return httpx.Response(201, json={"note": {"id": "PNOTE1"}})
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
 
     find = rec.calls("GET", "/incidents")[0]
     assert find.url.params.get("incident_key") == _KEY
@@ -155,7 +155,7 @@ def test_no_open_incident_fails_closed_skip() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert rec.calls("POST", "/notes") == []  # nothing posted
 
 
@@ -173,7 +173,7 @@ def test_note_post_shape_and_headers() -> None:
         return httpx.Response(201, json={"note": {"id": "PNOTE1"}})
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "the redacted findings"))
+    asyncio.run(client.post_result(_KEY, "the redacted findings"))
 
     post = rec.calls("POST", "/notes")[0]
     assert post.url.path == f"/incidents/{_INCIDENT_ID}/notes"
@@ -196,7 +196,7 @@ def test_note_carries_the_walle_marker() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     post = rec.calls("POST", "/notes")[0]
     content = _json.loads(post.content)["note"]["content"]
     assert _marker(_KEY) in content  # the idempotency anchor is embedded
@@ -217,7 +217,7 @@ def test_skips_when_a_walle_marked_note_already_exists() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert rec.calls("POST", "/notes") == []  # the marker already present → no second note
 
 
@@ -233,7 +233,7 @@ def test_marker_is_per_incident_so_another_incidents_note_does_not_suppress() ->
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert len(rec.calls("POST", "/notes")) == 1  # posts — the other marker does not match
 
 
@@ -250,7 +250,7 @@ def test_skips_when_incident_service_is_not_enrolled() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert rec.calls("POST", "/notes") == []  # not enrolled → fail-closed, nothing posted
     # The notes-scan is not even reached (enrollment gate is before idempotency).
     assert rec.calls("GET", "/notes") == []
@@ -267,7 +267,7 @@ def test_posts_when_incident_service_is_enrolled() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert len(rec.calls("POST", "/notes")) == 1
 
 
@@ -289,7 +289,7 @@ def test_retries_a_transient_5xx_then_succeeds() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert state["find_attempts"] == 3  # two 503s retried, third succeeded
     assert len(rec.calls("POST", "/notes")) == 1
 
@@ -308,7 +308,7 @@ def test_retries_a_transient_timeout() -> None:
         return httpx.Response(201)
 
     client = _client(handler)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert state["attempts"] == 2  # the timeout was retried
 
 
@@ -318,7 +318,7 @@ def test_exhausts_retries_then_raises_pagerduty_error() -> None:
 
     client = _client(handler, max_retries=2)
     with pytest.raises(PagerDutyError):
-        asyncio.run(client.post_note(_KEY, "findings"))
+        asyncio.run(client.post_result(_KEY, "findings"))
 
 
 def test_does_not_retry_a_non_retryable_4xx() -> None:
@@ -330,7 +330,7 @@ def test_does_not_retry_a_non_retryable_4xx() -> None:
 
     client = _client(handler, rec, max_retries=5)
     with pytest.raises(PagerDutyError):
-        asyncio.run(client.post_note(_KEY, "findings"))
+        asyncio.run(client.post_result(_KEY, "findings"))
     assert len(rec.calls("GET", "/incidents")) == 1  # no retries burned on a 4xx
 
 
@@ -388,7 +388,7 @@ def test_only_get_and_post_notes_methods_issued_at_runtime() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     for req in rec.requests:
         if req.method == "GET":
             assert req.url.path == "/incidents" or req.url.path.endswith("/notes")
@@ -416,7 +416,7 @@ def test_note_post_read_timeout_is_not_retried_no_double_post() -> None:
 
     client = _client(handler, rec, max_retries=5)
     with pytest.raises(PagerDutyError):
-        asyncio.run(client.post_note(_KEY, "findings"))
+        asyncio.run(client.post_result(_KEY, "findings"))
     assert len(rec.calls("POST", "/notes")) == 1  # exactly one POST — never re-issued
 
 
@@ -433,7 +433,7 @@ def test_note_post_retryable_status_is_not_retried() -> None:
 
     client = _client(handler, rec, max_retries=5)
     with pytest.raises(PagerDutyError):
-        asyncio.run(client.post_note(_KEY, "findings"))
+        asyncio.run(client.post_result(_KEY, "findings"))
     assert len(rec.calls("POST", "/notes")) == 1  # not retried on a retryable status either
 
 
@@ -453,7 +453,7 @@ def test_note_post_connect_error_is_retried() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert state["post_attempts"] == 2  # the connect-phase failure was retried then succeeded
     assert len(rec.calls("POST", "/notes")) == 2
 
@@ -477,7 +477,7 @@ def test_marker_found_on_a_later_page_skips_the_post() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert rec.calls("POST", "/notes") == []  # the marker on page 2 suppressed the post
     assert len(rec.calls("GET", "/notes")) == 2  # paginated past page 1
 
@@ -496,7 +496,7 @@ def test_scan_cap_hit_without_marker_fails_closed_skips_post() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert rec.calls("POST", "/notes") == []  # cap hit, unconfirmed → fail-closed skip
     assert len(rec.calls("GET", "/notes")) == 5  # bounded at the page cap
 
@@ -513,7 +513,7 @@ def test_scan_exhausts_a_short_list_then_posts() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    posted = asyncio.run(client.post_note(_KEY, "findings"))
+    posted = asyncio.run(client.post_result(_KEY, "findings"))
     assert posted is True  # a real write reports True
     assert len(rec.calls("POST", "/notes")) == 1
     assert len(rec.calls("GET", "/notes")) == 1  # one page exhausted the list
@@ -534,7 +534,7 @@ def test_scan_empty_page_with_more_fails_closed_skips_post() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    posted = asyncio.run(client.post_note(_KEY, "findings"))
+    posted = asyncio.run(client.post_result(_KEY, "findings"))
     assert posted is False  # fail-closed skip reports False
     assert rec.calls("POST", "/notes") == []  # never posted on an unconfirmed scan
 
@@ -625,6 +625,6 @@ def test_malformed_incident_id_fails_closed_no_post() -> None:
         return httpx.Response(201)
 
     client = _client(handler, rec)
-    asyncio.run(client.post_note(_KEY, "findings"))
+    asyncio.run(client.post_result(_KEY, "findings"))
     assert rec.calls("POST", "/notes") == []  # never built a request from the bad id
     assert rec.calls("GET", "/notes") == []
