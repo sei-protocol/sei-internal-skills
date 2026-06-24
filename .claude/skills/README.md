@@ -115,7 +115,7 @@ These two are project-scoped disciplines applied during authoring inside Tide. T
 - **`impact-portfolio/`** — The weekly cross-project executive report: one human-confirmed Notion page per week under the Impact Hub's Weekly Reports (exec summary + per-project sections with owner, Overall Confidence, ≤3 substantiated bullets). Reads the week's per-bet Weekly-log toggles (+ a Linear `impact:<slug>` activity scan); read-only on bets, writes only its own report page. The reader-facing synthesis tail; design at `bdchatham-designs/designs/impact-portfolio-weekly-report/impact-portfolio-weekly-report.md`. (`impact-eoq`, the per-engineer quarter rollup, is the remaining deferred phase-2 sibling.)
 
 ### Engineer Self-Service
-- **`harbor-dev/`** — Engineer-facing interface to the harbor EKS cluster. Translates natural-language intent (spin up an ephemeral chain, attach an RPC fleet, run a bench, onboard me, tear it down) into `seictl nd` invocations and PR-based GitOps deliveries against `sei-protocol/harbor-engineering-workspace`. Built on `seictl` v0.0.43+.
+- **`harbor-dev/`** — Engineer-facing interface to the harbor EKS cluster. Translates natural-language intent (spin up an ephemeral chain, attach an RPC fleet, run a bench, onboard me, tear it down) into `seictl network` / `seictl node` invocations (the post-cutover **SeiNetwork + SeiNode** model; `SeiNodeDeployment` removed) and PR-based GitOps deliveries against `sei-protocol/harbor-engineering-workspace`, with networking orchestrated outside the controller (HTTPRoutes + NLB when a use-case needs them). Built on `seictl` v0.0.59+.
 
 ### Future Slots
 - _(planned)_ Add skills here as the team codifies more processes.

@@ -249,7 +249,7 @@ Engineer says "X is stuck" or "diagnose chain foo." `seictl` has no diagnose ver
 
 Pure invocations. Skill calls `seictl network|node <verb>` and surfaces the structured output to the engineer in plain English. No questions, no confirmation.
 
-## Halt conditions
+## Halt Conditions
 
 Stop and report to the user if:
 

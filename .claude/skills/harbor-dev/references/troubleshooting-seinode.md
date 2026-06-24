@@ -10,8 +10,8 @@ Read `.status.phase` first: `kubectl get seinode <name> -o jsonpath='{.status.ph
 
 Common causes:
 
-- Controller leader lease unhealthy → `kubectl get lease -n sei-system` and `kubectl get pods -n sei-system`
-- Controller pod missing or crashlooping → `kubectl describe pod -n sei-system -l app.kubernetes.io/name=sei-k8s-controller`
+- Controller leader lease unhealthy → `kubectl get lease -n sei-k8s-controller-system` and `kubectl get pods -n sei-k8s-controller-system`
+- Controller pod missing or crashlooping → `kubectl describe pod -n sei-k8s-controller-system -l app.kubernetes.io/name=sei-k8s-controller`
 
 If controller looks healthy but the SeiNode is still Pending after a minute, something deeper is wrong; capture controller logs and escalate.
 
@@ -100,7 +100,7 @@ Metadata-only patch; pods are not restarted. The controller's next reconcile app
 
 `sei.io/seinode-finalizer` blocks SeiNode deletion until the controller releases the PVC. If the controller is unhealthy or EBS CSI flaked, the SeiNode sits `Terminating` forever.
 
-Inspection: `kubectl get seinode <name> -o jsonpath='{.metadata.finalizers}'` and controller logs (`kubectl logs -n sei-system -l app.kubernetes.io/name=sei-k8s-controller --tail=100`).
+Inspection: `kubectl get seinode <name> -o jsonpath='{.metadata.finalizers}'` and controller logs (`kubectl logs -n sei-k8s-controller-system -l app.kubernetes.io/name=sei-k8s-controller --tail=100`).
 
 Manual override (only after confirming PVC orphan is acceptable):
 
