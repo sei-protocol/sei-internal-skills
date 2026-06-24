@@ -44,7 +44,10 @@ A third entry kind in the workstream's checkpoint ledger, declared up front:
 When the ship step is reached and a `review-gate` was declared, evaluate it:
 
 1. **Compute the review-ledger path** from the target (PLT-535's target-derivable rule — no
-   registry, no handoff token).
+   registry, no handoff token). The ledger lives in the DRI repo at `designs/<arc>/xreview/<slug>.md`
+   (Design 13): for a design-doc target the arc is the target's own path segment; for a code-PR/diff
+   target the arc is the code repo's **default arc** (repo identity → fixed arc, e.g. `Tide` →
+   `tide-skill-stack`) — both computable with no prompt, per `/xreview/references/review-ledger.md`.
 2. **Read the latest round's header block** and apply `/xreview`'s passing-terminal gate-read
    **verbatim** (the provider's ledger-validity check — see the *Gate-read contract* table in
    `/xreview/references/review-ledger.md`; this gate reads that table, it does not re-list or

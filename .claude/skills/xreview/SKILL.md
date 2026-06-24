@@ -136,8 +136,10 @@ Dispatch contract (mandatory — see `references/reviewer-dispatch.md` for the b
 ### Step 4 — Synthesize into the review ledger
 
 Write the durable synthesis record per `references/review-ledger.md` — the committed, target-
-derivable ledger at `<artifact-dir>/xreview/<target-slug>.md` (or `.xreview/<slug>.md`
-at repo root when the target has no natural directory). It carries the typed header — target-scoped
+derivable ledger in the **DRI's `<engineer>-designs` repo** at `designs/<arc>/xreview/<target-slug>.md`
+(a code-PR/diff target with no artifact arc uses the code repo's **default arc**, e.g. `tide-skill-stack`;
+the in-repo `.xreview/` fallback only when no DRI repo is resolvable — Design 13). Resolve the DRI repo
+producer-side as `/design` does, halting on a non-interactive run rather than writing to a guessed path. It carries the typed header — target-scoped
 `Class:`/`Tier:` once at top, and the per-round `State:`/`OpenFindings:`/`Convergence:`/`Blinded:`/`Dissenter:`
 (one-per-line, exact-token). **PLT-536's review-gate reads the latest round's five
 `State:`/`OpenFindings:`/`Convergence:`/`Blinded:`/`Dissenter:` lines** (not `Class:`/`Tier:`) — per the

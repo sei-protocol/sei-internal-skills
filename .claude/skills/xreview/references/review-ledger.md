@@ -7,22 +7,37 @@ done-evidence** (see *Gate-read contract*); that consumer relationship drives th
 
 ## Where it lives (target-derivable, no registry)
 
-Next to the artifact under review, under a `xreview/` sibling directory, named for the
-target:
+The ledger is a **lineage artifact** — it lives in the DRI's `<engineer>-designs` repo, under a
+`xreview/` directory in the target's work-arc, named for the target (Design 13 — process-lineage
+relocation; the same DRI-repo home `/design` and `/research` use):
 
 ```
-<artifact-dir>/xreview/<target-slug>.md
+designs/<arc>/xreview/<target-slug>.md
 ```
 
-For a design doc that is `designs/sei-agentic-mesh/xreview/08-cross-review-slate-and-ledger.md`.
-For a **diff/PR with no natural artifact directory**, the default is `.xreview/<target-slug>.md`
-at the repo root. Either way the rule is the same: **the path is target-derivable** (target path
-→ ledger path) so a downstream gate finds it by construction without a registry.
+For a design-doc target the arc is **already a path segment of the target**
+(`designs/sei-agentic-mesh/xreview/08-cross-review-slate-and-ledger.md`) — fully target-derivable.
+For a **diff/PR with no natural artifact directory** the target carries no arc, so the ledger lands
+under the **code repo's deterministic default arc** (repo identity → a fixed arc, e.g. `Tide` →
+`tide-skill-stack`): `designs/tide-skill-stack/xreview/<target-slug>.md`. The in-repo
+`.xreview/<target-slug>.md` fallback is used **only when no DRI repo is resolvable** (the user confirms).
+
+**Two resolution faces — they are not the same contract (Design 13 §1):**
+- **Producer (write-time, may be interactive).** Resolve the DRI repo as `/design` does
+  (`--designs-repo` → sibling `<engineer>-designs` checkout → ask). In a **non-interactive
+  (headless/cron) run, HALT and surface — never write to a guessed path** (the `/design` headless-halt
+  clause).
+- **Consumer (read-time, MUST be deterministic — no prompt, no registry).** The `/workstream`
+  review-gate computes the ledger path from the target alone: **arc** = the target's path segment
+  (design-doc) or the code repo's **default arc** (code-PR/diff); **slug** per below. The gate never
+  asks and never reads a registry — a wrong/unfound path fails the gate closed (it does not prompt).
 
 **Slug derivation:** a single-artifact target → that artifact's slug. A **multi-file diff with no
 single artifact path** → `<target-slug>` is the **PR/branch identifier** (single-valued, still
 target-derivable) — never a synthesized compound of the file paths. (`Target:` may list the files
 for the human; the *filename* derives from the PR/branch so the gate can locate it deterministically.)
+Within an arc's `xreview/` folder the slug namespace stays **single-valued** (a `pr-217` ledger never
+collides with a design slugged `pr-217`).
 
 It is **committed** — it is review evidence, not scratch. (Per-run scratch — in-progress
 dispatch notes — stays in the skill's `state/`, gitignored.)
