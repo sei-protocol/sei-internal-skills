@@ -88,7 +88,7 @@ Confirm? (yes / audit-only-stop / abort)
 
 ## Anti-corruption patterns
 
-- **Audit is read-only.** Phase 1 never writes to the target skill. Only writes go to `state/run-<ts>/` (working) and the audit report's lineage home — `designs/<arc>/audits/` in the DRI repo (in-repo `docs/skill-audits/` only as the no-DRI-repo fallback).
+- **Audit is read-only.** Phase 1 never writes to the target skill. Only writes go to `state/run-<ts>/` (working) and the audit report's lineage home — `designs/<arc>/audits/` in the DRI repo (in-repo `docs/skill-audits/` only as the no-DRI-repo fallback (with user confirmation)).
 - **Backups before every apply.** `scripts/apply-refactor.sh` writes `<file>.before` to `state/run-<ts>/backups/` before each apply. Rollback is a `cp` away.
 - **Verify after every apply.** Parse frontmatter, count lines, syntax-check shell scripts. Verify failure → automatic rollback.
 - **State is per-run, gitignored.** Interrupted runs leave state intact; the next invocation can resume.

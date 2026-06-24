@@ -23,7 +23,7 @@ Resolve the DRI repo fail-loud first (Design 13 §4 — see SKILL.md Foundation)
    - Interface map — which components talk to each other, who provides what
    - Deployment model — how it runs
    - Security model — credentials, auth, network, blast radius
-3. Save to the repo's conventional high-level design location.
+3. Capture the high-level design via `/design`, which lands it in the DRI `<engineer>-designs` repo at `designs/<arc>/<slug>.md` (Design 13 — a council design is a lineage artifact; it does **not** save to the code repo's conventional location or `.council/designs/`, which is deprecated).
 4. Present to user for review before proceeding.
 
 ### Phase 2: Component Design (repeat per component)

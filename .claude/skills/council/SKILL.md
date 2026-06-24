@@ -128,7 +128,7 @@ Provider owns the interface — if there's a disagreement, the provider's defini
 
 ## Session Continuity
 
-Work spanning multiple sessions (Product and System tiers especially) needs a checkpoint file at `designs/<arc>/council/workstream.yaml` in the DRI `<engineer>-designs` repo (in-repo `.council/workstream.yaml` only as the no-DRI-repo fallback; Design 13 R3).
+Work spanning multiple sessions (Product and System tiers especially) needs a checkpoint file at `designs/<arc>/council/workstream.yaml` in the DRI `<engineer>-designs` repo (in-repo `.council/workstream.yaml` only as the no-DRI-repo fallback (with user confirmation); Design 13 R3).
 
 ### Writing Checkpoints
 
@@ -190,7 +190,7 @@ When a session starts, resolve the DRI repo fail-loud (Design 13 §4 — see Fou
 
 ## Design Escalation
 
-When a specialist discovers during implementation that the design is wrong, they write a file to `designs/<arc>/council/escalations/{timestamp}-{component}.md` in the DRI `<engineer>-designs` repo (in-repo `.council/escalations/` only as the no-DRI-repo fallback; Design 13 R3):
+When a specialist discovers during implementation that the design is wrong, they write a file to `designs/<arc>/council/escalations/{timestamp}-{component}.md` in the DRI `<engineer>-designs` repo (in-repo `.council/escalations/` only as the no-DRI-repo fallback (with user confirmation); Design 13 R3):
 
 ```markdown
 # Escalation: {brief title}

@@ -224,7 +224,7 @@ The skill exits successful when:
 
 ## State persistence
 
-The skill is long-running by design — multi-session for a non-trivial target is expected. State lives in `designs/<arc>/bugbash/<target>.yaml` in the DRI `<engineer>-designs` repo (in-repo `.bugbash/<target>.yaml` only as the no-DRI-repo fallback; Design 13 R3), read fail-loud at session start per Design 13 §4. See SKILL.md for the shape and the fail-loud bootstrap rule.
+The skill is long-running by design — multi-session for a non-trivial target is expected. State lives in `designs/<arc>/bugbash/<target>.yaml` in the DRI `<engineer>-designs` repo (in-repo `.bugbash/<target>.yaml` only as the no-DRI-repo fallback, with user confirmation; Design 13 R3), read fail-loud at session start per Design 13 §4. See SKILL.md for the shape and the fail-loud bootstrap rule.
 
 Two important state invariants:
 

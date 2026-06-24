@@ -55,6 +55,8 @@ The two phases are *sequenced*, not coupled. You can run audit alone today and r
 
 1. **Resolve target.** From `--skill <name>` or `--path <abs-path>`. Resolve to `<repo>/.claude/skills/<name>/` or `~/.claude/skills/<name>/`. Confirm the path and skill name with the user before reading any files.
 
+1a. **Resolve the DRI report home.** Resolve the DRI `<engineer>-designs` repo where the report will land, **as `/design` does** (`--designs-repo` → sibling `<engineer>-designs` checkout → ask). In a **non-interactive (headless/cron)** run, **HALT and surface — never write to a guessed path** (Design 13). The report lands at `designs/<arc>/audits/<name>-<date>.md` (Tide repo-default arc `tide-skill-stack`); the in-repo `docs/skill-audits/` is used **only when no DRI repo is resolvable and the user confirms**.
+
 2. **Read & classify.** Load `SKILL.md`. Parse frontmatter (name, description). Infer shape — discipline / technique / pattern / reference / procedural — using the heuristics in `references/semantic-checks.md` (procedural has scripts/ and state/; discipline has a rationalization table or red-flags; reference is mostly TOC + entries). If shape can't be inferred, ask the user. Write to `state/run-<ts>/classify.yaml`.
 
 3. **Static checks.** Run `scripts/static-checks.sh --skill-dir <path> --output state/run-<ts>/static-findings.jsonl`. The script runs the deterministic subset of the conventions catalog (description length, line count, refs one-level deep, scripts have set -euo pipefail, evals.json present and non-empty, state in .gitignore, etc.). Outputs JSONL — one finding per line. See `references/static-checks.md` for the full check list.
@@ -106,6 +108,7 @@ Stop and report to the user if:
 - `apply-refactor.sh` fails to verify the post-apply file (frontmatter unparseable, line count exceeds 500 after edit, shell script lint fails) — automatically roll back the change and report.
 - REFACTOR doesn't converge after 3 cycles — surface the residual rationalizations and ask for guidance.
 - User asks to refactor a protected canonical skill without `--override-protected` — refuse and prompt for the explicit override.
+- The DRI `<engineer>-designs` repo can't be resolved for the report output in a non-interactive run — **HALT and surface** rather than guessing a path or silently writing in-repo (Design 13 §4; matches `references/guardrails.md`).
 
 **Never auto-remediate without surfacing.** The user decides the remediation, and every edit passes a diff gate.
 

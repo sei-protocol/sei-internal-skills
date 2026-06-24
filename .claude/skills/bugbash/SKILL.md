@@ -17,7 +17,7 @@ This is the right tool when the system exists and works on the happy path, but y
 
 This skill operates in **read-only mode** on the target component. Before any action:
 
-1. **Permissioned mode** — the skill MAY read source code, configs, manifests, and existing docs. The skill MUST NOT edit, create, or delete any file under the target's source tree. The only files this skill writes are the findings **log** — `designs/<arc>/bugbash/<target>.md` in the DRI `<engineer>-designs` repo (in-repo `docs/bugbash/<target>.md` only as the no-DRI-repo fallback) — and the resume **state** `designs/<arc>/bugbash/<target>.yaml` in the same DRI repo (in-repo `.bugbash/<target>.yaml` only as the no-DRI-repo fallback; Design 13 R3).
+1. **Permissioned mode** — the skill MAY read source code, configs, manifests, and existing docs. The skill MUST NOT edit, create, or delete any file under the target's source tree. The only files this skill writes are the findings **log** — `designs/<arc>/bugbash/<target>.md` in the DRI `<engineer>-designs` repo (in-repo `docs/bugbash/<target>.md` only as the no-DRI-repo fallback (with user confirmation)) — and the resume **state** `designs/<arc>/bugbash/<target>.yaml` in the same DRI repo (in-repo `.bugbash/<target>.yaml` only as the no-DRI-repo fallback (with user confirmation); Design 13 R3).
 2. **Scope confirmation** — the skill requires an explicit target on first invocation (e.g., `/bugbash SeiNode controller`, `/bugbash review-runtime`). Without a target, the skill asks for one and refuses to proceed.
 3. **Refusal conditions** — this skill will refuse to run if:
    - No target component is named.
@@ -30,7 +30,7 @@ If a finding warrants an immediate fix, surface it to the user; do not edit code
 
 - A target repo with `.claude/agents/*.md` defining the specialist roster (or the user names experts explicitly).
 - A reachable target component — a directory, package, CRD, runtime, contract, or interface boundary the experts can read in full within their context.
-- Write access to the DRI `<engineer>-designs` repo's `designs/<arc>/bugbash/` — home of both the findings log (in-repo `docs/bugbash/` only as the no-DRI-repo fallback) and the resume state `<target>.yaml` (in-repo `.bugbash/` only as the no-DRI-repo fallback; Design 13 R3) — created if missing.
+- Write access to the DRI `<engineer>-designs` repo's `designs/<arc>/bugbash/` — home of both the findings log (in-repo `docs/bugbash/` only as the no-DRI-repo fallback (with user confirmation)) and the resume state `<target>.yaml` (in-repo `.bugbash/` only as the no-DRI-repo fallback (with user confirmation); Design 13 R3) — created if missing.
 
 If the repo maintains an interface registry or equivalent source of truth, specialists read it as authoritative when reviewing interface boundaries.
 
@@ -151,7 +151,7 @@ All of these mean: re-read the relevant SKILL.md section, apply the rule as writ
 
 ## State Management
 
-`designs/<arc>/bugbash/<target>.yaml` shape (in the DRI repo; in-repo `.bugbash/<target>.yaml` only as the no-DRI-repo fallback):
+`designs/<arc>/bugbash/<target>.yaml` shape (in the DRI repo; in-repo `.bugbash/<target>.yaml` only as the no-DRI-repo fallback (with user confirmation)):
 
 ```yaml
 target: SeiNode-controller
@@ -183,9 +183,9 @@ findings:
 verdicts: {}  # populated at step 5
 ```
 
-**All process artifacts relocate to the DRI repo — lineage AND coordination state (Design 13 R3).** The findings **log** is a lineage artifact: it lives in the DRI `<engineer>-designs` repo at `designs/<arc>/bugbash/<target>.md` (in-repo `docs/bugbash/<target>.md` only as the no-DRI-repo fallback) — it is the canonical artifact for reviewers and downstream `/issue` filings. The resume **state** `<target>.yaml` (and `archive/`) is coordination state and now **also lives in the DRI repo** at `designs/<arc>/bugbash/<target>.yaml`, resolved via the same `/design` resolver (in-repo `.bugbash/<target>.yaml` only as the no-DRI-repo fallback). R3 reverses the earlier "state stays local" scope: the owner principle is "nothing Tide-specific inside the repos we work on." Because the state is read at **session start**, the move is safe **only** under the fail-loud bootstrap contract (Design 13 §4): resolve the DRI repo first and **HALT** on an unresolvable / unexpected-branch / mid-rebase / dirty-in-conflict checkout rather than silently starting fresh — see "Check for prior state" above. This mirrors the council convention along the same axis: both lineage (design docs via `/design`) and coordination state (`workstream.yaml`/`escalations/`/`archive/`) now route into the DRI repo.
+**All process artifacts relocate to the DRI repo — lineage AND coordination state (Design 13 R3).** The findings **log** is a lineage artifact: it lives in the DRI `<engineer>-designs` repo at `designs/<arc>/bugbash/<target>.md` (in-repo `docs/bugbash/<target>.md` only as the no-DRI-repo fallback (with user confirmation)) — it is the canonical artifact for reviewers and downstream `/issue` filings. The resume **state** `<target>.yaml` (and `archive/`) is coordination state and now **also lives in the DRI repo** at `designs/<arc>/bugbash/<target>.yaml`, resolved via the same `/design` resolver (in-repo `.bugbash/<target>.yaml` only as the no-DRI-repo fallback (with user confirmation)). R3 reverses the earlier "state stays local" scope: the owner principle is "nothing Tide-specific inside the repos we work on." Because the state is read at **session start**, the move is safe **only** under the fail-loud bootstrap contract (Design 13 §4): resolve the DRI repo first and **HALT** on an unresolvable / unexpected-branch / mid-rebase / dirty-in-conflict checkout rather than silently starting fresh — see "Check for prior state" above. This mirrors the council convention along the same axis: both lineage (design docs via `/design`) and coordination state (`workstream.yaml`/`escalations/`/`archive/`) now route into the DRI repo.
 
-When a run finishes (verdict converges), archive `designs/<arc>/bugbash/<target>.yaml` to `designs/<arc>/bugbash/archive/<date>-<target>.yaml` in the DRI repo (in-repo `.bugbash/archive/<date>-<target>.yaml` only as the no-DRI-repo fallback) so a fresh `/bugbash <target>` doesn't trip the "in-progress run detected" branch.
+When a run finishes (verdict converges), archive `designs/<arc>/bugbash/<target>.yaml` to `designs/<arc>/bugbash/archive/<date>-<target>.yaml` in the DRI repo (in-repo `.bugbash/archive/<date>-<target>.yaml` only as the no-DRI-repo fallback (with user confirmation)) so a fresh `/bugbash <target>` doesn't trip the "in-progress run detected" branch.
 
 ## Composition with Other Skills
 

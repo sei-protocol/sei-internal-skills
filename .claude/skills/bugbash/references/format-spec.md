@@ -1,6 +1,6 @@
 # Findings Log Format
 
-The findings log is a lineage artifact (Design 13) that lives at `designs/<arc>/bugbash/<target>.md` in the DRI `<engineer>-designs` repo (in-repo `docs/bugbash/<target>.md` only as the no-DRI-repo fallback). It is a single growing markdown file — items append in numbered order, never reorder, never drop. This makes diffs reviewable and lets `/issue` hand-offs cite stable item numbers.
+The findings log is a lineage artifact (Design 13) that lives at `designs/<arc>/bugbash/<target>.md` in the DRI `<engineer>-designs` repo (in-repo `docs/bugbash/<target>.md` only as the no-DRI-repo fallback, with user confirmation). It is a single growing markdown file — items append in numbered order, never reorder, never drop. This makes diffs reviewable and lets `/issue` hand-offs cite stable item numbers.
 
 ## Top-level shape
 

@@ -10,7 +10,7 @@
       "expected": {
         "compliance_signals": [
           "agent confirms target and root path with the user (Step 1 scope confirmation)",
-          "agent records the expert slate in the resume state designs/<arc>/bugbash/<target>.yaml in the DRI <engineer>-designs repo (in-repo .bugbash/<target>.yaml only as the no-DRI-repo fallback; Design 13 R3) — primary owner + adjacent owners + security + operability + scope-discipline lenses",
+          "agent records the expert slate in the resume state designs/<arc>/bugbash/<target>.yaml in the DRI <engineer>-designs repo (in-repo .bugbash/<target>.yaml only as the no-DRI-repo fallback, with user confirmation; Design 13 R3) — primary owner + adjacent owners + security + operability + scope-discipline lenses",
           "agent dispatches discovery in parallel with the brief that names the read-only constraint and the ≤5-candidate-per-expert limit",
           "agent runs the merge phase before challenger dispatch (dedupes overlapping candidates, attributes both finders)",
           "agent dispatches challenger pass with a DIFFERENT expert (never one of the finders) for each merged candidate",
