@@ -63,7 +63,7 @@ Registered with the omni coordinator at boot:
 Per Design 13 this directory is baked into the coordinator image so the bundle
 is resolvable the moment the PD route fires.
 
-## OPEN DEPENDENCY — `.claude/agents/` roster provisioning (follow-up, NOT solved here)
+## DEPENDENCY — `.claude/agents/` roster via the host `~/.claude` seed (operator-gated)
 
 The bundled `/root-cause` skill **hard-requires a `.claude/agents/` roster**.
 SKILL.md's first guardrail (Step "Context check", and Step 2 "Dispatch the
@@ -72,8 +72,13 @@ the skill is multi-expert by design and refuses to run single-expert. The
 PLT-715 prove-run hit exactly this halt.
 
 So the headless `claude-native` runner needs Tide's `.claude/agents/`
-specialists (and `.claude/skills/`) **provisioned in its environment** for the
-discipline to actually run — via the host's `~/.claude` seed (#1201) or the
-session workspace. That provisioning is **unresolved** and gates the agent from
-exercising its discipline headless. This bundle does not solve it; track it as a
-follow-up against the host-seed / workspace-provisioning work.
+specialists (and `.claude/skills/`) present in its environment for the
+discipline to run. **Resolution (2026-06-24): provision them via the host's
+`~/.claude` seed** — the host image (#1201) bakes Tide's `.claude/agents/` +
+`.claude/skills/` so every claude-native runner inherits the full multi-expert
+discipline (chosen over bundling the roster per-agent or a headless-adapted
+single-expert variant). That host-image-seed bake is **operator-gated** (a host
+image change) and gates the discipline running headless; this bundle relies on
+it (it does not carry the roster itself — one maintenance point, minimal
+bundle). Tracked against the host-seed work alongside the coordinator `--agent`
+registration.
