@@ -19,7 +19,7 @@ Grounded in the corpus (`sources.md`) and specialized by the profile. Kits map r
 
 **Dimension 3 (Context & mainnet-adjacency safety).** The kube-context targets the intended `(context, network, namespace)` triple; an arctic-1 task is not aimed at a context co-hosting pacific-1 mainnet. The **enforcement allowlist + co-host refuse is `/gov-ops`'s** — point at it, never restate a weaker prod-pattern rule. *Basis:* profile §8 (Safety — mainnet-adjacency); `/gov-ops` (the allowlist).
 
-**Dimension 4 (Result verification).** `status.outputs` is **unpopulated for sidecar gov kinds** and `proposalId` is **not** returned — correlate via the `taskID=` memo and read the **chain** (proposalId / txHash), not `status`. Know `includedAt` semantics. *Basis:* §controller (status not populated on the sidecar path); profile §6 (Result verification).
+**Dimension 4 (Result verification).** `status.outputs` is **unpopulated for sidecar kinds** — read the result from its authoritative sink, never `status`. **Gov** kinds: on-chain (proposalId / txHash, correlated via the `taskID=` memo; `proposalId` is not returned; know `includedAt` semantics). **Shadow `result-export`**: the S3 comparison artifacts (`.compare.ndjson.gz` / divergence reports) + Prometheus metrics. *Basis:* §controller (status not populated on the sidecar path); profile §6; `kit-shadow-comparison` (the S3/Prom sink).
 
 **Dimension 5 (Citation discipline).** Cite `/gov-ops` / the LLD / controller / seictl / sei-skill at their pins; never restate a fact another skill owns — above all `/gov-ops`'s gates, fan-out template, fee floor, and mainnet allowlist. *Basis:* `sources.md`; SKILL.md Guardrail 2.
 
