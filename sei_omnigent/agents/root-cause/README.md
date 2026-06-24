@@ -27,22 +27,52 @@ fails to resolve. (Overridable via `OMNI_PD_BUNDLE_REF`, but the default is this
 The bundle is propose-only — it investigates and recommends, it does not mutate
 infrastructure. That floor is **not** the `guardrails.blast_radius` block in
 `config.yaml` (which is "not a security boundary" by its own docstring; it is a
-per-agent defense-in-depth backstop with `gate_pushes: true`). The floor is
-enforced by three independent server- and host-side layers:
+per-agent defense-in-depth backstop with `gate_pushes: true`). What enforces the
+floor differs **per mutation class**, and no single layer covers all of them:
 
-1. **Server-side read-only defaults** —
-   `sei_omnigent.policies.read_only.read_only_default_policies`
-   (`admin__github_read_only` + `admin__deny_mutating_os`), wired by the deploy.
-   These deny `gh`/`git` writes and the OS file-mutation tools at runtime,
-   regardless of cwd or which repo's `settings.json` loads.
-2. **Credential absence (INV-3′)** — the runner is not given write credentials,
-   so even an un-gated mutating call has nothing to authenticate with.
-3. **Host egress sandbox (INV-11)** — the OS sandbox + egress allowlist + scoped
-   read-roots enforced on the deployed host (the host NetworkPolicy + egress
-   proxy, PLT-672 / the slice-3 merge gate), not declared in this spec.
+- **File mutation** (`Write` / `Edit` / `MultiEdit` / `NotebookEdit` and the
+  `sys_os_*` / Pi equivalents) — DENYed by the server-side read-only default
+  `admin__deny_mutating_os` (`sei_omnigent.policies.read_only`), which denies the
+  file-mutation tools at runtime regardless of cwd or which repo's
+  `settings.json` loads.
+- **`gh` / `git` writes** — DENYed by `admin__github_read_only`
+  (`omnigent.policies.builtins.github.github_policy` with `write_repos=[]` and
+  `shell_tools` including `Bash`, so native `gh`/`git` shell writes are parsed,
+  not abstained).
+- **`kubectl` / `helm` / `terraform` apply/delete, force-push, `rm -rf`** — not
+  covered by the read-only defaults (`admin__deny_mutating_os` abstains on raw
+  shell: `deny_shell=False` is the deploy default, so it does NOT cover
+  infra-mutation-via-shell). The per-agent `guardrails.blast_radius` backstop
+  returns ASK/DENY for these. In the **headless** session an ASK **fails
+  closed**: no human answers, the elicitation times out to refused
+  (`omnigent/runner/pending_approvals.py` — `asyncio.TimeoutError → approved =
+  False`) and the tool is BLOCKED, because `omnigent/runner/tool_dispatch.py`
+  groups `POLICY_ACTION_ASK` with `POLICY_ACTION_DENY`. This is a distinct layer
+  from Claude Code's `--permission-mode auto`, which only auto-approves Claude's
+  own ApprovalCards — NOT omni's policy ASK.
+- **Raw HTTP mutation** (`curl -X POST` / `-X DELETE`, or any write API
+  reachable over the network) — matched by **no** policy pattern. Gated ONLY by
+  **credential absence (INV-3′: the runner's RBAC/credentials are read-only)**
+  plus the **host egress allowlist (INV-11: no write-capable endpoint reachable
+  with ambient credentials)**. This is the **C4 residual** — there is no policy
+  layer for it, only the two host-side controls below.
 
 `config.yaml`'s `os_env.sandbox.type: none` matches the standing claude-native
 host's runner shape; the sandboxing lives on the host, not in the spec.
+
+### Threat statement / rollout gates
+
+The propose-only guarantee for the raw-shell and raw-HTTP infra-mutation classes
+rests on operator-gated, host-side controls that this bundle does NOT enforce —
+they MUST be verified before any live PagerDuty fire. These are hard rollout
+gates, not solved by this bundle:
+
+1. The runner ServiceAccount / kubeconfig is **read-only RBAC** (INV-3′) — so a
+   raw `kubectl`/`curl` write has nothing to authenticate with.
+2. The **egress allowlist** (the PLT-672 NetworkPolicy) contains **no
+   write-capable endpoint reachable with ambient credentials** (INV-11).
+3. The prod runner's effective `.claude/settings.json` is the **read-only** one
+   (not a permissive dev seed).
 
 ## harness: claude-native (required)
 
