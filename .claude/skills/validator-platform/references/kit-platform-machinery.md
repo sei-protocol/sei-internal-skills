@@ -15,7 +15,7 @@ The **canonical home for every controller-behavior invariant** an operator must 
 
 ## 3. Anti-patterns / failure modes
 
-- **Reading `status.outputs` for the result.** Cue: a flow that polls `status.outputs.proposalId`. Rewrite: read the chain (proposalId/txHash via the `taskID=` memo) — status is empty for sidecar kinds (Dimension 4 (Result verification), profile §6).
+- **Reading `status.outputs` for the result.** Cue: a flow that polls `status.outputs.proposalId`. Rewrite: read the result from its sink — for gov, the chain (proposalId/txHash via the `taskID=` memo); for shadow `result-export`, S3 + Prometheus — `status` is empty for all sidecar kinds (Dimension 4 (Result verification), profile §6).
 - **Delete-recreate to retry a submit.** Cue: `kubectl delete seinodetask … && apply` to re-run a `GovSoftwareUpgrade`/`GovParamChange`. Rewrite: **refuse** — re-apply to re-join the run (same task-ID); a delete-recreate mints a new run → duplicate submit + deposit (Dimension 2 (Idempotency & recovery), profile §5).
 - **Targeting `7777` cross-pod.** Cue: a manifest/probe aimed at the sidecar's `7777`. Rewrite: `:8443` (RBACProxyPort) is the reachable address; `7777` is behind the proxy (profile §2).
 - **Assuming a selector fans out.** Cue: one task expected to hit N nodes. Rewrite: there is no selector — author one manifest per SeiNode (profile §1).

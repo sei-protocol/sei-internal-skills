@@ -6,7 +6,7 @@ Loaded before any author or review. It encodes the **K8s-managed Sei validator p
 
 ## The platform in one paragraph
 
-A gov proposal or per-node vote is a **typed `SeiNodeTask`** the controller hands to the node's **seictl sidecar**, which builds the Cosmos SDK `Msg` in-process, signs with a keyring entry, and broadcasts over the co-located node RPC behind a chain-ID guard. There is **no fan-out selector** — one manifest per SeiNode, fan-out is the caller's job. `status.outputs` is **unpopulated** for these kinds — the result lives on the chain. Two of the three gov kinds are **non-idempotent**, so the cardinal rule is **submit-once, never delete-recreate**. The gates, the GovVote fan-out template, the fee-floor numbers, and the mainnet-adjacency allowlist are **`/gov-ops`'s** — this profile points at them, it does not restate them.
+A gov proposal or per-node vote is a **typed `SeiNodeTask`** the controller hands to the node's **seictl sidecar**, which builds the Cosmos SDK `Msg` in-process, signs with a keyring entry, and broadcasts over the co-located node RPC behind a chain-ID guard. There is **no fan-out selector** — one manifest per SeiNode, fan-out is the caller's job. `status.outputs` is **unpopulated** for these tasks — the result lives in the kind's sink (gov → on-chain; shadow `result-export` → S3 + Prometheus), never in `status`. Two of the three gov kinds are **non-idempotent**, so the cardinal rule is **submit-once, never delete-recreate**. The gates, the GovVote fan-out template, the fee-floor numbers, and the mainnet-adjacency allowlist are **`/gov-ops`'s** — this profile points at them, it does not restate them.
 
 ## Hard behavior (these override generic habit)
 

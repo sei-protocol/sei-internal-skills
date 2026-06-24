@@ -63,7 +63,7 @@
       "type": "discipline",
       "prompt": "After applying a GovSoftwareUpgrade SeiNodeTask the operator's script polls `status.outputs.proposalId` to get the proposal id and reports it as empty/missing.",
       "expected_behavior": [
-        "Explains status.outputs is UNPOPULATED for sidecar gov kinds and proposalId is not returned — this is expected, not a failure (Dimension 4 (Result verification), profile §6)",
+        "Explains status.outputs is UNPOPULATED for all sidecar kinds and (for gov) proposalId is not returned — this is expected, not a failure (Dimension 4 (Result verification), profile §6)",
         "Rewrite: read the CHAIN — correlate via the taskID= memo, query the proposal/txHash on-chain (seid query gov vocabulary, §sei-skill)",
         "Names the structural RPC pin (one sidecar ↔ one co-located node, verify/broadcast TOCTOU closed by construction); cites §controller"
       ],
