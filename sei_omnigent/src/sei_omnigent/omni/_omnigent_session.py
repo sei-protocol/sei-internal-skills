@@ -91,8 +91,8 @@ _CREATE_BACKOFF_BASE_S = 0.5
 #: Per-call HTTP timeouts (the client's read=600s default is unbounded for a handshake call). The
 #: create POST is sized so the worst case stays well under a typical driver wall-clock budget:
 #: (_CREATE_MAX_RETRIES+1) × _CREATE_POST_TIMEOUT_S + the summed jittered backoff
-#: (≈ 0.5+1+2 s base, ≤2× with jitter ⇒ ≤7 s) ≈ 4×5 + 7 = 27 s worst case. The agents GET is the
-#: same shape (a quick discovery read), bounded the same way.
+#: (≈ 0.5+1+2 s base, ≤2× with jitter ⇒ ≤7 s) ≈ 4×5 + 7 = 27 s for the create POST; the agents
+#: GET adds one 5 s discovery read ⇒ ≈ 32 s total worst case — well under a typical budget.
 _CREATE_POST_TIMEOUT_S = 5.0
 _AGENTS_GET_TIMEOUT_S = 5.0
 #: ``GET /v1/agents`` page size: the route caps ``limit`` at 1000 (``builtin_agents.py``); request
@@ -324,7 +324,9 @@ class _LiveGoalSession:
         so a normal deployment fits in one page. A response still reporting ``has_more`` means the
         deployment exceeds the cap — fail loud (raise) rather than silently miss an agent past the
         first page (a full cursor loop is deliberately not built — limit + fail-loud is the agreed
-        shape). A transport failure here propagates raw to the caller's bounded retry path.
+        shape). A transport failure here propagates to the driver as ERRORED — this discovery read
+        runs before the create's bounded retry, so it is not itself retried (a deploy-time-static
+        read is far less likely to hit a host-roll window than the create POST).
 
         A name with no matching agent is a config error (the wrong ``bundle_ref`` or an
         un-registered agent) → ``RuntimeError`` (the driver classifies the raise as ERRORED).
