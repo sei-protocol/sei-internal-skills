@@ -18,6 +18,7 @@ import pytest
 
 from sei_omnigent.omni._dedup import InMemoryDedupStore
 from sei_omnigent.omni.adapters.alertmanager import AlertmanagerAdapter
+from sei_omnigent.omni.control_plane import RunPlan
 from sei_omnigent.omni.driver import RunOutcome
 from sei_omnigent.omni.engine import Budget, TerminalReason
 from sei_omnigent.omni.router import (
@@ -34,6 +35,36 @@ from sei_omnigent.omni.router import (
 )
 
 _TOKEN = "s3cr3t-shared-bearer"
+
+
+class _AllowControlPlane:
+    """A trivial PDP double: admit every trigger under the given budget (the router edge tests
+    exercise the EDGE flow, not the gating — the gating has its own suite). It threads the budget
+    through so the per-trigger-budget wiring is the real RunPlan budget, not the boot-time one.
+    """
+
+    def __init__(self, budget: Budget) -> None:
+        self._budget = budget
+
+    def resolve(self, trigger: object) -> RunPlan:
+        return RunPlan(
+            allowed=True, deny_reason=None, bundle_ref="test-bundle", budget=self._budget
+        )
+
+
+class _DenyControlPlane:
+    """A trivial PDP double: deny every trigger (drives the router's deny path)."""
+
+    def resolve(self, trigger: object) -> RunPlan:
+        return RunPlan(
+            allowed=False,
+            deny_reason="not_permitted",
+            bundle_ref="",
+            budget=Budget(
+                wall_clock_s=1.0, tokens=1, queries=1, per_source_queries={},
+                max_iterations=1, no_progress_iterations=1,
+            ),
+        )
 
 
 def _budget() -> Budget:
@@ -117,7 +148,14 @@ class _RecordingMetrics:
 
 
 def _router(
-    session_factory, *, dedup=None, venue=None, max_in_flight=16, redact=None, metrics=None
+    session_factory,
+    *,
+    dedup=None,
+    venue=None,
+    max_in_flight=16,
+    redact=None,
+    metrics=None,
+    control_plane=None,
 ) -> Router:
     return Router(
         config=RouterConfig(
@@ -128,6 +166,9 @@ def _router(
         session_factory=session_factory,
         expected_token=_TOKEN,
         venue=venue if venue is not None else _RecordingVenue(),
+        control_plane=(
+            control_plane if control_plane is not None else _AllowControlPlane(_budget())
+        ),
         redact=redact if redact is not None else (lambda body: body),
         metrics=metrics if metrics is not None else _RecordingMetrics(),
     )
@@ -253,6 +294,119 @@ def test_proceed_launches_and_acks_fast() -> None:
     assert len(launched) == 1
     # The contained alert reached the context; the raw webhook did not.
     assert launched[0].payload["alertname"] == "ChainHalted"
+
+
+def test_control_plane_deny_is_200_noop_with_not_permitted_reason_and_metric() -> None:
+    # A control-plane denial is a 200-noop (the page already routed to the human; a 5xx would
+    # re-deliver), carrying the DISTINCT not_permitted reason + admission metric so a denial flood
+    # is separable on-call from a parse_error storm / not_enrolled flood. No run is launched.
+    launched: list[RunContext] = []
+
+    def factory(ctx: RunContext):
+        launched.append(ctx)
+        return _FakeSession([]), *_extractors()
+
+    metrics = _RecordingMetrics()
+    rec = _router(factory, metrics=metrics, control_plane=_DenyControlPlane())
+    status, body = rec.handle_webhook(f"Bearer {_TOKEN}", _body())
+    assert status == 200
+    assert body["status"] == "noop"
+    assert body["reason"] == "not_permitted"
+    assert metrics.admissions == ["not_permitted"]
+    assert launched == []  # denied before launch — no session minted
+
+
+def test_lease_floor_violation_on_plan_budget_fails_closed_without_launch() -> None:
+    # C1, on the budget the run ACTUALLY uses: the run runs under plan.budget (not config.budget),
+    # so a plan whose budget.wall_clock_s + the lease margin exceeds the lease would expire mid-run
+    # and let a re-fire double-launch. The router fails CLOSED at claim time (no claim, no launch),
+    # surfacing a 200-noop with the distinct lease_floor_violation reason + metric (a static config
+    # error, not retry-fixable; a 5xx would invite an AM retry storm). The ERROR log is the page.
+    # The router lease is 1_100 (margin 30 → floor 1_130); a plan budget wall_clock of 1_200 over-
+    # runs it.
+    overrunning_budget = Budget(
+        wall_clock_s=1_200.0, tokens=1_000_000, queries=1_000, per_source_queries={},
+        max_iterations=1_000, no_progress_iterations=1_000,
+    )
+    launched: list[RunContext] = []
+
+    def factory(ctx: RunContext):
+        launched.append(ctx)
+        return _FakeSession([]), *_extractors()
+
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
+    metrics = _RecordingMetrics()
+    rec = _router(
+        factory,
+        dedup=dedup,
+        metrics=metrics,
+        control_plane=_AllowControlPlane(overrunning_budget),
+    )
+    status, body = rec.handle_webhook(f"Bearer {_TOKEN}", _body())
+    assert status == 200  # 200-noop, NOT 5xx — a static config error is not retryable
+    assert body["status"] == "noop"
+    assert body["reason"] == "lease_floor_violation"
+    assert metrics.admissions == ["lease_floor_violation"]
+    assert launched == []  # no session minted — fail-closed before launch
+    # No claim was taken: the trigger stays eligible (the claim must not be consumed by a guard).
+    assert dedup.claim_run('{}:{alertname="ChainHalted"}', "run-x", lease_s=100.0) is True
+
+
+def test_per_trigger_budget_from_the_plan_is_threaded_into_the_run() -> None:
+    # The run is supervised under the RunPlan's per-trigger budget (not the boot-time
+    # config.budget). A plan budget with max_iterations=2 must cut the run at iteration 2 — the
+    # proof the plan budget, not the lenient config budget (max_iterations=1000), is in force.
+    plan_budget = Budget(
+        wall_clock_s=1_000.0, tokens=1_000_000, queries=1_000, per_source_queries={},
+        max_iterations=2, no_progress_iterations=1_000,
+    )
+    session = _FakeSession([{"iter": True, "tokens": 1, "text": f"s{i} "} for i in range(10)])
+    venue = _RecordingVenue()
+    rec = _router(
+        lambda ctx: (session, *_extractors()),
+        venue=venue,
+        control_plane=_AllowControlPlane(plan_budget),
+    )
+
+    async def _run() -> None:
+        rec.handle_webhook(f"Bearer {_TOKEN}", _body())
+        await rec.drain()
+
+    asyncio.run(_run())
+    assert session.cancel_calls == 1  # cut by the plan budget's iteration cap
+    assert len(venue.results) == 1
+    assert "TRUNCATED" in venue.results[0][1]  # truncated at the plan budget, not the config one
+
+
+def test_plan_carries_bundle_and_model_onto_the_run_context() -> None:
+    # The bundle_ref / model levers from the RunPlan ride on the RunContext for the later
+    # session-application slice (carried, not yet applied to create()).
+    captured: list[RunContext] = []
+
+    def factory(ctx: RunContext):
+        captured.append(ctx)
+        return _FakeSession([]), *_extractors()
+
+    plan_budget = _budget()
+
+    class _BundleControlPlane:
+        def resolve(self, trigger: object) -> RunPlan:
+            return RunPlan(
+                allowed=True, deny_reason=None, bundle_ref="root-cause",
+                budget=plan_budget, model_override="claude-opus", reasoning_effort="high",
+            )
+
+    rec = _router(factory, control_plane=_BundleControlPlane())
+
+    async def _run() -> None:
+        rec.handle_webhook(f"Bearer {_TOKEN}", _body())
+        await rec.drain()
+
+    asyncio.run(_run())
+    assert len(captured) == 1
+    assert captured[0].bundle_ref == "root-cause"
+    assert captured[0].model_override == "claude-opus"
+    assert captured[0].reasoning_effort == "high"
 
 
 def test_duplicate_incident_sheds_200() -> None:
@@ -656,6 +810,7 @@ def test_router_rejects_a_missing_redactor_at_boot() -> None:
             session_factory=lambda ctx: (_FakeSession([]), *_extractors()),
             expected_token=_TOKEN,
             venue=_RecordingVenue(),
+            control_plane=_AllowControlPlane(_budget()),
             # no redact= → the sentinel default → boot rejects it
         )
 
@@ -778,6 +933,7 @@ def test_aclose_closes_factory_only_after_drain_completes() -> None:
         session_factory=factory,
         expected_token=_TOKEN,
         venue=_ClosableVenue(),
+        control_plane=_AllowControlPlane(_budget()),
         redact=lambda n: n,
     )
     # Drive the lifespan order directly: drain (which records nothing here) then aclose.

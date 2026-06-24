@@ -300,6 +300,18 @@ _AM_SYSTEM_INITIATOR = "system:alertmanager"
 #: The trust class the ControlPlane keys on for the AM path. A machine-origin trigger.
 _AM_TRUST = "system"
 
+#: The declared route the ControlPlane keys its resolution table on for the AM path:
+#: (venue, locus, trigger_kind). PagerDuty is Venue #1, Alertmanager the channel/locus, an alert
+#: the trigger kind. Declared here (not derived from the incident-key venue_handle) so the PDP
+#: keys on stated fields. Must match the PD-dogfood entry in the control-plane table.
+_AM_VENUE = "pagerduty"
+_AM_LOCUS = "alertmanager"
+_AM_TRIGGER_KIND = "alert"
+
+#: The skill the AM/PD-dogfood route requests — the root-cause skill. The ControlPlane's PD entry
+#: grants exactly this; a route that does not grant it denies the trigger (deny-by-default).
+_AM_ROOT_CAUSE_SKILL = "root-cause"
+
 #: The default goal template — the trusted (manifest-injected) frame the contained alert is
 #: interpolated INTO. The contained alert is a {alert} VALUE, never promoted to the template
 #: position, so an alert value carrying its own "{...}" cannot re-template.
@@ -346,9 +358,12 @@ class AlertmanagerAdapter:
         return NormalizedTrigger(
             initiator=_AM_SYSTEM_INITIATOR,
             goal=self.goal_template.format(alert=alert),
+            venue=_AM_VENUE,
+            locus=_AM_LOCUS,
+            trigger_kind=_AM_TRIGGER_KIND,
             venue_handle=incident_key,
             dedup_key=incident_key,
             trust=_AM_TRUST,
-            requested_skills=(),
+            requested_skills=(_AM_ROOT_CAUSE_SKILL,),
             payload=alert,
         )

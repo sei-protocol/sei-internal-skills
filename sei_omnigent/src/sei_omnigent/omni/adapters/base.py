@@ -55,10 +55,15 @@ class NormalizedTrigger:
       slice's concern (gated on the Blocking dependency).
     * ``goal`` — the rendered investigation goal (the trusted template interpolated with the
       contained payload; the payload is a value, never promoted to the template position).
+    * ``venue`` / ``locus`` / ``trigger_kind`` — the declared route the ControlPlane keys its
+      resolution table on (``(venue, locus, trigger_kind)``). DECLARED by the adapter, never
+      derived from ``venue_handle`` (the PDP keys on stated fields, not an opaque-handle shape it
+      would have to parse). For AM: venue ``"pagerduty"``, locus the channel (``"alertmanager"``),
+      trigger_kind ``"alert"``.
     * ``venue_handle`` — the opaque address the result posts back to (the
       :data:`~sei_omnigent.omni.venues.base.VenueHandle`; for AM, the PD incident key).
-    * ``requested_skills`` — the skills the trigger asks for (the ControlPlane's input in a later
-      slice; empty here — skill-gating is deferred).
+    * ``requested_skills`` — the skills the trigger asks for (the ControlPlane's skill-grant
+      input; the AM path requests its one route skill explicitly).
     * ``dedup_key`` — the deterministic single-flight key (for AM, the AM-derived incident key).
     * ``trust`` — the trust class of the initiator (a coarse label the ControlPlane keys on;
       ``"system"`` for the AM path).
@@ -66,6 +71,9 @@ class NormalizedTrigger:
 
     initiator: str
     goal: str
+    venue: str
+    locus: str
+    trigger_kind: str
     venue_handle: str
     dedup_key: str
     trust: str
