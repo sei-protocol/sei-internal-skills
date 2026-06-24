@@ -29,7 +29,7 @@ Renders merged JSONL findings into a markdown audit report. Accepts one or more 
                      --input state/run-<ts>/static-findings.jsonl \
                      --input state/run-<ts>/semantic-findings.jsonl \
                      --input state/run-<ts>/pressure-findings.jsonl \
-                     --output docs/skill-audits/coral-2026-05-10.md
+                     --output designs/tide-skill-stack/audits/coral-2026-05-10.md
 ```
 
 Exit codes:

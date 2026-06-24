@@ -33,7 +33,7 @@ See `references/guardrails.md` for the detailed safety model.
 
 ### Phase 1 — Audit (default)
 
-Reads the target skill, runs static + semantic + pressure checks against the conventions catalog, and produces a findings report at `docs/skill-audits/<skill>-<date>.md`. Default mode — no edits.
+Reads the target skill, runs static + semantic + pressure checks against the conventions catalog, and produces a findings report in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<date>.md` (Design 13 — process-lineage relocation; resolve the DRI repo as `/design` does, Tide's repo-default arc is `tide-skill-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable). Default mode — no edits.
 
 ### Phase 2 — Refactor (opt-in via `--apply`)
 
@@ -63,7 +63,7 @@ The two phases are *sequenced*, not coupled. You can run audit alone today and r
 
 5. **Pressure testing.** Reuse the methodology from `../author-skill/references/testing-with-subagents.md`. Instantiate 3 shape-appropriate scenarios from `../author-skill/references/pressure-scenario-templates.md`. Dispatch subagents WITH the target skill loaded; capture rationalizations the skill failed to prevent into `state/run-<ts>/pressure-findings.jsonl`. (Different from author-skill: there is no baseline-without-skill pass — we're auditing the *current* skill, so all scenarios run skill-loaded.)
 
-6. **Synthesize findings.** Run `scripts/findings-report.sh --input state/run-<ts>/*-findings.jsonl --skill <name> --shape <inferred> --output docs/skill-audits/<name>-<YYYY-MM-DD>.md`. Produces a markdown report grouped by severity (block / warn / info), with each finding linked back to its conventions-catalog ID, evidence, and recommended remediation.
+6. **Synthesize findings.** Run `scripts/findings-report.sh --input state/run-<ts>/*-findings.jsonl --skill <name> --shape <inferred> --output <DRI-repo>/designs/<arc>/audits/<name>-<YYYY-MM-DD>.md`. Produces a markdown report grouped by severity (block / warn / info), with each finding linked back to its conventions-catalog ID, evidence, and recommended remediation.
 
 7. **Show the report.** Display the findings count by severity, the top 3-5 blockers, and the path to the full report. **Stop here unless `--apply` was passed or the user explicitly opts into Phase 2.**
 
@@ -133,7 +133,7 @@ state/run-<ts>/
 
 `state/` is gitignored at the repo level. On interrupted runs, the next invocation detects the latest incomplete `run-<ts>/` and offers **resume** / **archive** / **start-fresh**.
 
-The audit *report* (the durable artifact) lives at `docs/skill-audits/<skill>-<YYYY-MM-DD>.md` — outside `state/`, committable, the thing PRs reference.
+The audit *report* (the durable lineage artifact) lives in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<YYYY-MM-DD>.md` (Design 13; Tide's repo-default arc is `tide-skill-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable) — outside `state/`, committable, the thing PRs reference.
 
 ## What this skill doesn't do
 
@@ -147,4 +147,4 @@ The audit *report* (the durable artifact) lives at `docs/skill-audits/<skill>-<Y
 
 End-of-turn summary: one short paragraph. Skill audited, finding counts by severity, top blocker, report path. If Phase 2 ran, also: cycles consumed, edits applied, edits skipped, GREEN result. Example:
 
-> Audited `coral` (orchestration shape). 14 findings: 2 block, 8 warn, 4 info. Top blocker: description includes workflow summary that pre-empts the body's flowchart (Obra CSO trap). Report at `docs/skill-audits/coral-2026-05-10.md`. Stopped at audit-only — refactor pass deferred per user.
+> Audited `coral` (orchestration shape). 14 findings: 2 block, 8 warn, 4 info. Top blocker: description includes workflow summary that pre-empts the body's flowchart (Obra CSO trap). Report at `designs/tide-skill-stack/audits/coral-2026-05-10.md`. Stopped at audit-only — refactor pass deferred per user.

@@ -15,6 +15,6 @@ The engineering principles, the output discipline (incl. the comment/documentati
 ## Authoring & Maintaining Skills
 
 - **New skill:** read `.claude/skills/SKILL-TEMPLATE.md`, then use `/author-skill`. Draft the guardrails stanza first — if you can't articulate what the skill refuses to do, it isn't ready.
-- **Audit a skill:** use `/audit-skill <name>` (audit-only by default; `--apply` to refactor). Reports land under `docs/skill-audits/`.
+- **Audit a skill:** use `/audit-skill <name>` (audit-only by default; `--apply` to refactor). Reports land in the DRI's `<engineer>-designs` repo under `designs/<arc>/audits/` (Design 13; in-repo `docs/skill-audits/` only when no DRI repo).
 - **Sync out:** `make sync-skills` / `make sync-agents` push portable updates to user-scope; pass `--target <repo>` for sibling repos.
 - **Writing conventions (skill prose).** Imperative voice; each rule states its failure-consequence right after it. Literals in backticks (the full render/re-match rules live in `.claude/skills/impact-weekly/references/notion-flavored-markdown.md`). Cross-skill reference links from inside a `references/` dir use `../../<other-skill>/references/<file>` — note the double `../` (rationale in `.claude/skills/audit-skill/references/conventions-catalog.md` R5). Author to `/lingua`.

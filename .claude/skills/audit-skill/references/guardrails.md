@@ -7,7 +7,7 @@ Expanded safety model. The SKILL.md stanza is the short form; this file is the l
 `audit-skill` operates on:
 
 - **Read (always):** `<repo>/.claude/skills/<name>/` or `~/.claude/skills/<name>/` and the conventions catalog at `<repo>/.claude/skills/audit-skill/references/conventions-catalog.md`.
-- **Write (Phase 1 only):** `docs/skill-audits/<name>-<YYYY-MM-DD>.md` (the audit report) and `state/run-<ts>/` (working state).
+- **Write (Phase 1 only):** the audit report — a **lineage artifact** that lands in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<name>-<YYYY-MM-DD>.md` (repo-default arc `tide-skill-stack` for Tide; Design 13 — process-lineage relocation). Resolve the DRI repo as `/design` does (`--designs-repo` → sibling `<engineer>-designs` checkout → ask; in a non-interactive run, HALT and surface — never guess). The in-repo `docs/skill-audits/<name>-<YYYY-MM-DD>.md` is the fallback used **only when no DRI repo is resolvable and the user confirms**. Plus `state/run-<ts>/` (working state).
 - **Write (Phase 2 only):** files inside the target skill's directory, after diff confirmation. Plus `state/run-<ts>/backups/` and `state/run-<ts>/proposals/`.
 
 It does **not** write to any other path. It does not modify the conventions catalog (catalog edits are a separate, manual decision).
@@ -59,7 +59,7 @@ About to audit:
   skill:           <name>
   path:            <resolved-absolute-path>
   inferred shape:  <discipline|technique|pattern|reference|procedural>
-  report path:     <docs/skill-audits/<name>-<YYYY-MM-DD>.md>
+  report path:     <designs/<arc>/audits/<name>-<YYYY-MM-DD>.md in <engineer>-designs (DRI repo; in-repo docs/skill-audits/ only if no DRI repo)>
   phase:           audit-only (refactor opt-in after report)
   protected:       <yes|no>
 
@@ -88,7 +88,7 @@ Confirm? (yes / audit-only-stop / abort)
 
 ## Anti-corruption patterns
 
-- **Audit is read-only.** Phase 1 never writes to the target skill. Only writes go to `state/run-<ts>/` (working) and `docs/skill-audits/` (report).
+- **Audit is read-only.** Phase 1 never writes to the target skill. Only writes go to `state/run-<ts>/` (working) and the audit report's lineage home — `designs/<arc>/audits/` in the DRI repo (in-repo `docs/skill-audits/` only as the no-DRI-repo fallback).
 - **Backups before every apply.** `scripts/apply-refactor.sh` writes `<file>.before` to `state/run-<ts>/backups/` before each apply. Rollback is a `cp` away.
 - **Verify after every apply.** Parse frontmatter, count lines, syntax-check shell scripts. Verify failure → automatic rollback.
 - **State is per-run, gitignored.** Interrupted runs leave state intact; the next invocation can resume.

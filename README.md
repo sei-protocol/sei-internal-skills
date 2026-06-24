@@ -99,7 +99,7 @@ scripts/                    # sync-agents.sh, sync-skills.sh, permission tooling
 |---|---|
 | **Using the skills day to day** | `.claude/skills/README.md` (the catalog) |
 | **Authoring a new skill** | `.claude/skills/SKILL-TEMPLATE.md`, then `/author-skill` |
-| **Auditing an existing skill** | `/audit-skill <name>` → report under `docs/skill-audits/` |
+| **Auditing an existing skill** | `/audit-skill <name>` → report in the DRI's `<engineer>-designs` repo under `designs/<arc>/audits/` (Design 13) |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
 | **Wiring a sibling repo to use these** | `scripts/sync-agents.sh --target <path>` and `scripts/sync-skills.sh --target <path>` |
 

@@ -14,7 +14,7 @@
           "agent runs static-checks.sh first via scripts/static-checks.sh",
           "agent dispatches semantic-check subagents per references/semantic-checks.md",
           "agent dispatches pressure-test subagents with skill-loaded (not baseline-without-skill)",
-          "agent runs findings-report.sh to produce the markdown report at docs/skill-audits/design-<date>.md",
+          "agent runs findings-report.sh to produce the markdown report at the audit's lineage home — designs/<arc>/audits/design-<date>.md in the DRI <engineer>-designs repo (in-repo docs/skill-audits/design-<date>.md only as the no-DRI-repo fallback)",
           "agent stops at end of Phase 1 and asks before entering Phase 2"
         ],
         "forbidden_signals": [

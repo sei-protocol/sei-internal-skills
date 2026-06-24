@@ -30,22 +30,24 @@ Before doing anything, identify the target repo and load its conventions:
 2. Read `CLAUDE.md` if present — it establishes the repo's constitution, key conventions, and any skill references.
 3. Read `AGENTS.md` if present — it often lists the expert roster and cross-component interface ownership.
 4. Read `.claude/agents/*.md` — the specialist agents available for dispatch. If absent, ask the user which experts to use or whether to proceed without a roster.
-5. Check for workstream state:
-   - `.council/workstream.yaml` — if it exists, a previous session left work in progress. Read it before acting.
-   - `.council/escalations/` — files here mean a specialist flagged a design problem during implementation. Address before starting new work.
+5. Check for workstream state. Coordination state now lives in the DRI `<engineer>-designs` repo at `designs/<arc>/council/{workstream.yaml,escalations,archive}`, resolved via the `/design` resolver. **Resolve-then-read, fail-LOUD (Design 13 §4):** resolve the DRI repo *first*; if it is **unresolvable, on an unexpected branch, mid-rebase, dirty-in-conflict, or behind-remote / un-fetched → HALT and surface** — never silently "start fresh," never conclude "no work in progress," never miss a live escalation. In a **non-interactive (headless/cron)** run where the resolver would fall to "ask," there is no user → **HALT (blocked)**, do not proceed. **The in-repo `.council/` path is producer-write-only — it is NEVER a session-start read source: a read that cannot resolve the DRI repo HALTS, it does not read the (migration-emptied) in-repo dir and conclude "nothing pending."** Then:
+   - `designs/<arc>/council/workstream.yaml` in the DRI repo — if it exists, a previous session left work in progress. Read it before acting.
+   - `designs/<arc>/council/escalations/` in the DRI repo — files here mean a specialist flagged a design problem during implementation; the fail-loud read above is the interlock that preserves them as a safety gate after the move. Address before starting new work.
 6. Interface discipline (optional but recommended):
    - If the repo maintains a machine-readable interface registry, it is authoritative. All cross-component interfaces are defined there first, then specs and code conform.
    - If absent, interface discipline lives in LLDs directly. Same principle: provider owns the interface, consumers adapt.
 
-If the repo has a config file (`.council.yaml` or similar) specifying output paths for design docs or workstreams, honor those paths.
+If the repo has a config file (`.council.yaml` or similar) specifying output paths for design docs or workstreams, honor those paths — **except** for the design-doc output and the coordination state, which both relocate to the DRI repo. A council design is a **lineage artifact** and is captured via `/design`, which lands it in the DRI's `<engineer>-designs` repo at `designs/<arc>/<slug>.md` (Design 13 — process-artifact relocation). It does **not** land in `.council/designs/` or a config-driven in-repo path; `.council/designs/` is **deprecated**. Coordination state — `workstream.yaml`, `escalations/`, `archive/` — now **also relocates to the DRI repo** at `designs/<arc>/council/{workstream.yaml,escalations,archive}`, resolved via the same `/design` resolver (Design 13 R3 — all process artifacts, incl. coordination state, leave the code repo; the in-repo `.council/` path is a **producer-write fallback only** when no DRI repo resolves — **never a session-start read source**). Because this state is read at session start, the read is **fail-loud** per Design 13 §4 (see "Locating the Target Repo" step 5 and "Foundation" below).
 
 ## Foundation: Read Before Acting
 
+**Session-start state lives in the DRI repo and is read fail-loud (Design 13 §4).** The `workstream.yaml` and `escalations/` read below resolve from `designs/<arc>/council/` in the DRI `<engineer>-designs` repo via the `/design` resolver. Resolve the DRI repo *first*; if it is **unresolvable, on an unexpected branch, mid-rebase, dirty-in-conflict, or behind-remote / un-fetched → HALT and surface** — never silently "start fresh," never conclude "no work in progress," never miss a live escalation. In a **non-interactive (headless/cron)** run where the resolver would fall to "ask," there is no user → **HALT (blocked)**. **The in-repo `.council/` path is producer-write-only — never a session-start read source; a read that cannot resolve the DRI repo HALTS rather than reading the migration-emptied in-repo dir.** The escalation read in particular is a safety interlock: this fail-loud read is what keeps it loud after the move.
+
 Every task starts by reading, in order:
-1. `.council/workstream.yaml` — if it exists
+1. `designs/<arc>/council/workstream.yaml` in the DRI repo — if it exists
 2. The repo's interface discipline source (registry if present, relevant LLDs otherwise)
 3. The repo's governing document (`CLAUDE.md`, a constitution file, or whatever the repo nominates)
-4. `.council/escalations/` — resolve before starting new work
+4. `designs/<arc>/council/escalations/` in the DRI repo — resolve before starting new work
 
 Then read the relevant context for the specific task (LLDs, code, cross-reviews). The interface source of truth is authoritative — if a spec or code conflicts with it, it wins.
 
@@ -126,7 +128,7 @@ Provider owns the interface — if there's a disagreement, the provider's defini
 
 ## Session Continuity
 
-Work spanning multiple sessions (Product and System tiers especially) needs a checkpoint file at `.council/workstream.yaml`.
+Work spanning multiple sessions (Product and System tiers especially) needs a checkpoint file at `designs/<arc>/council/workstream.yaml` in the DRI `<engineer>-designs` repo (in-repo `.council/workstream.yaml` only as the no-DRI-repo fallback; Design 13 R3).
 
 ### Writing Checkpoints
 
@@ -174,10 +176,10 @@ escalations: []
 
 ### Reading Checkpoints
 
-When a session starts and `.council/workstream.yaml` exists:
+When a session starts, resolve the DRI repo fail-loud (Design 13 §4 — see Foundation; a read that cannot resolve the DRI repo HALTS, it does not read the migration-emptied in-repo dir) and, if `designs/<arc>/council/workstream.yaml` exists:
 1. Read it and tell the user: "Found an in-progress workstream: [description]. Currently in [phase] — [progress]. Continue, or start something new?"
 2. If continuing: skip completed phases, resume the in_progress phase
-3. If starting new work: archive the old workstream to `.council/archive/{date}-{description}.yaml` and start fresh
+3. If starting new work: archive the old workstream to `designs/<arc>/council/archive/{date}-{description}.yaml` in the DRI repo (in-repo `.council/archive/` fallback) and start fresh
 
 ### When to Checkpoint
 
@@ -188,7 +190,7 @@ When a session starts and `.council/workstream.yaml` exists:
 
 ## Design Escalation
 
-When a specialist discovers during implementation that the design is wrong, they write a file to `.council/escalations/{timestamp}-{component}.md`:
+When a specialist discovers during implementation that the design is wrong, they write a file to `designs/<arc>/council/escalations/{timestamp}-{component}.md` in the DRI `<engineer>-designs` repo (in-repo `.council/escalations/` only as the no-DRI-repo fallback; Design 13 R3):
 
 ```markdown
 # Escalation: {brief title}
@@ -217,7 +219,7 @@ When escalation files exist:
 1. Read each and assess: does this require a scope-tier upgrade? (What started as Component might now be System if the fix touches interfaces.)
 2. If interface changes are needed: update the interface source first, then dispatch the fix.
 3. If internal: dispatch the owning specialist to fix within their component.
-4. After resolution: move the file to `.council/escalations/resolved/`.
+4. After resolution: move the file to `designs/<arc>/council/escalations/resolved/` in the DRI repo (in-repo `.council/escalations/resolved/` fallback) — resolved escalations move there as lineage.
 
 ## One-Way Door Gate
 
@@ -235,9 +237,9 @@ Format: "This involves a one-way door: [what's changing]. Once deployed, [conseq
 
 Stop and report rather than auto-recovering when:
 
-- **Escalations exist at session start** (`.council/escalations/*` files present) — read each, resolve or upgrade scope before any new work
+- **Escalations exist at session start** (`designs/<arc>/council/escalations/*` in the DRI repo) — read each, resolve or upgrade scope before any new work. If the DRI repo can't be resolved cleanly (unresolvable / unexpected branch / mid-rebase / dirty-in-conflict / behind-remote, or headless with no user) → HALT fail-loud rather than assume no escalations; **never read the migration-emptied in-repo `.council/escalations/` and conclude "none"** (Design 13 §4)
 - **xreview surfaces MISMATCH or MISSING** — halt until provider and consumer specs align with the interface source of truth
-- **Workstream-in-progress detected** at session start (`.council/workstream.yaml` exists with unresolved phases) — surface and ask continue / new / archive
+- **Workstream-in-progress detected** at session start (`designs/<arc>/council/workstream.yaml` in the DRI repo — resolved fail-loud per §4, never read from the emptied in-repo dir; exists with unresolved phases) — surface and ask continue / new / archive
 - **Tier is genuinely ambiguous** — ask one focused question; if still ambiguous, halt and ask the user to scope
 - **One-way door triggers without approval pending** — never proceed silently
 - **Specialist refuses dispatch** (missing files, missing roster) — halt and surface what's needed
