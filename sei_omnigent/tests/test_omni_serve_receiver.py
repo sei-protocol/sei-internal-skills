@@ -15,12 +15,14 @@ from pathlib import Path
 
 import pytest
 
+from sei_omnigent.omni.engine import Budget
 from sei_omnigent.omni.serve_receiver import (
     _DEFAULT_LEASE_MARGIN_S,
     _PD_ENROLLED_ENV,
     _PD_FROM_EMAIL_ENV,
     _PD_TOKEN_ENV,
     build_budget,
+    build_control_plane,
     build_poster,
     build_receiver_config,
 )
@@ -107,6 +109,29 @@ def test_receiver_config_rejects_a_lease_below_the_budget_floor(
     monkeypatch.setenv("OMNI_RECEIVER_LEASE_S", "100")  # < 900 + margin
     with pytest.raises(ValueError):
         build_receiver_config(build_budget())
+
+
+def test_control_plane_binds_every_entry_budget_to_the_lease_floor() -> None:
+    # C1 over the table: the run runs under the matched ENTRY's budget (plan.budget), so the PDP
+    # must enforce the lease floor on the entry, not just RouterConfig on the shared budget. A
+    # table entry whose budget.wall_clock_s overruns the config lease (a second, longer route would
+    # be this) fails CLOSED at construction — at deploy, not silently at request. Here the lease is
+    # derived from a 900s wall_clock budget, but the entry carries a 5000s budget → boot abort.
+    config = build_receiver_config(build_budget())  # lease derived from the default 900s budget
+    overrunning = Budget(
+        wall_clock_s=5_000.0, tokens=400_000, queries=1_000, per_source_queries={},
+        max_iterations=40, no_progress_iterations=6,
+    )
+    with pytest.raises(ValueError, match="double-launch"):
+        build_control_plane(overrunning, config)
+
+
+def test_control_plane_wiring_constructs_for_the_default_budget() -> None:
+    # The happy path: the same budget the lease is derived from resolves the dogfood route cleanly
+    # (the floor binds without rejecting the in-spec single route).
+    budget = build_budget()
+    cp = build_control_plane(budget, build_receiver_config(budget))
+    assert cp.table  # the one MVP route is present and within the lease floor
 
 
 # --- the PagerDuty poster from_config wiring ----------------------------------

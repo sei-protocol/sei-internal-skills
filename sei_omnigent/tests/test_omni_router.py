@@ -316,6 +316,42 @@ def test_control_plane_deny_is_200_noop_with_not_permitted_reason_and_metric() -
     assert launched == []  # denied before launch — no session minted
 
 
+def test_lease_floor_violation_on_plan_budget_fails_closed_without_launch() -> None:
+    # C1, on the budget the run ACTUALLY uses: the run runs under plan.budget (not config.budget),
+    # so a plan whose budget.wall_clock_s + the lease margin exceeds the lease would expire mid-run
+    # and let a re-fire double-launch. The router fails CLOSED at claim time (no claim, no launch),
+    # surfacing a 200-noop with the distinct lease_floor_violation reason + metric (a static config
+    # error, not retry-fixable; a 5xx would invite an AM retry storm). The ERROR log is the page.
+    # The router lease is 1_100 (margin 30 → floor 1_130); a plan budget wall_clock of 1_200 over-
+    # runs it.
+    overrunning_budget = Budget(
+        wall_clock_s=1_200.0, tokens=1_000_000, queries=1_000, per_source_queries={},
+        max_iterations=1_000, no_progress_iterations=1_000,
+    )
+    launched: list[RunContext] = []
+
+    def factory(ctx: RunContext):
+        launched.append(ctx)
+        return _FakeSession([]), *_extractors()
+
+    dedup = InMemoryDedupStore(now=lambda: 0.0)
+    metrics = _RecordingMetrics()
+    rec = _router(
+        factory,
+        dedup=dedup,
+        metrics=metrics,
+        control_plane=_AllowControlPlane(overrunning_budget),
+    )
+    status, body = rec.handle_webhook(f"Bearer {_TOKEN}", _body())
+    assert status == 200  # 200-noop, NOT 5xx — a static config error is not retryable
+    assert body["status"] == "noop"
+    assert body["reason"] == "lease_floor_violation"
+    assert metrics.admissions == ["lease_floor_violation"]
+    assert launched == []  # no session minted — fail-closed before launch
+    # No claim was taken: the trigger stays eligible (the claim must not be consumed by a guard).
+    assert dedup.claim_run('{}:{alertname="ChainHalted"}', "run-x", lease_s=100.0) is True
+
+
 def test_per_trigger_budget_from_the_plan_is_threaded_into_the_run() -> None:
     # The run is supervised under the RunPlan's per-trigger budget (not the boot-time
     # config.budget). A plan budget with max_iterations=2 must cut the run at iteration 2 — the

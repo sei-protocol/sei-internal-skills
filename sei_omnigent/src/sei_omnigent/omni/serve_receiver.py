@@ -186,7 +186,7 @@ _PD_BUNDLE_REF_ENV = "OMNI_PD_BUNDLE_REF"
 _DEFAULT_PD_BUNDLE_REF = "root-cause"
 
 
-def build_control_plane(budget: Budget) -> ControlPlane:
+def build_control_plane(budget: Budget, config: RouterConfig) -> ControlPlane:
     """Assemble the fail-closed PDP with the PD-dogfood resolution table (the one MVP route).
 
     A single declarative entry: the Alertmanager→PagerDuty root-cause route — venue/locus/
@@ -195,6 +195,12 @@ def build_control_plane(budget: Budget) -> ControlPlane:
     ControlPlane fails loud at construction on an empty/malformed table; this one entry is what
     lets the dogfood path resolve to an allowed RunPlan end-to-end. The process-local table is the
     MVP integrity posture; the signed/GitOps-gated catalog is the deferred INV-8 target.
+
+    The router's ``config`` is threaded so the PDP enforces C1 over EVERY entry's budget at boot:
+    each entry's ``budget.wall_clock_s`` + the lease margin must fit inside ``lease_s``, or the
+    lease expires mid-run and a re-fire double-launches. The run runs under ``plan.budget`` (the
+    entry's), not ``config.budget``, so binding the floor to the entries here closes the C1
+    decoupling a second, longer route would otherwise open — fail at deploy, not at request.
     """
     return ControlPlane(
         table={
@@ -204,7 +210,9 @@ def build_control_plane(budget: Budget) -> ControlPlane:
                 posture=Posture.PROPOSE_ONLY,
                 budget=budget,
             ),
-        }
+        },
+        min_lease_s=config.lease_s,
+        lease_margin_s=config.min_lease_margin_s,
     )
 
 
@@ -255,7 +263,7 @@ def main() -> None:
 
     budget = build_budget()
     config = build_receiver_config(budget)
-    control_plane = build_control_plane(budget)
+    control_plane = build_control_plane(budget, config)
     expected_token = load_webhook_token()
     venue = build_poster()
     # The live session factory binds the standing host + the omni-root-cause identity; from_env

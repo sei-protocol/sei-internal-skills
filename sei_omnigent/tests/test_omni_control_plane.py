@@ -92,6 +92,25 @@ def test_malformed_key_fails_loud() -> None:
         ControlPlane(table={("pagerduty", "alertmanager"): _entry()})
 
 
+def test_entry_budget_exceeding_the_lease_floor_fails_loud_at_construction() -> None:
+    # C1, over the table: the run runs under the matched ENTRY's budget (plan.budget), so an entry
+    # whose budget.wall_clock_s + the lease margin exceeds the lease would expire mid-run and let a
+    # re-fire double-launch. With the lease floor supplied, the PDP fails CLOSED at construction —
+    # at deploy, not at request — so a second, longer route cannot silently outlive its lease.
+    # _budget() wall_clock is 900; lease 950 with a 100 margin → floor 1000 > 950.
+    with pytest.raises(ValueError, match="double-launch"):
+        ControlPlane(table=_table(), min_lease_s=950.0, lease_margin_s=100.0)
+
+
+def test_entry_budget_within_the_lease_floor_constructs() -> None:
+    # The mirror: an entry whose budget + margin fits inside the lease constructs cleanly (and a
+    # None floor, the test double's default, skips the check — RouterConfig guards the shared
+    # budget in that path).
+    cp = ControlPlane(table=_table(), min_lease_s=1_030.0, lease_margin_s=100.0)
+    assert cp.resolve(_trigger()).allowed is True
+    assert ControlPlane(table=_table()).resolve(_trigger()).allowed is True
+
+
 # --- the gating intersection (allow / deny-by-default) ------------------------
 
 

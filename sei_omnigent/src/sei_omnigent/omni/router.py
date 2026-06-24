@@ -593,9 +593,12 @@ class Router:
         * **401** — bad/absent bearer (NOT 5xx: a 5xx invites a retry of an unverifiable body;
           a 401 tells the venue to stop).
         * **200 + ``status: noop``** — verified but NOT admitted: the adapter returned a ``NoOp``
-          (non-firing / non-enrolled / unparseable — the page already routed to the human), OR the
-          control-plane denied the trigger (``not_permitted``). The ``reason`` carries the distinct
-          class (``parse_error`` / ``not_enrolled`` / ``not_permitted``).
+          (non-firing / non-enrolled / unparseable — the page already routed to the human), the
+          control-plane denied the trigger (``not_permitted``), or the resolved plan's budget would
+          outlive the lease (``lease_floor_violation`` — a static config error, fail-closed so an
+          expiring lease cannot double-launch; the ERROR log pages). The ``reason`` carries the
+          distinct class (``parse_error`` / ``not_enrolled`` / ``not_permitted`` /
+          ``lease_floor_violation``).
         * **200 + ``status: deduped``** — SHED (a run owns the trigger, or the global in-flight
           cap is hit): attach, not queue.
         * **200 + ``status: launched``** — admitted; the investigation runs in the bg.
@@ -629,6 +632,29 @@ class Router:
                 "omni.admit.denied dedup_key=%s reason=%s", trigger.dedup_key, plan.deny_reason
             )
             return 200, {"status": "noop", "reason": plan.deny_reason}
+
+        # C1 claim-time guard (the run runs under plan.budget, not config.budget): a run whose
+        # budget wall-clock + the lease margin exceeds the lease would expire mid-run and let a
+        # re-fire double-launch (2x session, 2x cost). The boot guard (ControlPlane /
+        # RouterConfig __post_init__) catches this at deploy for the wired table; this is the
+        # runtime backstop on plan.budget itself, so a plan from an un-boot-validated source (a
+        # dynamic table) cannot slip a lease-underrunning run past the claim. It is a STATIC
+        # config error (not attacker input, not retry-fixable), so fail closed as a 200-noop (a
+        # distinct reason, the parse_error/not_permitted no-op style — a 5xx would invite an AM
+        # retry storm) and do NOT claim/launch. The ERROR log is the page; the metric is bounded.
+        lease_floor = plan.budget.wall_clock_s + self.config.min_lease_margin_s
+        if lease_floor > self.config.lease_s:
+            self.metrics.admitted(decision="lease_floor_violation")
+            _log.error(
+                "omni.admit.lease_floor_violation dedup_key=%s budget_wall_clock_s=%s "
+                "min_lease_margin_s=%s lease_s=%s — NOT launching (an expiring lease would "
+                "double-launch this incident); fix the route budget/lease config",
+                trigger.dedup_key,
+                plan.budget.wall_clock_s,
+                self.config.min_lease_margin_s,
+                self.config.lease_s,
+            )
+            return 200, {"status": "noop", "reason": "lease_floor_violation"}
 
         # Global back-pressure: at the cap, SHED a fresh trigger rather than growing the task set
         # + host load unbounded. Checked BEFORE the claim so a shed does not consume a claim slot.

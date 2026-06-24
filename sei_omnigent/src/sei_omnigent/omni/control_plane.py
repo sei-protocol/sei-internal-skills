@@ -69,6 +69,19 @@ _SELECTABLE_POSTURES: frozenset[Posture] = frozenset(
 DENY_NOT_PERMITTED = "not_permitted"
 
 
+#: The placeholder budget a denied RunPlan carries — never threaded into a run (the deny path
+#: returns before launch). The minimal valid Budget (every cap positive, per Budget's own guard)
+#: so the denied plan is a constructible total value without surfacing a real route's budget.
+_DENIED_BUDGET = Budget(
+    wall_clock_s=1.0,
+    tokens=1,
+    queries=1,
+    per_source_queries={},
+    max_iterations=1,
+    no_progress_iterations=1,
+)
+
+
 @dataclass(frozen=True)
 class RunPlan:
     """The carried decision a resolved trigger runs under — the PDP's output.
@@ -152,9 +165,21 @@ class ControlPlane:
     principal — skill grant ∩ posture class. An unknown key, an ungranted skill, or a
     non-selectable posture is a DENY. The per-human initiator gate (:meth:`_initiator_eligible`)
     is the Blocking-dependency seam, N/A for the system/machine path.
+
+    The run executes under the matched entry's ``budget`` (``plan.budget``), so the C1
+    single-flight invariant — the run-lease must outlive the run's budget wall-clock plus a
+    release margin, else an expiring lease lets a re-fire double-launch a still-running incident —
+    is enforced HERE, over every entry, when the lease floor is supplied. ``min_lease_s`` is the
+    configured ``lease_s``; ``lease_margin_s`` is the post-back/release cushion. The serve-wiring
+    passes them so the lease, the entries, and the budgets all meet at one construction point — a
+    second route with a larger ``budget.wall_clock_s`` fails at deploy, not silently outliving its
+    lease at request time. Left ``None`` (the test double's default), the check is skipped —
+    RouterConfig's own floor still guards the single shared budget.
     """
 
     table: ResolutionTable
+    min_lease_s: float | None = None
+    lease_margin_s: float = 0.0
 
     def __post_init__(self) -> None:
         # Fail LOUD on an empty/malformed table (mirrors RouterConfig / Budget): an empty PDP
@@ -181,6 +206,19 @@ class ControlPlane:
                     f"ControlPlane table value for {key!r} must be a TableEntry, got "
                     f"{type(entry).__name__}."
                 )
+            # C1, over the table: the run runs under THIS entry's budget, so its wall_clock + the
+            # release margin must fit inside the lease, or the lease expires mid-run and a re-fire
+            # double-launches. RouterConfig only checks the single shared budget; this binds every
+            # entry to the lease floor at construction so a second, longer route fails at deploy.
+            if self.min_lease_s is not None:
+                floor = entry.budget.wall_clock_s + self.lease_margin_s
+                if self.min_lease_s < floor:
+                    raise ValueError(
+                        f"ControlPlane entry {key!r} budget.wall_clock_s "
+                        f"({entry.budget.wall_clock_s}) + lease_margin_s ({self.lease_margin_s}) "
+                        f"= {floor} exceeds lease_s ({self.min_lease_s}): an expiring lease would "
+                        "double-launch a still-running incident (C1, fail-closed at boot)."
+                    )
         object.__setattr__(self, "table", MappingProxyType(dict(self.table)))
 
     def _initiator_eligible(self, trigger: NormalizedTrigger) -> bool:
@@ -262,16 +300,3 @@ class ControlPlane:
                 "trigger_kind": trigger.trigger_kind,
             },
         )
-
-
-#: The placeholder budget a denied RunPlan carries — never threaded into a run (the deny path
-#: returns before launch). The minimal valid Budget (every cap positive, per Budget's own guard)
-#: so the denied plan is a constructible total value without surfacing a real route's budget.
-_DENIED_BUDGET = Budget(
-    wall_clock_s=1.0,
-    tokens=1,
-    queries=1,
-    per_source_queries={},
-    max_iterations=1,
-    no_progress_iterations=1,
-)
