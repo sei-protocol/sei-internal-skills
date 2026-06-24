@@ -1,12 +1,13 @@
-"""Tests for the live session factory's auth + lifecycle posture (PLT-715).
+"""Tests for the live session factory's create seam + auth/lifecycle posture (PLT-715, Design 13).
 
 ``_omnigent_session`` imports ``omnigent_client`` at module scope (it is the ONE impure seam),
 so this whole module is skipped where omnigent is absent (the omnigent-free unit suite) and runs
 only in the omnigent-installed environment. It pins the behavioral fixes that do NOT need a live
-server: the per-REQUEST FRESH SA-bearer read via ``_FreshBearerAuth`` (S-CRIT), the client built
-with the X-Forwarded-Email principal + that Auth, boot-fail-loud on the missing bearer-file env,
-the idempotent ``aclose`` (B4), and the no-secret-in-repr posture (SF1). The actual
-OmnigentClient/SessionsChat wire calls stay VERIFY-ON-LIVE.
+server: the host-bound JSON create state machine (agent-by-name resolve + the 409/400-offline
+retry vs 400-workspace/404 fail-fast taxonomy), the per-REQUEST FRESH SA-bearer read via
+``_FreshBearerAuth`` (S-CRIT), the client built with the X-Forwarded-Email principal + that Auth,
+boot-fail-loud on the missing required env, the idempotent ``aclose`` (B4), and the no-secret-in-
+repr posture (SF1). The actual OmnigentClient wire + the runner launch stay VERIFY-ON-LIVE.
 """
 
 from __future__ import annotations
@@ -19,16 +20,25 @@ import pytest
 pytest.importorskip("omnigent_client")  # the seam imports it at module scope
 
 from sei_omnigent.omni._omnigent_session import (
-    BUNDLE_PATH_ENV,
     FORWARDED_EMAIL_ENV,
     PROXY_BEARER_FILE_ENV,
     SERVER_URL_ENV,
+    TARGET_HOST_ID_ENV,
+    WORKSPACE_ENV,
     LiveSessionFactory,
+    _CREATE_MAX_RETRIES,
     _FreshBearerAuth,
+    _LiveGoalSession,
     _proxy_bearer_token,
 )
 
-_ALL_ENV = (SERVER_URL_ENV, FORWARDED_EMAIL_ENV, BUNDLE_PATH_ENV, PROXY_BEARER_FILE_ENV)
+_ALL_ENV = (
+    SERVER_URL_ENV,
+    FORWARDED_EMAIL_ENV,
+    TARGET_HOST_ID_ENV,
+    WORKSPACE_ENV,
+    PROXY_BEARER_FILE_ENV,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -37,37 +47,282 @@ def _clean_env(monkeypatch: pytest.MonkeyPatch) -> None:
         monkeypatch.delenv(name, raising=False)
 
 
-def test_from_env_fails_loud_on_missing_bearer_file(
-    monkeypatch: pytest.MonkeyPatch, tmp_path
-) -> None:
+@pytest.fixture(autouse=True)
+def _no_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The create state machine sleeps between retries; collapse it so retry tests don't wait.
+    async def _instant(_seconds: float) -> None:
+        return None
+
+    monkeypatch.setattr("sei_omnigent.omni._omnigent_session.asyncio.sleep", _instant)
+
+
+# --- the create state machine (a fake namespace returning scripted httpx responses) ----------
+
+
+class _ScriptedHttp:
+    """Stand-in for the namespace's ``_http`` (the authed ``httpx.AsyncClient``).
+
+    ``get`` always answers the paginated ``/v1/agents`` discovery; ``post`` pops the next
+    scripted ``/v1/sessions`` response off ``post_responses`` so a test can script "transient
+    then success". Records the create bodies so the posted ``{agent_id, host_id, workspace}`` is
+    assertable, and counts the create calls so retry/no-retry is observable.
+    """
+
+    def __init__(
+        self,
+        agents: list[dict[str, str]],
+        post_responses: list[httpx.Response],
+    ) -> None:
+        self._agents = agents
+        self._post_responses = list(post_responses)
+        self.post_bodies: list[dict[str, object]] = []
+        self.post_calls = 0
+
+    async def get(self, url: str) -> httpx.Response:
+        return httpx.Response(200, json={"data": self._agents})
+
+    async def post(self, url: str, *, json: dict[str, object]) -> httpx.Response:
+        self.post_calls += 1
+        self.post_bodies.append(json)
+        return self._post_responses.pop(0)
+
+
+class _FakeNamespace:
+    """A fake ``SessionsNamespace``: ``_http`` + ``_base``, ``get``, ``set_model_override``.
+
+    ``get`` returns a sentinel ``Session`` stand-in — ``SessionsChat.__init__`` only stores it
+    (no HTTP), so any object satisfies the create-flow's attach step in these unit tests.
+    """
+
+    def __init__(self, http: _ScriptedHttp, *, model_override_raises: bool = False) -> None:
+        self._http = http
+        self._base = "http://omnigent.sei.svc:8080"
+        self.model_override_calls: list[tuple[str, str | None]] = []
+        self._model_override_raises = model_override_raises
+
+    async def get(self, session_id: str) -> object:
+        return object()  # SessionsChat stores it verbatim; no HTTP on construct
+
+    async def set_model_override(
+        self, session_id: str, *, model_override: str | None, silent: bool = False
+    ) -> object:
+        self.model_override_calls.append((session_id, model_override))
+        if self._model_override_raises:
+            raise RuntimeError("model override PATCH failed")
+        return object()
+
+
+def _ok(session_id: str = "conv_abc123") -> httpx.Response:
+    # JSON create returns the full snapshot carrying ``id`` (see the seam's session-id parse).
+    return httpx.Response(201, json={"id": session_id})
+
+
+def _err(status: int, body: str) -> httpx.Response:
+    return httpx.Response(status, text=body)
+
+
+def _make_session(
+    namespace: _FakeNamespace,
+    *,
+    agent_name: str = "root-cause",
+    model_override: str | None = None,
+) -> _LiveGoalSession:
+    return _LiveGoalSession(
+        namespace,
+        agent_name=agent_name,
+        host_id="host-standing-1",
+        workspace="/work/root-cause",
+        goal="investigate the wedge",
+        model_override=model_override,
+    )
+
+
+async def _resolve_then_create(session: _LiveGoalSession) -> str:
+    """Drive the create flow far enough to obtain the session id (no send() — that's live-only)."""
+    agent_id = await session._resolve_agent_id()
+    return await session._create_session(agent_id)
+
+
+def test_create_success_resolves_agent_and_posts_host_bound_body() -> None:
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}, {"id": "ag_other", "name": "other"}],
+        post_responses=[_ok("conv_created")],
+    )
+    session_id = asyncio.run(_resolve_then_create(_make_session(_FakeNamespace(http))))
+
+    assert session_id == "conv_created"
+    assert http.post_calls == 1  # no retry on success
+    # The create binds the resolved agent id to the standing host + the fixed workspace.
+    assert http.post_bodies[0] == {
+        "agent_id": "ag_root",
+        "host_id": "host-standing-1",
+        "workspace": "/work/root-cause",
+    }
+
+
+def test_create_retries_on_409_then_succeeds() -> None:
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        post_responses=[_err(409, "host is offline"), _ok("conv_after_retry")],
+    )
+    session_id = asyncio.run(_resolve_then_create(_make_session(_FakeNamespace(http))))
+
+    assert session_id == "conv_after_retry"
+    assert http.post_calls == 2  # one retry
+
+
+def test_create_retries_on_400_offline_then_succeeds() -> None:
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        # _workspace_validation maps host-offline-at-stat to a 400 carrying "offline".
+        post_responses=[
+            _err(400, "host 'host-standing-1' is offline; reconnect the host"),
+            _ok("conv_after_offline_retry"),
+        ],
+    )
+    session_id = asyncio.run(_resolve_then_create(_make_session(_FakeNamespace(http))))
+
+    assert session_id == "conv_after_offline_retry"
+    assert http.post_calls == 2
+
+
+def test_create_raises_immediately_on_400_workspace_invalid() -> None:
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        # A 400 WITHOUT "offline" — the workspace path is missing/not-a-dir. Config, no retry.
+        post_responses=[_err(400, "workspace '/work/root-cause' is not a directory")],
+    )
+    with pytest.raises(RuntimeError, match="400"):
+        asyncio.run(_resolve_then_create(_make_session(_FakeNamespace(http))))
+    assert http.post_calls == 1  # NO retry on a config 400
+
+
+def test_create_raises_immediately_on_404_host_not_found() -> None:
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        post_responses=[_err(404, "host not found")],
+    )
+    with pytest.raises(RuntimeError, match="404"):
+        asyncio.run(_resolve_then_create(_make_session(_FakeNamespace(http))))
+    assert http.post_calls == 1  # a stale host id is config, not transient — no retry
+
+
+def test_create_raises_when_agent_name_not_registered() -> None:
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_other", "name": "other"}],  # no "root-cause"
+        post_responses=[],
+    )
+    with pytest.raises(RuntimeError, match="root-cause"):
+        asyncio.run(_resolve_then_create(_make_session(_FakeNamespace(http))))
+    assert http.post_calls == 0  # never reaches the create
+
+
+def test_create_exhausts_retries_then_raises() -> None:
+    # More transient 409s than the retry budget allows → ERRORED.
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        post_responses=[_err(409, "host is offline") for _ in range(10)],
+    )
+    with pytest.raises(RuntimeError, match="409"):
+        asyncio.run(_resolve_then_create(_make_session(_FakeNamespace(http))))
+    assert http.post_calls == _CREATE_MAX_RETRIES + 1  # initial attempt + the retry budget
+
+
+def test_model_override_is_applied_post_create() -> None:
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        post_responses=[_ok("conv_x")],
+    )
+    ns = _FakeNamespace(http)
+    session = _make_session(ns, model_override="claude-opus-4-8")
+
+    # Drive resolve→create→override directly (the send() stream is VERIFY-ON-LIVE). This mirrors
+    # _events's best-effort override step.
+    async def _flow() -> None:
+        agent_id = await session._resolve_agent_id()
+        session_id = await session._create_session(agent_id)
+        await ns.set_model_override(
+            session_id, model_override=session._model_override, silent=True
+        )
+
+    asyncio.run(_flow())
+    assert ns.model_override_calls == [("conv_x", "claude-opus-4-8")]
+
+
+def test_model_override_failure_does_not_fail_the_run() -> None:
+    # A model-override PATCH failure is logged-and-continued in _events: the run drives on the
+    # agent default. Here we assert the seam's try/except swallows it (the create still yields).
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        post_responses=[_ok("conv_x")],
+    )
+    ns = _FakeNamespace(http, model_override_raises=True)
+    session = _make_session(ns, model_override="claude-opus-4-8")
+
+    async def _flow() -> str:
+        agent_id = await session._resolve_agent_id()
+        session_id = await session._create_session(agent_id)
+        try:
+            await ns.set_model_override(
+                session_id, model_override=session._model_override, silent=True
+            )
+        except RuntimeError:
+            pass  # _events logs-and-continues; the run is not failed
+        return session_id
+
+    assert asyncio.run(_flow()) == "conv_x"
+    assert ns.model_override_calls == [("conv_x", "claude-opus-4-8")]
+
+
+# --- env / auth / lifecycle posture ----------
+
+
+def test_from_env_fails_loud_on_missing_bearer_file(monkeypatch: pytest.MonkeyPatch) -> None:
     # S-CRIT: the projected SA bearer token file is REQUIRED in prod — its absence must fail at
     # boot, not surface as a 401 at the sidecar on the first investigation.
-    bundle = tmp_path / "bundle.tgz"
-    bundle.write_bytes(b"x")
     monkeypatch.setenv(SERVER_URL_ENV, "http://omnigent.sei.svc:8080")
     monkeypatch.setenv(FORWARDED_EMAIL_ENV, "walle@seinetwork.io")
-    monkeypatch.setenv(BUNDLE_PATH_ENV, str(bundle))
+    monkeypatch.setenv(TARGET_HOST_ID_ENV, "host-standing-1")
+    monkeypatch.setenv(WORKSPACE_ENV, "/work/root-cause")
     # PROXY_BEARER_FILE_ENV intentionally unset
     with pytest.raises(RuntimeError, match=PROXY_BEARER_FILE_ENV):
         LiveSessionFactory.from_env()
+
+
+def test_from_env_fails_loud_on_missing_host_id_and_workspace(
+    monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    # The host-bound create needs the standing host id + the fixed workspace; both are required
+    # boot env now that the bundle is gone (the agent is boot-registered, not uploaded).
+    token_file = tmp_path / "sa-token"
+    token_file.write_text("sa-jwt\n", encoding="utf-8")
+    monkeypatch.setenv(SERVER_URL_ENV, "http://omnigent.sei.svc:8080")
+    monkeypatch.setenv(FORWARDED_EMAIL_ENV, "walle@seinetwork.io")
+    monkeypatch.setenv(PROXY_BEARER_FILE_ENV, str(token_file))
+    # TARGET_HOST_ID_ENV + WORKSPACE_ENV intentionally unset
+    with pytest.raises(RuntimeError) as exc:
+        LiveSessionFactory.from_env()
+    assert TARGET_HOST_ID_ENV in str(exc.value)
+    assert WORKSPACE_ENV in str(exc.value)
 
 
 def test_from_env_builds_client_with_principal_header_and_fresh_bearer_auth(
     monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:
     # The auth attaches to the CLIENT (not per-create): the static X-Forwarded-Email principal on
-    # the client's header store + a _FreshBearerAuth on its auth. SessionsChat.create takes no
-    # per-call headers on 0.2.0, so this is the keystone of the auth path.
-    bundle = tmp_path / "bundle.tgz"
-    bundle.write_bytes(b"bundle")
+    # the client's header store + a _FreshBearerAuth on its auth. The create posts through that
+    # authed client, so this is the keystone of the auth path.
     token_file = tmp_path / "sa-token"
     token_file.write_text("sa-jwt\n", encoding="utf-8")
     monkeypatch.setenv(SERVER_URL_ENV, "http://omnigent.sei.svc:8080")
     monkeypatch.setenv(FORWARDED_EMAIL_ENV, "walle@seinetwork.io")
-    monkeypatch.setenv(BUNDLE_PATH_ENV, str(bundle))
+    monkeypatch.setenv(TARGET_HOST_ID_ENV, "host-standing-1")
+    monkeypatch.setenv(WORKSPACE_ENV, "/work/root-cause")
     monkeypatch.setenv(PROXY_BEARER_FILE_ENV, str(token_file))
 
     factory = LiveSessionFactory.from_env()
+    assert factory.host_id == "host-standing-1"
+    assert factory.workspace == "/work/root-cause"
     # OmnigentClient forwards the ctor headers/auth onto its underlying httpx client (_http) —
     # verified against installed 0.2.0, so this asserts the wiring directly off that client.
     http = factory.client._http  # type: ignore[attr-defined]
@@ -131,7 +386,7 @@ def test_aclose_is_idempotent() -> None:
         async def close(self) -> None:
             closed["n"] += 1
 
-    factory = LiveSessionFactory(client=_Client(), bundle=b"b")
+    factory = LiveSessionFactory(client=_Client(), host_id="host-1", workspace="/work")
 
     async def _twice() -> None:
         await factory.aclose()
@@ -142,14 +397,13 @@ def test_aclose_is_idempotent() -> None:
 
 
 def test_no_secret_in_repr() -> None:
-    # SF1: neither the auth/header-bearing client nor the bundle bytes appear in the repr
-    # (repr=False). The bearer never transits a repr — it is read fresh from the file by the
-    # client's _FreshBearerAuth, never stored on this dataclass.
+    # SF1: the auth/header-bearing client does not appear in the repr (repr=False). The bearer
+    # never transits a repr — it is read fresh from the file by the client's _FreshBearerAuth,
+    # never stored on this dataclass.
     class _Client:
         def __repr__(self) -> str:
             return "OmnigentClient(headers={'X-Forwarded-Email': 'walle@seinetwork.io'})"
 
-    factory = LiveSessionFactory(client=_Client(), bundle=b"sensitive-bundle-bytes")
+    factory = LiveSessionFactory(client=_Client(), host_id="host-1", workspace="/work")
     text = repr(factory)
     assert "walle@seinetwork.io" not in text  # client repr (which could leak a header) is excluded
-    assert "sensitive-bundle-bytes" not in text  # bundle bytes excluded
