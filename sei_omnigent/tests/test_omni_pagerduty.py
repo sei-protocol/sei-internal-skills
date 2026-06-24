@@ -24,7 +24,7 @@ import tokenize
 import httpx
 import pytest
 
-from sei_omnigent.omni._pagerduty import (
+from sei_omnigent.omni.venues.pagerduty import (
     PagerDutyClient,
     PagerDutyError,
     _marker,
@@ -354,7 +354,7 @@ def test_module_surface_is_notes_only_no_act_endpoints() -> None:
     # added to the code, this fails loudly. Scoped to act PATHS (`/...`) + an action-body
     # marker, which prose does not form.
     source = pathlib.Path(
-        pathlib.Path(__file__).parent.parent / "src/sei_omnigent/omni/_pagerduty.py"
+        pathlib.Path(__file__).parent.parent / "src/sei_omnigent/omni/venues/pagerduty.py"
     ).read_text(encoding="utf-8")
     code = _strip_docstrings_and_comments(source)
     forbidden = (

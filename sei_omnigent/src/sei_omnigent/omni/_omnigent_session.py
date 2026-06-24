@@ -322,8 +322,8 @@ class LiveSessionFactory:
         return cls(client=client, bundle=bundle)
 
     def __call__(self, ctx: object) -> tuple[object, ...]:
-        # ctx is an omni.receiver.RunContext (typed object so this module stays receiver-import-
-        # light + the single-coupling seam carries no receiver dependency cycle). ctx.goal is the
+        # ctx is an omni.router.RunContext (typed object so this module stays router-import-
+        # light + the single-coupling seam carries no router dependency cycle). ctx.goal is the
         # contained, rendered investigation goal.
         session = _LiveGoalSession(self._namespace(), self.bundle, ctx.goal)
         return (session, *make_extractors())

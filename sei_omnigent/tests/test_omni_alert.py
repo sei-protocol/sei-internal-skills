@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import pytest
 
-from sei_omnigent.omni._alert import (
+from sei_omnigent.omni.adapters.alertmanager import (
     _FRAME_CLOSE,
     _FRAME_OPEN,
     _MAX_ALERTS,
