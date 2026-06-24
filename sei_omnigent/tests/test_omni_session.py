@@ -26,6 +26,7 @@ from sei_omnigent.omni._omnigent_session import (
     TARGET_HOST_ID_ENV,
     WORKSPACE_ENV,
     LiveSessionFactory,
+    _AGENTS_PAGE_LIMIT,
     _CREATE_MAX_RETRIES,
     _FreshBearerAuth,
     _LiveGoalSession,
@@ -62,36 +63,62 @@ def _no_backoff(monkeypatch: pytest.MonkeyPatch) -> None:
 class _ScriptedHttp:
     """Stand-in for the namespace's ``_http`` (the authed ``httpx.AsyncClient``).
 
-    ``get`` always answers the paginated ``/v1/agents`` discovery; ``post`` pops the next
-    scripted ``/v1/sessions`` response off ``post_responses`` so a test can script "transient
-    then success". Records the create bodies so the posted ``{agent_id, host_id, workspace}`` is
-    assertable, and counts the create calls so retry/no-retry is observable.
+    ``get`` answers the paginated ``/v1/agents`` discovery (``has_more`` scriptable for the
+    fail-loud-on-overflow test); ``post`` pops the next scripted ``/v1/sessions`` outcome off
+    ``post_responses`` — an ``httpx.Response`` is returned, an ``Exception`` instance is raised
+    (so a test can script a transport error or "transient then success"). Records the create
+    bodies so the posted ``{agent_id, host_id, workspace}`` is assertable, counts the create
+    calls so retry/no-retry is observable, and records the GET params so the page-limit is
+    assertable.
     """
 
     def __init__(
         self,
         agents: list[dict[str, str]],
-        post_responses: list[httpx.Response],
+        post_responses: list[httpx.Response | Exception],
+        *,
+        agents_has_more: bool = False,
     ) -> None:
         self._agents = agents
+        self._agents_has_more = agents_has_more
         self._post_responses = list(post_responses)
         self.post_bodies: list[dict[str, object]] = []
         self.post_calls = 0
+        self.get_params: list[dict[str, object] | None] = []
 
-    async def get(self, url: str) -> httpx.Response:
-        return httpx.Response(200, json={"data": self._agents})
+    async def get(
+        self,
+        url: str,
+        *,
+        params: dict[str, object] | None = None,
+        timeout: float | None = None,
+    ) -> httpx.Response:
+        self.get_params.append(params)
+        return httpx.Response(
+            200, json={"data": self._agents, "has_more": self._agents_has_more}
+        )
 
-    async def post(self, url: str, *, json: dict[str, object]) -> httpx.Response:
+    async def post(
+        self,
+        url: str,
+        *,
+        json: dict[str, object],
+        timeout: float | None = None,
+    ) -> httpx.Response:
         self.post_calls += 1
         self.post_bodies.append(json)
-        return self._post_responses.pop(0)
+        outcome = self._post_responses.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
 
 
 class _FakeNamespace:
     """A fake ``SessionsNamespace``: ``_http`` + ``_base``, ``get``, ``set_model_override``.
 
-    ``get`` returns a sentinel ``Session`` stand-in — ``SessionsChat.__init__`` only stores it
-    (no HTTP), so any object satisfies the create-flow's attach step in these unit tests.
+    ``get`` is part of the namespace surface but is NO LONGER on the create path (W2: the Session
+    is built straight from the create 201 snapshot); ``get_calls`` counts it so a regression that
+    reintroduces the redundant round-trip is caught.
     """
 
     def __init__(self, http: _ScriptedHttp, *, model_override_raises: bool = False) -> None:
@@ -99,9 +126,11 @@ class _FakeNamespace:
         self._base = "http://omnigent.sei.svc:8080"
         self.model_override_calls: list[tuple[str, str | None]] = []
         self._model_override_raises = model_override_raises
+        self.get_calls = 0
 
     async def get(self, session_id: str) -> object:
-        return object()  # SessionsChat stores it verbatim; no HTTP on construct
+        self.get_calls += 1
+        return object()
 
     async def set_model_override(
         self, session_id: str, *, model_override: str | None, silent: bool = False
@@ -113,8 +142,18 @@ class _FakeNamespace:
 
 
 def _ok(session_id: str = "conv_abc123") -> httpx.Response:
-    # JSON create returns the full snapshot carrying ``id`` (see the seam's session-id parse).
-    return httpx.Response(201, json={"id": session_id})
+    # JSON create returns the full session snapshot (SessionResponse). Carry the four fields
+    # Session.from_dict requires (id/agent_id/status/created_at) so the create-from-snapshot path
+    # (W2) can build the Session straight off this body — no second GET round-trip.
+    return httpx.Response(
+        201,
+        json={
+            "id": session_id,
+            "agent_id": "ag_root",
+            "status": "idle",
+            "created_at": 1718000000,
+        },
+    )
 
 
 def _err(status: int, body: str) -> httpx.Response:
@@ -138,7 +177,18 @@ def _make_session(
 
 
 async def _resolve_then_create(session: _LiveGoalSession) -> str:
-    """Drive the create flow far enough to obtain the session id (no send() — that's live-only)."""
+    """Drive the create flow far enough to obtain the session id (no send() — that's live-only).
+
+    ``_create_session`` returns the create SNAPSHOT (W2: the caller builds the Session from it
+    rather than a second GET); pull the id out so the existing assertions read unchanged.
+    """
+    agent_id = await session._resolve_agent_id()
+    created = await session._create_session(agent_id)
+    return str(created["id"])
+
+
+async def _drive_create_snapshot(session: _LiveGoalSession) -> dict[str, object]:
+    """Resolve + create, returning the raw create SNAPSHOT (W2: what the seam builds Session)."""
     agent_id = await session._resolve_agent_id()
     return await session._create_session(agent_id)
 
@@ -228,6 +278,79 @@ def test_create_exhausts_retries_then_raises() -> None:
     assert http.post_calls == _CREATE_MAX_RETRIES + 1  # initial attempt + the retry budget
 
 
+def test_create_raises_immediately_on_runner_bind_conflict() -> None:
+    # G1: a 409 whose body is the runner-bind CONFLICT ("already has a runner bound") is NOT the
+    # host-offline window — it fires AFTER the conversation row is written, so retrying it orphans
+    # rows/runners. It must raise on the FIRST attempt, never retried.
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        post_responses=[_err(409, "Session 'conv_x' already has a runner bound")],
+    )
+    with pytest.raises(RuntimeError, match="409"):
+        asyncio.run(_resolve_then_create(_make_session(_FakeNamespace(http))))
+    assert http.post_calls == 1  # NOT retried — a bind-conflict 409 is non-transient
+
+
+def test_create_retries_on_transport_error_then_succeeds() -> None:
+    # G2: a connection-level transport error raises before a response exists. It is the actual
+    # pod-roll/connection-refused transient, so it routes through the SAME bounded retry path.
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        post_responses=[
+            httpx.ConnectError("connection refused"),
+            _ok("conv_after_transport_retry"),
+        ],
+    )
+    session_id = asyncio.run(_resolve_then_create(_make_session(_FakeNamespace(http))))
+
+    assert session_id == "conv_after_transport_retry"
+    assert http.post_calls == 2  # one retry on the transport error
+
+
+def test_create_exhausts_retries_on_transport_error_then_raises() -> None:
+    # G2: a transport error on every attempt (including the final one) exhausts the budget and
+    # raises (ERRORED) rather than swallowing the failure.
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        post_responses=[httpx.ConnectError("connection refused") for _ in range(10)],
+    )
+    with pytest.raises(RuntimeError, match="transport error"):
+        asyncio.run(_resolve_then_create(_make_session(_FakeNamespace(http))))
+    assert http.post_calls == _CREATE_MAX_RETRIES + 1  # initial attempt + the retry budget
+
+
+def test_resolve_agent_requests_page_cap_and_fails_loud_on_has_more() -> None:
+    # G3: the agents list is cursor-paginated. The resolve requests the route's page cap; if the
+    # response still reports has_more AND the agent was not on the first page, fail loud rather
+    # than silently miss an agent past the cap (no full cursor loop — limit + fail-loud is agreed).
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_other", "name": "other"}],  # target not on the first page
+        post_responses=[],
+        agents_has_more=True,
+    )
+    with pytest.raises(RuntimeError, match=r"has_more|page cap"):
+        asyncio.run(_make_session(_FakeNamespace(http))._resolve_agent_id())
+    # The resolve passed the page-cap limit to the GET (one page, sized to the route cap).
+    assert http.get_params == [{"limit": _AGENTS_PAGE_LIMIT}]
+
+
+def test_create_builds_session_from_snapshot_without_second_get() -> None:
+    # W2: the create 201 carries the full snapshot (id/agent_id/status/created_at), so the seam
+    # builds the Session straight from it — the redundant post-create GET is gone. Assert the
+    # create succeeds off the 201 body alone and the namespace's get() is never called.
+    http = _ScriptedHttp(
+        agents=[{"id": "ag_root", "name": "root-cause"}],
+        post_responses=[_ok("conv_from_snapshot")],
+    )
+    ns = _FakeNamespace(http)
+    created = asyncio.run(_drive_create_snapshot(_make_session(ns)))
+
+    assert str(created["id"]) == "conv_from_snapshot"
+    # Session.from_dict needs exactly these four; the snapshot must carry them (no GET backfill).
+    assert {"id", "agent_id", "status", "created_at"} <= set(created)
+    assert ns.get_calls == 0  # the redundant round-trip is gone
+
+
 def test_model_override_is_applied_post_create() -> None:
     http = _ScriptedHttp(
         agents=[{"id": "ag_root", "name": "root-cause"}],
@@ -237,12 +360,12 @@ def test_model_override_is_applied_post_create() -> None:
     session = _make_session(ns, model_override="claude-opus-4-8")
 
     # Drive resolve→create→override directly (the send() stream is VERIFY-ON-LIVE). This mirrors
-    # _events's best-effort override step.
+    # _events's best-effort override step (the create returns the snapshot; the id comes off it).
     async def _flow() -> None:
         agent_id = await session._resolve_agent_id()
-        session_id = await session._create_session(agent_id)
+        created = await session._create_session(agent_id)
         await ns.set_model_override(
-            session_id, model_override=session._model_override, silent=True
+            str(created["id"]), model_override=session._model_override, silent=True
         )
 
     asyncio.run(_flow())
@@ -261,7 +384,8 @@ def test_model_override_failure_does_not_fail_the_run() -> None:
 
     async def _flow() -> str:
         agent_id = await session._resolve_agent_id()
-        session_id = await session._create_session(agent_id)
+        created = await session._create_session(agent_id)
+        session_id = str(created["id"])
         try:
             await ns.set_model_override(
                 session_id, model_override=session._model_override, silent=True
