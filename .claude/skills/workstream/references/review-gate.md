@@ -34,7 +34,7 @@ A third entry kind in the workstream's checkpoint ledger, declared up front:
 - review-gate: <short identifier, kebab-case>
   slate:    <the declared reviewer slate — or "routed by /xreview per change-class">
   checks:   <the declared automated checks that must be green — e.g. cursor-bugbot, named CI workflows>
-  ledger:   <the /xreview review-ledger path — target-derivable per PLT-535; the gate computes it from the target, no registry>
+  ledger:   <the /xreview review-ledger path — target-derivable per PLT-535; the gate computes it from the target (DRI-repo designs/<arc>/xreview/ path or the in-repo .xreview/ fallback), no registry>
   satisfied_when: the review-ledger's latest round reads a PASSING TERMINAL per /xreview's gate-read contract (currently State RESOLVED|RESOLVED-WITH-ACCEPTED-RISK, OpenFindings 0, Dissenter non-empty, cross-field consistent) AND Convergence is unanimous (the consensus refinement — see gate evaluation) AND every declared check has passed
   on_fail:  surface + route to a PRE-DECLARED human checkpoint (e.g. pr-sign-off) — never self-merge on a fail
 ```
@@ -44,7 +44,13 @@ A third entry kind in the workstream's checkpoint ledger, declared up front:
 When the ship step is reached and a `review-gate` was declared, evaluate it:
 
 1. **Compute the review-ledger path** from the target (PLT-535's target-derivable rule — no
-   registry, no handoff token).
+   registry, no handoff token). The ledger lives in the DRI repo at `designs/<arc>/xreview/<slug>.md`
+   (Design 13): for a design-doc target the arc is the target's own path segment; for a code-PR/diff
+   target the arc is the code repo's **default arc** (repo identity → fixed arc, e.g. `Tide` →
+   `tide-skill-stack`). The gate checks **two deterministic candidate paths** — that DRI-repo path,
+   then the in-repo `.xreview/<slug>.md` fallback (where the producer writes when no DRI repo was
+   resolvable) — both computable with no prompt, per `/xreview/references/review-ledger.md`; absent
+   from **both** ⇒ fail closed.
 2. **Read the latest round's header block** and apply `/xreview`'s passing-terminal gate-read
    **verbatim** (the provider's ledger-validity check — see the *Gate-read contract* table in
    `/xreview/references/review-ledger.md`; this gate reads that table, it does not re-list or
