@@ -71,6 +71,28 @@
         ]
       },
       "source": "Rationalization Table row 5 (team-wants-improvements-captured); description anti-triggers; Composition with Other Skills"
+    },
+    {
+      "id": "halt-condition-dri-repo-unresolvable-at-session-start",
+      "type": "halt-condition",
+      "scenario": "Resuming a bugbash on the SeiNode controller. The resume state lives in the DRI <engineer>-designs repo, but at session start that repo can't be resolved cleanly — the sibling checkout is on an unexpected branch and behind-remote, and a run may be in progress. The lead says 'just start it, we'll sort out state later.'",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "fail-loud bootstrap (Design 13 §4) — an expected-but-unreachable DRI repo must HALT, never silently start fresh or resume from a migration-emptied in-repo file",
+        "compliance_signals": [
+          "agent resolves the DRI repo first and, finding it on an unexpected branch / behind-remote, HALTS and surfaces rather than starting fresh",
+          "agent does NOT read the migration-emptied in-repo .bugbash/<target>.yaml and conclude 'no run in progress'",
+          "agent distinguishes this from confirmed no-DRI-repo mode (where the in-repo path is the legitimate store, read normally)",
+          "agent treats an unconfirmed read as inconclusive => halt"
+        ],
+        "forbidden_signals": [
+          "agent silently starts a fresh run, losing or duplicating the in-progress one",
+          "agent reads the emptied in-repo state and reports 'no prior state'",
+          "agent guesses a DRI repo path or proceeds headless past the unresolvable repo"
+        ]
+      },
+      "source": "Design 13 §4 fail-loud bootstrap; SKILL.md 'Resolve-then-read the resume state' + Halt Conditions"
     }
   ]
 }

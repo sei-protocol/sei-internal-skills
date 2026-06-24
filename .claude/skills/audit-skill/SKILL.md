@@ -65,7 +65,7 @@ The two phases are *sequenced*, not coupled. You can run audit alone today and r
 
 5. **Pressure testing.** Reuse the methodology from `../author-skill/references/testing-with-subagents.md`. Instantiate 3 shape-appropriate scenarios from `../author-skill/references/pressure-scenario-templates.md`. Dispatch subagents WITH the target skill loaded; capture rationalizations the skill failed to prevent into `state/run-<ts>/pressure-findings.jsonl`. (Different from author-skill: there is no baseline-without-skill pass — we're auditing the *current* skill, so all scenarios run skill-loaded.)
 
-6. **Synthesize findings.** Run `scripts/findings-report.sh --input state/run-<ts>/*-findings.jsonl --skill <name> --shape <inferred> --output <DRI-repo>/designs/<arc>/audits/<name>-<YYYY-MM-DD>.md`. Produces a markdown report grouped by severity (block / warn / info), with each finding linked back to its conventions-catalog ID, evidence, and recommended remediation.
+6. **Synthesize findings.** Run `scripts/findings-report.sh --input state/run-<ts>/*-findings.jsonl --skill <name> --shape <inferred> --output <DRI-repo>/designs/<arc>/audits/<name>-<YYYY-MM-DD>.md` (an **absolute** path into the DRI checkout resolved in step 1a — never a path relative to the code repo, or a bare `designs/…` would create the directory inside the code repo and undo the Design 13 evacuation). Produces a markdown report grouped by severity (block / warn / info), with each finding linked back to its conventions-catalog ID, evidence, and recommended remediation.
 
 7. **Show the report.** Display the findings count by severity, the top 3-5 blockers, and the path to the full report. **Stop here unless `--apply` was passed or the user explicitly opts into Phase 2.**
 
