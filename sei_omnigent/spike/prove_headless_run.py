@@ -132,8 +132,8 @@ async def _run(args: argparse.Namespace) -> int:
             print("=" * 72)
             print("SPIKE RESULT: FAIL (Purpose 1) — could not run the live session.")
             print(f"  {type(exc).__name__}: {exc}")
-            print("  check: --server reachable + header-mode, --bundle valid, ANTHROPIC_API_KEY on")
-            print("  the host/runner, and the X-Forwarded-Email identity the server admits.")
+            print("  check: --server reachable + header-mode, --bundle valid, the host's")
+            print("  ANTHROPIC_API_KEY, and the X-Forwarded-Email identity the server admits.")
             print("=" * 72)
             return 1
     finally:
