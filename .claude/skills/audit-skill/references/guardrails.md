@@ -20,6 +20,7 @@ Before reading any skill files (Phase 1):
 2. Target skill directory exists. If not, halt with the resolved path.
 3. `<target>/SKILL.md` exists and parses (has frontmatter delimiters). If not, halt.
 4. Conventions catalog at `<repo>/.claude/skills/audit-skill/references/conventions-catalog.md` exists and is readable. If not, halt — the audit cannot run without it.
+5. The DRI `<engineer>-designs` repo where the report will land resolves (as `/design` does). In a non-interactive run where the resolver would fall to "ask," **HALT** — never guess a path or silently write in-repo (Design 13 §4). The in-repo `docs/skill-audits/` is used only when no DRI repo is resolvable and the user confirms.
 
 Before entering Phase 2 (refactor):
 
