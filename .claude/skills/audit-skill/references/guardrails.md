@@ -7,7 +7,7 @@ Expanded safety model. The SKILL.md stanza is the short form; this file is the l
 `audit-skill` operates on:
 
 - **Read (always):** `<repo>/.claude/skills/<name>/` or `~/.claude/skills/<name>/` and the conventions catalog at `<repo>/.claude/skills/audit-skill/references/conventions-catalog.md`.
-- **Write (Phase 1 only):** `docs/skill-audits/<name>-<YYYY-MM-DD>.md` (the audit report) and `state/run-<ts>/` (working state).
+- **Write (Phase 1 only):** the audit report — a **lineage artifact** that lands in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<name>-<YYYY-MM-DD>.md` (repo-default arc `tide-skill-stack` for Tide; Design 13 — process-lineage relocation). Resolve the DRI repo as `/design` does (`--designs-repo` → sibling `<engineer>-designs` checkout → ask; in a non-interactive run, HALT and surface — never guess). The in-repo `docs/skill-audits/<name>-<YYYY-MM-DD>.md` is the fallback used **only when no DRI repo is resolvable and the user confirms**. Plus `state/run-<ts>/` (working state).
 - **Write (Phase 2 only):** files inside the target skill's directory, after diff confirmation. Plus `state/run-<ts>/backups/` and `state/run-<ts>/proposals/`.
 
 It does **not** write to any other path. It does not modify the conventions catalog (catalog edits are a separate, manual decision).
@@ -20,6 +20,7 @@ Before reading any skill files (Phase 1):
 2. Target skill directory exists. If not, halt with the resolved path.
 3. `<target>/SKILL.md` exists and parses (has frontmatter delimiters). If not, halt.
 4. Conventions catalog at `<repo>/.claude/skills/audit-skill/references/conventions-catalog.md` exists and is readable. If not, halt — the audit cannot run without it.
+5. The DRI `<engineer>-designs` repo where the report will land resolves (as `/design` does). In a non-interactive run where the resolver would fall to "ask," **HALT** — never guess a path or silently write in-repo (Design 13 §4). The in-repo `docs/skill-audits/` is used only when no DRI repo is resolvable and the user confirms.
 
 Before entering Phase 2 (refactor):
 
@@ -59,7 +60,7 @@ About to audit:
   skill:           <name>
   path:            <resolved-absolute-path>
   inferred shape:  <discipline|technique|pattern|reference|procedural>
-  report path:     <docs/skill-audits/<name>-<YYYY-MM-DD>.md>
+  report path:     <designs/<arc>/audits/<name>-<YYYY-MM-DD>.md in <engineer>-designs (DRI repo; in-repo docs/skill-audits/ only if no DRI repo and the user confirms)>
   phase:           audit-only (refactor opt-in after report)
   protected:       <yes|no>
 
@@ -88,7 +89,7 @@ Confirm? (yes / audit-only-stop / abort)
 
 ## Anti-corruption patterns
 
-- **Audit is read-only.** Phase 1 never writes to the target skill. Only writes go to `state/run-<ts>/` (working) and `docs/skill-audits/` (report).
+- **Audit is read-only.** Phase 1 never writes to the target skill. Only writes go to `state/run-<ts>/` (working) and the audit report's lineage home — `designs/<arc>/audits/` in the DRI repo (in-repo `docs/skill-audits/` only as the no-DRI-repo fallback (with user confirmation)).
 - **Backups before every apply.** `scripts/apply-refactor.sh` writes `<file>.before` to `state/run-<ts>/backups/` before each apply. Rollback is a `cp` away.
 - **Verify after every apply.** Parse frontmatter, count lines, syntax-check shell scripts. Verify failure → automatic rollback.
 - **State is per-run, gitignored.** Interrupted runs leave state intact; the next invocation can resume.

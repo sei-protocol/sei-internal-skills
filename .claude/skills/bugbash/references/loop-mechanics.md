@@ -35,8 +35,9 @@ Adversarially review the target for, within your domain:
 - Bottlenecks (lock contention, serial operations that should be parallel)
 - Interface violations (provider/consumer mismatches against the registry)
 
-Read the previous findings in docs/bugbash/<target>.md before you start, so
-you don't re-surface what's already logged.
+Read the previous findings in the bugbash log (designs/<arc>/bugbash/<target>.md
+in the DRI repo, or the in-repo docs/bugbash/<target>.md fallback) before you
+start, so you don't re-surface what's already logged.
 
 Output: UP TO 5 candidate findings. Prioritize the most important within your
 domain over breadth — five high-quality candidates beat fifteen middling ones,
@@ -82,7 +83,7 @@ When merging, the merged candidate inherits all finder attributions: `Finder: ku
 
 #### Output of the merge phase
 
-Update `.bugbash/<target>.yaml` with the merged candidate set under `pass-N.merged:`. Each entry tracks:
+Update the resume state `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (in-repo `.bugbash/<target>.yaml` fallback; Design 13 R3) with the merged candidate set under `pass-N.merged:`. Each entry tracks:
 
 ```yaml
 - merged_id: 1
@@ -134,7 +135,7 @@ Verdict outcomes:
 
 - **Confirm** — finding advances to triage with the challenger's proposed severity.
 - **Downgrade** — finding advances at reduced severity. Recorded in state with the original framing's implied severity vs. the downgraded value, for audit.
-- **Refute** — finding is dropped from the findings log. Recorded in `.bugbash/<target>.yaml` under `refuted:` with the reason, so the next pass doesn't re-surface it.
+- **Refute** — finding is dropped from the findings log. Recorded in the resume state `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (in-repo `.bugbash/<target>.yaml` fallback; Design 13 R3) under `refuted:` with the reason, so the next pass doesn't re-surface it.
 
 A challenger may not propose a *different* finding while challenging — they either resolve the current candidate or pass. Drift here weakens the convergence test.
 
@@ -150,8 +151,8 @@ The orchestrator:
 
 1. Walks each surviving finding (confirmed or downgraded).
 2. Calibrates severity against `severity-rubric.md`. The challenger's proposed severity is the starting point; the orchestrator adjusts if the rubric suggests otherwise. When the rubric is unambiguous, it wins over the challenger's call.
-3. Drafts the entry per `format-spec.md` and appends to `docs/bugbash/<target>.md` with the next sequential item number.
-4. Updates `.bugbash/<target>.yaml`:
+3. Drafts the entry per `format-spec.md` and appends to the findings log at `designs/<arc>/bugbash/<target>.md` in the DRI repo (in-repo `docs/bugbash/<target>.md` fallback) with the next sequential item number.
+4. Updates the resume state `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (in-repo `.bugbash/<target>.yaml` fallback; Design 13 R3):
    - Increment `pass`.
    - Append finding entries.
    - Update `convergence_counter` (see below).
@@ -191,8 +192,9 @@ Once the convergence counter hits 2, the loop exits the pass cycle and runs one 
 Every expert in the slate is dispatched in parallel with the full findings log and this brief:
 
 ```
-Read docs/bugbash/<target>.md in full. Given everything captured, post a
-launch verdict for this target.
+Read the bugbash findings log in full (designs/<arc>/bugbash/<target>.md in the
+DRI repo, or the in-repo docs/bugbash/<target>.md fallback). Given everything
+captured, post a launch verdict for this target.
 
 Pick exactly one:
 
@@ -222,7 +224,7 @@ The skill exits successful when:
 
 ## State persistence
 
-The skill is long-running by design — multi-session for a non-trivial target is expected. State lives in `.bugbash/<target>.yaml`. See SKILL.md for the shape.
+The skill is long-running by design — multi-session for a non-trivial target is expected. State lives in `designs/<arc>/bugbash/<target>.yaml` in the DRI `<engineer>-designs` repo (in-repo `.bugbash/<target>.yaml` only as the no-DRI-repo fallback, with user confirmation; Design 13 R3), read fail-loud at session start per Design 13 §4. See SKILL.md for the shape and the fail-loud bootstrap rule.
 
 Two important state invariants:
 
@@ -234,8 +236,8 @@ Two important state invariants:
 | RALPHY | Bugbash |
 |--------|---------|
 | Fresh agent per iteration | Fresh expert dispatch per pass |
-| `progress.txt` accumulates learnings | `docs/bugbash/<target>.md` accumulates findings |
-| `prd.json` tracks story completion | `.bugbash/<target>.yaml` tracks pass count + convergence |
+| `progress.txt` accumulates learnings | `designs/<arc>/bugbash/<target>.md` (DRI repo) accumulates findings |
+| `prd.json` tracks story completion | `designs/<arc>/bugbash/<target>.yaml` (DRI repo) tracks pass count + convergence |
 | Exits on `<promise>COMPLETE</promise>` when all stories pass | Exits on convergence + launch verdict |
 | Loop produces working code | Loop produces a hardening report |
 

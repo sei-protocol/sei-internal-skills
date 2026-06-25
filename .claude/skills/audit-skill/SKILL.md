@@ -26,6 +26,7 @@ This skill operates on **`<repo>/.claude/skills/<name>/`** (or `~/.claude/skills
    - `--apply` was passed without a prior audit-only pass on the same skill in this session (no skipping straight to edits).
    - The shape can't be inferred from the SKILL.md (no frontmatter, no recognizable sections) — halt and ask the user to classify.
    - The conventions catalog is missing or unreadable.
+   - The DRI `<engineer>-designs` repo where the report must land can't be resolved in a non-interactive run — **HALT and surface** rather than guessing a path or silently writing in-repo (Design 13 §4).
 
 See `references/guardrails.md` for the detailed safety model.
 
@@ -33,7 +34,7 @@ See `references/guardrails.md` for the detailed safety model.
 
 ### Phase 1 — Audit (default)
 
-Reads the target skill, runs static + semantic + pressure checks against the conventions catalog, and produces a findings report at `docs/skill-audits/<skill>-<date>.md`. Default mode — no edits.
+Reads the target skill, runs static + semantic + pressure checks against the conventions catalog, and produces a findings report in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<date>.md` (Design 13 — process-lineage relocation; resolve the DRI repo as `/design` does, Tide's repo-default arc is `tide-skill-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable and the user confirms). Default mode — no edits.
 
 ### Phase 2 — Refactor (opt-in via `--apply`)
 
@@ -55,6 +56,8 @@ The two phases are *sequenced*, not coupled. You can run audit alone today and r
 
 1. **Resolve target.** From `--skill <name>` or `--path <abs-path>`. Resolve to `<repo>/.claude/skills/<name>/` or `~/.claude/skills/<name>/`. Confirm the path and skill name with the user before reading any files.
 
+1a. **Resolve the DRI report home.** Resolve the DRI `<engineer>-designs` repo where the report will land, **as `/design` does** (`--designs-repo` → sibling `<engineer>-designs` checkout → ask). In a **non-interactive (headless/cron)** run, **HALT and surface — never write to a guessed path** (Design 13). The report lands at `designs/<arc>/audits/<name>-<date>.md` (Tide repo-default arc `tide-skill-stack`); the in-repo `docs/skill-audits/` is used **only when no DRI repo is resolvable and the user confirms**.
+
 2. **Read & classify.** Load `SKILL.md`. Parse frontmatter (name, description). Infer shape — discipline / technique / pattern / reference / procedural — using the heuristics in `references/semantic-checks.md` (procedural has scripts/ and state/; discipline has a rationalization table or red-flags; reference is mostly TOC + entries). If shape can't be inferred, ask the user. Write to `state/run-<ts>/classify.yaml`.
 
 3. **Static checks.** Run `scripts/static-checks.sh --skill-dir <path> --output state/run-<ts>/static-findings.jsonl`. The script runs the deterministic subset of the conventions catalog (description length, line count, refs one-level deep, scripts have set -euo pipefail, evals.json present and non-empty, state in .gitignore, etc.). Outputs JSONL — one finding per line. See `references/static-checks.md` for the full check list.
@@ -63,7 +66,7 @@ The two phases are *sequenced*, not coupled. You can run audit alone today and r
 
 5. **Pressure testing.** Reuse the methodology from `../author-skill/references/testing-with-subagents.md`. Instantiate 3 shape-appropriate scenarios from `../author-skill/references/pressure-scenario-templates.md`. Dispatch subagents WITH the target skill loaded; capture rationalizations the skill failed to prevent into `state/run-<ts>/pressure-findings.jsonl`. (Different from author-skill: there is no baseline-without-skill pass — we're auditing the *current* skill, so all scenarios run skill-loaded.)
 
-6. **Synthesize findings.** Run `scripts/findings-report.sh --input state/run-<ts>/*-findings.jsonl --skill <name> --shape <inferred> --output docs/skill-audits/<name>-<YYYY-MM-DD>.md`. Produces a markdown report grouped by severity (block / warn / info), with each finding linked back to its conventions-catalog ID, evidence, and recommended remediation.
+6. **Synthesize findings.** Run `scripts/findings-report.sh --input state/run-<ts>/*-findings.jsonl --skill <name> --shape <inferred> --output <DRI-repo>/designs/<arc>/audits/<name>-<YYYY-MM-DD>.md` (an **absolute** path into the DRI checkout resolved in step 1a — never a path relative to the code repo, or a bare `designs/…` would create the directory inside the code repo and undo the Design 13 evacuation). Produces a markdown report grouped by severity (block / warn / info), with each finding linked back to its conventions-catalog ID, evidence, and recommended remediation.
 
 7. **Show the report.** Display the findings count by severity, the top 3-5 blockers, and the path to the full report. **Stop here unless `--apply` was passed or the user explicitly opts into Phase 2.**
 
@@ -106,6 +109,7 @@ Stop and report to the user if:
 - `apply-refactor.sh` fails to verify the post-apply file (frontmatter unparseable, line count exceeds 500 after edit, shell script lint fails) — automatically roll back the change and report.
 - REFACTOR doesn't converge after 3 cycles — surface the residual rationalizations and ask for guidance.
 - User asks to refactor a protected canonical skill without `--override-protected` — refuse and prompt for the explicit override.
+- The DRI `<engineer>-designs` repo can't be resolved for the report output in a non-interactive run — **HALT and surface** rather than guessing a path or silently writing in-repo (Design 13 §4; matches `references/guardrails.md`).
 
 **Never auto-remediate without surfacing.** The user decides the remediation, and every edit passes a diff gate.
 
@@ -133,7 +137,7 @@ state/run-<ts>/
 
 `state/` is gitignored at the repo level. On interrupted runs, the next invocation detects the latest incomplete `run-<ts>/` and offers **resume** / **archive** / **start-fresh**.
 
-The audit *report* (the durable artifact) lives at `docs/skill-audits/<skill>-<YYYY-MM-DD>.md` — outside `state/`, committable, the thing PRs reference.
+The audit *report* (the durable lineage artifact) lives in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<YYYY-MM-DD>.md` (Design 13; Tide's repo-default arc is `tide-skill-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable and the user confirms) — outside `state/`, committable, the thing PRs reference.
 
 ## What this skill doesn't do
 
@@ -147,4 +151,4 @@ The audit *report* (the durable artifact) lives at `docs/skill-audits/<skill>-<Y
 
 End-of-turn summary: one short paragraph. Skill audited, finding counts by severity, top blocker, report path. If Phase 2 ran, also: cycles consumed, edits applied, edits skipped, GREEN result. Example:
 
-> Audited `coral` (orchestration shape). 14 findings: 2 block, 8 warn, 4 info. Top blocker: description includes workflow summary that pre-empts the body's flowchart (Obra CSO trap). Report at `docs/skill-audits/coral-2026-05-10.md`. Stopped at audit-only — refactor pass deferred per user.
+> Audited `coral` (orchestration shape). 14 findings: 2 block, 8 warn, 4 info. Top blocker: description includes workflow summary that pre-empts the body's flowchart (Obra CSO trap). Report at `designs/tide-skill-stack/audits/coral-2026-05-10.md`. Stopped at audit-only — refactor pass deferred per user.
