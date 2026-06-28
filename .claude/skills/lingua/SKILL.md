@@ -101,7 +101,12 @@ loaded). All three failed in ways this spine now counters:
 3. **Inventory before rewriting.** List: every constraint (and whether it's anchored where it applies),
    every soft modal / undecided item, every term used before definition, every load-bearing claim that
    lives only in color or typography. This inventory is the fidelity contract — the translation must
-   carry every item forward, decided things as decided, undecided as typed-undecided.
+   carry every item forward, decided things as decided, undecided as typed-undecided. **When the artifact
+   carries acceptance criteria (a `/design` section), they are the highest-stakes items in this inventory:**
+   a human signs off on them as a contract and an agent implements against them linearly, so a soft modal
+   silently hardened into a normative `SHALL` is drift born at authoring. Keep an unsettled criterion
+   typed-undecided; never promote it. (This is the fidelity half of a `/workstream`'s anti-drift seam — the
+   pass runs on the design + criteria before `design-approval`.)
 4. **Re-render dual-aligned** per R1–R6 (audience-model.md owns the rule names):
    - structure explicit and scannable; the lead of the doc and of each section load-bearing;
    - constraints restated where they apply (the one *mandated* redundancy);

@@ -144,3 +144,7 @@ contract (mirrors the guard primitive's recursion bound).
   widened, or relaxed silently mid-workstream is not a gate.
 - **Not a re-implementation of `/xreview`.** It reads the ledger and invokes the slate; it
   owns neither.
+
+## The pre-merge drift check shares this seam
+
+When the captured `/design` carries **acceptance criteria**, the same ship seam additionally runs the **pre-merge drift check** (owning definition: SKILL.md "The pre-merge drift check") — it is a *facet* of this gate, not a separate gate kind. It matters here because it **reuses this gate's resolution machinery**: the criteria + the `Design` section are read from the captured design by the **identical target-derivable rule** the review-gate uses (the DRI-repo `designs/<arc>/` path + the in-repo fallback, Design 13) — no separate registry. The drift check is fail-closed on an unconfirmable criterion (`inconclusive ⇒ surface`, never a silent pass), the same posture as this gate's ledger read; a **Missing** criterion blocks like an open finding, while **design-staleness** is surfaced informationally and does **not** block. A design with no acceptance criteria skips the check (absence is not a failure). If this gate's resolution rule changes, the drift check's provenance changes with it — they are one seam.
