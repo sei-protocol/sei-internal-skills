@@ -42,6 +42,23 @@ Bulleted list. Each item is a desired outcome — observable, ideally testable. 
 
 If a goal can't be expressed as an outcome, it's probably a non-goal or a design choice — move it elsewhere.
 
+### `## Acceptance criteria` — optional
+
+Bulleted list of **falsifiable, observable** conditions the implementation must satisfy. Where Goals are *prose intent* (what the design tries to achieve), acceptance criteria are the *falsifiable checks* a reviewer or test can hold the implementation against — the formalized success contract. Two allowed forms (mix freely):
+
+- **EARS-style** (encouraged for behavioral): `WHEN <trigger> THE SYSTEM SHALL <observable behavior>` (or `IF <condition>`/`WHILE <state>` variants).
+- **Falsifiable checklist** (for structural / non-behavioral): each item a check a reviewer or test can confirm true/false.
+
+```markdown
+- WHEN a SigningKey patch lands on a Running validator THE SYSTEM SHALL trigger exactly one controlled pod re-roll.
+- The existing single-shot deployment flow passes its current test suite unchanged.
+- Drift detection is invoked from the mode-switch path without modification (reuse, not fork).
+```
+
+**Optional, and earned — not boilerplate.** Fill this only when the design has implementation that will be *verified against it*; skip it for pure-decision / discovery designs (criteria that restate Goals are noise — cut them). At authoring, run the **traceability self-check**: *for each criterion, can you point to where it will be satisfied — a task, a test, a PR? List any gaps.* A criterion no work will satisfy is either premature or a gap to surface, not a line to leave dangling.
+
+(Acceptance criteria are the artifact a `/workstream`'s pre-merge drift check reads — see the workstream lifecycle. The criteria are not a hidden one-way door: they are a checkable contract, editable as the design evolves.)
+
 ### `## Non-goals` — optional but strongly encouraged
 
 Bulleted list. Each item is something the design **won't** address, with brief reason. This is high-value content — it prevents reviewers from asking about those things and protects the design from scope creep during implementation.
@@ -133,7 +150,7 @@ Always show the user the resolved path before writing. Never overwrite without c
 
 | Design type | Required | Usually included | Often omitted |
 |---|---|---|---|
-| LLD (component implementation) | Title, Background, Goals, Design | Non-goals, Alternatives, Trade-offs, References | Open questions (if review pass already happened) |
-| System-tier (multi-component) | Title, Background, Goals, Design | Non-goals, Alternatives, Trade-offs, Open questions, References | None — system designs benefit from all sections |
+| LLD (component implementation) | Title, Background, Goals, Design | Non-goals, Alternatives, Trade-offs, References, **Acceptance criteria** (when the LLD will be implemented + verified) | Open questions (if review pass already happened) |
+| System-tier (multi-component) | Title, Background, Goals, Design | Non-goals, Alternatives, Trade-offs, Open questions, References, **Acceptance criteria** (when implemented under a /workstream) | None — system designs benefit from all sections |
 | Decision record (one-way door) | Title, Background, Goals, Design, Alternatives | Trade-offs, References | Non-goals (the decision IS the scope), Open questions |
 | Sketch / exploratory | Title, Background, Design | Goals, Open questions | Non-goals, Alternatives, Trade-offs (premature) |

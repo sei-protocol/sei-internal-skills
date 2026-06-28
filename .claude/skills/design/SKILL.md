@@ -9,7 +9,7 @@ description: "Use when a coral/council session, an issue pickup, or a standalone
 
 Captures a design — LLD, architecture sketch, system design pass — as a structured markdown document. The point is to make design context durable: the doc is the artifact someone reviews, references in PRs, and rediscovers six months later.
 
-The shape is fixed: Background, Goals, Non-goals, Design (with mermaid diagrams), Alternatives, Trade-offs, Open questions, References. See `references/format-spec.md`.
+The shape is fixed: Background, Goals, Acceptance criteria (optional), Non-goals, Design (with mermaid diagrams), Alternatives, Trade-offs, Open questions, References. See `references/format-spec.md`.
 
 ## Guardrails
 
@@ -94,7 +94,7 @@ Direct user invocation when there's no active workstream or upstream issue — e
    - Coral/council handoff with synthesized context → use that context (mode 1); if the session referenced a bet, capture it as `--bet` above.
    - Otherwise → prompt for each section (mode 3).
 
-3. **Gather inputs.** Required: **Title**, **Background**, **Goals**, **Design**. Optional: **Non-goals**, **Alternatives**, **Trade-offs**, **Open questions**, **References**, **Status** (defaults to `Draft`), **Authors** (defaults to git user.name).
+3. **Gather inputs.** Required: **Title**, **Background**, **Goals**, **Design**. Optional: **Acceptance criteria** (falsifiable success conditions — offer when the design will be implemented + verified; skip for pure-decision/discovery designs, and run the traceability self-check on any criteria captured — see `references/format-spec.md`), **Non-goals**, **Alternatives**, **Trade-offs**, **Open questions**, **References**, **Status** (defaults to `Draft`), **Authors** (defaults to git user.name).
 
    Mode-specific:
    - **Coral handoff path:** show the pre-fill, take adjustments. Don't re-prompt fields the session answered.
