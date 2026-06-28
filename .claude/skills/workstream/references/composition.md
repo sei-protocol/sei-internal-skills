@@ -10,7 +10,7 @@
 | 2. Scope-tier design | `/council` (owns the 4 scope tiers; produces design content) | — |
 | 3. Verify — **iterate to convergence** | `/xreview` (blinded, assigned-dissent) — invoked in a loop: dispatch → synthesize ledger → fix → re-invoke (appends a round) → repeat until a passing terminal or `OPEN-BLOCKED` | — (the convergence record is `/xreview`'s review-ledger; a `review-gate` reads it at ship) |
 | 4. Capture | `/design` (writes the reviewed design as a durable doc) | — |
-| 5. Dual-audience pass, then sign off | `/lingua` (on the captured design **+ acceptance criteria** — fidelity guardrails = anti-drift at authoring) | **`design-approval`** |
+| 5. Dual-audience pass, then sign off | `/lingua` (on **every** captured design — criteria, when present, are the highest-stakes part; fidelity guardrails = anti-drift at authoring) | **`design-approval`** |
 | 6. Implement | (the work itself) | (council's one-way-door gate fires here for a one-way-door **change category** — persisted schema/field names, wire/on-disk formats, signed/indexed IDs — gated on category, not deployment target) |
 | 7. Capture deferred work | `/issue` — **only if a slice was cut** | — |
 | 8. Decorate lineage | `/execution-plan` (delegated; never duplicated) | (execution-plan's first-label confirm is its own gate) |
