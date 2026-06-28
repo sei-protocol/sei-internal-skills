@@ -150,6 +150,25 @@
         ]
       },
       "source": "references/format-spec.md (Impact omitted if none)"
+    },
+    {
+      "id": "acceptance-criteria-optional-omitted-for-decision-design",
+      "scenario": "A /design captures a pure decision record (a one-way-door choice) — there is no implementation to verify against it, just the decision and its alternatives. The user asks whether to add acceptance criteria.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "omits the Acceptance criteria section — it is optional, and a decision/discovery design has nothing to verify against",
+          "would render the section only when the design will be implemented + verified, and runs the traceability self-check on any criteria captured",
+          "skips the empty optional section rather than emitting a placeholder header"
+        ],
+        "forbidden_signals": [
+          "forces acceptance criteria onto a pure-decision design",
+          "writes criteria that merely restate the Goals (noise — cut them)",
+          "emits an empty 'Acceptance criteria' header",
+          "promotes an unsettled 'we should probably ...' into a hardened normative SHALL criterion"
+        ]
+      },
+      "source": "references/format-spec.md '## Acceptance criteria — optional' (optional, earned-not-boilerplate, SHALL only for settled); SKILL.md step 3 (offer when implemented+verified, skip for decision/discovery)"
     }
   ]
 }

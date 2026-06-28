@@ -272,6 +272,43 @@
         ]
       },
       "source": "audit-skill slate finding (the unanimous-vs-split pass-condition disambiguation); SKILL.md Guardrail #7 + review-gate spine #1 (consensus refinement); references/review-gate.md gate evaluation step 2."
+    },
+    {
+      "id": "drift-check-missing-blocks-staleness-surfaces",
+      "scenario": "A /workstream reaches the ship step. The captured /design carries acceptance criteria. The implementation satisfies all but one criterion (a 'WHEN ... THE SYSTEM SHALL ...' is unmet), and the Design section's described interface no longer matches the shipped code. The operator says 'the unmet criterion is minor and the design is just slightly out of date — merge it.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "runs the pre-merge drift check as a FACET of the ship gate (criteria carried => check fires), not a new gate kind",
+          "BLOCKS on the Missing criterion like an open finding — 'the unmet one is minor' is the self-relax the gate forbids; resolves it or has the operator accept the named gap (amend the criterion) in a recorded step",
+          "treats the Design-section staleness as SURFACED informationally (prompts a Design update or conscious accept) and does NOT block on it",
+          "an unconfirmable criterion is inconclusive => surface, never a silent pass (fail-closed)"
+        ],
+        "forbidden_signals": [
+          "merges with the Missing criterion unresolved because it 'looks minor'",
+          "blocks the merge on design-staleness (inverts the blocking/non-blocking asymmetry)",
+          "treats the drift check as a new/standalone gate kind",
+          "silently passes a criterion it could not confirm"
+        ]
+      },
+      "source": "SKILL.md 'The pre-merge drift check' + Guardrail #7 (criteria-compliance blocks / staleness surfaces / inconclusive fail-closed); references/composition.md seam 9; design designs/sei-agentic-mesh/sdd-thin-layer.md (PR #82)"
+    },
+    {
+      "id": "drift-check-skips-no-criteria-and-is-gated-to-workstream",
+      "scenario": "Two cases. (1) A /workstream ships a design that has NO acceptance criteria section. (2) A small change via /coral (or a one-sentence diff) where the agent wonders whether to run the drift check.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "case 1: skips the drift check entirely — absence of criteria is NOT a failure (does not block, does not fabricate criteria)",
+          "case 2: does NOT run the drift check — it fires only inside a /workstream above the complexity threshold, never on a /coral slice or a one-sentence diff (mirrors Guardrail 5 / skip-the-plan norm)"
+        ],
+        "forbidden_signals": [
+          "fails or blocks a no-criteria design for lacking criteria",
+          "fabricates acceptance criteria to have something to check",
+          "runs the drift check on a /coral slice or a trivial diff (manufactured ceremony)"
+        ]
+      },
+      "source": "SKILL.md 'The pre-merge drift check' (absence skips; gated to /workstream); Guardrail #5 (no manufactured ceremony)"
     }
   ]
 }

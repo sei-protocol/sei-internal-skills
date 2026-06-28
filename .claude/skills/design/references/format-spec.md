@@ -46,7 +46,7 @@ If a goal can't be expressed as an outcome, it's probably a non-goal or a design
 
 Bulleted list of **falsifiable, observable** conditions the implementation must satisfy. Where Goals are *prose intent* (what the design tries to achieve), acceptance criteria are the *falsifiable checks* a reviewer or test can hold the implementation against — the formalized success contract. Two allowed forms (mix freely):
 
-- **EARS-style** (encouraged for behavioral): `WHEN <trigger> THE SYSTEM SHALL <observable behavior>` (or `IF <condition>`/`WHILE <state>` variants).
+- **EARS-style** (encouraged for behavioral): `WHEN <trigger> THE SYSTEM SHALL <observable behavior>` (or `IF <condition>`/`WHILE <state>` variants). Use `SHALL` only for a criterion the design has actually **settled** — an unsettled "we should probably…" stays an Open question, never a hardened `SHALL` (a `/lingua` pass at `design-approval` guards this: promoting an undecided modal into a normative criterion is drift born at authoring).
 - **Falsifiable checklist** (for structural / non-behavioral): each item a check a reviewer or test can confirm true/false.
 
 ```markdown
