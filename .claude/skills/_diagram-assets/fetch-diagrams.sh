@@ -77,3 +77,7 @@ echo "--- assertion ---"
 bash "$HERE/assert-diagrams.sh" || true
 echo
 echo "Next: cd \"$SKILLS_DIR/../..\" && git add .claude/skills/*/assets/*.png && git commit"
+
+# Fail closed: a run with any HTTP/export failure must not look like success to
+# callers or CI that key on the exit code.
+(( fail == 0 ))
