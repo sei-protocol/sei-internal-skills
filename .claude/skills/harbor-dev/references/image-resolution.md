@@ -22,6 +22,8 @@ Both workflows accept `workflow_dispatch` for unpushed commits or in-flight CI. 
 
 The `mock-<sha>` variant (`GO_BUILD_TAGS=mock_balances`) is published from the same workflow run as the regular tag — once the run completes, both tags are in ECR.
 
+**Non-stable (main/nightly) images need a SeiDB write-mode override.** The rendered config defaults `state-commit` write mode to `cosmos_only`, which only the **stable** seid (v6.5.1) accepts; a `main`/`release/**`-built image rejects it and CrashLoopBackOffs. When you pin a non-stable image, add `--set spec.configOverrides."storage.state_commit.write_mode"=memiavl_only` (or `migrate_evm` for a SeiDB-migration chain). Use that exact unified key — the raw `state-commit.sc-write-mode` is silently rejected. See `troubleshooting-seinode.md` → *seid CrashLoopBackOff: invalid state-commit.sc-write-mode*.
+
 ## Resolution flow
 
 1. **Resolve to a full commit SHA** from the engineer's input.

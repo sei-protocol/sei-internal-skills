@@ -188,6 +188,25 @@ To split validators from followers, filter further: `-l sei.io/seinetwork=<chain
 | `lag > 1` and growing, outside of restart/state-sync | App falling behind structurally; usually won't catch up without intervention |
 | `lag` shrinks over time | Catch-up after restart or state-sync; healthy |
 
+## seid CrashLoopBackOff: `invalid state-commit.sc-write-mode "cosmos_only"`
+
+**Symptom.** Every seid container CrashLoopBackOffs; `kubectl logs <pod> -c seid --previous` shows `Error: invalid state-commit.sc-write-mode "cosmos_only"` followed by the `seid start` usage dump. SeiNetwork may still report `Ready` (the controller doesn't gate on seid actually serving).
+
+**Cause.** The config renderer (sei-config, via the sidecar's `config-apply`) defaults the SeiDB state-commit write mode to `cosmos_only`, which matches the **stable** released seid (v6.5.1). A **main/nightly seid image** renamed that mode (`cosmos_only` → `memiavl_only`) and **rejects** `cosmos_only` at startup. So any chain pinned to a non-stable image gets a default the binary won't accept.
+
+**Fix.** When you pin a non-stable (main/nightly) seid image, set the write-mode override to a value that image accepts — `memiavl_only` (normal), or `migrate_evm` for a SeiDB-migration chain — using the **unified override key** `storage.state_commit.write_mode`:
+
+```bash
+# SeiNetwork (validators): spec.configOverrides
+seictl network apply <id> ... --set spec.configOverrides."storage.state_commit.write_mode"=memiavl_only
+# follower SeiNode: spec.overrides
+seictl node apply <id> ... --set spec.overrides."storage.state_commit.write_mode"=memiavl_only
+```
+
+**Footgun — the key, not just the value.** The override **key** must be the unified-schema path `storage.state_commit.write_mode`. The raw app.toml path `state-commit.sc-write-mode` is **silently rejected** by config-apply (`unknown config field`), so the broken `cosmos_only` default stands and the symptom persists even though you "set the override." (`config-apply` validation lives in sei-config; check the controller log for `unknown config field` if a write-mode override seems ignored.)
+
+> Interim guidance — this whole class disappears once config knowledge lives in the binary (ConfigManager, `SEI_CONFIG_MANAGER=v2`, PLT-775); until then, set the override explicitly when pinning a non-stable image.
+
 ## Profiling (pprof)
 
 Dev chains applied via the seictl `genesis-chain` and `rpc` presets carry `network.rpc.pprof_listen_address: "0.0.0.0:6060"` — in `spec.configOverrides` on a SeiNetwork, `spec.overrides` on a follower SeiNode. seid exposes Go pprof at port 6060 inside the pod.
