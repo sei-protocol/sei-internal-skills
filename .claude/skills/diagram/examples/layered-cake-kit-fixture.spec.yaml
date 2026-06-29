@@ -1,0 +1,24 @@
+# layered-cake-kit fixture — a rich pluggable-kit cake for /platform.
+# Four knowledge bands (bottom->top: citable corpus -> always-first profile ->
+# per-domain kits + TEMPLATE -> evals) feeding one skill node feeding the
+# agentic expert. Ends in the expert; no terminal-artifact node (Design 14
+# §Terminal artifact; kit-layered-cake-kit.md §1/§4). MVP leaf — no drilldown.
+id: platform-kit
+schemaVersion: 1
+style: house@14.1.0
+token: layered-cake-kit
+title: "Platform Knowledge Kit"
+bands:
+  - { id: corpus,  role: knowledge, order: 1, label: "Citable corpus: OpenGitOps, Kustomize, PSS, EKS, NSA/CISA" }
+  - { id: profile, role: knowledge, order: 2, label: "Always-first Sei-platform profile (Flux, two-layer Kustomize, Pod Identity, SOPS)" }
+  - { id: kits,    role: knowledge, order: 3, label: "Per-domain kits + TEMPLATE" }
+  - { id: evals,   role: knowledge, order: 4, label: "Evals" }
+nodes:
+  - { id: skill,  role: skill,  label: "/platform" }
+  - { id: expert, role: expert, label: "platform-engineer" }
+edges:
+  - { from: corpus,  to: skill,  kind: feeds-into }
+  - { from: profile, to: skill,  kind: feeds-into }
+  - { from: kits,    to: skill,  kind: feeds-into }
+  - { from: evals,   to: skill,  kind: feeds-into }
+  - { from: skill,   to: expert, kind: feeds-into }
