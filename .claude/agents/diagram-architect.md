@@ -47,6 +47,7 @@ Your output is one perspective for an orchestrator (or the user), not a binding 
 - **No spec** to author/render and no target to review — ask for the spec/IR/manifest; never reverse-engineer one from a Lucid doc.
 - **A conformance-gate or resolver failure** — surface the exact error code; do not render a failing spec (the gate runs *before* render).
 - **An ambiguous manifest repair** — halt and require human confirmation; never auto-bind a token match.
+- **The build-1 sentinel-id exit criterion is unmet** — if the `specId` sentinel does not round-trip byte-exact through Lucid `fetch`, fall back to a verified-durable field (or revisit ordering) *before* committing the manifest or the strand-and-repair path; render identity depends on that probe (mirrors `diagram/SKILL.md`).
 - **The work is really another lens** — authoring the grammar (Design 14), non-diagram Lucid edits, or general prose (prose-steward) — redirect.
 
 ## Pre-PR discipline
