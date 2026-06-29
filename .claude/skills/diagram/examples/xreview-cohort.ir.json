@@ -1,0 +1,185 @@
+{
+  "houseStyle": {
+    "layout": {
+      "hub": {
+        "h": 90,
+        "id": "work",
+        "w": 180,
+        "x": 400,
+        "y": 400
+      },
+      "ringNodePositions": [
+        {
+          "h": 80,
+          "id": "data",
+          "w": 150,
+          "x": 400,
+          "y": 150
+        },
+        {
+          "h": 80,
+          "id": "prod",
+          "w": 150,
+          "x": 650,
+          "y": 400
+        },
+        {
+          "h": 80,
+          "id": "prose",
+          "w": 150,
+          "x": 400,
+          "y": 650
+        },
+        {
+          "h": 80,
+          "id": "sys",
+          "w": 150,
+          "x": 150,
+          "y": 400
+        }
+      ],
+      "ringRadius": 250,
+      "rule": "circular-cohort.ring-clockwise-from-top",
+      "stableOrderBy": "node.id"
+    },
+    "legend": [
+      {
+        "color": "#8E44AD",
+        "role": "expert"
+      },
+      {
+        "color": "#8E44AD",
+        "role": "dissenter"
+      },
+      {
+        "color": "#ECF0F1",
+        "role": "artifact"
+      }
+    ],
+    "nodeStyle": [
+      {
+        "fill": "#8E44AD",
+        "highlight": "dissenter",
+        "id": "data",
+        "shape": "hexagon",
+        "textColor": "#FFFFFF"
+      },
+      {
+        "fill": "#8E44AD",
+        "id": "prod",
+        "shape": "hexagon",
+        "textColor": "#FFFFFF"
+      },
+      {
+        "fill": "#8E44AD",
+        "id": "prose",
+        "shape": "hexagon",
+        "textColor": "#FFFFFF"
+      },
+      {
+        "fill": "#8E44AD",
+        "id": "sys",
+        "shape": "hexagon",
+        "textColor": "#FFFFFF"
+      },
+      {
+        "fill": "#ECF0F1",
+        "id": "work",
+        "shape": "document",
+        "textColor": "#2C3E50"
+      }
+    ],
+    "style": "house@14.1.0",
+    "title": {
+      "align": "center",
+      "bold": true,
+      "fontSize": 24,
+      "text": "Xreview"
+    }
+  },
+  "semantic": {
+    "drilldown": [],
+    "edges": [
+      {
+        "from": "data",
+        "kind": "iterates",
+        "lineType": "curved",
+        "to": "prod"
+      },
+      {
+        "from": "prod",
+        "kind": "iterates",
+        "lineType": "curved",
+        "to": "prose"
+      },
+      {
+        "from": "prose",
+        "kind": "iterates",
+        "lineType": "curved",
+        "to": "sys"
+      },
+      {
+        "from": "sys",
+        "kind": "iterates",
+        "lineType": "curved",
+        "to": "data"
+      },
+      {
+        "from": "data",
+        "kind": "reviews",
+        "lineStyle": "dashed",
+        "to": "work"
+      },
+      {
+        "from": "prod",
+        "kind": "reviews",
+        "lineStyle": "dashed",
+        "to": "work"
+      },
+      {
+        "from": "prose",
+        "kind": "reviews",
+        "lineStyle": "dashed",
+        "to": "work"
+      },
+      {
+        "from": "sys",
+        "kind": "reviews",
+        "lineStyle": "dashed",
+        "to": "work"
+      }
+    ],
+    "edgesDerived": true,
+    "edgesDerivedFrom": "ring nodes (clockwise iterates cycle) + central artifact (dashed inward review arrows)",
+    "id": "xreview-cohort",
+    "nodes": [
+      {
+        "id": "data",
+        "label": "data-architecture (dissenter)",
+        "role": "dissenter"
+      },
+      {
+        "id": "prod",
+        "label": "product-manager",
+        "role": "expert"
+      },
+      {
+        "id": "prose",
+        "label": "prose-steward",
+        "role": "expert"
+      },
+      {
+        "id": "sys",
+        "label": "systems-engineer",
+        "role": "expert"
+      },
+      {
+        "id": "work",
+        "label": "Design under review",
+        "role": "artifact"
+      }
+    ],
+    "schemaVersion": 1,
+    "token": "circular-cohort"
+  }
+}

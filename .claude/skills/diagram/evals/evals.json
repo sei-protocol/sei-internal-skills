@@ -6,6 +6,14 @@
       "id": "golden-ir-determinism",
       "type": "determinism",
       "prompt": "Run stages 1-3 (parse+resolve -> validate -> lower-to-IR) on the build-first pipeline->cohort-cycle composite spec (workstream-pipeline drilldown ref xreview-cohort) twice, with the grammar pinned at house@14.1.0, no clock/RNG/MCP. Compare the two emitted canonical IR artifacts.",
+      "specs": [
+        "examples/workstream-pipeline.spec.yaml",
+        "examples/xreview-cohort.spec.yaml"
+      ],
+      "golden_ir": [
+        "examples/workstream-pipeline.ir.json",
+        "examples/xreview-cohort.ir.json"
+      ],
       "expected_behavior": [
         "Loads diagram-house-profile.md (pins house@14.1.0) + the kit-linear-pipeline and kit-circular-cohort templates before lowering (Guardrail: profile- and kit-first)",
         "Stages 1-3 perform NO side effects: no Lucid MCP call, no clock read, no RNG; layout is a pure function of (template + node count/order + grammar constants), stable-ordered by node id",
@@ -19,6 +27,10 @@
       "id": "two-tier-conformance-happy-path",
       "type": "happy-path",
       "prompt": "Validate the pipeline->cohort-cycle composite: workstream-pipeline (token linear-pipeline, ordered stages left->right, one stage carrying drilldown {ref: xreview-cohort, rel: expands-to}) and xreview-cohort (token circular-cohort, central work-artifact + >=3 ring nodes incl one role:dissenter). Both pin schemaVersion + style: house@14.1.0.",
+      "fixtures": [
+        "examples/workstream-pipeline.spec.yaml",
+        "examples/xreview-cohort.spec.yaml"
+      ],
       "expected_behavior": [
         "Runs the two-tier gate BEFORE any render: (a) JSON-Schema validity against the schemaVersion-pinned spec schema, discriminated over the 7 token values; (b) the full house rule set resolved from the Design-14 grammar at the pinned version via diagram-house-profile.md (one token per role, legend lists exactly the roles present, plain title, ASCII labels)",
         "Resolver passes: drilldown.ref resolves; child token circular-cohort is in the linear-pipeline.stage allow-list { circular-cohort }; the graph is acyclic; depth within the fixed bound of 3; both instances pin the same Grammar-version (composite is grammar-homogeneous)",

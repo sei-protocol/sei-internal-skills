@@ -15,13 +15,13 @@ Loaded before any spec authoring, validation, or render. It **pins the house sty
 
 Run **before** any render. A spec that fails either tier **does not render**.
 
-- **Tier (a) — JSON-Schema validity.** Validate against `schema/diagram-spec.schema.json` (`schemaVersion` supported; `token` in the 7-value enum; the per-`token` `oneOf` slot floor; ASCII text; `#RRGGBB` legend colors). Mechanical.
+- **Tier (a) — JSON-Schema validity.** Validate against `schema/diagram-spec.schema.json` (`schemaVersion` supported; `token` in the 7-value enum; the per-`token` `oneOf` slot floor — for node-spine tokens, >=2 ordered `nodes[]` carrying `order`; ASCII text). The `legend` is NOT a spec field — it is profile-derived (see tier (b) rule 2). Mechanical.
 - **Tier (b) — the full house-standard semantic rule set, resolved from the Design-14 grammar at the pinned version.** This profile is authoritative for tier (b). The rules below are the resolution; they cite the grammar rather than restate it.
 
 ### Tier-(b) rules (resolved from Design 14 §"The shared visual grammar" + §Conformance)
 
 1. **One token per role.** Every `nodes[].role`, `bands[].role`, and `legend[].role` is a role token defined in the Design-14 role tables; every role maps to **exactly one shape** and **exactly one color** there. A role not in the grammar tables fails. *(Resolves: Design 14 role->shape table + role->color table.)*
-2. **Legend lists exactly the roles present.** Non-empty; one row per role that actually appears in this diagram's nodes/bands — no more, no fewer. Each `legend[].color` is the grammar's color for that role. *(Resolves: Design 14 §Legend.)*
+2. **Derived legend lists exactly the roles present.** The legend is **derived at lowering** from the roles present in this diagram's nodes/bands — it is **not authored in the spec**. Tier-(b) conformance checks that the **derived** legend has exactly one row per role that actually appears — no more, no fewer — with each row's color the grammar's color for that role (resolved from the profile, never inlined per spec). *(Resolves: Design 14 §Legend; Design 15 two-layer "style resolved, not inlined".)*
 3. **Plain title.** `title` is the plain human Title-Case name (kit skills: "<Domain> Knowledge Kit"); **never** the internal archetype taxonomy. Optional `subtitle` is the one-line human descriptor. *(Resolves: Design 14 §Header.)*
 4. **Header is centered, legend is compact top-left.** The title heads the flow (top-center); the legend is a compact top-left swatch+label stack kept visually separate from the title. *(Resolves: Design 14 §Header + §Legend — layout obligations the LucidAdapter honors at lowering/emit.)*
 5. **Paper work-artifact.** A work-artifact node (central in `circular-cohort`; terminal where a skill produces a durable output) uses the neutral paper fill `#ECF0F1` with `#2C3E50` text everywhere — never a role color. *(Resolves: Design 14 §Terminal artifact.)*

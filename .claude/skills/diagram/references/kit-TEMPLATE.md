@@ -26,13 +26,19 @@ quoted from the per-token conformance table>**.
 The semantic-model slots a `<token>` instance fills — `token`, `title`, the
 `nodes[]` role set (each role is a GRAMMAR token, not a literal — cite the role's
 shape/color to Design 14, do not inline it), `edges[]` (arrow `kind`s, also
-grammar tokens), any optional `drilldown`, and the two version pins
-(`schemaVersion`, `style: house@<Grammar-version>`). Note which role-slot (if
-any) is the terminal work-artifact (linear-pipeline / meta-skill / signal carry
-one; layered-cake/cross-cutting end in the expert; hub-and-spoke in the central
-identity; circular-cohort in the central work-artifact). Layout is the IR's
-pure-function lowering (Design 15 stage 3) — authors set order/membership, never
-coordinates; style is profile-resolved, never inlined.
+grammar tokens — but state if this token's edges are ARCHETYPE-DERIVED at lowering
+rather than authored, as circular-cohort's ring/inward arrows are), any optional
+`drilldown`, and the two version pins (`schemaVersion`, `style: house@<Grammar-version>`).
+**Ordering field:** the spine/sequence order is carried by **`order` (integer, >=0)
+on each `nodes[]` entry** for node-spine tokens (linear-pipeline, cross-cutting
+base); ordered `bands[]` carry the stacked sequence for layered-cake. There is no
+authored `legend` field — the legend is DERIVED at lowering from the roles present
+(profile-resolved); do not author it. Note which role-slot (if any) is the terminal
+work-artifact (linear-pipeline / meta-skill / signal carry one; layered-cake/
+cross-cutting end in the expert; hub-and-spoke in the central identity;
+circular-cohort in the central work-artifact). Layout is the IR's pure-function
+lowering (Design 15 stage 3) — authors set order/membership, never coordinates;
+style is profile-resolved, never inlined.
 
 ## 2. Slot allow-list (composition contract)
 Declare, per slot-role, the closed set of child `token`s a `drilldown` may target:
@@ -59,8 +65,11 @@ durable output, decide drilldowns against §2, stamp the two pins (same
 ## 4. Worked example (spec fragment)
 A real YAML spec fragment for this token that PASSES the conformance floor, with
 a one-line "why it conforms" note tying back to §1's floor and §2's allow-list.
-If the token participates in the MVP composite, show its half and cross-reference
-the paired kit.
+The example carries `nodes[].order` (or ordered `bands[]`) but does NOT author a
+`legend` (profile-derived) and does NOT author edges for a token whose edges are
+archetype-derived. If the token participates in the MVP composite, show its half
+and cross-reference the paired kit. The example MUST validate against
+`schema/diagram-spec.schema.json` (tier (a)) before it ships (see authoring rules).
 
 ## 5. Authoring notes
 Cite-don't-restate; no coordinates / no style literals here; the allow-list is
@@ -75,6 +84,9 @@ the composition contract; flag the `Grammar-version`-bump one-way door
 - **Cite the grammar, never restate it.** Every shape, color, arrow `kind`, header/legend/terminal-artifact rule, and Standard-Import realization is Design 14's, resolved via `diagram-house-profile.md` at the pinned `Grammar-version`. A kit that inlines a hex color or a shape name is a defect — the spec is two-layer (Design 15 AC): semantic model here, house-style resolved from the grammar. A claim with neither a grammar §-anchor nor a Design-15 contract cite is not a kit entry.
 - **Roles are grammar tokens.** Every `nodes[].role` / `bands[].role` and every `edges[].kind` must be a token in Design 14's tables. Name the role; cite its shape/color to the grammar; do not author the literal.
 - **The profile is always-first.** `diagram-house-profile.md` pins `house@<Grammar-version>` and holds the cross-cutting house rules (one token per role, legend lists exactly the roles present, plain title, paper work-artifact, ASCII labels). Kits reference it; they don't restate it.
+- **The legend is profile-derived, never authored.** A spec does NOT carry a `legend` field; the legend is derived at lowering from the roles present (tier-(b) conformance checks the derived legend lists exactly the roles present). A worked example that inlines a `legend` or per-row `#RRGGBB` colors is a defect.
+- **Name the actual ordering field.** §1 names `order` (integer, >=0) on `nodes[]` as the spine/sequence order for node-spine tokens (and ordered `bands[]` for layered-cake). Do not invent a different ordering field.
+- **Every worked example MUST validate against `schema/diagram-spec.schema.json` (tier (a)) before it ships.** Run Draft 2020-12 validation of the fixture against the committed schema; a fixture that fails tier (a) is not shipped.
 - **Name the conformance floor, don't redefine it.** Quote the token's required-slot line from Design 14 §Conformance's per-token table; the gate (Design 15 stage 2) resolves the full rule set from the profile — the kit points, the profile is authoritative.
 - **The allow-list is the only composition surface.** Use the exact `<token>.<slot-role> -> { … }` form and the five exact error-code literals (`unresolved-ref`, `token-not-allowed`, `cycle-detected`, `depth-exceeded`, `grammar-version-mismatch`). MVP is the single hardcoded pairing `linear-pipeline.stage -> { circular-cohort }`; every other token's MVP allow-list is empty unless its own design calls for a pairing.
 - **No coordinates, no RNG, no clock.** Layout is the IR's pure deterministic lowering (Design 15 stages 1–3 are hermetic); authoring a fill is the semantic model + per-instance style binding only.

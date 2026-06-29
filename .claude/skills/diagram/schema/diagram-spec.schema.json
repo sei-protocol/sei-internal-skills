@@ -2,9 +2,9 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tide.seinetwork.io/diagram/schema/diagram-spec.schema.json",
   "title": "Diagram spec (two-layer: semantic model + house-style binding)",
-  "description": "A single diagram instance for the /diagram knowledge kit. Two-layer per Design 15: a notation-neutral SEMANTIC MODEL (token, nodes/slots role-tagged, edges, drilldown {ref,rel}) separated from a thin HOUSE-STYLE BINDING (style: house@<Grammar-version> + legend/header per-instance specifics only). Discriminated over the 7 `token` values via oneOf. The house standard (role->shape/color, header/legend/terminal-artifact rules) is RESOLVED from the pinned grammar via diagram-house-profile.md and is NOT inlined here.",
+  "description": "A single diagram instance for the /diagram knowledge kit. Two-layer per Design 15: a notation-neutral SEMANTIC MODEL (token, nodes/slots role-tagged, edges, drilldown {ref,rel}) separated from a thin HOUSE-STYLE BINDING (style: house@<Grammar-version> + header per-instance specifics only). Discriminated over the 7 `token` values via oneOf. The house standard (role->shape/color, header/legend/terminal-artifact rules) is RESOLVED from the pinned grammar via diagram-house-profile.md and is NOT inlined here. In particular the LEGEND is DERIVED at lowering from the roles present, never authored in the spec; tier-(b) conformance checks the derived legend lists exactly the roles present.",
   "type": "object",
-  "required": ["id", "schemaVersion", "style", "token", "title", "legend", "nodes"],
+  "required": ["id", "schemaVersion", "style", "token", "title", "nodes"],
   "additionalProperties": false,
   "properties": {
     "id": {
@@ -45,12 +45,6 @@
       "description": "Optional one-line human-facing descriptor centered beneath the title (house header rule). ASCII-only.",
       "$ref": "#/$defs/asciiText"
     },
-    "legend": {
-      "description": "HOUSE-STYLE BINDING: non-empty color->role legend. Lists exactly the roles present in this diagram (conformance rule resolved from the grammar via the profile). Role/color tokens are validated against the grammar by the profile-resolved rule set, not enumerated here.",
-      "type": "array",
-      "minItems": 1,
-      "items": { "$ref": "#/$defs/legendRow" }
-    },
     "nodes": {
       "description": "SEMANTIC MODEL: role-tagged nodes/slots. A node carrying `drilldown` is a slot. Notation-neutral; no per-node color/shape literals (those are resolved from role via the grammar).",
       "type": "array",
@@ -85,19 +79,6 @@
       "type": "string",
       "minLength": 1
     },
-    "legendRow": {
-      "type": "object",
-      "required": ["color", "role"],
-      "additionalProperties": false,
-      "properties": {
-        "color": {
-          "description": "House color token, #RRGGBB (LucidAdapter constraint). Validated against the grammar palette by the profile-resolved rule set.",
-          "type": "string",
-          "pattern": "^#[0-9A-Fa-f]{6}$"
-        },
-        "role": { "$ref": "#/$defs/roleToken" }
-      }
-    },
     "drilldown": {
       "description": "Composability pointer (by id). `ref` targets another instance's id; `rel` is the typed relationship. Resolver: ref must resolve (unresolved-ref); child token must be in the slot allow-list declared per slot-role in kit-<token>.md (token-not-allowed); the drilldown graph is a DAG (cycle-detected, visited-set); depth bound is fixed at 3 with root=depth-1, so depth-exceeded fires at depth > 3; all reachable instances share one Grammar-version (grammar-version-mismatch).",
       "type": "object",
@@ -121,6 +102,11 @@
         "id": { "type": "string", "minLength": 1, "maxLength": 128 },
         "role": { "$ref": "#/$defs/roleToken" },
         "label": { "$ref": "#/$defs/asciiText" },
+        "order": {
+          "description": "Optional position in the node sequence (left->right for linear-pipeline/cross-cutting; positional-around-the-ring for circular-cohort). The lowering input for deterministic layout; geometry is a pure function of it. Authors set order, never coordinates.",
+          "type": "integer",
+          "minimum": 0
+        },
         "band": {
           "description": "Optional id of the band this node belongs to.",
           "type": "string",
@@ -201,14 +187,22 @@
     },
     {
       "title": "linear-pipeline",
+      "description": ">=2 ordered nodes left->right (the spine); each node carries `order`; a gate is a bold-bordered node; the terminal artifact is last. Drilldown slot allow-list (MVP): linear-pipeline.stage -> { circular-cohort } (declared in kit-linear-pipeline.md). The spine runs through `nodes[]`, not `bands[]`.",
       "properties": {
         "token": { "const": "linear-pipeline" },
-        "bands": {
-          "description": ">=2 ordered stages, left->right; a gate is a bold-bordered node. Drilldown slot allow-list (MVP): linear-pipeline.stage -> { circular-cohort } (declared in kit-linear-pipeline.md).",
+        "nodes": {
           "type": "array",
-          "items": { "$ref": "#/$defs/band" }
+          "minItems": 2,
+          "items": {
+            "properties": {
+              "role": { "enum": ["stage", "gate", "artifact"] },
+              "order": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["order"]
+          }
         }
-      }
+      },
+      "required": ["nodes"]
     },
     {
       "title": "hub-and-spoke",
@@ -218,14 +212,26 @@
     },
     {
       "title": "cross-cutting",
+      "description": "A lifecycle base of >=2 ordered stage nodes (the spine, through `nodes[]`) + exactly 1 overlay band touching >=2 of them (the overlay stays in `bands[]`).",
       "properties": {
         "token": { "const": "cross-cutting" },
+        "nodes": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "properties": {
+              "order": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["order"]
+          }
+        },
         "bands": {
-          "description": "A lifecycle base of >=2 stages + exactly 1 overlay band touching >=2 of them.",
+          "description": "Exactly 1 overlay band touching >=2 base stages (translucent, label at the band edge).",
           "type": "array",
           "items": { "$ref": "#/$defs/band" }
         }
-      }
+      },
+      "required": ["nodes"]
     },
     {
       "title": "meta-skill",

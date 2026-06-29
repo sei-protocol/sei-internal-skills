@@ -10,8 +10,6 @@ nodes:
   - { id: prod,  role: expert,    label: "product-manager" }
   - { id: prose, role: expert,    label: "prose-steward" }
   - { id: data,  role: dissenter, label: "data-architecture (dissenter)" }
-edges:
-  - { from: sys,   to: work, kind: iterates }
-  - { from: prod,  to: work, kind: iterates }
-  - { from: prose, to: work, kind: iterates }
-  - { from: data,  to: work, kind: iterates }
+# No authored edges: for circular-cohort the around-the-ring `iterates` cycle and
+# the dashed inward review arrows are DERIVED at lowering from (ring nodes +
+# central artifact). Authors set nodes only (Design 15; kit-circular-cohort.md).

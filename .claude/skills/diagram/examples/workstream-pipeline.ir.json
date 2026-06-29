@@ -1,0 +1,167 @@
+{
+  "houseStyle": {
+    "layout": {
+      "nodePositions": [
+        {
+          "h": 80,
+          "id": "s1",
+          "w": 180,
+          "x": 0,
+          "y": 200
+        },
+        {
+          "h": 80,
+          "id": "s2",
+          "w": 180,
+          "x": 240,
+          "y": 200
+        },
+        {
+          "h": 80,
+          "id": "s3",
+          "w": 180,
+          "x": 480,
+          "y": 200
+        },
+        {
+          "h": 80,
+          "id": "s4",
+          "w": 180,
+          "x": 720,
+          "y": 200
+        },
+        {
+          "h": 80,
+          "id": "s5",
+          "w": 180,
+          "x": 960,
+          "y": 200
+        }
+      ],
+      "rule": "linear-pipeline.left-to-right",
+      "stableOrderBy": "node.id"
+    },
+    "legend": [
+      {
+        "color": "#1ABC9C",
+        "role": "stage"
+      },
+      {
+        "color": "#E74C3C",
+        "role": "gate"
+      },
+      {
+        "color": "#ECF0F1",
+        "role": "artifact"
+      }
+    ],
+    "nodeStyle": [
+      {
+        "fill": "#1ABC9C",
+        "id": "s1",
+        "shape": "rectangle-rounded",
+        "textColor": "#FFFFFF"
+      },
+      {
+        "fill": "#E74C3C",
+        "id": "s2",
+        "shape": "rectangle",
+        "strokeWidth": 5,
+        "textColor": "#FFFFFF"
+      },
+      {
+        "fill": "#1ABC9C",
+        "id": "s3",
+        "shape": "rectangle-rounded",
+        "textColor": "#FFFFFF"
+      },
+      {
+        "fill": "#E74C3C",
+        "id": "s4",
+        "shape": "rectangle",
+        "strokeWidth": 5,
+        "textColor": "#FFFFFF"
+      },
+      {
+        "fill": "#ECF0F1",
+        "id": "s5",
+        "shape": "document",
+        "textColor": "#2C3E50"
+      }
+    ],
+    "style": "house@14.1.0",
+    "title": {
+      "align": "center",
+      "bold": true,
+      "fontSize": 24,
+      "text": "Workstream"
+    }
+  },
+  "semantic": {
+    "drilldown": [
+      {
+        "from": "s3",
+        "ref": "xreview-cohort",
+        "rel": "expands-to"
+      }
+    ],
+    "edges": [
+      {
+        "from": "s1",
+        "kind": "feeds-into",
+        "to": "s2"
+      },
+      {
+        "from": "s2",
+        "kind": "gate-blocks",
+        "to": "s3"
+      },
+      {
+        "from": "s3",
+        "kind": "feeds-into",
+        "to": "s4"
+      },
+      {
+        "from": "s4",
+        "kind": "gate-blocks",
+        "to": "s5"
+      }
+    ],
+    "edgesDerived": false,
+    "id": "workstream-pipeline",
+    "nodes": [
+      {
+        "id": "s1",
+        "label": "Design via /council",
+        "order": 1,
+        "role": "stage"
+      },
+      {
+        "id": "s2",
+        "label": "Checkpoint: scope sign-off",
+        "order": 2,
+        "role": "gate"
+      },
+      {
+        "id": "s3",
+        "label": "Verify via /xreview",
+        "order": 3,
+        "role": "stage"
+      },
+      {
+        "id": "s4",
+        "label": "Review-gate: unanimous + Bugbot",
+        "order": 4,
+        "role": "gate"
+      },
+      {
+        "id": "s5",
+        "label": "Merged PR",
+        "order": 5,
+        "role": "artifact"
+      }
+    ],
+    "schemaVersion": 1,
+    "token": "linear-pipeline"
+  }
+}

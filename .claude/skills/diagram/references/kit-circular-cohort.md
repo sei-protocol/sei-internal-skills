@@ -15,7 +15,7 @@ A `circular-cohort` instance fills these semantic-model slots. Field names and t
   - **`role: expert`** — a ring node: a named reviewing expert/lens. **≥3 required.** Each `{ id, role: expert, label }`; `label` is the lens name (ASCII-only).
   - **`role: dissenter`** — exactly one ring node tagged as the assigned dissenter (a distinguished `expert`; the grammar highlights it). Required by the conformance floor.
   - Ring **order** is positional-around-the-ring; layout (ring radius, angular placement) is a **pure function of (template + ring-node count/order + grammar constants)** stable-sorted by `id` (Design 15 stage-3 determinism). Authors set ring membership and order, never coordinates.
-- **`edges[]`** — `kind: iterates` for the around-the-ring round arrows (curved, clockwise per the grammar); inward review arrows from each ring node to the central artifact (dashed, per the probe finding). A convergence indicator is a grammar attribute, not a new node.
+- **`edges[]`** — **archetype-derived for this token; author NONE.** The around-the-ring `iterates` cycle (curved, clockwise per the grammar) AND the dashed inward review arrows from each ring node to the central artifact are **derived at lowering from (ring nodes + central artifact)** — they are not authored spec edge-kinds, and there is no `reviews` spec edge-kind. The author sets nodes only; the lowering rule synthesizes the ring cycle and the inward review arrows from the ring membership + the hub. A convergence indicator is likewise a grammar attribute, not a new node. (The schema's closed `edges[].kind` enum is the grammar set for tokens that DO author edges, e.g. `linear-pipeline` with `feeds-into`/`gate-blocks` — circular-cohort does not author edges.)
 - **`drilldown`** — **none for this token in the MVP** (see §2). A circular-cohort is a leaf in the MVP composite; it is the *child* of a `linear-pipeline.stage`, holding no back-pointer to its parent.
 - **`style: house@<Grammar-version>`** + **`schemaVersion`** — the two independent version pins (Design 15). In a composite, this instance pins the *same* `Grammar-version` as its parent (grammar-homogeneous).
 
@@ -41,7 +41,7 @@ Given a slate/cohort skill that the assignment rule routed to `circular-cohort` 
 1. **Identify the work-artifact under review** — the design/PR/diff/spec the cohort examines. Author it as the single central `role: artifact` node (paper fill, profile-resolved).
 2. **Enumerate the reviewing lenses** as `role: expert` ring nodes (≥3) — the named specialists/lenses doing the cross-examination. Label each with its lens name (ASCII-only).
 3. **Tag the dissenter** — exactly one ring node is `role: dissenter` (the assigned-dissent lens). The floor requires it; an untagged cohort fails the gate.
-4. **Wire the cycle** — inward review arrows (each ring node → central artifact, dashed/`reviews` semantics) and around-the-ring `kind: iterates` round arrows (curved, clockwise). The convergence is an arrow/attribute, not a node.
+4. **Do NOT author edges** — for circular-cohort the cycle is archetype-derived. The around-the-ring `iterates` arrows (curved, clockwise) and the dashed inward review arrows (each ring node → central artifact) are synthesized at lowering from (ring nodes + central artifact); there is no `reviews` spec edge-kind and the author writes no `edges:`. The convergence is a grammar attribute, not a node.
 5. **No outbound drilldown** — a circular-cohort is an MVP leaf; do not author a `drilldown` on it (it would be `token-not-allowed`).
 6. **Stamp the pins** — `schemaVersion`, `style: house@<current Grammar-version>`. As a child in a composite, pin the **same** `Grammar-version` as the parent pipeline.
 7. **Validate before render** — the two-tier gate must pass; the legend lists exactly the roles present (work-artifact, expert, dissenter).
@@ -62,14 +62,11 @@ The MVP pipeline→cohort-cycle composite, child half. This is the `circular-coh
     - { id: prod,   role: expert,    label: "product-manager" }
     - { id: prose,  role: expert,    label: "prose-steward" }
     - { id: data,   role: dissenter, label: "data-architecture (dissenter)" }
-  edges:
-    - { from: sys,   to: work, kind: iterates }
-    - { from: prod,  to: work, kind: iterates }
-    - { from: prose, to: work, kind: iterates }
-    - { from: data,  to: work, kind: iterates }
+# No `edges:` — the ring `iterates` cycle and the dashed inward review arrows are
+# archetype-derived at lowering from (ring nodes + central artifact).
 ```
 
-Why it conforms: one central `role: artifact` hub; 4 ring nodes (floor is ≥3) including exactly one `role: dissenter`; ring arrows are `iterates` (curved/clockwise per the grammar); no outbound drilldown (a leaf — authoring one would be `token-not-allowed`); pins `house@14.1.0` matching its parent (grammar-homogeneous composite). No per-node color/shape literal — style resolves from the grammar via the profile.
+Why it conforms: one central `role: artifact` hub; 4 ring nodes (floor is ≥3) including exactly one `role: dissenter`; **no authored `edges:`** — the around-the-ring `iterates` cycle and the dashed inward review arrows are derived at lowering from (ring nodes + central artifact); no outbound drilldown (a leaf — authoring one would be `token-not-allowed`); pins `house@14.1.0` matching its parent (grammar-homogeneous composite). No per-node color/shape literal — style resolves from the grammar via the profile.
 
 ## 5. Authoring notes
 
