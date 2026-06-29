@@ -71,8 +71,17 @@ gates, not solved by this bundle:
    raw `kubectl`/`curl` write has nothing to authenticate with.
 2. The **egress allowlist** (the PLT-672 NetworkPolicy) contains **no
    write-capable endpoint reachable with ambient credentials** (INV-11).
-3. The prod runner's effective `.claude/settings.json` is the **read-only** one
-   (not a permissive dev seed).
+3. The prod runner's effective `.claude/settings.json` is the **read-only** one.
+   The host image bakes the read-only allowlist at `~/.claude/settings.json`
+   (below); "effective" also merges the cloned workspace's project `.claude` —
+   the server-side `admin__github_read_only` + `admin__deny_mutating_os` floor
+   (not settings.json) is what makes "effective read-only" robust against a
+   permissive workspace seed.
+4. The host substrate manifest **must not mount a volume over `/home/host/.claude`**
+   (or `/home/host`) — a runtime mount shadows the baked roster and reintroduces
+   the PLT-715 Context-check halt that the build-time smoke (below) cannot see.
+   (Long-term: a host readiness probe re-checking `~/.claude/agents/*.md` at
+   container start closes this at runtime — owned by sre/platform.)
 
 ## harness: claude-native (required)
 
@@ -111,9 +120,14 @@ bundling per-agent or a headless-adapted single-expert variant. The bake is
 **build-time-verified**: `verify-sei-omnigent-image.yml`'s host-build-smoke
 asserts `.claude/agents/*.md` and `.claude/skills/root-cause/SKILL.md` are
 present in the built image — a dropped roster fails the build, not the first
-prod fire. The baked `.claude/settings.json` is the **read-only** allowlist
-(read-only `gh`/`gh api`/WebFetch only; gh writes are denied server-side by
-`admin__github_read_only`) — satisfying the propose-only floor's settings.json
-rollout gate at the image level. What remains operator-gated is the host's prod
-**deployment** (the substrate manifest + coordinator `--agent`), not the roster
-provisioning, which is built + verified here.
+prod fire (with the runtime mount-shadow caveat — rollout gate #4 above). The
+baked `.claude/settings.json` is the **read-only** allowlist (read-only `gh`/`gh
+api`/WebFetch; the one `gh issue comment` entry is a write the server floor
+provably denies — clean it as a follow-up so the floor is a backstop, not the
+sole stop). The read-only-ness is enforced by the server-side
+`admin__github_read_only` + `admin__deny_mutating_os` floor, NOT by settings.json
+alone — the build-smoke verifies *roster presence*, not the settings content, so
+"effective read-only" rests on the floor, not on a CI assertion of the file.
+What remains operator-gated is the host's prod **deployment** (the substrate
+manifest + coordinator `--agent`, and the gate-#1/#2/#4 invariants above), not
+the roster provisioning, which is built + build-verified here.
