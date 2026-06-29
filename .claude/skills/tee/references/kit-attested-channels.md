@@ -87,7 +87,7 @@ The split is **library-first (SGX process enclaves)** vs **assembly-first (VM-TE
 **Intel TDX / AMD SEV-SNP — assembly-first (VM-TEE).**
 - Bind the channel pubkey-hash into the 64-byte `REPORTDATA` (TDX, then DCAP-quoted by the TD Quoting Enclave) / `REPORT_DATA` (SEV-SNP, VCEK-signed: ARK→ASK→VCEK). Establish aTLS via **Constellation / Contrast** (confidential-K8s; embed the CVM statement in the node cert), or release keys via **Confidential Containers / Trustee KBS** (attest → verify at the Attestation Service → release). (Constellation/Contrast *Attestation*; CoCo Trustee KBS; AMD *SEV-SNP Attestation*.)
 
-**Sei / Tide profile fit.** Harbor-hosted agent runtimes + bridges → **AWS Nitro**, where the idiomatic "attested channel" is the **KMS-release pattern** above (`tee-profile.md` §6; `kit-aws-nitro.md` §6). Any surface that must defend against **validator-as-host** is the wrong fit for Nitro's host-trust model (`tee-profile.md` §1) → **Intel TDX**, with aTLS via the assembly-first path.
+**Sei / Harbor profile fit.** Harbor-hosted agent runtimes + bridges → **AWS Nitro**, where the idiomatic "attested channel" is the **KMS-release pattern** above (`tee-profile.md` §6; `kit-aws-nitro.md` §6). Any surface that must defend against **validator-as-host** is the wrong fit for Nitro's host-trust model (`tee-profile.md` §1) → **Intel TDX**, with aTLS via the assembly-first path.
 
 **Template-fit note:** §6 normally describes an Attester's *secret-release* pattern. Here it is the **channel-establishment** pattern across platforms — which on Nitro subsumes secret-release (KMS), and on SGX is the RA-TLS library flow; attester-side measurement/cert detail is redirected to the attester kits.
 
