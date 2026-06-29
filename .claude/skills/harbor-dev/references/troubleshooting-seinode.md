@@ -67,7 +67,7 @@ Inspect the network's plan directly:
 seictl network get <id> -n eng-<alias> -o jsonpath='{.status.plan}' | jq
 ```
 
-Recovery — because `spec.genesis` is immutable, you cannot re-apply to nudge the plan; the clean path is `delete` + re-create the SeiNetwork so the genesis ceremony restarts from scratch. Note its `spec.deletionPolicy` first (defaults `Retain`): with `Retain`, deleting the SeiNetwork orphans the generated validator SeiNodes — `git rm` the manifest and let Flux re-apply a fresh SeiNetwork, and clean up any orphaned validators before they collide.
+Recovery — because `spec.genesis` is immutable, you cannot re-apply to nudge the plan; the clean path is `delete` + re-create the SeiNetwork so the genesis ceremony restarts from scratch. Note its `spec.deletionPolicy` first (defaults `Retain`): with `Retain`, deleting the SeiNetwork orphans the generated validator SeiNodes — `git rm` the manifest and let Flux re-apply a fresh SeiNetwork, and clean up any orphaned validators before they collide. **Re-create with a *new* chain-id** (or purge the chain-id's S3 genesis artifacts first): the ceremony's artifacts are keyed by chain-id, so reusing it leaves stale identities that wedge the rebuilt chain at height 0 — see *Chain wedged at height 0 after delete-and-recreate*.
 
 ```sh
 kubectl get seinetwork <id> -o jsonpath='{.spec.deletionPolicy}' -n eng-<alias>
@@ -206,6 +206,16 @@ seictl node apply <id> ... --set spec.overrides."storage.state_commit.write_mode
 **Footgun — the key, not just the value.** The override **key** must be the unified-schema path `storage.state_commit.write_mode`. The raw app.toml path `state-commit.sc-write-mode` is **silently rejected** by config-apply (`unknown config field`), so the broken `cosmos_only` default stands and the symptom persists even though you "set the override." (`config-apply` validation lives in sei-config; check the controller log for `unknown config field` if a write-mode override seems ignored.)
 
 > Interim guidance — this whole class disappears once config knowledge lives in the binary (ConfigManager, `SEI_CONFIG_MANAGER=v2`, PLT-775); until then, set the override explicitly when pinning a non-stable image.
+
+## Chain wedged at height 0 after delete-and-recreate (chain-id reuse)
+
+**Symptom.** Pods all `Ready` (0 restarts) and the SeiNetwork `Ready`, but the chain never produces a block: `kubectl exec <pod> -c seid -- seid status` shows `latest_block_height: 0`, `catching_up: true`, `latest_block_time: 1970-01-01`, and seid spams `level=ERROR msg="no progress since last advance" logger=tendermint/internal/blocksync` (last_advance frozen at startup). Validators never form consensus.
+
+**Cause.** The genesis ceremony's S3 artifacts — `genesis.json`, `peers.json`, per-node gentxs/identities — are keyed by **chain-id**: the seictl assembler writes and reads them under the prefix `<chain-id>/` in the genesis-artifacts bucket (`seictl/sidecar/tasks/assemble_genesis.go`, `prefix := a.chainID + "/"`). Deleting and re-creating a chain with the **same chain-id** regenerates fresh node/validator keys but leaves the prior incarnation's artifacts under that prefix; the fresh keys then mismatch the stale validator set / peer identities, so no validator is a proper member and consensus can't form. (Confirmed empirically: an identical 4-validator network — same image, same `migrate_evm` — reached height 740 under a **new** chain-id while the reused-chain-id one stayed at height 0.)
+
+**Fix.** Recreate with a **fresh chain-id** (cleanest — guarantees no stale artifacts), or purge the artifacts under the old chain-id's `<chain-id>/` prefix in the genesis bucket before re-creating. A fresh chain-id is the safe default for a throwaway dev chain.
+
+> Not a chain bug — a ceremony-lifecycle footgun. Reuse a chain-id only after clearing its S3 artifacts.
 
 ## Profiling (pprof)
 
