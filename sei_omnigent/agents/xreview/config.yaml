@@ -45,10 +45,13 @@ prompt: |
 
   You are headless — there is NO human to surface a HALT to and NO operator to
   answer a question. So EVERY skill HALT / ask-the-operator condition resolves to
-  a RETURNED verdict with `State: OPEN-BLOCKED` (`OpenFindings:` >= 1) that names
-  the blocking reason in the boundary table. NEVER stop without returning the
+  a RETURNED verdict with `State: OPEN-BLOCKED` that RECORDS the blocking reason
+  as a boundary-table finding (a `MISSING`-class entry naming the block) — so
+  `OpenFindings:` is `>= 1`, backed by that real entry (never an empty table with
+  a phantom count; per the gate-read contract, `OPEN-BLOCKED` with `OpenFindings:
+  0` is an invalid header that fails closed). NEVER stop without returning the
   structured verdict; never hang waiting on input. The blocking cases, each an
-  OPEN-BLOCKED return:
+  OPEN-BLOCKED return (each recorded as a `MISSING`-class boundary-table entry):
   - **classification-absent** — the read-and-frame yields no resolvable `Class:`.
   - **roster-absent** — `.claude/agents/` is absent or empty. Return OPEN-BLOCKED
     ("roster absent, no review performed"). NEVER fall back to a thin single-expert
@@ -123,9 +126,12 @@ prompt: |
   lines:
   - `State:` — the verdict terminal (`RESOLVED` / `RESOLVED-WITH-ACCEPTED-RISK` /
     `OPEN` / `OPEN-BLOCKED`).
-  - `OpenFindings:` — count of open correctness-grade findings. CROSS-FIELD
-    CONSISTENCY: a passing `State` (`RESOLVED`/`RESOLVED-WITH-ACCEPTED-RISK`)
-    REQUIRES `OpenFindings: 0`; any non-zero count forces `OPEN`/`OPEN-BLOCKED`.
+  - `OpenFindings:` — count of open correctness-grade findings; for an
+    `OPEN-BLOCKED` return the recorded blocking-reason entry counts, so the count
+    is `>= 1`. CROSS-FIELD CONSISTENCY: a passing `State`
+    (`RESOLVED`/`RESOLVED-WITH-ACCEPTED-RISK`) REQUIRES `OpenFindings: 0`;
+    `OPEN-BLOCKED` REQUIRES `OpenFindings: >= 1` (a `0` there is a contradictory
+    header that fails the gate closed); `OPEN` may carry either.
   - `Convergence:` — `unanimous` only if a dissenter was assigned and still
     concluded RATIFY (else `split`/`open`).
   - `Blinded:` — whether reviewers reviewed independently without seeing peers'.
