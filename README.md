@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/sei-internal-tools-logo.png" alt="sei-internal-skills" width="100%">
+  <img src="assets/sei-internal-skills-logo.png" alt="sei-internal-skills" width="100%">
 </p>
 
 # sei-internal-skills
