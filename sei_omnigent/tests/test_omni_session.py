@@ -405,7 +405,7 @@ def test_from_env_fails_loud_on_missing_bearer_file(monkeypatch: pytest.MonkeyPa
     # S-CRIT: the projected SA bearer token file is REQUIRED in prod — its absence must fail at
     # boot, not surface as a 401 at the sidecar on the first investigation.
     monkeypatch.setenv(SERVER_URL_ENV, "http://omnigent.sei.svc:8080")
-    monkeypatch.setenv(FORWARDED_EMAIL_ENV, "walle@seinetwork.io")
+    monkeypatch.setenv(FORWARDED_EMAIL_ENV, "sei-omnigent@seinetwork.io")
     monkeypatch.setenv(TARGET_HOST_ID_ENV, "host-standing-1")
     monkeypatch.setenv(WORKSPACE_ENV, "/work/root-cause")
     # PROXY_BEARER_FILE_ENV intentionally unset
@@ -421,7 +421,7 @@ def test_from_env_fails_loud_on_missing_host_id_and_workspace(
     token_file = tmp_path / "sa-token"
     token_file.write_text("sa-jwt\n", encoding="utf-8")
     monkeypatch.setenv(SERVER_URL_ENV, "http://omnigent.sei.svc:8080")
-    monkeypatch.setenv(FORWARDED_EMAIL_ENV, "walle@seinetwork.io")
+    monkeypatch.setenv(FORWARDED_EMAIL_ENV, "sei-omnigent@seinetwork.io")
     monkeypatch.setenv(PROXY_BEARER_FILE_ENV, str(token_file))
     # TARGET_HOST_ID_ENV + WORKSPACE_ENV intentionally unset
     with pytest.raises(RuntimeError) as exc:
@@ -439,7 +439,7 @@ def test_from_env_builds_client_with_principal_header_and_fresh_bearer_auth(
     token_file = tmp_path / "sa-token"
     token_file.write_text("sa-jwt\n", encoding="utf-8")
     monkeypatch.setenv(SERVER_URL_ENV, "http://omnigent.sei.svc:8080")
-    monkeypatch.setenv(FORWARDED_EMAIL_ENV, "walle@seinetwork.io")
+    monkeypatch.setenv(FORWARDED_EMAIL_ENV, "sei-omnigent@seinetwork.io")
     monkeypatch.setenv(TARGET_HOST_ID_ENV, "host-standing-1")
     monkeypatch.setenv(WORKSPACE_ENV, "/work/root-cause")
     monkeypatch.setenv(PROXY_BEARER_FILE_ENV, str(token_file))
@@ -451,7 +451,7 @@ def test_from_env_builds_client_with_principal_header_and_fresh_bearer_auth(
     # verified against installed 0.2.0, so this asserts the wiring directly off that client.
     http = factory.client._http  # type: ignore[attr-defined]
     # The principal is a static header on the standing client.
-    assert http.headers["X-Forwarded-Email"] == "walle@seinetwork.io"
+    assert http.headers["X-Forwarded-Email"] == "sei-omnigent@seinetwork.io"
     # The bearer rotates via a _FreshBearerAuth (read per request), not a baked header.
     assert isinstance(http.auth, _FreshBearerAuth)
     assert "authorization" not in http.headers  # the bearer is NOT a static header
@@ -526,8 +526,8 @@ def test_no_secret_in_repr() -> None:
     # never stored on this dataclass.
     class _Client:
         def __repr__(self) -> str:
-            return "OmnigentClient(headers={'X-Forwarded-Email': 'walle@seinetwork.io'})"
+            return "OmnigentClient(headers={'X-Forwarded-Email': 'sei-omnigent@seinetwork.io'})"
 
     factory = LiveSessionFactory(client=_Client(), host_id="host-1", workspace="/work")
     text = repr(factory)
-    assert "walle@seinetwork.io" not in text  # client repr (which could leak a header) is excluded
+    assert "sei-omnigent@seinetwork.io" not in text  # repr could leak a header — excluded

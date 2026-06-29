@@ -107,8 +107,8 @@ def _require_env(name: str) -> str:
     """Read a required env var, failing LOUD at boot if unset/empty (mirrors load_webhook_token).
 
     A half-configured receiver is the failure mode this guards: a missing PD token / email is a
-    silent fail-closed egress (WallE posts nothing) or a mis-scoped credential — surface it here,
-    not on the first investigation's post-back.
+    silent fail-closed egress (the receiver posts nothing) or a mis-scoped credential — surface
+    it here, not on the first investigation's post-back.
     """
     value = (os.environ.get(name) or "").strip()
     if not value:
@@ -125,7 +125,7 @@ def _pd_token() -> str:
     File-only (no inline env fallback): the manifest mounts the token from a Secret as a file so
     it never transits the pod env, where a process listing or a crash dump could surface it. An
     unset / unreadable / empty token file fails closed at boot — the receiver must never start
-    with no PD credential (a silent fail-closed egress: WallE posts nothing).
+    with no PD credential (a silent fail-closed egress: the receiver posts nothing).
     """
     path = (os.environ.get(f"{_PD_TOKEN_ENV}_FILE") or "").strip()
     if not path:

@@ -42,7 +42,7 @@ python spike/prove_headless_run.py \
     --server   http://127.0.0.1:8443 \
     --bundle   /tmp/claude_code.tar.gz \
     --goal     "Investigate: error rate spiked on service X at 14:02 UTC; find the cause." \
-    --forwarded-email walle@seinetwork.io \
+    --forwarded-email sei-omnigent@seinetwork.io \
     --wall-clock-s 20 --max-iterations 3
 ```
 

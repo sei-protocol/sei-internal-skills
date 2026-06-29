@@ -144,7 +144,7 @@ def _set_pd_env(
     token_file = tmp_path / "pd-token"
     token_file.write_text(over.get("token", "pd-notes-only-token"), encoding="utf-8")
     monkeypatch.setenv(f"{_PD_TOKEN_ENV}_FILE", str(token_file))
-    monkeypatch.setenv(_PD_FROM_EMAIL_ENV, over.get("email", "walle@seinetwork.io"))
+    monkeypatch.setenv(_PD_FROM_EMAIL_ENV, over.get("email", "sei-omnigent@seinetwork.io"))
     monkeypatch.setenv(_PD_ENROLLED_ENV, over.get("enrolled", "PSVC001, PSVC002"))
 
 
@@ -153,7 +153,7 @@ def test_build_poster_wires_env_into_from_config(
 ) -> None:
     _set_pd_env(monkeypatch, tmp_path)
     poster = build_poster()
-    assert poster.from_email == "walle@seinetwork.io"
+    assert poster.from_email == "sei-omnigent@seinetwork.io"
     # Comma-split + whitespace-trimmed into the enrolled set (the structural authz boundary).
     assert poster.enrolled_service_ids == frozenset({"PSVC001", "PSVC002"})
     assert poster.base_url == "https://api.pagerduty.com"
@@ -174,7 +174,7 @@ def test_build_poster_fails_loud_on_unset_enrolled_env(
 ) -> None:
     # An entirely unset enrolled env fails at _require_env (before from_config) — also fail-loud.
     monkeypatch.setenv(_PD_TOKEN_ENV, "pd-token")
-    monkeypatch.setenv(_PD_FROM_EMAIL_ENV, "walle@seinetwork.io")
+    monkeypatch.setenv(_PD_FROM_EMAIL_ENV, "sei-omnigent@seinetwork.io")
     with pytest.raises(RuntimeError):
         build_poster()
 
@@ -202,7 +202,7 @@ def test_build_poster_fails_closed_on_http_pd_base_url(
 
 
 def test_build_poster_fails_loud_on_missing_token(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv(_PD_FROM_EMAIL_ENV, "walle@seinetwork.io")
+    monkeypatch.setenv(_PD_FROM_EMAIL_ENV, "sei-omnigent@seinetwork.io")
     monkeypatch.setenv(_PD_ENROLLED_ENV, "PSVC001")
     # No PD_API_TOKEN → fail-closed at boot (never start with no PD credential).
     with pytest.raises(RuntimeError):
@@ -224,7 +224,7 @@ def test_build_poster_reads_token_from_file(
     token_file = tmp_path / "pd-token"
     token_file.write_text("file-mounted-pd-token\n", encoding="utf-8")
     monkeypatch.setenv(f"{_PD_TOKEN_ENV}_FILE", str(token_file))
-    monkeypatch.setenv(_PD_FROM_EMAIL_ENV, "walle@seinetwork.io")
+    monkeypatch.setenv(_PD_FROM_EMAIL_ENV, "sei-omnigent@seinetwork.io")
     monkeypatch.setenv(_PD_ENROLLED_ENV, "PSVC001")
     poster = build_poster()
     assert poster.token == "file-mounted-pd-token"
@@ -234,7 +234,7 @@ def test_build_poster_fails_loud_on_unreadable_token_file(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     monkeypatch.setenv(f"{_PD_TOKEN_ENV}_FILE", str(tmp_path / "does-not-exist"))
-    monkeypatch.setenv(_PD_FROM_EMAIL_ENV, "walle@seinetwork.io")
+    monkeypatch.setenv(_PD_FROM_EMAIL_ENV, "sei-omnigent@seinetwork.io")
     monkeypatch.setenv(_PD_ENROLLED_ENV, "PSVC001")
     with pytest.raises(RuntimeError):
         build_poster()

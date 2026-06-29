@@ -210,7 +210,7 @@ class GoalSession:
 #: derives the WS tunnel). The receiver reaches the server over the same Service.
 SERVER_URL_ENV = "OMNI_RECEIVER_SERVER_URL"
 #: Env: the header-mode trusted identity the server resolves the run under (the sidecar sets
-#: ``X-Forwarded-Email`` after TokenReview in prod; this is the WallE root-cause SA identity).
+#: ``X-Forwarded-Email`` after TokenReview in prod; this is the root-cause SA identity).
 FORWARDED_EMAIL_ENV = "OMNI_RECEIVER_FORWARDED_EMAIL"
 #: Env: the standing host's registered id — the ``host_id`` value posted in the create body that
 #: binds the session to that host. NOT the host's own ``OMNIGENT_HOST_*`` identity triple (that

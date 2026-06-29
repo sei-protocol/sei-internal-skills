@@ -6,7 +6,7 @@ client's clock + sleep + jitter-rand are injected so the timeout / retry / backo
 provable with no real wall-clock sleeps and a deterministic backoff.
 
 Coverage: find-by-key (found / not-found→skip), the note POST shape + the From/Authorization
-headers, marker-idempotency (skip if a WallE-marked note exists), enrollment-verify (skip if
+headers, marker-idempotency (skip if a sei-omnigent-marked note exists), enrollment-verify (skip if
 the incident's service is not enrolled), notes-only (a structural assertion that no act
 endpoint is reachable from the module's source), fail-closed on not-found / not-enrolled, and
 timeout + bounded retry with backoff.
@@ -62,7 +62,7 @@ def _strip_docstrings_and_comments(source: str) -> str:
 
 
 _TOKEN = "pd-notes-only-token"
-_FROM = "walle@seinetwork.io"
+_FROM = "sei-omnigent@seinetwork.io"
 _ENROLLED = "PSERVICE1"
 _KEY = '{}:{alertname="ChainHalted"}'
 _INCIDENT_ID = "PINCIDENT1"
@@ -213,7 +213,7 @@ def test_skips_when_a_sei_omnigent_marked_note_already_exists() -> None:
         if request.url.path == "/incidents":
             return _find_response([_incident()])
         if request.url.path.endswith("/notes") and request.method == "GET":
-            return _notes_response([{"content": f"earlier WallE note {_marker(_KEY)}"}])
+            return _notes_response([{"content": f"earlier sei-omnigent note {_marker(_KEY)}"}])
         return httpx.Response(201)
 
     client = _client(handler, rec)
@@ -473,7 +473,7 @@ def test_marker_found_on_a_later_page_skips_the_post() -> None:
             offset = int(request.url.params.get("offset", "0"))
             if offset == 0:
                 return _notes_response(fillers, more=True)
-            return _notes_response([{"content": f"walle {_marker(_KEY)}"}], more=False)
+            return _notes_response([{"content": f"sei-omnigent {_marker(_KEY)}"}], more=False)
         return httpx.Response(201)
 
     client = _client(handler, rec)
