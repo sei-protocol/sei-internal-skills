@@ -1,6 +1,6 @@
 name: ECR
 
-# Build + push the sei-tide-omnigent overlay server image to us-east-2 ECR
+# Build + push the sei-omnigent overlay server image to us-east-2 ECR
 # (PLT-735). Mirrors sei-k8s-controller's ecr.yml: OIDC into the common/gha role,
 # amazon-ecr-login + buildx, a sei-internal-skills-isolated registry build-cache ref,
 # ${{ github.sha }} tag.
@@ -11,7 +11,7 @@ name: ECR
 #
 # PLT-715: two images publish from here — the coordinator SERVER image
 # (sei_omnigent/Dockerfile, tag <sha>) and the runnable HOST image
-# (Dockerfile.host, tag <sha>-host), same sei/sei-tide-omnigent repo. The host
+# (Dockerfile.host, tag <sha>-host), same sei/sei-omnigent repo. The host
 # build adds `.claude/**` to the path-filter (the baked overlay is a host input).
 # Rationale (one-repo-two-tags, cross-region pull) + the hash-pinned-lockfile
 # follow-up: see the PR.
@@ -50,18 +50,18 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build and push sei-tide-omnigent image
+      - name: Build and push sei-omnigent image
         uses: docker/build-push-action@v6
         with:
           context: sei_omnigent
           file: sei_omnigent/Dockerfile
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-tide-omnigent:${{ inputs.tag || github.sha }}
+          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ inputs.tag || github.sha }}
           # sei-internal-skills-isolated cache ref — sei-internal-skills CI must not read/write the :shared
           # cache other repos' builds trust.
-          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-tide-omnigent
-          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-tide-omnigent,mode=max
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent,mode=max
 
   publish-host:
     # The runnable host image (Dockerfile.host) — same OIDC -> us-east-2 ECR
@@ -83,13 +83,13 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - name: Build and push sei-tide-omnigent host image
+      - name: Build and push sei-omnigent host image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.host
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-tide-omnigent:${{ inputs.tag && format('{0}-host', inputs.tag) || format('{0}-host', github.sha) }}
-          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-tide-omnigent-host
-          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-tide-omnigent-host,mode=max
+          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ inputs.tag && format('{0}-host', inputs.tag) || format('{0}-host', github.sha) }}
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-host
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-host,mode=max

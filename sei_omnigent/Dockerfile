@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 #
-# sei-tide-omnigent — the Sei Omnigent overlay server image (PLT-735).
+# sei-omnigent — the Sei Omnigent overlay server image (PLT-735).
 #
 # Two-stage. The builder resolves the overlay + its pinned deps (omnigent==0.2.0,
 # sei_omnigent, uvicorn) into a relocatable prefix; the runtime is a clean
