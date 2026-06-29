@@ -8,7 +8,7 @@ Expanded safety model for the `author-skill` workflow. The SKILL.md stanza is th
 
 - **Project scope (default):** `<git-repo-root>/.claude/skills/<name>/`
 - **User scope (`--user`):** `~/.claude/skills/<name>/`
-- **Sync list:** `<git-repo-root>/scripts/sync-skills.sh` (Tide repo only; only when the user confirms portability)
+- **Sync list:** `<git-repo-root>/scripts/sync-skills.sh` (sei-internal-skills repo only; only when the user confirms portability)
 - **Catalog:** `<git-repo-root>/.claude/skills/README.md` (only when the user confirms the catalog entry)
 
 It does **not** write to any other path. It does not modify existing skills outside its own scope.

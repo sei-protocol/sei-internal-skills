@@ -138,7 +138,7 @@ Dispatch contract (mandatory — see `references/reviewer-dispatch.md` for the b
 
 Write the durable synthesis record per `references/review-ledger.md` — the committed, target-
 derivable ledger in the **DRI's `<engineer>-designs` repo** at `designs/<arc>/xreview/<target-slug>.md`
-(a code-PR/diff target with no artifact arc uses the code repo's **default arc**, e.g. `tide-skill-stack`;
+(a code-PR/diff target with no artifact arc uses the code repo's **default arc**, e.g. `sei-internal-skills-stack`;
 the in-repo `.xreview/` fallback only when no DRI repo is resolvable **and the user confirms** — Design 13).
 Resolve the DRI repo producer-side as `/design` does, halting on a non-interactive run rather than writing
 to a guessed path. (The consumer gate then checks both locations — see `references/review-ledger.md`.) It carries the typed header — target-scoped

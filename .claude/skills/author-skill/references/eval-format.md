@@ -118,7 +118,7 @@ After shipping the skill:
 
 Each new eval is the test for the next REFACTOR cycle. The skill grows by the evals it accumulates over time.
 
-## Minimum bar (Tide)
+## Minimum bar (sei-internal-skills)
 
 - 1 happy-path eval.
 - 1 halt-condition eval.

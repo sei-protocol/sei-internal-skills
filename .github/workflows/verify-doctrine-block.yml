@@ -3,7 +3,7 @@ name: Verify Doctrine Block
 on:
   pull_request:
     paths:
-      - 'scripts/tide-doctrine.md'
+      - 'scripts/sei-internal-skills-doctrine.md'
       - 'scripts/lib/inject-doctrine.sh'
       - 'scripts/tests/inject-doctrine.test.sh'
       - 'AGENTS.md'

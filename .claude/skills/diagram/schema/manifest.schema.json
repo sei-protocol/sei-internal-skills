@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://tide.seinetwork.io/diagram/schema/manifest.schema.json",
+  "$id": "https://sei-internal-skills.seinetwork.io/diagram/schema/manifest.schema.json",
   "title": "Render manifest (idempotency authority + staleness oracle)",
   "description": "The git-tracked, versioned render manifest (Design 15 contract #3). It is the spec->doc idempotency authority and the staleness oracle: a record is stale iff renderedGrammarVersion != current Grammar-version OR specHash != hash(the current committed spec) -- a committed, greppable check needing no Lucid round-trip. The reconciler fails closed on a manifestVersion it does not support, mirroring the spec's schemaVersion rejection.",
   "type": "object",

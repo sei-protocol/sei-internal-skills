@@ -121,7 +121,7 @@ Bulleted list with descriptive labels.
 - PR #135 — merged LLD for SigningKey
 - PR #136 — single-shot deployment that motivated this drift work
 - [LLD §11 — deferred entry](https://github.com/.../docs/foo.md#11-deferred)
-- `.tide/validator-migration.md` — internal runbook
+- `.sei-internal-skills/validator-migration.md` — internal runbook
 ```
 
 If the design has a source issue, the issue is automatically referenced here in addition to the frontmatter.

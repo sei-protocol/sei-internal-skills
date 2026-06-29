@@ -71,7 +71,7 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 | ID | Severity | Source | Rule |
 |----|----------|--------|------|
 | E1 | block | static | `evals/evals.json` exists and is parseable |
-| E2 | block | static | evals.json has at least 1 happy-path and 1 halt-condition entry (Tide minimum) |
+| E2 | block | static | evals.json has at least 1 happy-path and 1 halt-condition entry (sei-internal-skills minimum) |
 | E3 | warn | static | evals.json has at least 3 entries (Obra ideal) |
 | E4 | warn | static | Each eval has a `source` field tracing to a RED scenario, halt condition, or production incident |
 | E5 | info | semantic | Eval compliance signals are observable (not subjective) |

@@ -1,8 +1,8 @@
 # shellcheck shell=bash
-# inject-doctrine.sh — shared managed-block injector for the Tide sync scripts.
+# inject-doctrine.sh — shared managed-block injector for the sei-internal-skills sync scripts.
 #
 # Sourced (not executed) by sync-agents.sh and sync-skills.sh. Injects the
-# portable operating doctrine (scripts/tide-doctrine.md) as a marker-delimited,
+# portable operating doctrine (scripts/sei-internal-skills-doctrine.md) as a marker-delimited,
 # idempotent managed block into a consuming package's root AGENTS.md, and adds a
 # one-line pointer to the package's CLAUDE.md. Re-running replaces only the bytes
 # between the markers; the package's own content is never touched.
@@ -21,9 +21,9 @@
 # a real marker. The markers are deliberately verbose to make that collision
 # implausible; documenting markers in a managed AGENTS.md is unsupported.
 
-DOCTRINE_BEGIN='<!-- BEGIN tide-managed (do not edit; managed by Tide sync scripts) -->'
-DOCTRINE_END='<!-- END tide-managed -->'
-DOCTRINE_POINTER='> Operating doctrine for the Tide-synced skills and agents lives in [AGENTS.md](./AGENTS.md).'
+DOCTRINE_BEGIN='<!-- BEGIN sei-internal-skills-managed (do not edit; managed by sei-internal-skills sync scripts) -->'
+DOCTRINE_END='<!-- END sei-internal-skills-managed -->'
+DOCTRINE_POINTER='> Operating doctrine for the sei-internal-skills-synced skills and agents lives in [AGENTS.md](./AGENTS.md).'
 
 # inject_claude_pointer <claude_md_path> <mode:write|dry-run|check>
 # Ensures the one-line AGENTS.md pointer is in CLAUDE.md (append-only, idempotent).
@@ -84,7 +84,7 @@ inject_doctrine() {
     nbegin=$(grep -cF -- "$DOCTRINE_BEGIN" "$agents_md" || true)
     nend=$(grep -cF -- "$DOCTRINE_END" "$agents_md" || true)
     if [[ "$nbegin" != "$nend" ]]; then
-      echo "  ! $agents_md has a malformed tide-managed block (BEGIN=$nbegin END=$nend); fix by hand, then re-sync." >&2
+      echo "  ! $agents_md has a malformed sei-internal-skills-managed block (BEGIN=$nbegin END=$nend); fix by hand, then re-sync." >&2
       return 1
     fi
   fi
@@ -148,7 +148,7 @@ inject_doctrine() {
         if [[ -f "$agents_md" ]]; then
           echo "  ✗ drift: $agents_md is out of sync with $body_file (run: make sync-doctrine-self)" >&2
         else
-          echo "  ✗ drift: $agents_md is missing the tide-managed block (run: make sync-doctrine-self)" >&2
+          echo "  ✗ drift: $agents_md is missing the sei-internal-skills-managed block (run: make sync-doctrine-self)" >&2
         fi
         drift=1
       fi
@@ -158,9 +158,9 @@ inject_doctrine() {
     dry-run)
       if [[ "$agents_in_sync" -eq 0 ]]; then
         if [[ -f "$agents_md" ]]; then
-          echo "  (dry-run) would update tide-managed block in $agents_md"
+          echo "  (dry-run) would update sei-internal-skills-managed block in $agents_md"
         else
-          echo "  (dry-run) would create $agents_md with the tide-managed block"
+          echo "  (dry-run) would create $agents_md with the sei-internal-skills-managed block"
         fi
       fi
       rm -f "$block_tmp" "$out_tmp"

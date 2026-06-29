@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://tide.seinetwork.io/diagram/schema/diagram-spec.schema.json",
+  "$id": "https://sei-internal-skills.seinetwork.io/diagram/schema/diagram-spec.schema.json",
   "title": "Diagram spec (two-layer: semantic model + house-style binding)",
   "description": "A single diagram instance for the /diagram knowledge kit. Two-layer per Design 15: a notation-neutral SEMANTIC MODEL (token, nodes/slots role-tagged, edges, drilldown {ref,rel}) separated from a thin HOUSE-STYLE BINDING (style: house@<Grammar-version> + header per-instance specifics only). Discriminated over the 7 `token` values via oneOf. The house standard (role->shape/color, header/legend/terminal-artifact rules) is RESOLVED from the pinned grammar via diagram-house-profile.md and is NOT inlined here. In particular the LEGEND is DERIVED at lowering from the roles present, never authored in the spec; tier-(b) conformance checks the derived legend lists exactly the roles present.",
   "type": "object",

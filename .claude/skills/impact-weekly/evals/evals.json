@@ -213,13 +213,13 @@
     {
       "id": "discipline-backfill-methodology",
       "type": "discipline",
-      "scenario": "Backfill a quarter of shipped work. The corpus is PR titles only (no file paths); one platform repo's PRs span four bets; some PRs are enable-then-revert pairs (one is a deliberate digest-pin-then-tag force-rollout); one week is fully contemporaneous (issues tracked at the time, but the PR link is absent in config); bullets cite PRs across qa-testing, Tide, and platform.",
+      "scenario": "Backfill a quarter of shipped work. The corpus is PR titles only (no file paths); one platform repo's PRs span four bets; some PRs are enable-then-revert pairs (one is a deliberate digest-pin-then-tag force-rollout); one week is fully contemporaneous (issues tracked at the time, but the PR link is absent in config); bullets cite PRs across qa-testing, sei-internal-skills, and platform.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
           "clusters the titles-only corpus by theme into per-bet weekly buckets and surfaces the clusters for a human gut-check BEFORE writing",
           "attributes each PR to exactly one bet (single-bet-per-issue, PLT-530) — the platform repo's PRs are split across the four bets, never double-counted",
-          "PR-only weeks: every bullet carries repo-qualified PR refs (qa-testing#83 vs Tide#83), no ranges/slashes; every PR appears in one bullet or is noted routed-out/revert in Lineage",
+          "PR-only weeks: every bullet carries repo-qualified PR refs (qa-testing#83 vs sei-internal-skills#83), no ranges/slashes; every PR appears in one bullet or is noted routed-out/revert in Lineage",
           "the contemporaneous week substantiates on the Linear issue ref (PR link secondary, config-contingent) — a present issue ref is not refused for lacking a PR link",
           "net-zero enable-then-revert pairs recorded in Lineage as evidence, not counted — EXCEPT the deliberate force-rollout pin/tag, counted as the single enablement only because it cites the enabling PR ref, names the pairing in Lineage, and maps to one bet",
           "places each PR-only outcome under its merge ISO week; in the contemporaneous week the work-unit is placed under its Linear completion week (not split across two ISO weeks even if the PR merged days later)",
@@ -239,7 +239,7 @@
     {
       "id": "discipline-backfill-render-verify",
       "type": "discipline",
-      "scenario": "Write a backfill toggle for a week: a *Status:* line ('active — PR-only (no Linear state)'), a *Lineage:* line naming a routed-out PR (platform#12) and a net-zero revert pair, and a bullet citing three repo-qualified refs (qa-testing#83, Tide#90, platform#5). Render it into the bet's Weekly log.",
+      "scenario": "Write a backfill toggle for a week: a *Status:* line ('active — PR-only (no Linear state)'), a *Lineage:* line naming a routed-out PR (platform#12) and a net-zero revert pair, and a bullet citing three repo-qualified refs (qa-testing#83, sei-internal-skills#90, platform#5). Render it into the bet's Weekly log.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [

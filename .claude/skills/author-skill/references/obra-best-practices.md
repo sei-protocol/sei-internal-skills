@@ -1,6 +1,6 @@
 # Anthropic / Obra Best Practices — Distilled for author-skill
 
-Source: <https://github.com/obra/superpowers/blob/main/skills/writing-skills/anthropic-best-practices.md> and the parent `writing-skills/SKILL.md`. Reproduced and condensed for use inside this skill. When this file conflicts with the SKILL-TEMPLATE.md in this repo, the local template wins for procedural skills (it encodes Tide's safety conventions) — Obra wins for the description craft, persuasion design, and TDD methodology.
+Source: <https://github.com/obra/superpowers/blob/main/skills/writing-skills/anthropic-best-practices.md> and the parent `writing-skills/SKILL.md`. Reproduced and condensed for use inside this skill. When this file conflicts with the SKILL-TEMPLATE.md in this repo, the local template wins for procedural skills (it encodes sei-internal-skills's safety conventions) — Obra wins for the description craft, persuasion design, and TDD methodology.
 
 ## Core principles
 
@@ -14,7 +14,7 @@ Source: <https://github.com/obra/superpowers/blob/main/skills/writing-skills/ant
 - **Active verb-first** when not a gerund: `condition-based-waiting`, `flatten-with-flags`, `root-cause-tracing`.
 - **Avoid** vague names like `helper`, `utils`, `common`.
 
-**Tide local note:** the existing workflow skills use 1-word imperatives (`coral`, `council`, `design`, `issue`, `bugbash`). When authoring a Tide workflow skill, match that style. When authoring a technique/pattern skill at user-scope, prefer Obra's gerund form.
+**sei-internal-skills local note:** the existing workflow skills use 1-word imperatives (`coral`, `council`, `design`, `issue`, `bugbash`). When authoring a sei-internal-skills workflow skill, match that style. When authoring a technique/pattern skill at user-scope, prefer Obra's gerund form.
 
 ## Description writing — the highest-leverage field
 
@@ -73,7 +73,7 @@ description: Use when tests have race conditions, timing dependencies, or pass/f
 
 ## Evals
 
-Minimum bar: **3 evals per skill**. Tide local convention: 1 happy-path + 1 halt-condition is the minimum. 3 is the Obra ideal — happy-path, edge-case, and adversarial.
+Minimum bar: **3 evals per skill**. sei-internal-skills local convention: 1 happy-path + 1 halt-condition is the minimum. 3 is the Obra ideal — happy-path, edge-case, and adversarial.
 
 Build evals **first**:
 
@@ -127,5 +127,5 @@ Verify before sharing:
 - [ ] Clear, tested workflows.
 - [ ] Explicit error handling in code.
 - [ ] Forward slashes in all paths.
-- [ ] At least 3 evaluations (or Tide's 2-eval minimum).
+- [ ] At least 3 evaluations (or sei-internal-skills's 2-eval minimum).
 - [ ] Tested with Haiku, Sonnet, and Opus.

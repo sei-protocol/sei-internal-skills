@@ -72,7 +72,7 @@ COPY --from=builder /install /usr/local
 RUN useradd --uid 1000 --create-home --home-dir /home/host host
 ENV HOME=/home/host
 
-# The Tide `.claude/` overlay baked at the user-scope path claude-code loads from
+# The sei-internal-skills `.claude/` overlay baked at the user-scope path claude-code loads from
 # (default skills_filter "all" → host ~/.claude + the workspace's project .claude).
 COPY --chown=1000:1000 .claude /home/host/.claude
 

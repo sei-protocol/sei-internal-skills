@@ -71,9 +71,9 @@ Skills come in distinct shapes. Each shape implies different content, persuasion
 - Each entry: signature, parameters, return value, one example
 - Cross-references to related entries
 
-## Tide-local procedural shape
+## sei-internal-skills-local procedural shape
 
-Tide's `SKILL-TEMPLATE.md` describes a *procedural skill* — a skill that executes a fixed sequence of steps with side effects on external systems. Procedural skills are usually a hybrid of discipline (the guardrails) and technique (the procedure).
+sei-internal-skills's `SKILL-TEMPLATE.md` describes a *procedural skill* — a skill that executes a fixed sequence of steps with side effects on external systems. Procedural skills are usually a hybrid of discipline (the guardrails) and technique (the procedure).
 
 When the proposed skill matches the procedural shape (has external side effects, has scripts, has state), use the SKILL-TEMPLATE.md structure:
 
@@ -93,7 +93,7 @@ When the proposed skill is purely a technique/pattern/reference (no side effects
 Ask the user (or yourself) these questions in order:
 
 1. **Does the skill enforce a rule the agent would naturally skip under pressure?** → Discipline-enforcing.
-2. **Does the skill execute a fixed procedure with external side effects (cluster, contracts, deployments)?** → Procedural (Tide template).
+2. **Does the skill execute a fixed procedure with external side effects (cluster, contracts, deployments)?** → Procedural (sei-internal-skills template).
 3. **Does the skill teach a concrete how-to that the agent should adapt to context?** → Technique.
 4. **Does the skill teach a way of thinking about problems?** → Pattern.
 5. **Does the skill provide lookup material the agent retrieves on demand?** → Reference.
@@ -102,8 +102,8 @@ If two shapes apply, the heavier shape wins (Procedural beats Technique; Discipl
 
 ## When Obra and SKILL-TEMPLATE.md conflict
 
-- **Description style** — Obra wins (Use-when, no workflow summary). The Tide skills predate Obra's CSO insight; the description trap is real, lean toward Obra.
-- **Directory structure for procedural skills** — SKILL-TEMPLATE.md wins. The scripts/state/evals layout encodes Tide's safety conventions and the cross-repo sync pipeline.
+- **Description style** — Obra wins (Use-when, no workflow summary). The sei-internal-skills skills predate Obra's CSO insight; the description trap is real, lean toward Obra.
+- **Directory structure for procedural skills** — SKILL-TEMPLATE.md wins. The scripts/state/evals layout encodes sei-internal-skills's safety conventions and the cross-repo sync pipeline.
 - **Directory structure for technique/pattern/reference skills** — Obra wins. Flatter layout, fewer ceremonies.
-- **Persuasion intensity for discipline skills** — Obra wins (heavy authority + commitment + social proof). The Tide skills are mostly workflow/orchestration, not discipline — they don't need heavy persuasion.
-- **Eval minimum** — Tide template (1 happy + 1 halt) is the floor; Obra's 3-eval ideal is the target.
+- **Persuasion intensity for discipline skills** — Obra wins (heavy authority + commitment + social proof). The sei-internal-skills skills are mostly workflow/orchestration, not discipline — they don't need heavy persuasion.
+- **Eval minimum** — sei-internal-skills template (1 happy + 1 halt) is the floor; Obra's 3-eval ideal is the target.

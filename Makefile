@@ -1,4 +1,4 @@
-# Tide repo — workspace setup targets.
+# sei-internal-skills repo — workspace setup targets.
 #
 # Targets are read-only by design: they install agents and read-only permission
 # patterns into a user's Claude workspace. Mutating wrappers (close-issue,
@@ -15,7 +15,7 @@ help: ## Show this help
 
 .PHONY: update
 update: ## ⭐ Get current: fast-forward this checkout, then sync ALL skills/agents into ~/.claude + verify
-	@echo "→ fast-forwarding this Tide checkout (run on main)…"
+	@echo "→ fast-forwarding this sei-internal-skills checkout (run on main)…"
 	@git pull --ff-only
 	@$(MAKE) --no-print-directory sync-all
 
@@ -26,7 +26,7 @@ sync-all: ## Sync ALL skills+agents (portable+sei) into ~/.claude + verify — n
 	@echo "→ syncing all skills…"
 	@./scripts/sync-skills.sh --target ~/ --categories all --force
 	@$(MAKE) --no-print-directory verify-catalog
-	@echo "✓ environment current with Tide $$(git rev-parse --short HEAD)"
+	@echo "✓ environment current with sei-internal-skills $$(git rev-parse --short HEAD)"
 
 .PHONY: verify-catalog
 verify-catalog: ## Fail if any skill/agent declares a category that maps to no sync alias (orphaned-skill guard; CI)
@@ -37,20 +37,20 @@ verify-catalog: ## Fail if any skill/agent declares a category that maps to no s
 bootstrap: sync-agents sync-skills update-agent-permissions ## Install PORTABLE agents+skills+permissions into a consumer env (external repos). For your own env use `make update`.
 
 .PHONY: sync-agents
-sync-agents: ## Install Tide's portable agents into ~/.claude/agents/
+sync-agents: ## Install sei-internal-skills's portable agents into ~/.claude/agents/
 	@./scripts/sync-agents.sh --target ~/ --categories portable --force
 
 .PHONY: sync-skills
-sync-skills: ## Install Tide's portable skills into ~/.claude/skills/
+sync-skills: ## Install sei-internal-skills's portable skills into ~/.claude/skills/
 	@./scripts/sync-skills.sh --target ~/ --categories portable --force
 
 .PHONY: sync-doctrine-self
-sync-doctrine-self: ## Re-inject the operating-doctrine block into this repo's own AGENTS.md (dogfood; run after editing scripts/tide-doctrine.md)
-	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/tide-doctrine.md" write'
+sync-doctrine-self: ## Re-inject the operating-doctrine block into this repo's own AGENTS.md (dogfood; run after editing scripts/sei-internal-skills-doctrine.md)
+	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/sei-internal-skills-doctrine.md" write'
 
 .PHONY: sync-doctrine-self-check
-sync-doctrine-self-check: ## Fail if this repo's AGENTS.md doctrine block has drifted from scripts/tide-doctrine.md (read-only; CI guard)
-	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/tide-doctrine.md" check' \
+sync-doctrine-self-check: ## Fail if this repo's AGENTS.md doctrine block has drifted from scripts/sei-internal-skills-doctrine.md (read-only; CI guard)
+	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/sei-internal-skills-doctrine.md" check' \
 		&& echo "doctrine block in sync ✓"
 
 .PHONY: test-doctrine

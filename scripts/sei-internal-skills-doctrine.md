@@ -1,6 +1,6 @@
-## Operating with Tide resources
+## Operating with sei-internal-skills resources
 
-This package consumes portable Claude Code skills and specialist agents authored in Sei's Tide library and installed under `.claude/`. The skills are invoked as the slash-commands below; the agents are dispatched by those skills. What follows is the opinionated doctrine for operating with them — the *way* to work, not a description of the library.
+This package consumes portable Claude Code skills and specialist agents authored in Sei's sei-internal-skills library and installed under `.claude/`. The skills are invoked as the slash-commands below; the agents are dispatched by those skills. What follows is the opinionated doctrine for operating with them — the *way* to work, not a description of the library.
 
 ### Engineering principles
 

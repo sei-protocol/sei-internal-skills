@@ -57,7 +57,7 @@ description: Use when executing implementation plans with independent tasks in t
 
 The description is *invocation routing*, not a tl;dr of the skill.
 
-## Tide-local style
+## sei-internal-skills-local style
 
 The existing workflow skills (coral, council, design, issue, bugbash) use a more verbose description style that includes some workflow summary. That style predates Obra's CSO insight. When authoring a *new* skill, lean toward Obra's style — triggers only — and put the workflow in the body. The trap is real.
 

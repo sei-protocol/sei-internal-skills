@@ -29,7 +29,7 @@ Renders merged JSONL findings into a markdown audit report. Accepts one or more 
                      --input state/run-<ts>/static-findings.jsonl \
                      --input state/run-<ts>/semantic-findings.jsonl \
                      --input state/run-<ts>/pressure-findings.jsonl \
-                     --output <dri-repo>/designs/tide-skill-stack/audits/coral-2026-05-10.md
+                     --output <dri-repo>/designs/sei-internal-skills-stack/audits/coral-2026-05-10.md
 ```
 `--output` must be an **absolute path into the DRI `<engineer>-designs` checkout** (Design 13) — never a path relative to the code repo, or a bare `designs/…` would create the directory inside the code repo and undo the evacuation.
 

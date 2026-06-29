@@ -7,7 +7,7 @@ Expanded safety model. The SKILL.md stanza is the short form; this file is the l
 `audit-skill` operates on:
 
 - **Read (always):** `<repo>/.claude/skills/<name>/` or `~/.claude/skills/<name>/` and the conventions catalog at `<repo>/.claude/skills/audit-skill/references/conventions-catalog.md`.
-- **Write (Phase 1 only):** the audit report — a **lineage artifact** that lands in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<name>-<YYYY-MM-DD>.md` (repo-default arc `tide-skill-stack` for Tide; Design 13 — process-lineage relocation). Resolve the DRI repo as `/design` does (`--designs-repo` → sibling `<engineer>-designs` checkout → ask; in a non-interactive run, HALT and surface — never guess). The in-repo `docs/skill-audits/<name>-<YYYY-MM-DD>.md` is the fallback used **only when no DRI repo is resolvable and the user confirms**. Plus `state/run-<ts>/` (working state).
+- **Write (Phase 1 only):** the audit report — a **lineage artifact** that lands in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<name>-<YYYY-MM-DD>.md` (repo-default arc `sei-internal-skills-stack` for sei-internal-skills; Design 13 — process-lineage relocation). Resolve the DRI repo as `/design` does (`--designs-repo` → sibling `<engineer>-designs` checkout → ask; in a non-interactive run, HALT and surface — never guess). The in-repo `docs/skill-audits/<name>-<YYYY-MM-DD>.md` is the fallback used **only when no DRI repo is resolvable and the user confirms**. Plus `state/run-<ts>/` (working state).
 - **Write (Phase 2 only):** files inside the target skill's directory, after diff confirmation. Plus `state/run-<ts>/backups/` and `state/run-<ts>/proposals/`.
 
 It does **not** write to any other path. It does not modify the conventions catalog (catalog edits are a separate, manual decision).
@@ -41,7 +41,7 @@ The protected list:
 ```
 You're about to refactor a CANONICAL skill: <name>.
 
-Canonical skills are owned by Tide directly and are edited via PR with the council
+Canonical skills are owned by sei-internal-skills directly and are edited via PR with the council
 on substantive changes. This pass will apply diffs directly to the working tree;
 you will need to commit and PR them.
 

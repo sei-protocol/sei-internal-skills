@@ -142,7 +142,7 @@ Linear scan for **Monty** did not return this run (timeout) — not represented 
 - [PLT-439](url) v6.6 release checklist & coordination (In progress)
 - [PLT-744](url) EVM RPC deny_list not applied to WebSocket (Todo — the scanner finding)
 ### Brandon
-- [PLT-751](url) single-pane Loki federation (In progress) · [PLT-715](url) omni-trigger receiver (Tide #214–218)
+- [PLT-751](url) single-pane Loki federation (In progress) · [PLT-715](url) omni-trigger receiver (sei-internal-skills #214–218)
 ### Amir
 - [PLT-700](url) / [PLT-440](url) bounded-compute fixes (Done) · [PLT-701](url) / [PLT-702](url) (In review)
 ### Monty
@@ -157,7 +157,7 @@ The **runner may then enrich in their own voice** at the confirm step with conte
 
 ## Reuse with `impact-weekly`
 
-**Planned shared reference — not yet extracted.** These concepts are currently authored in *both* skills and should converge into one suite-level reference both read, **once the Notion write mechanism is spiked and the contracts freeze** (tracked: Tide #119 / PLT-437) — extracting now would lock interfaces the spike may still move: bet **page-ID identity**, `impact:<slug>` **label-first resolution**, the canonical **ISO-Monday week-key derivation**, **`Person` → display-name** resolution, the **brevity** and **substantiation** rules. Until then they are inlined in each skill and kept in sync by hand.
+**Planned shared reference — not yet extracted.** These concepts are currently authored in *both* skills and should converge into one suite-level reference both read, **once the Notion write mechanism is spiked and the contracts freeze** (tracked: sei-internal-skills #119 / PLT-437) — extracting now would lock interfaces the spike may still move: bet **page-ID identity**, `impact:<slug>` **label-first resolution**, the canonical **ISO-Monday week-key derivation**, **`Person` → display-name** resolution, the **brevity** and **substantiation** rules. Until then they are inlined in each skill and kept in sync by hand.
 
 **`impact-portfolio`-local:** the cross-engineer/cross-quarter selection query, union detection, the report-row write contract, and the exec-summary roll-up.
 

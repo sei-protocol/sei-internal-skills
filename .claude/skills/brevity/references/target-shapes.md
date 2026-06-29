@@ -22,7 +22,7 @@ What it does right:
 - States *what* (plain text instead of HTML strings)
 - States *why* (faster)
 - Routes to detail (individual commits)
-- No test plan because the perf-driven change is self-evident — Tide would add a 2-bullet test plan to this floor.
+- No test plan because the perf-driven change is self-evident — sei-internal-skills would add a 2-bullet test plan to this floor.
 
 ## Reference PR — the upper bound for a single-cause bug fix
 
@@ -77,7 +77,7 @@ for _, item := range items {
 db = connect(...)
 ```
 
-## Section pattern for a Tide PR body
+## Section pattern for a sei-internal-skills PR body
 
 ```markdown
 ## Summary

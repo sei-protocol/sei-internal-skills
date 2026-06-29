@@ -75,7 +75,7 @@ PRs, prior issues, design docs, runbooks. Bullet list with descriptive labels (n
 ```markdown
 - PR #135 — merged LLD
 - [LLD §11 — deferred entry](https://github.com/.../docs/foo.md#11-deferred)
-- `.tide/validator-migration.md` — internal runbook
+- `.sei-internal-skills/validator-migration.md` — internal runbook
 - Design: `designs/seinode-signing-key/seinode-mid-life-signing-key-drift-lld.md`
 ```
 

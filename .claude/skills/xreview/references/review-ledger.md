@@ -18,8 +18,8 @@ designs/<arc>/xreview/<target-slug>.md
 For a design-doc target the arc is **already a path segment of the target**
 (`designs/sei-agentic-mesh/xreview/08-cross-review-slate-and-ledger.md`) — fully target-derivable.
 For a **diff/PR with no natural artifact directory** the target carries no arc, so the ledger lands
-under the **code repo's deterministic default arc** (repo identity → a fixed arc, e.g. `Tide` →
-`tide-skill-stack`): `designs/tide-skill-stack/xreview/<target-slug>.md`. The in-repo
+under the **code repo's deterministic default arc** (repo identity → a fixed arc, e.g. `sei-internal-skills` →
+`sei-internal-skills-stack`): `designs/sei-internal-skills-stack/xreview/<target-slug>.md`. The in-repo
 `.xreview/<target-slug>.md` fallback is used **only when no DRI repo is resolvable** (the user confirms).
 
 **Two resolution faces — they are not the same contract (Design 13 §1):**
