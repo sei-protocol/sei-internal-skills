@@ -109,21 +109,29 @@
       {
         "from": "s1",
         "kind": "feeds-into",
+        "lineStyle": "solid",
+        "lineType": "straight",
         "to": "s2"
       },
       {
         "from": "s2",
         "kind": "gate-blocks",
+        "lineStyle": "solid",
+        "lineType": "straight",
         "to": "s3"
       },
       {
         "from": "s3",
         "kind": "feeds-into",
+        "lineStyle": "solid",
+        "lineType": "straight",
         "to": "s4"
       },
       {
         "from": "s4",
         "kind": "gate-blocks",
+        "lineStyle": "solid",
+        "lineType": "straight",
         "to": "s5"
       }
     ],

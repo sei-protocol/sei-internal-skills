@@ -103,49 +103,57 @@
       {
         "from": "data",
         "kind": "iterates",
+        "lineStyle": "solid",
         "lineType": "curved",
         "to": "prod"
       },
       {
         "from": "prod",
         "kind": "iterates",
+        "lineStyle": "solid",
         "lineType": "curved",
         "to": "prose"
       },
       {
         "from": "prose",
         "kind": "iterates",
+        "lineStyle": "solid",
         "lineType": "curved",
         "to": "sys"
       },
       {
         "from": "sys",
         "kind": "iterates",
+        "lineStyle": "solid",
         "lineType": "curved",
         "to": "data"
       },
       {
         "from": "data",
-        "kind": "reviews",
+        "kind": "applies-across",
         "lineStyle": "dashed",
+        "lineType": "straight",
         "to": "work"
       },
       {
         "from": "prod",
-        "kind": "reviews",
+        "kind": "applies-across",
         "lineStyle": "dashed",
+        "lineType": "straight",
         "to": "work"
       },
       {
         "from": "prose",
-        "kind": "reviews",
+        "kind": "applies-across",
         "lineStyle": "dashed",
+        "lineType": "straight",
         "to": "work"
       },
       {
         "from": "sys",
-        "kind": "reviews",
+        "kind": "applies-across",
         "lineStyle": "dashed",
+        "lineType": "straight",
         "to": "work"
       }
     ],
