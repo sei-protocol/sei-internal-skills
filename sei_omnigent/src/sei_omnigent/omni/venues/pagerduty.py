@@ -25,8 +25,8 @@ PD incident key, the venue-handle the router routes a result to):
    dedup and the notes endpoint exposes no conditional-create / ``Idempotency-Key`` header
    (only the *Events API v2* trigger carries a ``dedup_key``; the REST notes endpoint does
    not), so the portable, restart-durable mechanism is an **app-side marker**: every note
-   carries a stable hidden ``[walle:run:<handle>]`` token (a durable PD-side wire format — the
-   marker string is unchanged so it still matches notes already posted in production), and
+   carries a stable hidden ``[sei-omnigent:run:<handle>]`` token (a durable PD-side wire
+   format), and
    before posting the client paginates the incident's existing notes and SKIPS if a marked
    note for this ``handle`` already exists. The marker lives in PD (durable), not in the
    router's in-memory post-claim (lost on restart), so a retry or a restart re-run of
@@ -146,11 +146,11 @@ def _marker(incident_key: str) -> str:
     Keyed on ``incident_key`` so the marker is identical across a retry and across a restart
     re-run of the SAME incident (the idempotency anchor), and distinct across incidents (a
     note for incident A never suppresses the note for incident B). Hidden-ish: a bracketed
-    token a human skims past but an exact substring match finds deterministically. The literal
-    ``walle:run`` prefix is a DURABLE PD-side wire format — it is unchanged through the
-    de-personation so the scan still matches notes already posted in production.
+    token a human skims past but an exact substring match finds deterministically. The
+    ``sei-omnigent:run`` prefix is a DURABLE PD-side wire format — fixed so a retry or a restart
+    re-scan deterministically matches a note this receiver already posted.
     """
-    return f"[walle:run:{incident_key}]"
+    return f"[sei-omnigent:run:{incident_key}]"
 
 
 class PagerDutyError(RuntimeError):

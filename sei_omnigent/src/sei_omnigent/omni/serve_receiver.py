@@ -69,9 +69,9 @@ _SHUTDOWN_TIMEOUT_DEFAULT = 75
 # --- PagerDuty config env (the manifest injects; from_config carries the host/scheme/enrolled
 #     guards — this module never builds the raw ctor) ----------------------------------------
 _PD_TOKEN_ENV = "PD_API_TOKEN"
-_PD_FROM_EMAIL_ENV = "WALLE_PD_FROM_EMAIL"
-_PD_ENROLLED_ENV = "WALLE_PD_ENROLLED_SERVICE_IDS"
-_PD_BASE_URL_ENV = "WALLE_PD_BASE_URL"
+_PD_FROM_EMAIL_ENV = "SEI_OMNIGENT_PD_FROM_EMAIL"
+_PD_ENROLLED_ENV = "SEI_OMNIGENT_PD_ENROLLED_SERVICE_IDS"
+_PD_BASE_URL_ENV = "SEI_OMNIGENT_PD_BASE_URL"
 _DEFAULT_PD_BASE_URL = "https://api.pagerduty.com"
 
 # --- budget + lease env (the profile's wall_clock sets lease_s; ReceiverConfig.__post_init__

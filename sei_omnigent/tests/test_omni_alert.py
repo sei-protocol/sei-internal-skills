@@ -32,7 +32,7 @@ def _body(**over: object) -> dict:
         "version": "4",
         "groupKey": '{}:{alertname="ChainHalted", namespace="sei"}',
         "status": "firing",
-        "commonLabels": {"walle": "enabled", "severity": "critical", "namespace": "sei"},
+        "commonLabels": {"sei-omnigent": "enabled", "severity": "critical", "namespace": "sei"},
         "alerts": [
             {
                 "status": "firing",
@@ -92,11 +92,11 @@ def test_parse_coerces_hostile_non_string_label_values() -> None:
 # --- enrollment / firing matching ---------------------------------------------
 
 
-def test_enrolled_requires_walle_label_and_runbook() -> None:
+def test_enrolled_requires_sei_omnigent_label_and_runbook() -> None:
     assert is_enrolled(parse_webhook(_body())) is True
 
 
-def test_not_enrolled_without_walle_label() -> None:
+def test_not_enrolled_without_sei_omnigent_label() -> None:
     wh = parse_webhook(_body(commonLabels={"severity": "critical"}))
     assert is_enrolled(wh) is False
 

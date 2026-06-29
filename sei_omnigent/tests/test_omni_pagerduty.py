@@ -185,7 +185,7 @@ def test_note_post_shape_and_headers() -> None:
     assert post.headers["Authorization"] == f"Token token={_TOKEN}"
 
 
-def test_note_carries_the_walle_marker() -> None:
+def test_note_carries_the_sei_omnigent_marker() -> None:
     rec = _Recorder()
 
     def handler(request: httpx.Request) -> httpx.Response:
@@ -205,7 +205,7 @@ def test_note_carries_the_walle_marker() -> None:
 # --- DEFINING REQ 1: marker idempotency ---------------------------------------
 
 
-def test_skips_when_a_walle_marked_note_already_exists() -> None:
+def test_skips_when_a_sei_omnigent_marked_note_already_exists() -> None:
     # A re-post (retry OR restart re-run) is a no-op: the GET /notes finds the prior marker.
     rec = _Recorder()
 

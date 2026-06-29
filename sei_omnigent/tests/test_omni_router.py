@@ -83,7 +83,7 @@ def _body(**over: object) -> dict:
         "version": "4",
         "groupKey": '{}:{alertname="ChainHalted"}',
         "status": "firing",
-        "commonLabels": {"walle": "enabled", "severity": "critical", "namespace": "sei"},
+        "commonLabels": {"sei-omnigent": "enabled", "severity": "critical", "namespace": "sei"},
         "alerts": [
             {
                 "status": "firing",

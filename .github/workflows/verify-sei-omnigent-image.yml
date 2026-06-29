@@ -80,7 +80,7 @@ jobs:
     # is the gate. Context is the repo root (the baked `.claude/` overlay lives
     # there). Beyond the server smoke's import check, the host image must prove
     # the toolchain is present, the launcher resolves, and it runs NON-ROOT (the
-    # walle namespace is PSS restricted -> runAsNonRoot).
+    # its PSS-restricted namespace requires runAsNonRoot).
     runs-on: ubuntu-latest
     timeout-minutes: 12
     steps:
@@ -100,7 +100,7 @@ jobs:
 
       - name: Toolchain + non-root smoke
         # The harness toolchain must be on PATH and the image must run as uid 1000
-        # (NOT root) — the walle PSS-restricted namespace rejects root. `id -u`
+        # (NOT root) — the PSS-restricted namespace rejects root. `id -u`
         # asserts the baked USER; the binaries are what claude-native execs.
         timeout-minutes: 2
         run: |
