@@ -1,12 +1,12 @@
 # syntax=docker/dockerfile:1
 #
-# sei-tide-omnigent-host — the WallE execution-substrate image (PLT-715).
+# sei-omnigent-host — the WallE execution-substrate image (PLT-715).
 # Runs as uid 1000 (walle PSS-restricted). Build context is the REPO ROOT (the
 # `.claude/` overlay lives there, outside the server image's sei_omnigent/ context).
 # slim, not distroless: the claude-native toolchain (bash/git/tmux) needs a userland.
 # Why a sibling Dockerfile + the design trail: see the PR.
 #
-#   docker build -t sei-tide-omnigent-host:dev -f Dockerfile.host .
+#   docker build -t sei-omnigent-host:dev -f Dockerfile.host .
 
 ARG PYTHON_VERSION=3.12
 ARG NODE_VERSION=20

@@ -1,6 +1,6 @@
 name: Verify sei_omnigent image
 
-# PR-gated build smoke for the sei-tide-omnigent overlay image (PLT-735). Builds
+# PR-gated build smoke for the sei-omnigent overlay image (PLT-735). Builds
 # sei_omnigent/Dockerfile and runs an import smoke of the BUILT image, so a
 # floated-transitive / missing-wheel break surfaces in the PR instead of on
 # push:main where ecr.yml publishes.
@@ -40,7 +40,7 @@ jobs:
           push: false
           load: true
           platforms: linux/amd64
-          tags: sei-tide-omnigent:pr-smoke
+          tags: sei-omnigent:pr-smoke
 
       - name: Import smoke of the built image
         # Proves the resolved runtime can import the K8s entrypoint module
@@ -71,7 +71,7 @@ jobs:
         timeout-minutes: 3
         run: |
           timeout --kill-after=15s 90s \
-            docker run --rm --entrypoint python sei-tide-omnigent:pr-smoke \
+            docker run --rm --entrypoint python sei-omnigent:pr-smoke \
             -X faulthandler -c "import faulthandler; faulthandler.dump_traceback_later(60, exit=True); import sei_omnigent.server.serve_main; print('import-ok')"
 
   host-build-smoke:
@@ -96,7 +96,7 @@ jobs:
           push: false
           load: true
           platforms: linux/amd64
-          tags: sei-tide-omnigent-host:pr-smoke
+          tags: sei-omnigent-host:pr-smoke
 
       - name: Toolchain + non-root smoke
         # The harness toolchain must be on PATH and the image must run as uid 1000
@@ -105,7 +105,7 @@ jobs:
         timeout-minutes: 2
         run: |
           timeout --kill-after=15s 90s \
-            docker run --rm --entrypoint bash sei-tide-omnigent-host:pr-smoke -lc '
+            docker run --rm --entrypoint bash sei-omnigent-host:pr-smoke -lc '
               set -euo pipefail
               test "$(id -u)" = "1000" || { echo "FAIL: not uid 1000 (got $(id -u))"; exit 1; }
               command -v git tmux node claude >/dev/null || { echo "FAIL: missing a harness binary"; exit 1; }
@@ -125,5 +125,5 @@ jobs:
         timeout-minutes: 2
         run: |
           timeout --kill-after=15s 90s \
-            docker run --rm --entrypoint python sei-tide-omnigent-host:pr-smoke \
+            docker run --rm --entrypoint python sei-omnigent-host:pr-smoke \
             -m sei_omnigent.host_launch --help
