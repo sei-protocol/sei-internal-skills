@@ -103,7 +103,7 @@ E2E test that deletes a SeiNode while a long-running Job is in flight, then asse
 
 ### Scenario
 
-The runtime submits attestations to the on-chain TideJobHook on every reconcile loop tick. There is no rate limiter or backoff on the submission path. If the controller enters a reconcile-loop fast cycle (e.g., due to Item 1's fast-retry behavior or a CRD spec change loop), it can submit attestations at up to 1 Hz per node.
+The runtime submits attestations to the on-chain SeiJobHook on every reconcile loop tick. There is no rate limiter or backoff on the submission path. If the controller enters a reconcile-loop fast cycle (e.g., due to Item 1's fast-retry behavior or a CRD spec change loop), it can submit attestations at up to 1 Hz per node.
 
 ### Impact / Risk / Priority
 

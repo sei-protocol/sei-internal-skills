@@ -9,7 +9,7 @@
 This layer is the **Verifier**, not the Attester. It produces no Evidence and holds no enclave identity of its own.
 
 - **What it is** — a Sei-EVM contract (or contract set) that consumes vendor-native Evidence bytes, appraises them against a policy + an on-chain reference-value registry, and returns a verdict the Relying Party gates on. It is the on-chain realization of the RATS Verifier (RFC 9334 §3; `tee-profile.md` §6).
-- **RATS role mapping** — **Verifier** = this on-chain contract; **Relying Party** = the sei-internal-skills/Sei contract that consumes the verdict to gate escrow / ordering / mint (TideCouncil, TideJobHook, Sei consensus) (`tee-profile.md` §6); **Attester** = the in-scope TEE (its kit); **Endorser** = that vendor's PKI (its kit §1); **Reference-Value-Provider** = governance / TideCouncil via the on-chain registry (`tee-profile.md` §3).
+- **RATS role mapping** — **Verifier** = this on-chain contract; **Relying Party** = the Sei contract that consumes the verdict to gate escrow / ordering / mint (SeiCouncil, SeiJobHook, Sei consensus) (`tee-profile.md` §6); **Attester** = the in-scope TEE (its kit); **Endorser** = that vendor's PKI (its kit §1); **Reference-Value-Provider** = governance / SeiCouncil via the on-chain registry (`tee-profile.md` §3).
 - **Trust root / Endorser — there is NO single trust root for this layer.** It **inherits** each attester kit's trust set: Nitro = AWS hypervisor + AWS PKI (`kit-aws-nitro.md` §1); AMD/Intel = silicon-vendor PKI (`kit-amd-sev-snp.md` §1, `kit-intel-sgx-tdx.md` §1); NVIDIA = NRAS + NVIDIA PKI (`kit-nvidia-cc.md` §1). A multi-vendor Verifier MUST surface **which** trust set applies per attestation — `tee_type` is not a fungible switch (VP16). See each attester kit's §1 and VP16 below.
 
 **Template-fit note:** the template's §1 "Endorser / trust root to pin" and "what it protects" framing is Attester-shaped. For the Verifier the answer is *inherited, plural, and per-attestation* — captured above as VP16's central concern. The Verifier's own correctness depends not on a pinned silicon root but on the **registry** that defines acceptable measurements (§3, VP15) — registry compromise, not a leaked attester key, is this layer's highest-leverage attack (`tee-profile.md` §3).
@@ -37,7 +37,7 @@ What lands on-chain as input, per attester (parse detail in each attester kit §
 
 What this layer *does* own is **how reference values ENTER on-chain** — the registry side of VP2:
 
-- The on-chain image-hash registry (a TideJobHook / TideCouncil registry of approved PCR0 / MRTD / MEASUREMENT values) **is the RATS Reference-Value-Provider** (`tee-profile.md` §3; RFC 9334 §3).
+- The on-chain image-hash registry (a SeiJobHook / SeiCouncil registry of approved PCR0 / MRTD / MEASUREMENT values) **is the RATS Reference-Value-Provider** (`tee-profile.md` §3; RFC 9334 §3).
 - At verify time the Verifier extracts the attester's measurement from parsed Evidence (§2) and checks it for **membership** against the registry's current approved set (VP2-match), and **non-membership** against the revoked set (VP7) (`tee-profile.md` §3).
 - Reference values SHOULD be CoRIM-formatted for cross-vendor composability and transparency (`tee-profile.md` §6).
 - The registry **storage layout is a one-way door** (method Rule 4): once live, changing it is a migration / hard fork — flag, never silently assert a layout (`tee-profile.md` §3).
