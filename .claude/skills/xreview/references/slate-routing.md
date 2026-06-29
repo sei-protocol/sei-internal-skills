@@ -48,7 +48,7 @@ down).
 | Tier | Slate depth | Default for (authoritative class→tier map) |
 |---|---|---|
 | **T1 — light** | 1–2 lenses; single-reviewer pass allowed (labeled as such) | `mechanical`; `doc-only` **only if mechanical-equivalent** (typo/formatting/link — see §3a) |
-| **T2 — domain** | the domain slate covering the boundaries (provider + consumer + any cross-cutting specialist) | `component`, `cross-component`, and any `doc-only` that proposes or alters a decision |
+| **T2 — domain** | the domain slate covering the boundaries (provider + consumer + any cross-cutting specialist — the mandatory-by-concern ones pinned in §4a) | `component`, `cross-component`, and any `doc-only` that proposes or alters a decision |
 | **T3 — full + stewards** | full domain slate **plus** the auto-wired standards-stewards (§4) | `shared-stack`, `skill-package` |
 
 **The floor rule:** a `shared-stack` or `skill-package` change is **T3 by default and cannot
@@ -130,11 +130,26 @@ The stewards report on their **own axes**, not the boundary table:
   "does this skill hold / is it authored correctly"), carrying their evidence. A DISSENT here
   blocks the same as a MISMATCH.
 
+## 4a. Cross-cutting risk lenses (mandatory by concern)
+
+§3/T2's "+ any cross-cutting specialist" pulls non-boundary specialists **discretionarily** — which is how a risk that isn't an interface boundary gets skipped (the dogfood lesson: a concurrency/race fix reviewed without the systems lens, because a race is not a boundary). For the two highest-consequence such concerns the pull is **mandatory, not discretionary** — wired off *what the change touches* (like the §4 stewards), not off a defect already being visible:
+
+| Concern the change **touches** | Mandatory lens |
+|---|---|
+| concurrency, shared mutable state, lock/goroutine/async ordering, filesystem or resource lifecycle, back-pressure/timeout/retry | `systems-engineer` |
+| trust boundary, untrusted/external input, credential/secret handling, authn/authz | `security-specialist` |
+
+This table **mandates** these two; it does **not cap** the cross-cutting set — other concerns (capacity/cost → `k8s-capacity-management`; observability; etc.) stay on the §3/T2 discretionary route. A concern-lens here is the mandatory **subset** of §3/T2's "cross-cutting specialist," wired **once** (by this table) — not double-listed.
+
+These are **domain lenses** (they report boundary-style findings, not an addendum), so an absent one degrades coverage without voiding the review's premise — **unlike a pinned §4 steward, whose absence HALTs because it voids the rubric, an absent concern-lens does not HALT.** Name it as a gap in the ledger's Routing section and proceed; an operator may drop one only with a stated reason (§5), recorded there.
+
 ## 5. Operator override (recorded, never silent)
 
 The operator may name the slate or the tier explicitly (e.g. "xreview this as T2, drop the
 prose-steward — it's a code-only refactor"). An override is **recorded in the ledger's Routing
-section** with the operator's stated reason — never silent.
+section** with the operator's stated reason — never silent. Dropping a §4a mandatory
+concern-lens is such an override — allowed, but recorded with the reason like any slate edit
+(its default, unlike a pinned §4 steward's absence, is proceed-with-gap-named, not HALT).
 
 **An override may lower the *default* tier, but never below the T2 floor for `shared-stack` /
 `skill-package`** (the §3 floor rule is absolute — an override does not pierce it; the lowest a
@@ -160,11 +175,14 @@ pass)`. Dissent is never waived because the slate is one — it gets folded.
 ## How each skill applies this table
 
 - **`/xreview` (review phase)** — classify the artifact under review, read the tier off
-  §3, assemble the review slate (domain lenses covering the boundaries + the §4 stewards),
-  name the §6 dissenter. The orchestrator's remaining judgment is *which domain specialists*
-  cover the boundaries; the *depth* and *steward wiring* are mechanical.
+  §3, assemble the review slate (domain lenses covering the boundaries + the §4a concern-lenses
+  + the §4 stewards), name the §6 dissenter. The orchestrator's remaining judgment is *which
+  domain specialists* cover the boundaries; the *depth*, the *§4a concern-lenses*, and the
+  *steward wiring* are mechanical.
 - **`/coral` (production phase)** — classify the slice being built, read the tier off §3, pull
-  the production specialists plus the §4 stewards the file-types present demand (so a
-  `shared-stack` slice pulls the stewards in *production* too, not only review). Coral's
+  the production specialists plus the §4a concern-lenses (a slice that *touches* a §4a surface
+  pulls `systems-engineer`/`security-specialist` in production too) and the §4 stewards the
+  file-types present demand (so a `shared-stack` slice pulls the stewards in *production* too, not
+  only review). Coral's
   scope-cutter (`product-manager` on design briefs) and idiom-pass-on-code rules are the
   production-phase application of this same table.
