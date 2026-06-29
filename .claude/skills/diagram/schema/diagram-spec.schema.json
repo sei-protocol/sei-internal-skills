@@ -1,0 +1,245 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tide.seinetwork.io/diagram/schema/diagram-spec.schema.json",
+  "title": "Diagram spec (two-layer: semantic model + house-style binding)",
+  "description": "A single diagram instance for the /diagram knowledge kit. Two-layer per Design 15: a notation-neutral SEMANTIC MODEL (token, nodes/slots role-tagged, edges, drilldown {ref,rel}) separated from a thin HOUSE-STYLE BINDING (style: house@<Grammar-version> + header per-instance specifics only). Discriminated over the 7 `token` values via oneOf. The house standard (role->shape/color, header/legend/terminal-artifact rules) is RESOLVED from the pinned grammar via diagram-house-profile.md and is NOT inlined here. In particular the LEGEND is DERIVED at lowering from the roles present, never authored in the spec; tier-(b) conformance checks the derived legend lists exactly the roles present.",
+  "type": "object",
+  "required": ["id", "schemaVersion", "style", "token", "title", "nodes"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "description": "Stable instance id. IS the specId (the manifest correlation token, written into the rendered doc as a sentinel shape id `__specid__<id>`). Drilldown refs target this by id.",
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "minLength": 1,
+      "maxLength": 128
+    },
+    "schemaVersion": {
+      "description": "Spec SERIALIZATION-structure pin (contract #1). The resolver rejects a spec whose schemaVersion it does not support. Independent of style/Grammar-version.",
+      "type": "integer",
+      "const": 1
+    },
+    "style": {
+      "description": "HOUSE-STYLE BINDING pin: the house semantics version this spec is rendered to. The standard itself is resolved from the Design-14 grammar at this version via diagram-house-profile.md, never inlined. A composite is grammar-homogeneous: all drilldown-reachable instances pin the same value.",
+      "type": "string",
+      "const": "house@14.1.0"
+    },
+    "token": {
+      "description": "The discriminator. Closed 7-value enum (Design 14's 6 archetypes with layered-cake split into -kit and -signal). `token` is the spec field / schema enum / slot allow-list value; `archetype` is the conceptual 6-member grouping and is NOT a spec field.",
+      "type": "string",
+      "enum": [
+        "layered-cake-kit",
+        "layered-cake-signal",
+        "circular-cohort",
+        "linear-pipeline",
+        "hub-and-spoke",
+        "cross-cutting",
+        "meta-skill"
+      ]
+    },
+    "title": {
+      "description": "Plain human Title-Case name (house header rule, resolved from grammar). ASCII-only; never the archetype taxonomy. Per-instance house-style specific.",
+      "$ref": "#/$defs/asciiText"
+    },
+    "subtitle": {
+      "description": "Optional one-line human-facing descriptor centered beneath the title (house header rule). ASCII-only.",
+      "$ref": "#/$defs/asciiText"
+    },
+    "nodes": {
+      "description": "SEMANTIC MODEL: role-tagged nodes/slots. A node carrying `drilldown` is a slot. Notation-neutral; no per-node color/shape literals (those are resolved from role via the grammar).",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/node" }
+    },
+    "bands": {
+      "description": "SEMANTIC MODEL: ordered role-tagged bands (bottom->top for layered-cake, left->right for pipeline/cross-cutting). Order is the lowering input; geometry is a pure function of it.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/band" }
+    },
+    "edges": {
+      "description": "SEMANTIC MODEL: directed edges between node/band ids, typed by `kind`. (Design 14 calls these arrows; the spec field is `edges`.)",
+      "type": "array",
+      "items": { "$ref": "#/$defs/edge" }
+    }
+  },
+  "$defs": {
+    "asciiText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[\\x20-\\x7E]+$"
+    },
+    "roleToken": {
+      "description": "A role name. The role->shape and role->color binding is resolved from the Design-14 grammar at the pinned version via diagram-house-profile.md (one shape per role, one color per role). Not enumerated in the schema so the schema does not re-encode the grammar; tier-(b) conformance checks membership.",
+      "type": "string",
+      "minLength": 1
+    },
+    "relToken": {
+      "description": "Typed drilldown relationship (e.g. expands-to). The child holds no back-pointer.",
+      "type": "string",
+      "minLength": 1
+    },
+    "drilldown": {
+      "description": "Composability pointer (by id). `ref` targets another instance's id; `rel` is the typed relationship. Resolver: ref must resolve (unresolved-ref); child token must be in the slot allow-list declared per slot-role in kit-<token>.md (token-not-allowed); the drilldown graph is a DAG (cycle-detected, visited-set); depth bound is fixed at 3 with root=depth-1, so depth-exceeded fires at depth > 3; all reachable instances share one Grammar-version (grammar-version-mismatch).",
+      "type": "object",
+      "required": ["ref", "rel"],
+      "additionalProperties": false,
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "rel": { "$ref": "#/$defs/relToken" }
+      }
+    },
+    "node": {
+      "type": "object",
+      "required": ["id", "role"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "role": { "$ref": "#/$defs/roleToken" },
+        "label": { "$ref": "#/$defs/asciiText" },
+        "order": {
+          "description": "Optional position in the node sequence (left->right for linear-pipeline/cross-cutting; positional-around-the-ring for circular-cohort). The lowering input for deterministic layout; geometry is a pure function of it. Authors set order, never coordinates.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "band": {
+          "description": "Optional id of the band this node belongs to.",
+          "type": "string",
+          "minLength": 1
+        },
+        "drilldown": { "$ref": "#/$defs/drilldown" }
+      }
+    },
+    "band": {
+      "type": "object",
+      "required": ["id", "role", "order"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "role": { "$ref": "#/$defs/roleToken" },
+        "label": { "$ref": "#/$defs/asciiText" },
+        "order": {
+          "description": "Position in the bottom->top (layered-cake) or left->right (pipeline/cross-cutting) sequence. Drives deterministic layout.",
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "edge": {
+      "type": "object",
+      "required": ["from", "to", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string", "minLength": 1 },
+        "to": { "type": "string", "minLength": 1 },
+        "kind": {
+          "description": "Arrow semantics from the grammar (resolved by the profile). Enumerated here as the closed serialization set per Design 14's arrow vocabulary.",
+          "type": "string",
+          "enum": [
+            "feeds-into",
+            "applies-across",
+            "iterates",
+            "fans-in",
+            "acts-on",
+            "gate-blocks"
+          ]
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "title": "layered-cake-kit",
+      "properties": {
+        "token": { "const": "layered-cake-kit" },
+        "bands": {
+          "description": ">=1 knowledge band (kit floor; the kit-strategy seed targets >=3) feeding a skill node feeding an expert node.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/band" }
+        }
+      },
+      "required": ["bands"]
+    },
+    {
+      "title": "layered-cake-signal",
+      "properties": {
+        "token": { "const": "layered-cake-signal" },
+        "bands": {
+          "description": ">=2 source nodes -> MCP-tool band -> reasoning/decision band -> expert-or-cohort node.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/band" }
+        }
+      },
+      "required": ["bands"]
+    },
+    {
+      "title": "circular-cohort",
+      "properties": {
+        "token": { "const": "circular-cohort" }
+      }
+    },
+    {
+      "title": "linear-pipeline",
+      "description": ">=2 ordered nodes left->right (the spine); each node carries `order`; a gate is a bold-bordered node; the terminal artifact is last. Drilldown slot allow-list (MVP): linear-pipeline.stage -> { circular-cohort } (declared in kit-linear-pipeline.md). The spine runs through `nodes[]`, not `bands[]`.",
+      "properties": {
+        "token": { "const": "linear-pipeline" },
+        "nodes": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "properties": {
+              "role": { "enum": ["stage", "gate", "artifact"] },
+              "order": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["order"]
+          }
+        }
+      },
+      "required": ["nodes"]
+    },
+    {
+      "title": "hub-and-spoke",
+      "properties": {
+        "token": { "const": "hub-and-spoke" }
+      }
+    },
+    {
+      "title": "cross-cutting",
+      "description": "A lifecycle base of >=2 ordered stage nodes (the spine, through `nodes[]`) + exactly 1 overlay band touching >=2 of them (the overlay stays in `bands[]`).",
+      "properties": {
+        "token": { "const": "cross-cutting" },
+        "nodes": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "properties": {
+              "order": { "type": "integer", "minimum": 0 }
+            },
+            "required": ["order"]
+          }
+        },
+        "bands": {
+          "description": "Exactly 1 overlay band touching >=2 base stages (translucent, label at the band edge).",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
+          "items": { "$ref": "#/$defs/band" }
+        }
+      },
+      "required": ["nodes", "bands"]
+    },
+    {
+      "title": "meta-skill",
+      "properties": {
+        "token": { "const": "meta-skill" }
+      }
+    }
+  ]
+}

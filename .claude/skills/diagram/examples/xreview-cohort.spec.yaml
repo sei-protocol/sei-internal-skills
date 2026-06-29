@@ -1,0 +1,15 @@
+# MVP composite — child half (drilldown target of workstream-pipeline.s3)
+id: xreview-cohort
+schemaVersion: 1
+style: house@14.1.0
+token: circular-cohort
+title: "Xreview"
+nodes:
+  - { id: work,  role: artifact,  label: "Design under review" }
+  - { id: sys,   role: expert,    label: "systems-engineer" }
+  - { id: prod,  role: expert,    label: "product-manager" }
+  - { id: prose, role: expert,    label: "prose-steward" }
+  - { id: data,  role: dissenter, label: "data-architecture (dissenter)" }
+# No authored edges: for circular-cohort the around-the-ring `iterates` cycle and
+# the dashed inward review arrows are DERIVED at lowering from (ring nodes +
+# central artifact). Authors set nodes only (Design 15; kit-circular-cohort.md).

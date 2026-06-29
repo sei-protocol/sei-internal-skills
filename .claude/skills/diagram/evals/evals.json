@@ -1,0 +1,111 @@
+{
+  "skill": "diagram",
+  "notes": "Eval contract for the /diagram diagramming-knowledge-kit (Design 15), generating to the Design-14 house grammar (Grammar-version 14.1.0). Stages 1-3 (parse+resolve -> validate -> lower-to-IR) are pure/deterministic; the five resolver error codes are a closed kebab-case enum. The negative fixtures assert the EXACT code, never a paraphrase. specId IS the spec id; the correlation token lives in a sentinel shape id `__specid__<specId>`.",
+  "evals": [
+    {
+      "id": "golden-ir-determinism",
+      "type": "determinism",
+      "prompt": "Run stages 1-3 (parse+resolve -> validate -> lower-to-IR) on the build-first pipeline->cohort-cycle composite spec (workstream-pipeline drilldown ref xreview-cohort) twice, with the grammar pinned at house@14.1.0, no clock/RNG/MCP. Compare the two emitted canonical IR artifacts.",
+      "specs": [
+        "examples/workstream-pipeline.spec.yaml",
+        "examples/xreview-cohort.spec.yaml"
+      ],
+      "golden_ir": [
+        "examples/workstream-pipeline.ir.json",
+        "examples/xreview-cohort.ir.json"
+      ],
+      "expected_behavior": [
+        "Loads diagram-house-profile.md (pins house@14.1.0) + the kit-linear-pipeline and kit-circular-cohort templates before lowering (Guardrail: profile- and kit-first)",
+        "Stages 1-3 perform NO side effects: no Lucid MCP call, no clock read, no RNG; layout is a pure function of (template + node count/order + grammar constants), stable-ordered by node id",
+        "Emits a canonical IR (sorted-key JSON, no timestamps/RNG) whose two field-groups are distinct: semantic/structural vs house-style/layout",
+        "The two runs produce BYTE-IDENTICAL IR (the reproducibility guarantee keyed by specHash + Grammar-version); diffs to the committed golden IR",
+        "Does NOT render in this eval (render is stage 4, side-effecting); determinism is asserted on the IR artifact, not the PNG"
+      ],
+      "source": "method.md stage 3 (lower); Design 15 AC golden-IR keyed by (specHash + Grammar-version); stages 1-3 pure/deterministic"
+    },
+    {
+      "id": "two-tier-conformance-happy-path",
+      "type": "happy-path",
+      "prompt": "Validate the pipeline->cohort-cycle composite: workstream-pipeline (token linear-pipeline, ordered stages left->right, one stage carrying drilldown {ref: xreview-cohort, rel: expands-to}) and xreview-cohort (token circular-cohort, central work-artifact + >=3 ring nodes incl one role:dissenter). Both pin schemaVersion + style: house@14.1.0.",
+      "fixtures": [
+        "examples/workstream-pipeline.spec.yaml",
+        "examples/xreview-cohort.spec.yaml"
+      ],
+      "expected_behavior": [
+        "Runs the two-tier gate BEFORE any render: (a) JSON-Schema validity against the schemaVersion-pinned spec schema, discriminated over the 7 token values; (b) the full house rule set resolved from the Design-14 grammar at the pinned version via diagram-house-profile.md (one token per role, legend lists exactly the roles present, plain title, ASCII labels)",
+        "Resolver passes: drilldown.ref resolves; child token circular-cohort is in the linear-pipeline.stage allow-list { circular-cohort }; the graph is acyclic; depth within the fixed bound of 3; both instances pin the same Grammar-version (composite is grammar-homogeneous)",
+        "Concludes it conforms; cites the profile rule / grammar version per check, not a naked 'looks fine'",
+        "Does not manufacture findings; defers the actual Lucid render to stage 4 (the LucidAdapter) only after the gate passes"
+      ],
+      "source": "Design 15 AC two-tier conformance gate; method.md stage 2; the build-first composite"
+    },
+    {
+      "id": "negative-unresolved-ref",
+      "type": "negative-fixture",
+      "prompt": "A spec's drilldown carries {ref: cohort-typo, rel: expands-to} but no instance with id cohort-typo exists in the composite set.",
+      "expected_behavior": [
+        "Stage 1 parse+resolve fails resolving the ref",
+        "Rejects with the EXACT error code `unresolved-ref` (closed kebab-case enum)",
+        "Does NOT render; the gate runs before render"
+      ],
+      "source": "Design 15: resolver rejects an unresolved ref (unresolved-ref)"
+    },
+    {
+      "id": "negative-token-not-allowed",
+      "type": "negative-fixture",
+      "prompt": "A linear-pipeline stage carries drilldown to a child whose token is hub-and-spoke. The MVP slot allow-list is linear-pipeline.stage -> { circular-cohort } only.",
+      "expected_behavior": [
+        "Resolver checks the child token against the slot allow-list declared per slot-role in the kit-<token>.md",
+        "hub-and-spoke is not in { circular-cohort }, so it rejects with the EXACT error code `token-not-allowed`",
+        "Does NOT render"
+      ],
+      "source": "Design 15: child token not in slot allow-list (token-not-allowed); MVP value linear-pipeline.stage -> { circular-cohort }"
+    },
+    {
+      "id": "negative-cycle-detected",
+      "type": "negative-fixture",
+      "prompt": "Instance A drills down to B, and B drills down back to A (a drilldown cycle).",
+      "expected_behavior": [
+        "Stage 1 runs the visited-set cycle check (NOT the no-back-pointer convention) and finds A reachable from itself",
+        "Rejects with the EXACT error code `cycle-detected`",
+        "Does NOT render"
+      ],
+      "source": "Design 15: any cycle (cycle-detected; visited-set check, not the no-back-pointer convention)"
+    },
+    {
+      "id": "negative-depth-exceeded",
+      "type": "negative-fixture",
+      "prompt": "A drilldown chain root -> L2 -> L3 -> L4 (the root is depth 1; this reaches depth 4, strictly greater than the fixed bound of 3).",
+      "expected_behavior": [
+        "Stage 1 enforces the fixed depth bound of 3 with root=depth-1; depth 4 is strictly > 3",
+        "Rejects with the EXACT error code `depth-exceeded`",
+        "Does NOT treat depth 3 as the violation (the bound is satisfied at depth 3; the fire is at depth >= 4)"
+      ],
+      "source": "Design 15: depth exceeding the fixed bound of 3 (depth-exceeded; root is depth 1, fires at depth >= 4)"
+    },
+    {
+      "id": "negative-grammar-version-mismatch",
+      "type": "negative-fixture",
+      "prompt": "A composite where workstream-pipeline pins style: house@14.1.0 and its drilldown-reachable child xreview-cohort pins style: house@14.0.0.",
+      "expected_behavior": [
+        "Stage 1 grammar-homogeneity check finds the drilldown-reachable instance set does not all pin one Grammar-version",
+        "Rejects with the EXACT error code `grammar-version-mismatch` (the error-code literal, distinct from the Grammar-version field name)",
+        "Does NOT render a mixed-version composite"
+      ],
+      "source": "Design 15: composite with mixed grammar pins (grammar-version-mismatch); all drilldown-reachable instances share one Grammar-version"
+    },
+    {
+      "id": "composite-mixed-render-stamp-inconsistent",
+      "type": "staleness-oracle",
+      "prompt": "A composite's committed manifest records are inspected: workstream-pipeline's record carries renderedGrammarVersion 14.1.0 and xreview-cohort's record carries renderedGrammarVersion 14.0.0 (a mid-render or partial re-render left the member records on mixed grammar versions).",
+      "expected_behavior": [
+        "Reads staleness from the committed manifest with NO Lucid round-trip (the records carry renderedGrammarVersion + renderedSchemaVersion + specHash)",
+        "Flags the composite as INCONSISTENT (requires re-render): member records carry mixed renderedGrammarVersion within one composite",
+        "States the all-or-nothing render invariant: a composite re-render stages all N doc reconciles, then commits all N manifest records last, so no committed manifest state ever mixes Grammar-versions within one composite",
+        "Distinguishes this render-layer mixed-stamp inconsistency from the validate-layer grammar-version-mismatch (the spec-pin homogeneity check) — different layers, both fail-closed",
+        "Does NOT silently render over the strand; treats a mid-render failure's repairable strands as specId-matched (sentinel shape id __specid__<specId>), human-confirmed at the cohort gate"
+      ],
+      "source": "Design 15: staleness oracle flags mixed renderedGrammarVersion composites inconsistent; composite re-render all-or-nothing; manifest record {specId, lucidDocId, renderedGrammarVersion, renderedSchemaVersion, specHash}"
+    }
+  ]
+}

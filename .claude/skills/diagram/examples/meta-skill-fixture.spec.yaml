@@ -1,0 +1,50 @@
+# meta-skill fixture — /author-skill
+# A realistic meta-skill instance: the authoring loop running over a blank
+# skill artifact, producing the new skill. Validates tier-(a) against
+# schema/diagram-spec.schema.json (token=meta-skill oneOf branch).
+#
+# Floor (Design 14 Conformance): 1 skill-artifact target + a >=2-stage loop
+# acting on it. Terminal-output archetype: ends in the produced work-artifact.
+# MVP allow-list is empty (no drilldown). Two pins: schemaVersion + style.
+id: author-skill-loop
+schemaVersion: 1
+style: house@14.1.0
+token: meta-skill
+title: Author Skill
+subtitle: The authoring loop that produces a new skill
+nodes:
+- id: target
+  role: skill-artifact
+  label: New SKILL.md + evals (blank)
+- id: research
+  role: stage
+  order: 1
+  label: Research the domain + conventions
+- id: draft
+  role: stage
+  order: 2
+  label: Draft SKILL.md + triggers
+- id: pressure
+  role: stage
+  order: 3
+  label: Pressure-test + harden
+- id: newskill
+  role: artifact
+  order: 4
+  label: Shipped skill
+edges:
+- from: research
+  to: draft
+  kind: feeds-into
+- from: draft
+  to: pressure
+  kind: feeds-into
+- from: pressure
+  to: draft
+  kind: iterates
+- from: draft
+  to: target
+  kind: acts-on
+- from: pressure
+  to: newskill
+  kind: feeds-into

@@ -1,0 +1,40 @@
+# hub-and-spoke fixture — /impact-weekly, a graph-decorating skill.
+# A week of work (PRs + Linear issues + reviews) fans IN to one bet's Weekly-log
+# entry; the appended entry itself hangs off the hub as a produced paper artifact
+# (Design 14 catalog note: a graph-decorator's output is a paper spoke off the hub,
+# not a separate terminal node). Validates tier-(a) against diagram-spec.schema.json.
+id: impact-weekly
+schemaVersion: 1
+style: house@14.1.0
+token: hub-and-spoke
+title: Impact Weekly
+subtitle: A week of work fans in to one bet entry
+nodes:
+- id: bet
+  role: identity
+  label: Sei Agentic Mesh (bet)
+- id: prs
+  role: artifact
+  label: This week's merged PRs
+- id: issues
+  role: artifact
+  label: Linear issues closed
+- id: reviews
+  role: artifact
+  label: PR reviews + xreviews
+- id: entry
+  role: artifact
+  label: Appended Weekly-log entry
+edges:
+- from: prs
+  to: bet
+  kind: fans-in
+- from: issues
+  to: bet
+  kind: fans-in
+- from: reviews
+  to: bet
+  kind: fans-in
+- from: entry
+  to: bet
+  kind: fans-in

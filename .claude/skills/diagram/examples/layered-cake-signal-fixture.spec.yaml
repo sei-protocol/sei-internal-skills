@@ -1,0 +1,64 @@
+# layered-cake-signal fixture — /root-cause, the disciplined signal/decision skill.
+# Routed to layered-cake-signal by Design 14 assignment rule predicate #4 (reads
+# pre-existing signals it did not generate, through tools, to a verdict that IS
+# its terminal output). Floor: >=2 source nodes -> MCP-tool "decipher" band ->
+# reasoning/decision band -> expert-or-cohort node, terminating in the verdict
+# work-artifact (Design 14 §Terminal artifact). MVP leaf: empty allow-list, no
+# drilldown. Two pins. No authored legend (profile-derived); no style literals.
+# Validates tier-(a) against schema/diagram-spec.schema.json.
+id: root-cause-signal
+schemaVersion: 1
+style: house@14.1.0
+token: layered-cake-signal
+title: Root Cause Analysis
+bands:
+- id: b-src
+  role: source
+  order: 1
+  label: Retrieved signals
+- id: b-mcp
+  role: mcp-tool
+  order: 2
+  label: 'Decipher: query the signals'
+- id: b-reason
+  role: reasoning
+  order: 3
+  label: Hypotheses, falsified to a cause
+nodes:
+- id: metrics
+  role: source
+  band: b-src
+  label: Grafana metrics
+- id: logs
+  role: source
+  band: b-src
+  label: Pod logs
+- id: chain
+  role: source
+  band: b-src
+  label: On-chain state
+- id: cohort
+  role: expert
+  label: Specialist cohort
+- id: verdict
+  role: artifact
+  label: Root-cause verdict
+edges:
+- from: metrics
+  to: b-mcp
+  kind: feeds-into
+- from: logs
+  to: b-mcp
+  kind: feeds-into
+- from: chain
+  to: b-mcp
+  kind: feeds-into
+- from: b-mcp
+  to: b-reason
+  kind: feeds-into
+- from: b-reason
+  to: cohort
+  kind: feeds-into
+- from: cohort
+  to: verdict
+  kind: feeds-into

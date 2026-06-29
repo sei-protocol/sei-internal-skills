@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tide.seinetwork.io/diagram/schema/manifest.schema.json",
+  "title": "Render manifest (idempotency authority + staleness oracle)",
+  "description": "The git-tracked, versioned render manifest (Design 15 contract #3). It is the spec->doc idempotency authority and the staleness oracle: a record is stale iff renderedGrammarVersion != current Grammar-version OR specHash != hash(the current committed spec) -- a committed, greppable check needing no Lucid round-trip. The reconciler fails closed on a manifestVersion it does not support, mirroring the spec's schemaVersion rejection.",
+  "type": "object",
+  "required": ["manifestVersion", "records"],
+  "additionalProperties": false,
+  "properties": {
+    "manifestVersion": {
+      "description": "The manifest's own format version (contract #3). A bump preserves read-compat for older records or obligates a manifest migration; the reconciler rejects (fail-closed) a record set whose manifestVersion it does not support.",
+      "type": "integer",
+      "const": 1
+    },
+    "records": {
+      "description": "One record per rendered instance. specId IS the spec's own id. A composite re-render commits all N records last (all-or-nothing); a composite whose member records carry mixed renderedGrammarVersion is reported inconsistent (requires re-render).",
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "$defs": {
+    "record": {
+      "type": "object",
+      "required": [
+        "specId",
+        "lucidDocId",
+        "renderedGrammarVersion",
+        "renderedSchemaVersion",
+        "specHash"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "specId": {
+          "description": "The spec's own id; also encoded in the rendered doc as the sentinel shape id `__specid__<specId>` (build-1-probe-verified durable correlation token). Repair matches this token, never the human title.",
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*$",
+          "minLength": 1,
+          "maxLength": 128
+        },
+        "lucidDocId": {
+          "description": "The Lucid document id this spec renders to (idempotency target). Recorded BEFORE the render is considered done.",
+          "type": "string",
+          "minLength": 1
+        },
+        "renderedGrammarVersion": {
+          "description": "The Grammar-version (house semantics) this doc was rendered from. Staleness predicate term: stale if != current Grammar-version.",
+          "type": "string",
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"
+        },
+        "renderedSchemaVersion": {
+          "description": "The spec schemaVersion this doc was rendered from. Stamped for completeness; NOT a staleness predicate term (schema drift is covered transitively via specHash).",
+          "type": "integer",
+          "minimum": 1
+        },
+        "specHash": {
+          "description": "Hash of the spec SOURCE BYTES as committed (the serialization, computable without re-running stages 1-3). Staleness predicate term: stale if != hash(the current committed spec).",
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    }
+  }
+}
