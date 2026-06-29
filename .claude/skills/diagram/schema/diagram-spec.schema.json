@@ -228,10 +228,12 @@
         "bands": {
           "description": "Exactly 1 overlay band touching >=2 base stages (translucent, label at the band edge).",
           "type": "array",
+          "minItems": 1,
+          "maxItems": 1,
           "items": { "$ref": "#/$defs/band" }
         }
       },
-      "required": ["nodes"]
+      "required": ["nodes", "bands"]
     },
     {
       "title": "meta-skill",

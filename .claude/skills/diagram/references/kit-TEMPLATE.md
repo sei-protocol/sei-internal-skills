@@ -4,7 +4,7 @@ A kit is **data** the method loads for one diagram **`token`** — one of the 7 
 
 A kit **CITES** the grammar; it does **not** restate it. The role→shape/color tokens, arrow semantics, header/legend/terminal-artifact rules, and the Standard-Import realizations (ASCII-only labels, `#RRGGBB`, `opacity`, probe-confirmed primitives) live in Design 14 (`14-skill-diagram-visual-grammar.md`) and are resolved at the pinned `Grammar-version` through `references/diagram-house-profile.md`. A kit names the token's **conformance floor** by pointing at Design 14 §Conformance — it never re-derives shapes or colors.
 
-Adding a token's template = drop one file conforming to this template at `references/kit-<token>.md`, plus a passing fixture spec. The MVP ships two worked kits: `kit-linear-pipeline.md` and `kit-circular-cohort.md` (the pipeline→cohort-cycle composite). The other five fill in from this template.
+Adding a token's template = drop one file conforming to this template at `references/kit-<token>.md`, plus a passing fixture spec. **All 7 kits ship** — one `references/kit-<token>.md` per token, each indexed as present by `SKILL.md`. The `linear-pipeline`→`circular-cohort` pair is the worked **composable** path (the only MVP typed pairing, `linear-pipeline.stage -> { circular-cohort }`); the other five are **leaf** kits (empty allow-list) authored from this template, each with a passing fixture.
 
 Each kit provides the five sections below, in order, so `method.md` (the 4-stage engine) stays token-agnostic. Copy the skeleton; see `kit-linear-pipeline.md` for a worked kit with a non-empty allow-list and `kit-circular-cohort.md` for a worked leaf (empty allow-list).
 
@@ -92,13 +92,15 @@ the composition contract; flag the `Grammar-version`-bump one-way door
 - **No coordinates, no RNG, no clock.** Layout is the IR's pure deterministic lowering (Design 15 stages 1–3 are hermetic); authoring a fill is the semantic model + per-instance style binding only.
 - **Two pins on every instance; one `Grammar-version` per composite.** Each fixture carries `schemaVersion` + `style: house@<Grammar-version>`; a composite's full drilldown-reachable set pins one `Grammar-version` (grammar-homogeneous, Design 15).
 
-## Kit roster (shipped + remaining)
+## Kit roster (all 7 shipped)
 
-Shipped (MVP — the pipeline→cohort-cycle composite):
+All 7 kits ship, each with a passing fixture. The pipeline→cohort-cycle pair is the worked **composable** path; the other five are **leaf** kits (empty allow-list).
+
+Composable pair (the only MVP typed pairing):
 - `kit-linear-pipeline.md` — ordered stage/gate spine + terminal artifact; declares `linear-pipeline.stage -> { circular-cohort }`.
 - `kit-circular-cohort.md` — central work-artifact ringed by ≥3 experts incl. one dissenter; MVP leaf (empty allow-list), the drilldown target of `linear-pipeline.stage`.
 
-Remaining (author from this template + a passing fixture — one per the other 5 tokens):
+Leaf kits (empty allow-list — authored from this template, each with a passing fixture):
 - `kit-layered-cake-kit.md` — `layered-cake-kit`: ≥1 knowledge band → skill node → expert node (a rich kit fills all four bands — corpus → profile/overlay → per-domain kits/TEMPLATE → evals; a citable-corpus skill like `systems` is a thin 1-band instance — same token, fewer bands). Ends in the expert; no terminal-artifact node. MVP allow-list empty.
 - `kit-layered-cake-signal.md` — `layered-cake-signal`: ≥2 source nodes → MCP-tool "decipher" band → reasoning/decision band → expert-or-cohort node. Carries a terminal work-artifact (the decision/verdict). MVP allow-list empty.
 - `kit-cross-cutting.md` — `cross-cutting`: a lifecycle base of ≥2 stages + exactly 1 overlay band touching ≥2 of them (translucent yellow, label at the band edge per the probe). Ends in the expert. MVP allow-list empty.

@@ -15,7 +15,7 @@ A `linear-pipeline` instance fills these semantic-model slots. Field names and t
   - **`role: gate`** — a checkpoint / decision gate. Rendered as the **bold-bordered gate node** (grammar: `rectangle` + `stroke.width:5`, gate-red). A gate is a stage that blocks; it is still part of the ordered `order` sequence.
   - **`role: artifact`** — the **terminal work-artifact** the skill produces (grammar paper fill `#ECF0F1` / `#2C3E50` text), present iff the skill emits a durable output. Last in `order`. (Design 14 mandates the terminal artifact for linear-pipeline, meta-skill, and signal.)
   - `order` is a total order over the spine; layout in the IR is a **pure function of (template + node order + grammar constants)** stable-sorted by `id` (Design 15 stage-3 layout determinism) — authors set `order`, never coordinates.
-- **`edges[]`** — `{ from, to, kind: feeds-into }` along the spine; `kind: gate-blocks` into a gate node. Arrow tokens are grammar-fixed; pipelines read left→right.
+- **`edges[]`** — `{ from, to, kind: feeds-into }` along the spine; the edge **into** a gate stays `feeds-into`, and the gate's **outbound** edge (gate → the step it guards) is `kind: gate-blocks` (the blocked transition). Arrow tokens are grammar-fixed; pipelines read left→right. (See §4 + the golden IR: `feeds-into` arrives at a gate, `gate-blocks` leaves it.)
 - **`drilldown`** (optional, on a `stage` node only) — `{ ref: <child-id>, rel: <relationship> }`, by id, no back-pointer. See §2.
 - **`style: house@<Grammar-version>`** + **`schemaVersion`** — the two independent version pins every spec carries (Design 15). A composite's full drilldown-reachable set pins one `Grammar-version` (grammar-homogeneous).
 
@@ -39,7 +39,7 @@ linear-pipeline.stage -> { circular-cohort }
 Given a procedural skill/flow that the assignment rule routed to `linear-pipeline` (Design 14 rule predicate #7):
 
 1. **Enumerate the ordered steps** of the procedure as `stage` nodes, in execution order; set `order` 1..N. Label each with its plain step name (ASCII-only — grammar authoring constraint).
-2. **Mark checkpoints/gates** — any step that blocks progress (a human checkpoint, a fail-closed guard, a review-gate) becomes `role: gate`, keeping its `order` slot. Wire its inbound edge as `kind: gate-blocks`.
+2. **Mark checkpoints/gates** — any step that blocks progress (a human checkpoint, a fail-closed guard, a review-gate) becomes `role: gate`, keeping its `order` slot. The edge **into** the gate is `feeds-into`; wire the gate's **outbound** edge (gate → the step it guards) as `kind: gate-blocks` (the blocked transition).
 3. **Add the terminal artifact** iff the skill produces a durable output: append one `role: artifact` node, last in `order`, arrowed `feeds-into` from the producing stage. Omit it for a skill with no durable terminus.
 4. **Decide drilldowns** — for any `stage` that is *itself* a cohort cross-examination (a slate examining a work product), set `drilldown: { ref: <child-id>, rel: expands-to }` to a separately-authored `circular-cohort` instance. Keep the child a peer top-level instance with its own `id`/`token`/pins; the parent references it by id only.
 5. **Stamp the pins** — `schemaVersion`, `style: house@<current Grammar-version>`. In a composite, every reachable instance pins the *same* `Grammar-version`.
