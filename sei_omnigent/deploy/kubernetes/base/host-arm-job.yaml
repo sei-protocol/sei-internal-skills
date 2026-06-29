@@ -2,12 +2,12 @@
 # authenticate. It:
 #   1. generates a raw token = secrets.token_urlsafe(32)
 #   2. calls register_managed_host(...) against the SERVER'S DB (host_store.py:524)
-#      with provider="k8s-static", sandbox_id="<pod>", owner="tide-host@sei.internal",
-#      token=<generated>, host_id=<PLACEHOLDER_HOST_ID>, name="tide-host",
+#      with provider="k8s-static", sandbox_id="<pod>", owner="sei-omnigent-host@sei.internal",
+#      token=<generated>, host_id=<PLACEHOLDER_HOST_ID>, name="sei-omnigent-host",
 #      token_expires_at=now+7d (LONG ttl; the re-arm CronJob refreshes at 50%).
 #   3. writes the RAW token into Secret omnigent-host-token (key OMNIGENT_HOST_TOKEN).
 #
-# owner="tide-host@sei.internal" MUST be a NON-ADMIN identity kept OUT of the
+# owner="sei-omnigent-host@sei.internal" MUST be a NON-ADMIN identity kept OUT of the
 # config `admins:` roster (a host that could self-elevate defeats the policy).
 #
 # ╔══════════════════════════════════════════════════════════════════════════╗
@@ -97,9 +97,9 @@ spec:
             - name: OMNIGENT_HOST_ID
               value: PLACEHOLDER_HOST_ID
             - name: OMNIGENT_HOST_NAME
-              value: "tide-host" # MUST match the host Deployment's OMNIGENT_HOST_NAME
+              value: "sei-omnigent-host" # MUST match the host Deployment's OMNIGENT_HOST_NAME
             - name: OMNIGENT_HOST_OWNER
-              value: "tide-host@sei.internal" # NON-ADMIN — keep out of config admins
+              value: "sei-omnigent-host@sei.internal" # NON-ADMIN — keep out of config admins
             - name: OMNIGENT_HOST_PROVIDER
               value: "k8s-static"
             - name: OMNIGENT_HOST_TOKEN_TTL_SECONDS
