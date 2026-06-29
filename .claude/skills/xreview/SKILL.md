@@ -99,10 +99,11 @@ The slate is **routed, not re-derived by hand.** Apply the shared routing table
    up, never silently down. `shared-stack`/`skill-package` are T3 by default and **cannot drop
    below T2**.
 3. **Assemble the slate:** read `.claude/agents/` and pick the domain lenses whose combined
-   domains cover the boundaries (provider + consumer per interface, plus any cross-cutting
-   specialist — security boundary → `security-specialist`; capacity/cost →
-   `k8s-capacity-management`; etc.). The orchestrator's remaining judgment is *which domain
-   specialists* cover the boundaries; the depth and steward wiring are mechanical.
+   domains cover the boundaries (provider + consumer per interface). Then **wire the mandatory
+   concern-lenses mechanically per table §4a** (a change that *touches* the §4a surfaces pins
+   `systems-engineer` / `security-specialist`) — read the trigger list off §4a, don't restate it
+   here. The orchestrator's remaining judgment is *which domain specialists* cover the boundaries;
+   the depth, the §4a concern-lenses, and the steward wiring are mechanical.
 4. **Auto-wire the stewards** by file-type-present (table §4) — the rule for `shared-stack` and
    every other class: `prose-steward` on any prose; `idiomatic-reviewer` on any code diff;
    `audit-skill`+`author-skill` on a `.claude/` skill body. **`skill-package` is the exception:
