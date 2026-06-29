@@ -87,7 +87,7 @@ class Webhook:
 
     ``group_key`` is AM's stable per-group identifier — load-bearing for dedup
     (:func:`derive_incident_key`). ``common_labels`` carries the group-level
-    ``walle``/``severity``/``namespace`` labels; ``alerts`` are the individual firings.
+    ``sei-omnigent``/``severity``/``namespace`` labels; ``alerts`` are the individual firings.
     """
 
     version: str
@@ -183,15 +183,15 @@ def _parse_alert(entry: Mapping[str, object]) -> Alert:
 
 
 def is_enrolled(webhook: Webhook) -> bool:
-    """True if this group is enrolled (a ``walle: enabled`` label + a runbook).
+    """True if this group is enrolled (a ``sei-omnigent: enabled`` label + a runbook).
 
     Non-enrolled ⇒ the adapter normalizes to ``NoOp``: the page already routed to the
     human, so a non-match is not an error. Enrollment is checked on the GROUP labels
     (``commonLabels``), the level at which an alerting rule opts a group in — a per-alert
-    opt-in is deliberately not supported in v1 (one knob, the group). The ``walle: enabled``
-    label key is a DURABLE AM-webhook data contract (alerting rules set it), kept verbatim.
+    opt-in is deliberately not supported in v1 (one knob, the group). The ``sei-omnigent:
+    enabled`` label key is a DURABLE AM-webhook data contract (alerting rules set it).
     """
-    if webhook.common_labels.get("walle", "").strip().lower() != "enabled":
+    if webhook.common_labels.get("sei-omnigent", "").strip().lower() != "enabled":
         return False
     # A runbook is required: the investigation is runbook-driven, so a group with no runbook
     # annotation has nothing to drive and must route to the human untouched.

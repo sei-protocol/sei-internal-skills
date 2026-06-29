@@ -69,9 +69,9 @@ _SHUTDOWN_TIMEOUT_DEFAULT = 75
 # --- PagerDuty config env (the manifest injects; from_config carries the host/scheme/enrolled
 #     guards — this module never builds the raw ctor) ----------------------------------------
 _PD_TOKEN_ENV = "PD_API_TOKEN"
-_PD_FROM_EMAIL_ENV = "WALLE_PD_FROM_EMAIL"
-_PD_ENROLLED_ENV = "WALLE_PD_ENROLLED_SERVICE_IDS"
-_PD_BASE_URL_ENV = "WALLE_PD_BASE_URL"
+_PD_FROM_EMAIL_ENV = "SEI_OMNIGENT_PD_FROM_EMAIL"
+_PD_ENROLLED_ENV = "SEI_OMNIGENT_PD_ENROLLED_SERVICE_IDS"
+_PD_BASE_URL_ENV = "SEI_OMNIGENT_PD_BASE_URL"
 _DEFAULT_PD_BASE_URL = "https://api.pagerduty.com"
 
 # --- budget + lease env (the profile's wall_clock sets lease_s; ReceiverConfig.__post_init__
@@ -107,8 +107,8 @@ def _require_env(name: str) -> str:
     """Read a required env var, failing LOUD at boot if unset/empty (mirrors load_webhook_token).
 
     A half-configured receiver is the failure mode this guards: a missing PD token / email is a
-    silent fail-closed egress (WallE posts nothing) or a mis-scoped credential — surface it here,
-    not on the first investigation's post-back.
+    silent fail-closed egress (the receiver posts nothing) or a mis-scoped credential — surface
+    it here, not on the first investigation's post-back.
     """
     value = (os.environ.get(name) or "").strip()
     if not value:
@@ -125,7 +125,7 @@ def _pd_token() -> str:
     File-only (no inline env fallback): the manifest mounts the token from a Secret as a file so
     it never transits the pod env, where a process listing or a crash dump could surface it. An
     unset / unreadable / empty token file fails closed at boot — the receiver must never start
-    with no PD credential (a silent fail-closed egress: WallE posts nothing).
+    with no PD credential (a silent fail-closed egress: the receiver posts nothing).
     """
     path = (os.environ.get(f"{_PD_TOKEN_ENV}_FILE") or "").strip()
     if not path:

@@ -59,10 +59,10 @@ test = [
 [project.scripts]
 sei-omnigent-serve = "sei_omnigent.server.serve_main:main"
 # The standing omnigent-host launcher (PLT-715): installs the proxy-bearer patch (B1) then runs
-# `omnigent host` in-process. The walle host Deployment uses it (or `python -m sei_omnigent.host_launch`).
+# `omnigent host` in-process. The sei-omnigent host Deployment uses it (or `python -m sei_omnigent.host_launch`).
 sei-omnigent-host = "sei_omnigent.host_launch:main"
 # The omni-trigger receiver (PLT-715): assembles the Receiver from env (PD poster + redactor +
-# live session factory) and binds uvicorn on build_app. The walle receiver Deployment uses it
+# live session factory) and binds uvicorn on build_app. The sei-omnigent receiver Deployment uses it
 # (or `python -m sei_omnigent.omni.serve_receiver`).
 sei-omnigent-receiver = "sei_omnigent.omni.serve_receiver:main"
 

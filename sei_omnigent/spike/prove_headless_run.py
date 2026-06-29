@@ -67,7 +67,7 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--goal", required=True, help="the investigation goal posted to the session")
     p.add_argument(
         "--forwarded-email",
-        default="walle@seinetwork.io",
+        default="sei-omnigent@seinetwork.io",
         help="the X-Forwarded-Email identity sent to a header-mode server. NOTE: behind the "
         "production sidecar this is OVERWRITTEN by the TokenReview'd SA — the printed 'resolved "
         "owner' is what actually decides the Blocking dependency (Purpose 2).",

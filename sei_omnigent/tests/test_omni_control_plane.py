@@ -179,7 +179,7 @@ def test_pd_dogfood_route_resolves_allowed_against_the_am_adapter() -> None:
         "version": "4",
         "groupKey": '{}:{alertname="ChainHalted"}',
         "status": "firing",
-        "commonLabels": {"walle": "enabled", "severity": "critical", "namespace": "sei"},
+        "commonLabels": {"sei-omnigent": "enabled", "severity": "critical", "namespace": "sei"},
         "alerts": [
             {
                 "status": "firing",
