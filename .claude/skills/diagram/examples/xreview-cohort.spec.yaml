@@ -1,0 +1,17 @@
+# MVP composite — child half (drilldown target of workstream-pipeline.s3)
+id: xreview-cohort
+schemaVersion: 1
+style: house@14.1.0
+token: circular-cohort
+title: "Xreview"
+nodes:
+  - { id: work,  role: artifact,  label: "Design under review" }
+  - { id: sys,   role: expert,    label: "systems-engineer" }
+  - { id: prod,  role: expert,    label: "product-manager" }
+  - { id: prose, role: expert,    label: "prose-steward" }
+  - { id: data,  role: dissenter, label: "data-architecture (dissenter)" }
+edges:
+  - { from: sys,   to: work, kind: iterates }
+  - { from: prod,  to: work, kind: iterates }
+  - { from: prose, to: work, kind: iterates }
+  - { from: data,  to: work, kind: iterates }

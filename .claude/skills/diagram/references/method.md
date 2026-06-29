@@ -77,6 +77,10 @@ Stage all N doc reconciles, then **commit all N manifest records last**, so a mi
 
 If a manifest record was lost (create succeeded, manifest write failed), recover by matching the **`specId` correlation token in the doc — never the human title** (titles like "Workstream"/"Xreview" are not unique). This is a **manual procedure the diagram-architect runs**: scan folder `444905424`, read each doc's sentinel shape `id`, match the `specId` exactly, rewrite the manifest record. It is **report-and-confirm**: on an ambiguous or orphaned token match the architect MUST **halt, report the candidate set, and require human confirmation at the cohort gate** before rewriting the record — it MUST NOT proceed unconfirmed. (A create that failed *before* the token write — a strand with neither token nor record — lands in folder `444905424` and is a documented manual-cleanup edge.) The hardened `--reconcile` sweep is deferred code-CLI surface.
 
+### Post-create typography pass (build-1-verified)
+
+Standard-Import `text` shapes render at a **default small size** — `create_diagram_from_specification` does not honor the house header/legend typography. So after create, the LucidAdapter runs a deterministic **`lucid_edit_item` typography pass** to apply the profile's type scale: **title** `font_size 24, bold, text_align center`; **subtitle** `font_size 16, center`; **legend header** `font_size 14, bold`; **legend row labels** `font_size 13`. (This is the same post-create step the Design-14 fan-out applied; it is part of the adapter's deterministic emit, keyed off the IR's house-style field-group, not a manual touch-up.)
+
 ## Mode notes
 
 - **Author/generate.** Run 1 -> 2 -> 3 -> 4. The MVP build-first target is the **pipeline -> cohort-cycle composite** (`linear-pipeline.stage -> circular-cohort`), regenerated from its spec to standard, with the golden-IR eval keyed by (specHash + Grammar-version).

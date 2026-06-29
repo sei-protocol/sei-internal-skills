@@ -1,0 +1,19 @@
+{
+  "manifestVersion": 1,
+  "records": [
+    {
+      "specId": "workstream-pipeline",
+      "lucidDocId": "e25db62f-59ae-46d0-b044-08c7cfbc3e8a",
+      "renderedGrammarVersion": "14.1.0",
+      "renderedSchemaVersion": 1,
+      "specHash": "e68f6940587904270f9f61965daf4c6e31187aa8f7ebbbb269a71db5311b6aa7"
+    },
+    {
+      "specId": "xreview-cohort",
+      "lucidDocId": "1791644b-3cc1-4bfd-819b-3defc01a68d7",
+      "renderedGrammarVersion": "14.1.0",
+      "renderedSchemaVersion": 1,
+      "specHash": "be969576756f01a38a8354f9139eaec18cda5b1fb864cb5d8232a66a2d8ec649"
+    }
+  ]
+}
