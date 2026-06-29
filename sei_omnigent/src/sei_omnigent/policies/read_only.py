@@ -1,6 +1,6 @@
 """Server-side read-only permission discipline (PLT-668).
 
-Ports Tide's read-only posture from per-repo CI (`settings.json` allow-list,
+Ports sei-internal-skills's read-only posture from per-repo CI (`settings.json` allow-list,
 enforced by `make verify-agent-permissions`) to an **org-wide, server-side
 Omnigent default policy** — enforced at runtime regardless of cwd or which
 repo's `settings.json` loads.
@@ -20,11 +20,11 @@ the Omnigent policy layer AND Claude Code's own permission engine apply):
 
 Shell coverage (deliberate boundary): `deny_mutating_os` **abstains** on raw
 shell (`Bash`/`sys_os_shell`/`bash`) by default (`deny_shell=False`) and delegates
-it to (a) `github_policy` for `gh`/`git`, (b) Tide's per-repo `settings.json`
+it to (a) `github_policy` for `gh`/`git`, (b) sei-internal-skills's per-repo `settings.json`
 allow-list — both layers apply — and (c) the egress NetworkPolicy (PLT-672) for
-network mutations (raw `curl`). A blanket shell DENY here would also block Tide's
+network mutations (raw `curl`). A blanket shell DENY here would also block sei-internal-skills's
 *read-only* shell (e.g. `kubectl get`), since the server DENY overrides
-`settings.json`'s read allowance. Operators who run without Tide's `settings.json`
+`settings.json`'s read allowance. Operators who run without sei-internal-skills's `settings.json`
 and want a hard server-side shell block set `deny_shell=True` (denies ALL shell —
 reads included, since the tool layer cannot classify a shell command). The raw-
 `rm`-via-`Bash` residual gap under the default is the documented C4 boundary,
@@ -71,7 +71,7 @@ def deny_mutating_os(*, deny_shell: bool = False) -> PolicyCallable:
 
     :param deny_shell: When ``True``, also DENY shell tools (``Bash``/
         ``sys_os_shell``/``bash``) — a hard server-side block that does not
-        distinguish read from write shell (use only when Tide's per-repo
+        distinguish read from write shell (use only when sei-internal-skills's per-repo
         ``settings.json`` allow-list is *not* the governing layer). Default
         ``False``: abstain on shell and delegate to ``github_policy`` +
         ``settings.json`` + the egress NetworkPolicy.
@@ -123,7 +123,7 @@ POLICY_REGISTRY: list[dict[str, Any]] = [
         "description": (
             "Server-side read-only backstop: DENYs non-GitHub OS file-mutation "
             "tools (Write/Edit and sys_os_*/Pi equivalents). Composes with "
-            "github_policy (gh/git) and Tide settings.json. Optionally denies "
+            "github_policy (gh/git) and sei-internal-skills settings.json. Optionally denies "
             "shell via deny_shell."
         ),
         "params_schema": {
@@ -133,7 +133,7 @@ POLICY_REGISTRY: list[dict[str, Any]] = [
                     "type": "boolean",
                     "description": (
                         "Also DENY shell tools (Bash/sys_os_shell/bash). Blocks "
-                        "read-only shell too — use only without Tide settings.json."
+                        "read-only shell too — use only without sei-internal-skills settings.json."
                     ),
                     "default": False,
                 },

@@ -1,15 +1,15 @@
-# Tide Project Skills
+# sei-internal-skills Project Skills
 
 Project-scoped skills for team processes. Each subdirectory is a self-contained skill (SKILL.md + scripts + references + evals).
 
 ## First time here?
 
-1. **Inside Tide, no setup needed.** Claude Code auto-discovers everything in this directory.
-2. **Never cloned Tide? Get the full toolkit over the wire in one line** (uses your `gh` auth — Tide is internal):
+1. **Inside sei-internal-skills, no setup needed.** Claude Code auto-discovers everything in this directory.
+2. **Never cloned sei-internal-skills? Get the full toolkit over the wire in one line** (uses your `gh` auth — sei-internal-skills is internal):
    ```sh
-   gh api repos/sei-protocol/Tide/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
+   gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
    ```
-   It clones Tide to `~/.tide` (override `TIDE_HOME`), then syncs every portable + Sei skill and agent into `~/.claude`.
+   It clones sei-internal-skills to `~/.sei-internal-skills` (override `SEI_INTERNAL_SKILLS_HOME`), then syncs every portable + Sei skill and agent into `~/.claude`.
 3. **Already have the repo?** One command from your checkout:
    ```sh
    make update     # fast-forward this checkout (run from main) + sync ALL skills/agents into ~/.claude + verify
@@ -17,21 +17,21 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
    (To install only the **portable** set into an external *consumer* repo, run `make bootstrap` instead.)
 4. **Re-run either any time** — both are idempotent.
 
-**Edit skills in Tide, never in `~/.claude/skills/`.** Local edits at user-scope get overwritten on next sync. To change a skill, edit it here and PR.
+**Edit skills in sei-internal-skills, never in `~/.claude/skills/`.** Local edits at user-scope get overwritten on next sync. To change a skill, edit it here and PR.
 
 ---
 
 **Authoring standard:** read [`SKILL-TEMPLATE.md`](./SKILL-TEMPLATE.md) before creating a new skill.
 
-Claude Code discovers skills as **flat** direct subdirectories of `skills/` — nested folders and custom roots (e.g. `~/.claude/tide/`) are NOT discovered. So domain grouping is **metadata, not directories**. The **single source of truth** is each skill's `category:` SKILL.md frontmatter: the sync scripts *derive* alias membership from it (no hand-maintained per-skill list), and `make verify-catalog` (CI) fails closed if any skill's category maps to no alias. The catalog sections below are descriptive — keep them in step with the skills present, but they are not what the sync reads.
+Claude Code discovers skills as **flat** direct subdirectories of `skills/` — nested folders and custom roots (e.g. `~/.claude/sei-internal-skills/`) are NOT discovered. So domain grouping is **metadata, not directories**. The **single source of truth** is each skill's `category:` SKILL.md frontmatter: the sync scripts *derive* alias membership from it (no hand-maintained per-skill list), and `make verify-catalog` (CI) fails closed if any skill's category maps to no alias. The catalog sections below are descriptive — keep them in step with the skills present, but they are not what the sync reads.
 
-**Domains:** `workflow` · `workstream-bootstrap` · `hardening` · `investigation` · `skill-authoring` · `code-quality` · `performance` · `platform-infra` · `writing-quality` · `output-quality` (Tide-local) · `security` · `product-management` · `project-management` · `release-operations` · `engineer-self-service`. The small domain→alias map at the top of `sync-skills.sh` assigns each domain to a sync alias: `portable`, `sei`, or Tide-local (never synced).
+**Domains:** `workflow` · `workstream-bootstrap` · `hardening` · `investigation` · `skill-authoring` · `code-quality` · `performance` · `platform-infra` · `writing-quality` · `output-quality` (sei-internal-skills-local) · `security` · `product-management` · `project-management` · `release-operations` · `engineer-self-service`. The small domain→alias map at the top of `sync-skills.sh` assigns each domain to a sync alias: `portable`, `sei`, or sei-internal-skills-local (never synced).
 
 ## Catalog
 
 ### Workflow
 
-Edit these in Tide, never in `~/.claude/skills/` — your edits will be overwritten on next sync. To use them outside Tide, run:
+Edit these in sei-internal-skills, never in `~/.claude/skills/` — your edits will be overwritten on next sync. To use them outside sei-internal-skills, run:
 
 ```sh
 ./scripts/sync-skills.sh
@@ -90,15 +90,15 @@ TEE attestation design + verification review. Pairs with the `tee-specialist` ag
 - **`tee/`** — Design and review **Trusted Execution Environment** integrations — attestation flows, on-chain verification of enclave identity, attestation-conditioned key release — grounded in vendor specs + the Sei deployment profile, not paraphrased generality. Mirrors `/idiomatic`'s mechanism: a vendor-agnostic `references/method.md` (RATS roles, the Sei on-chain cost ranking, the cross-cutting verifier-policy dimensions VP1–VP16, the severity model) + an always-first `tee-profile.md` Sei overlay + pluggable per-platform **kits** (`kit-aws-nitro`, `kit-intel-sgx-tdx`, `kit-amd-sev-snp`, `kit-nvidia-cc`, `kit-tpm-rats`, `kit-sei-onchain`; each conforms to `kit-TEMPLATE.md` and is **self-contained** — citing public primary sources (vendor specs, RFCs, `sei-chain`) inline rather than depending on an in-repo corpus; adding a platform is one conforming file). Discipline spine pressure-tested with subagents: claim+trust-model gate · profile/kit-override-generic-vendor-knowledge (incl. the validator-as-host hard direction) · cite-every-vendor-claim / never-fabricate-from-memory · one-way-doors-flagged · trust-model-honesty. Distinct from `security-specialist` (general non-TEE threat modeling) and the consuming-system specialists (`solidity-developer`, `kubernetes-specialist`) that build what the attestation gates. **Portable** — the kits are self-contained on public primary sources, so `/tee` syncs like any agentic resource; the research corpus relocated to `bdchatham-designs` (Design 05 / PLT-709) as non-required provenance. First-class: `tee-specialist` is dispatched into `/coral`, `/council`, and `/xreview` slates on any TEE/attestation boundary.
 
 ### Hardening
-- **`bugbash/`** — Long-running, read-only adversarial review of an existing system by the council of experts. Loops discovery + challenger passes against a named target (`/bugbash SeiNode controller`) until the experts converge on a launch verdict. Output is a structured findings log — a lineage artifact in the DRI's `<engineer>-designs` repo at `designs/<arc>/bugbash/<target>.md` (Design 13; repo-default arc `tide-skill-stack` for Tide) — with per-item Scenario / Impact / Issue / Fix sketch / Test coverage. Inspired by the [RALPHY loop](https://github.com/snarktank/ralph), reframed for hardening before launch. Distinct from `/security-review` (single-pass, security-only) and `/coral` (collaborative iteration, not adversarial).
+- **`bugbash/`** — Long-running, read-only adversarial review of an existing system by the council of experts. Loops discovery + challenger passes against a named target (`/bugbash SeiNode controller`) until the experts converge on a launch verdict. Output is a structured findings log — a lineage artifact in the DRI's `<engineer>-designs` repo at `designs/<arc>/bugbash/<target>.md` (Design 13; repo-default arc `sei-internal-skills-stack` for sei-internal-skills) — with per-item Scenario / Impact / Issue / Fix sketch / Test coverage. Inspired by the [RALPHY loop](https://github.com/snarktank/ralph), reframed for hardening before launch. Distinct from `/security-review` (single-pass, security-only) and `/coral` (collaborative iteration, not adversarial).
 
 ### Investigation
 - **`root-cause/`** — Disciplined, data-driven, multi-expert investigation of complex problems in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s). Forces signals before hypotheses, ≥2 competing hypotheses before evidence, retrieved provenance (not paraphrased), and falsification before conclusion. Dispatches `.claude/agents/` specialists in **parallel + blinded + with assigned dissent** to prevent the consensus-theater / sycophancy failure mode documented in the multi-agent LLM literature. Output is a multi-cause ranked conclusion — never a single root cause. Distinct from `/bugbash` (pre-launch adversarial), `/coral` (collaborative iteration), and live incident command (mitigate first; this skill is for understanding). Problems outside the Sei platform stack are out of scope.
 - **`research/`** — First-class research: scope a question (the decision it informs + falsifiable claims), run a **multi-modal sweep** (angles blind to each other), **adversarially verify** every finding (reusing `/xreview`'s assigned-dissent primitive — no finding ships unverified), run one completeness pass, and capture a durable **findings artifact** in the DRI's designs repo (`designs/<arc>/research/<slug>.md`) threaded to issues/bets via `/execution-plan`. Discipline spine = no-finding-ships-unverified · refuse-a-vague-question · discover-don't-decide. Distinct from `/root-cause` (Sei-stack incident investigation), `/design` (decisions, not findings), and `/coral` (iteration). Generalizes `author-skill`'s research recipe; a research effort may be checkpoint-gated by `/workstream` but never launches one.
 
-### Authoring Discipline (Tide-local — not synced)
+### Authoring Discipline (sei-internal-skills-local — not synced)
 
-These two are project-scoped disciplines applied during authoring inside Tide. They are intentionally **not** in any sync category (CLAUDE.md / AGENTS.md reference them as in-repo disciplines):
+These two are project-scoped disciplines applied during authoring inside sei-internal-skills. They are intentionally **not** in any sync category (CLAUDE.md / AGENTS.md reference them as in-repo disciplines):
 
 - **`brevity/`** — Tighten agent-produced PR descriptions and in-code comments before they ship. Self-determines floor; agents don't pre-skip.
 - **`pr-quality/`** — Pre-PR review of the staged diff + planned body (verbosity via `/brevity` dispatch + convention rules). Suggestive only; never gates merge.
@@ -140,8 +140,8 @@ A project-scope skill in this repo is only discoverable when Claude Code is runn
 ./scripts/sync-skills.sh --target ~/work/sei-k8s-controller --force  # to another repo
 ```
 
-If a tracked file in the target differs from Tide's version, the skill is reported as a conflict and skipped — re-run with `--force` to overwrite. Target-only files (user customizations, runtime artifacts) are preserved.
+If a tracked file in the target differs from sei-internal-skills's version, the skill is reported as a conflict and skipped — re-run with `--force` to overwrite. Target-only files (user customizations, runtime artifacts) are preserved.
 
-Sibling of `scripts/sync-agents.sh` — same shape, same flags. Sync by **domain** (`--categories project-management`, `--categories workflow`, …) or by **alias**: `portable` (the general-purpose skill set, incl. code-quality + writing-quality), `sei` (the 5 Sei-team skills: impact-weekly, impact-portfolio, chaos-suite, validate-release, harbor-dev), `all`. `output-quality` (brevity, pr-quality) is Tide-local and not synced. Update the domain lists in the script when a skill is added, renamed, or re-categorized.
+Sibling of `scripts/sync-agents.sh` — same shape, same flags. Sync by **domain** (`--categories project-management`, `--categories workflow`, …) or by **alias**: `portable` (the general-purpose skill set, incl. code-quality + writing-quality), `sei` (the 5 Sei-team skills: impact-weekly, impact-portfolio, chaos-suite, validate-release, harbor-dev), `all`. `output-quality` (brevity, pr-quality) is sei-internal-skills-local and not synced. Update the domain lists in the script when a skill is added, renamed, or re-categorized.
 
-For procedural skills like `chaos-suite` that operate on remote infrastructure, you can also just run them from Tide and pass `--repo` / target paths to direct work elsewhere — no sync needed.
+For procedural skills like `chaos-suite` that operate on remote infrastructure, you can also just run them from sei-internal-skills and pass `--repo` / target paths to direct work elsewhere — no sync needed.

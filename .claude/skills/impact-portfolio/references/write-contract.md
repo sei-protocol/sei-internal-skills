@@ -12,7 +12,7 @@ The **Weekly Reports** database — a data source under the Impact Hub page: `co
 | `report_week` | date | **identity / idempotency key** — the ISO Monday of the reported week |
 | `generated_by` | select (`impact-portfolio` / `human`) | **provenance / clobber-guard** — skill-written rows carry `impact-portfolio` |
 
-Nothing on any bet page or Impact Tracker row is ever touched. (The spike that chose a database over plain sub-pages — and why — is recorded on Tide #119 / PLT-437: Notion allows custom properties only on database rows, not on plain sub-pages, so the database is what makes the identity + provenance below *native* rather than a fragile workaround.)
+Nothing on any bet page or Impact Tracker row is ever touched. (The spike that chose a database over plain sub-pages — and why — is recorded on sei-internal-skills #119 / PLT-437: Notion allows custom properties only on database rows, not on plain sub-pages, so the database is what makes the identity + provenance below *native* rather than a fragile workaround.)
 
 ## Identity — the `report_week` date property (never the title)
 

@@ -48,7 +48,7 @@ The on-chain image-hash registry (a TideJobHook / TideCouncil registry of approv
 
 Harbor is **AWS EKS** (this deployment's substrate). This makes the platform choice *forced* for the AWS-hosted cases and *open* for the rest:
 
-- **Tide agent runtimes + bridges (harbor-hosted) → AWS Nitro Enclaves** is the natural fit: first-class EC2 feature, mature KMS integration, the existing AWS posture (AWS Nitro Enclaves User Guide; AWS KMS Nitro condition-keys docs; `kit-aws-nitro.md` §1, §6). Standard pattern: Marlin Oyster amortization (~63M cold at registration → secp256k1 `ecrecover` ~3k per submission — public Marlin Oyster/NitroProver numbers) + KMS `kms:RecipientAttestation:ImageSha384` condition keys.
+- **sei-internal-skills agent runtimes + bridges (harbor-hosted) → AWS Nitro Enclaves** is the natural fit: first-class EC2 feature, mature KMS integration, the existing AWS posture (AWS Nitro Enclaves User Guide; AWS KMS Nitro condition-keys docs; `kit-aws-nitro.md` §1, §6). Standard pattern: Marlin Oyster amortization (~63M cold at registration → secp256k1 `ecrecover` ~3k per submission — public Marlin Oyster/NitroProver numbers) + KMS `kms:RecipientAttestation:ImageSha384` condition keys.
 - **Non-AWS / validator-host / bare-metal cases → TDX or SEV-SNP** (see §2). Don't default these to Nitro because harbor is on AWS — the host-trust assumption breaks (§2).
 
 ## 5. The Sei trust-roots layering (the over-claiming framing to reject)
@@ -61,9 +61,9 @@ Harbor is **AWS EKS** (this deployment's substrate). This makes the platform cho
 
 Anchored to the RATS standards suite (RFC 9334, RFC 9711, the CoRIM IETF RATS WG draft):
 
-- **Use RATS role names (RFC 9334 §3) in every design.** Attester = the TEE; Verifier = the on-chain contract or off-chain service; Relying Party = Tide contracts / Sei consensus; Endorser = AMD KDS / Intel PCS / AWS PKI / NVIDIA NRAS; **Reference-Value-Provider = governance / TideCouncil** (this profile's §3 registry).
+- **Use RATS role names (RFC 9334 §3) in every design.** Attester = the TEE; Verifier = the on-chain contract or off-chain service; Relying Party = sei-internal-skills contracts / Sei consensus; Endorser = AMD KDS / Intel PCS / AWS PKI / NVIDIA NRAS; **Reference-Value-Provider = governance / TideCouncil** (this profile's §3 registry).
 - **EAT (RFC 9711) is the Verifier *output* format, not the on-chain input.** On-chain contracts consume vendor-native Evidence directly (SNP report bytes, TDX quote bytes, Nitro COSE_Sign1 bytes); EAT enters only at a multi-vendor verifier-result abstraction layer (RFC 9711 §1; RFC 9334 §3 places EAT at the Attestation Results boundary). Feeding EAT to an on-chain verifier is a category error.
-- **CoRIM is the cross-vendor reference-value format to align on** (CoRIM, IETF RATS WG draft). AMD has a published CoRIM profile draft (`draft-deeglaze-amd-sev-snp-corim-profile`); Intel and Nitro are pursuing equivalents. Align on CoRIM rather than a Tide-specific registry format that won't compose with future tooling — and it is the transparency mechanism §3 mandates.
+- **CoRIM is the cross-vendor reference-value format to align on** (CoRIM, IETF RATS WG draft). AMD has a published CoRIM profile draft (`draft-deeglaze-amd-sev-snp-corim-profile`); Intel and Nitro are pursuing equivalents. Align on CoRIM rather than a sei-internal-skills-specific registry format that won't compose with future tooling — and it is the transparency mechanism §3 mandates.
 
 ## What this profile leaves to the kits
 

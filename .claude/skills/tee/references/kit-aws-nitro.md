@@ -8,7 +8,7 @@
 - **RATS role mapping** — **Attester** = enclave + Nitro Security Module (NSM); **Endorser** = the AWS Nitro Attestation PKI; **Verifier** = AWS KMS (verifier-as-a-service) or an on-chain contract; **Relying Party** = the entity gating secret/privilege release (§7).
 - **Trust root / Endorser** — pin **AWS Nitro Enclaves Root-G1** (PEM at `aws-nitro-enclaves.amazonaws.com/AWS_NitroEnclaves_Root-G1.zip`, SHA-256 fingerprint `64:1A:03:21:…:BB:5B`, 30-year lifetime — AWS Nitro Enclaves User Guide `verify-root.html`). **Trust set = AWS hypervisor + AWS PKI** (not a silicon vendor) — feeds VP16 and the validator-as-host caveat below.
 
-**Trust-model caveat (VP16 / profile Rule 2):** Nitro's model assumes the **AWS host is trusted** (AWS Nitro Enclaves User Guide, isolation model). It is the natural fit for harbor-hosted Tide agent runtimes and bridges (existing AWS EKS posture), but it does **not** defend against a relying party who *is* the AWS host operator — so it is the wrong fit for a validator-as-host MEV/ordering surface (see `tee-profile.md` §2).
+**Trust-model caveat (VP16 / profile Rule 2):** Nitro's model assumes the **AWS host is trusted** (AWS Nitro Enclaves User Guide, isolation model). It is the natural fit for harbor-hosted sei-internal-skills agent runtimes and bridges (existing AWS EKS posture), but it does **not** defend against a relying party who *is* the AWS host operator — so it is the wrong fit for a validator-as-host MEV/ordering surface (see `tee-profile.md` §2).
 
 ## 2. Evidence format
 
@@ -33,7 +33,7 @@ PCRs are 48-byte SHA-384 measurements, TPM-style extend from an all-zero start (
 | PCR4 | parent **instance-ID** hash | hypervisor (load-bearing claim 3) |
 | PCR8 | enclave image **signing-cert** hash | only when `--private-key` and `--signing-certificate` are supplied to `nitro-cli build-enclave` |
 
-Binary identity for a Tide agent image gates on **PCR0** (and optionally PCR1/PCR2/PCR8); PCR3/PCR4 additionally bind the parent's IAM role + instance. PCR5/6/7 are unused. Reference value enters via the on-chain registry / governance RVP (profile, VP7/VP15). (§2, load-bearing claim 3.)
+Binary identity for a sei-internal-skills agent image gates on **PCR0** (and optionally PCR1/PCR2/PCR8); PCR3/PCR4 additionally bind the parent's IAM role + instance. PCR5/6/7 are unused. Reference value enters via the on-chain registry / governance RVP (profile, VP7/VP15). (§2, load-bearing claim 3.)
 
 ## 4. Verifier-policy specifics — the per-vendor fill-ins
 

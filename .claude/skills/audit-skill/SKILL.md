@@ -2,7 +2,7 @@
 name: audit-skill
 category: skill-authoring
 model: claude-opus-4-8
-description: "Use when auditing an existing skill against Tide and Anthropic best-practice conventions — 'audit the X skill', 'review this skill against conventions', 'check if this skill meets standards', 'pressure-test the existing X skill', 'how does X measure up to conventions', '/audit-skill'. Anti-triggers: NOT for authoring a new skill (use /author-skill); NOT for in-conversation code review of arbitrary code (this audits skill-shaped artifacts under .claude/skills/); NOT for adversarial review of running systems (use /bugbash); NOT for Claude Code built-ins like /loop, /schedule, /init. For multi-component design work, use /council. For capturing a session's design, use /design."
+description: "Use when auditing an existing skill against sei-internal-skills and Anthropic best-practice conventions — 'audit the X skill', 'review this skill against conventions', 'check if this skill meets standards', 'pressure-test the existing X skill', 'how does X measure up to conventions', '/audit-skill'. Anti-triggers: NOT for authoring a new skill (use /author-skill); NOT for in-conversation code review of arbitrary code (this audits skill-shaped artifacts under .claude/skills/); NOT for adversarial review of running systems (use /bugbash); NOT for Claude Code built-ins like /loop, /schedule, /init. For multi-component design work, use /council. For capturing a session's design, use /design."
 ---
 
 # Audit Skill
@@ -34,7 +34,7 @@ See `references/guardrails.md` for the detailed safety model.
 
 ### Phase 1 — Audit (default)
 
-Reads the target skill, runs static + semantic + pressure checks against the conventions catalog, and produces a findings report in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<date>.md` (Design 13 — process-lineage relocation; resolve the DRI repo as `/design` does, Tide's repo-default arc is `tide-skill-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable and the user confirms). Default mode — no edits.
+Reads the target skill, runs static + semantic + pressure checks against the conventions catalog, and produces a findings report in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<date>.md` (Design 13 — process-lineage relocation; resolve the DRI repo as `/design` does, sei-internal-skills's repo-default arc is `sei-internal-skills-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable and the user confirms). Default mode — no edits.
 
 ### Phase 2 — Refactor (opt-in via `--apply`)
 
@@ -56,7 +56,7 @@ The two phases are *sequenced*, not coupled. You can run audit alone today and r
 
 1. **Resolve target.** From `--skill <name>` or `--path <abs-path>`. Resolve to `<repo>/.claude/skills/<name>/` or `~/.claude/skills/<name>/`. Confirm the path and skill name with the user before reading any files.
 
-1a. **Resolve the DRI report home.** Resolve the DRI `<engineer>-designs` repo where the report will land, **as `/design` does** (`--designs-repo` → sibling `<engineer>-designs` checkout → ask). In a **non-interactive (headless/cron)** run, **HALT and surface — never write to a guessed path** (Design 13). The report lands at `designs/<arc>/audits/<name>-<date>.md` (Tide repo-default arc `tide-skill-stack`); the in-repo `docs/skill-audits/` is used **only when no DRI repo is resolvable and the user confirms**.
+1a. **Resolve the DRI report home.** Resolve the DRI `<engineer>-designs` repo where the report will land, **as `/design` does** (`--designs-repo` → sibling `<engineer>-designs` checkout → ask). In a **non-interactive (headless/cron)** run, **HALT and surface — never write to a guessed path** (Design 13). The report lands at `designs/<arc>/audits/<name>-<date>.md` (sei-internal-skills repo-default arc `sei-internal-skills-stack`); the in-repo `docs/skill-audits/` is used **only when no DRI repo is resolvable and the user confirms**.
 
 2. **Read & classify.** Load `SKILL.md`. Parse frontmatter (name, description). Infer shape — discipline / technique / pattern / reference / procedural — using the heuristics in `references/semantic-checks.md` (procedural has scripts/ and state/; discipline has a rationalization table or red-flags; reference is mostly TOC + entries). If shape can't be inferred, ask the user. Write to `state/run-<ts>/classify.yaml`.
 
@@ -137,7 +137,7 @@ state/run-<ts>/
 
 `state/` is gitignored at the repo level. On interrupted runs, the next invocation detects the latest incomplete `run-<ts>/` and offers **resume** / **archive** / **start-fresh**.
 
-The audit *report* (the durable lineage artifact) lives in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<YYYY-MM-DD>.md` (Design 13; Tide's repo-default arc is `tide-skill-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable and the user confirms) — outside `state/`, committable, the thing PRs reference.
+The audit *report* (the durable lineage artifact) lives in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<YYYY-MM-DD>.md` (Design 13; sei-internal-skills's repo-default arc is `sei-internal-skills-stack`; in-repo `docs/skill-audits/` only when no DRI repo is resolvable and the user confirms) — outside `state/`, committable, the thing PRs reference.
 
 ## What this skill doesn't do
 
@@ -151,4 +151,4 @@ The audit *report* (the durable lineage artifact) lives in the DRI's `<engineer>
 
 End-of-turn summary: one short paragraph. Skill audited, finding counts by severity, top blocker, report path. If Phase 2 ran, also: cycles consumed, edits applied, edits skipped, GREEN result. Example:
 
-> Audited `coral` (orchestration shape). 14 findings: 2 block, 8 warn, 4 info. Top blocker: description includes workflow summary that pre-empts the body's flowchart (Obra CSO trap). Report at `designs/tide-skill-stack/audits/coral-2026-05-10.md`. Stopped at audit-only — refactor pass deferred per user.
+> Audited `coral` (orchestration shape). 14 findings: 2 block, 8 warn, 4 info. Top blocker: description includes workflow summary that pre-empts the body's flowchart (Obra CSO trap). Report at `designs/sei-internal-skills-stack/audits/coral-2026-05-10.md`. Stopped at audit-only — refactor pass deferred per user.

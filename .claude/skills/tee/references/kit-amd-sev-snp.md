@@ -24,7 +24,7 @@ Binary identity is the single **`MEASUREMENT`** field at offset `0x090`, **48 by
 
 - It is a **one-shot launch snapshot** — there is **no PCR bank and no extend-after-launch primitive** (§4.4, §5.3). Unlike Nitro's TPM-style PCR set, SEV-SNP exposes exactly one launch-time digest. Runtime integrity (kernel module loading, etc.) is **out of scope** for the report and must be enforced in-guest (IMA, dm-verity) and surfaced separately (§4.4, load-bearing claim 7).
 - For a Linux guest the digest covers kernel + initrd + cmdline **only because OVMF measures those into the launch hash before handoff** — the PSP itself hashes only what firmware commands load (VMSA, OVMF/firmware pages, `SNP_LAUNCH_UPDATE` pages) (§4.1).
-- Binary identity for a Tide agent image gates on `MEASUREMENT` matching a governance-approved reference value; the reference value enters via the on-chain registry / governance RVP (profile, VP7/VP15). Optionally bind `GUEST_SVN` (`0x004`), `FAMILY_ID` (`0x010`), `IMAGE_ID` (`0x020`), or the `ID_KEY_DIGEST` (`0x0E0`) when an ID block is used (§1.1).
+- Binary identity for a sei-internal-skills agent image gates on `MEASUREMENT` matching a governance-approved reference value; the reference value enters via the on-chain registry / governance RVP (profile, VP7/VP15). Optionally bind `GUEST_SVN` (`0x004`), `FAMILY_ID` (`0x010`), `IMAGE_ID` (`0x020`), or the `ID_KEY_DIGEST` (`0x0E0`) when an ID block is used (§1.1).
 
 ## 4. Verifier-policy specifics — the per-vendor fill-ins
 

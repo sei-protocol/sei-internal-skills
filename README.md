@@ -1,10 +1,10 @@
 <p align="center">
-  <img src="assets/banner.png" alt="Tide" width="100%">
+  <img src="assets/banner.png" alt="sei-internal-skills" width="100%">
 </p>
 
-# Tide
+# sei-internal-skills
 
-Tide is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It's the centralized, version-controlled home for the workflows and personas that help us research problems, groom work, document progress in git and tickets, author and iterate on designs and 1-pagers, automate operational processes like releases and root-cause analysis, and collaborate with specialist agents.
+sei-internal-skills is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It's the centralized, version-controlled home for the workflows and personas that help us research problems, groom work, document progress in git and tickets, author and iterate on designs and 1-pagers, automate operational processes like releases and root-cause analysis, and collaborate with specialist agents.
 
 Skills and agents are authored once here and synced out to your user-scope (`~/.claude/`) and sibling repos, so the same `/coral`, `/xreview`, `/root-cause`, or `kubernetes-specialist` works the same way everywhere.
 
@@ -13,7 +13,7 @@ Skills and agents are authored once here and synced out to your user-scope (`~/.
 One-liner
 
 ```sh
-gh api repos/sei-protocol/Tide/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
+gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
 ```
 
 Or clone, then
@@ -23,8 +23,8 @@ make bootstrap
 ```
 
 This runs:
-- `make sync-agents` — installs Tide's portable agents into `~/.claude/agents/` so they're reachable from any cwd
-- `make sync-skills` — installs Tide's portable skills into `~/.claude/skills/`
+- `make sync-agents` — installs sei-internal-skills's portable agents into `~/.claude/agents/` so they're reachable from any cwd
+- `make sync-skills` — installs sei-internal-skills's portable skills into `~/.claude/skills/`
 - `make update-agent-permissions` — installs the canonical read-only allow-list (`gh` reads, GitHub WebFetch) into `./.claude/settings.json`
 
 The canonical permission set is **strictly read-only by design**. Mutating patterns (`gh issue create`, `gh pr merge`, `aws delete-*`, `kubectl apply`, etc.) are rejected by `make verify-agent-permissions`, which CI runs on every PR that touches the permission files. Local additions for your own workflow go in `.claude/settings.local.json` (gitignored).
@@ -50,7 +50,7 @@ Coral and council offer **`/design`** (capture this work as a durable doc) and *
   - **Workstream bootstrap** — `/design`, `/issue`
   - **Hardening & investigation** — `/bugbash`, `/root-cause`
   - **Skill authoring** — `/author-skill`, `/audit-skill`
-  - **Output quality** (Tide-local) — `/brevity`, `/pr-quality`
+  - **Output quality** (sei-internal-skills-local) — `/brevity`, `/pr-quality`
   - **Product management** — `/prfaq`
   - **Project management** — `/impact-weekly`, `/impact-portfolio`
   - **Release operations** — `/chaos-suite`, `/validate-release`
@@ -77,7 +77,7 @@ make sync-skills                                            # the `portable` set
 ./scripts/sync-skills.sh --categories all                   # everything syncable
 ```
 
-Claude Code discovers skills/agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/tide/` are **not** discovered. So the install is always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. (`output-quality` — `/brevity`, `/pr-quality` — is Tide-local and intentionally not synced.)
+Claude Code discovers skills/agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/sei-internal-skills/` are **not** discovered. So the install is always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. (`output-quality` — `/brevity`, `/pr-quality` — is sei-internal-skills-local and intentionally not synced.)
 
 ## Repository structure
 
@@ -108,7 +108,7 @@ scripts/                    # sync-agents.sh, sync-skills.sh, permission tooling
 - **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the skill or component in scope (e.g. `feat(xreview): ...`, `docs(readme): ...`).
 - **Brevity discipline.** Apply `/brevity` before writing PR bodies or WHY-style in-code comments.
 - **PR-quality discipline.** Before `gh pr create`, apply `/pr-quality` to the staged diff + planned body.
-- **Edit skills here, not in `~/.claude/`.** User-scope copies are overwritten on the next sync. Change a skill in Tide and PR it.
+- **Edit skills here, not in `~/.claude/`.** User-scope copies are overwritten on the next sync. Change a skill in sei-internal-skills and PR it.
 
 ## Documentation map
 

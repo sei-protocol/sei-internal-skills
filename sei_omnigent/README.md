@@ -1,11 +1,11 @@
 # sei_omnigent — Sei's Omnigent overlay
 
-The out-of-tree overlay that adopts Omnigent as the meta-harness beneath Tide
+The out-of-tree overlay that adopts Omnigent as the meta-harness beneath sei-internal-skills
 while keeping Sei's domain substrate (chain registry, tenancy, TEE memory) in
 Sei's hands. Implements **design #11** (`bdchatham-designs/designs/sei-agentic-mesh/`)
 — the *hybrid line*: **adopt the runtime glue, own the substrate at the store/identity boundary.**
 
-> Owned in `sei-protocol/Tide`. Designs live in `bdchatham-designs`. Deployment
+> Owned in `sei-protocol/sei-internal-skills`. Designs live in `bdchatham-designs`. Deployment
 > runs on the Sei platform Kubernetes cluster. Omnigent is a **pinned dependency**
 > (`omnigent==0.2.0`), never a fork.
 
@@ -55,7 +55,7 @@ container both). The K8s entrypoint is `python -m sei_omnigent.server.serve_main
 
 ## Status
 
-In review (Tide PR #181, cross-review round 2). Not yet wired to CI or the deploy
+In review (sei-internal-skills PR #181, cross-review round 2). Not yet wired to CI or the deploy
 overlay. `build_server` is import-safe with `omnigent==0.2.0` installed; it
 returns a FastAPI app but does not load config or bind/serve — the runnable
 `sei-omnigent-serve` console script is added in PLT-672 (deploy).

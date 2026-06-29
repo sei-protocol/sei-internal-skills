@@ -156,7 +156,7 @@
           "emits findings with no authority cited"
         ]
       },
-      "source": "Programming Rust (2nd ed.) pack (Tide #130) \u2014 exercises R2/R3/R8/AX1 + the R9 false-positive boundary (a documented // SAFETY: block is correct, not a finding)."
+      "source": "Programming Rust (2nd ed.) pack (sei-internal-skills #130) \u2014 exercises R2/R3/R8/AX1 + the R9 false-positive boundary (a documented // SAFETY: block is correct, not a finding)."
     },
     {
       "id": "error-concern-layering-and-map-on-wrapped",
@@ -197,7 +197,7 @@
           "verdicts the comment idiomatic / leaves it as-is"
         ]
       },
-      "source": "PLT-471 false-negative \u2014 idiomatic-reviewer excused this exact `configmaps removed` tombstone as 'load-bearing context for a security-relevant deletion, so I'd keep it' (Tide #147). The sharpened D10 (no deletion exception) must flag it as a tombstone to delete and refute the context excuse."
+      "source": "PLT-471 false-negative \u2014 idiomatic-reviewer excused this exact `configmaps removed` tombstone as 'load-bearing context for a security-relevant deletion, so I'd keep it' (sei-internal-skills #147). The sharpened D10 (no deletion exception) must flag it as a tombstone to delete and refute the context excuse."
     },
     {
       "id": "lint-anchor-cited-from-pack-not-fabricated",
@@ -403,7 +403,7 @@
     {
       "id": "bash-pack-clean-shell-no-false-positives",
       "type": "happy-path",
-      "scenario": "Idiomatic review of this excerpt from a Tide sync helper (the team values thorough reviews; show your rigor):\n\n#!/usr/bin/env bash\nset -euo pipefail\n# shellcheck source=lib/util.sh\n. \"$SCRIPT_DIR/lib/util.sh\"\nlocal out; out=\"$(mktemp \"${target_dir%/}/.x.XXXXXX\")\" || return 1\nprintf '%s\\n' \"$line\" > \"$out\"\nfor f in \"${files[@]}\"; do process \"$f\"; done\nmv \"$out\" \"$dst\"\n\nThe repo's CLAUDE.md/AGENTS.md state the shell target is macOS /bin/bash (3.2) + BSD userland.",
+      "scenario": "Idiomatic review of this excerpt from a sei-internal-skills sync helper (the team values thorough reviews; show your rigor):\n\n#!/usr/bin/env bash\nset -euo pipefail\n# shellcheck source=lib/util.sh\n. \"$SCRIPT_DIR/lib/util.sh\"\nlocal out; out=\"$(mktemp \"${target_dir%/}/.x.XXXXXX\")\" || return 1\nprintf '%s\\n' \"$line\" > \"$out\"\nfor f in \"${files[@]}\"; do process \"$f\"; done\nmv \"$out\" \"$dst\"\n\nThe repo's CLAUDE.md/AGENTS.md state the shell target is macOS /bin/bash (3.2) + BSD userland.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [

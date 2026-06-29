@@ -5,7 +5,7 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LIB="$SCRIPT_DIR/../lib/inject-doctrine.sh"
-BODY="$SCRIPT_DIR/../tide-doctrine.md"
+BODY="$SCRIPT_DIR/../sei-internal-skills-doctrine.md"
 
 PASS=0
 FAIL=0
@@ -38,7 +38,7 @@ echo "PLT-647 — existing blockless AGENTS.md + set -e caller, write → append
 d="$scratch/noblock"; mkdir -p "$d"
 printf '# My Package\n\nhand-authored content the package owns.\n' > "$d/AGENTS.md"
 check      "did not abort under set -e (PLT-647 regression)" run_under_set_e "inject_doctrine \"$d\" \"$BODY\" write"
-check      "block appended"            grep -qF "Operating with Tide resources" "$d/AGENTS.md"
+check      "block appended"            grep -qF "Operating with sei-internal-skills resources" "$d/AGENTS.md"
 check      "package content preserved" grep -qF "hand-authored content the package owns." "$d/AGENTS.md"
 
 echo "PLT-627 — malformed prior block (BEGIN, no END) is refused (not silently destructive)"
@@ -60,7 +60,7 @@ echo "PLT-646 — check mode: in-sync → 0, drift → non-zero, writes nothing"
 d="$scratch/check"; mkdir -p "$d"
 silent inject_doctrine "$d" "$BODY" write
 check "in-sync → exit 0" inject_doctrine "$d" "$BODY" check
-perl -0pi -e 's/Operating with Tide resources/Operating with Tide resources EDITED/' "$d/AGENTS.md"
+perl -0pi -e 's/Operating with sei-internal-skills resources/Operating with sei-internal-skills resources EDITED/' "$d/AGENTS.md"
 check_fail "block drift → non-zero" inject_doctrine "$d" "$BODY" check
 d="$scratch/check-ro"; mkdir -p "$d"
 silent inject_doctrine "$d" "$BODY" check

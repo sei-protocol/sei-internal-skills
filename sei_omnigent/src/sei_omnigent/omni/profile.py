@@ -1,7 +1,7 @@
 """Pure omni-profile loader + launch-refusal invariants (PLT-714) — no omnigent import.
 
 The omni-overlay's per-skill contract. An ``omni-profile`` declares the things
-that specialize a mode-agnostic Tide skill for **headless** execution — the
+that specialize a mode-agnostic sei-internal-skills skill for **headless** execution — the
 direct analog of ``/tee``'s kit and ``/idiomatic``'s pack. This module is the
 pure, unit-testable *launcher core*: it loads + validates a profile and enforces
 the **posture-overrides-profile** invariant (a profile can never widen the

@@ -46,8 +46,8 @@ When the ship step is reached and a `review-gate` was declared, evaluate it:
 1. **Compute the review-ledger path** from the target (PLT-535's target-derivable rule — no
    registry, no handoff token). The ledger lives in the DRI repo at `designs/<arc>/xreview/<slug>.md`
    (Design 13): for a design-doc target the arc is the target's own path segment; for a code-PR/diff
-   target the arc is the code repo's **default arc** (repo identity → fixed arc, e.g. `Tide` →
-   `tide-skill-stack`). The gate checks **two deterministic candidate paths** — that DRI-repo path,
+   target the arc is the code repo's **default arc** (repo identity → fixed arc, e.g. `sei-internal-skills` →
+   `sei-internal-skills-stack`). The gate checks **two deterministic candidate paths** — that DRI-repo path,
    then the in-repo `.xreview/<slug>.md` fallback (where the producer writes when no DRI repo was
    resolvable) — both computable with no prompt, per `/xreview/references/review-ledger.md`; absent
    from **both** ⇒ fail closed.

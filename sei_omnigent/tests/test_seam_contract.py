@@ -12,7 +12,7 @@ import ast
 import tomllib
 from pathlib import Path
 
-# tests/ live at the PROJECT ROOT (Tide/sei_omnigent/tests/); the importable
+# tests/ live at the PROJECT ROOT (sei-internal-skills/sei_omnigent/tests/); the importable
 # package is under src/. _ROOT holds pyproject.toml + tests/; _PKG is src/sei_omnigent.
 _ROOT = Path(__file__).resolve().parent.parent
 _PKG = _ROOT / "src" / "sei_omnigent"

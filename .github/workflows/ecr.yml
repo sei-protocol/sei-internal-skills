@@ -2,10 +2,10 @@ name: ECR
 
 # Build + push the sei-tide-omnigent overlay server image to us-east-2 ECR
 # (PLT-735). Mirrors sei-k8s-controller's ecr.yml: OIDC into the common/gha role,
-# amazon-ecr-login + buildx, a Tide-isolated registry build-cache ref,
+# amazon-ecr-login + buildx, a sei-internal-skills-isolated registry build-cache ref,
 # ${{ github.sha }} tag.
 #
-# Path-filtered to sei_omnigent/** because Tide is a multi-purpose monorepo —
+# Path-filtered to sei_omnigent/** because sei-internal-skills is a multi-purpose monorepo —
 # only changes under the overlay should publish a new image. The existing
 # verify-*.yml workflows are untouched (they own lint/test/packaging gates).
 #
@@ -58,7 +58,7 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-tide-omnigent:${{ inputs.tag || github.sha }}
-          # Tide-isolated cache ref — Tide CI must not read/write the :shared
+          # sei-internal-skills-isolated cache ref — sei-internal-skills CI must not read/write the :shared
           # cache other repos' builds trust.
           cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-tide-omnigent
           cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-tide-omnigent,mode=max

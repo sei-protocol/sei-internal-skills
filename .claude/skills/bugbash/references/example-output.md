@@ -2,7 +2,7 @@
 
 This is an illustrative example of the bugbash findings log (`designs/<arc>/bugbash/<target>.md` in the DRI repo; in-repo `docs/bugbash/<target>.md` fallback) mid-run, with five findings logged. It uses the user-provided "Item 5: incomplete validation on SeiNode networkconfig with replicas" example, surrounded by representative Items 1–4 to show the shape of a real artifact.
 
-The findings here are illustrative, not real findings against any production system. Some items reference an on-chain attestation flow and an interface registry purely as sample subject matter to show the finding shape — they do not describe Tide, which is a skills/agents library, not an on-chain system.
+The findings here are illustrative, not real findings against any production system. Some items reference an on-chain attestation flow and an interface registry purely as sample subject matter to show the finding shape — they do not describe sei-internal-skills, which is a skills/agents library, not an on-chain system.
 
 ---
 
@@ -174,7 +174,7 @@ Operators creating a multi-replica SeiNode with a static-peer network config see
 
 ### Issue
 
-In `pkg/apis/seinode/v1/validation.go:88`, the validation webhook checks that `spec.replicas >= 1` and that `spec.networkConfig.peers` is non-empty when present, but does not check the *combination* of `replicas > 1` with a `networkConfig` that names static peers without per-replica scoping. The interface registry's SeiNode CRD spec at `tide/interface-registry.yaml#seinode-v1` documents that static peer configs are scoped per-replica only when `networkConfig.replicaScope: true`, but this field defaults to false and the webhook doesn't enforce the consequence.
+In `pkg/apis/seinode/v1/validation.go:88`, the validation webhook checks that `spec.replicas >= 1` and that `spec.networkConfig.peers` is non-empty when present, but does not check the *combination* of `replicas > 1` with a `networkConfig` that names static peers without per-replica scoping. The interface registry's SeiNode CRD spec at `sei-internal-skills/interface-registry.yaml#seinode-v1` documents that static peer configs are scoped per-replica only when `networkConfig.replicaScope: true`, but this field defaults to false and the webhook doesn't enforce the consequence.
 
 **Fix sketch:**
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# sync-agents.sh — copy Tide agent definitions to a target .claude/agents/ directory.
+# sync-agents.sh — copy sei-internal-skills agent definitions to a target .claude/agents/ directory.
 #
 # SINGLE SOURCE OF TRUTH: each agent's own `category:` frontmatter. Membership in
 # a sync alias (portable / sei) is DERIVED from that category via the small
@@ -18,7 +18,7 @@
 # --dry-run:     print what would be copied without copying
 # --force:       overwrite existing target files without prompting
 # --verify:      run ONLY the coverage guard and exit non-zero on any gap. For CI.
-# --inject-doctrine: also inject the Tide operating-doctrine managed block into
+# --inject-doctrine: also inject the sei-internal-skills operating-doctrine managed block into
 #                <target>/AGENTS.md (+ a CLAUDE.md pointer). Off by default;
 #                intended for a consuming package, not user-scope ($HOME).
 #
@@ -36,7 +36,7 @@ AGENTS_DIR="$(cd "$SCRIPT_DIR/../.claude/agents" && pwd)"
 # --- Domain -> alias map (the ONLY hand-maintained categorization) ----------
 #
 # Every domain an agent declares in `category:` must appear in exactly one list.
-# `all` = PORTABLE+SEI. There are no Tide-local agents.
+# `all` = PORTABLE+SEI. There are no sei-internal-skills-local agents.
 PORTABLE_DOMAINS="platform-infra observability security blockchain code-quality writing-quality product-management release-operations data-architecture"
 SEI_DOMAINS="project-management"
 
@@ -178,7 +178,7 @@ fi
 
 if $INJECT_DOCTRINE; then
   doctrine_mode="write"; $DRY_RUN && doctrine_mode="dry-run"
-  inject_doctrine "$TARGET" "$SCRIPT_DIR/tide-doctrine.md" "$doctrine_mode"
+  inject_doctrine "$TARGET" "$SCRIPT_DIR/sei-internal-skills-doctrine.md" "$doctrine_mode"
 fi
 
 if $DRY_RUN; then echo ""; echo "(dry-run — no files copied)"; exit 0; fi

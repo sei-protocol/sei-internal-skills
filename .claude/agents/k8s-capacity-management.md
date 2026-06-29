@@ -98,7 +98,7 @@ Default starting points; always validate against measured data.
 | DaemonSet log/metric shipper | Promtail, Alloy, fluent-bit | p95 × 1.3 | p95 × 2.0 | p95 × 1.5 | p95 × 3.0 (or unset) | Burstable | Per-node overhead matters; size for the node, not the cluster |
 | Sidecar | Thanos sidecar, Istio proxy | p99 × 1.5 | p99 × 2.0 | p99 × 1.5 | p99 × 3.0 | Burstable | Sidecar memory scales with main container traffic; size in lockstep |
 | Stateful single-tenant | Prometheus, single-replica DBs | p99 × 1.5 | p99 × 1.5 | p95 × 1.5 | p95 × 2.0 | **Guaranteed (request=limit)** memory | OOM is unrecoverable for single-replica stateful; pay for headroom |
-| Burstable controller | sei-k8s-controller, Tide Operator | p95 × 1.3 | p95 × 2.5 | p95 × 1.5 | p95 × 3.0 | Burstable | Controllers spike on reconcile floods; soft headroom is cheap |
+| Burstable controller | sei-k8s-controller, sei-internal-skills Operator | p95 × 1.3 | p95 × 2.5 | p95 × 1.5 | p95 × 3.0 | Burstable | Controllers spike on reconcile floods; soft headroom is cheap |
 | Guaranteed ingester | Loki ingester, Prometheus replica | p99 × 1.3 | p99 × 1.3 | p95 × 1.5 | p95 × 1.5 | **Guaranteed** | WAL + block flush spikes; eviction is data loss |
 | Batch / Job | Backfill, migration, one-shot | peak × 1.2 | peak × 1.5 | peak × 1.5 | peak × 2.0 | Burstable | Sized to peak (one run is the data); idle cost is zero |
 

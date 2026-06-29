@@ -88,4 +88,4 @@ Pointers to the canonical skills — apply each by reference; the skill owns the
 - **Artifact capture.** `/design` captures the architecture/LLD and `/issue` files deferred slices at the Coral handoff. Unsettled questions (e.g. build-vs-reuse evidence) route to `/research`.
 - **Code-quality lenses.** Architecture with code-level implications gets `/idiomatic` then `/systems` as xreview passes.
 - **Lineage.** Work advancing an Impact bet is decorated via `/execution-plan` — automatic; no action from you.
-- **Writing.** Architecture specs are dual-audience org artifacts: apply the `/lingua` register (type open questions; anchor constraints locally), expect `prose-steward` review, and carry the no-tombstone bar (Tide#147) + the register discipline (PLT-473 / Tide#138).
+- **Writing.** Architecture specs are dual-audience org artifacts: apply the `/lingua` register (type open questions; anchor constraints locally), expect `prose-steward` review, and carry the no-tombstone bar (sei-internal-skills#147) + the register discipline (PLT-473 / sei-internal-skills#138).

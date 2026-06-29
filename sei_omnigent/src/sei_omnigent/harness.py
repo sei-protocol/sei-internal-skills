@@ -3,10 +3,10 @@
 Two Phase-1 invariants, both pure (no omnigent import) so they're unit-testable
 and enforceable as a CI lint / a session-launch precondition:
 
-1. **Harness invariant** (a hard *precondition* — raises). Every Tide session
+1. **Harness invariant** (a hard *precondition* — raises). Every sei-internal-skills session
    must launch under ``claude-native`` with ``skills_filter == "all"``.
    ``claude-sdk`` zeros the model's tool set to ``["Skill"]`` and wires no
-   Task/subagent dispatch — it breaks Tide's ``/coral``//``/council`` fan-out.
+   Task/subagent dispatch — it breaks sei-internal-skills's ``/coral``//``/council`` fan-out.
    Any ``skills_filter`` but ``"all"`` changes how host setting-sources load
    (see #2), so the roster the session sees can't be confirmed — refused.
 
@@ -19,7 +19,7 @@ and enforceable as a CI lint / a session-launch precondition:
    (``~/.claude/skills/`` and the cwd's project ``.claude/`` scope). omnigent
    documents this for **skills**; it does not document — and this module does
    **not** assert — that the same flag gates ``.claude/agents/`` by that exact
-   mechanism. The roster degradation Tide relies on was observed *empirically* (a
+   mechanism. The roster degradation sei-internal-skills relies on was observed *empirically* (a
    failed specialist dispatch under a restricted filter; design #11 C7), not
    proven from source. So the guard is deliberately conservative: it refuses any
    ``skills_filter`` but ``"all"``, any emitted ``--setting-sources ""``, and any
@@ -38,7 +38,7 @@ here and prove *config inputs* — not that the roster actually loaded. The
 behavioral proof is the **one-shot canary dispatch** at session open (a live
 Task-dispatch the roster must answer), which also closes the inputs this static
 layer cannot observe: the launch **cwd** (project ``.claude/`` only loads when
-cwd is the Tide repo — design §2.2/§2.5) and whether some *other* arg path
+cwd is the sei-internal-skills repo — design §2.2/§2.5) and whether some *other* arg path
 emitted ``--setting-sources ""`` (the independent ``setting_sources_suppressed``
 signal below). The canary needs a running claude session and is deferred to the
 session-launch wiring (PLT-672), like the header-posture behavioral test.
@@ -56,7 +56,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-#: The only harness Tide runs under (claude-sdk breaks subagent fan-out).
+#: The only harness sei-internal-skills runs under (claude-sdk breaks subagent fan-out).
 CLAUDE_NATIVE_HARNESS = "claude-native"
 
 #: The only skills_filter that leaves host setting-source discovery at the CLI
@@ -64,7 +64,7 @@ CLAUDE_NATIVE_HARNESS = "claude-native"
 #: so the specialist roster can't be confirmed — refused conservatively.
 REQUIRED_SKILLS_FILTER = "all"
 
-#: Expected specialist-roster size, tracking ``Tide/.claude/agents/*.md``. CI
+#: Expected specialist-roster size, tracking ``sei-internal-skills/.claude/agents/*.md``. CI
 #: ties this to the synced agent count (see :func:`count_roster_agents`); a
 #: drift (roster grew but baseline not bumped) shows up as a false-healthy guard,
 #: so the two are checked equal in tests.
@@ -83,7 +83,8 @@ def assert_harness_invariant(*, harness: str, skills_filter: str | list[str]) ->
     """
     if harness != CLAUDE_NATIVE_HARNESS:
         raise RuntimeError(
-            f"Tide sessions must run under {CLAUDE_NATIVE_HARNESS!r}, not {harness!r}: "
+            f"sei-internal-skills sessions must run under "
+            f"{CLAUDE_NATIVE_HARNESS!r}, not {harness!r}: "
             "claude-sdk zeros the tool set to ['Skill'] and wires no subagent "
             "dispatch, breaking /coral//council fan-out."
         )

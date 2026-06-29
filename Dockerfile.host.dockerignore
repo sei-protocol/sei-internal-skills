@@ -12,7 +12,7 @@
 !sei_omnigent/pyproject.toml
 !sei_omnigent/src/**
 
-# The Tide overlay (skills + agents) baked at $HOME/.claude in the host stage.
+# The sei-internal-skills overlay (skills + agents) baked at $HOME/.claude in the host stage.
 !.claude/**
 
 # Keep caches / editable-install metadata OUT — not needed to `pip install .`,

@@ -35,7 +35,7 @@ Binary identity is the set of **64 SPDM `MEASUREMENTS` records** appraised again
 | DevTools / debug flags | JTAG-disable bit, performance-counter mask | gates VP3 |
 | memory configuration | ECC enable, memory firewall state | — |
 
-**Required together:** a GPU-identity-genuine result is *necessary but not sufficient*. Binary identity for a Tide GPU-prover job gates on (a) the RIM appraisal passing for the approved `(driver, firmware, VBIOS)` tuple, (b) **mode = CC-On** (not CC-Off, not CC-DevTools), and (c) the **CPU-TEE↔GPU binding** (VP8) — a genuine-GPU report bound to an *unrelated* CVM is exploitable (§4.1, claim 8). The internal boot chain CEC EROT → FSP → GSP → SEC2 each contributes measurements; all four are in the report (§1.2). Reference values enter via the RIM Service (Endorser) and the on-chain governance registry (profile, VP7/VP15).
+**Required together:** a GPU-identity-genuine result is *necessary but not sufficient*. Binary identity for a sei-internal-skills GPU-prover job gates on (a) the RIM appraisal passing for the approved `(driver, firmware, VBIOS)` tuple, (b) **mode = CC-On** (not CC-Off, not CC-DevTools), and (c) the **CPU-TEE↔GPU binding** (VP8) — a genuine-GPU report bound to an *unrelated* CVM is exploitable (§4.1, claim 8). The internal boot chain CEC EROT → FSP → GSP → SEC2 each contributes measurements; all four are in the report (§1.2). Reference values enter via the RIM Service (Endorser) and the on-chain governance registry (profile, VP7/VP15).
 
 ## 4. Verifier-policy specifics — the per-vendor fill-ins
 

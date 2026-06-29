@@ -1,4 +1,4 @@
-# Tide Agent Roster
+# sei-internal-skills Agent Roster
 
 This repository hosts specialist agent personas in `.claude/agents/`. They are general-purpose and sync to other repos and user-level via `scripts/sync-agents.sh`. The skills in `.claude/skills/` (notably `/coral`, `/council`, `/xreview`, `/root-cause`) dispatch them.
 
@@ -69,13 +69,13 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 
 The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
-The operating doctrine — engineering principles, output discipline, the workflow skills and when each applies, the xreview discipline, and the key rules — is the `tide-managed` block below. It is maintained once in `scripts/tide-doctrine.md` and distributed to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
+The operating doctrine — engineering principles, output discipline, the workflow skills and when each applies, the xreview discipline, and the key rules — is the `sei-internal-skills-managed` block below. It is maintained once in `scripts/sei-internal-skills-doctrine.md` and distributed to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
 
 ## Install
 
 The fastest path is `make bootstrap` from the repo root, which runs `make sync-agents`, `make sync-skills`, and `make update-agent-permissions`. See the README's Setup section for the full flow.
 
-Agents and skills travel the same way — Tide is the canonical home, and the sync scripts push them out to user-scope (`~/.claude/`) and sibling repos.
+Agents and skills travel the same way — sei-internal-skills is the canonical home, and the sync scripts push them out to user-scope (`~/.claude/`) and sibling repos.
 
 For sibling-repo or finer-grained installs, call the scripts directly:
 
@@ -100,12 +100,12 @@ For sibling-repo or finer-grained installs, call the scripts directly:
 ./scripts/sync-skills.sh --target ~/ --dry-run
 ```
 
-Categories: `portable` (default), `sei`, `all`. Both scripts are non-destructive by default — they refuse to overwrite changed files in the target unless `--force` is passed. The Make targets pass `--force` so subsequent runs pick up Tide updates cleanly.
+Categories: `portable` (default), `sei`, `all`. Both scripts are non-destructive by default — they refuse to overwrite changed files in the target unless `--force` is passed. The Make targets pass `--force` so subsequent runs pick up sei-internal-skills updates cleanly.
 
-<!-- BEGIN tide-managed (do not edit; managed by Tide sync scripts) -->
-## Operating with Tide resources
+<!-- BEGIN sei-internal-skills-managed (do not edit; managed by sei-internal-skills sync scripts) -->
+## Operating with sei-internal-skills resources
 
-This package consumes portable Claude Code skills and specialist agents authored in Sei's Tide library and installed under `.claude/`. The skills are invoked as the slash-commands below; the agents are dispatched by those skills. What follows is the opinionated doctrine for operating with them — the *way* to work, not a description of the library.
+This package consumes portable Claude Code skills and specialist agents authored in Sei's sei-internal-skills library and installed under `.claude/`. The skills are invoked as the slash-commands below; the agents are dispatched by those skills. What follows is the opinionated doctrine for operating with them — the *way* to work, not a description of the library.
 
 ### Engineering principles
 
@@ -150,4 +150,4 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 ### Roles, not roster
 
 Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose, `/lingua`). The full roster of available specialists lives in the synced `.claude/agents/` files.
-<!-- END tide-managed -->
+<!-- END sei-internal-skills-managed -->

@@ -135,7 +135,7 @@ When the design has a cluster, region, or VPC layout:
 flowchart TB
     subgraph EKS["EKS cluster (harbor)"]
       direction LR
-      subgraph NS1["namespace: tide-agents"]
+      subgraph NS1["namespace: sei-internal-skills-agents"]
         Op[Operator]
         Job1[Review Job]
         Job2[Execution Job]

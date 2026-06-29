@@ -105,5 +105,5 @@ This skill follows `../SKILL-TEMPLATE.md` but the `scripts/` directory contains 
 1. Port the mechanical steps from the release-6-5 chaos session into each script under `scripts/`. See `scripts/README.md` for the per-script authoring plan.
 2. Fill in the runbook test IDs and parameters from sei-protocol/platform#169.
 3. Confirm the cluster context allowlist patterns in `references/guardrails.md` match Sei's actual context naming.
-4. Decide whether to keep the skill in the Tide repo or move it to the platform repo. It can only be invoked when Claude Code's CWD is inside that repo — if chaos runs happen from the platform repo, move it there.
+4. Decide whether to keep the skill in the sei-internal-skills repo or move it to the platform repo. It can only be invoked when Claude Code's CWD is inside that repo — if chaos runs happen from the platform repo, move it there.
 5. Write happy-path and halt-path evals in `evals/evals.json`.

@@ -1,7 +1,7 @@
 """Tests for the claude-native harness invariant + roster-discoverable guard (PLT-670).
 
 Pure logic — no omnigent install needed. The count test ties ROSTER_BASELINE to
-the actual Tide ``.claude/agents/`` so a roster that grows without a baseline
+the actual sei-internal-skills ``.claude/agents/`` so a roster that grows without a baseline
 bump fails loudly (the false-healthy failure mode the guard exists to prevent).
 """
 
@@ -20,7 +20,7 @@ from sei_omnigent.harness import (
     roster_discoverable_error,
 )
 
-# Tide/.claude/agents  (test file is Tide/sei_omnigent/tests/test_harness.py)
+# repo-root/.claude/agents  (this test file is at repo-root/sei_omnigent/tests/test_harness.py)
 _AGENTS_DIR = Path(__file__).resolve().parents[2] / ".claude" / "agents"
 
 

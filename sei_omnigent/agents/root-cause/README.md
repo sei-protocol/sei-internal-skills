@@ -9,7 +9,7 @@ with a **proposed** (never executed) remediation.
 ## Layout
 
 - `config.yaml` — the omni agent spec (`spec_version: 1`, `name: root-cause`).
-- `skills/root-cause/` — a copy of Tide's `/root-cause` skill (SKILL.md +
+- `skills/root-cause/` — a copy of sei-internal-skills's `/root-cause` skill (SKILL.md +
   references), so the runner carries the discipline. Auto-discovered from
   `<bundle>/skills/`; no `skills:` line in the spec.
 
@@ -101,10 +101,10 @@ expert slate" which reads `.claude/agents/`) halts when no roster is present —
 the skill is multi-expert by design and refuses to run single-expert. The
 PLT-715 prove-run hit exactly this halt.
 
-So the headless `claude-native` runner needs Tide's `.claude/agents/`
+So the headless `claude-native` runner needs sei-internal-skills's `.claude/agents/`
 specialists (and `.claude/skills/`) present in its environment for the
 discipline to run. **Resolution (2026-06-24): provision them via the host's
-`~/.claude` seed** — the host image (#1201) bakes Tide's `.claude/agents/` +
+`~/.claude` seed** — the host image (#1201) bakes sei-internal-skills's `.claude/agents/` +
 `.claude/skills/` so every claude-native runner inherits the full multi-expert
 discipline (chosen over bundling the roster per-agent or a headless-adapted
 single-expert variant). That host-image-seed bake is **operator-gated** (a host

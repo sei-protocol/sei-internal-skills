@@ -48,7 +48,7 @@ CWD: `~/work/sei-k8s-controller`. The user has been discussing a gap they notice
 >
 > **Skill:** References? PRs / docs that informed this?
 >
-> **User:** PRs #135, #136, LLD §11, .tide/validator-migration.md.
+> **User:** PRs #135, #136, LLD §11, .sei-internal-skills/validator-migration.md.
 >
 > **Skill:** Drafted. File as a GitHub issue, a Linear ticket, or print for paste?
 
@@ -100,7 +100,7 @@ Reuse the existing NodeUpdate plan shape ... [content as in #137]
 - PR #135 — merged LLD
 - PR #136 — single-shot deployment shipped
 - [LLD §11 — deferred entry with implementation sketch](https://github.com/sei-protocol/sei-k8s-controller/blob/main/docs/design-seinode-validator-signing-key-lld.md#11-what-this-lld-does-not-cover)
-- `.tide/validator-migration.md` — internal runbook
+- `.sei-internal-skills/validator-migration.md` — internal runbook
 ```
 
 ## End-of-turn summary

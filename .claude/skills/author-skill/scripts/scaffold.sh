@@ -12,7 +12,7 @@
 #   - Refuses if name collides with the protected list (exit 3).
 #   - Creates the directory tree per the shape:
 #       discipline / technique / pattern / reference  → flat (Obra style)
-#       procedural                                    → full (Tide SKILL-TEMPLATE.md)
+#       procedural                                    → full (sei-internal-skills SKILL-TEMPLATE.md)
 #   - Populates stubs for SKILL.md (from drafted state) and evals.json.
 #   - Echoes the resolved path on success (exit 0).
 #

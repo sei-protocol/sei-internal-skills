@@ -1,4 +1,4 @@
-"""The omni-overlay: the general mechanism for running Tide skills headless (Design 13).
+"""The omni-overlay: the general mechanism for running skills headless (Design 13).
 
 A venue-agnostic session-routing service over vanilla omni: trigger adapters normalize venue
 events, the router admits + supervises a run, and venues receive the redacted result. The
