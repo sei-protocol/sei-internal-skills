@@ -49,7 +49,7 @@ prompt: |
   as a boundary-table finding (a `MISSING`-class entry naming the block) — so
   `OpenFindings:` is `>= 1`, backed by that real entry (never an empty table with
   a phantom count; per the gate-read contract, `OPEN-BLOCKED` with `OpenFindings:
-  0` is an invalid header that fails closed). NEVER stop without returning the
+  0` is a contradictory header that fails closed). NEVER stop without returning the
   structured verdict; never hang waiting on input. The blocking cases, each an
   OPEN-BLOCKED return (each recorded as a `MISSING`-class boundary-table entry):
   - **classification-absent** — the read-and-frame yields no resolvable `Class:`.
