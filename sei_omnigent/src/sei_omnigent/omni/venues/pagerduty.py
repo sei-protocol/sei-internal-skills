@@ -147,11 +147,10 @@ def _marker(incident_key: str) -> str:
     re-run of the SAME incident (the idempotency anchor), and distinct across incidents (a
     note for incident A never suppresses the note for incident B). Hidden-ish: a bracketed
     token a human skims past but an exact substring match finds deterministically. The
-    ``sei-omnigent:run`` prefix is a DURABLE PD-side wire format — fixed so a retry or a restart
-    re-scan deterministically matches a note this receiver already posted. Changing the prefix
-    forfeits dedup against notes carrying a prior prefix: none exist pre-launch (the receiver has
-    never run in production), so this rename is free; a post-launch prefix change would double-post
-    across the draining deploy.
+    ``sei-omnigent:run`` prefix is a DURABLE PD-side wire format: the scan matches on this exact
+    prefix, so a retry or restart re-scan deterministically matches a note this receiver already
+    posted, and a prefix change forfeits dedup against notes carrying any prior prefix — it would
+    double-post across a draining deploy.
     """
     return f"[sei-omnigent:run:{incident_key}]"
 

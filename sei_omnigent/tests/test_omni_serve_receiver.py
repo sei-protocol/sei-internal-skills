@@ -18,6 +18,7 @@ import pytest
 from sei_omnigent.omni.engine import Budget
 from sei_omnigent.omni.serve_receiver import (
     _DEFAULT_LEASE_MARGIN_S,
+    _PD_BASE_URL_ENV,
     _PD_ENROLLED_ENV,
     _PD_FROM_EMAIL_ENV,
     _PD_TOKEN_ENV,
@@ -50,7 +51,7 @@ _ALL_ENV = (
     f"{_PD_TOKEN_ENV}_FILE",
     _PD_FROM_EMAIL_ENV,
     _PD_ENROLLED_ENV,
-    "SEI_OMNIGENT_PD_BASE_URL",
+    _PD_BASE_URL_ENV,
 )
 
 
@@ -185,7 +186,7 @@ def test_build_poster_fails_closed_on_off_pd_base_url(
     # from_config's host-allowlist guard: a tampered base_url pointing off-PD must not be
     # handed the token (exfiltration). Surfaced at boot.
     _set_pd_env(monkeypatch, tmp_path)
-    monkeypatch.setenv("SEI_OMNIGENT_PD_BASE_URL", "https://evil.example.com")
+    monkeypatch.setenv(_PD_BASE_URL_ENV, "https://evil.example.com")
     with pytest.raises(ValueError):
         build_poster()
 
@@ -196,7 +197,7 @@ def test_build_poster_fails_closed_on_http_pd_base_url(
     # SF1: a plaintext-http base_url (token sent in clear) must fail closed at boot, same as an
     # off-PD host — the from_config scheme guard rejects http://.
     _set_pd_env(monkeypatch, tmp_path)
-    monkeypatch.setenv("SEI_OMNIGENT_PD_BASE_URL", "http://api.pagerduty.com")
+    monkeypatch.setenv(_PD_BASE_URL_ENV, "http://api.pagerduty.com")
     with pytest.raises(ValueError):
         build_poster()
 
