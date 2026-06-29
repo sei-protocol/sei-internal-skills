@@ -74,7 +74,7 @@ spec:
             - name: OMNIGENT_HOST_ID
               value: PLACEHOLDER_HOST_ID # e.g. host_<32hex>; must equal the arm Job's host_id
             - name: OMNIGENT_HOST_NAME
-              value: "tide-host"
+              value: "sei-omnigent-host"
             # The managed launch token — raw value, mounted from the Secret the
             # arm Job/CronJob writes. Atomic Secret overwrite revokes the old
             # token (its digest stops matching).

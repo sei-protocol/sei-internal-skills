@@ -29,7 +29,7 @@ data:
     # Admin = global superuser (bypasses ALL per-session checks). Keep this a
     # 1–2 person break-glass roster, version-controlled. These identities MUST
     # match the verified IdP claim oauth2-proxy sets as X-Forwarded-Email.
-    # The host's owner identity (tide-host@sei.internal) MUST NOT appear here.
+    # The host's owner identity (sei-omnigent-host@sei.internal) MUST NOT appear here.
     admins:
       - PLACEHOLDER_ADMIN_EMAIL
 

@@ -84,9 +84,9 @@ spec:
                 - name: OMNIGENT_HOST_ID
                   value: PLACEHOLDER_HOST_ID # SAME id as the arm Job + host pod
                 - name: OMNIGENT_HOST_NAME
-                  value: "tide-host" # SAME name as the arm Job + host pod
+                  value: "sei-omnigent-host" # SAME name as the arm Job + host pod
                 - name: OMNIGENT_HOST_OWNER
-                  value: "tide-host@sei.internal"
+                  value: "sei-omnigent-host@sei.internal"
                 - name: OMNIGENT_HOST_PROVIDER
                   value: "k8s-static"
                 - name: OMNIGENT_HOST_TOKEN_TTL_SECONDS
