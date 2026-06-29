@@ -93,22 +93,27 @@ Registered with the omni coordinator at boot:
 Per Design 13 this directory is baked into the coordinator image so the bundle
 is resolvable the moment the PD route fires.
 
-## DEPENDENCY — `.claude/agents/` roster via the host `~/.claude` seed (operator-gated)
+## DEPENDENCY — `.claude/agents/` roster via the host `~/.claude` seed (RESOLVED in the host image)
 
 The bundled `/root-cause` skill **hard-requires a `.claude/agents/` roster**.
 SKILL.md's first guardrail (Step "Context check", and Step 2 "Dispatch the
 expert slate" which reads `.claude/agents/`) halts when no roster is present —
 the skill is multi-expert by design and refuses to run single-expert. The
-PLT-715 prove-run hit exactly this halt.
+PLT-715 prove-run hit exactly this halt (a bare stand-up with no host image).
 
-So the headless `claude-native` runner needs sei-internal-skills's `.claude/agents/`
-specialists (and `.claude/skills/`) present in its environment for the
-discipline to run. **Resolution (2026-06-24): provision them via the host's
-`~/.claude` seed** — the host image (#1201) bakes sei-internal-skills's `.claude/agents/` +
-`.claude/skills/` so every claude-native runner inherits the full multi-expert
-discipline (chosen over bundling the roster per-agent or a headless-adapted
-single-expert variant). That host-image-seed bake is **operator-gated** (a host
-image change) and gates the discipline running headless; this bundle relies on
-it (it does not carry the roster itself — one maintenance point, minimal
-bundle). Tracked against the host-seed work alongside the coordinator `--agent`
-registration.
+The headless `claude-native` runner gets the roster from the **host image**:
+`Dockerfile.host` bakes the repo's `.claude/` overlay — `.claude/agents/` (the
+specialist roster) + `.claude/skills/` (incl. `root-cause`) — into the runner's
+`/home/host/.claude`, the user-scope path claude-code loads from. So every
+claude-native runner inherits the full multi-expert discipline; this bundle does
+not carry the roster itself (one maintenance point, minimal bundle), chosen over
+bundling per-agent or a headless-adapted single-expert variant. The bake is
+**build-time-verified**: `verify-sei-omnigent-image.yml`'s host-build-smoke
+asserts `.claude/agents/*.md` and `.claude/skills/root-cause/SKILL.md` are
+present in the built image — a dropped roster fails the build, not the first
+prod fire. The baked `.claude/settings.json` is the **read-only** allowlist
+(read-only `gh`/`gh api`/WebFetch only; gh writes are denied server-side by
+`admin__github_read_only`) — satisfying the propose-only floor's settings.json
+rollout gate at the image level. What remains operator-gated is the host's prod
+**deployment** (the substrate manifest + coordinator `--agent`), not the roster
+provisioning, which is built + verified here.

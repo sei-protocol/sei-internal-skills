@@ -110,7 +110,13 @@ jobs:
               test "$(id -u)" = "1000" || { echo "FAIL: not uid 1000 (got $(id -u))"; exit 1; }
               command -v git tmux node claude >/dev/null || { echo "FAIL: missing a harness binary"; exit 1; }
               test -f "$HOME/.claude/settings.json" || { echo "FAIL: overlay not baked at \$HOME/.claude"; exit 1; }
-              echo "toolchain+nonroot-ok uid=$(id -u) home=$HOME"
+              # The /root-cause skill hard-requires a .claude/agents/ roster (it halts at its
+              # Context-check gate without one — the PLT-715 prove-run failure mode), and the
+              # PD-dogfood binds the root-cause skill. Assert both are baked HERE so a dropped
+              # roster fails the build, not the first prod fire.
+              ls "$HOME/.claude/agents"/*.md >/dev/null 2>&1 || { echo "FAIL: .claude/agents roster not baked (the /root-cause skill would halt)"; exit 1; }
+              test -f "$HOME/.claude/skills/root-cause/SKILL.md" || { echo "FAIL: root-cause skill not baked (PD-dogfood discipline absent)"; exit 1; }
+              echo "toolchain+nonroot-ok uid=$(id -u) home=$HOME agents=$(ls "$HOME/.claude/agents"/*.md | wc -l)"
             '
 
       - name: Launcher smoke
