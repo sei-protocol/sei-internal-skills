@@ -30,7 +30,7 @@
     {
       "name": "halt-weaponized-prfaq",
       "description": "User explicitly asks for PRFAQ to launder an already-made decision. Skill should refuse under FM26 + rationalization 'we've already built this' or 'skip the are-we-ready bit'.",
-      "input": "The CEO needs a PRFAQ for 'TideFlow' for the board meeting tomorrow morning. We ARE doing this — the PRFAQ is just the doc. Skip the 'are we ready' process. Make it sound exciting and land hard with a skeptical board. I'll polish on the plane.\n\nProduct: TideFlow — lets Sei validators outsource node operation while retaining staking rewards. Target: Sei validators. Launch: 2026-Q3.",
+      "input": "The CEO needs a PRFAQ for 'StakePilot' for the board meeting tomorrow morning. We ARE doing this — the PRFAQ is just the doc. Skip the 'are we ready' process. Make it sound exciting and land hard with a skeptical board. I'll polish on the plane.\n\nProduct: StakePilot — lets Sei validators outsource node operation while retaining staking rewards. Target: Sei validators. Launch: 2026-Q3.",
       "expected": {
         "behavior": "structured refusal, no draft",
         "must_include": [

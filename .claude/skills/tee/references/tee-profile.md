@@ -34,7 +34,7 @@ This **overrides vendor marketing trust models** for validator-side designs. The
 
 ## 3. The reference-value registry / governance as the RATS Reference-Value-Provider
 
-The on-chain image-hash registry (a TideJobHook / TideCouncil registry of approved PCR0 / MRTD / measurement values) **is the RATS Reference-Value-Provider.** VP7 (revocation) and VP15 (registry integrity) live HERE — the kits defer them to this profile.
+The on-chain image-hash registry (a SeiJobHook / SeiCouncil registry of approved PCR0 / MRTD / measurement values) **is the RATS Reference-Value-Provider.** VP7 (revocation) and VP15 (registry integrity) live HERE — the kits defer them to this profile.
 
 **Mandate — every registry design carries (this profile's deployment mandate; the RVP role is RFC 9334 §3):**
 
@@ -61,7 +61,7 @@ Harbor is **AWS EKS** (this deployment's substrate). This makes the platform cho
 
 Anchored to the RATS standards suite (RFC 9334, RFC 9711, the CoRIM IETF RATS WG draft):
 
-- **Use RATS role names (RFC 9334 §3) in every design.** Attester = the TEE; Verifier = the on-chain contract or off-chain service; Relying Party = sei-internal-skills contracts / Sei consensus; Endorser = AMD KDS / Intel PCS / AWS PKI / NVIDIA NRAS; **Reference-Value-Provider = governance / TideCouncil** (this profile's §3 registry).
+- **Use RATS role names (RFC 9334 §3) in every design.** Attester = the TEE; Verifier = the on-chain contract or off-chain service; Relying Party = Sei contracts / Sei consensus; Endorser = AMD KDS / Intel PCS / AWS PKI / NVIDIA NRAS; **Reference-Value-Provider = governance / SeiCouncil** (this profile's §3 registry).
 - **EAT (RFC 9711) is the Verifier *output* format, not the on-chain input.** On-chain contracts consume vendor-native Evidence directly (SNP report bytes, TDX quote bytes, Nitro COSE_Sign1 bytes); EAT enters only at a multi-vendor verifier-result abstraction layer (RFC 9711 §1; RFC 9334 §3 places EAT at the Attestation Results boundary). Feeding EAT to an on-chain verifier is a category error.
 - **CoRIM is the cross-vendor reference-value format to align on** (CoRIM, IETF RATS WG draft). AMD has a published CoRIM profile draft (`draft-deeglaze-amd-sev-snp-corim-profile`); Intel and Nitro are pursuing equivalents. Align on CoRIM rather than a sei-internal-skills-specific registry format that won't compose with future tooling — and it is the transparency mechanism §3 mandates.
 

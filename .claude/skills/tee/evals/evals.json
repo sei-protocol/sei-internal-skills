@@ -5,12 +5,12 @@
     {
       "id": "happy-path-nitro-agent-runtime",
       "type": "happy-path",
-      "scenario": "Design the attestation flow for a sei-internal-skills review-agent runtime on harbor (AWS EKS) so on-chain TideJobHook releases escrow only to the approved runtime image.",
+      "scenario": "Design the attestation flow for a sei-internal-skills review-agent runtime on harbor (AWS EKS) so on-chain SeiJobHook releases escrow only to the approved runtime image.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
           "loads tee-profile.md first (harbor/EKS → Nitro natural fit) and the kit-aws-nitro kit",
-          "pins the claim (binary identity of the runtime image via PCR0) and the RATS roles (Attester=enclave+NSM, Endorser=AWS Nitro PKI, Verifier=on-chain contract, Relying Party=TideJobHook, Reference-Value-Provider=governance registry)",
+          "pins the claim (binary identity of the runtime image via PCR0) and the RATS roles (Attester=enclave+NSM, Endorser=AWS Nitro PKI, Verifier=on-chain contract, Relying Party=SeiJobHook, Reference-Value-Provider=governance registry)",
           "states the trust model AND what it excludes (Nitro assumes the AWS host is trusted — acceptable here because the relying party is not the host operator)",
           "recommends the Marlin Oyster amortization path (verify one attestation on-chain, then secp256k1 ecrecover ~3k/msg) rather than ~63M-gas direct per submission, citing kit §5",
           "treats gas as one input; surfaces the registry/governance integrity requirement (VP15) and the one-way-door flags (attestation format, registry storage layout) for human approval"
