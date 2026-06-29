@@ -20,7 +20,7 @@ from sei_omnigent.harness import (
     roster_discoverable_error,
 )
 
-# sei-internal-skills/.claude/agents  (test file is sei-internal-skills/sei_omnigent/tests/test_harness.py)
+# repo-root/.claude/agents  (this test file is at repo-root/sei_omnigent/tests/test_harness.py)
 _AGENTS_DIR = Path(__file__).resolve().parents[2] / ".claude" / "agents"
 
 

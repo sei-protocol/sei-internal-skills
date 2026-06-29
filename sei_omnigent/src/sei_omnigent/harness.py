@@ -83,7 +83,8 @@ def assert_harness_invariant(*, harness: str, skills_filter: str | list[str]) ->
     """
     if harness != CLAUDE_NATIVE_HARNESS:
         raise RuntimeError(
-            f"sei-internal-skills sessions must run under {CLAUDE_NATIVE_HARNESS!r}, not {harness!r}: "
+            f"sei-internal-skills sessions must run under "
+            f"{CLAUDE_NATIVE_HARNESS!r}, not {harness!r}: "
             "claude-sdk zeros the tool set to ['Skill'] and wires no subagent "
             "dispatch, breaking /coral//council fan-out."
         )
