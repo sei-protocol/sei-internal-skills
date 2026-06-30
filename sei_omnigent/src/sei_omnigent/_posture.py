@@ -15,7 +15,8 @@ def header_posture_error(*, auth_source: str, single_user_enabled: bool) -> str 
     Phase-1 trusted-operator posture:
     - must resolve to ``header`` mode (identity delegated to Sei SSO at the
       ingress); enabling oidc/accounts is a one-way door re-crossing the
-      ``app.py:2118`` accounts construction (deferred past Phase-1);
+      ``app.py:2074`` login_url-gated accounts/OIDC auth block (deferred past
+      Phase-1);
     - ``OMNIGENT_LOCAL_SINGLE_USER`` must be off, or a header-less request falls
       back to the admin ``local`` user (impersonation) — loopback dev only.
     """
@@ -23,7 +24,8 @@ def header_posture_error(*, auth_source: str, single_user_enabled: bool) -> str 
         return (
             f"sei_omnigent is header-mode only (OMNIGENT_AUTH_PROVIDER=header); "
             f"resolved {auth_source!r}. Enabling accounts/OIDC is a one-way door "
-            f"(re-crosses app.py:2118) and is not part of the Phase-1 posture."
+            f"(re-crosses the app.py:2074 login_url gate) and is not part of the "
+            f"Phase-1 posture."
         )
     if single_user_enabled:
         return (
