@@ -9,6 +9,8 @@ entrypoint and is exercised by the live spike, not here.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import pytest
 
 from sei_omnigent.host_launch import (
@@ -116,8 +118,11 @@ def test_patch_fires_on_the_real_method(monkeypatch: pytest.MonkeyPatch, tmp_pat
     an upstream signature/behaviour change the symbol-existence check misses -- the failure mode
     most dangerous for an INV-2-gate client (the wrap silently no-ops or throws at connect time).
 
-    Driven via the managed-token path, which builds its headers from env only and never touches
-    ``self`` -- so a bare ``object()`` stands in for the host instance without a live server."""
+    Driven via the managed-token path. As of omnigent 0.3.0 the method reads ``self._server_url``
+    once (workspace-routing via ``databricks_org_id_headers``, empty for a managed host with no
+    recorded ``?o=`` selector) before returning on the managed branch -- so the stand-in carries a
+    ``_server_url`` and nothing else; no live server is needed. (Pre-0.3.0 the managed path touched
+    no attribute; this is the drift the canary exists to surface.)"""
     shim = pytest.importorskip("sei_omnigent._omnigent_shim")
     host_identity = pytest.importorskip("omnigent.host.identity")
 
@@ -127,6 +132,9 @@ def test_patch_fires_on_the_real_method(monkeypatch: pytest.MonkeyPatch, tmp_pat
     monkeypatch.setenv(host_identity.HOST_TOKEN_ENV_VAR, "managed-tok")  # take the managed path
 
     install_proxy_bearer_patch()
-    headers = shim.HostProcess._build_connect_headers(object())
+    # No recorded Databricks selector for this URL → databricks_org_id_headers returns {}, matching
+    # the managed-host production path; the stub need only satisfy the self._server_url read.
+    host_stub = SimpleNamespace(_server_url="wss://omnigent.internal")
+    headers = shim.HostProcess._build_connect_headers(host_stub)
     assert headers.get("Authorization") == "Bearer sa-jwt"  # the wrap fired on the real method
     assert headers.get("X-Omnigent-Host-Token") == "managed-tok"  # host-token preserved (B1)

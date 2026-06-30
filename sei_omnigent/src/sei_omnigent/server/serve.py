@@ -37,7 +37,7 @@ the accounts cookie-secret / BASE_URL setdefault and the ``SqlAlchemyAccountStor
 construction are omitted (dead under header mode); ``parse_sandbox_config`` is
 called without the stock ``ValueError -> click.ClickException`` rewrap (no Click
 context here) — a ``sandbox:`` typo surfaces as a raw ``ValueError``. Relative
-``artifact_location`` resolution against the config-file dir (stock cli.py:2927)
+``artifact_location`` resolution against the config-file dir (stock cli.py:3003)
 is NOT done here — ``make_stores`` takes a pre-loaded ``cfg`` dict and never sees
 ``config_path``; that resolution belongs to the config-load step (PLT-672).
 """
@@ -111,7 +111,8 @@ def make_stores(cfg: dict[str, Any]) -> Stores:
     """Construct the store layer. **The seam.**
 
     Phase-1: returns the stock SqlAlchemy/Local stores, byte-for-byte equivalent
-    to ``omnigent serve`` (``cli.py:2932-2940`` + the ``AgentCache`` build). A
+    to ``omnigent serve`` (``cli.py`` serve + the ``AgentCache`` build at
+    ``cli.py:3027``). A
     later phase overrides individual fields here — e.g.::
 
         stores = make_stores(cfg)
@@ -217,13 +218,13 @@ def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAP
     # oidc/accounts OR OMNIGENT_AUTH_ENABLED=1 (which resolve_auth_source maps to
     # accounts/oidc) — rather than silently forcing header. We do NOT mutate the
     # process env. account_store stays None so the OIDC/accounts construction
-    # (app.py:1748) is never reached — enabling accounts/OIDC is a one-way door
+    # (app.py:2118) is never reached — enabling accounts/OIDC is a one-way door
     # deferred past Phase-1.
     _assert_header_posture()
     auth_provider = omni.create_auth_provider()
     account_store = None
 
-    # ONE-WAY DOOR: keyword-only — create_app's parameter order (app.py:672)
+    # ONE-WAY DOOR: keyword-only — create_app's parameter order (app.py:967)
     # differs from any natural store ordering; positional wiring mis-binds.
     return omni.create_app(
         agent_store=s.agent,
