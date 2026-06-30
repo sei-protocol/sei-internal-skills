@@ -7,8 +7,14 @@ requires-python = ">=3.12"
 # Pin Omnigent EXACTLY. The overlay clones part of Omnigent's serve boot
 # sequence (DECISION-1 / _omnigent_shim), so it is only verified against this
 # exact release. Bumping this pin is the trigger to re-run the shim drift check.
+#
+# The `[kubernetes]` extra pulls the `kubernetes` client (>=36,<37) that the
+# server-managed `sandbox.provider: kubernetes` launcher imports lazily in
+# _load_core() — without it the on-demand runner-Pod provider ImportErrors the
+# first time a managed session spawns a pod. It is a stable client (no
+# pre-release), so it does not widen the scoped beta allowance below.
 dependencies = [
-    "omnigent==0.3.0",
+    "omnigent[kubernetes]==0.3.0",
     # serve_main binds uvicorn directly (the runnable entrypoint, PLT-672). It
     # rides in transitively via omnigent, but the entrypoint imports it by name,
     # so declare it explicitly — a future omnigent pin that drops/extras uvicorn
