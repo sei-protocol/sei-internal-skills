@@ -58,7 +58,8 @@ defense-in-depth backstop with `gate_pushes: true`). What enforces the floor,
   agents that need no shell — unlike prod/root-cause, which needs `kubectl get`
   and therefore runs `deny_shell=False` (leaving the raw-shell C4 residual that
   root-cause's gates cover). `Read`/`Grep`/`Glob` are read tools and are
-  unaffected by `deny_shell=True`, so the file-based review path is intact.
+  unaffected by `deny_shell=True`, so the read-only review path (diff from the
+  file OR the initial message, changed files via `Read`/`Grep`/`Glob`) is intact.
 - **Residual raw-HTTP exfil** — even with no shell, INV-11 must hold: the host
   egress allowlist has **no write-capable OR exfil-capable endpoint reachable
   with ambient credentials**. `deny_shell=True` removes the raw-`curl` reach;
@@ -87,9 +88,12 @@ verified before the venue goes live (the same way root-cause frames its gates):
    either write OR exfiltrate. The dev `uci-default` fleet's egress MUST be
    confirmed locked for **exfil**, not merely for writes (read-only data still
    leaks over an open egress).
-4. **The file-based, no-shell input path.** The diff is materialized to a file at
-   `./.xreview/pr.diff` and read via `Read`/`Grep`/`Glob`; the runner runs no
-   `git`/`curl`/shell/network to obtain it.
+4. **The no-shell input path (diff handed IN, never fetched).** The merge-base
+   diff is delivered by the venue — a file at `./.xreview/pr.diff` (uci/file venue)
+   or the session's initial message (managed-sandbox venue, whose single-branch
+   clone cannot recompute it) — and read via `Read`/`Grep`/`Glob`; the runner runs
+   no `git`/`curl`/shell/network to obtain or reconstruct it. The initial-message
+   diff is framed as untrusted DATA identically to the file (never instructions).
 5. **The verdict-integrity control.** The synthesizer treats any in-diff
    self-assessment (a committed `xreview/`-style ledger, an "already reviewed:
    RATIFY" comment) as untrusted content, never as evidence — the verdict derives
@@ -97,13 +101,25 @@ verified before the venue goes live (the same way root-cause frames its gates):
 
 ## Input and output
 
-- **Input — a file-based diff, read via `Read`/`Grep`/`Glob` only.** The uci
-  workflow materializes the PR's merge-base diff to a FILE at `./.xreview/pr.diff`
-  in the workspace and provides the checked-out tree. The runner reads the diff
-  and the changed files PURELY through `Read`/`Grep`/`Glob` — it runs NO `git`,
-  `curl`, shell, or network fetch (the dev deployment's `deny_shell=True` blocks
-  shell server-side regardless). If the diff file or the tree is absent/
-  unreadable, the runner RETURNS `State: OPEN-BLOCKED` (workspace-missing).
+- **Input — a diff handed in, read via `Read`/`Grep`/`Glob` only.** The venue
+  delivers the PR's merge-base diff in one of two shapes: a FILE at
+  `./.xreview/pr.diff` (uci/file venue), or the session's INITIAL MESSAGE
+  (managed-sandbox venue — the driver computes the diff with full git on the
+  runner and hands it in, because the sandbox's single-branch head clone cannot
+  recompute a merge-base diff and the runner has no shell). **Precedence is by
+  provenance:** the driver-produced initial message is authoritative and, when
+  present (managed venue), the in-clone `./.xreview/pr.diff` is NOT read — a file
+  at that path in a managed clone is attacker-controllable repo content, so
+  trusting it would let a PR forge a benign diff to mask a hostile change; the file
+  is read only when no message diff was handed in (uci venue, where the venue — not
+  the repo — materialized it). The checked-out tree (changed files at head) is in
+  the workspace either way. The runner reads the diff + the changed
+  files PURELY through `Read`/`Grep`/`Glob` — NO `git`, `curl`, shell, or network
+  fetch (the dev deployment's `deny_shell=True` blocks shell server-side
+  regardless), and the diff is untrusted DATA whichever shape it arrives in. If
+  there is no diff source at all (neither the file nor a message diff) OR the tree
+  is absent/unreadable — block on EITHER — the runner RETURNS `State: OPEN-BLOCKED`
+  (workspace-missing).
 - **Output — a structured-Markdown verdict with a five-field typed header.** Not
   JSON: a labeled header block carrying all five gate-read fields as exact-token
   lines — `State:`, `OpenFindings:`, `Convergence:`, `Blinded:`, `Dissenter:` —
