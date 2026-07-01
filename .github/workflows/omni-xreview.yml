@@ -21,69 +21,102 @@ on:
         required: true
 
 permissions:
-  contents: read       # checkout / diff of THIS repo; the App token does the target repo
+  contents: read
   id-token: none
 
 concurrency:
-  # One review per (repo, PR) at a time — a re-trigger supersedes the in-flight run.
   group: omni-xreview-${{ inputs.repo }}-${{ inputs.pr }}
   cancel-in-progress: true
 
 jobs:
   xreview:
-    # The dev ARC scale set — in-cluster, so it can reach the server ClusterIP, and
-    # the step-1 NetworkPolicy allows gha-runner -> the server on :8000.
+    # The dev ARC scale set (runnerScaleSetName: uci-default) — in-cluster, so it
+    # reaches the server ClusterIP, and the step-1 NetworkPolicy allows
+    # gha-runner -> the server on :8000.
     runs-on: uci-default
-    timeout-minutes: 30
+    # Ceiling > the two poll budgets (10 + 20 min) + step overhead, with margin, so
+    # a slow-but-valid review is never hard-killed mid-poll (which would kill with no
+    # ::error:: annotation). Budgets: ready 10 min, verdict 20 min → 30 + ~15 margin.
+    timeout-minutes: 45
     env:
       SERVER: "http://omnigent.sei-omnigent.svc.cluster.local"
-      # Header-auth identity (the server is OMNIGENT_AUTH_PROVIDER=header). The
-      # server trusts this header in-cluster; it does NOT confer admin (header mode
-      # mounts no accounts router). Session-create needs only an authenticated user.
+      # Header-auth identity (server is OMNIGENT_AUTH_PROVIDER=header). Trusted
+      # in-cluster; confers no admin (header mode mounts no accounts router).
       XFWD_EMAIL: "sei-omnigent@seinetwork.io"
       AGENT_NAME: "xreview"
       SENTINEL: "=== XREVIEW-VERDICT-END ==="
       REPO: ${{ inputs.repo }}
       PR: ${{ inputs.pr }}
+      # Pinned tool versions (the uci-default runner image ships neither jq nor gh).
+      JQ_VERSION: "1.7.1"
+      GH_VERSION: "2.62.0"
     steps:
-      # A GitHub App token scoped to the target repo — the workflow posts the one
-      # comment as the app identity (the same mechanism omnigent's polly-review uses).
-      # OPERATOR PREREQUISITE: configure vars.OMNIGENT_BOT_APP_ID + the private-key
-      # secret on this repo (and install the app on the target repos). Absent → the
-      # comment post fails and the run is red (fail-closed: no forged verdict posted).
+      # Validate inputs + ensure jq/gh/curl. The ARC runner image (stock
+      # actions-runner + build-essential) has curl but NOT jq/gh, so bootstrap them
+      # (pinned, downloaded to RUNNER_TEMP, PATH-ed) — idempotent if a future image
+      # ships them. FAIL FAST if curl is missing (can't bootstrap).
+      - name: Preflight — validate inputs + ensure tools
+        run: |
+          set -euo pipefail
+          if ! [[ "$PR" =~ ^[0-9]+$ ]]; then echo "::error::pr input must be numeric, got '$PR'"; exit 1; fi
+          case "$REPO" in */*) : ;; *) echo "::error::repo input must be owner/name, got '$REPO'"; exit 1 ;; esac
+          command -v curl >/dev/null || { echo "::error::curl missing on the runner — cannot bootstrap tools"; exit 1; }
+          mkdir -p "$RUNNER_TEMP/bin"
+          if ! command -v jq >/dev/null; then
+            curl -fsSL "https://github.com/jqlang/jq/releases/download/jq-${JQ_VERSION}/jq-linux-amd64" -o "$RUNNER_TEMP/bin/jq"
+            chmod +x "$RUNNER_TEMP/bin/jq"
+          fi
+          if ! command -v gh >/dev/null; then
+            curl -fsSL "https://github.com/cli/cli/releases/download/v${GH_VERSION}/gh_${GH_VERSION}_linux_amd64.tar.gz" \
+              | tar -xz -C "$RUNNER_TEMP" && cp "$RUNNER_TEMP/gh_${GH_VERSION}_linux_amd64/bin/gh" "$RUNNER_TEMP/bin/gh"
+          fi
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          echo "repo_name=${REPO#*/}" >> "$GITHUB_OUTPUT"
+        id: pre
+
+      # GitHub App token scoped to the target repo (posts the one comment as the app
+      # identity — the fleet's create-github-app-token pattern, SHA-pinned). NOTE the
+      # `repositories` input takes the BARE repo name, with `owner` supplied
+      # separately (owner/name there would be a nonexistent repo). OPERATOR PREREQ:
+      # vars.OMNIGENT_BOT_APP_ID + secrets.OMNIGENT_BOT_APP_KEY on this repo + the
+      # app installed on target repos. Absent → mint fails, run is red (fail-closed).
       - name: Mint GitHub App token (target repo)
         id: apptoken
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
           app-id: ${{ vars.OMNIGENT_BOT_APP_ID }}
           private-key: ${{ secrets.OMNIGENT_BOT_APP_KEY }}
           owner: ${{ github.repository_owner }}
-          repositories: ${{ inputs.repo }}
+          repositories: ${{ steps.pre.outputs.repo_name }}
 
-      # Compute the PR's merge-base diff with full git access (the sandbox CANNOT —
-      # its clone is single-branch head, and its reviewer is deny_shell). This diff
-      # is handed IN to the session as the trusted, driver-produced input; the bundle
-      # reads it from the message (provenance-first, #250). FAIL CLOSED on an empty
-      # diff: the managed driver MUST always hand in a non-empty diff, or the
-      # bundle's precedence falls through to the attacker-controllable in-clone file
-      # (the #250 security residual made a hard invariant here).
+      # Compute the PR's merge-base (3-dot) diff with full git — the sandbox CANNOT
+      # (single-branch head clone, deny_shell reviewer). This diff is handed IN as
+      # the trusted, driver-produced input (#250). FAIL CLOSED on an empty diff: the
+      # managed driver MUST always hand in a non-empty diff, or the bundle's
+      # precedence falls through to the attacker-controllable in-clone file (#250
+      # invariant). Bound the size so a huge diff can't 413 the server / blow context.
       - name: Compute merge-base diff + head branch
         id: diff
         env:
           GH_TOKEN: ${{ steps.apptoken.outputs.token }}
+          MAX_DIFF_BYTES: "1048576"
         run: |
           set -euo pipefail
-          repo="${REPO#*/}"
           branch="$(gh pr view "$PR" --repo "$REPO" --json headRefName -q .headRefName)"
           if [ -z "$branch" ]; then echo "::error::could not resolve PR head branch"; exit 1; fi
           gh pr diff "$PR" --repo "$REPO" > pr.diff
-          if [ ! -s pr.diff ]; then
+          bytes="$(wc -c < pr.diff)"
+          if [ "$bytes" -eq 0 ]; then
             echo "::error::empty merge-base diff — refusing to dispatch (would fall through to the in-clone file; #250 invariant)"
+            exit 1
+          fi
+          if [ "$bytes" -gt "$MAX_DIFF_BYTES" ]; then
+            echo "::error::diff is ${bytes} bytes (> ${MAX_DIFF_BYTES}); refusing to dispatch an oversized review (MVP bound)"
             exit 1
           fi
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
           echo "workspace=https://github.com/${REPO}#${branch}" >> "$GITHUB_OUTPUT"
-          echo "diff bytes: $(wc -c < pr.diff), head branch: $branch"
+          echo "diff bytes: $bytes, head branch: $branch"
 
       - name: Resolve the xreview agent id
         id: agent
@@ -92,7 +125,7 @@ jobs:
           aid="$(curl -fsS -H "X-Forwarded-Email: ${XFWD_EMAIL}" "${SERVER}/v1/agents" \
             | jq -r --arg n "$AGENT_NAME" '.data[] | select(.name==$n) | .id' | head -n1)"
           if [ -z "$aid" ] || [ "$aid" = "null" ]; then
-            echo "::error::agent '${AGENT_NAME}' not registered on the server (GET /v1/agents) — check OMNIGENT_BUILTIN_AGENT_DIRS on the dev deploy"
+            echo "::error::agent '${AGENT_NAME}' not registered (GET /v1/agents) — check OMNIGENT_BUILTIN_AGENT_DIRS on the dev deploy"
             exit 1
           fi
           echo "agent_id=$aid" >> "$GITHUB_OUTPUT"
@@ -114,17 +147,20 @@ jobs:
           echo "session_id=$sid" >> "$GITHUB_OUTPUT"
           echo "session=$sid"
 
-      # Cold-start-aware wait: a managed session provisions a Karpenter node
-      # (scale-from-zero) + schedules the pod + init-clones the repo + connects the
-      # host tunnel. Budget generously; poll sandbox_status.stage.
+      # Cold-start-aware wait (Karpenter scale-from-zero + pod schedule + init-clone
+      # + host connect). Tolerate a TRANSIENT GET failure (a pod roll / brief 5xx
+      # over the window) — continue rather than let one blip abort a valid launch;
+      # a persistent failure still times out to fail-closed.
       - name: Wait for the sandbox to be ready
         run: |
-          set -euo pipefail
+          set -uo pipefail
           sid="${{ steps.session.outputs.session_id }}"
           for i in $(seq 1 60); do   # 60 x 10s = 10 min cold-start budget
-            resp="$(curl -fsS -H "X-Forwarded-Email: ${XFWD_EMAIL}" "${SERVER}/v1/sessions/${sid}")"
+            if ! resp="$(curl -fsS -H "X-Forwarded-Email: ${XFWD_EMAIL}" "${SERVER}/v1/sessions/${sid}")"; then
+              echo "poll $i: ::warning::transient GET error, retrying"; sleep 10; continue
+            fi
             stage="$(echo "$resp" | jq -r '.sandbox_status.stage // "unknown"')"
-            echo "stage=$stage"
+            echo "poll $i: stage=$stage"
             case "$stage" in
               ready) echo "sandbox ready"; exit 0 ;;
               failed) echo "::error::sandbox failed: $(echo "$resp" | jq -r '.sandbox_status.error // "unknown"')"; exit 1 ;;
@@ -134,9 +170,8 @@ jobs:
           echo "::error::sandbox did not reach ready within the cold-start budget"
           exit 1
 
-      # Hand the diff in as the FIRST message — this both delivers the trusted,
-      # driver-produced diff (the bundle reads the initial message per #250) and
-      # triggers the agent's first turn.
+      # Hand the diff in as the FIRST message — delivers the trusted driver-produced
+      # diff (the bundle reads the initial message, #250) AND triggers the first turn.
       - name: Send the diff (first message) to trigger the review
         run: |
           set -euo pipefail
@@ -148,22 +183,27 @@ jobs:
             -d "$body" "${SERVER}/v1/sessions/${sid}/events" >/dev/null
           echo "diff delivered"
 
-      # Poll for the sentinel-terminated verdict. The review dispatches a blinded
-      # slate of subagents, so allow generous time. N2: trust the verdict ONLY if the
-      # sentinel is present (a truncated/interrupted run has no sentinel → fail closed).
+      # Poll for the sentinel-terminated verdict. N2: trust the verdict ONLY if the
+      # sentinel is the FINAL non-empty line of the latest assistant message (the
+      # bundle terminates its return with the sentinel line) — an attacker diff can
+      # embed the sentinel string mid-text, so a substring match is forgeable; the
+      # final-line check is not. Transient-GET-tolerant; echoes status each tick.
       - name: Retrieve the verdict (sentinel-gated)
         id: verdict
         run: |
-          set -euo pipefail
+          set -uo pipefail
           sid="${{ steps.session.outputs.session_id }}"
           for i in $(seq 1 80); do   # 80 x 15s = 20 min review budget
-            resp="$(curl -fsS -H "X-Forwarded-Email: ${XFWD_EMAIL}" "${SERVER}/v1/sessions/${sid}")"
-            status="$(echo "$resp" | jq -r '.status')"
-            # latest assistant message text (concatenate its text blocks)
+            if ! resp="$(curl -fsS -H "X-Forwarded-Email: ${XFWD_EMAIL}" "${SERVER}/v1/sessions/${sid}")"; then
+              echo "poll $i: ::warning::transient GET error, retrying"; sleep 15; continue
+            fi
+            status="$(echo "$resp" | jq -r '.status // "unknown"')"
             text="$(echo "$resp" | jq -r '[.items[] | select(.type=="message" and .role=="assistant")] | last | (.content // []) | map(.text // "") | join("")')"
-            if [ -n "$text" ] && printf '%s' "$text" | grep -qF "${SENTINEL}"; then
+            lastline="$(printf '%s' "$text" | awk 'NF{l=$0} END{print l}')"
+            echo "poll $i: status=$status"
+            if [ -n "$text" ] && [ "$lastline" = "$SENTINEL" ]; then
               printf '%s' "$text" > verdict.md
-              echo "verdict retrieved (sentinel present)"
+              echo "verdict retrieved (sentinel is the final line)"
               exit 0
             fi
             if [ "$status" = "failed" ]; then echo "::error::session failed before a sentinel-terminated verdict"; exit 1; fi
@@ -172,9 +212,8 @@ jobs:
           echo "::error::no sentinel-terminated verdict within budget — failing closed, NO comment posted"
           exit 1
 
-      # Post the verdict as a single omni-xreview detail comment (only reached when a
-      # valid sentinel-terminated verdict exists — fail-closed above means a broken
-      # run posts nothing rather than a partial/forged review).
+      # Post the verdict (only reached on a valid sentinel-terminated verdict —
+      # fail-closed above means a broken run posts NOTHING, not a partial/forged one).
       - name: Post the omni-xreview comment
         env:
           GH_TOKEN: ${{ steps.apptoken.outputs.token }}
@@ -185,3 +224,19 @@ jobs:
             echo; cat verdict.md; } > comment.md
           gh pr comment "$PR" --repo "$REPO" --body-file comment.md
           echo "posted omni-xreview comment on ${REPO}#${PR}"
+
+      # Teardown so a failed/cancelled run doesn't strand the managed sandbox pod
+      # (cancel-in-progress SIGTERMs mid-poll). DELETE /v1/sessions/{id} tears down
+      # the session's runner-side resources AND terminate_managed_host()s the pod
+      # (sessions.py delete route). The creator identity (X-Forwarded-Email) owns the
+      # session, so header-auth authorizes the delete. Guarded so its own failure
+      # never reds an otherwise-green run; runs after the comment post on success.
+      - name: Teardown the sandbox session (best-effort)
+        if: always()
+        run: |
+          set -uo pipefail
+          sid="${{ steps.session.outputs.session_id }}"
+          if [ -n "${sid:-}" ] && [ "$sid" != "null" ]; then
+            curl -fsS -X DELETE -H "X-Forwarded-Email: ${XFWD_EMAIL}" "${SERVER}/v1/sessions/${sid}" >/dev/null 2>&1 \
+              && echo "session ${sid} torn down" || echo "::warning::best-effort teardown of ${sid} did not confirm (verify the reap policy)"
+          fi
