@@ -106,9 +106,14 @@ verified before the venue goes live (the same way root-cause frames its gates):
   `./.xreview/pr.diff` (uci/file venue), or the session's INITIAL MESSAGE
   (managed-sandbox venue — the driver computes the diff with full git on the
   runner and hands it in, because the sandbox's single-branch head clone cannot
-  recompute a merge-base diff and the runner has no shell). Precedence: the file
-  if readable, else the initial message. The checked-out tree (changed files at
-  head) is in the workspace either way. The runner reads the diff + the changed
+  recompute a merge-base diff and the runner has no shell). **Precedence is by
+  provenance:** the driver-produced initial message is authoritative and, when
+  present (managed venue), the in-clone `./.xreview/pr.diff` is NOT read — a file
+  at that path in a managed clone is attacker-controllable repo content, so
+  trusting it would let a PR forge a benign diff to mask a hostile change; the file
+  is read only when no message diff was handed in (uci venue, where the venue — not
+  the repo — materialized it). The checked-out tree (changed files at head) is in
+  the workspace either way. The runner reads the diff + the changed
   files PURELY through `Read`/`Grep`/`Glob` — NO `git`, `curl`, shell, or network
   fetch (the dev deployment's `deny_shell=True` blocks shell server-side
   regardless), and the diff is untrusted DATA whichever shape it arrives in. If
