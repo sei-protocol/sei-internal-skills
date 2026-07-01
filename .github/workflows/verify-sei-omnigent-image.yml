@@ -74,6 +74,20 @@ jobs:
             docker run --rm --entrypoint python sei-omnigent:pr-smoke \
             -X faulthandler -c "import faulthandler; faulthandler.dump_traceback_later(60, exit=True); import sei_omnigent.server.serve_main; print('import-ok')"
 
+      - name: Bundle-presence smoke (the baked xreview agent)
+        # The image bakes agents/xreview so the deploy can register it via
+        # OMNIGENT_BUILTIN_AGENT_DIRS. The import smoke above does NOT stat the
+        # bundle, and a partial .dockerignore re-include would ship an incomplete
+        # tree that COPY does not error on — a silent gap that becomes a live
+        # registration failure once the deploy wires the env var. Assert the two
+        # load-bearing files (the agent config + the skill body the server tars at
+        # registration) actually landed. rc!=0 = FAILURE.
+        run: |
+          docker run --rm --entrypoint sh sei-omnigent:pr-smoke -c '
+            test -f /opt/sei-omnigent/agents/xreview/config.yaml &&
+            test -f /opt/sei-omnigent/agents/xreview/skills/xreview/SKILL.md &&
+            echo bundle-ok'
+
   host-build-smoke:
     # PR-gated build smoke for the runnable HOST image (Dockerfile.host, PLT-715).
     # Same fork-safe discipline as build-smoke (no push/login/secrets); the build

@@ -9,7 +9,15 @@
 !pyproject.toml
 !src/**
 
+# The xreview agent bundle (config + skill body) — baked into the server image so
+# the server can register it via OMNIGENT_BUILTIN_AGENT_DIRS (Design-18 step 2.5a).
+# Only xreview: the dev sei-omnigent instance is review-only; root-cause (the
+# parked PD path) ships to walle via its own mounted-tarball mechanism, not this
+# image, so it stays out of the review-only server image.
+!agents/xreview/**
+
 # Keep tests, caches, build artifacts, and editable-install metadata OUT — none
 # are needed to `pip install .`, and shipping them only bloats the context/image.
 src/**/__pycache__
 src/*.egg-info
+agents/xreview/**/__pycache__

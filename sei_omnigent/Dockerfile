@@ -55,6 +55,12 @@ ENV HOME=/home/omnigent
 # The resolved env (overlay + omnigent + uvicorn) from the builder.
 COPY --from=builder /install /usr/local
 
+# The xreview agent bundle (config.yaml + skill body), baked at a stable path so
+# the deploy can register it via OMNIGENT_BUILTIN_AGENT_DIRS (the server tars +
+# registers the dir at startup; the whole bundle incl. skills/ must be present).
+# Owned by uid 1000 (the runtime user); read-only at runtime.
+COPY --chown=1000:1000 agents/xreview /opt/sei-omnigent/agents/xreview
+
 USER 1000:1000
 
 # No HEALTHCHECK — k8s liveness/readiness/startup probes own health (the in-image
