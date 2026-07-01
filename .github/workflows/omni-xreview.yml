@@ -122,7 +122,10 @@ jobs:
         id: agent
         run: |
           set -euo pipefail
-          aid="$(curl -fsS -H "X-Forwarded-Email: ${XFWD_EMAIL}" "${SERVER}/v1/agents" \
+          # limit=1000 (the route max) — the default page size is 20, and the filter
+          # only scans the returned page, so a small default could false-negative
+          # `xreview` behind other agents. Dev won't exceed 1000 registered agents.
+          aid="$(curl -fsS -H "X-Forwarded-Email: ${XFWD_EMAIL}" "${SERVER}/v1/agents?limit=1000" \
             | jq -r --arg n "$AGENT_NAME" '.data[] | select(.name==$n) | .id' | head -n1)"
           if [ -z "$aid" ] || [ "$aid" = "null" ]; then
             echo "::error::agent '${AGENT_NAME}' not registered (GET /v1/agents) — check OMNIGENT_BUILTIN_AGENT_DIRS on the dev deploy"
