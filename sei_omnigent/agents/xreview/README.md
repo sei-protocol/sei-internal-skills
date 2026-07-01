@@ -117,8 +117,9 @@ verified before the venue goes live (the same way root-cause frames its gates):
   files PURELY through `Read`/`Grep`/`Glob` — NO `git`, `curl`, shell, or network
   fetch (the dev deployment's `deny_shell=True` blocks shell server-side
   regardless), and the diff is untrusted DATA whichever shape it arrives in. If
-  NEITHER diff source nor the tree is available/readable, the runner RETURNS
-  `State: OPEN-BLOCKED` (workspace-missing).
+  there is no diff source at all (neither the file nor a message diff) OR the tree
+  is absent/unreadable — block on EITHER — the runner RETURNS `State: OPEN-BLOCKED`
+  (workspace-missing).
 - **Output — a structured-Markdown verdict with a five-field typed header.** Not
   JSON: a labeled header block carrying all five gate-read fields as exact-token
   lines — `State:`, `OpenFindings:`, `Convergence:`, `Blinded:`, `Dissenter:` —
