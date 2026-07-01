@@ -77,15 +77,19 @@ jobs:
       # GitHub App token scoped to the target repo (posts the one comment as the app
       # identity — the fleet's create-github-app-token pattern, SHA-pinned). NOTE the
       # `repositories` input takes the BARE repo name, with `owner` supplied
-      # separately (owner/name there would be a nonexistent repo). OPERATOR PREREQ:
-      # vars.OMNIGENT_BOT_APP_ID + secrets.OMNIGENT_BOT_APP_KEY on this repo + the
-      # app installed on target repos. Absent → mint fails, run is red (fail-closed).
+      # separately (owner/name there would be a nonexistent repo). Reuses the existing
+      # seidroid app (`seidroid[bot]`; registered as "Platform Code Agent") already
+      # wired into uci's ai-review — it holds contents:read + pull_requests:write, so
+      # no new key or permission grant is needed. OPERATOR PREREQ: the org secrets
+      # PLATFORM_CODE_AGENT_APP_ID + PLATFORM_CODE_AGENT_APP_PK must be readable by
+      # this repo, and the app installed on target repos. Absent → mint fails, run is
+      # red (fail-closed).
       - name: Mint GitHub App token (target repo)
         id: apptoken
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          app-id: ${{ vars.OMNIGENT_BOT_APP_ID }}
-          private-key: ${{ secrets.OMNIGENT_BOT_APP_KEY }}
+          app-id: ${{ secrets.PLATFORM_CODE_AGENT_APP_ID }}
+          private-key: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ steps.pre.outputs.repo_name }}
 
