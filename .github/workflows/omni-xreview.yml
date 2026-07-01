@@ -102,8 +102,17 @@ jobs:
           MAX_DIFF_BYTES: "1048576"
         run: |
           set -euo pipefail
-          branch="$(gh pr view "$PR" --repo "$REPO" --json headRefName -q .headRefName)"
-          if [ -z "$branch" ]; then echo "::error::could not resolve PR head branch"; exit 1; fi
+          meta="$(gh pr view "$PR" --repo "$REPO" --json headRefName,isCrossRepository)"
+          branch="$(echo "$meta" | jq -r '.headRefName')"
+          cross="$(echo "$meta" | jq -r '.isCrossRepository')"
+          if [ -z "$branch" ] || [ "$branch" = "null" ]; then echo "::error::could not resolve PR head branch"; exit 1; fi
+          # Fork/cross-repo PRs are out of scope (Design 18): the workspace clones
+          # ${REPO}#branch, which is the BASE repo's branch, NOT the fork's head —
+          # reviewing the wrong tree. Fail closed rather than review a mismatched tree.
+          if [ "$cross" = "true" ]; then
+            echo "::error::PR #${PR} is a fork/cross-repository PR — unsupported (workspace clones the base repo's branch, not the fork head)."
+            exit 1
+          fi
           gh pr diff "$PR" --repo "$REPO" > pr.diff
           bytes="$(wc -c < pr.diff)"
           if [ "$bytes" -eq 0 ]; then
@@ -201,7 +210,10 @@ jobs:
               echo "poll $i: ::warning::transient GET error, retrying"; sleep 15; continue
             fi
             status="$(echo "$resp" | jq -r '.status // "unknown"')"
-            text="$(echo "$resp" | jq -r '[.items[] | select(.type=="message" and .role=="assistant")] | last | (.content // []) | map(.text // "") | join("")')"
+            # omnigent emits items in a MIXED wire-shape (schemas.py: some flat
+            # {type,role,content}, some nested {type,data:{role,content}}), so
+            # normalize BOTH: read role/content from the top level OR from .data.
+            text="$(echo "$resp" | jq -r '[.items[] | select(.type=="message") | {r:(.role // .data.role), c:(.content // .data.content // [])} | select(.r=="assistant")] | last | ((.c // []) | map(.text // "") | join("")) // ""')"
             lastline="$(printf '%s' "$text" | awk 'NF{l=$0} END{print l}')"
             echo "poll $i: status=$status"
             if [ -n "$text" ] && [ "$lastline" = "$SENTINEL" ]; then
