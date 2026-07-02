@@ -92,6 +92,27 @@ jobs:
           private-key: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
           owner: ${{ github.repository_owner }}
           repositories: ${{ steps.pre.outputs.repo_name }}
+          # Runner-side identity: reads the PR + posts the comment. Never enters the sandbox.
+          permission-contents: read
+          permission-pull-requests: write
+
+      # SEPARATE, minimal clone token — contents:read ONLY, target repo only. This is
+      # the sole credential that enters the untrusted sandbox (embedded in the workspace
+      # URL below), so it must be able to do nothing but read the one repo. We revoke it
+      # the instant the clone finishes (see "Revoke the clone token"), so its USABLE life
+      # is the clone window (~seconds), not the 1h token TTL and not the session length.
+      # This is safe precisely because xreview is clone-only: a deny_shell, read-only
+      # reviewer that never fetches/pushes after the init-container clone. An agent that
+      # does mid-session git would need a different lifecycle (keep-alive + refresh).
+      - name: Mint clone token (contents:read, target repo)
+        id: clonetoken
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
+        with:
+          app-id: ${{ secrets.PLATFORM_CODE_AGENT_APP_ID }}
+          private-key: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.pre.outputs.repo_name }}
+          permission-contents: read
 
       # Compute the PR's merge-base (3-dot) diff with full git — the sandbox CANNOT
       # (single-branch head clone, deny_shell reviewer). This diff is handed IN as
@@ -127,8 +148,10 @@ jobs:
             echo "::error::diff is ${bytes} bytes (> ${MAX_DIFF_BYTES}); refusing to dispatch an oversized review (MVP bound)"
             exit 1
           fi
+          # Emit ONLY the branch — the workspace URL is assembled at session-create with
+          # the clone token embedded, and must NOT be written to $GITHUB_OUTPUT (that
+          # would persist the token in the run's step outputs).
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
-          echo "workspace=https://github.com/${REPO}#${branch}" >> "$GITHUB_OUTPUT"
           echo "diff bytes: $bytes, head branch: $branch"
 
       - name: Resolve the xreview agent id
@@ -149,11 +172,21 @@ jobs:
 
       - name: Create the managed sandbox session
         id: session
+        env:
+          CLONE_TOKEN: ${{ steps.clonetoken.outputs.token }}
+          BRANCH: ${{ steps.diff.outputs.branch }}
+          AID: ${{ steps.agent.outputs.agent_id }}
         run: |
           set -euo pipefail
+          # Assemble the tokenized workspace URL HERE, in-process — the init container
+          # clones a private repo with this short-lived contents:read token. NEVER echo
+          # it and NEVER write it to $GITHUB_OUTPUT; the App token is auto-masked in logs
+          # regardless. omnigent persists body.workspace as a session label (cleartext),
+          # so we revoke this token right after the clone (next steps) to bound its life.
+          ws="https://x-access-token:${CLONE_TOKEN}@github.com/${REPO}#${BRANCH}"
           body="$(jq -n \
-            --arg aid "${{ steps.agent.outputs.agent_id }}" \
-            --arg ws "${{ steps.diff.outputs.workspace }}" \
+            --arg aid "$AID" \
+            --arg ws "$ws" \
             --arg title "omni-xreview ${REPO}#${PR}" \
             '{agent_id:$aid, host_type:"managed", workspace:$ws, title:$title}')"
           sid="$(curl -fsS -X POST -H "Content-Type: application/json" \
@@ -185,6 +218,24 @@ jobs:
           done
           echo "::error::sandbox did not reach ready within the cold-start budget"
           exit 1
+
+      # The sandbox is ready ⇒ the init container's clone has completed ⇒ the clone
+      # token has done its one job. Revoke it NOW so its usable life is the clone window
+      # (~seconds), not the 1h TTL — and so the copy omnigent persists in the session
+      # label is dead for the rest of the session. Safe because xreview never touches
+      # git after the clone. Best-effort: a revoke hiccup must not red an otherwise-valid
+      # run (the token still self-expires at 1h, and teardown retries the revoke).
+      - name: Revoke the clone token (post-clone)
+        env:
+          CLONE_TOKEN: ${{ steps.clonetoken.outputs.token }}
+        run: |
+          set -uo pipefail
+          code="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: token ${CLONE_TOKEN}" \
+            https://api.github.com/installation/token || echo "000")"
+          if [ "$code" = "204" ]; then echo "clone token revoked (204)"; \
+            else echo "::warning::clone-token revoke returned ${code} (token self-expires ≤1h; teardown retries)"; fi
 
       # Hand the diff in as the FIRST message — delivers the trusted driver-produced
       # diff (the bundle reads the initial message, #250) AND triggers the first turn.
@@ -252,8 +303,19 @@ jobs:
       # never reds an otherwise-green run; runs after the comment post on success.
       - name: Teardown the sandbox session (best-effort)
         if: always()
+        env:
+          CLONE_TOKEN: ${{ steps.clonetoken.outputs.token }}
         run: |
           set -uo pipefail
+          # Safety net: if the run died before the post-clone revoke, kill the clone
+          # token here so a crashed/cancelled run never leaves it live for up to 1h.
+          # Idempotent — revoking an already-revoked token just 404s.
+          if [ -n "${CLONE_TOKEN:-}" ]; then
+            curl -sS -o /dev/null -X DELETE -H "Accept: application/vnd.github+json" \
+              -H "Authorization: token ${CLONE_TOKEN}" \
+              https://api.github.com/installation/token >/dev/null 2>&1 \
+              && echo "clone token revoke attempted" || true
+          fi
           sid="${{ steps.session.outputs.session_id }}"
           if [ -n "${sid:-}" ] && [ "$sid" != "null" ]; then
             curl -fsS -X DELETE -H "X-Forwarded-Email: ${XFWD_EMAIL}" "${SERVER}/v1/sessions/${sid}" >/dev/null 2>&1 \
