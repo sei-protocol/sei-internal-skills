@@ -26,7 +26,7 @@ If a recipe below disagrees with `kubectl explain` on a live cluster, **`kubectl
 
 ### 1. RPC endpoints for a chain — point load tools here, not at validators
 
-Returns the fleet of per-follower EVM JSON-RPC URLs for the network. These are the URLs `sei-load`, ad-hoc curl tests, and Foundry should target. **Validators serve no EVM (`ModeValidator` disables EVM HTTP/WS) — never point load traffic at them.** Each follower is one SeiNode publishing its own `.status.endpoint` scalar; the fleet is assembled *across* CRs via `node list`, not from a single object. There is no controller-created aggregate — a round-robin VIP is an engineer-owned Flux Service if wanted (see the networking section in `ephemeral-chain-flow.md`).
+Returns the fleet of per-follower EVM JSON-RPC URLs for the network. These are the URLs `sei-load`, ad-hoc curl tests, and Foundry should target. **Validators serve no EVM (`ModeValidator` disables EVM HTTP/WS) — never point load traffic at them.** Each follower is one SeiNode publishing its own `.status.endpoint` scalar; the fleet is assembled *across* CRs via `node list`, not from a single object. The network's controller-created aggregate (`<network>-internal` ClusterIP, published as `.status.internalService`) fronts only its validator children — no EVM there — and the network's composed `.status.endpoints` surfaces EVM per-pod only, because stateful EVM protocols (filters, subscriptions, finalized-tag reads) don't load-balance behind kube-proxy. So the follower fleet is always assembled across SeiNode CRs; a round-robin VIP over followers would be an engineer-owned Flux Service (see the networking section in `ephemeral-chain-flow.md`), and load tools shouldn't want one.
 
 ```sh
 # Fleet of per-follower EVM JSON-RPC URLs

@@ -27,7 +27,7 @@ The hard rules:
 
 ## Mental model
 
-You operate against the **harbor cluster** (eu-central-1 EKS). It runs the **sei-k8s-controller** which watches `SeiNetwork` and `SeiNode` CRs and reconciles them into StatefulSets, PVCs, and per-node headless Services. The controller publishes each node's reachability as `.status.endpoint` and stops there — it creates **no** load balancer, aggregate ClusterIP, ingress, or HTTPRoute. Exposure (ingress / HTTPRoute / aggregate Service) is engineer-owned Flux YAML in the task dir; see the networking section in `references/ephemeral-chain-flow.md`.
+You operate against the **harbor cluster** (eu-central-1 EKS). It runs the **sei-k8s-controller** which watches `SeiNetwork` and `SeiNode` CRs and reconciles them into StatefulSets, PVCs, and per-node headless Services. A SeiNetwork additionally gets a controller-created `<network>-internal` ClusterIP Service fronting its **validator children only**, published as `.status.internalService` alongside `.status.perPodServices[]` and composed `.status.endpoints` (aggregate Tendermint RPC/REST; EVM URLs are per-pod only — stateful EVM protocols don't load-balance behind kube-proxy). A standalone follower SeiNode publishes just its own `.status.endpoint`. The controller creates **no** load balancer, ingress, or HTTPRoute — external exposure is engineer-owned Flux YAML in the task dir; see the networking section in `references/ephemeral-chain-flow.md`.
 
 **Where you work:** `eng-<alias>` namespace, registered to the engineer via a one-time PR against `sei-protocol/platform`. The namespace is the isolation boundary.
 
