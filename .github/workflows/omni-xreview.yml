@@ -78,6 +78,14 @@ jobs:
               | tar -xz -C "$RUNNER_TEMP" && cp "$RUNNER_TEMP/gh_${GH_VERSION}_linux_amd64/bin/gh" "$RUNNER_TEMP/bin/gh"
           fi
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+          # Derive BOTH the owner and the bare name from the validated REPO input, so the
+          # token mint's owner+repositories pair comes from ONE source (the target), not a
+          # mix of the workflow's own owner + the target's name. Hardcoding
+          # github.repository_owner would mint against the wrong installation whenever the
+          # reviewed repo's owner differs from this workflow repo's owner, while gh/clone/
+          # comment all use the full REPO — a provider/consumer mismatch. The strict
+          # ^owner/name$ regex above guarantees both segments are non-empty + legal.
+          echo "repo_owner=${REPO%/*}" >> "$GITHUB_OUTPUT"
           echo "repo_name=${REPO#*/}" >> "$GITHUB_OUTPUT"
         id: pre
 
@@ -97,7 +105,7 @@ jobs:
         with:
           app-id: ${{ secrets.PLATFORM_CODE_AGENT_APP_ID }}
           private-key: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
-          owner: ${{ github.repository_owner }}
+          owner: ${{ steps.pre.outputs.repo_owner }}
           repositories: ${{ steps.pre.outputs.repo_name }}
           # Runner-side identity: reads the PR + posts the comment. Never enters the sandbox.
           permission-contents: read
@@ -117,7 +125,7 @@ jobs:
         with:
           app-id: ${{ secrets.PLATFORM_CODE_AGENT_APP_ID }}
           private-key: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
-          owner: ${{ github.repository_owner }}
+          owner: ${{ steps.pre.outputs.repo_owner }}
           repositories: ${{ steps.pre.outputs.repo_name }}
           permission-contents: read
 
