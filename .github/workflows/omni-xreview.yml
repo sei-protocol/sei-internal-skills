@@ -59,7 +59,14 @@ jobs:
         run: |
           set -euo pipefail
           if ! [[ "$PR" =~ ^[0-9]+$ ]]; then echo "::error::pr input must be numeric, got '$PR'"; exit 1; fi
-          case "$REPO" in */*) : ;; *) echo "::error::repo input must be owner/name, got '$REPO'"; exit 1 ;; esac
+          # STRICT owner/name: exactly one '/', both segments non-empty, only GitHub-legal
+          # name chars. A loose `*/*` accepts `owner/` (empty name) → repo_name empty →
+          # create-github-app-token mints an installation token scoped to ALL repos the
+          # (org-wide) seidroid app can read, which would then enter the untrusted sandbox
+          # via the clone-token workspace URL. Fail closed on any malformed target.
+          if ! [[ "$REPO" =~ ^[A-Za-z0-9._-]+/[A-Za-z0-9._-]+$ ]]; then
+            echo "::error::repo input must be a single owner/name (non-empty segments, legal chars), got '$REPO'"; exit 1
+          fi
           command -v curl >/dev/null || { echo "::error::curl missing on the runner — cannot bootstrap tools"; exit 1; }
           mkdir -p "$RUNNER_TEMP/bin"
           if ! command -v jq >/dev/null; then
@@ -220,22 +227,39 @@ jobs:
           exit 1
 
       # The sandbox is ready ⇒ the init container's clone has completed ⇒ the clone
-      # token has done its one job. Revoke it NOW so its usable life is the clone window
-      # (~seconds), not the 1h TTL — and so the copy omnigent persists in the session
-      # label is dead for the rest of the session. Safe because xreview never touches
-      # git after the clone. Best-effort: a revoke hiccup must not red an otherwise-valid
-      # run (the token still self-expires at 1h, and teardown retries the revoke).
-      - name: Revoke the clone token (post-clone)
+      # token has done its one job. Revoke it NOW — BEFORE the review agent is triggered
+      # (the diff message, next step) — so the agent never executes while the token is
+      # live. This is FAIL-CLOSED, not best-effort: the clone token lands in the clone's
+      # .git/config on the sandbox's shared volume, which the deny_shell reviewer CAN
+      # read as a file (deny_shell blocks exec, not Read/Grep), so a prompt-injection in
+      # the attacker-controlled diff could exfiltrate a still-live token into the public
+      # comment. Therefore, if we cannot CONFIRM revocation (204), we tear the session
+      # down and abort WITHOUT running the agent or posting anything. On the happy path
+      # the token is dead before the agent runs, so the .git/config copy is inert.
+      - name: Revoke the clone token (post-clone) — fail closed
         env:
           CLONE_TOKEN: ${{ steps.clonetoken.outputs.token }}
         run: |
           set -uo pipefail
           code="$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE \
             -H "Accept: application/vnd.github+json" \
-            -H "Authorization: token ${CLONE_TOKEN}" \
+            -H "Authorization: Bearer ${CLONE_TOKEN}" \
+            --max-time 20 \
             https://api.github.com/installation/token || echo "000")"
-          if [ "$code" = "204" ]; then echo "clone token revoked (204)"; \
-            else echo "::warning::clone-token revoke returned ${code} (token self-expires ≤1h; teardown retries)"; fi
+          if [ "$code" = "204" ]; then
+            echo "clone token revoked (204)"
+          else
+            # Could not confirm revocation → the agent must NOT run with a live,
+            # sandbox-readable token. Tear the session down now (kills the pod + its
+            # .git/config) and fail; the token also self-expires ≤1h. NO review is posted.
+            echo "::error::clone-token revoke returned ${code} — failing closed: tearing down before the agent runs, NO review posted"
+            sid="${{ steps.session.outputs.session_id }}"
+            if [ -n "${sid:-}" ] && [ "$sid" != "null" ]; then
+              curl -sS -o /dev/null -X DELETE -H "X-Forwarded-Email: ${XFWD_EMAIL}" \
+                --max-time 20 "${SERVER}/v1/sessions/${sid}" || true
+            fi
+            exit 1
+          fi
 
       # Hand the diff in as the FIRST message — delivers the trusted driver-produced
       # diff (the bundle reads the initial message, #250) AND triggers the first turn.
@@ -287,10 +311,14 @@ jobs:
       - name: Post the omni-xreview comment
         env:
           GH_TOKEN: ${{ steps.apptoken.outputs.token }}
+          # BRANCH via env, not inline ${{ }}, so an author-controlled PR head branch
+          # name containing $(...) / backticks can't command-inject into this run body
+          # (same discipline the session-create step uses). REPO/PR are already env + validated.
+          BRANCH: ${{ steps.diff.outputs.branch }}
         run: |
           set -euo pipefail
           { echo "## omni-xreview";
-            echo "_Managed \`/xreview\` on \`${REPO}#${PR}\` (branch \`${{ steps.diff.outputs.branch }}\`) — Design-18 MVP._";
+            echo "_Managed \`/xreview\` on \`${REPO}#${PR}\` (branch \`${BRANCH}\`) — Design-18 MVP._";
             echo; cat verdict.md; } > comment.md
           gh pr comment "$PR" --repo "$REPO" --body-file comment.md
           echo "posted omni-xreview comment on ${REPO}#${PR}"
@@ -307,17 +335,19 @@ jobs:
           CLONE_TOKEN: ${{ steps.clonetoken.outputs.token }}
         run: |
           set -uo pipefail
-          # Safety net: if the run died before the post-clone revoke, kill the clone
-          # token here so a crashed/cancelled run never leaves it live for up to 1h.
-          # Idempotent — revoking an already-revoked token just 404s.
+          # Safety net: if the run died/was cancelled before the post-clone revoke, kill
+          # the clone token here so a crashed/evicted run never leaves it live for ≤1h.
+          # Idempotent — a second revoke of an already-dead token just non-204s (harmless).
+          # --max-time so a hung curl can't consume the cancellation grace window.
           if [ -n "${CLONE_TOKEN:-}" ]; then
             curl -sS -o /dev/null -X DELETE -H "Accept: application/vnd.github+json" \
-              -H "Authorization: token ${CLONE_TOKEN}" \
+              -H "Authorization: Bearer ${CLONE_TOKEN}" \
+              --max-time 20 \
               https://api.github.com/installation/token >/dev/null 2>&1 \
               && echo "clone token revoke attempted" || true
           fi
           sid="${{ steps.session.outputs.session_id }}"
           if [ -n "${sid:-}" ] && [ "$sid" != "null" ]; then
-            curl -fsS -X DELETE -H "X-Forwarded-Email: ${XFWD_EMAIL}" "${SERVER}/v1/sessions/${sid}" >/dev/null 2>&1 \
+            curl -fsS -X DELETE -H "X-Forwarded-Email: ${XFWD_EMAIL}" --max-time 20 "${SERVER}/v1/sessions/${sid}" >/dev/null 2>&1 \
               && echo "session ${sid} torn down" || echo "::warning::best-effort teardown of ${sid} did not confirm (verify the reap policy)"
           fi
