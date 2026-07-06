@@ -118,7 +118,7 @@ seictl node    list [-A] [-l <label-selector>] [-o yaml | json | name | jsonpath
 
 Returns a `SeiNetworkList` / `SeiNodeList`. `-A` overrides `-n` and lists across all namespaces. `--selector` (`-l`) accepts standard label selectors (e.g. `-l sei.io/seinetwork=foo,sei.io/role=node`).
 
-**`node list -o json` is the PRIMARY fleet read** — `.items[].status.endpoint` carries each follower's published scalar; assemble the fleet of URLs via `jq` over `.items[]` (see `cluster-inspection-recipes.md` recipe #1).
+**`node list -o json` is the PRIMARY fleet read** — `.items[].status.endpoint` carries each follower's published URLs; assemble the fleet of URLs via `jq` over `.items[]` (see `cluster-inspection-recipes.md` recipe #1).
 
 **Failure:** `metav1.Status` on stderr.
 

@@ -60,7 +60,7 @@ Pre-flight is a sequenced ramp from "fresh laptop" to "ready to apply against en
 | 4 | kubectl can reach harbor with engineer-side reach | `kubectl auth can-i list seinetworks -n eng-<alias> --context=harbor` returns `yes` | EKS access entry not granted, or scoped read-only. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
 | 5 | Namespace `eng-<alias>` reconciled | `kubectl get namespace eng-<alias>` returns 0 | The engineer hasn't been onboarded yet, or the onboarding PR hasn't merged. Route to **First Run** below to open the PR; otherwise surface the open PR URL and offer to poll until the namespace appears (~60s post-merge). |
 
-Once all five pass, cache the pass for the session — subsequent verbs skip the gates unless a halt condition (SSO expiry, kubectl context drift) triggers a targeted re-check.
+Once all five pass, cache the pass for the session — subsequent verbs skip the gates unless a halt condition (SSO expiry, kubectl context drift) triggers a targeted re-check. (`references/preflight.md`'s detailed ramp also gates on `yq` and the `flux` CLI, so its numbering runs one ahead of this table from SSO onward — its gate 6 is this table's gate 5.)
 
 For deep detail per gate (recovery commands, edge cases, the full new-engineer walk-through, mid-session drift handling), see `references/preflight.md`.
 
@@ -80,9 +80,9 @@ Don't hardcode a profile name; engineers configure their own.
 
 The chosen profile is the session's profile — every downstream `aws ...` invocation runs with `--profile <chosen>`. Persist the choice for the session (e.g., shell-prefix every Bash call with `AWS_PROFILE=<chosen>` if not exported in the parent shell).
 
-## First Run (the recovery for pre-flight gate 6)
+## First Run (the recovery for pre-flight gate 5)
 
-When pre-flight gate 6 fails (`eng-<alias>` namespace doesn't exist), enter First Run. Gates 1–5 have passed — seictl, yq, SSO, kubeconfig, and EKS access entry are in place.
+When pre-flight gate 5 fails (`eng-<alias>` namespace doesn't exist), enter First Run. Gates 1–4 have passed — seictl, SSO, kubeconfig, and cluster reach are in place.
 
 Onboarding is one PR against `sei-protocol/platform` adding three files. After merge, run a targeted `terraform apply`. Both pieces complete in under five minutes.
 
