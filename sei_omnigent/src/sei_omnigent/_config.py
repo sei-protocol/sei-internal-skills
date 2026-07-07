@@ -164,5 +164,5 @@ def load_config(path: str | None) -> dict[str, Any]:
     import yaml  # noqa: PLC0415
 
     with open(path, encoding="utf-8") as f:
-        cfg = yaml.load(f, Loader=_bool_preserving_loader()) or {}
+        cfg = yaml.load(f, Loader=_bool_preserving_loader()) or {}  # noqa: S506 -- own bool-safe SafeLoader subclass (safe_load-equivalent, see _bool_preserving_loader)
     return resolve_relative_locations(cfg, config_path=path)
