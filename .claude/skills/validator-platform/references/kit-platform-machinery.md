@@ -11,7 +11,7 @@ The **canonical home for every controller-behavior invariant** an operator must 
 - **Idempotency-per-kind.** `GovVote` chain-idempotent → re-apply safe; `GovSoftwareUpgrade` + `GovParamChange` **submit-once** — the pre-broadcast marker (seictl#219) makes a crash-window re-run of the **same** task adopt the prior tx, and covers nothing else; `GovParamChange` higher-blast-radius. *Cited:* §seictl (the pre-broadcast marker, seictl#219); profile §5.
 - **Task-ID re-join vs delete-recreate.** Re-applying a task re-joins the existing run via its **task-ID (UUIDv5)** — idempotent at the orchestration layer. **Delete-recreate mints a new run → a duplicate submit + deposit** on a non-idempotent kind. *Cited:* §controller (task-ID); profile §5.
 - **`requirePhase` terminality.** `requirePhaseTimeout` is **terminal** — a timed-out task does not auto-retry; re-driving means a deliberate re-apply (same task-ID), never a delete-recreate. *Cited:* §controller (CRD lifecycle comments); profile §5.
-- **Status + structural RPC pin.** `status.outputs` is **unpopulated for all sidecar kinds** — read the result from its kind-specific sink: for **gov**, `proposalId` is not returned, correlate via the `taskID=` memo and read the chain; for **shadow `result-export`**, read S3 + Prometheus. One sidecar ↔ one co-located node, so the verify/broadcast TOCTOU is closed **by construction** (no `seid --node` pin needed). *Cited:* §controller (status not populated); profile §6/§7.
+- **Status + structural RPC pin.** **Gov kinds populate `status.outputs`**: the controller decodes `wire.GovTxResult` into `status.outputs.gov*` (`txHash`/`height`; `proposalId` on the submit kinds once committed, zero while pending) — read gov results there, with the `taskID=` memo + chain query as the pending-case fallback. The **other sidecar kinds don't**: **shadow `result-export`** reads S3 + Prometheus. One sidecar ↔ one co-located node, so the verify/broadcast TOCTOU is closed **by construction** (no `seid --node` pin needed). *Cited:* §controller (`govoutputs.go` `populateGovOutputs`); profile §6/§7.
 
 ## 3. Anti-patterns / failure modes
 
@@ -24,7 +24,7 @@ The **canonical home for every controller-behavior invariant** an operator must 
 ## 4. Review cues
 
 - **Dimension 2 (Idempotency & recovery):** per-kind class correct; re-apply (task-ID re-join) not delete-recreate on a submit kind; `requirePhaseTimeout` treated as terminal. *Basis:* profile §5, §seictl (`seictl#174`).
-- **Dimension 4 (Result verification):** result read from the chain, not `status.outputs`; `taskID=` memo correlation; structural RPC pin understood. *Basis:* profile §6/§7, §controller.
+- **Dimension 4 (Result verification):** gov results read from `status.outputs.gov*` (memo+chain fallback while pending); non-gov sidecar kinds read their sink; structural RPC pin understood. *Basis:* profile §6/§7, §controller.
 - **Dimension 1 (Manifest correctness & encoding):** `spec.target.nodeRef.name` resolves to a real SeiNode; the sidecar address is `:8443`. *Basis:* profile §1/§2, §controller/§seictl.
 - **Dimension 5 (Citation discipline):** the controller-author view (reconcile internals, CRD durability) is cited to `/kubernetes`, not re-derived. *Basis:* §kubernetes.
 
