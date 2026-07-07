@@ -59,13 +59,13 @@
       "source": "Guardrail 5; profile §8/§3; §gov-ops; §seictl"
     },
     {
-      "id": "read-chain-not-status",
+      "id": "read-result-location-per-kind",
       "type": "discipline",
       "prompt": "After applying a GovSoftwareUpgrade SeiNodeTask the operator's script polls `status.outputs.proposalId` to get the proposal id and reports it as empty/missing.",
       "expected_behavior": [
-        "Explains status.outputs is UNPOPULATED for all sidecar kinds and (for gov) proposalId is not returned — this is expected, not a failure (Dimension 4 (Result verification), profile §6)",
-        "Rewrite: read the CHAIN — correlate via the taskID= memo, query the proposal/txHash on-chain (seid query gov vocabulary, §sei-skill)",
-        "Names the structural RPC pin (one sidecar ↔ one co-located node, verify/broadcast TOCTOU closed by construction); cites §controller"
+        "Corrects the path: gov results land on status.outputs.gov* (the controller decodes wire.GovTxResult — txHash/height, proposalId on the submit kinds once committed); a bare status.outputs.proposalId is the wrong field, and a ZERO proposalId means the tx is still pending, not failed (Dimension 4, profile §6)",
+        "Fallback for the pending/zero case: correlate via the taskID= memo, query the proposal/txHash on-chain (seid query gov vocabulary, §sei-skill)",
+        "Names the structural RPC pin (one sidecar ↔ one co-located node, verify/broadcast TOCTOU closed by construction); cites §controller (govoutputs.go)"
       ],
       "source": "profile §6/§7; kit-platform-machinery §2/§3; §sei-skill"
     },
