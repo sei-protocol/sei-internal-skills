@@ -88,6 +88,28 @@ jobs:
             test -f /opt/sei-omnigent/agents/xreview/skills/xreview/SKILL.md &&
             echo bundle-ok'
 
+      - name: Boot config-parse smoke (yaml bool-resolver regression)
+        # The import smoke proves modules resolve; it does NOT run load_config +
+        # parse_sandbox_config against a real config, so it cannot catch a config
+        # that parses to the wrong scalar types at boot. Importing the omnigent
+        # server seam mutates the global yaml.SafeLoader (bool -> str), so a bare
+        # yaml.safe_load would read `in_cluster: true` as the string 'true' and
+        # omnigent's strict parser would reject it. This step reproduces the boot
+        # order against the BUILT wheel — import the seam (pollutes the global),
+        # then load_config, then parse_sandbox_config — so a regression on the
+        # bool-preserving loader fails here, not at deploy. The config is
+        # host-written + mounted read-only so the container writes nothing; the
+        # python is single-quoted at the shell with double-quoted python strings,
+        # so there is no nested-quote hazard. rc!=0 = FAILURE.
+        run: |
+          # A minimal but COMPLETE managed-kubernetes sandbox block: provider +
+          # server_url are the two required fields, in_cluster is the bool under test.
+          printf 'sandbox:\n  provider: kubernetes\n  server_url: http://smoke.invalid\n  kubernetes:\n    in_cluster: true\n' > "$RUNNER_TEMP/smoke.yaml"
+          timeout --kill-after=15s 90s \
+            docker run --rm --entrypoint python \
+              -v "$RUNNER_TEMP/smoke.yaml:/tmp/smoke.yaml:ro" \
+              sei-omnigent:pr-smoke -c 'import sei_omnigent.server.serve; from sei_omnigent._config import load_config; from omnigent.server.managed_hosts import parse_sandbox_config; cfg=load_config("/tmp/smoke.yaml"); ic=cfg["sandbox"]["kubernetes"]["in_cluster"]; assert ic is True, f"in_cluster must be bool True, got {ic!r} ({type(ic).__name__}) — yaml bool-resolver pollution regressed"; parse_sandbox_config(cfg["sandbox"]); print("boot-config-smoke ok — in_cluster resolves to bool and omnigent accepts the sandbox config")'
+
   host-build-smoke:
     # PR-gated build smoke for the runnable HOST image (Dockerfile.host, PLT-715).
     # Same fork-safe discipline as build-smoke (no push/login/secrets); the build

@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+import sei_omnigent._config as cfgmod
 from sei_omnigent._config import (
     build_effective_config,
     int_env,
@@ -101,6 +102,70 @@ def test_deny_shell_propagates_into_the_policy_arg() -> None:
 def test_load_config_none_returns_empty() -> None:
     assert load_config(None) == {}
     assert load_config("") == {}
+
+
+_BOOL_TAG = "tag:yaml.org,2002:bool"
+
+
+def test_load_config_resolves_booleans_under_polluted_yaml_loader(
+    tmp_path: Path,
+) -> None:
+    """Regression for the server boot-crash: importing the omnigent server seam
+    mutates the global ``yaml.SafeLoader`` so ``true``/``false`` deserialize as
+    strings, and omnigent's strict ``_parse_provider_bool`` then rejects them —
+    crashing the boot on ``sandbox.kubernetes.in_cluster``. ``load_config`` must
+    produce real bools regardless. Here we reproduce the exact pollution omnigent
+    inflicts (strip the bool implicit resolver from the shared SafeLoader in
+    place) — without needing omnigent installed — then assert the fix holds:
+    bools resolve, a disabled flag survives as ``False`` (the ``bool('false') is
+    truthy`` inversion guard), YAML-1.1 aliases (on/off/yes/no) stay strings
+    (YAML-1.2 semantics), and ints/nulls are untouched.
+    """
+    yaml = pytest.importorskip("yaml")
+
+    saved = {ch: list(r) for ch, r in yaml.SafeLoader.yaml_implicit_resolvers.items()}
+    try:
+        for ch in list(yaml.SafeLoader.yaml_implicit_resolvers):
+            yaml.SafeLoader.yaml_implicit_resolvers[ch] = [
+                (t, rx)
+                for t, rx in yaml.SafeLoader.yaml_implicit_resolvers[ch]
+                if t != _BOOL_TAG
+            ]
+        cfgmod._config_loader = None  # force a rebuild under the polluted global
+        assert yaml.safe_load("x: true")["x"] == "true"  # pollution is active
+
+        p = tmp_path / "server.yaml"
+        p.write_text(
+            "sandbox:\n  kubernetes:\n    in_cluster: true\n"
+            "disabled: false\nalias: on\nport: 42\nempty: null\n"
+        )
+        cfg = load_config(str(p))
+        assert cfg["sandbox"]["kubernetes"]["in_cluster"] is True
+        assert cfg["disabled"] is False  # truthiness-inversion guard (bool('false') is True)
+        assert cfg["alias"] == "on"  # YAML-1.2: on/off/yes/no are plain strings
+        assert cfg["port"] == 42
+        assert cfg["empty"] is None
+    finally:
+        yaml.SafeLoader.yaml_implicit_resolvers = saved
+        cfgmod._config_loader = None
+
+
+def test_bool_preserving_loader_leaves_global_safeloader_untouched() -> None:
+    """The overlay loader must NOT repeat omnigent's mistake — building it must
+    leave the shared ``yaml.SafeLoader`` resolver table byte-for-byte unchanged
+    (it owns a private copy). This is the guard against re-introducing the very
+    global-mutation bug we are defending against."""
+    yaml = pytest.importorskip("yaml")
+
+    cfgmod._config_loader = None
+    before = {ch: list(r) for ch, r in yaml.SafeLoader.yaml_implicit_resolvers.items()}
+    loader = cfgmod._bool_preserving_loader()
+    after = {ch: list(r) for ch, r in yaml.SafeLoader.yaml_implicit_resolvers.items()}
+    assert before == after, "building the loader must not mutate the global SafeLoader"
+    assert (
+        loader.yaml_implicit_resolvers is not yaml.SafeLoader.yaml_implicit_resolvers
+    ), "the loader must own its resolver table, not share the global one"
+    cfgmod._config_loader = None
 
 
 def test_relative_artifact_location_resolved_against_config_dir() -> None:

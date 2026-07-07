@@ -97,8 +97,11 @@ target-version = "py312"  # matches requires-python (overlay has no async/old-al
 [tool.ruff.lint]
 # MVP enforcement set: pycodestyle/pyflakes baseline (E/F), pyupgrade (UP),
 # bugbear latent-bug catches (B), ruff-specific incl. RUF100 unused-noqa (RUF).
-# PLC0415 + S104 are selected so the overlay's documented deferred-import /
-# bind-all-interfaces suppressions stay valid (else RUF100 flags them as unused).
+# PLC0415 + S104 + S506 are selected so the overlay's documented deferred-import /
+# bind-all-interfaces / deliberate-yaml.load suppressions stay valid (else RUF100
+# flags them as unused). S506: load_config uses yaml.load with an own bool-safe
+# SafeLoader subclass (safe_load-equivalent) — selecting it keeps that intentional
+# suppression auditable, mirroring the PLC0415/S104 treatment.
 #
 # DEFERRED:
 #  - `I` (import sorting) — ruff's isort fights the overlay's DELIBERATE import
@@ -111,7 +114,7 @@ target-version = "py312"  # matches requires-python (overlay has no async/old-al
 #    seam type mis-bind becomes a real boot risk.
 #  - `D` (docstrings) — un-defer at an external consumer.
 # Expand toward omnigent's full parent select as the overlay grows.
-select = ["E", "F", "UP", "B", "RUF", "PLC0415", "S104"]
+select = ["E", "F", "UP", "B", "RUF", "PLC0415", "S104", "S506"]
 ignore = [
     # The overlay's docstrings use typographic — / × / › intentionally (prose,
     # not ASCII-confusable source). Mirror omnigent's parent rationale.
