@@ -192,9 +192,9 @@ To split validators from followers, filter further: `-l sei.io/seinetwork=<chain
 
 **Symptom.** Every seid container CrashLoopBackOffs; `kubectl logs <pod> -c seid --previous` shows `Error: invalid state-commit.sc-write-mode "cosmos_only"` followed by the `seid start` usage dump. SeiNetwork may still report `Ready` (the controller doesn't gate on seid actually serving).
 
-**Cause.** The config renderer (sei-config, via the sidecar's `config-apply`) defaults the SeiDB state-commit write mode to `cosmos_only`, which matches the **stable** released seid (v6.5.1). A **main/nightly seid image** renamed that mode (`cosmos_only` → `memiavl_only`) and **rejects** `cosmos_only` at startup. So any chain pinned to a non-stable image gets a default the binary won't accept.
+**Cause.** config-apply renders the SeiDB write/read-mode keys **omitted**, so each seid binary applies its own native default — no rendered default can mismatch the image. This symptom therefore has exactly two causes: (a) the node runs a **stale sidecar** via a `spec.sidecar` image pin — stale sidecar builds rendered a concrete `cosmos_only` default that main/nightly seid images reject; strip the pin (Guardrail 7 in `SKILL.md`); (b) an **explicit write-mode override** carries a value the pinned image rejects (the accepted value sets differ across seid generations).
 
-**Fix.** When you pin a non-stable (main/nightly) seid image, set the write-mode override to a value that image accepts — `memiavl_only` (normal), or `migrate_evm` for a SeiDB-migration chain — using the **unified override key** `storage.state_commit.write_mode`:
+**Fix.** Strip any `spec.sidecar` image pin. When you do need an explicit mode, set a value the image accepts — `memiavl_only` (normal), or `migrate_evm` for a SeiDB-migration chain — using the **unified override key** `storage.state_commit.write_mode`:
 
 ```bash
 # SeiNetwork (validators): spec.configOverrides
@@ -205,7 +205,15 @@ seictl node apply <id> ... --set spec.overrides."storage.state_commit.write_mode
 
 **Footgun — the key, not just the value.** The override **key** must be the unified-schema path `storage.state_commit.write_mode`. The raw app.toml path `state-commit.sc-write-mode` is **silently rejected** by config-apply (`unknown config field`), so the broken `cosmos_only` default stands and the symptom persists even though you "set the override." (`config-apply` validation lives in sei-config; check the controller log for `unknown config field` if a write-mode override seems ignored.)
 
-> Interim guidance — this whole class disappears once config knowledge lives in the binary (ConfigManager, `SEI_CONFIG_MANAGER=v2`, PLT-775); until then, set the override explicitly when pinning a non-stable image.
+> The structural endgame — config knowledge living in the binary itself (ConfigManager, `SEI_CONFIG_MANAGER=v2`, PLT-775) — is in flight; render omission already removes the default-mismatch class.
+
+## configOverrides edits never reach a Running node
+
+**Symptom.** You edit `spec.configOverrides` on a SeiNetwork (or `spec.overrides` on a SeiNode); the change propagates to the child SeiNode's **spec**, but the node's on-disk `config.toml`/`app.toml` — and its behavior — never change. No event, no condition, no error.
+
+**Cause.** Overrides are consumed **only on init paths** (bootstrap / snapshot-restore / state-sync / genesis, via the config-apply task). A Running node has **no day-2 apply path**: update plans fired by image drift carry only the controller-owned `[p2p]` keys (external-address, persistent-peers); the reconciler has no override-drift detection (the spec edit enqueues a reconcile that produces a nil plan); and a `RestartSeid` task re-reads the **unchanged on-disk config** — a restart is not an apply. The spec silently diverges from live state.
+
+**Fix.** Set overrides **before first boot** whenever possible. For a Running node, the change takes effect only when the node next traverses an init path — re-provision (delete + recreate with a **fresh chain-id**; see the chain-id-reuse entry below) or a snapshot-restore / state-sync task. Verify what a node is *actually* running by reading its rendered files (`kubectl exec <pod> -c seid -- cat /sei/config/app.toml`), never by trusting the spec.
 
 ## Chain wedged at height 0 after delete-and-recreate (chain-id reuse)
 
@@ -256,6 +264,8 @@ seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --network <id> --ima
   --set spec.overrides."network.rpc.pprof_listen_address"="0.0.0.0:6060" \
   -n eng-<alias>
 ```
+
+**Running-node caveat**: an override applied to a Running node never reaches its on-disk config — it takes effect only on the node's next init path (see *configOverrides edits never reach a Running node* above). To profile an existing node, re-provision the follower with the override set from first boot.
 
 **Production caveat**: seictl ships one set of presets (`genesis-chain`, `rpc`) used in both dev and prod; there is no separate prod preset. When promoting a follower to prod, strip the pprof override explicitly: `--set spec.overrides."network.rpc.pprof_listen_address"=""`. Pprof must never be reachable in prod — it exposes profile dumps and memory state to anyone with HTTP access to port 6060.
 

@@ -56,8 +56,9 @@ spec:
     keyName: node_admin                      # INSIDE the payload
     fees: 2000usei                           # required; floor is /gov-ops's
     gas: 400000                              # required, uint64
-  # NOT idempotent (seictl#174 open). submit-once; a delete-recreate mints a new run
-  # → duplicate proposal + deposit. fee floor + gates owned by /gov-ops.
+  # submit-once (crash-window re-run of the SAME task adopts via the pre-broadcast
+  # marker); a delete-recreate mints a new run → duplicate proposal + deposit.
+  # fee floor + gates owned by /gov-ops.
 ```
 
 **Worked: a per-node GovParamChange** (submit kind — the highest-value example; shows both `value` encodings):
@@ -86,7 +87,8 @@ spec:
     keyName: node_admin                        # INSIDE the payload
     fees: 8000usei                             # required; floor is /gov-ops's
     gas: 400000                                # required, uint64
-  # NOT idempotent and the higher-blast-radius case (no apply-once net). submit-once; never delete-recreate.
+  # submit-once and the higher-blast-radius case (no apply-once net; the pre-broadcast
+  # marker covers only a same-task crash re-run). never delete-recreate.
 ```
 
 > **Stable-name → task-ID coupling (the submit-once linchpin).** Each manifest needs a **distinct** `metadata.name` and `nodeRef.name` (one per SeiNode — no selector). The sidecar **task-ID is a UUIDv5 derived from the CR identity**, so a **stable name** is what makes a **re-apply re-join** the existing run instead of minting a new one. Change the name (or delete-recreate) and you mint a fresh task-ID → a duplicate submit + deposit on the non-idempotent kinds. *Cited:* §controller (`status.task.id` deterministic UUIDv5, stable for the CR's lifetime).
@@ -106,7 +108,7 @@ spec:
 ## 4. Review cues
 
 - **Dimension 1 (Manifest correctness & encoding):** `spec.kind`↔payload sub-key match; camelCase; `keyName` inside the payload; `apiVersion: sei.io/v1alpha1`; typed numerics (`proposalId`/`upgradeHeight`) unquoted; `option` lowercase enum; for a `GovParamChangeEntry.value` only — large-integer param a JSON string, struct param a JSON object (not double-encoded); all required payload fields present (chainId/fees/gas, + per-kind); fee floor **cited to `/gov-ops`**. *Basis:* §controller, §seictl, §gov-ops.
-- **Dimension 2 (Idempotency & recovery):** GovVote re-apply safe; submit kinds submit-once, no delete-recreate. *Basis:* profile §5, §seictl (`seictl#174`).
+- **Dimension 2 (Idempotency & recovery):** GovVote re-apply safe; submit kinds submit-once (same-task crash re-runs adopt via the pre-broadcast marker), no delete-recreate. *Basis:* profile §5, §seictl (the marker, seictl#219).
 - **Dimension 3 (Context & mainnet-adjacency safety):** the per-node fan-out targets the intended `(context, network, namespace)`; the allowlist refuse is **`/gov-ops`'s**. *Basis:* profile §8, §gov-ops.
 - **Dimension 4 (Result verification):** verified on the chain, not `status.outputs`. *Basis:* profile §6.
 - **Dimension 5 (Citation discipline):** keyring ladder cited to §controller (not the stale LLD); gates/fan-out/fee-floor cited to §gov-ops. *Basis:* `sources.md`.
