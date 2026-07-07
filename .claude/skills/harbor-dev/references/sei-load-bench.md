@@ -7,7 +7,7 @@ Engineer-driven load tests run as a `Job` + `ConfigMap` pair under the engineer'
 - **Sei-load image is distroless** — no shell, no `aws-cli`, no `bash`. Main container can't run a wrapper script. Upload happens from a separate sidecar.
 - **`engineer-service-account` is namespace-admin** in `eng-<alias>` (RoleBinding to built-in `admin` ClusterRole). Grants `pods/log get` (used by the sidecar) and S3 write via Pod Identity (`aws_iam_policy.engineer`, scoped to `harbor-validation-results/eng-<alias>/*`).
 - **Per-engineer Flux Kustomization SA has `update`+`patch` on `batch/jobs`** (sei-protocol/platform/clusters/harbor/engineers/base/rbac.yaml). Without those verbs, Flux's server-side apply fails on the second reconcile of any Job.
-- **Profile JSON has live placeholders** — `__SEI_CHAIN_ID__` and `__RPC_ENDPOINTS__` in `clusters/harbor/nightly/load/profiles/*.json`. The agent must substitute both at render time. `__RPC_ENDPOINTS__` is the fleet of per-follower RPC URLs read across the network's `rpc` SeiNodes: `seictl node list -n eng-<alias> -l sei.io/seinetwork=<id>,sei.io/role=node -o json | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'`. Each follower publishes its own `.status.endpoint` scalar (its stable per-node URL); there is no aggregate ClusterIP — assemble the fleet across CRs, never reconstruct a URL.
+- **Profile JSON has live placeholders** — `__SEI_CHAIN_ID__` and `__RPC_ENDPOINTS__` in `clusters/harbor/nightly/harness/profiles/*.json`. The agent must substitute both at render time. `__RPC_ENDPOINTS__` is the fleet of per-follower RPC URLs read across the network's `rpc` SeiNodes: `seictl node list -n eng-<alias> -l sei.io/seinetwork=<id>,sei.io/role=node -o json | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'`. Each follower publishes its own `.status.endpoint` (an object of per-protocol URL leaves — its stable per-node addresses); assemble the fleet across CRs, never reconstruct a URL. The SeiNetwork's `<network>-internal` ClusterIP fronts only its validator children (which serve no EVM), and EVM JSON-RPC/WS is surfaced per-pod by design — stateful EVM protocols don't load-balance behind kube-proxy — so the per-follower list is the correct target set, never an aggregate Service.
 - **The chain's rpc follower SeiNodes must be `Running` at render time.** Each follower's `.status.endpoint.evmJsonRpc` is published only after that SeiNode reaches `Running` (a SeiNode has no `Ready` phase — terminal is `Running`).
 
 ## Inputs the agent gathers
@@ -16,7 +16,7 @@ Engineer-driven load tests run as a `Job` + `ConfigMap` pair under the engineer'
 |---|---|
 | Chain ID | The SeiNetwork name in the engineer's namespace. The bench targets the network's rpc follower SeiNodes (named `<chain-id>-rpc-0 .. <chain-id>-rpc-(N-1)`, selected by `sei.io/seinetwork=<chain-id>,sei.io/role=node`). |
 | Sei-load image | **Required input** — engineer specifies a PR / commit / branch / explicit `--image`; never silently default. Resolution per `references/image-resolution.md`. |
-| Profile | Default `nightly_evm_transfer`. Override via `--profile <name>` matching a file in `clusters/harbor/nightly/load/profiles/`. |
+| Profile | Default `nightly_evm_transfer`. Override via `--profile <name>` matching a file in `clusters/harbor/nightly/harness/profiles/`. |
 | Duration (minutes) | Default 10. Override `--duration <minutes>`. |
 | Bench tag (RUN_ID component) | Same precedence as chain-IDs (Linear ticket → sei-chain PR → sei-load PR → commit substring → explicit `--tag`). On a re-render, parse the existing PR branch (`feat/eng-<alias>-bench-<run-id>`) to recover the original `<RUN_ID>` rather than minting a new one. |
 
@@ -70,19 +70,24 @@ data:
     <PROFILE_JSON_SUBSTITUTED>
 ```
 
-`<PROFILE_JSON_SUBSTITUTED>` is the content of `clusters/harbor/nightly/load/profiles/<profile>.json` with `seiChainId` set to the chain-id and `endpoints` set to the per-pod RPC URLs. Use `jq --argjson` rather than `sed` — robust against URL special characters and produces guaranteed-valid JSON:
+`<PROFILE_JSON_SUBSTITUTED>` is the content of `clusters/harbor/nightly/harness/profiles/<profile>.json` with `seiChainId` set to the chain-id and `endpoints` set to the per-pod RPC URLs. The raw profile is deliberately **not valid JSON** — `"endpoints": [__RPC_ENDPOINTS__]` carries a bare placeholder inside the brackets — so jq cannot parse it as input. Substitute textually, then hard-validate the result with jq before it lands in the ConfigMap:
 
 ```sh
 RPC_ENDPOINTS=$(seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json \
   | jq -c '[.items[].status.endpoint.evmJsonRpc | select(.)]')
 
-PROFILE_RAW=$(gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/load/profiles/<profile>.json \
+# __RPC_ENDPOINTS__ sits INSIDE existing [ ] in the profile — insert
+# comma-joined quoted URLs, no outer brackets.
+EPS_INNER=$(printf '%s' "${RPC_ENDPOINTS}" | jq -r 'map(@json) | join(", ")')
+
+PROFILE_RAW=$(gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/harness/profiles/<profile>.json \
   --jq .content | base64 -d)
 
-PROFILE_SUBSTITUTED=$(echo "${PROFILE_RAW}" | jq \
-  --arg cid "<chain-id>" \
-  --argjson eps "${RPC_ENDPOINTS}" \
-  '.seiChainId = $cid | .endpoints = $eps')
+PROFILE_SUBSTITUTED=$(printf '%s' "${PROFILE_RAW}" \
+  | sed -e "s|__SEI_CHAIN_ID__|<chain-id>|" -e "s|__RPC_ENDPOINTS__|${EPS_INNER}|")
+
+# Hard gate: the substituted profile must be valid JSON.
+printf '%s' "${PROFILE_SUBSTITUTED}" | jq -e . >/dev/null
 ```
 
 Indent `<PROFILE_JSON_SUBSTITUTED>` four spaces in the rendered ConfigMap (block scalar `|` syntax).
@@ -257,7 +262,7 @@ The agent appends `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `
 - **No follower `Running`** at render time. Per-follower URLs aren't published. Surface each follower's phase + offer to poll (`seictl node watch <chain-id>-rpc-<k> --until=Running` per follower) before continuing.
 - **Endpoints absent** even though a follower is `Running`. Likely a pre-endpoint-publication race (`PhaseRunning` precedes a serving EVM listener). Sleep 30s and retry once; halt with the followers' full status if still empty.
 - **Parent `engineers/<alias>/kustomization.yaml` missing.** The per-engineer Flux Kustomization has nothing to aggregate the new `bench-<RUN_ID>/` task dir into; merging the PR is a no-op for Flux. Onboarding (or a prior teardown sequence) didn't ship the parent kustomization. Halt; surface that the engineer's onboarding PR is incomplete or the parent file was removed manually.
-- **Profile JSON not in platform repo.** Surface available profiles (`gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/load/profiles --jq '.[].name'`); ask the engineer to pick.
+- **Profile JSON not in platform repo.** Surface available profiles (`gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/harness/profiles --jq '.[].name'`); ask the engineer to pick.
 - **Bench-name collision** — `engineers/<alias>/bench-<RUN_ID>/` already exists with a closed PR. Halt and ask whether to bump the bench-tag or reuse.
 - **Sei-load image build workflow fails.** Surface `gh run view <id> --log-failed -R sei-protocol/sei-load`; don't retry blindly.
 - **PR push rejected** — engineer or another agent pushed concurrently. Don't force-push. Halt; surface `git pull --rebase`.

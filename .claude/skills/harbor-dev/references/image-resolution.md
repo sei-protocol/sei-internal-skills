@@ -148,7 +148,7 @@ For named release tags (`release/**` on sei-chain, `v*` on sei-load), the symbol
 Engineers occasionally want to compare against what nightly is running. The pins are in the platform repo:
 
 ```sh
-grep -A1 'SEID_IMAGE\|SEILOAD_IMAGE' clusters/harbor/nightly/load/cronjob.yaml
+grep -A1 'SEID_IMAGE\|SEILOAD_IMAGE' clusters/harbor/nightly/harness/cronjobs.yaml
 ```
 
 That's a comparison input — not a default. Always prompt the engineer for an explicit input when their intent doesn't supply one.

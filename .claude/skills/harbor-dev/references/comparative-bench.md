@@ -198,20 +198,20 @@ initContainers:
 
 Substitute `<a-or-b>` with the side's letter at render time. The 10-minute deadline matches the follower-watch timeout — if the follower doesn't reach Running within that window, the bench Job fails fast with a clear DNS message rather than waiting on `activeDeadlineSeconds`.
 
-Profile substitution per side (same `jq --argjson` recipe as single-bench):
+Profile substitution per side (same textual-substitution + jq-validate recipe as single-bench — the raw profile is deliberately not valid JSON, so jq can't parse it as input; see `sei-load-bench.md`):
 
 ```sh
 # Side A
 RPC_ENDPOINTS_A=$(seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-tag>-a,sei.io/role=node -o json \
   | jq -c '[.items[].status.endpoint.evmJsonRpc | select(.)]')
+EPS_INNER_A=$(printf '%s' "${RPC_ENDPOINTS_A}" | jq -r 'map(@json) | join(", ")')
 
-PROFILE_RAW=$(gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/load/profiles/<profile>.json \
+PROFILE_RAW=$(gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/harness/profiles/<profile>.json \
   --jq .content | base64 -d)
 
-PROFILE_A=$(echo "${PROFILE_RAW}" | jq \
-  --arg cid "<chain-tag>-a" \
-  --argjson eps "${RPC_ENDPOINTS_A}" \
-  '.seiChainId = $cid | .endpoints = $eps')
+PROFILE_A=$(printf '%s' "${PROFILE_RAW}" \
+  | sed -e "s|__SEI_CHAIN_ID__|<chain-tag>-a|" -e "s|__RPC_ENDPOINTS__|${EPS_INNER_A}|")
+printf '%s' "${PROFILE_A}" | jq -e . >/dev/null   # hard gate: valid JSON
 
 # Side B mirrors with -b
 ```

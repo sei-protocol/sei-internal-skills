@@ -7,7 +7,7 @@ When in doubt about a field, check the live shape:
 ```sh
 kubectl explain seinetwork.status              # tree view of the network's status fields
 kubectl explain seinode.status                 # a single node's status fields
-kubectl explain seinode.status.endpoint        # the per-node published endpoint (scalar leaf)
+kubectl explain seinode.status.endpoint        # the per-node published endpoint (object of URL leaves)
 ```
 
 If a recipe below disagrees with `kubectl explain` on a live cluster, **`kubectl explain` wins** and this doc is stale — file an issue.
@@ -26,7 +26,7 @@ If a recipe below disagrees with `kubectl explain` on a live cluster, **`kubectl
 
 ### 1. RPC endpoints for a chain — point load tools here, not at validators
 
-Returns the fleet of per-follower EVM JSON-RPC URLs for the network. These are the URLs `sei-load`, ad-hoc curl tests, and Foundry should target. **Validators serve no EVM (`ModeValidator` disables EVM HTTP/WS) — never point load traffic at them.** Each follower is one SeiNode publishing its own `.status.endpoint` scalar; the fleet is assembled *across* CRs via `node list`, not from a single object. There is no controller-created aggregate — a round-robin VIP is an engineer-owned Flux Service if wanted (see the networking section in `ephemeral-chain-flow.md`).
+Returns the fleet of per-follower EVM JSON-RPC URLs for the network. These are the URLs `sei-load`, ad-hoc curl tests, and Foundry should target. **Validators serve no EVM (`ModeValidator` disables EVM HTTP/WS) — never point load traffic at them.** Each follower is one SeiNode publishing its own `.status.endpoint` URLs; the fleet is assembled *across* CRs via `node list`, not from a single object. The network's controller-created aggregate (`<network>-internal` ClusterIP, published as `.status.internalService`) fronts only its validator children — no EVM there — and the network's composed `.status.endpoints` surfaces EVM per-pod only, because stateful EVM protocols (filters, subscriptions, finalized-tag reads) don't load-balance behind kube-proxy. So the follower fleet is always assembled across SeiNode CRs; a round-robin VIP over followers would be an engineer-owned Flux Service (see the networking section in `ephemeral-chain-flow.md`), and load tools shouldn't want one.
 
 ```sh
 # Fleet of per-follower EVM JSON-RPC URLs
@@ -46,7 +46,7 @@ seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node
   | jq -r '.items[].status.endpoint.evmWs | select(.)'
 ```
 
-`select(.)` drops a matched follower whose `.status.endpoint` is unset (not yet `Running`); the **selector** `sei.io/seinetwork=<id>,sei.io/role=node` does the real fleet-scoping at the apiserver (validators are `role=validator` and excluded). **Use the published URLs verbatim — never reconstruct them** (the controller owns the per-node headless DNS form, e.g. `http://<chain-id>-rpc-0.sei.svc:8545`).
+`select(.)` drops a matched follower whose `.status.endpoint` is unset (not yet `Running`); the **selector** `sei.io/seinetwork=<id>,sei.io/role=node` does the real fleet-scoping at the apiserver (validators are `role=validator` and excluded). **Use the published URLs verbatim — never reconstruct them** (the controller owns the per-node headless DNS form, e.g. `http://<chain-id>-rpc-0.eng-<alias>.svc:8545`).
 
 If `.items` is empty, no follower nodes exist for the network yet — `seictl node apply <id>-rpc-0 --preset rpc --chain-id <id> --network <id>` first.
 
@@ -92,15 +92,17 @@ Common failed-task → root-cause map: `snapshot-restore` → S3 / Pod Identity,
 
 ### 4. List a network + its follower SeiNodes in one shot
 
+`seictl network|node list` emits `yaml | json | name | jsonpath` only — tabular `custom-columns` views go through `kubectl get`, which reads the same CRs.
+
 ```sh
 # The validator network: chain-id, phase, validator-pool readiness
-seictl network list -n eng-<alias> \
+kubectl get seinetwork -n eng-<alias> \
   -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,READY:.status.readyReplicas,DESIRED:.status.replicas'
 
 # All SeiNodes in the network — the ROLE column distinguishes validators from followers.
 # Inventory view (no READY/DESIRED — a SeiNode is a single node). For RPC-load endpoints
 # use recipe #1, which filters to role=node and never includes validators.
-seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id> \
+kubectl get seinode -n eng-<alias> -l sei.io/seinetwork=<chain-id> \
   -o custom-columns='NAME:.metadata.name,ROLE:.metadata.labels.sei\.io/role,PHASE:.status.phase'
 ```
 
