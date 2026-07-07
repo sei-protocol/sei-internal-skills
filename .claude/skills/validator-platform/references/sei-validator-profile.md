@@ -20,9 +20,9 @@ A gov proposal or per-node vote is a **typed `SeiNodeTask`** the controller hand
 
 5. **Idempotency-per-kind.** *Cited:* CRD comments + seictl `gov_*.go` handler headers.
    - **`GovVote`** — chain-idempotent (last-write-wins on proposalId/voter) → **re-apply safe**.
-   - **`GovSoftwareUpgrade`** — **NOT** idempotent (crash-window double-broadcast).
-   - **`GovParamChange`** — **NOT** idempotent, and the **higher-blast-radius** case (no "applies once" net — a duplicate is two real proposals + two deposits).
-   - **Both submit kinds are covered by the open `seictl#174`** — the cross-handler pre-broadcast txHash marker (the `REHYDRATION WARNING` header is identical in `gov_software_upgrade.go:8` and `gov_param_change.go:7`). The fix is **open**, so until it lands the rule below holds for both.
+   - **`GovSoftwareUpgrade`** — submit-once; crash-window re-runs of the same task are safe (pre-broadcast marker).
+   - **`GovParamChange`** — submit-once, and the **higher-blast-radius** case (no "applies once" net — a duplicate is two real proposals + two deposits).
+   - **Both submit kinds carry the cross-handler pre-broadcast txHash marker** (shipped via seictl#219, closing `seictl#174`): the marker is fsync'd before broadcast, so a crashed submit's **same-task re-run adopts** the prior tx instead of re-broadcasting. The marker is keyed by task identity — it does nothing for a *new* task, so the rule below holds for both kinds.
    - **Rule:** **submit-once; never delete-recreate to retry a submit.** Re-applying re-joins the existing run via the task-ID (UUIDv5); deleting + recreating mints a *new* run → a duplicate submit.
 
 6. **Result verification — read the result from its sink, not status.** `status.outputs` is **unpopulated for all sidecar kinds**. **Gov** kinds: `proposalId` is **not** returned — correlate via the **`taskID=` memo** the sidecar appends, and read the **chain** (proposalId / txHash). **Shadow `result-export`**: read the **S3** comparison artifacts (`.compare.ndjson.gz` / divergence reports) + **Prometheus** metrics — never `status`, never on-chain. (The gov `includedAt` / verify-recipe below is the gov case.)

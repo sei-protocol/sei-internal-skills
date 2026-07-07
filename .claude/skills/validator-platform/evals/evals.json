@@ -17,9 +17,9 @@
       "type": "discipline",
       "prompt": "An operator asks whether they can safely re-apply each of the three gov SeiNodeTask kinds — GovVote, GovSoftwareUpgrade, GovParamChange — to recover after the sidecar crashed mid-task.",
       "expected_behavior": [
-        "Reasons per-kind: GovVote is chain-idempotent (last-write-wins on proposalId/voter) → re-apply safe; GovSoftwareUpgrade and GovParamChange are NOT idempotent (crash-window double-broadcast), both covered by the open seictl#174, GovParamChange higher-blast-radius (profile §5)",
-        "States the rule: submit-once; a re-apply re-joins the existing run via the task-ID (UUIDv5) and is the correct recovery — never a delete-recreate",
-        "Cites §controller (task-ID, CRD idempotency comments) + §seictl (gov_*.go REHYDRATION WARNING headers, seictl#174); does not restate a /gov-ops gate"
+        "Reasons per-kind: GovVote is chain-idempotent (last-write-wins on proposalId/voter) → re-apply safe; GovSoftwareUpgrade and GovParamChange are submit-once — the pre-broadcast marker makes a crash-window re-run of the SAME task adopt the prior tx, and covers nothing else; GovParamChange higher-blast-radius (profile §5)",
+        "States the rule: submit-once; a re-apply re-joins the existing run via the task-ID (UUIDv5) and is the correct recovery — never a delete-recreate (a fresh task is a fresh broadcast + deposit)",
+        "Cites §controller (task-ID, CRD idempotency comments) + §seictl (the pre-broadcast marker, seictl#219); does not restate a /gov-ops gate"
       ],
       "source": "profile §5; kit-platform-machinery §2; method Dimension 2"
     },

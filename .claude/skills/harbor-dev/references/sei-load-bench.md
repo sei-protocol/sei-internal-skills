@@ -256,6 +256,12 @@ The agent appends `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `
 
 **Canonical procedure: see `SKILL.md` → `Procedure: spin up a load test`.** This file carries the per-step templates, halt conditions, S3 conventions, and substitution recipes; the procedure steps themselves live in `SKILL.md` to keep the conversational entry path tight. When the procedure changes, edit `SKILL.md`. The named observation recipes referenced from step 11 (`bench:live-tail`, `bench:terminal-check`, `bench:teardown`) live in `references/cluster-inspection-recipes.md` under "Bench observation recipes (named)".
 
+## seiload dies when its target node restarts
+
+seiload does **not** survive a restart of the node it streams from: the block-collector websocket drops (`Error: block collector: websocket: close 1006 (abnormal closure): unexpected EOF`), seiload exits, the upload sidecar flushes whatever partial report exists to S3, and the Job lands **Failed**. Any fleet-wide event that rolls SeiNode pods — a sidecar-image bump, a controller restart, a node update plan — kills every in-flight bench targeting those nodes.
+
+There is no resume. Recovery is a **fresh run**: re-enter the bench flow so a new `<RUN_ID>` is minted (a Job's pod template is immutable and a Failed Job never re-runs, so the old name can't be reused). Before starting it, confirm the chain is healthy again — every follower `Running` **and** block height advancing between two `/status` reads (`catching_up=false`) — or the new run dies the same way.
+
 ## Halt conditions
 
 - **No rpc follower SeiNodes found.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json` returns an empty `.items`. The network exists but has no rpc followers yet — the engineer must apply at least one first via `seictl node apply <chain-id>-rpc-0 --preset rpc --chain-id <chain-id> --network <chain-id>` (PR-based or direct). Halt; do not attempt to render the bench.
