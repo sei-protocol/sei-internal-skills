@@ -102,7 +102,9 @@ jobs:
         # python is single-quoted at the shell with double-quoted python strings,
         # so there is no nested-quote hazard. rc!=0 = FAILURE.
         run: |
-          printf 'sandbox:\n  provider: kubernetes\n  kubernetes:\n    in_cluster: true\n' > "$RUNNER_TEMP/smoke.yaml"
+          # A minimal but COMPLETE managed-kubernetes sandbox block: provider +
+          # server_url are the two required fields, in_cluster is the bool under test.
+          printf 'sandbox:\n  provider: kubernetes\n  server_url: http://smoke.invalid\n  kubernetes:\n    in_cluster: true\n' > "$RUNNER_TEMP/smoke.yaml"
           timeout --kill-after=15s 90s \
             docker run --rm --entrypoint python \
               -v "$RUNNER_TEMP/smoke.yaml:/tmp/smoke.yaml:ro" \
