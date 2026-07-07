@@ -14,6 +14,7 @@ from pathlib import Path
 
 import pytest
 
+import sei_omnigent._config as cfgmod
 from sei_omnigent._config import (
     build_effective_config,
     int_env,
@@ -121,7 +122,6 @@ def test_load_config_resolves_booleans_under_polluted_yaml_loader(
     (YAML-1.2 semantics), and ints/nulls are untouched.
     """
     yaml = pytest.importorskip("yaml")
-    import sei_omnigent._config as cfgmod
 
     saved = {ch: list(r) for ch, r in yaml.SafeLoader.yaml_implicit_resolvers.items()}
     try:
@@ -156,7 +156,6 @@ def test_bool_preserving_loader_leaves_global_safeloader_untouched() -> None:
     (it owns a private copy). This is the guard against re-introducing the very
     global-mutation bug we are defending against."""
     yaml = pytest.importorskip("yaml")
-    import sei_omnigent._config as cfgmod
 
     cfgmod._config_loader = None
     before = {ch: list(r) for ch, r in yaml.SafeLoader.yaml_implicit_resolvers.items()}

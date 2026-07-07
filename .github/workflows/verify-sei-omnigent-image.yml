@@ -90,16 +90,17 @@ jobs:
 
       - name: Boot config-parse smoke (yaml bool-resolver regression)
         # The import smoke proves modules resolve; it does NOT run load_config +
-        # build_server against a real config, so it CANNOT catch a boot-time config
-        # crash. That gap let a real one ship: importing the omnigent server seam
-        # mutates the global yaml.SafeLoader (bool -> str), so a bare yaml.safe_load
-        # read `in_cluster: true` as the string 'true', which omnigent's strict
-        # parser rejected -> CrashLoopBackOff on every boot. Reproduce the exact boot
-        # order against the BUILT wheel: import the seam (pollutes the global), then
-        # load_config, then parse_sandbox_config (the call that crashed). The config
-        # is host-written + mounted read-only so the container writes nothing; the
-        # python is single-quoted at the shell with double-quoted python strings, so
-        # there is no nested-quote hazard. rc!=0 = FAILURE.
+        # parse_sandbox_config against a real config, so it cannot catch a config
+        # that parses to the wrong scalar types at boot. Importing the omnigent
+        # server seam mutates the global yaml.SafeLoader (bool -> str), so a bare
+        # yaml.safe_load would read `in_cluster: true` as the string 'true' and
+        # omnigent's strict parser would reject it. This step reproduces the boot
+        # order against the BUILT wheel — import the seam (pollutes the global),
+        # then load_config, then parse_sandbox_config — so a regression on the
+        # bool-preserving loader fails here, not at deploy. The config is
+        # host-written + mounted read-only so the container writes nothing; the
+        # python is single-quoted at the shell with double-quoted python strings,
+        # so there is no nested-quote hazard. rc!=0 = FAILURE.
         run: |
           printf 'sandbox:\n  provider: kubernetes\n  kubernetes:\n    in_cluster: true\n' > "$RUNNER_TEMP/smoke.yaml"
           timeout --kill-after=15s 90s \
