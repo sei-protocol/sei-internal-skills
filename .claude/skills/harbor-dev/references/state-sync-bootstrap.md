@@ -10,7 +10,9 @@
 > sync skips), so seid dies deterministically on its very first boot —
 > `LoadStateFromDBOrGenesisDocProvider(): ... nil validator` — before state
 > sync even starts. The control plane below (gate, witnesses, plan, PVC) all
-> works; the failure is in seid/genesis assembly. Until PLT-794 lands,
+> works, and the genesis itself is canonical (empty validators + gentxs is the
+> standard Cosmos launch shape) — the defect is sei-tendermint's state-sync
+> boot path persisting a placeholder state it cannot re-read. Until PLT-794 lands,
 > **genesis replay is the working path for eng chains**; this recipe applies
 > to chains whose genesis carries a validator set (e.g. export-style genesis).
 > Check `has_validators` via `/genesis` on any chain member before promising
