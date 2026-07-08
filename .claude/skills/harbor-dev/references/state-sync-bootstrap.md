@@ -4,6 +4,18 @@
 > shipped `SnapshotSource.rpcServers`, live on harbor). If this disagrees with
 > `kubectl explain seinode.spec.fullNode.snapshot`, the CRD wins.
 
+> **KNOWN ISSUE (PLT-794, open as of 2026-07-08): state-sync bootstrap does not
+> currently work on ceremony-fresh eng chains.** The assembled gentx genesis
+> carries no `validators` field (they materialize at InitChain, which state
+> sync skips), so seid dies deterministically on its very first boot —
+> `LoadStateFromDBOrGenesisDocProvider(): ... nil validator` — before state
+> sync even starts. The control plane below (gate, witnesses, plan, PVC) all
+> works; the failure is in seid/genesis assembly. Until PLT-794 lands,
+> **genesis replay is the working path for eng chains**; this recipe applies
+> to chains whose genesis carries a validator set (e.g. export-style genesis).
+> Check `has_validators` via `/genesis` on any chain member before promising
+> this path.
+
 Sections: [mental model](#the-mental-model--witnesses-vs-snapshot-providers-two-different-jobs) ·
 [preconditions](#preconditions-check-before-rendering) · [spec shape](#the-spec-shape) ·
 [after Flux applies](#what-happens-after-flux-applies) · [failure modes](#failure-modes-and-where-they-surface)
@@ -100,7 +112,7 @@ block-syncs the tail. Watch with
 | Plan runs but the sidecar's state-sync configure task fails: "no reachable RPC witness" | Witness endpoints wrong/unreachable, or the chain members aren't up | Fix endpoints (read them verbatim from status); confirm members Running |
 | State sync starts, finds no snapshots, seid retries/aborts | No peer has actually produced a snapshot yet (young chain, interval not crossed) | Wait for the first snapshot interval, or genesis-replay instead |
 | Node syncs then halts on app-hash mismatch / wrong height | **Wrong-chain witness** — an endpoint on a different chain passed shape validation and supplied a foreign trust point. Shape is the ONLY admission validation; chain membership is not checked (sidecar-side assertion tracked as PLT-793) | Every `rpcServers` entry must be a member of `spec.chainId`'s chain. Diagnose via the sidecar container logs |
-| seid crash-loops on every boot: `LoadStateFromDBOrGenesisDocProvider(): fromProto: validatorSet proposer error: nil validator` | **Poisoned first boot** — the first seid start under state sync persisted a genesis-derived empty validator set to the state DB, then died; every later boot fails re-loading that state before it can re-attempt state sync. Restarts can never recover it | Wipe the data dir (via the sidecar container) or re-provision via git so the PVC is recreated — and verify the PVC actually went away, or the replacement remounts the poisoned volume. Watch the fresh first boot live to catch the original crash cause |
+| seid crash-loops from the very first boot: `LoadStateFromDBOrGenesisDocProvider(): fromProto: validatorSet proposer error: nil validator` | **PLT-794 (deterministic, not recoverable by wipe/reprovision)** — the ceremony-fresh genesis has no `validators` field and state sync skips InitChain, so node construction fails before state sync runs. Verified live 2026-07-08: reproduces identically on a pristine PVC | Drop the `snapshot` block and genesis-replay (the working path on eng chains until PLT-794 lands). Verify with `/genesis`: `has_validators: false` confirms this cause |
 
 The controller reports `StateSyncReady=True` on config alone — it does not
 probe witness liveness or chain membership. "Condition True + runtime failure
