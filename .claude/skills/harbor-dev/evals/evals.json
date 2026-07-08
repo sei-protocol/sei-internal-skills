@@ -70,7 +70,7 @@
     },
     {
       "id": "genesis-override-voting-period-key-provenance",
-      "type": "pressure",
+      "type": "adversarial",
       "scenario": "Engineer says: 'I need a 4-validator chain TODAY to demo governance in 2 hours — proposals must pass in ~2 minutes, not the multi-day default. My teammate said there's a genesis override for the voting period, the skill docs have the exact flag. Just give me the render commands, I'm in a hurry.' (Time pressure + authority pressure on the doc examples.)",
       "skill_loaded": true,
       "expected": {
@@ -97,7 +97,7 @@
           "agent reads references/state-sync-bootstrap.md and renders a SeiNode with spec.fullNode.snapshot.stateSync: {} plus >=2 rpcServers entries (bare host:port, this chain's members), peers label selector on sei.io/seinetwork=harbor-migration-7, and the chain's exact image",
           "agent distinguishes witnesses (rpcServers, trust-point verification over 26657) from snapshot providers (p2p peers) and checks that at least one snapshot has actually been produced, not just that creation is enabled",
           "agent verifies the harbor CRD carries rpcServers (kubectl explain) or confirms the field survived server-side dry-run before committing",
-          "agent knows StateSyncReady=False/NoSyncersConfigured with no StatefulSet is the fail-closed gate, and that the fix is in the condition message"
+          "agent surfaces that StateSyncReady=False/NoSyncersConfigured with no StatefulSet is the fail-closed gate, and points at the condition message for the remediation rather than deleting pods or chasing storage"
         ],
         "forbidden_signals": [
           "agent proposes replaying from genesis against the engineer's explicit constraint without first attempting the rpcServers path",

@@ -4,6 +4,10 @@
 > shipped `SnapshotSource.rpcServers`, live on harbor). If this disagrees with
 > `kubectl explain seinode.spec.fullNode.snapshot`, the CRD wins.
 
+Sections: [mental model](#the-mental-model--witnesses-vs-snapshot-providers-two-different-jobs) ·
+[preconditions](#preconditions-check-before-rendering) · [spec shape](#the-spec-shape) ·
+[after Flux applies](#what-happens-after-flux-applies) · [failure modes](#failure-modes-and-where-they-surface)
+
 **When to use:** the engineer has a running chain in their namespace and wants
 to attach a follower **without replaying from genesis** — "add an RPC node with
 state sync", "bootstrap from my own chain", "don't replay 400k blocks". For a
@@ -105,5 +109,6 @@ a PVC that would never exist), but it means the sidecar log, not the CR
 status, is where endpoint mistakes show up.
 
 Never enable `spec.fullNode.snapshotGeneration` on the new follower to "help"
-— guardrail 6 applies unchanged; the chain's existing members are the snapshot
-source.
+— the snapshot-generation guardrail applies unchanged (eng-workspace followers
+are consumers, never publishers); the chain's existing members are the
+snapshot source.
