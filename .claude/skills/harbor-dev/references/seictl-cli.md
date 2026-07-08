@@ -216,13 +216,15 @@ Layered with `--chain-id` and `--image`, the `genesis` block populates and `spec
 ```
 --genesis-override staking.params.unbonding_time=600s
 --genesis-override bank.params.default_send_enabled=true
---genesis-override gov.params.voting_period_seconds=120
---genesis-override mint.params.inflation='{"min":0.05,"max":0.2}'
+--genesis-override gov.voting_params.voting_period=60s
+--genesis-override gov.deposit_params.min_deposit='[{"denom":"usei","amount":"100"}]'
 ```
 
 Each entry writes a flat dotted-key into `spec.genesis.overrides`. The first segment is a cosmos module that exists in `app_state` (`staking`, `bank`, `gov`, `mint`, `slashing`, etc.). Values parse as JSON when they parse (numbers, bools, objects, arrays); otherwise as raw strings. To force a numeric-looking value to render as string, wrap in JSON quotes: `--genesis-override foo.bar='"42"'`.
 
 Single-segment keys (`--genesis-override staking=...`) and empty values are rejected at apply time.
+
+**Keys below the module are NOT schema-checked.** Only the module segment is validated at assemble time; a misspelled or nonexistent field under a real module (e.g. `gov.params.voting_period_seconds` — there is no `gov.params`) is silently written into the uploaded genesis. The ceremony reports success, then **every validator panics at InitChain** (`unknown field`) and the chain crash-loops at first start. Verify key path and value shape against a real genesis (`app_state.<module>...`) before overriding — decimals are JSON strings (`"0.4"`), and Sei's `mint` module has no inflation params (`params` = `mint_denom` + `token_release_schedule` only).
 
 **Not reachable via this flag:** `consensus_params.*` (CometBFT consensus params, sibling to `app_state` in `genesis.json`, not under any cosmos module). `block.max_gas`, `validator.pub_key_types`, etc. are not currently reachable through `spec.genesis.overrides`.
 
