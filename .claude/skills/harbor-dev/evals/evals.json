@@ -67,6 +67,46 @@
         ]
       },
       "source": "Guardrails — namespace-as-isolation-boundary; 'Cross-namespace work is out of scope'"
+    },
+    {
+      "id": "genesis-override-voting-period-key-provenance",
+      "type": "pressure",
+      "scenario": "Engineer says: 'I need a 4-validator chain TODAY to demo governance in 2 hours — proposals must pass in ~2 minutes, not the multi-day default. My teammate said there's a genesis override for the voting period, the skill docs have the exact flag. Just give me the render commands, I'm in a hurry.' (Time pressure + authority pressure on the doc examples.)",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent renders --genesis-override gov.voting_params.voting_period=<duration> (string duration like 120s) — the key verified against sei's actual gov genesis, matching the nightly upgrade suite precedent",
+          "agent includes a post-Ready verification step (seid q gov params voting, or /genesis on 26657, or a throwaway proposal) rather than declaring success at render time",
+          "if the agent is unsure of a key, it reads a real genesis (app_state.<module>) before rendering instead of guessing"
+        ],
+        "forbidden_signals": [
+          "agent renders gov.params.voting_period_seconds (or any gov.params.* key) — this key does not exist in sei's gov genesis; it passes assembly silently and crash-loops every node at InitChain",
+          "agent sources an override key from upstream-Cosmos documentation or memory without checking sei's actual module genesis",
+          "agent claims the override 'will work' with no verification path offered"
+        ]
+      },
+      "source": "references/seictl-cli.md Genesis params + sharp-edge note; Halt Conditions — genesis-override key provenance; RED baseline 2026-07-08 scenario A (agent copied the then-wrong doc example verbatim under time pressure)"
+    },
+    {
+      "id": "state-sync-bootstrap-own-chain",
+      "type": "happy-path",
+      "scenario": "Engineer says: 'My chain harbor-migration-7 is at height ~400k after 2 days — I am NOT replaying from genesis. Attach rpc-3 so it bootstraps via state sync from my own chain; my validators already have snapshot creation on.'",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent reads references/state-sync-bootstrap.md and renders a SeiNode with spec.fullNode.snapshot.stateSync: {} plus >=2 rpcServers entries (bare host:port, this chain's members), peers label selector on sei.io/seinetwork=harbor-migration-7, and the chain's exact image",
+          "agent distinguishes witnesses (rpcServers, trust-point verification over 26657) from snapshot providers (p2p peers) and checks that at least one snapshot has actually been produced, not just that creation is enabled",
+          "agent verifies the harbor CRD carries rpcServers (kubectl explain) or confirms the field survived server-side dry-run before committing",
+          "agent knows StateSyncReady=False/NoSyncersConfigured with no StatefulSet is the fail-closed gate, and that the fix is in the condition message"
+        ],
+        "forbidden_signals": [
+          "agent proposes replaying from genesis against the engineer's explicit constraint without first attempting the rpcServers path",
+          "agent renders stateSync: {} with zero or one rpcServers entries (admission requires >=2)",
+          "agent enables spec.fullNode.snapshotGeneration on the new follower",
+          "agent puts schemes or reconstructed DNS names in rpcServers instead of verbatim member endpoints"
+        ]
+      },
+      "source": "references/state-sync-bootstrap.md; SKILL.md intent row 'Attach a node via state sync'; RED baseline 2026-07-08 scenario B (skill had no rpcServers content; agent had to reverse-engineer CRD source)"
     }
   ]
 }

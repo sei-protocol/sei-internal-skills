@@ -216,15 +216,20 @@ Layered with `--chain-id` and `--image`, the `genesis` block populates and `spec
 ```
 --genesis-override staking.params.unbonding_time=600s
 --genesis-override bank.params.default_send_enabled=true
---genesis-override gov.voting_params.voting_period=60s
+--genesis-override gov.voting_params.voting_period=120s
+--genesis-override gov.voting_params.expedited_voting_period=60s
 --genesis-override gov.deposit_params.min_deposit='[{"denom":"usei","amount":"100"}]'
 ```
 
-Each entry writes a flat dotted-key into `spec.genesis.overrides`. The first segment is a cosmos module that exists in `app_state` (`staking`, `bank`, `gov`, `mint`, `slashing`, etc.). Values parse as JSON when they parse (numbers, bools, objects, arrays); otherwise as raw strings. To force a numeric-looking value to render as string, wrap in JSON quotes: `--genesis-override foo.bar='"42"'`.
+Each entry writes a flat dotted-key into `spec.genesis.overrides`. The first segment is a cosmos module that exists in `app_state` (`staking`, `bank`, `gov`, `mint`, `slashing`, etc.). Values parse as JSON when they parse (numbers, bools, objects, arrays); otherwise as raw strings — durations like `120s` fail JSON parse and land as the string `"120s"`, which is exactly the proto-JSON duration encoding genesis expects. To force a numeric-looking value to render as string, wrap in JSON quotes: `--genesis-override foo.bar='"42"'`.
 
 Single-segment keys (`--genesis-override staking=...`) and empty values are rejected at apply time.
 
-**Keys below the module are NOT schema-checked.** Only the module segment is validated at assemble time; a misspelled or nonexistent field under a real module (e.g. `gov.params.voting_period_seconds` — there is no `gov.params`) is silently written into the uploaded genesis. The ceremony reports success, then **every validator panics at InitChain** (`unknown field`) and the chain crash-loops at first start. Verify key path and value shape against a real genesis (`app_state.<module>...`) before overriding — decimals are JSON strings (`"0.4"`), and Sei's `mint` module has no inflation params (`params` = `mint_denom` + `token_release_schedule` only).
+**The sharp edge — only the module segment is validated; the rest of the key is not.** The genesis assembler checks that the first segment names an existing `app_state` module, then creates any missing deeper path segments and writes the value verbatim, unvalidated. A wrong field name therefore passes `--dry-run`, passes apply, passes genesis assembly — and then **every node crash-loops at InitChain** with an "unknown field" panic, and the chain never starts. The intended change never applies. Two upstream-Cosmos-shaped keys that do NOT exist on sei and have caused exactly this: `gov.params.voting_period_seconds` (sei's gov genesis nests under `voting_params`/`deposit_params`/`tally_params`; there is no `params` object) and `mint.params.inflation` (sei's mint module is custom — `mint_denom` + `token_release_schedule` only; inflation-rate semantics are not expressible in any key).
+
+**Key provenance rule:** never guess a key from upstream Cosmos docs — sei's forks diverge. Take keys from a real genesis: `app_state.<module>` in `curl <any-node>:26657/genesis` on a running chain, or the embedded chains in sei-config. Value shapes matter too: durations and decimals are JSON strings (`"60s"`, `"0.4"`). Production precedent for fast governance: the sei-k8s-controller nightly upgrade suite pins `gov.voting_params.voting_period: "60s"` (`test/integration/upgrade_test.go`).
+
+**Verify after Ready** (cheap, do it): from a validator pod, `seid q gov params voting` (or read `/genesis` on 26657) confirms the override landed; a throwaway proposal submitted with the full min-deposit proves the voting window behaviorally.
 
 **Not reachable via this flag:** `consensus_params.*` (CometBFT consensus params, sibling to `app_state` in `genesis.json`, not under any cosmos module). `block.max_gas`, `validator.pub_key_types`, etc. are not currently reachable through `spec.genesis.overrides`.
 

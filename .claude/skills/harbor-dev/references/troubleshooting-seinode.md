@@ -10,6 +10,13 @@ Read `.status.phase` first: `kubectl get seinode <name> -o jsonpath='{.status.ph
 
 Common causes:
 
+- **State-sync gate blocking (no pod and no StatefulSet ever appear)** — a snapshot-bootstrap node (`spec.fullNode.snapshot` set) whose witnesses can't be resolved. Check first:
+
+  ```sh
+  kubectl get seinode <name> -o jsonpath='{range .status.conditions[?(@.type=="StateSyncReady")]}{.reason}: {.message}{end}'
+  ```
+
+  `NoSyncersConfigured` means no `spec.fullNode.snapshot.rpcServers` and no registry entry for the chain (eng chains never have one). The controller deliberately holds StatefulSet creation until the gate opens — the fix is in the condition message: declare ≥2 `rpcServers` or drop `stateSync` and genesis-replay. See `state-sync-bootstrap.md`. (On pre-`254375d` controllers this same cause presented as a pod stuck Pending on `persistentvolumeclaim not found` — if you see that shape, check this condition before chasing storage.)
 - Controller leader lease unhealthy → `kubectl get lease -n sei-k8s-controller-system` and `kubectl get pods -n sei-k8s-controller-system`
 - Controller pod missing or crashlooping → `kubectl describe pod -n sei-k8s-controller-system -l app.kubernetes.io/name=sei-k8s-controller`
 
@@ -31,6 +38,7 @@ Look for the task with `state=Failed` and read `.lastError`.
 | `configure-genesis` (retried 180×) | Genesis URL missing or ConfigMap not mounted | `.status.plan[?name==configure-genesis].lastError` |
 | `discover-peers` (returns 0) | EC2 tag query empty or peer label selector mismatch | `aws ec2 describe-instances --filters Name=tag:<key>,Values=<value>` from your laptop with the same filter |
 | `mark-ready` | seid health check timing out | `kubectl logs <name>-0 -c seid` |
+| `configure-state-sync` ("no reachable RPC witness") | `rpcServers` endpoints wrong/unreachable, or wrong-chain (shape passes admission; chain membership is never checked — PLT-793) | `kubectl logs <name>-0 -c seictl`; re-read witness endpoints verbatim from the members' status; see `state-sync-bootstrap.md` failure table |
 
 ### Phase: Running (steady-state issues)
 

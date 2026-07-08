@@ -30,7 +30,7 @@ The spec is flat (no `spec.template`):
 - `spec.genesis.chainId` — the chain identifier (immutable)
 - `spec.replicas` — validator count (immutable; default 4 via the preset)
 - `spec.genesis.accounts[]` — funded accounts at genesis (`--genesis-account`)
-- `spec.genesis.overrides{}` — flat dotted cosmos-module keys patched into the assembled `app_state` after collect-gentxs; module must exist, sub-fields unchecked (`--genesis-override`)
+- `spec.genesis.overrides{}` — flat dotted cosmos-module keys patched into the assembled `app_state` after collect-gentxs; module must exist, sub-fields unchecked (`--genesis-override`). Wrong deeper field names are injected silently and crash every node at InitChain — take keys from a real genesis, never from upstream-Cosmos docs (see the Genesis params section + sharp-edge note in `seictl-cli.md`)
 - `spec.configOverrides{}` — per-node `config.toml`/`app.toml` overrides (the SeiNetwork equivalent of a SeiNode's `spec.overrides`; reached via `--set spec.configOverrides...`). There is **no `--override` flag** on `network apply`.
 
 ## Immutability (the new `updateStrategy`-class trap)
