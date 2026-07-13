@@ -162,6 +162,8 @@ The `--until` flag is **required**. Matching is exact; an illegal value for the 
 
 `seictl workflow` is a third tree alongside `network`/`node`. It shares the CRUD verbs — `apply`, `get`, `list`, `delete` — and adds `state-sync`, the task-generating verb documented here. Unlike `network`/`node`, it is **imperative**: it renders a `SeiNodeTaskWorkflow` CR, server-side-applies it, and watches it to a terminal phase. `seictl workflow --help` is the source of truth for the tree, and the CLI wins on any disagreement; the shipped seictl `workflow/README.md` documents the fuller contract.
 
+`state-sync` is the convenience form of the one recipe this tree carries (`state-sync` is the only preset today). `seictl workflow apply --preset state-sync <same flags>` renders and applies the identical spec through the generic verb — it is not a second destructive path, and the gate below applies to it identically.
+
 ```
 seictl workflow state-sync <node>
                  [--migration GigaStore --backend <pebbledb|rocksdb>]
@@ -186,7 +188,7 @@ The recipe: hold the node's readiness gate, stop seid, **`reset-data` (wipes the
 
 This tree has no PR-review gate. Give it back by hand, every time, on **both** the plain and the migration path (both wipe):
 
-1. **Get explicit engineer sign-off before the side-effecting apply.** The agent does not volunteer this command and does not self-authorize the wipe — the same rule as the direct-apply escape hatch in `ephemeral-chain-flow.md`. State plainly what will be wiped: node, namespace, plain-resync vs migration, and (for a migration) the backend.
+1. **Get explicit engineer sign-off before the side-effecting apply.** The agent does not volunteer this command and does not self-authorize the wipe — the same rule as the direct-apply escape hatch in `SKILL.md` ("Escape hatch: direct `seictl network|node apply`"). State plainly what will be wiped: node, namespace, plain-resync vs migration, and (for a migration) the backend.
 2. **Verify the target is the intended node with a concrete read, not a self-confirm:** `seictl node get <node> -n eng-<alias> -o jsonpath='{.spec.chainId}{"  phase="}{.status.phase}{"\n"}'` — match chain-id, phase, and identity against intent. Pointing this at the wrong follower deletes its state.
 3. **Never wipe a follower anyone else depends on** (a shared RPC endpoint, another engineer's load job, a dApp). Dependency is not observable from the cluster, so this is an escalation, not a check: on a long-lived `pacific-1` / `atlantic-2` follower or any shared node, escalate to the node's owner — do not wipe on agent initiative. Your own follower in your own `eng-<alias>` namespace is fair game; a shared one is not.
 4. **`--dry-run` first** to render and inspect the CR without mutating anything, then apply:
