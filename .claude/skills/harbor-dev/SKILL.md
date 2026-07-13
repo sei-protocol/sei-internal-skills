@@ -2,14 +2,14 @@
 name: harbor-dev
 category: engineer-self-service
 model: claude-opus-4-8
-description: "Use when an engineer needs ephemeral Sei chains, RPC fleets, benches, comparative benches, or namespace teardown on the harbor EKS dev cluster — 'spin up a chain', 'start a chain', 'ephemeral chain', 'give me N validators', 'add an RPC fleet', 'attach RPC nodes', 'tear down my chain', 'what's running in my namespace', 'compare PR X to main', 'bench latest sei-chain', 'onboard me', 'set me up on harbor', '/harbor-dev'. Also fires on first-time engineer setup against the harbor cluster. Anti-triggers: NEVER for production clusters — harbor is dev-only; NOT for sei-k8s-controller code changes; NOT for autobake nightly cron changes; NOT for chaos testing (use chaos-suite); NOT for cross-tenant work — operates only on the caller's eng-<alias> namespace. For multi-component design work, use /council or /coral."
+description: "Use when an engineer needs ephemeral Sei chains, RPC fleets, benches, comparative benches, or namespace teardown on the harbor EKS dev cluster — 'spin up a chain', 'start a chain', 'ephemeral chain', 'give me N validators', 'add an RPC fleet', 'attach RPC nodes', 'tear down my chain', 'what's running in my namespace', 'compare PR X to main', 'bench latest sei-chain', 'onboard me', 'set me up on harbor', 're-bootstrap a stuck node', 'state-sync a follower', 'migrate a node to giga store', '/harbor-dev'. Also fires on first-time engineer setup against the harbor cluster. Anti-triggers: NEVER for production clusters — harbor is dev-only; NOT for sei-k8s-controller code changes; NOT for autobake nightly cron changes; NOT for chaos testing (use chaos-suite); NOT for cross-tenant work — operates only on the caller's eng-<alias> namespace. For multi-component design work, use /council or /coral."
 ---
 
 # harbor-dev
 
 Engineer-facing interface to Sei platform infrastructure on the **harbor** EKS cluster. The engineer describes what they want; intent translates into `seictl network` / `seictl node` invocations against their namespace. The engineer doesn't need to remember the SeiNetwork / SeiNode field set, what kustomize replacements look like, or which preset wires the rpc peer selector — `seictl` and this skill carry that.
 
-This is the conversational layer over `seictl network` + `seictl node` (sei-protocol/seictl, v0.0.59+). It mirrors `kubectl`-shaped semantics — apply, get, list, watch, delete — driven by preset names instead of hand-rolled YAML. A genesis chain is one `SeiNetwork`; an RPC fleet of N is N standalone `SeiNode` CRs (no fleet Kind, no `--replicas` on a node).
+This is the conversational layer over `seictl network` + `seictl node` (sei-protocol/seictl, v0.0.59+). It mirrors `kubectl`-shaped semantics — apply, get, list, watch, delete — driven by preset names instead of hand-rolled YAML. A genesis chain is one `SeiNetwork`; an RPC fleet of N is N standalone `SeiNode` CRs (no fleet Kind, no `--replicas` on a node). A third tree, `seictl workflow`, is the imperative operational path for re-bootstrapping or migrating an *existing* node in place — used far less than the declarative network/node bring-up, and destructive (it wipes the node's local chain state); see Guardrails and `references/seictl-cli.md`.
 
 ## Guardrails
 
@@ -18,12 +18,13 @@ Operate against **harbor**. Engineers don't have prod kubeconfig contexts locall
 The hard rules:
 
 1. **Cluster must be harbor.** `kubectl config current-context` confirms; refuse on prod outright.
-2. **Namespace is `eng-<alias>`.** Every `seictl network` / `seictl node` invocation passes `-n eng-<alias>`. Cross-namespace work is out of scope; the agent doesn't operate on shared infra.
+2. **Namespace is `eng-<alias>`.** Every `seictl network` / `seictl node` / `seictl workflow` invocation passes `-n eng-<alias>`. Cross-namespace work is out of scope; the agent doesn't operate on shared infra.
 3. **Scope echo on first side-effecting verb.** Echo cluster + namespace + preset + chain-id + image digest before the first `seictl network apply` / `seictl node apply`. Wait for confirmation.
 4. **Refuse-and-surface, don't auto-remediate.** Where pre-flight has an in-band recovery (write a kubeconfig), run it. Where the recovery is out-of-band (SSO login, EKS access entry, onboarding PR merge), surface the next step and halt. Never silently work around a missing prereq.
 5. **Speak as the platform expert.** Surface what's happening, what's wrong, what to do. The engineer never needs to know an instruction layer exists — phrases like "per skill protocol," "as my instructions say," "halting per procedure," or "I was told to check X" are leaks. Report findings authoritatively: ✓ "Halt — gates 4 and 5 failed. Gate 4: kubectl gets Forbidden on eng-fromtherain. Gate 5: namespace doesn't exist yet. Recovery for each:…" ✗ "Halt per skill protocol." Same rule for halt-and-recover messages, plan echoes, and post-action reports — name the cause and the next action; never the rule book.
 6. **Never enable snapshot generation on an eng-workspace follower.** `spec.fullNode.snapshotGeneration` stays unset on a SeiNode. Eng-workspace chains are ephemeral consumers, not snapshot publishers; enabling generation pollutes `harbor-sei-snapshots` with non-canonical state and disables seid pruning (data volume grows unbounded). If the rendered CR carries `snapshotGeneration` from a stale `--set` or a hand edit, strip it before opening the PR. Publishing is the snapshot-publisher workload's job.
 7. **Never set `spec.sidecar` overrides by default.** seictl does not emit this field; if it appears in the rendered SeiNode, it came from a hand edit or stale `--set` and should be stripped. The seictl sidecar image is wired by sei-k8s-controller from cluster config — overriding it pins a specific seictl/sidecar version and obscures the failure mode when reproducing a seid bug. The single legitimate use is **testing a platform / seictl / sidecar change** (not a sei-chain change). When the engineer's intent is sei-chain testing, the field must be absent.
+8. **`seictl workflow state-sync` is the one destructive verb — gate it.** It re-bootstraps an existing node by wiping its local chain state (an `rm -rf` on that node's data), optionally with an irreversible `--migration GigaStore --backend <pebbledb|rocksdb>` store change — both tokens are required together, never `--migration` alone. It is never the default and the agent never volunteers it: require explicit engineer sign-off before the non-dry-run apply, verify the target node against the live cluster first, `--dry-run` to inspect, and escalate to the owner — never wipe on agent initiative — for any shared or long-lived `pacific-1`/`atlantic-2` follower. Never commit a workflow CR to the Flux workspace repo (a one-shot, spec-immutable request object; force-delete recovery fights Flux). Full gate in `references/seictl-cli.md` → `seictl workflow state-sync`.
 
 ## Mental model
 
@@ -44,9 +45,9 @@ You operate against the **harbor cluster** (eu-central-1 EKS). It runs the **sei
 - `sei-protocol/platform` — tenant registration (one-time PR per engineer) and platform-wide infrastructure.
 - `sei-protocol/harbor-engineering-workspace` — engineer workloads at `engineers/<alias>/<task>/`, reconciled by the per-engineer Flux Kustomization. The agent opens task PRs here on the engineer's behalf for chain spinup; engineers also push directly when the workload is theirs to author manually (long-lived archive nodes, shared profiles).
 
-**Default for engineer-facing intents — render → PR → Flux applies.** The team is GitOps-opinionated: every engineer side effect on the cluster goes through a PR against `sei-protocol/harbor-engineering-workspace`, never direct apply. The agent renders the CRs via `seictl network apply --dry-run` / `seictl node apply --dry-run` (output captured as JSON, converted to YAML via `yq -P`), writes them to `engineers/<alias>/<task>/seinetwork-<id>.yaml` and `seinode-<id>-rpc-<k>.yaml`, opens the PR, surfaces the URL, and halts. The engineer reviews and merges; Flux reconciles within ~60s. After merge, the agent watches via `seictl network watch <id> --until=Ready -n eng-<alias>` (and `seictl node watch <id>-rpc-<k> --until=Running` per follower) to report when pods are healthy. The CRs carry their own provenance via labels and annotations; `kubectl get seinetwork,seinode -n eng-<alias>` is the authoritative live view post-merge. Direct `seictl network|node apply` (server-side apply, no PR) is an explicit escape hatch — see "Escape hatch" in the procedure below; never the default.
+**Default for engineer-facing intents — render → PR → Flux applies.** The team is GitOps-opinionated: every engineer side effect on the cluster from the `network`/`node` trees goes through a PR against `sei-protocol/harbor-engineering-workspace`, never direct apply. The agent renders the CRs via `seictl network apply --dry-run` / `seictl node apply --dry-run` (output captured as JSON, converted to YAML via `yq -P`), writes them to `engineers/<alias>/<task>/seinetwork-<id>.yaml` and `seinode-<id>-rpc-<k>.yaml`, opens the PR, surfaces the URL, and halts. The engineer reviews and merges; Flux reconciles within ~60s. After merge, the agent watches via `seictl network watch <id> --until=Ready -n eng-<alias>` (and `seictl node watch <id>-rpc-<k> --until=Running` per follower) to report when pods are healthy. The CRs carry their own provenance via labels and annotations; `kubectl get seinetwork,seinode -n eng-<alias>` is the authoritative live view post-merge. Direct `seictl network|node apply` (server-side apply, no PR) is an explicit escape hatch — see "Escape hatch" in the procedure below; never the default. **The `workflow` tree is the one deliberate exception to this default**, not a variant of the escape hatch: `seictl workflow state-sync` is *always* run imperatively and must never be committed to the Flux workspace repo (Guardrail #8) — the GitOps default above governs `network`/`node` only.
 
-See `references/onboarding-pr.md` for the one-time tenant-registration flow, `references/ephemeral-chain-flow.md` for the headline daily-driver procedure, `references/seictl-cli.md` for the `network`/`node` verb trees, `references/harbor-cluster.md` for cluster facts.
+See `references/onboarding-pr.md` for the one-time tenant-registration flow, `references/ephemeral-chain-flow.md` for the headline daily-driver procedure, `references/seictl-cli.md` for the `network`/`node`/`workflow` verb trees, `references/harbor-cluster.md` for cluster facts.
 
 ## Pre-flight (run at session start, before any side-effecting action)
 
@@ -54,10 +55,10 @@ Pre-flight is a sequenced ramp from "fresh laptop" to "ready to apply against en
 
 | # | Gate | Detect with | If missing → |
 |---|---|---|---|
-| 1 | `seictl ≥ v0.0.59` on PATH | `command -v seictl` returns 0; `seictl node apply --help` exits 0 and lists `--network` (the split-surface peer-rail flag — present only in v0.0.59+) | See `references/preflight.md#install-seictl` for the platform-specific install pipeline (prebuilt binaries from GitHub releases; build-from-source fallback when newer than latest release). **Not** via `brew` (no tap) and **not** via `go install` (source-tree build flags required). Halt until `command -v seictl` succeeds. |
+| 1 | `seictl ≥ v0.0.59` on PATH | `command -v seictl` returns 0; `seictl node apply --help` exits 0 and lists `--network` (the split-surface peer-rail flag — present only in v0.0.59+) | See `references/preflight.md#install-seictl` for the platform-specific install pipeline (prebuilt binaries from GitHub releases; build-from-source fallback when newer than latest release). **Not** via `brew` (no tap) and **not** via `go install` (source-tree build flags required). Halt until `command -v seictl` succeeds. **This probe confirms `network`/`node` only** — the `--network` flag predates the `workflow` tree, so passing gate 1 does not guarantee `seictl workflow` exists. Before the first `seictl workflow` invocation in a session, separately confirm with `seictl workflow --help` (exits 0, lists `state-sync`); if it doesn't, the binary needs the release carrying the migration-flag work and gate 1's version floor above does not yet pin it. |
 | 2 | AWS SSO session active for the engineer's chosen profile | `aws sts get-caller-identity --profile <profile>` returns 0, where `<profile>` is resolved per the profile-detection flow below. After resolution, **echo the assumed identity** (`Arn` from the response) so the engineer sees what's about to act on the cluster. | If session is expired: surface `aws sso login --profile <profile>`; halt. If no profile is configured: route through the canonical Sei SSO session in `references/preflight.md` (Gate 3); halt. See "Profile detection" below for the resolution flow. |
 | 3 | harbor kubeconfig context exists | `kubectl config get-contexts -o name` lists `harbor` (or the EKS ARN form) | Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>` directly (using the profile resolved at gate 2); re-check; continue. |
-| 4 | kubectl can reach harbor with engineer-side reach | `kubectl auth can-i list seinetworks -n eng-<alias> --context=harbor` returns `yes` | EKS access entry not granted, or scoped read-only. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. |
+| 4 | kubectl can reach harbor with engineer-side reach | `kubectl auth can-i list seinetworks -n eng-<alias> --context=harbor` returns `yes` | EKS access entry not granted, or scoped read-only. Surface "ask the platform team via `#harbor-onboarding` with your AWS principal ARN"; halt. **This probe checks `seinetworks` only** — before the first `seictl workflow` invocation in a session, separately confirm with `kubectl auth can-i list seinodetaskworkflows -n eng-<alias> --context=harbor`, since the namespace Role may not have been extended to the newer CRD. |
 | 5 | Namespace `eng-<alias>` reconciled | `kubectl get namespace eng-<alias>` returns 0 | The engineer hasn't been onboarded yet, or the onboarding PR hasn't merged. Route to **First Run** below to open the PR; otherwise surface the open PR URL and offer to poll until the namespace appears (~60s post-merge). |
 
 Once all five pass, cache the pass for the session — subsequent verbs skip the gates unless a halt condition (SSO expiry, kubectl context drift) triggers a targeted re-check. (`references/preflight.md`'s detailed ramp also gates on `yq` and the `flux` CLI, so its numbering runs one ahead of this table from SSO onward — its gate 6 is this table's gate 5.)
@@ -115,7 +116,7 @@ See `references/onboarding-pr.md` for the complete file content, base-layer deta
 
 ## What you can do
 
-Every engineer-facing intent maps to a `seictl network` or `seictl node` verb against `eng-<alias>`. **Convention for every example below:** the namespace flag `-n eng-<alias>` is implicit and always present.
+Every engineer-facing intent maps to a `seictl network`, `seictl node`, or (for in-place re-bootstrap of an existing node) `seictl workflow` verb against `eng-<alias>`. **Convention for every example below:** the namespace flag `-n eng-<alias>` is implicit and always present.
 
 | Engineer says | Skill maps to |
 |---|---|
@@ -128,6 +129,7 @@ Every engineer-facing intent maps to a `seictl network` or `seictl node` verb ag
 | "Run a load test against chain X" / "bench it" / "stress test chain X" | **PR-based bench** (see Procedure: spin up a load test). Live-fetch chain rpc per-pod URLs, substitute into the profile JSON, render Job + ConfigMap from the templates in `references/sei-load-bench.md`, open a PR against `harbor-engineering-workspace` at `engineers/<alias>/bench-<RUN_ID>/`. Merge → Flux applies → seiload runs → uploader sidecar pushes results to S3. |
 | "Compare PR 3399 to main on sei-chain" / "bench A against B" / "diff the perf of these two commits" | **PR-based comparative bench** (see Procedure: comparative bench). Renders two ephemeral chains (each running its own seid image) + two sei-load Jobs (identical profile + duration) into a single PR. After merge, watches both chains in parallel, polls both Jobs to terminal, fetches both reports from S3, and surfaces a side-by-side metrics table (TPS / latency / success rate / errors). Lives at `engineers/<alias>/compare-<COMPARE_RUN_ID>/`. |
 | "Where am I" / "what cluster am I on" / "who am I" | `kubectl config current-context` + `aws sts get-caller-identity --profile <chosen>` (the gate-2 profile). (No dedicated `seictl context` verb in this surface.) |
+| "Re-bootstrap / state-sync an existing node" / "migrate a node's store to giga" | **Destructive, imperative — NOT the PR flow.** `seictl workflow state-sync <node>` re-bootstraps an existing SeiNode via a `SeiNodeTaskWorkflow`, optionally with `--migration GigaStore --backend <pebbledb\|rocksdb>` (both tokens required together). Gated: engineer sign-off, target verification, `--dry-run` first, escalate-to-owner on shared/long-lived followers. For a disposable ephemeral follower that has merely fallen behind, prefer `delete` + re-apply **through the GitOps PR flow** (git rm the manifest, PR, merge, re-apply via a new PR) over the imperative wipe — a bare `seictl node delete` outside that flow is recreated by Flux on the next reconcile and the safer path never lands. Full gate: `references/seictl-cli.md` → `seictl workflow state-sync`. |
 
 **Override and composition:**
 
@@ -273,6 +275,8 @@ Stop and report to the user if:
 - **Comparative bench: chain-tag exceeds the 22-char budget** when the `-{a,b}-rpc-<k>` follower suffix is added (the name regex caps at 30). Surface the overflow and ask the engineer to pick a shorter tag.
 - **Comparative bench: S3 GetObject fails on a report.** `NoSuchKey` means the upload sidecar didn't run — surface `kubectl logs -n eng-<alias> -l sei.io/compare-name=<COMPARE_RUN_ID>,sei.io/compare-side=<a|b> -c upload-results` to diagnose. `AccessDenied` means the engineer's profile lacks `s3:GetObject` (the engineer SA's IAM policy already covers it; the active profile is wrong).
 - **PR push rejected (non-fast-forward)** — engineer or another agent pushed to the same branch. Don't force-push. Halt; surface `git pull --rebase origin <branch>` and let the engineer resolve.
+- **`seictl workflow state-sync` failed / the workflow is `Failed`** — a Failed `SeiNodeTaskWorkflow` holds the node not-ready until it is removed. Recovery is force-delete first: annotate `sei.io/force-delete-workflow=<reason>`, then `seictl workflow delete <name>`, which releases the node; only then re-run. Re-running with `--name` (a fresh name) *without* first removing the Failed workflow stacks a second `reset-data` wipe on a still-held node. See `references/seictl-cli.md`.
+- **`seictl workflow state-sync` watch times out** — a full state-sync at real chain height can exceed the 60m default. Do not kill-and-retry; the workflow is likely still legitimately `Running`. Check `seictl workflow list -n eng-<alias>` before creating another — only one should be in flight — then wait or force-delete.
 
 ## Reference index
 
@@ -281,7 +285,7 @@ Stop and report to the user if:
 | `preflight.md` | **Read this first on a new session or when an engineer is fresh.** Five-gate ramp from "fresh laptop" to "ready to apply," per-gate recovery, mid-session drift handling, full new-engineer walk-through |
 | `onboarding-pr.md` | **Read this if the engineer is new.** The one-time tenant-registration PR shape. Canonical example: `clusters/harbor/engineers/fromtherain/kustomization.yaml`. What the base layer provides |
 | `ephemeral-chain-flow.md` | **Read this if the engineer asks for a chain.** Preset taxonomy (`genesis-chain`, `rpc`), what each preset wires automatically, watch protocol, exit-code conventions |
-| `seictl-cli.md` | Canonical `seictl network` + `seictl node` verb trees (regenerated from `seictl network|node --help` periodically) |
+| `seictl-cli.md` | Canonical `seictl network` + `seictl node` + `seictl workflow` verb trees (regenerated from `seictl <tree> --help` periodically). Carries the full destructive-op gate for `seictl workflow state-sync` |
 | `seinetwork-crd.md` | Operations-load-bearing fields on `SeiNetwork` (the genesis validator pool), including `.status.phase`, immutability, the `.status.plan` |
 | `seinode-crd.md` | Operations-load-bearing fields on `SeiNode` (a single node / follower), including `.status.phase` (terminal `Running`), `.status.endpoint`, `.status.plan` |
 | `cluster-inspection-recipes.md` | **Canonical structured-extraction recipes.** Use these directly instead of inferring jsonpath at runtime — RPC endpoints (recipe #1, also resolves "target RPC, not validator"), phase + readiness, failed task, image drift, a network's validator SeiNodes, Flux Kustomization Ready |
@@ -292,7 +296,7 @@ Stop and report to the user if:
 | `harbor-cluster.md` | CNI (Cilium), Istio + Gateway API, DNS, Flux topology, EKS access entries |
 | `aws-dependencies.md` | S3 buckets (snapshots, genesis, results), Pod Identity status, ECR conventions |
 
-When this skill drifts from `seictl`'s actual behavior, **`seictl network --help` / `seictl node --help` win.** Reference files include a dated last-verified note per section to help spot drift.
+When this skill drifts from `seictl`'s actual behavior, **`seictl network --help` / `seictl node --help` / `seictl workflow --help` win.** Reference files include a dated last-verified note per section to help spot drift.
 
 ## Permission pre-approval
 
@@ -308,6 +312,8 @@ Pre-approve in `.claude/settings.local.json` (user-specific, not committed):
       "Bash(seictl node get:*)",
       "Bash(seictl node list:*)",
       "Bash(seictl node watch:*)",
+      "Bash(seictl workflow get:*)",
+      "Bash(seictl workflow list:*)",
       "Bash(kubectl config current-context:*)",
       "Bash(kubectl config get-contexts:*)",
       "Bash(kubectl get seinetwork:*)",
@@ -329,7 +335,8 @@ Pre-approve in `.claude/settings.local.json` (user-specific, not committed):
 **Leave interactive** (never pre-approve):
 
 - `seictl network apply` / `seictl node apply` (without `--dry-run`) — direct server-side apply; the escape-hatch path. Requires explicit confirmation per session.
-- `seictl network delete` / `seictl node delete` — destroys a CR + propagates deletion to children; requires explicit confirmation. (Default teardown is `git rm` against the workspace-repo manifest, not this verb.)
+- `seictl workflow state-sync` / `seictl workflow apply` (without `--dry-run`) — **destructive**: wipes the target node's local chain state and re-syncs (optionally an irreversible `--migration` store change). Requires explicit engineer sign-off per invocation; the agent never volunteers it. See the gate in `references/seictl-cli.md`.
+- `seictl network delete` / `seictl node delete` / `seictl workflow delete` — destroys a CR + propagates deletion to children; requires explicit confirmation. For `workflow delete`, the primary use is the force-delete recovery for a Failed workflow holding a node — a Complete workflow is deliberately left in-cluster as the audit trail (see `references/seictl-cli.md`), not routinely deleted. Default teardown for network/node is `git rm` against the workspace-repo manifest, not this verb.
 - `gh pr create` — opens onboarding and chain-spinup PRs; requires explicit confirmation per PR.
 - `git push` — pushes engineer-task branches to `harbor-engineering-workspace`; requires explicit confirmation.
 
@@ -343,4 +350,4 @@ No per-run state is maintained here. Operation is stateless between invocations:
 
 ---
 
-The verb tables above reflect what `seictl network --help` / `seictl node --help` emit in v0.0.59+. Reference files are aligned to the shipped output shape (native CR on stdout, `metav1.Status` on stderr, NDJSON for watch). When this file disagrees with `seictl network|node --help`, the CLI wins.
+The verb tables above reflect what `seictl network --help` / `seictl node --help` / `seictl workflow --help` emit (network/node in v0.0.59+; the `workflow` tree in the migration-flag release). Reference files are aligned to the shipped output shape (native CR on stdout, `metav1.Status` on stderr, NDJSON for watch). When this file disagrees with `seictl <tree> --help`, the CLI wins.
