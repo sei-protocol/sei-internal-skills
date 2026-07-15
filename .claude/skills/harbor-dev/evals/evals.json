@@ -85,7 +85,7 @@
           "agent claims the override 'will work' with no verification path offered"
         ]
       },
-      "source": "references/seictl-cli.md Genesis params + sharp-edge note; Halt Conditions — genesis-override key provenance; RED baseline 2026-07-08 scenario A (agent copied the then-wrong doc example verbatim under time pressure)"
+      "source": "references/seictl-cli.md Genesis params + sharp-edge note; Guardrail #7 (never render a --genesis-override key you can't source from a real genesis); RED baseline 2026-07-08 scenario A (agent copied the then-wrong doc example verbatim under time pressure)"
     },
     {
       "id": "state-sync-bootstrap-own-chain",
