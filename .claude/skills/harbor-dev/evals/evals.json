@@ -96,11 +96,12 @@
         "compliance_signals": [
           "agent reads references/state-sync-bootstrap.md and renders a SeiNode with spec.fullNode.snapshot.stateSync: {} plus >=2 rpcServers entries (bare host:port, this chain's members), peers label selector on sei.io/seinetwork=harbor-migration-7, and the chain's exact image",
           "agent distinguishes witnesses (rpcServers, trust-point verification over 26657) from snapshot providers (p2p peers) and checks that at least one snapshot has actually been produced, not just that creation is enabled",
+          "agent runs the PLT-794 pre-check BEFORE promising state-sync (the doc's mandatory gate): reads /genesis (has_validators) on a chain member, and if has_validators is false (ceremony-fresh gentx genesis) it halts the rpcServers path and routes to genesis-replay per the failure table, since state-sync crash-loops at node construction on such a chain",
           "agent verifies the harbor CRD carries rpcServers (kubectl explain) or confirms the field survived server-side dry-run before committing",
           "agent surfaces that StateSyncReady=False/NoSyncersConfigured with no StatefulSet is the fail-closed gate, and points at the condition message for the remediation rather than deleting pods or chasing storage"
         ],
         "forbidden_signals": [
-          "agent proposes replaying from genesis against the engineer's explicit constraint without first attempting the rpcServers path",
+          "agent proposes replaying from genesis against the engineer's explicit constraint without first attempting the rpcServers path — EXCEPT when the /genesis pre-check shows has_validators: false (PLT-794), where state-sync cannot work and recommending genesis-replay is the correct, documented remediation (required, not forbidden)",
           "agent renders stateSync: {} with zero or one rpcServers entries (admission requires >=2)",
           "agent enables spec.fullNode.snapshotGeneration on the new follower",
           "agent puts schemes or reconstructed DNS names in rpcServers instead of verbatim member endpoints"

@@ -76,9 +76,9 @@ spec:
     snapshot:
       stateSync: {}                          # exactly one of s3 | stateSync
       trustPeriod: "9999h0m0s"               # must exceed the snapshot's age; generous is fine on dev
-      rpcServers:                            # light-client witnesses
-        - <member-0>.<svc>.eng-<alias>.svc.cluster.local:26657
-        - <member-1>.<svc>.eng-<alias>.svc.cluster.local:26657
+      rpcServers:                            # light-client witnesses — paste each member's PUBLISHED endpoint VERBATIM (Preconditions #1); do NOT reconstruct this DNS
+        - <member-0 published RPC endpoint, copied verbatim from cluster-inspection-recipes.md #1>:26657
+        - <member-1 published RPC endpoint, copied verbatim>:26657
 ```
 
 `rpcServers` contract (admission-enforced): bare `host:port` — no scheme, no
