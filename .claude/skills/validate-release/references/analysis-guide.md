@@ -1,100 +1,106 @@
 # Scenario Analysis Guide
 
-How `platform-release-manager` translates raw metrics into release-quality narrative.
+How `platform-release-manager` translates the live-harness signal into a
+release-quality narrative. The **outcome is the Job-log verdict** (authoritative);
+metrics are *supporting context, not an independent second opinion* — there is no
+pre-chaos baseline phase in the nightly harness.
 
-## Metric windows
+## What a PASS means (read this first)
 
-For each scenario, three windows are queried:
-- **Baseline** — 5 minutes before chaos injection. Establishes the normal operating point.
-- **Chaos** — the injection duration. What the chain looked like under stress.
-- **Recovery** — 5 minutes after chaos expires. How quickly the chain returned to baseline.
+`TestNightlyChaosSuite` asserts **liveness**: per scenario it gates injection, then
+`WaitHeightAdvances(+3)` under fault, then recovery, validators `Ready`, and
+`WaitCaughtUp`. So **PASS = "the chain stayed live under the fault and recovered."**
+It is **blind to partial tx-correctness** (e.g. 40% tx rejection while blocks still
+produce). Every report says this; the go/no-go it supports is a **liveness** gate.
+The headline is `LIVENESS GO` / `LIVENESS NO-GO`, never a bare "GO".
 
-## Outcome classification
+## The 10 scenarios
 
-| Outcome | Criteria |
-|---|---|
-| `PASS` | Block production continued throughout; metrics recovered to ≤110% of baseline within 2× chaos duration |
-| `HALT+RECOVER` | Block production stopped during chaos (correct behavior when >1/3 validators affected); resumed cleanly post-chaos; zero data loss |
-| `DEGRADED` | Block production continued but with measurable impact (>20% block time increase or >10% TPS reduction); recovered to baseline |
-| `FAIL` | Block production stopped AND chain did not self-recover, OR unexpected divergence/corruption detected |
+network-partition, packet-loss, network-latency, bandwidth-limit, byzantine,
+pod-failure, container-kill, cpu-stress, time-skew, memory-stress.
 
-## Per-metric interpretation
+A scenario absent from the log reconciles to `DID NOT RUN`; a scenario with no
+metric series is `NO DATA` — never a green 0.
 
-### Block time (p50, p95)
+## Outcome vocabulary (do not reclassify — narrate)
 
-| Delta from baseline | Language |
-|---|---|
-| < 10% | "no measurable impact on block interval" |
-| 10–30% | "modest block time inflation; chain continued at degraded pace" |
-| 30–100% | "block time stretched from Xs to Ys during injection" (quote exact numbers) |
-| > 100% | "block time more than doubled; chain was under severe liveness pressure" |
-| No blocks | "chain halted — correct BFT behavior when >1/3 validators could not commit" |
+| Outcome | Source | Meaning |
+|---|---|---|
+| `PASS` / `FAIL` | Job log | The Go test's liveness verdict — authoritative |
+| `DID NOT RUN` | reconciliation | No `--- PASS\|FAIL` line for this scenario in a complete log |
+| `UNKNOWN (log truncated)` | reconciliation | Log hit the byte cap before this scenario's line — not "missing" |
+| `VERDICT UNAVAILABLE — metrics-only` | verdict-unavailable rule | Log GC'd (7d) but metrics survive (15d) — **headline suppressed**, never a synthesized pass |
+| `RUN EXPIRED` | freshness | Neither log nor raw metrics survive — re-run |
 
-For halts: always explain WHY halting is correct ("Tendermint chooses safety over liveness when 2f+1 cannot be maintained; the chain stopped rather than risk divergent state").
+## Metric annotations (supporting evidence)
 
-### TPS
+Each scenario carries a metric summary. Quote exact numbers; label them as *context*.
 
-Quote the actual numbers: "Run TPS dropped from ~300 to ~180 during the injection window." Include the recovery time: "Both metrics returned to baseline within three minutes of the chaos expiring."
+### Halt / liveness (validator set)
 
-If TPS drops to near-zero but block time is normal, note the disconnect: this indicates the load generator may have been affected rather than the chain.
+Computed on `tendermint_consensus_height{component="validators"}` as **set-level
+advancement**: max validator height at window-end > window-start, still advancing in
+the final N samples. This is restart-aware — a restarted validator returns as a **new
+`pod`/`instance_name` series**, so a single node restart (expected in
+`pod-failure`/`container-kill`) does not read as a halt, and a real halt (the set
+stops advancing) is caught even though height is a gauge (a `rate()`-based check would
+be fooled by the counter-reset-looking gauge drop). Narrate a metric-observed halt as
+supporting the log verdict — and when the log says PASS but metrics show a halt, flag
+the disagreement for the reader rather than overriding the log.
 
-### Tx success rate
+For a genuine liveness loss: explain the BFT reasoning — Tendermint chooses safety over
+liveness when 2f+1 cannot be maintained; the chain stops rather than risk divergence.
 
-Express as a percentage of baseline: "Transaction success rate held at 99.2% (baseline: 99.7%)." For rates below 95%, flag explicitly.
+### Block time
 
-### Mempool size
+`histogram_quantile(0.95, ...block_interval_seconds_bucket...)` reported as a
+**bucket-bounded p95** (bounded by histogram bucket edges — not a precise worst-case),
+with a **height-derived mean** interval as the always-present fallback. Quote both when
+present: "p95 block interval ~ Xs (bucket-bounded); height-derived mean ~ Ys."
 
-Quote peak values: "Mempool grew from ~90 to 594 txs during the injection and drained within the recovery window." Unbounded growth (>2× baseline at chaos-end) warrants a note.
+### TPS and mempool (transparency-only — NOT release signals)
 
-## BFT threshold rule
+`sei_cosmos_throughput_transaction_count` and `tendermint_mempool_size` are **~0 by
+design**: the chaos suite runs **no load generator** (seiload is benchmark-only), so
+there is no throughput to measure and the mempool stays empty. Carry these values for
+transparency only — **never narrate a TPS "degradation shape" or a mempool
+"backpressure" note**. The chaos release signals are **halt + block-interval**;
+throughput is the **deferred phase-2 benchmark report**.
 
-When chaos is scoped to >1/3 of validators, explicitly apply the BFT reasoning:
+### Provenance marker (per cell)
 
-> "The test applied [fault] to [N/total] validators — crossing the 1/3 BFT durability threshold. The chain correctly halted rather than risk safety. This is expected behavior, not a failure."
+`OK` (measured) / `NO DATA` (absent series) / `PARTIAL` (Thanos partial response —
+understated, treat as degraded) / `VERDICT-GC'd` (log gone, metrics-only). Surface the
+marker; never present a `PARTIAL`/`NO DATA` cell as a clean measurement.
 
-When chaos is scoped to <1/3:
+## Fault-family narratives (for the "Release Significance" paragraph)
 
-> "With [N/total] validators affected, the remaining 9 held quorum at 2f+1 and drove consensus at [rate]. The affected validators reconverged automatically after recovery."
+- **Infrastructure** (pod-failure, container-kill): controller recovery without human
+  intervention; a single restart is expected, not a halt.
+- **Network** (partition, packet-loss, latency, bandwidth-limit): gossip resilience;
+  did the chain slow or halt; did gossip route around dropped edges.
+- **Resource** (cpu-stress, memory-stress): does hardware pressure bleed into consensus
+  timing; usually not unless a pod is OOM-killed.
+- **Adversarial** (byzantine, time-skew): protocol-layer defense. Time-skew: BFT-time
+  uses the median of validator vote timestamps, so minority clock drift is irrelevant.
+  Byzantine: stacked defense (MAC, TCP checksum, application-layer validation).
 
-## Fault family narratives
+## Executive summary synthesis
 
-### Infrastructure faults (pod-kill, container-kill)
+Write it LAST, <=4 short paragraphs:
+1. **Recommendation** — one sentence: `LIVENESS GO` / `LIVENESS NO-GO`, with the
+   tx-correctness caveat. If the headline is suppressed, say so and recommend a re-run —
+   never invent a verdict.
+2. **Coverage** — fault families exercised and the overall liveness result.
+3. **Notable findings** — FAILs, metric/verdict disagreements, `NO DATA`/`PARTIAL`
+   cells, DID NOT RUN gaps.
+4. **Decision** — the team's position, in plain language, scoped to liveness.
 
-Focus: does the controller recover without human intervention? Quote the mark-ready timing. Note whether the sidecar survived the container kill (different recovery path than a full pod kill).
+## Per-scenario section
 
-### Network degradation (partition, latency, packet loss, bandwidth)
-
-Focus: gossip resilience. Note whether the chain slowed or halted. For partition tests: was it a true split-brain or did gossip route around the dropped edges? Quote the p2p topology observation.
-
-### Resource starvation (CPU, memory, disk I/O)
-
-Focus: did hardware pressure bleed into consensus timing? CPU and memory usually don't affect block production unless the pod is OOM-killed. Disk I/O at >50% of all validators typically forces a halt (WAL fsync timeout).
-
-### Adversarial conditions (time skew, byzantine, RPC chaos)
-
-Focus: protocol-layer defense. For time skew: Tendermint's BFT-time design uses the median of validator vote timestamps — explain this makes minority clock drift irrelevant. For byzantine/packet-corruption: explain the stacked defense (MAC, TCP checksum, Tendermint application-layer validation). For RPC chaos: note the architectural separation between validator p2p and external RPC.
-
-## Executive Summary synthesis
-
-Write the executive summary LAST. Structure:
-
-1. **Recommendation sentence** — one sentence, first. ("Recommendation: proceed with arctic-1 deployment on 4/30.")
-2. **Fault coverage paragraph** — which fault families, overall BFT result, recovery quality.
-3. **Notable findings** — any FAIL outcomes, regressions, bugs found, PRs required.
-4. **Deployment alignment** — final plain-language statement of the team's position.
-
-Keep the executive summary to ≤4 short paragraphs. Every sentence earns its place.
-
-## Per-scenario section template
-
-Each of the 13 scenarios gets:
-
-### [Scenario Name]
-
-**Summary** — one sentence stating what was injected and what happened at the chain level.
-
-**Key Signals** — data narrative with exact numbers. Baseline → chaos delta → recovery timing. Quote at least block time and TPS. If the chain halted, explain the BFT reasoning.
-
-**Release Significance** — one paragraph connecting the result to the release decision. What failure mode does passing this test rule out? What would a failure here mean for production?
-
-[3 Grafana panel embeds: TPS, block time, error rate]
+**Summary** — one sentence: fault injected + log outcome.
+**Key Signals** — the metric annotation with exact numbers, labeled as supporting
+context; the provenance marker; BFT reasoning when a halt is observed.
+**Release Significance** — what liveness failure mode a PASS rules out; what a FAIL
+would mean for production.
+[Panels: block-time, TPS, mempool]

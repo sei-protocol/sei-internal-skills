@@ -1,0 +1,27 @@
+=== RUN   TestNightlyChaosSuite
+    harness: run token djynkpbrn0q0
+    harness: launching 10 chaos chains (5 nodes each: 4 validators + 1 rpc node)
+    harness: chain chaos-djynkpbrn0q0-network-partition ready
+=== RUN   TestNightlyChaosSuite/network-partition
+    --- PASS: TestNightlyChaosSuite/network-partition (182.11s)
+=== RUN   TestNightlyChaosSuite/packet-loss
+    --- PASS: TestNightlyChaosSuite/packet-loss (181.44s)
+=== RUN   TestNightlyChaosSuite/network-latency
+    --- PASS: TestNightlyChaosSuite/network-latency (180.98s)
+=== RUN   TestNightlyChaosSuite/bandwidth-limit
+    --- PASS: TestNightlyChaosSuite/bandwidth-limit (181.72s)
+=== RUN   TestNightlyChaosSuite/byzantine
+    --- PASS: TestNightlyChaosSuite/byzantine (183.05s)
+=== RUN   TestNightlyChaosSuite/pod-failure
+    --- PASS: TestNightlyChaosSuite/pod-failure (185.63s)
+=== RUN   TestNightlyChaosSuite/container-kill
+    --- PASS: TestNightlyChaosSuite/container-kill (184.29s)
+=== RUN   TestNightlyChaosSuite/cpu-stress
+    --- PASS: TestNightlyChaosSuite/cpu-stress (182.40s)
+=== RUN   TestNightlyChaosSuite/time-skew
+    --- PASS: TestNightlyChaosSuite/time-skew (181.19s)
+=== RUN   TestNightlyChaosSuite/memory-stress
+    --- PASS: TestNightlyChaosSuite/memory-stress (182.87s)
+--- PASS: TestNightlyChaosSuite (1834.02s)
+PASS
+ok  	github.com/sei-protocol/sei-chain/test/integration	1834.500s

@@ -1,6 +1,9 @@
 # Notion Report Template
 
-Structure of the Notion page created by `platform-release-manager`. The agent fills in placeholders; this template is static. Written to be shared directly with engineering leadership.
+Structure of the Notion page created by `platform-release-manager`. The agent fills
+placeholders; this template is static. Written to be shared with engineering leadership.
+It is a **liveness** report — the headline reads `LIVENESS GO` / `LIVENESS NO-GO`, never
+a bare "GO", and carries the tx-correctness caveat inline.
 
 ---
 
@@ -10,11 +13,11 @@ Structure of the Notion page created by `platform-release-manager`. The agent fi
 {
   "parent": { "database_id": "<NOTION_DATABASE_ID>" },
   "properties": {
-    "Name":       { "title": [{ "text": { "content": "Release Validation — <SHA7> (<YYYYMMDD>)" } }] },
-    "Status":     { "select": { "name": "<PASS|PARTIAL|FAIL>" } },
-    "Commit":     { "rich_text": [{ "text": { "content": "<SHA7>" } }] },
-    "Date":       { "date": { "start": "<YYYY-MM-DD>" } },
-    "Scenarios":  { "number": 13 },
+    "Name":       { "title": [{ "text": { "content": "Release Validation — <RELEASE_IMAGE> (run <TOKEN>)" } }] },
+    "Status":     { "select": { "name": "<LIVENESS GO|LIVENESS NO-GO|VERDICT UNAVAILABLE>" } },
+    "Image":      { "rich_text": [{ "text": { "content": "<RELEASE_IMAGE>" } }] },
+    "RunToken":   { "rich_text": [{ "text": { "content": "<TOKEN>" } }] },
+    "Scenarios":  { "number": 10 },
     "Passed":     { "number": <N> },
     "Failed":     { "number": <N> }
   }
@@ -25,106 +28,96 @@ Structure of the Notion page created by `platform-release-manager`. The agent fi
 
 ## Block sequence
 
-### 1. Header callout
-
-Emoji: ✅ (all pass), ⚠️ (partial), ❌ (failures present)
+### 1. Run-identity header (callout)
 
 ```
-Release Validation — <SHA7> · <YYYY-MM-DD>
-<N>/13 scenarios passed · Recommendation: <proceed|hold>
+Release Validation — run <TOKEN>
+Release image:  <SEID_IMAGE_CHAOS>
+Run age:        <D.d>d   (raw freshness bound: 15d — <within/EXPIRED>)
+Job:            <job_name>
 ```
 
-### 2. Executive Summary (heading 1)
+### 2. Headline (callout)
 
-Four paragraphs max. See `analysis-guide.md` for synthesis instructions.
+- **Not suppressed** — the outcome, emphasized, with the caveat inline:
+  ```
+  LIVENESS GO — all 10 scenarios stayed live and recovered.
+  Caveat: liveness gate only; transaction correctness is NOT validated by this suite.
+  ```
+  or `LIVENESS NO-GO — <N> scenario(s) failed the liveness gate. Caveat: …`
+- **Suppressed** (verdict unavailable / run expired) — NO go/no-go; render:
+  ```
+  NO GO/NO-GO — verdict log GC'd but metrics survive (7d/15d band).
+  Do NOT ship on metrics alone. Re-run the nightly to obtain a verdict.
+  ```
 
-**Paragraph 1** — Recommendation sentence + overall BFT result.
+### 3. Executive Summary (heading 1)
 
-**Paragraph 2** — Fault families covered, what they exercise, how the chain behaved across each family.
+Four paragraphs max. See `analysis-guide.md`. Paragraph 1 = the recommendation +
+liveness scope; 2 = fault-family coverage; 3 = notable findings (FAILs, metric/verdict
+disagreements, NO DATA / PARTIAL cells, DID NOT RUN gaps); 4 = the decision.
 
-**Paragraph 3** — Notable findings, regressions, required PRs (if any). "None" if clean.
-
-**Paragraph 4** — Team alignment and deployment decision.
-
-### 3. What Was Tested (heading 2)
-
-Table: Fault Family | Scenarios | What's being exercised
+### 4. What Was Tested (heading 2)
 
 | Family | Scenarios | What's being exercised |
 |---|---|---|
-| Infrastructure | Pod Failure, Container Kill | Platform recovery paths |
-| Network degradation | Network Partition, Latency, Packet Loss, Bandwidth Limit | p2p gossip resilience |
-| Resource starvation | CPU Stress, Memory Stress, Disk I/O Latency | Hardware headroom under load |
-| Adversarial | Time Skew, Byzantine Fault, RPC Chaos | Protocol-layer defenses |
+| Infrastructure | pod-failure, container-kill | Controller recovery paths |
+| Network | network-partition, packet-loss, network-latency, bandwidth-limit | p2p gossip resilience |
+| Resource | cpu-stress, memory-stress | Hardware headroom under load |
+| Adversarial | byzantine, time-skew | Protocol-layer defenses |
 
-Followed by 1-sentence operating context: cluster size (N validators, M RPCs), load rate, suite scope.
+One-sentence operating context: 5 nodes per chain (4 validators + 1 rpc node),
+`CHAOS_DURATION=3m` per scenario.
 
-### 4. Test Results (heading 2)
+### 5. Test Results (heading 2)
 
-Repeat the following block ×13, one per scenario. Order: by fault family (infrastructure → network → resource → adversarial).
-
----
-
-#### [Scenario Name] · ✅/⚠️/❌ PASS|DEGRADED|HALT+RECOVER|FAIL (heading 3)
-
-**Summary** — one sentence.
-
-**Key Signals**
-
-Metrics paragraph with exact numbers. Quote at minimum:
-- Block time: `Xs → Ys during injection (Z× baseline); recovered in Tm`
-- TPS: `~N tps baseline → ~M tps during chaos; full recovery in Tm`
-- Success rate: `N%` (or note if unchanged)
-
-Include the BFT threshold context when applicable.
-
-**Release Significance**
-
-One paragraph: what failure mode does this rule out? What would a failure here mean for production?
-
-[Image block — TPS panel]
-*TPS during <scenario> — chain_id: <chain_id>*
-
-[Image block — block time panel]
-*Block time during <scenario>*
-
-[Image block — error rate panel]
-*Failed transactions during <scenario>*
+Repeat ×10, ordered by fault family.
 
 ---
 
-*(repeat for all 13 scenarios)*
+#### [scenario] · <PASS|FAIL|DID NOT RUN|VERDICT UNAVAILABLE> · provenance:<OK|NO DATA|PARTIAL|VERDICT-GC'd> (heading 3)
 
-### 5. Platform Action Items (heading 2)
+**Summary** — one sentence: fault injected + Job-log outcome.
 
-Table (if any). Columns: # | Item | Description | Link
+**Key Signals** (supporting context — not a second verdict)
+- Halt/liveness: `<ADVANCING|HALTED|NO DATA>` — blocks produced, quorum advanced
+- Block time: `p95 ~ Xs (bucket-bounded); height-derived mean ~ Ys`
+- TPS / mempool: `~0 by design` — chaos runs no load generator; transparency-only,
+  NOT a release signal (do not narrate a degradation shape or backpressure)
 
-If no action items: "No platform action items identified."
+Include BFT reasoning when a halt is observed. If the provenance is `NO DATA` /
+`PARTIAL` / `VERDICT-GC'd`, say so directly — never present it as a clean measurement.
 
-### 6. Protocol Action Items (heading 2)
+**Release Significance** — what liveness failure mode a PASS rules out; what a FAIL
+would mean for production.
 
-Table (if any). Columns: # | Item | Description | Link
+[Image — block time panel]  ·  [Image — TPS panel]  ·  [Image — mempool panel]
 
-If none: "No protocol action items surfaced."
+---
 
-### 7. Divider + Appendix (heading 2)
+*(repeat for all 10 scenarios)*
 
-**Per-scenario metric tables** — one table per scenario with baseline/chaos/recovery values for all 5 metrics. Label columns clearly: Metric | Baseline | Chaos | Recovery | Delta.
+### 6. Action Items (heading 2)
 
-**S3 raw data link** paragraph:
+Platform + protocol action-item tables (or "none identified").
+
+### 7. Appendix (heading 2)
+
+**Per-scenario metric tables** — one table per scenario: Metric | Value | Provenance.
+
+**Raw data pointers**
 ```
-Raw seiload reports: s3://harbor-validation-results/nightly/chaos-*/SUITE_ID/
-Panel images: s3://harbor-validation-results/chaos-suite-reports/SUITE_ID/
+Metrics: federated prometheus-prod, chain_id=chaos-<TOKEN>-<scenario>, max_source_resolution=0
+Job log: harbor / ns nightly / <job_name>
+Panel images: s3://harbor-validation-results/chaos-suite-reports/<TOKEN>/
 ```
 
 ---
 
 ## Tone and style
 
-- Lead with the recommendation, not methodology
-- Quote actual numbers in every "Key Signals" section
-- Apply BFT theory explicitly when it explains an observation
-- "Release Significance" explains implications, not test descriptions
-- Executive Summary stands alone — someone who skips the detail sections gets the full picture
-- Avoid hedge language unless genuinely uncertain ("it appears", "seems to")
-- If a scenario produced no data, say so directly: "No Grafana data was available for this scenario. The S3 report shows..."
+- Lead with the liveness recommendation, not methodology.
+- Quote actual numbers in every "Key Signals" section; label metrics as supporting context.
+- Apply BFT theory explicitly when it explains a halt.
+- Never dress a `NO DATA` / `PARTIAL` / verdict-unavailable cell as a clean pass.
+- If the headline is suppressed, the page states it plainly and recommends a re-run.
