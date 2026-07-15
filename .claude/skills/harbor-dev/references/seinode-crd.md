@@ -35,6 +35,7 @@ The 6 fields engineers actually edit:
 - `spec.image` — full container image ref (with tag or digest); flat (no `spec.template`)
 - `spec.peers` — peer discovery (one of `EC2Tags`, `Static`, `Label`). For a network's follower, the `Label` selector keys `sei.io/seinetwork` (set automatically by `seictl node apply --network <X>`).
 - `spec.fullNode | archive | replayer | validator` — mutually exclusive role marker
+- `spec.fullNode.snapshot` — bootstrap-from-snapshot config (exactly one of `s3` | `stateSync`); `snapshot.rpcServers` declares ≥2 light-client witness endpoints (bare `host:port`) replacing the platform syncer registry — the self-service path for state-syncing onto your own chain. See `state-sync-bootstrap.md`
 - `spec.sidecar` — seictl sidecar overrides (image, env, resources)
 - `spec.overrides` — TOML config patches applied via seictl `config patch`
 
