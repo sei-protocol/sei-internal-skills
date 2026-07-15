@@ -197,6 +197,8 @@ kubectl config use-context harbor
 
 Halt until the access entry lands. Same-day turnaround typically.
 
+**Workflow-CRD sub-gate:** before the first `seictl workflow` invocation in a session, separately verify `kubectl auth can-i patch seinodetaskworkflows -n eng-<alias> --context=harbor` returns `yes` — `patch` is the verb server-side apply exercises. A `no` means the namespace Role predates the workflow CRD; halt all `workflow` verbs and ask the platform team via `#harbor-onboarding` to add `seinodetaskworkflows` (verbs `get`, `list`, `watch`, `create`, `patch`, `delete`, plus `seinodetaskworkflows/status` read) to the Role. The failure otherwise surfaces mid-operation as `is forbidden: ... cannot patch resource "seinodetaskworkflows"`.
+
 **Edge case — alias not yet known.** On a brand-new engineer, the alias is captured in First Run (gate 6 path) before they have an `eng-<alias>` namespace. Run this gate against the *resolved* alias from First Run; if the engineer is mid-onboarding (PR open but not merged), it may still pass on namespace-list reach even though the namespace doesn't exist yet — gate 6 owns the namespace-existence check.
 
 **Edge case — gate passes but `apply` later fails with `Forbidden`:** the access entry may be read-only. Surface that as a separate gap when `seictl network|node apply` returns `metav1.Status.reason=Forbidden`. The platform team escalates the access entry to write.

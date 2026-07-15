@@ -25,7 +25,7 @@ The controller reconciles each `SeiNode` into:
 - `Failed` — terminal; operator must delete and recreate
 - `Terminating` — being torn down (finalizer running)
 
-**`Running` is discoverability, not serve-readiness.** It means config applied + sidecar self-marked ready, NOT that the EVM listener is accepting connections — there is a real post-Running window where `.status.endpoint` is published but a dial gets connection-refused. Before pointing a load tool at a follower, probe `/status` for `catching_up=false AND height>1`.
+**`Running` is discoverability, not serve-readiness.** It means config applied + sidecar self-marked ready, NOT that the EVM listener is accepting connections — there is a real post-Running window where `.status.endpoint` is published but a dial gets connection-refused. Before pointing a load tool at a follower, run `seictl node watch <name> --until=caught-up` (the SDK serve-readiness gate: `catching_up=false` with height>1, plus EVM serving when the node publishes an EVM endpoint).
 
 ## Spec fields you'll touch (operator's view)
 

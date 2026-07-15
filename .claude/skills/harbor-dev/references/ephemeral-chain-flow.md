@@ -98,6 +98,8 @@ For followers attaching to long-lived chains (`pacific-1`, `atlantic-2`), state-
 
 Do not wire snapshots for `genesis-chain` (fresh ceremony — nothing to restore from) or short-lived ephemeral chains where fresh sync is fast enough.
 
+**This is create-time bootstrap of a NEW follower — distinct from `seictl workflow state-sync`.** The S3-snapshot flag here restores a node at apply time (a sidecar tarball restore). To re-bootstrap an *existing* node in place, or to run a giga store migration, that is the imperative `seictl workflow state-sync` command — which is **destructive: it wipes the node's local chain state** (see `seictl-cli.md` → `seictl workflow state-sync` for the full gate). Key on node identity: a new node uses the snapshot flag, an existing node uses the workflow command. For an ephemeral follower that has merely fallen behind, `delete` + re-apply through the PR flow gets a fresh snapshot bootstrap and is safer than the imperative wipe. Both avoid a full fresh sync, which is why they get conflated, but they are different mechanisms at different lifecycle stages.
+
 ### Anti-pattern: do not set `spec.sidecar` overrides
 
 seictl does not populate this field (flat on SeiNode). If it appears in a rendered follower — typically from a stale `--set`, a hand edit, or copy-paste from a debug session — strip it before writing to the workspace repo. The sidecar image is wired by sei-k8s-controller from cluster config; overriding it pins a specific seictl/sidecar version, hides the platform's chosen default, and confuses the failure mode when reproducing a seid bug. (SeiNetwork validators take their sidecar from controller config — there is no per-follower override to make on them.)
