@@ -1,0 +1,24 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "matrix",
+    "result": [
+      {
+        "metric": { "chain_id": "chaos-djynkpbrn0q0-network-partition", "component": "validators", "sei_role": "validator", "instance_name": "val-0" },
+        "values": [[1784068710, "100"], [1784068725, "103"], [1784068740, "106"], [1784068755, "109"], [1784068770, "112"]]
+      },
+      {
+        "metric": { "chain_id": "chaos-djynkpbrn0q0-network-partition", "component": "validators", "sei_role": "validator", "instance_name": "val-1" },
+        "values": [[1784068710, "100"], [1784068725, "103"], [1784068740, "106"], [1784068755, "109"], [1784068770, "112"]]
+      },
+      {
+        "metric": { "chain_id": "chaos-djynkpbrn0q0-network-partition", "component": "validators", "sei_role": "validator", "instance_name": "val-2" },
+        "values": [[1784068710, "100"], [1784068725, "103"], [1784068740, "106"], [1784068755, "108"], [1784068770, "111"]]
+      },
+      {
+        "metric": { "chain_id": "chaos-djynkpbrn0q0-network-partition", "component": "validators", "sei_role": "validator", "instance_name": "val-3-restarted" },
+        "values": [[1784068755, "107"], [1784068770, "110"]]
+      }
+    ]
+  }
+}

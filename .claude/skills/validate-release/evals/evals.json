@@ -1,88 +1,97 @@
 [
   {
-    "id": "happy-path-full-suite",
-    "description": "Full suite with 13/13 reports and valid Grafana token produces a Notion page and notifies the user.",
-    "input": "/validate-release abc1234-20260527",
+    "id": "happy-path-liveness-go",
+    "description": "A complete nightly run with 10/10 Job-log PASS and surviving metrics produces a LIVENESS GO Notion page and notifies the user.",
+    "input": "/validate-release djynkpbrn0q0",
     "env": {
       "GRAFANA_TOKEN": "<valid>",
       "GRAFANA_BASE_URL": "https://grafana.prod.platform.sei.io",
+      "PROM_DS_UID": "prometheus-prod",
       "GRAFANA_DASHBOARD_UID": "nightly",
       "NOTION_DATABASE_ID": "<valid>",
       "AWS_PROFILE": "sei"
     },
     "mocks": {
-      "s3://harbor-validation-results/nightly/chaos-*/abc1234-20260527/report.json": "fixtures/seiload-report.json",
-      "GET /api/org": {"status": 200, "body": {"name": "Sei Platform"}},
-      "GET /api/dashboards/uid/nightly": "fixtures/dashboard.json",
-      "GET /api/datasources/proxy/uid/prometheus-prod/api/v1/query_range": "fixtures/prometheus-response.json",
-      "GET /render/d-solo/nightly": {"status": 200, "body": "fixtures/panel.png"},
+      "GET /api/datasources/proxy/uid/prometheus-prod/api/v1/query (discovery)": "fixtures/prom-discovery.json",
+      "GET /api/datasources/proxy/uid/prometheus-prod/api/v1/query_range": "fixtures/prom-height-advancing.json",
+      "kubectl --context harbor -n nightly get jobs -o json": "fixtures/nightly-jobs.json",
+      "kubectl --context harbor -n nightly logs job/nightly-harness-suite-... ": "fixtures/harness-log-all-pass.txt",
       "mcp__claude_ai_Notion__notion-create-pages": {"status": "ok", "url": "https://notion.so/test-page"}
     },
     "assertions": [
-      "skill calls check-grafana.sh and it exits 0",
-      "skill echoes SUITE_ID + scenario count before dispatching agent",
-      "platform-release-manager agent is dispatched with run_in_background=true",
-      "collect-reports.py is called with --suite-id abc1234-20260527",
-      "query-grafana.py is called",
-      "render-panels.py is called",
-      "upload-images.py is called",
+      "resolve-run.py returns the token djynkpbrn0q0 and orders tokens by base36 value",
+      "query-grafana.py forces max_source_resolution=0 and is time-scoped (no instant-now)",
+      "collect-run-log.py joins the token to a nightly Job by window-containment (Job run window contains the decoded UnixNano) AND log-verification (the Job's log references this run's chaos-<token>- chains); no verified match yields VERDICT UNAVAILABLE",
+      "collect-run-log.py extracts SEID_IMAGE_CHAOS and per-scenario --- PASS|FAIL",
+      "compute-stats.py summary headline == 'LIVENESS GO' (never a bare 'GO')",
+      "push-notion.py payload carries the run-identity header (token, image, run age) and the tx-correctness caveat inline",
       "notion-create-pages is called once",
-      "user is notified with Notion URL",
-      "state/run-<ts>/audit.log is written"
+      "AC4: a git grep for the removed recording-rule prefix and the removed S3 report filename returns nothing under the skill"
+    ]
+  },
+  {
+    "id": "anti-fabrication-verdict-unavailable",
+    "description": "AC3 — log GC'd (7d) but metrics survive (15d): every scenario renders VERDICT UNAVAILABLE and the headline is suppressed, never a synthesized pass. Token djq5b97fgi68 decodes to ~11 days before the run date (log GC'd past 7d, metrics still within the 15d raw bound).",
+    "input": "/validate-release djq5b97fgi68",
+    "env": {"GRAFANA_TOKEN": "<valid>", "NOTION_DATABASE_ID": "<valid>", "AWS_PROFILE": "sei"},
+    "mocks": {
+      "GET .../query_range": "fixtures/prom-height-advancing.json",
+      "kubectl ... get jobs -o json": "fixtures/nightly-jobs-log-gcd.json"
+    },
+    "assertions": [
+      "collect-run-log.py writes log_available=false with a GC'd reason and exits 0 (does not crash)",
+      "compute-stats.py marks each scenario 'VERDICT UNAVAILABLE — metrics-only' with provenance VERDICT-GC'd",
+      "compute-stats.py summary headline is null and headline_suppressed is true",
+      "push-notion.py renders NO go/no-go headline",
+      "no scenario is rendered as a synthesized PASS"
+    ]
+  },
+  {
+    "id": "raw-expired-graceful",
+    "description": "AC6 — a run older than the ~15d raw bound discovers no chains and yields a graceful 'raw expired' result, not a crash or empty page.",
+    "input": "/validate-release <ancient-token>",
+    "env": {"GRAFANA_TOKEN": "<valid>", "NOTION_DATABASE_ID": "<valid>"},
+    "mocks": {"GET .../query (discovery)": {"status": "success", "data": {"result": []}}},
+    "assertions": [
+      "resolve-run.py --run <ancient-token> exits 1 with a 'raw expired / wrong token' message",
+      "the skill surfaces raw-expired to the user and offers a re-run",
+      "no crash, no empty Notion page"
+    ]
+  },
+  {
+    "id": "halt-detection-restart-scenario",
+    "description": "AC7 — a genuinely halted chain is flagged HALTED even in pod-failure/container-kill, and a healthy chain with one restarted validator (new pod/instance series) reads ADVANCING (not fooled by a gauge reset).",
+    "input": "unit — query-grafana.analyze_halt",
+    "mocks": {
+      "healthy_with_restart": "3 validators advance + 1 restarts as a new instance series",
+      "genuine_halt": "set advances early then flat for > final-N samples"
+    },
+    "assertions": [
+      "healthy-with-restart -> verdict ADVANCING (set-level advancement, not per-fixed-series delta)",
+      "genuine-halt -> verdict HALTED (final-N-samples guard catches advance-early-then-stop)",
+      "absent series -> verdict 'NO DATA' (never a green 0)"
+    ]
+  },
+  {
+    "id": "missing-scenario-reconciliation",
+    "description": "AC5 — a scenario with no Job-log line reconciles to DID NOT RUN (complete log) and a scenario with no metric series shows NO DATA; a truncated log marks unmatched scenarios UNKNOWN.",
+    "input": "unit — collect-run-log.build_verdicts + query-grafana provenance",
+    "assertions": [
+      "a complete log missing 'time-skew' -> outcome 'DID NOT RUN'",
+      "a truncated log missing 'time-skew' -> outcome 'UNKNOWN (log truncated)'",
+      "a scenario with an empty metric series -> provenance 'NO DATA', never a measured 0"
     ]
   },
   {
     "id": "halt-missing-grafana-token",
     "description": "Skill refuses to proceed when GRAFANA_TOKEN is not set.",
-    "input": "/validate-release abc1234-20260527",
-    "env": {
-      "GRAFANA_TOKEN": "",
-      "NOTION_DATABASE_ID": "<valid>",
-      "AWS_PROFILE": "sei"
-    },
+    "input": "/validate-release djynkpbrn0q0",
+    "env": {"GRAFANA_TOKEN": "", "NOTION_DATABASE_ID": "<valid>"},
     "assertions": [
-      "skill calls check-grafana.sh",
-      "check-grafana.sh exits 1",
-      "skill prints the service account setup instructions",
-      "skill does NOT call collect-reports.py",
-      "skill does NOT call notion-create-pages",
+      "check-grafana.sh exits 1 and prints the service-account setup instructions",
+      "resolve-run.py / query-grafana.py are not run",
+      "notion-create-pages is not called",
       "no state directory is created"
-    ]
-  },
-  {
-    "id": "halt-zero-reports",
-    "description": "Skill halts when SUITE_ID resolves to zero S3 reports.",
-    "input": "/validate-release missing-suite-id",
-    "env": {
-      "GRAFANA_TOKEN": "<valid>",
-      "NOTION_DATABASE_ID": "<valid>",
-      "AWS_PROFILE": "sei"
-    },
-    "mocks": {
-      "s3://harbor-validation-results/nightly/chaos-*/missing-suite-id/report.json": null
-    },
-    "assertions": [
-      "resolve-suite-id.py exits 1 with message about zero reports",
-      "skill surfaces the error to the user",
-      "skill does NOT dispatch the background agent"
-    ]
-  },
-  {
-    "id": "partial-suite-user-confirm",
-    "description": "When fewer than 13 but more than 4 reports exist, skill asks for confirmation before generating a partial report.",
-    "input": "/validate-release partial-suite-id",
-    "env": {
-      "GRAFANA_TOKEN": "<valid>",
-      "NOTION_DATABASE_ID": "<valid>",
-      "AWS_PROFILE": "sei"
-    },
-    "mocks": {
-      "s3_report_count": 8
-    },
-    "assertions": [
-      "skill informs user: 8/13 scenarios found",
-      "skill asks whether to generate partial report",
-      "skill does NOT dispatch agent without user confirmation"
     ]
   }
 ]

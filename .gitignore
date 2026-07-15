@@ -3,3 +3,7 @@
 .claude/skills/*/state/**
 !.claude/skills/*/state/
 !.claude/skills/*/state/.gitkeep
+
+# python bytecode
+__pycache__/
+*.pyc
