@@ -68,7 +68,7 @@ REQUIRED_SKILLS_FILTER = "all"
 #: ties this to the synced agent count (see :func:`count_roster_agents`); a
 #: drift (roster grew but baseline not bumped) shows up as a false-healthy guard,
 #: so the two are checked equal in tests.
-ROSTER_BASELINE = 21
+ROSTER_BASELINE = 22
 
 
 def assert_harness_invariant(*, harness: str, skills_filter: str | list[str]) -> None:

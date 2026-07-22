@@ -38,7 +38,7 @@ AGENTS_DIR="$(cd "$SCRIPT_DIR/../.claude/agents" && pwd)"
 # Every domain an agent declares in `category:` must appear in exactly one list.
 # `all` = PORTABLE+SEI. There are no sei-internal-skills-local agents.
 PORTABLE_DOMAINS="platform-infra observability security blockchain code-quality writing-quality product-management release-operations data-architecture"
-SEI_DOMAINS="project-management"
+SEI_DOMAINS="project-management recruiting"
 
 # Cross-cutting exception: agents that are Sei-scoped despite a portable domain.
 # sei-network-specialist is platform-infra by domain but ships only via `sei`

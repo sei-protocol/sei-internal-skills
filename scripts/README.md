@@ -69,7 +69,7 @@ Sibling of `sync-agents.sh` — same shape, same flags. Copies skills from `.cla
 ./scripts/sync-skills.sh --target ~/ --dry-run
 ```
 
-Categories: skill **domains** (`workflow`, `workstream-bootstrap`, `hardening`, `investigation`, `skill-authoring`, `code-quality`, `performance`, `platform-infra`, `writing-quality`, `product-management`, `project-management`, `release-operations`, `engineer-self-service`) or **aliases** `portable` (default), `sei`, `all`. `output-quality` (brevity, pr-quality) and `security` (tee) are sei-internal-skills-local and not synced. `--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script; only a new/renamed **domain** (or a change to which alias it belongs to) needs a script edit.
+Categories: skill **domains** (`workflow`, `workstream-bootstrap`, `hardening`, `investigation`, `skill-authoring`, `code-quality`, `performance`, `platform-infra`, `writing-quality`, `product-management`, `project-management`, `release-operations`, `engineer-self-service`, `recruiting`) or **aliases** `portable` (default), `sei`, `all`. `output-quality` (brevity, pr-quality) and `security` (tee) are sei-internal-skills-local and not synced. `--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script; only a new/renamed **domain** (or a change to which alias it belongs to) needs a script edit.
 
 ## `update-agent-permissions.sh` + `verify-agent-permissions.sh` + `agent-permissions.json`
 
