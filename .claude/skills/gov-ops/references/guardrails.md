@@ -21,14 +21,14 @@ Operator extends this table per chain; an entry is required before the skill wil
 |---|---|---|---|
 | allowlist + endpoint pin | every | live triple ∈ allowlist; endpoint pinned | refuse / abort |
 | value-shape | submit | `--generate-only` value is JSON of the param type (not a quoted/escaped string) and shape-matches on-chain | block broadcast |
-| deposit | submit | `initial_deposit >= min_deposit` | block (would sit in deposit-period) |
+| deposit | submit | `min_deposit` read **live from the target chain** (`seid q gov params`; never hardcoded — gov-settable and per-chain); `initial_deposit >= min_deposit` **and** `proposer_balance >= initial_deposit + fees` | block (under-min → sits in deposit-period; unaffordable → commits but fails DeliverTx `code 5`, no proposal — seictl#236) |
 | duplicate-submit | submit | no prior submit of this content already landed | block (avoid 2nd proposal) |
 | confirm (broadcast) | submit | operator types `confirm` after the echo | abort |
 | content/id confirm | post-submit | proposal-by-resolved-id content matches intent; `status==VOTING_PERIOD` | abort fan-out |
-| fee-floor | vote | `fees >= gas × chain-min-gas-price` (per-node enforced; arctic-1 `0.02usei/gas`) | reject pre-broadcast |
+| fee-floor | vote | `fees >= gas × chain-min-gas-price`, the min-gas-price **read live per target chain** (config/gov-settable; the `arctic-1 0.02usei/gas` figure is an example, not a constant) | reject pre-broadcast |
 | id-match | vote | fanned `proposalId` == resolved submit id | block fan-out |
 | confirm (merge) | vote | operator types `confirm` after the echo | abort |
-| active detector | post-broadcast / post-fan-out | no CheckTx code-13; tally moving | HALT loudly |
+| active detector | post-broadcast / post-fan-out | no CheckTx code-13; no DeliverTx code-5 (unaffordable deposit); tally moving — resolve via `seid q tx <hash>`, not task status alone (seictl#236) | HALT loudly |
 | applied | verify | live `subspace/key` value byte-exact == submitted | HALT / trigger revert |
 
 ## Authorization mechanism (fast-path only)

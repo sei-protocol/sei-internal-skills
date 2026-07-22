@@ -26,7 +26,7 @@ spec:
     chainId: <network>                       # e.g. arctic-1
     proposalId: <ID>                         # filled post-submit; assert == resolved submit id
     option: "yes"                            # quote it — bare yes is YAML true
-    fees: "<fees>usei"                       # >= gas × chain min-gas-price (arctic-1: 0.02usei/gas → 8000usei @ gas 300000)
+    fees: "<fees>usei"                       # >= gas × min-gas-price, read live per target chain (e.g. arctic-1 0.02usei/gas → 8000usei @ gas 300000; not a constant)
     gas: 300000
     # keyName omitted → resolves node_admin via ResolveOperatorKeyringUID
 ```
