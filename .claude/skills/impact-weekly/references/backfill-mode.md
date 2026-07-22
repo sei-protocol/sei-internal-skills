@@ -49,7 +49,7 @@ synthesized histogram.
   High-level granularity is fine for a historical backfill (one bullet per theme/work-unit) — the operator's call.
 - **Cite or cut — by case.** A claim with no evidence is refused, not softened.
   - **PR-only weeks (case 2):** every bullet carries repo-qualified PR links (`repo#N`, never a bare `#N` —
-    `qa-testing#83` ≠ `Tide#83`; no ranges or slashes — `platform#5 platform#4`, never `#4-5`). Every PR in
+    `qa-testing#83` ≠ `sei-internal-skills#83`; no ranges or slashes — `platform#5 platform#4`, never `#4-5`). Every PR in
     the window appears in exactly one bullet OR is noted in Lineage as routed-out / revert-evidence.
   - **Contemporaneous weeks (case 1):** substantiate on the **Linear issue ref**; the PR link is secondary and
     config-contingent (per `mapping-and-coverage.md` — PR↔issue linkage isn't guaranteed). "No link" means no

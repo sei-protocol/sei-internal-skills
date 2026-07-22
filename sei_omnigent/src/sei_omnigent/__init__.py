@@ -6,7 +6,7 @@ Omnigent's runtime/harness/tunnel wholesale (the "hybrid line": adopt the glue,
 own the substrate). It is carried out-of-tree against a **pinned** Omnigent
 release — never a fork of the Omnigent source.
 
-Pinned upstream: omnigent == 0.1.1  (see pyproject.toml). Every Omnigent symbol
+Pinned upstream: omnigent == 0.3.0  (see pyproject.toml). Every Omnigent symbol
 this overlay depends on is imported through ``sei_omnigent._omnigent_shim`` so a
 tag bump's drift hits exactly one file (the DECISION-1 adapter-shim discipline).
 
@@ -22,4 +22,4 @@ __version__ = "0.1.0"
 # The Omnigent release this overlay is verified against. Bumping this is the
 # moment to re-run the drift check on _omnigent_shim (the cloned boot sequence
 # is the highest-watch surface — DECISION-1).
-PINNED_OMNIGENT = "0.1.1"
+PINNED_OMNIGENT = "0.3.0"

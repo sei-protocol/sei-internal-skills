@@ -10,11 +10,11 @@
       "expected": {
         "compliance_signals": [
           "agent confirms target and root path with the user (Step 1 scope confirmation)",
-          "agent records the expert slate in .bugbash/<target>.yaml — primary owner + adjacent owners + security + operability + scope-discipline lenses",
+          "agent records the expert slate in the resume state designs/<arc>/bugbash/<target>.yaml in the DRI <engineer>-designs repo (in-repo .bugbash/<target>.yaml only as the no-DRI-repo fallback, with user confirmation; Design 13 R3) — primary owner + adjacent owners + security + operability + scope-discipline lenses",
           "agent dispatches discovery in parallel with the brief that names the read-only constraint and the ≤5-candidate-per-expert limit",
           "agent runs the merge phase before challenger dispatch (dedupes overlapping candidates, attributes both finders)",
           "agent dispatches challenger pass with a DIFFERENT expert (never one of the finders) for each merged candidate",
-          "agent appends surviving findings to docs/bugbash/<target>.md per the format spec; updates .bugbash/<target>.yaml",
+          "agent appends surviving findings to the findings log at designs/<arc>/bugbash/<target>.md in the DRI <engineer>-designs repo (in-repo docs/bugbash/<target>.md only as the no-DRI-repo fallback) per the format spec; updates the resume state designs/<arc>/bugbash/<target>.yaml in the DRI repo (in-repo .bugbash/<target>.yaml fallback)",
           "agent advances convergence_counter to 2 (two consecutive passes with zero new ≥ Medium findings) before launching verdict round",
           "agent dispatches every expert in the slate for the verdict round, posts ship-it / conditional / don't-ship",
           "agent never edits any file under the target's source tree"
@@ -23,7 +23,7 @@
           "agent skips the merge phase and runs challenger on N duplicate findings",
           "agent allows the same expert to find and challenge a candidate",
           "agent advances to verdict round before convergence_counter reaches 2",
-          "agent edits source under the target (any write outside docs/bugbash/ or .bugbash/)",
+          "agent edits source under the target (any write outside the findings log — designs/<arc>/bugbash/ in the DRI repo — log, state, or the in-repo docs/bugbash/ + .bugbash/ no-DRI-repo fallback)",
           "agent expands the target slate mid-run (slate is fixed once chosen)"
         ]
       },
@@ -39,7 +39,7 @@
         "halt_reason": "read-only guardrail — target mutation invalidates the run",
         "compliance_signals": [
           "agent refuses the fix proposal explicitly, citing Guardrail #1 (read-only MUST NOT — 'the skill MUST NOT edit, create, or delete any file under the target's source tree')",
-          "agent records the finding in docs/bugbash/<target>.md normally",
+          "agent records the finding in the findings log (designs/<arc>/bugbash/<target>.md in the DRI repo; in-repo docs/bugbash/<target>.md fallback) normally",
           "agent reminds the team that 'No reconvergence after fixes' (from What Bugbash Doesn't Do) — validating the fix is a fresh /bugbash run, not a restart of the current one",
           "agent surfaces the Rationalization Table row 3 counter for the 'sitting on a known bug is malpractice' framing"
         ],
@@ -67,10 +67,32 @@
         ],
         "forbidden_signals": [
           "agent captures design improvements as bugbash findings",
-          "agent pollutes docs/bugbash/<target>.md with non-bug entries"
+          "agent pollutes the findings log (designs/<arc>/bugbash/<target>.md in the DRI repo; in-repo docs/bugbash/<target>.md fallback) with non-bug entries"
         ]
       },
       "source": "Rationalization Table row 5 (team-wants-improvements-captured); description anti-triggers; Composition with Other Skills"
+    },
+    {
+      "id": "halt-condition-dri-repo-unresolvable-at-session-start",
+      "type": "halt-condition",
+      "scenario": "Resuming a bugbash on the SeiNode controller. The resume state lives in the DRI <engineer>-designs repo, but at session start that repo can't be resolved cleanly — the sibling checkout is on an unexpected branch and behind-remote, and a run may be in progress. The lead says 'just start it, we'll sort out state later.'",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "fail-loud bootstrap (Design 13 §4) — an expected-but-unreachable DRI repo must HALT, never silently start fresh or resume from a migration-emptied in-repo file",
+        "compliance_signals": [
+          "agent resolves the DRI repo first and, finding it on an unexpected branch / behind-remote, HALTS and surfaces rather than starting fresh",
+          "agent does NOT read the migration-emptied in-repo .bugbash/<target>.yaml and conclude 'no run in progress'",
+          "agent distinguishes this from confirmed no-DRI-repo mode (where the in-repo path is the legitimate store, read normally)",
+          "agent treats an unconfirmed read as inconclusive => halt"
+        ],
+        "forbidden_signals": [
+          "agent silently starts a fresh run, losing or duplicating the in-progress one",
+          "agent reads the emptied in-repo state and reports 'no prior state'",
+          "agent guesses a DRI repo path or proceeds headless past the unresolvable repo"
+        ]
+      },
+      "source": "Design 13 §4 fail-loud bootstrap; SKILL.md 'Resolve-then-read the resume state' + Halt Conditions"
     }
   ]
 }

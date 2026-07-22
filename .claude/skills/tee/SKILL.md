@@ -132,7 +132,8 @@ The method is platform-agnostic; the platform expertise is **data**, in `referen
 - `references/tee-profile.md` — the Sei deployment overlay (P-256 precompile economics, validator-as-host, registry/governance as Reference-Value-Provider, harbor realities) — the always-first profile.
 - `references/kit-TEMPLATE.md` — the pluggable platform-kit contract.
 - `references/kit-aws-nitro.md` — the AWS Nitro Enclaves kit (the worked reference), self-contained on the AWS Nitro primary specs + RFCs it cites inline.
-- `references/kit-intel-sgx-tdx.md`, `references/kit-amd-sev-snp.md`, `references/kit-nvidia-cc.md`, `references/kit-tpm-rats.md`, `references/kit-sei-onchain.md` — the remaining platform / verification-layer kits.
+- `references/kit-intel-sgx-tdx.md`, `references/kit-amd-sev-snp.md`, `references/kit-nvidia-cc.md`, `references/kit-tpm-rats.md` — the remaining platform attester kits.
+- `references/kit-sei-onchain.md` (on-chain Verifier layer) and `references/kit-attested-channels.md` (the RA-TLS / attested-transport technique) — the two **cross-cutting** kits: they are not per-platform attesters but adapt the template's section shape (with explicit `Template-fit` notes) and **inherit** the trust set of whichever attester kit produced the Evidence they verify / carry.
 - Ground truth: the public primary sources (vendor specs, RFCs, `sei-chain`) each kit cites inline — the kits are **self-contained** and stand alone on those public sources.
 
 ## How this fits with coral / council / xreview

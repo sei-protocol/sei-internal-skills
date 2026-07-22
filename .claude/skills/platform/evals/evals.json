@@ -1,0 +1,114 @@
+{
+  "skill": "platform",
+  "evals": [
+    {
+      "id": "happy-path-clean-cell-overlay",
+      "type": "happy-path",
+      "prompt": "Review a cell overlay that pulls clusters/base/cert-manager via resources, applies a per-cell patch, encrypts its Secret with the cell's SOPS key, wires a workload's AWS access via a Pod-Identity association, and pins its HelmRelease chart version.",
+      "expected_behavior": [
+        "Loads sei-platform-profile.md + the relevant kits before judging (Guardrail 1)",
+        "Concludes it conforms — cites the two-layer Kustomize, SOPS, Pod-Identity, pinned HelmRelease as correct against the profile",
+        "Does not manufacture findings; telemetry-values nits (if any) deferred to the observability agents"
+      ],
+      "source": "method.md (6 dimensions); profile §1-§4"
+    },
+    {
+      "id": "profile-defaults-pod-identity-over-reflex-irsa",
+      "type": "discipline",
+      "prompt": "A PR adds an `eks.amazonaws.com/role-arn` annotation to a ServiceAccount for a new Go workload (current aws-sdk-go) to give it S3 access. The author says 'IRSA is the standard EKS pattern' and gives no other rationale.",
+      "expected_behavior": [
+        "Flags it: this fleet DEFAULTS to EKS Pod Identity (per-(cluster,ns,SA) association in the cell terraform); a reflex IRSA annotation with no justifying rationale, on a workload whose SDK can use the Pod-Identity endpoint, is wrong (profile §3, kit-cloud-auth-pod-identity §3)",
+        "Acknowledges IRSA is valid generic best-practice (sources.md §irsa) and is RETAINED here for the documented old-SDK exception — but the default is Pod Identity, so this workload should use it (Guardrail 2)",
+        "Rewrite: a Pod-Identity association, least-privilege, session-tag scoped"
+      ],
+      "source": "profile §3; kit-cloud-auth-pod-identity §3; the staleness correction (default, not absolute)"
+    },
+    {
+      "id": "irsa-old-sdk-exception-is-ratified-not-flagged",
+      "type": "discipline",
+      "prompt": "A review covers the prod pacific-1 `state-size-analyzer` CronJob: its ServiceAccount carries an `eks.amazonaws.com/role-arn` annotation and the terraform comment explains seidb's bundled aws-sdk-go is too old to consume the Pod-Identity credential endpoint (169.254.170.23), so it uses IRSA's AssumeRoleWithWebIdentity flow while the rest of the cluster uses Pod Identity.",
+      "expected_behavior": [
+        "Does NOT flag the IRSA usage as a defect — recognizes it as the documented old-SDK escape hatch (profile §3, kit-cloud-auth-pod-identity §2)",
+        "Ratifies it: rewriting it to Pod Identity would break the CronJob (the SDK can't reach the credential endpoint); the rationale is present and load-bearing",
+        "Does not blanket-assert 'this fleet uses Pod Identity, not IRSA' — IRSA is present-but-scoped, not absent"
+      ],
+      "source": "profile §3 (the IRSA exception); kit-cloud-auth-pod-identity §2"
+    },
+    {
+      "id": "profile-overrides-csi-with-sops",
+      "type": "discipline",
+      "prompt": "A PR adds a Secrets Store CSI SecretProviderClass to mount a DB password into a pod as the way to GET the secret into the cluster. The author models it on the standard EKS secrets pattern.",
+      "expected_behavior": [
+        "Flags the CSI/SecretProviderClass DELIVERY mechanism: secrets here are delivered via SOPS-in-git + per-cell KMS, decrypted by Flux — no CSI/SecretProviderClass/ESO/Sealed delivery path (profile §4, kit-secrets-sops-kms)",
+        "Cites the generic (sources.md §secrets) as valid-but-overridden for delivery; rewrite: a SOPS-encrypted Secret in the cell tree, encrypted from inside the cell dir (right key)",
+        "Scopes the claim correctly: does NOT assert 'no Secrets Manager anywhere' — a workload reading SM at runtime via its own Pod-Identity role (e.g. heatseeker) is legitimate; what's barred is SM/CSI as the k8s-Secret delivery path. Names the encrypt-from-cell-dir footgun"
+      ],
+      "source": "profile §4; kit-secrets-sops-kms §1/§3"
+    },
+    {
+      "id": "no-postbuild-substitute",
+      "type": "discipline",
+      "prompt": "A cell needs a per-cell domain in several manifests; the PR adds a Flux postBuild.substitute block with envsubst variables.",
+      "expected_behavior": [
+        "Flags it: per-cell variance here is configMapGenerator + replacements (or a patch) — postBuild.substitute is not used in this fleet (profile §2, kit-kustomize-composition)",
+        "Rewrite: replacements/patch; keeps the overlay deterministically renderable",
+        "Does not accept 'it's a standard Flux feature' — the fleet convention overrides (Guardrail 2)"
+      ],
+      "source": "profile §2; kit-kustomize-composition"
+    },
+    {
+      "id": "prod-and-identity-one-way-doors",
+      "type": "discipline",
+      "prompt": "A PR widens a workload's Pod-Identity IAM role to a wildcard action and changes the prod cell's root Kustomization prune scope. The author wants it merged as a quick unblock.",
+      "expected_behavior": [
+        "Flags BOTH as one-way doors: a cloud-identity trust-scope widening (blast-radius security boundary) and a prod-cell reconcile-scope change (fleet-wide on next interval) (Guardrail 4)",
+        "Routes to human approval — does NOT assert either as the fix; offers the least-privilege alternative for the role",
+        "Ranks them above any style finding"
+      ],
+      "source": "Guardrail 4 (one-way doors); kit-cloud-auth-pod-identity §5 + kit-gitops-flux §5"
+    },
+    {
+      "id": "dont-duplicate-adjacent-lenses",
+      "type": "discipline",
+      "prompt": "During a manifest review the user also asks to tune the Prometheus retention + a PromQL recording rule, set the workload's CPU/memory requests, and review the sei-k8s-controller's reconcile logic in the HelmRelease's image.",
+      "expected_behavior": [
+        "Redirects the PromQL/retention (telemetry values' contents) to the observability agents — platform-engineer owns the HelmRelease shell + valuesFrom, not the values (Guardrail 5)",
+        "Redirects requests/limits to k8s-capacity-management; redirects the controller reconcile-code review to /kubernetes / kubernetes-specialist",
+        "Stays on the manifest plumbing / GitOps / cloud-auth / secrets"
+      ],
+      "source": "Guardrail 5 (don't duplicate adjacent lenses); profile boundary section"
+    },
+    {
+      "id": "secret-in-plaintext-or-configmap",
+      "type": "discipline",
+      "prompt": "A PR commits a Secret with an unencrypted `stringData` API token, and puts another credential in a ConfigMap 'because it's not that sensitive'.",
+      "expected_behavior": [
+        "Flags the plaintext Secret — must be SOPS-encrypted (the cell .sops.yaml encrypted_regex covers data/stringData) (dimension 2, profile §4)",
+        "Flags the credential-in-ConfigMap — secrets don't belong in ConfigMaps regardless of perceived sensitivity",
+        "Cites the secrets handling dimension; ranks as a security finding"
+      ],
+      "source": "method dimension 2; kit-secrets-sops-kms §3"
+    },
+    {
+      "id": "halt-no-target",
+      "type": "halt-condition",
+      "prompt": "Asked '/platform review the prod cell' with no manifests, no diff, and no repo path in scope.",
+      "expected_behavior": [
+        "Halts and asks for the manifests/IaC/repo to review; never reviews platform config from memory",
+        "Does not fabricate findings about unseen config"
+      ],
+      "source": "Halt conditions (no target)"
+    },
+    {
+      "id": "stale-agent-bullets-scoped-not-blanket-absent",
+      "type": "discipline",
+      "prompt": "Asked to 'set up EIP-712 transaction signing via AWS KMS' for a new workload, and separately whether the fleet runs any Python images or uses GitHub-App auth — echoing the old platform-engineer expertise.",
+      "expected_behavior": [
+        "Genuinely-absent items: does NOT treat EIP-712 KMS transaction SIGNING as a fleet pattern (KMS here = SOPS decryption + secrets-at-rest, not signing) — flags it as net-new scope, not existing convention",
+        "Present-but-scoped items: correctly states Python IS used (heatseeker is python:3.11-slim in the prod cell) and GitHub-App auth IS used (the in-cluster GHA runner) — does NOT claim they are fleet-absent; clarifies seid/chain runtimes are static-musl Go and Flux GIT auth is deploy keys (profile stale-agent-corrections)",
+        "Does not over-generalize in either direction — distinguishes 'the persona over-emphasized X' from 'X is absent'"
+      ],
+      "source": "profile stale-agent-corrections (don't over-generalize); the agent-modernization goal"
+    }
+  ]
+}

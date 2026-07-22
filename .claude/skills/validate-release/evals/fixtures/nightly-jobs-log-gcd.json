@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "metadata": {
+        "name": "nightly-harness-suite-28950000",
+        "creationTimestamp": "2026-07-04T22:30:00Z"
+      },
+      "status": {
+        "completionTime": "2026-07-04T22:52:00Z",
+        "succeeded": 1
+      },
+      "spec": {
+        "template": {
+          "spec": {
+            "containers": [
+              {
+                "name": "harness",
+                "env": [
+                  { "name": "SEI_NODE_CLUSTER", "value": "harbor" },
+                  { "name": "SEID_IMAGE_CHAOS", "value": "ghcr.io/sei-protocol/sei-chain:v6.0.4" }
+                ]
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

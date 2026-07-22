@@ -1,6 +1,6 @@
 name: Verify sei_omnigent image
 
-# PR-gated build smoke for the sei-tide-omnigent overlay image (PLT-735). Builds
+# PR-gated build smoke for the sei-omnigent overlay image (PLT-735). Builds
 # sei_omnigent/Dockerfile and runs an import smoke of the BUILT image, so a
 # floated-transitive / missing-wheel break surfaces in the PR instead of on
 # push:main where ecr.yml publishes.
@@ -12,6 +12,8 @@ on:
   pull_request:
     paths:
       - 'sei_omnigent/**'
+      - 'Dockerfile.host'
+      - '.claude/**'
       - '.github/workflows/verify-sei-omnigent-image.yml'
 
 permissions:
@@ -38,7 +40,7 @@ jobs:
           push: false
           load: true
           platforms: linux/amd64
-          tags: sei-tide-omnigent:pr-smoke
+          tags: sei-omnigent:pr-smoke
 
       - name: Import smoke of the built image
         # Proves the resolved runtime can import the K8s entrypoint module
@@ -69,5 +71,101 @@ jobs:
         timeout-minutes: 3
         run: |
           timeout --kill-after=15s 90s \
-            docker run --rm --entrypoint python sei-tide-omnigent:pr-smoke \
+            docker run --rm --entrypoint python sei-omnigent:pr-smoke \
             -X faulthandler -c "import faulthandler; faulthandler.dump_traceback_later(60, exit=True); import sei_omnigent.server.serve_main; print('import-ok')"
+
+      - name: Bundle-presence smoke (the baked xreview agent)
+        # The image bakes agents/xreview so the deploy can register it via
+        # OMNIGENT_BUILTIN_AGENT_DIRS. The import smoke above does NOT stat the
+        # bundle, and a partial .dockerignore re-include would ship an incomplete
+        # tree that COPY does not error on — a silent gap that becomes a live
+        # registration failure once the deploy wires the env var. Assert the two
+        # load-bearing files (the agent config + the skill body the server tars at
+        # registration) actually landed. rc!=0 = FAILURE.
+        run: |
+          docker run --rm --entrypoint sh sei-omnigent:pr-smoke -c '
+            test -f /opt/sei-omnigent/agents/xreview/config.yaml &&
+            test -f /opt/sei-omnigent/agents/xreview/skills/xreview/SKILL.md &&
+            echo bundle-ok'
+
+      - name: Boot config-parse smoke (yaml bool-resolver regression)
+        # The import smoke proves modules resolve; it does NOT run load_config +
+        # parse_sandbox_config against a real config, so it cannot catch a config
+        # that parses to the wrong scalar types at boot. Importing the omnigent
+        # server seam mutates the global yaml.SafeLoader (bool -> str), so a bare
+        # yaml.safe_load would read `in_cluster: true` as the string 'true' and
+        # omnigent's strict parser would reject it. This step reproduces the boot
+        # order against the BUILT wheel — import the seam (pollutes the global),
+        # then load_config, then parse_sandbox_config — so a regression on the
+        # bool-preserving loader fails here, not at deploy. The config is
+        # host-written + mounted read-only so the container writes nothing; the
+        # python is single-quoted at the shell with double-quoted python strings,
+        # so there is no nested-quote hazard. rc!=0 = FAILURE.
+        run: |
+          # A minimal but COMPLETE managed-kubernetes sandbox block: provider +
+          # server_url are the two required fields, in_cluster is the bool under test.
+          printf 'sandbox:\n  provider: kubernetes\n  server_url: http://smoke.invalid\n  kubernetes:\n    in_cluster: true\n' > "$RUNNER_TEMP/smoke.yaml"
+          timeout --kill-after=15s 90s \
+            docker run --rm --entrypoint python \
+              -v "$RUNNER_TEMP/smoke.yaml:/tmp/smoke.yaml:ro" \
+              sei-omnigent:pr-smoke -c 'import sei_omnigent.server.serve; from sei_omnigent._config import load_config; from omnigent.server.managed_hosts import parse_sandbox_config; cfg=load_config("/tmp/smoke.yaml"); ic=cfg["sandbox"]["kubernetes"]["in_cluster"]; assert ic is True, f"in_cluster must be bool True, got {ic!r} ({type(ic).__name__}) — yaml bool-resolver pollution regressed"; parse_sandbox_config(cfg["sandbox"]); print("boot-config-smoke ok — in_cluster resolves to bool and omnigent accepts the sandbox config")'
+
+  host-build-smoke:
+    # PR-gated build smoke for the runnable HOST image (Dockerfile.host, PLT-715).
+    # Same fork-safe discipline as build-smoke (no push/login/secrets); the build
+    # is the gate. Context is the repo root (the baked `.claude/` overlay lives
+    # there). Beyond the server smoke's import check, the host image must prove
+    # the toolchain is present, the launcher resolves, and it runs NON-ROOT (the
+    # its PSS-restricted namespace requires runAsNonRoot).
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build the host image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.host
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: sei-omnigent-host:pr-smoke
+
+      - name: Toolchain + non-root smoke
+        # The harness toolchain must be on PATH and the image must run as uid 1000
+        # (NOT root) — the PSS-restricted namespace rejects root. `id -u`
+        # asserts the baked USER; the binaries are what claude-native execs.
+        timeout-minutes: 2
+        run: |
+          timeout --kill-after=15s 90s \
+            docker run --rm --entrypoint bash sei-omnigent-host:pr-smoke -lc '
+              set -euo pipefail
+              test "$(id -u)" = "1000" || { echo "FAIL: not uid 1000 (got $(id -u))"; exit 1; }
+              command -v git tmux node claude >/dev/null || { echo "FAIL: missing a harness binary"; exit 1; }
+              test -f "$HOME/.claude/settings.json" || { echo "FAIL: overlay not baked at \$HOME/.claude"; exit 1; }
+              # The /root-cause skill hard-requires a .claude/agents/ roster (it halts at its
+              # Context-check gate without one — the PLT-715 prove-run failure mode), and the
+              # PD-dogfood binds the root-cause skill. Assert both are baked HERE so a dropped
+              # roster fails the build, not the first prod fire.
+              ls "$HOME/.claude/agents"/*.md >/dev/null 2>&1 || { echo "FAIL: .claude/agents roster not baked (the /root-cause skill would halt)"; exit 1; }
+              test -f "$HOME/.claude/skills/root-cause/SKILL.md" || { echo "FAIL: root-cause skill not baked (PD-dogfood discipline absent)"; exit 1; }
+              echo "toolchain+nonroot-ok uid=$(id -u) home=$HOME agents=$(ls "$HOME/.claude/agents"/*.md | wc -l)"
+            '
+
+      - name: Launcher smoke
+        # Proves the B1 launcher resolves end to end: `python -m
+        # sei_omnigent.host_launch --help` installs the proxy-bearer patch (which
+        # imports HostProcess through the shim -> omnigent) then runs `omnigent
+        # host --help`, which click exits 0. So a missing omnigent symbol, a shim
+        # drift, or a broken console-script wiring fails HERE, not at deploy.
+        # --entrypoint python overrides the image's launcher entrypoint so `-m`
+        # runs the help path rather than a bare `omnigent host` that would try to
+        # open the WS tunnel and hang (the server-smoke's same lesson).
+        timeout-minutes: 2
+        run: |
+          timeout --kill-after=15s 90s \
+            docker run --rm --entrypoint python sei-omnigent-host:pr-smoke \
+            -m sei_omnigent.host_launch --help

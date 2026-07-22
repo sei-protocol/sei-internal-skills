@@ -49,7 +49,7 @@ Direct user invocation when there's no active workstream — e.g., a teammate sp
 
 Preconditions are checked per sink, at the create step — not upfront. The body is always drafted first; if the chosen sink isn't available, the skill prints the body for paste rather than blocking.
 
-- **GitHub sink:** `gh` CLI installed and authenticated for the target repo's org; CWD is a git repo OR the user passed `--repo owner/name`. Default target is the current repo (i.e. Tide for teammates working in this checkout).
+- **GitHub sink:** `gh` CLI installed and authenticated for the target repo's org; CWD is a git repo OR the user passed `--repo owner/name`. Default target is the current repo (i.e. sei-internal-skills for teammates working in this checkout).
 - **Linear sink:** the Linear MCP tools (`mcp__…__list_teams`, `…__save_issue`, `…__list_issue_labels`, `…__create_issue_label`, etc.) are connected and authenticated. These are interactively-authenticated — they may be absent in headless / cron runs. If unavailable, say so and fall back to GitHub or print; never fabricate a Linear URL. The optional Impact-bet decoration additionally uses the Notion MCP to resolve the bet; skip the decoration (don't fail the filing) if Notion is unavailable.
 
 ## Procedure
@@ -57,7 +57,7 @@ Preconditions are checked per sink, at the create step — not upfront. The body
 1. **Resolve the GitHub target repo** (used only if the GitHub sink is chosen in step 5 — the Linear team is resolved later, in step 6's Linear path).
    - If invoked from coral/council, default to the repo of the current workstream (almost always CWD).
    - Else: `gh repo view --json nameWithOwner -q .nameWithOwner` from CWD.
-   - Override with `--repo owner/name` if the issue belongs to a sibling repo (e.g. filing a downstream task in `sei-protocol/platform` from a Tide session).
+   - Override with `--repo owner/name` if the issue belongs to a sibling repo (e.g. filing a downstream task in `sei-protocol/platform` from a sei-internal-skills session).
 
 2. **Gather inputs.** Required fields: **Title**, **Problem**, **Impact**, **Relevant experts**.
    - **Coral handoff path:** the orchestrator pre-fills these from session context. Show the user the pre-fill and ask for adjustments — don't re-prompt fields the session already answered.

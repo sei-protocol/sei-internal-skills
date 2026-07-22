@@ -1,0 +1,126 @@
+{
+  "skill": "data-mesh",
+  "evals": [
+    {
+      "id": "happy-path-cross-org-product",
+      "type": "happy-path",
+      "prompt": "Review a proposed cross-org data product: a domain publishes it under its own namespace, ships it with an ODCS v3.x contract (schema + SLOs), exposes it as a content-addressed signed certificate carrying provenance + a verification class, served through a bounded/scoped query API that returns provenance per assertion, with access gated by an operator-independent on-chain contract.",
+      "expected_behavior": [
+        "Loads data-mesh-profile.md + the relevant kits and runs the fit-check before judging (Guardrail 1, 2)",
+        "Concludes it conforms — cites the verifiable-certificate product, ODCS contract, per-assertion provenance, operator-independent gating as correct for the cross-org use-case",
+        "Does not manufacture findings; defers the gating-contract implementation to /evm and the telemetry backend to the observability agents"
+      ],
+      "source": "method.md (6 dimensions); profile §1-§4"
+    },
+    {
+      "id": "fit-check-mesh-not-warranted",
+      "type": "discipline",
+      "prompt": "A 30-person startup with one analytics team and a single Postgres asks you to design them a data mesh because it's the modern best practice.",
+      "expected_behavior": [
+        "Runs the fit-check and pushes back: data mesh is sociotechnical and org-scale; at this size a lakehouse + a good central team delivers the value without sacrificing it (Guardrail 1, profile fit-check)",
+        "Names the failure modes a premature mesh would hit (governance theater, sprawl, ownership drift)",
+        "Recommends the simpler architecture rather than designing an unneeded mesh — does NOT manufacture a mesh because it was asked for"
+      ],
+      "source": "profile fit-check; sources.md §fit-and-failure-modes; kit-domain-decomposition"
+    },
+    {
+      "id": "cross-org-trust-the-product-not-the-pipeline",
+      "type": "discipline",
+      "prompt": "Two organizations will share data products. The author proposes the consumer trust each product because the producing org's pipeline is certified and its platform team is reputable.",
+      "expected_behavior": [
+        "Flags the inverted trust model: cross-org there is no trusted operator — trusting the producer's pipeline/platform re-introduces the trusted party the use-case dissolves (profile §1, §2, generic-mesh corrections)",
+        "Rewrite: the product must be a verifiable certificate (content-address + signature + provenance + verification class) the consumer re-checks (Class I) or relies on a bond/dispute (Class II) for — never the producer's word",
+        "Notes authenticity ≠ correctness ≠ truth"
+      ],
+      "source": "profile §1/§2; kit-data-products-contracts"
+    },
+    {
+      "id": "odcs-not-deprecated-data-contract-spec",
+      "type": "discipline",
+      "prompt": "A data-product contract is authored against the standalone Data Contract Specification from datacontract.com.",
+      "expected_behavior": [
+        "Flags it: the standalone Data Contract Specification is deprecated in favor of the Open Data Contract Standard (ODCS, Bitol/LF AI & Data); standalone-spec support ends end-2026 (sources.md §data-contracts, Verify-before-print)",
+        "Rewrite: author the contract in ODCS v3.x (schema + semantics + quality rules + SLA/SLOs); validate with the Data Contract CLI",
+        "Does not present the deprecated spec as current"
+      ],
+      "source": "sources.md §data-contracts; kit-data-products-contracts"
+    },
+    {
+      "id": "governance-computational-not-manual",
+      "type": "discipline",
+      "prompt": "The cross-org governance design routes every access grant and quality decision through a federation committee that reviews and approves requests manually, run on one member org's servers.",
+      "expected_behavior": [
+        "Flags two problems: governance must be computational (automatically enforced by the platform / policy-as-code), not manual committee review; and cross-org it must be operator-independent — running it on one org's servers re-introduces a trusted operator (profile §4, kit-federated-governance)",
+        "Rewrite: global policy enforced automatically and read from a neutral venue any conformant node enforces identically (gating/bonding); the committee/guild decides the rules, the platform enforces them",
+        "Defers the on-chain gating/bonding implementation to /evm"
+      ],
+      "source": "profile §4; kit-federated-governance; sources.md §federated-governance"
+    },
+    {
+      "id": "bond-only-re-checkable-claims",
+      "type": "discipline",
+      "prompt": "A design puts an economic correctness bond on a data product whose output is a subjective risk-rating judgment, so consumers can trust it.",
+      "expected_behavior": [
+        "Flags it: a correctness bond belongs only on objectively re-checkable claims (Class I) or dispute-adjudicable ones (Class II); a subjective/judgment output (Class III) must be a signed opinion + consumer trust policy, never a correctness bond (profile §5, kit-data-quality-observability)",
+        "Notes bonding a judgment invites plutocratic capture of the dispute layer; the discipline is to engineer claims into Class I (bond a deterministic check function, not the free-form output)",
+        "Distinguishes authenticity from correctness from truth"
+      ],
+      "source": "profile §5; kit-data-quality-observability"
+    },
+    {
+      "id": "provenance-per-assertion-verify-before-act",
+      "type": "discipline",
+      "prompt": "A self-serve query surface returns data product values to consuming agents without source-anchor, issuer, timestamp, or verification class — just the values.",
+      "expected_behavior": [
+        "Flags it: in a many-writer shared store the write surface is the attack surface; a bad fact cascades unless consumers verify-before-act, which requires per-assertion provenance (source-anchor, issuer, timestamp, version, verification class, is-contested) (profile §3, kit-self-serve-platform)",
+        "Rewrite: return provenance with every assertion so the consuming party applies its own trust policy",
+        "Connects it to the trustworthy attribute made operational"
+      ],
+      "source": "profile §3; kit-self-serve-platform"
+    },
+    {
+      "id": "no-whole-graph-dump",
+      "type": "discipline",
+      "prompt": "A data product exposes a single `export_all` endpoint that returns its entire dataset/graph in one unbounded call, and consumers poll it for changes.",
+      "expected_behavior": [
+        "Flags both: unbounded whole-store sharing actively degrades consumers past a threshold and makes one global store the bottleneck + corruption surface; polling should be subscribe/notify (profile §8, kit-self-serve-platform)",
+        "Rewrite: bounded/scoped/paginated associative queries (sub-graph/region/summary) + push-on-change subscriptions; first-class namespacing",
+        "Reserves strong consistency for the few ops that need it"
+      ],
+      "source": "profile §8; kit-self-serve-platform"
+    },
+    {
+      "id": "extend-without-migration",
+      "type": "discipline",
+      "prompt": "To add a new relationship axis (jurisdiction) between data products across domains, the author proposes minting new node types and migrating the addressing scheme.",
+      "expected_behavior": [
+        "Flags it: a new relationship axis should be a new dimension, never a new node and never a migration — identity is domain:vertical/kind/target only; dims and views are not identity (profile §7, kit-interoperability-lineage)",
+        "Rewrite: add jurisdiction as a queryable dimension; embed any external identifier standard verbatim in the leaf grammar",
+        "Notes this is what keeps the multi-year cross-org interoperability cost bounded"
+      ],
+      "source": "profile §7; kit-interoperability-lineage"
+    },
+    {
+      "id": "dont-duplicate-adjacent-lenses",
+      "type": "discipline",
+      "prompt": "During a data-architecture review the user also asks to write the Solidity for the access-gating contract, tune the Prometheus retention for the platform's metrics, and design the TEE attestation that proves a heavy derivation ran correctly.",
+      "expected_behavior": [
+        "Redirects the gating-contract Solidity to solidity-developer (/evm) — this skill designs the governance model, /evm builds the contract (Guardrail 5)",
+        "Redirects the Prometheus/metrics-stack tuning to the observability agents (this skill owns data-product observability, not the telemetry backend)",
+        "Redirects the attestation design to tee-specialist (/tee); stays on the data architecture — domains, products, contracts, governance model, quality, interoperability"
+      ],
+      "source": "Guardrail 5; profile boundary section"
+    },
+    {
+      "id": "halt-no-target",
+      "type": "halt-condition",
+      "prompt": "Asked '/data-mesh review our data architecture' with no domains, products, contracts, or system in scope.",
+      "expected_behavior": [
+        "Halts and asks for the data architecture / domains / products in scope; never reviews from memory (Halt conditions)",
+        "Does not fabricate findings about an unseen architecture",
+        "Optionally notes it will run the fit-check + load the profile once a target is provided"
+      ],
+      "source": "SKILL.md Halt conditions (no target)"
+    }
+  ]
+}

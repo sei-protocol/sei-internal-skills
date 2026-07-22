@@ -1,0 +1,10 @@
+{
+  "status": "success",
+  "data": {
+    "resultType": "vector",
+    "result": [
+      { "metric": { "chain_id": "chaos-djynkpbrn0q0-network-partition" }, "value": [1784068800, "142"] },
+      { "metric": { "chain_id": "chaos-djynkpbrn0q0-packet-loss" }, "value": [1784068800, "138"] }
+    ]
+  }
+}

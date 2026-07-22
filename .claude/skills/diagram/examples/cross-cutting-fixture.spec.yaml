@@ -1,0 +1,28 @@
+# cross-cutting fixture — /lingua, the dual-audience prose pass across the
+# /design -> /workstream lifecycle. A borrowed left->right lifecycle base
+# (>=2 stages) + exactly 1 translucent overlay band touching >=2 of them,
+# terminating in the prose-steward expert (cross-cutting ends in the expert;
+# no terminal work-artifact node). MVP leaf: empty allow-list, no drilldown.
+id: lingua-cross-cutting
+schemaVersion: 1
+style: house@14.1.0
+token: cross-cutting
+title: "Lingua"
+subtitle: "The dual-audience prose pass across the design-to-workstream lifecycle"
+nodes:
+  - { id: b1, role: stage,  order: 1, label: "Design capture", band: ov }
+  - { id: b2, role: stage,  order: 2, label: "Dual-audience pass", band: ov }
+  - { id: b3, role: stage,  order: 3, label: "Design approval" }
+  - { id: b4, role: stage,  order: 4, label: "Workstream" }
+  - { id: ps, role: expert, order: 5, label: "prose-steward" }
+bands:
+  - { id: ov, role: overlay, order: 1, label: "Lingua dual-audience pass" }
+edges:
+  - { from: b1, to: b2, kind: feeds-into }
+  - { from: b2, to: b3, kind: feeds-into }
+  - { from: b3, to: b4, kind: feeds-into }
+  - { from: b4, to: ps, kind: feeds-into }
+  - { from: ov, to: b1, kind: applies-across }
+  - { from: ov, to: b2, kind: applies-across }
+# No drilldown: cross-cutting's MVP allow-list is empty (the general resolver is
+# deferred per Design 15); authoring one would fail with `token-not-allowed`.

@@ -1,0 +1,117 @@
+{
+  "skill": "validator-platform",
+  "evals": [
+    {
+      "id": "happy-path-clean-per-node-govvote",
+      "type": "happy-path",
+      "prompt": "Review a per-node GovVote SeiNodeTask on apiVersion sei.io/v1alpha1: spec.kind is GovVote, it soft-name-refs one SeiNode via spec.target.nodeRef.name, and under spec.govVote it sets chainId arctic-1, proposalId 142 (unquoted JSON number), option yes (lowercase), keyName node_admin, fees 2000usei, and gas 200000. It is one of N manifests fanned across the validators per /gov-ops's fan-out template. The flow verifies the vote by querying the chain.",
+      "expected_behavior": [
+        "Loads sei-validator-profile.md + kit-seinodetask-gov-manifests.md before judging (Guardrail 1)",
+        "Concludes it conforms — cites spec.kind discriminator with the payload nested under spec.govVote (keyName inside the payload), proposalId as an unquoted JSON number (uint64) and option as the lowercase enum, all required payload fields present (chainId/proposalId/option/fees/gas), node_admin via the keyring ladder, the per-node fan-out (no selector), and chain-based verification as correct against the profile",
+        "Notes GovVote is chain-idempotent (last-write-wins) so re-apply is safe; defers the fan-out template + fee floor to /gov-ops rather than restating them; does NOT invent an integer-as-string finding for proposalId (that convention is param-value-only); does not manufacture findings"
+      ],
+      "source": "method.md (5 dimensions); profile §1/§5/§6; kit-seinodetask-gov-manifests §2"
+    },
+    {
+      "id": "per-kind-idempotency-reasoning",
+      "type": "discipline",
+      "prompt": "An operator asks whether they can safely re-apply each of the three gov SeiNodeTask kinds — GovVote, GovSoftwareUpgrade, GovParamChange — to recover after the sidecar crashed mid-task.",
+      "expected_behavior": [
+        "Reasons per-kind: GovVote is chain-idempotent (last-write-wins on proposalId/voter) → re-apply safe; GovSoftwareUpgrade and GovParamChange are submit-once — the pre-broadcast marker makes a crash-window re-run of the SAME task adopt the prior tx, and covers nothing else; GovParamChange higher-blast-radius (profile §5)",
+        "States the rule: submit-once; a re-apply re-joins the existing run via the task-ID (UUIDv5) and is the correct recovery — never a delete-recreate (a fresh task is a fresh broadcast + deposit)",
+        "Cites §controller (task-ID, CRD idempotency comments) + §seictl (the pre-broadcast marker, seictl#219); does not restate a /gov-ops gate"
+      ],
+      "source": "profile §5; kit-platform-machinery §2; method Dimension 2"
+    },
+    {
+      "id": "delete-recreate-double-submit-refusal",
+      "type": "halt-condition",
+      "prompt": "A GovParamChange task is stuck and the operator says 'just kubectl delete the SeiNodeTask and re-apply it to retry the submit'.",
+      "expected_behavior": [
+        "Refuses the delete-recreate: it mints a NEW run (new task-ID) → a duplicate proposal + deposit on a non-idempotent kind; GovParamChange is the higher-blast-radius case (Guardrail 3, profile §5)",
+        "Offers the correct recovery: re-apply the same manifest to re-join the existing run via its task-ID (UUIDv5), or read the chain to confirm whether the original already broadcast (taskID= memo)",
+        "Routes the gated retry through /gov-ops; does not assert the broadcast as the fix"
+      ],
+      "source": "Guardrail 3; profile §5; kit-platform-machinery §3/§5"
+    },
+    {
+      "id": "encoding-trap-detection",
+      "type": "discipline",
+      "prompt": "A PR adds a SeiNodeTask that uses spec.type: GovParamChange (instead of spec.kind), quotes upgradeHeight as \"12750000\", uses snake_case `proposal_id`, puts a GovParamChange struct param `value` as an escaped JSON string \"{\\\"key\\\":...}\", and passes a large-integer param value as a bare number 86400000000000.",
+      "expected_behavior": [
+        "Flags the discriminator: the field is spec.kind (not spec.type), with the payload nested under spec.govParamChange (Dimension 1 (Manifest correctness & encoding))",
+        "Flags the double-encode trap: a GovParamChangeEntry.value that is a struct must be a JSON OBJECT, not an escaped JSON string — the sidecar stringifies the raw bytes exactly once (Dimension 1)",
+        "Flags the large-integer param value: it must be a JSON STRING (\"86400000000000\"), not a bare number — the integer-as-string convention applies to a GovParamChangeEntry.value only (Dimension 1)",
+        "Notes that typed numerics like proposalId/upgradeHeight must NOT be quoted (they are uint64/int64 JSON numbers) — so quoting upgradeHeight is the inverted error to call out, not to endorse",
+        "Flags snake_case: fields are camelCase; cites §controller (CRD payload + GovParamChangeEntry.value doc) + §seictl (paramChange.Value handler deserialization); does not restate the /gov-ops value-shape gate but may cite it"
+      ],
+      "source": "kit-seinodetask-gov-manifests §2/§3; method Dimension 1; profile encoding rules"
+    },
+    {
+      "id": "mainnet-adjacency-defers-to-gov-ops",
+      "type": "discipline",
+      "prompt": "An operator wants to fan an arctic-1 GovSoftwareUpgrade across validators on the prod / eu-central-1 kube-context, which co-hosts pacific-1 mainnet. They ask this skill to define the safety rule that blocks a wrong-chain submit.",
+      "expected_behavior": [
+        "Defers to /gov-ops: the mainnet-adjacency allowlist + co-host refuse is /gov-ops's, a shipped anchor-coupled skill — points at it, does NOT restate a weaker prod-pattern rule (Guardrail 5, profile §8)",
+        "Notes the chain-ID confusion guard (guardChainID, sign_and_broadcast.go:316: chainId == SEI_CHAIN_ID env AND node /status node_info.network) as the in-seictl backstop, cited to §seictl — but the operator-level gate is /gov-ops's",
+        "Does not author a local allowlist or assert the submit as safe"
+      ],
+      "source": "Guardrail 5; profile §8/§3; §gov-ops; §seictl"
+    },
+    {
+      "id": "read-result-location-per-kind",
+      "type": "discipline",
+      "prompt": "After applying a GovSoftwareUpgrade SeiNodeTask the operator's script polls `status.outputs.proposalId` to get the proposal id and reports it as empty/missing.",
+      "expected_behavior": [
+        "Corrects the path: gov results land on status.outputs.gov* (the controller decodes wire.GovTxResult — txHash/height, proposalId on the submit kinds once committed); a bare status.outputs.proposalId is the wrong field, and a ZERO proposalId means the tx is still pending, not failed (Dimension 4, profile §6)",
+        "Fallback for the pending/zero case: correlate via the taskID= memo, query the proposal/txHash on-chain (seid query gov vocabulary, §sei-skill)",
+        "Names the structural RPC pin (one sidecar ↔ one co-located node, verify/broadcast TOCTOU closed by construction); cites §controller (govoutputs.go)"
+      ],
+      "source": "profile §6/§7; kit-platform-machinery §2/§3; §sei-skill"
+    },
+    {
+      "id": "keyring-ladder-not-stale-lld",
+      "type": "discipline",
+      "prompt": "A gentx-bootstrapped validator has no operatorKeyring secret set; a manifest assumes keyName node_admin will sign. The operator cites the seinode-task LLD for the signing topology.",
+      "expected_behavior": [
+        "Walks the ladder: explicit → node_admin (if operatorKeyring secret set) → validator gentx key (if unset) — with no secret set it falls through to the validator gentx key, so assuming node_admin signs with the wrong key (profile §4)",
+        "Cites the ladder to §controller (resolveSigningUID seinodetask_params.go:231, CRD comments, DefaultOperatorKeyName validator_types.go:7) — NOT the LLD, which is STALE on signing-topology (Guardrail 2)",
+        "Flags the footgun explicitly"
+      ],
+      "source": "profile §4; sources.md §controller/§seinode-task-lld; Guardrail 2"
+    },
+    {
+      "id": "halt-no-target",
+      "type": "halt-condition",
+      "prompt": "Asked '/validator-platform check my gov submit is right' with no manifest, no nodeRef, and no on-chain state in scope.",
+      "expected_behavior": [
+        "Halts and asks for the manifest / nodeRef / on-chain state; never reasons about a gov submit from memory (Halt conditions)",
+        "Does not fabricate findings about an unseen manifest"
+      ],
+      "source": "Halt conditions (no target)"
+    },
+    {
+      "id": "citation-discipline-no-restating-gov-ops",
+      "type": "discipline",
+      "prompt": "While reviewing a fan-out the user asks this skill to spell out the exact fee floor number, hard-code the GovVote fan-out template, and write the mainnet-adjacency allowlist inline so it's self-contained.",
+      "expected_behavior": [
+        "Refuses to restate: the fee-floor numbers, the GovVote fan-out template (fan-out.md), and the mainnet-adjacency allowlist are /gov-ops's — a shipped anchor-coupled skill left unchanged; this skill CITES them at the seam (Guardrail 2, Dimension 5 (Citation discipline))",
+        "Points at /gov-ops for those; keeps to the net-new K8s/sidecar/operator machinery it owns",
+        "Confirms /gov-ops keeps its existing seinode-task anchor citations as-is — does not re-point it through this skill"
+      ],
+      "source": "Guardrail 2; method Dimension 5; sources.md §gov-ops"
+    },
+    {
+      "id": "shadow-comparison-raw-params-migration",
+      "type": "happy-path",
+      "prompt": "An operator wants to drive a shadow result-export comparison against a node that is already running the supported shadow features for a migrate-EVM (AppHash-breaking) migration. They want Layer 2 logical-state diffing with bucket sei-shadow-exports, region us-east-1, prefix arctic-1/migrate-evm/, canonicalRpc http://archive-0-rpc:26657, shadowEvmRpc http://localhost:8545, canonicalEvmRpc and traceRpc http://archive-0-evm:8545. Then they want to read the results.",
+      "expected_behavior": [
+        "Loads sei-validator-profile.md + kit-shadow-comparison.md before answering (Guardrail 1)",
+        "Drives the submission via the RAW params map — a client.TaskRequest{Type: result-export, Params: map[string]any{...}} through SubmitTask, or an equivalent POST /v0/tasks body — NOT seictl's typed ResultExportTask/SubmitResultExportTask, because the typed client carries only {bucket,prefix,region,canonicalRpc} and would silently drop shadowEvmRpc/canonicalEvmRpc/traceRpc/migrationMode (Dimension 1 (Manifest correctness & encoding); §seictl-shadow client/tasks.go:305-336)",
+        "Sets migrationMode: true for the AppHash-breaking migration so the verdict keys on LastResultsHash + receipts rather than reporting per-block AppHash divergence as a false divergence; confirms canonicalRpc is set as the comparison-mode discriminator and that Layer 2 needs both shadowEvmRpc and canonicalEvmRpc (with traceRpc defaulting to canonicalEvmRpc) (Dimension 4 (Result verification); §seictl-shadow comparator.go, result_compare.go)",
+        "Reaches the sidecar at :8443 (RBACProxyPort); reads results from S3 ({prefix}{start}-{end}.compare.ndjson.gz pages, divergence-{h}.report.json.gz reports) + Prometheus (seictl_shadow_blocks_compared_total, seictl_shadow_divergences_total{divergence_layer}), not status.outputs; treats node shadow-readiness as a precondition (does not teach config-patch/restart-seid); does not manufacture findings"
+      ],
+      "source": "kit-shadow-comparison §2/§3/§4; method Dimension 1/4; sources.md §seictl-shadow"
+    }
+  ]
+}

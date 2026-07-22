@@ -135,7 +135,7 @@ A PR body with three single-bullet sections is three sentences pretending to be 
 - TODOs without owner or issue link
 - Defensive narration ("we now check the err")
 
-**Reference PR**: [rust-lang/rust#157179](https://github.com/rust-lang/rust/pull/157179) — 28 words, optimizes impl sorting. Says *what*, *why*, *where to look for more*. Tide adds a 2-bullet test plan to this floor.
+**Reference PR**: [rust-lang/rust#157179](https://github.com/rust-lang/rust/pull/157179) — 28 words, optimizes impl sorting. Says *what*, *why*, *where to look for more*. sei-internal-skills adds a 2-bullet test plan to this floor.
 
 ## Procedure
 
@@ -157,7 +157,7 @@ A PR body with three single-bullet sections is three sentences pretending to be 
 
 ## Rationalization Table
 
-The skill must hold under pressure. The five rows below are the rationalizations that fired in the RED-phase pressure test against a Tide-flavored verbose-PR scenario (time + authority + sunk-cost + cold-reviewer). Each is paired with the counter. The full table with sources and 5 additional secondary rows lives in [`references/rationalization-table.md`](references/rationalization-table.md).
+The skill must hold under pressure. The five rows below are the rationalizations that fired in the RED-phase pressure test against a sei-internal-skills-flavored verbose-PR scenario (time + authority + sunk-cost + cold-reviewer). Each is paired with the counter. The full table with sources and 5 additional secondary rows lives in [`references/rationalization-table.md`](references/rationalization-table.md).
 
 | Rationalization (the agent's excuse) | Reality (the skill's counter) |
 |---|---|

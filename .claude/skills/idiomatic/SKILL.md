@@ -2,7 +2,7 @@
 name: idiomatic
 category: code-quality
 model: claude-opus-4-8
-description: "Use when reviewing or refining code to make it idiomatic to its language, framework, and the package's own established patterns — 'is this idiomatic', 'review this for idioms', '/idiomatic', 'make this read native to the package', 'idiomatic review of <pkg>', 'does this follow our conventions', 'review my Go for idioms'. Pluggable across languages; backs the idiomatic-reviewer agent. Anti-triggers: NOT for correctness/logic bugs (use /code-review); NOT for cross-component interface or boundary consistency (use /xreview); NOT for the locked pre-PR Tide rule gate (use /pr-quality); NOT for building or designing controllers/CRDs/systems (dispatch the language specialist, e.g. kubernetes-specialist — this skill reviews for idiom, it does not author the system). Standalone today; /coral + /council dispatch deferred."
+description: "Use when reviewing or refining code to make it idiomatic to its language, framework, and the package's own established patterns — 'is this idiomatic', 'review this for idioms', '/idiomatic', 'make this read native to the package', 'idiomatic review of <pkg>', 'does this follow our conventions', 'review my Go for idioms'. Pluggable across languages; backs the idiomatic-reviewer agent. Anti-triggers: NOT for correctness/logic bugs (use /code-review); NOT for cross-component interface or boundary consistency (use /xreview); NOT for the locked pre-PR sei-internal-skills rule gate (use /pr-quality); NOT for building or designing controllers/CRDs/systems (dispatch the language specialist, e.g. kubernetes-specialist — this skill reviews for idiom, it does not author the system). Standalone today; /coral + /council dispatch deferred."
 ---
 
 # Idiomatic
@@ -44,7 +44,7 @@ Stop and escalate rather than proceeding when:
 | Recommending/drafting package data-structure docs to a standard | — |
 | Correctness, logic errors, races, nil derefs | `/code-review` |
 | Does component A's output match component B's expectation? | `/xreview` |
-| The locked pre-PR Tide rule gate (suggestive, fixed rule set) | `/pr-quality` |
+| The locked pre-PR sei-internal-skills rule gate (suggestive, fixed rule set) | `/pr-quality` |
 | Building/designing the controller, CRD, or system | dispatch the language specialist (e.g. `kubernetes-specialist`) |
 
 A correct-but-unidiomatic function passes `/code-review` and is exactly what `/idiomatic` is for. A non-idiomatic finding that proves durable and mechanical should **graduate** into the `/pr-quality` rule registry — this skill is the *discovery* surface, pr-quality is the *locked gate*.

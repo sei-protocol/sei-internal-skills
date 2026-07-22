@@ -26,7 +26,7 @@ Both skills can fire from the same session. They're complementary, not competing
 
 | Skill | Captures | When |
 |---|---|---|
-| **`/design`** | The design itself — Background, Goals, Decisions, Diagrams, Alternatives, Trade-offs | Always, when the deliverable IS a design |
+| **`/design`** | The design itself — Background, Goals, **Acceptance criteria** (when the work will be implemented + verified), Decisions, Diagrams, Alternatives, Trade-offs | Always, when the deliverable IS a design |
 | **`/issue`** | Deferred follow-up work — phase 2, scope cuts, sibling workstreams | When the synthesis surfaces a "deferred — when X" or a phase 2 |
 
 Common pattern: a coral session produces a design AND surfaces a deferred slice. The orchestrator offers BOTH:
@@ -84,7 +84,7 @@ status: Draft
 issue: 14
 authors: kubernetes-specialist, platform-engineer, bdchatham
 output_dir: designs/<arc>/  # DRI designs-repo convention (Design 05)
-suffix: -lld.md  # detected Tide LLD convention
+suffix: -lld.md  # detected sei-internal-skills LLD convention
 
 background: |
   PR #136 shipped single-shot SigningKey deployment. buildRunningPlan

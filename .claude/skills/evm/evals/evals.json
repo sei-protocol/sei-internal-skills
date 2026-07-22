@@ -1,0 +1,148 @@
+{
+  "skill": "evm",
+  "evals": [
+    {
+      "id": "happy-path-sei-aware-contract",
+      "type": "happy-path",
+      "prompt": "Review a Solidity contract for Sei that sources randomness from a VRF, estimates gas at runtime, emits indexed events per state transition, uses ERC-7201 namespaced storage for its upgradeable proxy, and calls the staking precompile with a 1e12-multiple value.",
+      "expected_behavior": [
+        "Loads sei-evm-profile.md + the relevant kits before judging (Guardrail 1)",
+        "Concludes it conforms — cites VRF-not-prevrandao, runtime gas, ERC-7201, the correct usei/wei decimal contract as right against the profile",
+        "Does not manufacture findings; defers any exploit-depth nuance to security-specialist and pure idiom to idiomatic-reviewer"
+      ],
+      "source": "method.md (6 dimensions); profile §2, §3, §6"
+    },
+    {
+      "id": "prevrandao-is-not-randomness",
+      "type": "discipline",
+      "prompt": "A contract picks a lottery winner using block.prevrandao. The author says 'prevrandao is the standard post-Merge randomness source.'",
+      "expected_behavior": [
+        "Flags it: on Sei block.prevrandao is DERIVED FROM BLOCK TIME, not randomness — it is griefable/predictable (profile §3, kit-evm-parity-gas)",
+        "Rewrite: use a VRF (Pyth Entropy V2 commit-reveal); cites kit-randomness-vrf",
+        "Ranks it as a security finding; notes blockhash/difficulty are equally unsafe here"
+      ],
+      "source": "profile §3; kit-evm-parity-gas §3"
+    },
+    {
+      "id": "no-hardcoded-gas-governance-mutable",
+      "type": "discipline",
+      "prompt": "A deploy script hard-codes a 20000-gas SSTORE assumption and a fixed gasLimit derived from an Ethereum-mainnet block gas limit.",
+      "expected_behavior": [
+        "Flags it: Sei SSTORE set-gas is a governance-mutable chain param (not the fixed 20k), min gas price is governance-set, and the EVM module has no block-level gas limit (per-tx only) (profile §2, kit-evm-parity-gas)",
+        "Rewrite: eth_estimateGas / eth_gasPrice at runtime; do not hard-code gas constants",
+        "Does not accept 'these are EVM constants' — Sei overrides them (Guardrail 2)"
+      ],
+      "source": "profile §2; kit-evm-parity-gas §3"
+    },
+    {
+      "id": "iavl-not-mpt-proofs",
+      "type": "discipline",
+      "prompt": "A cross-chain verifier contract consumes eth_getProof output as a Merkle-Patricia storage proof to verify Sei state on another chain.",
+      "expected_behavior": [
+        "Flags it: Sei state is a single global AVL tree; eth_getProof returns IAVL proofs, NOT MPT — standard Ethereum MPT verifiers fail (profile §4, kit-evm-parity-gas)",
+        "Rewrite: design for IAVL proofs or avoid on-chain MPT state-proof verification on Sei",
+        "Ranks the wrong-on-Sei assumption above style"
+      ],
+      "source": "profile §4; kit-evm-parity-gas §3"
+    },
+    {
+      "id": "precompile-decimal-trap",
+      "type": "discipline",
+      "prompt": "A contract calls staking.delegate{value: 5}() (i.e. 5 wei) on the staking precompile and assumes 18-decimal handling throughout.",
+      "expected_behavior": [
+        "Flags it: delegate() takes msg.value in 18-dec wei but truncates to 6-dec uSEI — the value must be a multiple of 1e12; 5 wei truncates to 0 (profile §6, kit-sei-precompiles)",
+        "Notes undelegate/redelegate take 6-dec uSEI — the decimal contract is per-method; read the published interface",
+        "Rewrite: pass a 1e12-multiple; bind the published Staking.sol interface at 0x...1005"
+      ],
+      "source": "profile §6; kit-sei-precompiles §2/§3"
+    },
+    {
+      "id": "dual-address-association-trap",
+      "type": "discipline",
+      "prompt": "A payout flow sends native SEI to a user's freshly-derived 0x EVM address and assumes the funds are immediately spendable from their sei1... address.",
+      "expected_behavior": [
+        "Flags it: before association the 0x and sei1 addresses are separate accounts with separate balances; getSeiAddr reverts if unassociated (profile §5, kit-address-association)",
+        "Surfaces the CanAddressReceive cast-address trap and the HD coin-type 60-vs-118 hazard",
+        "Rewrite: ensure association first / resolve the true associated address; treat association as a permanent one-way door"
+      ],
+      "source": "profile §5; kit-address-association §2/§3"
+    },
+    {
+      "id": "indexing-cross-vm-log-trap",
+      "type": "discipline",
+      "prompt": "An agentic service tracks a token's balances purely via eth_getLogs Transfer-topic filters and a pending-tx subscription, with 12-confirmation reorg handling.",
+      "expected_behavior": [
+        "Flags the completeness bug: cross-VM (native/bank) transfers move EVM-visible balances with no EVM log, and CW-origin logs are excluded by a separate EVM-only bloom filter — the log-only view silently misses events (profile §8, kit-evm-indexing-events)",
+        "Flags the pending subscription (no pending state on Sei) and the 12-confirmation logic (instant finality, no reorgs — dead code)",
+        "Rewrite: index confirmed latest, reconcile against state or use a Sei-aware indexer, handle no-receipt/status-0 txns"
+      ],
+      "source": "profile §1, §7, §8; kit-evm-indexing-events §2/§3"
+    },
+    {
+      "id": "oz-v4-to-v5-proxy-brick",
+      "type": "discipline",
+      "prompt": "A PR upgrades a live UUPS proxy from OpenZeppelin Contracts v4 to v5 as a drop-in implementation swap, with no storage-layout check.",
+      "expected_behavior": [
+        "Flags it as a blocking red flag: v4 sequential storage → v5 ERC-7201 namespaced storage is incompatible and can BRICK the proxy (cannot init/upgrade/admin) (kit-upgrade-safety, sources §oz)",
+        "Rewrite: run the OZ Upgrades storage-layout check; plan an explicit migration, never a drop-in",
+        "Treats storage layout as a one-way door requiring human approval (Guardrail 4)"
+      ],
+      "source": "kit-upgrade-safety §3/§5; sources.md §oz"
+    },
+    {
+      "id": "defer-exploit-depth-and-idiom",
+      "type": "discipline",
+      "prompt": "During a contract review the user asks for a full exploitability/severity verdict on a suspected reentrancy, and separately to fix the contract's brace style and naming to match the repo.",
+      "expected_behavior": [
+        "Surfaces the reentrancy cue (CEI ordering) + detector but DEFERS the exploit-depth/severity verdict to security-specialist (Guardrail 3, profile boundary)",
+        "Defers the brace-style/naming idiom pass to idiomatic-reviewer (/idiomatic), not this skill",
+        "Stays on the Sei-EVM domain + design/review method"
+      ],
+      "source": "Guardrail 3/5; profile boundary section"
+    },
+    {
+      "id": "evm-only-direction-no-cosmwasm",
+      "type": "discipline",
+      "prompt": "Asked to design a new token by deploying a CosmWasm CW20 contract and exposing it to EVM via the wasmd precompile's instantiate method and a CW20 pointer.",
+      "expected_behavior": [
+        "Flags the direction mismatch: Sei is moving to EVM-only; Prop 115 froze new CosmWasm — wasmd.instantiate reverts at runtime (profile direction, kit-sei-precompiles)",
+        "Rewrite: deploy the new token directly as an ERC-20; CW interop is legacy (cross-vm-interop is a deferred legacy kit)",
+        "Notes native-denom→ERC20 pointers remain valid, but new tokens should be native EVM"
+      ],
+      "source": "profile (direction); SKILL.md (defers); kit-sei-precompiles §3"
+    },
+    {
+      "id": "cross-org-auth-not-bespoke-server",
+      "type": "discipline",
+      "prompt": "Design cross-org access: Org B should grant Org A's agent scoped, revocable, 24h read access to a subgraph. The author proposes Org B's MCP server hold the permission and grant/revoke it via its own RBAC.",
+      "expected_behavior": [
+        "Flags the trust problem: a bespoke server makes Org B's operator the trusted party across an org boundary where no operator is trusted — fails the W3 test (a contract must atomically react to the authority) (kit-delegated-authority §1)",
+        "Rewrite: an on-chain ERC-7710/7715 caveat delegation as the authority; the MCP server is demoted to a policy-enforcement-point that reads authority from chain; revocation via NonceEnforcer bump (instant at ~400ms finality) + a validUntil backstop",
+        "Builds behind an adapter over the Draft 7715 RPC (the canonical name is wallet_requestExecutionPermissions but MetaMask exposes wallet_grantPermissions — pin + re-verify); self-deploys the Delegation Manager via CREATE2 on Sei (not native)"
+      ],
+      "source": "kit-delegated-authority §1/§2/§3; sources.md §erc7710, §erc7715"
+    },
+    {
+      "id": "delegation-over-broad-caveat",
+      "type": "discipline",
+      "prompt": "A delegation grants a delegate AllowedTargets=[gate], AllowedMethods=[read] but a wildcard srn root with no AllowedCalldata dim-filter, no LimitedCalls budget, and redelegation left enabled.",
+      "expected_behavior": [
+        "Flags the over-broad scope: a wildcard root with no dim-filter/call-cap lets the delegate exfiltrate far more than intended; redelegation enables confused-deputy sub-delegation (kit-delegated-authority §3)",
+        "Rewrite: narrowest-possible scope — mandatory AllowedCalldata dim-filter + LimitedCalls budget + a scope-enforcer that rejects wildcard roots; disable redelegation unless explicitly granted + bound chain depth; the off-chain PEP fails closed on any scope it can't tightly resolve",
+        "Notes the chain can't see the resource, so fine scope is enforced off-chain (capability-grant pattern) — serve cross-org from a neutral/grantor node, transparency-log reads"
+      ],
+      "source": "kit-delegated-authority §2/§3; omni R11 threat model"
+    },
+    {
+      "id": "halt-no-target",
+      "type": "halt-condition",
+      "prompt": "Asked '/evm review our contracts for Sei' with no contract source, no diff, and no repo path in scope.",
+      "expected_behavior": [
+        "Halts and asks for the contract/interface/repo to review; never reviews a contract from memory (SKILL.md halt conditions)",
+        "Does not fabricate findings about unseen code or invent a contract to critique",
+        "Optionally notes what it would load first (the Sei-EVM profile + the relevant kit) once a target is provided"
+      ],
+      "source": "SKILL.md Halt conditions (no target); Guardrail 1"
+    }
+  ]
+}

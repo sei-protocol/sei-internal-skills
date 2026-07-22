@@ -2,14 +2,14 @@
 name: author-skill
 category: skill-authoring
 model: claude-opus-4-8
-description: "Use when authoring a new skill for a specific domain — the user says 'create a skill for X', 'we need a skill that handles Y', 'scaffold a skill for Z', 'author a skill', '/author-skill'. Also fires when refining an existing skill before deployment ('pressure-test this skill', 'harden this skill before shipping'). Anti-triggers: NOT for editing the canonical workflow skills owned by Tide (coral, council, design, issue, bugbash); NOT for in-conversation TODOs (use TaskCreate); NOT for Claude Code built-ins like /loop or /schedule (the harness owns those). For multi-component design work, use /council. For capturing an emerged design, use /design. For filing a deferred slice as an issue, use /issue."
+description: "Use when authoring a new skill for a specific domain — the user says 'create a skill for X', 'we need a skill that handles Y', 'scaffold a skill for Z', 'author a skill', '/author-skill'. Also fires when refining an existing skill before deployment ('pressure-test this skill', 'harden this skill before shipping'). Anti-triggers: NOT for editing the canonical workflow skills owned by sei-internal-skills (coral, council, design, issue, bugbash); NOT for in-conversation TODOs (use TaskCreate); NOT for Claude Code built-ins like /loop or /schedule (the harness owns those). For multi-component design work, use /council. For capturing an emerged design, use /design. For filing a deferred slice as an issue, use /issue."
 ---
 
 # Author Skill
 
 Generates a new skill for a specific domain. Drives an opinionated loop: **Intake → Research → Draft → Test under pressure → Scaffold → Catalog**. The output is a skill that has been pressure-tested against subagents *before* it ships, not a Markdown file that hopes for the best.
 
-The methodology is RED-GREEN-REFACTOR for documentation (see `references/testing-with-subagents.md`). The conventions are the Tide `SKILL-TEMPLATE.md` shape plus Anthropic's skill-authoring best practices (see `references/obra-best-practices.md`).
+The methodology is RED-GREEN-REFACTOR for documentation (see `references/testing-with-subagents.md`). The conventions are the sei-internal-skills `SKILL-TEMPLATE.md` shape plus Anthropic's skill-authoring best practices (see `references/obra-best-practices.md`).
 
 ## Guardrails
 
@@ -78,7 +78,7 @@ Each step names what it produces and where (`state/run-<ISO-timestamp>/...`).
 
 12. **Add to the catalog.** Call `scripts/add-catalog-entry.sh --name <name> --section <Workflow|Workstream Bootstrap|Hardening|Release Operations|Engineer Self-Service|Future Slots>`. The script proposes the catalog line and the section; the user confirms before the edit lands. Reuses the format already in `.claude/skills/README.md`.
 
-13. **Sync-list decision.** Call `scripts/sync-check.sh` — if the skill is portable (general-purpose, not Tide-specific), offer to add it to `PORTABLE=( ... )` in `scripts/sync-skills.sh`. The script proposes the diff; the user confirms.
+13. **Sync-list decision.** Call `scripts/sync-check.sh` — if the skill is portable (general-purpose, not sei-internal-skills-specific), offer to add it to `PORTABLE=( ... )` in `scripts/sync-skills.sh`. The script proposes the diff; the user confirms.
 
 14. **Issue lineage (if `--issue <n>`).** Offer to comment on the issue with:
     ```
@@ -96,7 +96,7 @@ Stop and report to the user if:
 - RED phase produces zero rationalizations across all scenarios — the constraint is probably enforceable mechanically (regex, validation, linter). Per Obra: "Don't create [skills] for mechanical constraints — automate it." Surface and confirm before continuing.
 - GREEN/REFACTOR fails after 3 cycles — the skill design has a structural problem; show the rationalizations and ask for guidance.
 - Target directory already exists and is non-empty — never silently overwrite. Show what's there and ask: resume / archive-and-fresh / abort.
-- The proposed name collides with a canonical workflow skill (coral, council, design, issue, bugbash, author-skill itself) — refuse. These are owned by Tide directly and shouldn't be regenerated through this skill.
+- The proposed name collides with a canonical workflow skill (coral, council, design, issue, bugbash, author-skill itself) — refuse. These are owned by sei-internal-skills directly and shouldn't be regenerated through this skill.
 
 **Never auto-remediate without surfacing.** The user decides the remediation.
 
@@ -125,11 +125,11 @@ state/run-<ts>/
 
 ## What this skill doesn't do
 
-- **Edit canonical workflow skills.** coral, council, design, issue, bugbash, and author-skill itself are owned by Tide directly. Edit them in a PR, with the council if substantive.
+- **Edit canonical workflow skills.** coral, council, design, issue, bugbash, and author-skill itself are owned by sei-internal-skills directly. Edit them in a PR, with the council if substantive.
 - **Author Claude Code built-ins.** /loop, /schedule, /init are harness-owned, not user skills.
 - **Maintain skills over time.** The skill is shipped once; ongoing edits use the same pattern (run RED against the current skill, REFACTOR) but the user owns those passes.
 - **Sync to remote.** If `--user` is passed, the skill lands at `~/.claude/skills/<name>/`. Cross-repo distribution is `scripts/sync-skills.sh`'s job — this skill only proposes the sync-list addition.
-- **Replace Tide's existing repo conventions.** When the SKILL-TEMPLATE.md shape and Obra best practices conflict, the local template wins (it's tested against this team's workflow). The differences are called out in `references/skill-shapes.md`.
+- **Replace sei-internal-skills's existing repo conventions.** When the SKILL-TEMPLATE.md shape and Obra best practices conflict, the local template wins (it's tested against this team's workflow). The differences are called out in `references/skill-shapes.md`.
 
 ## Output
 

@@ -9,7 +9,7 @@ description: "Use when a coral/council session, an issue pickup, or a standalone
 
 Captures a design — LLD, architecture sketch, system design pass — as a structured markdown document. The point is to make design context durable: the doc is the artifact someone reviews, references in PRs, and rediscovers six months later.
 
-The shape is fixed: Background, Goals, Non-goals, Design (with mermaid diagrams), Alternatives, Trade-offs, Open questions, References. See `references/format-spec.md`.
+The shape is fixed: Background, Goals, Acceptance criteria (optional), Non-goals, Design (with mermaid diagrams), Alternatives, Trade-offs, Open questions, References. See `references/format-spec.md`.
 
 ## Guardrails
 
@@ -94,7 +94,7 @@ Direct user invocation when there's no active workstream or upstream issue — e
    - Coral/council handoff with synthesized context → use that context (mode 1); if the session referenced a bet, capture it as `--bet` above.
    - Otherwise → prompt for each section (mode 3).
 
-3. **Gather inputs.** Required: **Title**, **Background**, **Goals**, **Design**. Optional: **Non-goals**, **Alternatives**, **Trade-offs**, **Open questions**, **References**, **Status** (defaults to `Draft`), **Authors** (defaults to git user.name).
+3. **Gather inputs.** Required: **Title**, **Background**, **Goals**, **Design**. Optional: **Acceptance criteria** (falsifiable success conditions — offer when the design will be implemented + verified; skip for pure-decision/discovery designs, and run the traceability self-check on any criteria captured — see `references/format-spec.md`), **Non-goals**, **Alternatives**, **Trade-offs**, **Open questions**, **References**, **Status** (defaults to `Draft`), **Authors** (defaults to git user.name).
 
    Mode-specific:
    - **Coral handoff path:** show the pre-fill, take adjustments. Don't re-prompt fields the session answered.
@@ -113,7 +113,7 @@ Direct user invocation when there's no active workstream or upstream issue — e
 
    Generate plausible mermaid based on session context. Mark each diagram with a comment: `<!-- verify this matches your intent -->`. The user reviews and adjusts; this step is **done** when the user confirms each generated diagram (or explicitly drops it) before proceeding to the slug resolution. See `references/mermaid-patterns.md` for snippets.
 
-5. **Resolve slug and path.** Convert title to kebab-case for the filename. Repo-specific suffix conventions: Tide LLDs use `<slug>-lld.md`. Default: `<slug>.md`. Combine with the output dir from step 1 to produce the resolved path. Show the user the resolved path before continuing.
+5. **Resolve slug and path.** Convert title to kebab-case for the filename. Repo-specific suffix conventions: sei-internal-skills LLDs use `<slug>-lld.md`. Default: `<slug>.md`. Combine with the output dir from step 1 to produce the resolved path. Show the user the resolved path before continuing.
 
 6. **Render and show the body.** Use the section order in `references/format-spec.md`. Skip empty optional sections rather than emitting placeholder headers. Frontmatter (Status / Date / Issue / Authors) is required; include **`Impact: <slug> — <url>`** when the design advances an Impact Hub bet — captured via `--bet <slug|url>`, a coral/council session that referenced a bet, or a source issue carrying an `impact:<slug>` label (the bet's page ID in the URL is the identity). This lineage is **forward-only** — do not write back onto the Notion bet page (that's `impact-weekly` / `impact-eoq`'s surface). When the design advances a bet, after the write, **offer to ensure the bet's `impact:<slug>` label via `/execution-plan` (`ensurePlan`)** so issues decomposed from this design can be stamped to it — the design's URL is the plan discriminator. `/execution-plan` owns the label/identity/cache (first label creation is confirm-gated); `/design` only records the `Impact:` lineage and triggers the ensure, and still never writes the Notion bet page. **Output of this step:** the full rendered body displayed inline plus the prompt "Write to `<path>`?" — never auto-write per Guardrail #1.
 

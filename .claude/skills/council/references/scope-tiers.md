@@ -13,7 +13,7 @@ Each tier defines the exact sequence of steps the coordinator runs. The goal is 
 **Process:**
 
 ### Phase 0: Resume Check
-If `.council/workstream.yaml` exists with this effort, resume from the last in_progress phase. Tell the user what's already done and what's next.
+Resolve the DRI repo fail-loud first (Design 13 §4 — see SKILL.md Foundation). If `designs/<arc>/council/workstream.yaml` in the DRI repo exists with this effort (resolved fail-loud above — never read from the migration-emptied in-repo dir), resume from the last in_progress phase. Tell the user what's already done and what's next.
 
 ### Phase 1: High-Level Design
 1. Read the repo's governing document and the interface source of truth (registry if present, existing LLDs otherwise).
@@ -23,7 +23,7 @@ If `.council/workstream.yaml` exists with this effort, resume from the last in_p
    - Interface map — which components talk to each other, who provides what
    - Deployment model — how it runs
    - Security model — credentials, auth, network, blast radius
-3. Save to the repo's conventional high-level design location.
+3. Capture the high-level design via `/design`, which lands it in the DRI `<engineer>-designs` repo at `designs/<arc>/<slug>.md` (Design 13 — a council design is a lineage artifact; it does **not** save to the code repo's conventional location or `.council/designs/`, which is deprecated).
 4. Present to user for review before proceeding.
 
 ### Phase 2: Component Design (repeat per component)
@@ -46,7 +46,7 @@ Run the Feature tier process for each component, in the same provider-first orde
 2. Run the repo's test suite.
 3. Present the full summary to the user.
 
-**Checkpointing:** Write `.council/workstream.yaml` after each phase. Product tier always spans sessions — the checkpoint is critical. On completion, archive to `.council/archive/`.
+**Checkpointing:** Write `designs/<arc>/council/workstream.yaml` in the DRI repo (in-repo `.council/workstream.yaml` only as the no-DRI-repo fallback, with user confirmation; Design 13 R3) after each phase. Product tier always spans sessions — the checkpoint is critical. On completion, archive to `designs/<arc>/council/archive/` in the DRI repo (in-repo `.council/archive/` only as the no-DRI-repo fallback, with user confirmation).
 
 **Escalation handling:** If a specialist files an escalation during Phase 4, the coordinator pauses implementation, assesses the escalation, resolves it (potentially updating the LLD and interface source), then resumes. The workstream file records this.
 
@@ -93,7 +93,7 @@ For each affected component, dispatch the owning specialist. Provider-first orde
 2. Run tests for all affected components.
 3. Present summary with interface change log.
 
-**Checkpointing:** Write `.council/workstream.yaml` after Phases 1, 2, and 4. System tier may span sessions if many components are affected. On completion, archive.
+**Checkpointing:** Write `designs/<arc>/council/workstream.yaml` in the DRI repo (in-repo `.council/workstream.yaml` only as the no-DRI-repo fallback, with user confirmation; Design 13 R3) after Phases 1, 2, and 4. System tier may span sessions if many components are affected. On completion, archive.
 
 **Escalation handling:** Same as Product tier — pause, assess, resolve, resume.
 

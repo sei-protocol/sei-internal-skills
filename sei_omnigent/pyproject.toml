@@ -7,8 +7,14 @@ requires-python = ">=3.12"
 # Pin Omnigent EXACTLY. The overlay clones part of Omnigent's serve boot
 # sequence (DECISION-1 / _omnigent_shim), so it is only verified against this
 # exact release. Bumping this pin is the trigger to re-run the shim drift check.
+#
+# The `[kubernetes]` extra pulls the `kubernetes` client (>=36,<37) that the
+# server-managed `sandbox.provider: kubernetes` launcher imports lazily in
+# _load_core() — without it the on-demand runner-Pod provider ImportErrors the
+# first time a managed session spawns a pod. It is a stable client (no
+# pre-release), so it does not widen the scoped beta allowance below.
 dependencies = [
-    "omnigent==0.1.1",
+    "omnigent[kubernetes]==0.3.0",
     # serve_main binds uvicorn directly (the runnable entrypoint, PLT-672). It
     # rides in transitively via omnigent, but the entrypoint imports it by name,
     # so declare it explicitly — a future omnigent pin that drops/extras uvicorn
@@ -17,22 +23,35 @@ dependencies = [
     # `uvicorn[standard]>=0.30,<1` so the two constraints can never conflict at
     # resolve time.
     "uvicorn>=0.30,<1",
+    # The omni receiver + PagerDuty client import httpx by name (PLT-715). Like
+    # uvicorn it rides in transitively via omnigent, but the overlay imports it
+    # directly (and the omnigent-free unit suite mocks httpx.MockTransport), so
+    # declare it explicitly. Range mirrors omnigent's own `httpx>=0.27,<1` so the
+    # two constraints can never conflict at resolve time.
+    "httpx>=0.27,<1",
     # --- Scoped pre-release allowance (PLT-735) ----------------------------
-    # omnigent==0.1.1 constrains its opentelemetry-instrumentation-* deps as
-    # `<1,>=0`, and those OTel projects publish ONLY pre-releases (0.XXbN) on
-    # PyPI — no stable final exists in range. pip honors an EXACT `==<prerelease>`
-    # pin WITHOUT global `--pre`, so these explicit pins scope the allowance to
-    # exactly these packages (the whole resolve is not opened to betas).
-    # `-fastapi` and `-httpx` are omnigent's direct deps; the other four ride in
-    # transitively but release in lockstep on the same 0.63b train, so pin the
-    # whole set. Re-evaluate on the next omnigent pin bump — if a future omnigent
-    # tightens these to stable finals, delete this block.
-    "opentelemetry-instrumentation==0.63b1",
-    "opentelemetry-instrumentation-asgi==0.63b1",
-    "opentelemetry-instrumentation-fastapi==0.63b1",
-    "opentelemetry-instrumentation-httpx==0.63b1",
-    "opentelemetry-semantic-conventions==0.63b1",
-    "opentelemetry-util-http==0.63b1",
+    # omnigent==0.3.0's DEFAULT deps include `-instrumentation-fastapi`/`-httpx`
+    # constrained `>=0,<1`, and those OTel projects publish ONLY pre-releases
+    # (0.XXbN) on PyPI — no stable final exists in range. pip honors an EXACT
+    # `==<prerelease>` pin WITHOUT global `--pre`, so these explicit pins scope the
+    # allowance to exactly these packages (the whole resolve is not opened to
+    # betas). `-fastapi`/`-httpx` are the direct deps; `-instrumentation`/`-asgi`/
+    # `-semantic-conventions`/`-util-http` ride in transitively but release in
+    # lockstep on the same 0.64b train, so pin the whole set to ONE train. The
+    # train is 0.64b0 (not 0.63b1): omnigent 0.3.0's exporters (`>=1.20,<2`)
+    # resolve core to 1.43.0, which pairs with instrumentation 0.64b0 — pinning
+    # the old 0.63b1 (core 1.42) would straddle two trains. NOT pinned here:
+    # `-distro` and `-instrumentation-openai-agents-v2` live in omnigent's
+    # `databricks`/`agents-sdk` OPTIONAL extras, which the bare `omnigent==0.3.0`
+    # pin does not pull — they are not in the install closure. Re-evaluate on the
+    # next omnigent pin bump: advance the train to match the resolved core, or
+    # delete this block if a future omnigent tightens these to stable finals.
+    "opentelemetry-instrumentation==0.64b0",
+    "opentelemetry-instrumentation-asgi==0.64b0",
+    "opentelemetry-instrumentation-fastapi==0.64b0",
+    "opentelemetry-instrumentation-httpx==0.64b0",
+    "opentelemetry-semantic-conventions==0.64b0",
+    "opentelemetry-util-http==0.64b0",
 ]
 
 # Test deps. The pure overlay tests (seam/posture/policy/harness) run without an
@@ -52,6 +71,13 @@ test = [
 # entrypoint.py LOCAL_SINGLE_USER auto-set (C3).
 [project.scripts]
 sei-omnigent-serve = "sei_omnigent.server.serve_main:main"
+# The standing omnigent-host launcher (PLT-715): installs the proxy-bearer patch (B1) then runs
+# `omnigent host` in-process. The sei-omnigent host Deployment uses it (or `python -m sei_omnigent.host_launch`).
+sei-omnigent-host = "sei_omnigent.host_launch:main"
+# The omni-trigger receiver (PLT-715): assembles the Receiver from env (PD poster + redactor +
+# live session factory) and binds uvicorn on build_app. The sei-omnigent receiver Deployment uses it
+# (or `python -m sei_omnigent.omni.serve_receiver`).
+sei-omnigent-receiver = "sei_omnigent.omni.serve_receiver:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -71,8 +97,11 @@ target-version = "py312"  # matches requires-python (overlay has no async/old-al
 [tool.ruff.lint]
 # MVP enforcement set: pycodestyle/pyflakes baseline (E/F), pyupgrade (UP),
 # bugbear latent-bug catches (B), ruff-specific incl. RUF100 unused-noqa (RUF).
-# PLC0415 + S104 are selected so the overlay's documented deferred-import /
-# bind-all-interfaces suppressions stay valid (else RUF100 flags them as unused).
+# PLC0415 + S104 + S506 are selected so the overlay's documented deferred-import /
+# bind-all-interfaces / deliberate-yaml.load suppressions stay valid (else RUF100
+# flags them as unused). S506: load_config uses yaml.load with an own bool-safe
+# SafeLoader subclass (safe_load-equivalent) — selecting it keeps that intentional
+# suppression auditable, mirroring the PLC0415/S104 treatment.
 #
 # DEFERRED:
 #  - `I` (import sorting) — ruff's isort fights the overlay's DELIBERATE import
@@ -85,7 +114,7 @@ target-version = "py312"  # matches requires-python (overlay has no async/old-al
 #    seam type mis-bind becomes a real boot risk.
 #  - `D` (docstrings) — un-defer at an external consumer.
 # Expand toward omnigent's full parent select as the overlay grows.
-select = ["E", "F", "UP", "B", "RUF", "PLC0415", "S104"]
+select = ["E", "F", "UP", "B", "RUF", "PLC0415", "S104", "S506"]
 ignore = [
     # The overlay's docstrings use typographic — / × / › intentionally (prose,
     # not ASCII-confusable source). Mirror omnigent's parent rationale.

@@ -162,7 +162,7 @@
           "re-derives the comment-discipline rule as a systems rule of its own (e.g. inventing a SAFE-row for comments) instead of citing the idiom lens"
         ]
       },
-      "source": "Tide #147 — systems Rule 3 carve-out: a systems review flags the tombstone as a correct-over-time hazard by citing the idiomatic comment-discipline dimension (its per-language id, e.g. Go D10 / Python P10), but does NOT absorb general comment idiom (what-comments, function length) — those stay /idiomatic."
+      "source": "sei-internal-skills #147 — systems Rule 3 carve-out: a systems review flags the tombstone as a correct-over-time hazard by citing the idiomatic comment-discipline dimension (its per-language id, e.g. Go D10 / Python P10), but does NOT absorb general comment idiom (what-comments, function length) — those stay /idiomatic."
     }
   ]
 }

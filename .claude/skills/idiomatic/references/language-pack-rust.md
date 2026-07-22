@@ -80,7 +80,7 @@ The Rust analog of a framework overlay — these add to R8 and carry runtime con
 
 - **correctness** — AX1 (lock-across-await deadlock); AX2 (runtime starvation); R9 unsafe invariant violation; R3 `unwrap`/`panic` on external input in a library (panics the caller).
 - **idiom-divergence-with-consequence** — R1 needless clone (perf/allocations); R8/AX3 orphaned task (leak); R4 catch-all over an owned enum (silently swallows new variants); R2 `&String`/`&Vec` (rejects callers); AX4/AX5 mutex misuse; R4 truncating `as`.
-- **style** — R5 (derive/`impl Trait`/over-generic), R6 (iterator-over-index, `matches!`), R7 (builder/`Default`), R10 naming, R11 comment nits, R1 lifetime elision. Bundle these; never lead with them.
+- **style** — R5 (derive/`impl Trait`/over-generic), R6 (iterator-over-index, `matches!`), R7 (builder/`Default`), R10 naming, R11 comment *form* nits (not history/tombstone/drift-narration — those are tier-2, see `comment-discipline.md`), R1 lifetime elision. Bundle these; never lead with them.
 
 Profile note: this pack is **subordinate to the repo profile** (`package-profile.md`). A repo's documented convention or exception overrides any dimension here — reconcile against the profile first.
 

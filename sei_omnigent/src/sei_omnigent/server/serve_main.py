@@ -87,7 +87,7 @@ def main() -> None:
     # Mirror omnigent cli.py's uvicorn bind EXACTLY (cli.py:3126-3132), including
     # log_config — it installs RequestDurationAccessFormatter, the only source of
     # per-request duration in the access log. create_app wires the middleware that
-    # populates the duration context (app.py:1019 -> performance_metrics), so the
+    # populates the duration context (app.py:1310 -> performance_metrics), so the
     # suffix is live. Dropping it would silently lose latency signal in the pod.
     uvicorn.run(
         app,

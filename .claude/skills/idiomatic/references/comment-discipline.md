@@ -33,6 +33,12 @@ Per-language idiomatic packs **specialize** this standard with language-specific
 
 A clean diff with zero or one well-placed top-of-file comment reads native — say so, no finding. Do not manufacture a comment-discipline nit to look thorough.
 
+## Severity — these block, not advisory
+
+History-in-source and regression-guard-as-comment **mislead an agent reading linearly** (rule 1) — a runtime consequence for a downstream reader — so they grade as **idiom-divergence-with-runtime-consequence** (blocking) in the Idiom addendum, not advisory style. Narration that **can drift** from the code it restates blocks for the same reason; a pure tautological restatement with no drift- or misread-risk is advisory (delete-suggested, not gating). A rule-1-compliant, well-placed present-state comment is **no finding** — the blocking grade is for violations, never a presumption against comments.
+
+**A verbose/non-conformant baseline is not a defense for a violation in the diff under review.** "The neighbors comment this way" does not license a new one — flag the neighbor as advisory (not an in-scope refactor mandate); consistency with a bad baseline only propagates it.
+
 ## Boundary — in-source comments vs. doc artifacts
 
 This axis owns **whether an in-source comment should exist and where it sits** — including the placement/existence of a top-of-file package/type doc and config-field annotations. The **narrative prose quality** of a header doc, README, guide, or design doc is `prose-steward`'s via `/lingua`. The **canonical boundary table** — full axis/owner/surface split, the header-doc aspect rule, and dispute resolution — lives in `/lingua` `references/audience-model.md`; this section points there rather than restating it.

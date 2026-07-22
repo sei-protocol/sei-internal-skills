@@ -1,6 +1,6 @@
 # scripts/
 
-Utility scripts for Tide repo maintenance. Most are wrapped by Make targets at the repo root (`make help`); the scripts can also be run directly when you need finer-grained control.
+Utility scripts for sei-internal-skills repo maintenance. Most are wrapped by Make targets at the repo root (`make help`); the scripts can also be run directly when you need finer-grained control.
 
 | Script | Purpose | Runs from |
 |--------|---------|-----------|
@@ -14,15 +14,15 @@ Utility scripts for Tide repo maintenance. Most are wrapped by Make targets at t
 
 ## Get current in one command
 
-**Never cloned Tide?** One line, straight over the wire — uses your `gh` auth (Tide is an internal repo, so a bare `curl` won't authenticate):
+**Never cloned sei-internal-skills?** One line, straight over the wire — uses your `gh` auth (sei-internal-skills is an internal repo, so a bare `curl` won't authenticate):
 
 ```bash
-gh api repos/sei-protocol/Tide/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
+gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
 ```
 
-It clones Tide to `~/.tide` (override with `TIDE_HOME`), then syncs all portable + Sei skills/agents into `~/.claude` and verifies the catalog. Idempotent — re-run any time.
+It clones sei-internal-skills to `~/.sei-internal-skills` (override with `SEI_INTERNAL_SKILLS_HOME`), then syncs all portable + Sei skills/agents into `~/.claude` and verifies the catalog. Idempotent — re-run any time.
 
-> **Trust note.** This executes whatever is on `sei-protocol/Tide@main` against your `~/.claude` — the same trust as cloning Tide and running `make`. `gh` gates *who* can fetch (org members only); GitHub is the integrity anchor. It intentionally tracks `main` (no pinned ref) so you always get current. Prefer to read before you run? `gh repo clone sei-protocol/Tide ~/.tide && make -C ~/.tide update`.
+> **Trust note.** This executes whatever is on `sei-protocol/sei-internal-skills@main` against your `~/.claude` — the same trust as cloning sei-internal-skills and running `make`. `gh` gates *who* can fetch (org members only); GitHub is the integrity anchor. It intentionally tracks `main` (no pinned ref) so you always get current. Prefer to read before you run? `gh repo clone sei-protocol/sei-internal-skills ~/.sei-internal-skills && make -C ~/.sei-internal-skills update`.
 
 **Already have the repo?** From your checkout:
 
@@ -32,7 +32,7 @@ make update     # fast-forward this checkout + sync ALL skills/agents into ~/.cl
 
 These are the only commands you need to keep your environment current. `make bootstrap` installs only the **portable** set into a *consumer* repo (external use); for your own `~/.claude` use `make update` (or the over-the-wire one-liner above).
 
-**Single source of truth:** which alias (`portable` / `sei` / Tide-local) a skill or agent belongs to is **derived from its own `category:` frontmatter** via the small domain→alias map at the top of each sync script — there is no hand-maintained per-item list to drift. Add a skill/agent with a mapped `category:` and it syncs automatically. `make verify-catalog` (run in CI) fails closed if any item's category maps to no alias, so a miscategorized resource is caught, never silently dropped.
+**Single source of truth:** which alias (`portable` / `sei` / sei-internal-skills-local) a skill or agent belongs to is **derived from its own `category:` frontmatter** via the small domain→alias map at the top of each sync script — there is no hand-maintained per-item list to drift. Add a skill/agent with a mapped `category:` and it syncs automatically. `make verify-catalog` (run in CI) fails closed if any item's category maps to no alias, so a miscategorized resource is caught, never silently dropped.
 
 ## `sync-agents.sh`
 
@@ -69,7 +69,7 @@ Sibling of `sync-agents.sh` — same shape, same flags. Copies skills from `.cla
 ./scripts/sync-skills.sh --target ~/ --dry-run
 ```
 
-Categories: skill **domains** (`workflow`, `workstream-bootstrap`, `hardening`, `investigation`, `skill-authoring`, `code-quality`, `performance`, `writing-quality`, `product-management`, `project-management`, `release-operations`, `engineer-self-service`, `recruiting`) or **aliases** `portable` (default), `sei`, `all`. `output-quality` (brevity, pr-quality) and `security` (tee) are Tide-local and not synced. `--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script; only a new/renamed **domain** (or a change to which alias it belongs to) needs a script edit.
+Categories: skill **domains** (`workflow`, `workstream-bootstrap`, `hardening`, `investigation`, `skill-authoring`, `code-quality`, `performance`, `platform-infra`, `writing-quality`, `product-management`, `project-management`, `release-operations`, `engineer-self-service`, `recruiting`) or **aliases** `portable` (default), `sei`, `all`. `output-quality` (brevity, pr-quality) and `security` (tee) are sei-internal-skills-local and not synced. `--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script; only a new/renamed **domain** (or a change to which alias it belongs to) needs a script edit.
 
 ## `update-agent-permissions.sh` + `verify-agent-permissions.sh` + `agent-permissions.json`
 

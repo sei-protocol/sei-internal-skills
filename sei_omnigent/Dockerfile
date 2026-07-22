@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 #
-# sei-tide-omnigent — the Sei Omnigent overlay server image (PLT-735).
+# sei-omnigent — the Sei Omnigent overlay server image (PLT-735).
 #
-# Two-stage. The builder resolves the overlay + its pinned deps (omnigent==0.1.1,
+# Two-stage. The builder resolves the overlay + its pinned deps (omnigent==0.3.0,
 # sei_omnigent, uvicorn) into a relocatable prefix; the runtime is a clean
 # python:3.12-slim. The k8s probes poll /health with python-urllib (the image
 # guarantees python), so no curl is added — the consuming walle manifest's exec
@@ -29,11 +29,11 @@ COPY pyproject.toml ./
 COPY src ./src
 
 # Resolve into a relocatable prefix. `.` builds the overlay from pyproject, which
-# pulls omnigent==0.1.1 + uvicorn (declared deps). --prefix=/install keeps the
+# pulls omnigent==0.3.0 + uvicorn (declared deps). --prefix=/install keeps the
 # tree copyable into the runtime without dragging build tooling along.
 #
 # No --pre: the pre-release allowance is SCOPED to exactly the OTel
-# instrumentation packages via explicit `==0.63b1` pins in pyproject.toml (pip
+# instrumentation packages via explicit `==0.64b0` pins in pyproject.toml (pip
 # honors an exact-version pin to a pre-release without the global flag); the rest
 # of the closure resolves to stable finals only. See the dependencies block in
 # pyproject.toml for the rationale + the on-bump re-evaluation note.
@@ -54,6 +54,12 @@ ENV HOME=/home/omnigent
 
 # The resolved env (overlay + omnigent + uvicorn) from the builder.
 COPY --from=builder /install /usr/local
+
+# The xreview agent bundle (config.yaml + skill body), baked at a stable path so
+# the deploy can register it via OMNIGENT_BUILTIN_AGENT_DIRS (the server tars +
+# registers the dir at startup; the whole bundle incl. skills/ must be present).
+# Owned by uid 1000 (the runtime user); read-only at runtime.
+COPY --chown=1000:1000 agents/xreview /opt/sei-omnigent/agents/xreview
 
 USER 1000:1000
 

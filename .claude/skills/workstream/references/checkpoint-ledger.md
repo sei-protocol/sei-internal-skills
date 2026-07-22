@@ -25,7 +25,7 @@ At workstream start, after scoping the work, the agent writes and shows the ledg
 ```
 Workstream: <one-line objective>
 Checkpoints I will honor (you confirm at each before I proceed):
-- design-approval — after the design is captured and cross-reviewed, before I implement.
+- design-approval — after the design is captured, cross-reviewed, and given a `/lingua` pass, before I implement.
 - pr-sign-off — after CI is green, before I merge or start dependent work.
 ```
 
@@ -35,7 +35,7 @@ This is the contract. The agent does not silently add, drop, or relax an entry l
 
 | name | trigger | gate |
 |---|---|---|
-| `design-approval` | a design has been captured via `/design` **and** cross-reviewed | the human signs off on the captured, reviewed design before implementation |
+| `design-approval` | a design has been captured via `/design`, cross-reviewed, **and given a `/lingua` dual-audience pass** | the human signs off on the captured, reviewed, lingua-passed design before implementation |
 | `pr-sign-off` | a PR is ready (CI green); merging it or starting dependent work is next | the human confirms the merge / the go-ahead for dependent work |
 
 These cover the two most common human gates (sign off on *what we'll build*; sign off on *shipping it*). They are the default ledger.
@@ -63,7 +63,7 @@ A workstream to refactor a controller, touching a persisted CRD field:
 ```
 Workstream: refactor the reconcile loop; introduce a new status field
 Checkpoints:
-- design-approval — after the LLD is captured and cross-reviewed, before I edit controller code.
+- design-approval — after the LLD is captured, cross-reviewed, and given a `/lingua` pass, before I edit controller code.
 - one-way-door — (council-owned; surfaced here for visibility, NOT re-declared as a workstream
   checkpoint) the new status field is persisted CRD surface, so council's existing one-way-door
   gate applies before the schema change is finalized.

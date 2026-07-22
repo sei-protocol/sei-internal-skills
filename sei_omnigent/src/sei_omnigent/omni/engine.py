@@ -44,6 +44,10 @@ class TerminalReason(StrEnum):
     ``NO_PROGRESS`` are *truncated* (cut short) — and §3.5 forbids a truncated run
     from rendering the clean-punt all-clear headline, so the distinction is
     load-bearing for the misleading-rate SLO (see :func:`is_truncated`).
+    ``ERRORED`` is a run that could not run or died before completing (a session-create
+    or transport failure, the watchdog firing) — it is NOT a surveyed terminal and NOT a
+    budget cut: its note must read as an honest "could not run", carrying the failure
+    detail, never an all-clear and never a budget-axis line.
 
     Deliberately out of scope for Phase-1: a **gate-halt** terminal (the INV-1
     HALT-and-report state — "absence of a human is a NO"). Report-only never crosses
@@ -59,6 +63,7 @@ class TerminalReason(StrEnum):
     INSUFFICIENT_CONTEXT = "insufficient-context"  # cannot localize; needs more context
     BUDGET_EXHAUSTED = "budget-exhausted"  # truncated at a budget axis
     NO_PROGRESS = "no-progress"  # truncated: no new evidence/hypothesis movement
+    ERRORED = "errored"  # could not run / died before completing — not a budget cut
 
 
 # Truncated terminals must not present as a surveyed clean-punt (§3.5). A run that

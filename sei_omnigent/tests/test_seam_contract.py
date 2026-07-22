@@ -12,7 +12,7 @@ import ast
 import tomllib
 from pathlib import Path
 
-# tests/ live at the PROJECT ROOT (Tide/sei_omnigent/tests/); the importable
+# tests/ live at the PROJECT ROOT (sei-internal-skills/sei_omnigent/tests/); the importable
 # package is under src/. _ROOT holds pyproject.toml + tests/; _PKG is src/sei_omnigent.
 _ROOT = Path(__file__).resolve().parent.parent
 _PKG = _ROOT / "src" / "sei_omnigent"
@@ -171,7 +171,11 @@ def test_pinned_omnigent_matches_pyproject() -> None:
 
     pyproject = tomllib.loads((_ROOT / "pyproject.toml").read_text())
     deps = pyproject["project"]["dependencies"]
-    pin = next(d for d in deps if d.startswith("omnigent=="))
-    assert pin == f"omnigent=={sei_omnigent.PINNED_OMNIGENT}", (
-        f"pyproject pin {pin!r} != PINNED_OMNIGENT {sei_omnigent.PINNED_OMNIGENT!r}"
+    # The omnigent pin may carry an extra (e.g. `omnigent[kubernetes]==X` for the
+    # managed-sandbox client), so match on the base distribution name and compare
+    # the pinned VERSION to PINNED_OMNIGENT rather than the whole requirement string.
+    pin = next(d for d in deps if d.split("[", 1)[0].split("==", 1)[0].strip() == "omnigent")
+    pinned_version = pin.split("==", 1)[1]
+    assert pinned_version == sei_omnigent.PINNED_OMNIGENT, (
+        f"pyproject pin {pin!r} version != PINNED_OMNIGENT {sei_omnigent.PINNED_OMNIGENT!r}"
     )

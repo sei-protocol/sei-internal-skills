@@ -1,6 +1,6 @@
 # Findings Log Format
 
-The findings log lives at `docs/bugbash/<target>.md`. It is a single growing markdown file — items append in numbered order, never reorder, never drop. This makes diffs reviewable and lets `/issue` hand-offs cite stable item numbers.
+The findings log is a lineage artifact (Design 13) that lives at `designs/<arc>/bugbash/<target>.md` in the DRI `<engineer>-designs` repo (in-repo `docs/bugbash/<target>.md` only as the no-DRI-repo fallback, with user confirmation). It is a single growing markdown file — items append in numbered order, never reorder, never drop. This makes diffs reviewable and lets `/issue` hand-offs cite stable item numbers.
 
 ## Top-level shape
 
@@ -84,7 +84,7 @@ Every finding follows this exact structure. Section order is fixed; section head
 
 ## Refuted findings
 
-Refuted candidates do NOT appear in the findings log. They are recorded only in `.bugbash/<target>.yaml` under `pass-N.refuted:` with the challenger's reasoning, so a future run can avoid re-surfacing the same false positive. The findings log stays clean — only confirmed findings.
+Refuted candidates do NOT appear in the findings log. They are recorded only in the resume state `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (in-repo `.bugbash/<target>.yaml` fallback; Design 13 R3) under `pass-N.refuted:` with the challenger's reasoning, so a future run can avoid re-surfacing the same false positive. The findings log stays clean — only confirmed findings.
 
 ## Launch Verdict shape
 

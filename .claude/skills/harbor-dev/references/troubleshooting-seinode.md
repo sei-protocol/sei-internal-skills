@@ -10,8 +10,15 @@ Read `.status.phase` first: `kubectl get seinode <name> -o jsonpath='{.status.ph
 
 Common causes:
 
-- Controller leader lease unhealthy → `kubectl get lease -n sei-system` and `kubectl get pods -n sei-system`
-- Controller pod missing or crashlooping → `kubectl describe pod -n sei-system -l app.kubernetes.io/name=sei-k8s-controller`
+- **State-sync gate blocking (no pod and no StatefulSet ever appear)** — a snapshot-bootstrap node (`spec.fullNode.snapshot` set) whose witnesses can't be resolved. Check first:
+
+  ```sh
+  kubectl get seinode <name> -o jsonpath='{range .status.conditions[?(@.type=="StateSyncReady")]}{.reason}: {.message}{end}'
+  ```
+
+  `NoSyncersConfigured` means no `spec.fullNode.snapshot.rpcServers` and no registry entry for the chain (eng chains never have one). The controller deliberately holds StatefulSet creation until the gate opens — the fix is in the condition message: declare ≥2 `rpcServers` or drop `stateSync` and genesis-replay. See `state-sync-bootstrap.md`. (On pre-`254375d` controllers this same cause presented as a pod stuck Pending on `persistentvolumeclaim not found` — if you see that shape, check this condition before chasing storage.)
+- Controller leader lease unhealthy → `kubectl get lease -n sei-k8s-controller-system` and `kubectl get pods -n sei-k8s-controller-system`
+- Controller pod missing or crashlooping → `kubectl describe pod -n sei-k8s-controller-system -l app.kubernetes.io/name=sei-k8s-controller`
 
 If controller looks healthy but the SeiNode is still Pending after a minute, something deeper is wrong; capture controller logs and escalate.
 
@@ -31,6 +38,7 @@ Look for the task with `state=Failed` and read `.lastError`.
 | `configure-genesis` (retried 180×) | Genesis URL missing or ConfigMap not mounted | `.status.plan[?name==configure-genesis].lastError` |
 | `discover-peers` (returns 0) | EC2 tag query empty or peer label selector mismatch | `aws ec2 describe-instances --filters Name=tag:<key>,Values=<value>` from your laptop with the same filter |
 | `mark-ready` | seid health check timing out | `kubectl logs <name>-0 -c seid` |
+| `configure-state-sync` ("no reachable RPC witness") | `rpcServers` endpoints wrong/unreachable, or wrong-chain (shape passes admission; chain membership is never checked — PLT-793) | `kubectl logs <name>-0 -c seictl`; re-read witness endpoints verbatim from the members' status; see `state-sync-bootstrap.md` failure table |
 
 ### Phase: Running (steady-state issues)
 
@@ -67,7 +75,7 @@ Inspect the network's plan directly:
 seictl network get <id> -n eng-<alias> -o jsonpath='{.status.plan}' | jq
 ```
 
-Recovery — because `spec.genesis` is immutable, you cannot re-apply to nudge the plan; the clean path is `delete` + re-create the SeiNetwork so the genesis ceremony restarts from scratch. Note its `spec.deletionPolicy` first (defaults `Retain`): with `Retain`, deleting the SeiNetwork orphans the generated validator SeiNodes — `git rm` the manifest and let Flux re-apply a fresh SeiNetwork, and clean up any orphaned validators before they collide.
+Recovery — because `spec.genesis` is immutable, you cannot re-apply to nudge the plan; the clean path is `delete` + re-create the SeiNetwork so the genesis ceremony restarts from scratch. Note its `spec.deletionPolicy` first (defaults `Retain`): with `Retain`, deleting the SeiNetwork orphans the generated validator SeiNodes — `git rm` the manifest and let Flux re-apply a fresh SeiNetwork, and clean up any orphaned validators before they collide. **Re-create with a *new* chain-id** (or purge the chain-id's S3 genesis artifacts first): the ceremony's artifacts are keyed by chain-id, so reusing it leaves stale identities that wedge the rebuilt chain at height 0 — see *Chain wedged at height 0 after delete-and-recreate*.
 
 ```sh
 kubectl get seinetwork <id> -o jsonpath='{.spec.deletionPolicy}' -n eng-<alias>
@@ -100,7 +108,7 @@ Metadata-only patch; pods are not restarted. The controller's next reconcile app
 
 `sei.io/seinode-finalizer` blocks SeiNode deletion until the controller releases the PVC. If the controller is unhealthy or EBS CSI flaked, the SeiNode sits `Terminating` forever.
 
-Inspection: `kubectl get seinode <name> -o jsonpath='{.metadata.finalizers}'` and controller logs (`kubectl logs -n sei-system -l app.kubernetes.io/name=sei-k8s-controller --tail=100`).
+Inspection: `kubectl get seinode <name> -o jsonpath='{.metadata.finalizers}'` and controller logs (`kubectl logs -n sei-k8s-controller-system -l app.kubernetes.io/name=sei-k8s-controller --tail=100`).
 
 Manual override (only after confirming PVC orphan is acceptable):
 
@@ -188,6 +196,43 @@ To split validators from followers, filter further: `-l sei.io/seinetwork=<chain
 | `lag > 1` and growing, outside of restart/state-sync | App falling behind structurally; usually won't catch up without intervention |
 | `lag` shrinks over time | Catch-up after restart or state-sync; healthy |
 
+## seid CrashLoopBackOff: `invalid state-commit.sc-write-mode "cosmos_only"`
+
+**Symptom.** Every seid container CrashLoopBackOffs; `kubectl logs <pod> -c seid --previous` shows `Error: invalid state-commit.sc-write-mode "cosmos_only"` followed by the `seid start` usage dump. SeiNetwork may still report `Ready` (the controller doesn't gate on seid actually serving).
+
+**Cause.** config-apply renders the SeiDB write/read-mode keys **omitted**, so each seid binary applies its own native default — no rendered default can mismatch the image. This symptom therefore has exactly two causes: (a) the node runs a **stale sidecar** via a `spec.sidecar` image pin — stale sidecar builds rendered a concrete `cosmos_only` default that main/nightly seid images reject; strip the pin (Guardrail 8 in `SKILL.md`); (b) an **explicit write-mode override** carries a value the pinned image rejects (the accepted value sets differ across seid generations).
+
+**Fix.** Strip any `spec.sidecar` image pin. When you do need an explicit mode, set a value the image accepts — `memiavl_only` (normal), or `migrate_evm` for a SeiDB-migration chain — using the **unified override key** `storage.state_commit.write_mode`:
+
+```bash
+# SeiNetwork (validators): spec.configOverrides
+seictl network apply <id> ... --set spec.configOverrides."storage.state_commit.write_mode"=memiavl_only
+# follower SeiNode: spec.overrides
+seictl node apply <id> ... --set spec.overrides."storage.state_commit.write_mode"=memiavl_only
+```
+
+**Footgun — the key, not just the value.** The override **key** must be the unified-schema path `storage.state_commit.write_mode`. The raw app.toml path `state-commit.sc-write-mode` is **silently rejected** by config-apply (`unknown config field`), so the broken `cosmos_only` default stands and the symptom persists even though you "set the override." (`config-apply` validation lives in sei-config; check the controller log for `unknown config field` if a write-mode override seems ignored.)
+
+> The structural endgame — config knowledge living in the binary itself (ConfigManager, `SEI_CONFIG_MANAGER=v2`, PLT-775) — is in flight; render omission already removes the default-mismatch class.
+
+## configOverrides edits never reach a Running node
+
+**Symptom.** You edit `spec.configOverrides` on a SeiNetwork (or `spec.overrides` on a SeiNode); the change propagates to the child SeiNode's **spec**, but the node's on-disk `config.toml`/`app.toml` — and its behavior — never change. No event, no condition, no error.
+
+**Cause.** Overrides are consumed **only on init paths** (bootstrap / snapshot-restore / state-sync / genesis, via the config-apply task). A Running node has **no day-2 apply path**: update plans fired by image drift carry only the controller-owned `[p2p]` keys (external-address, persistent-peers); the reconciler has no override-drift detection (the spec edit enqueues a reconcile that produces a nil plan); and a `RestartSeid` task re-reads the **unchanged on-disk config** — a restart is not an apply. The spec silently diverges from live state.
+
+**Fix.** Set overrides **before first boot** whenever possible. For a Running node, the change takes effect only when the node next traverses an init path — re-provision (delete + recreate with a **fresh chain-id**; see the chain-id-reuse entry below) or a snapshot-restore / state-sync task. Verify what a node is *actually* running by reading its rendered files (`kubectl exec <pod> -c seid -- cat /sei/config/app.toml`), never by trusting the spec.
+
+## Chain wedged at height 0 after delete-and-recreate (chain-id reuse)
+
+**Symptom.** Pods all `Ready` (0 restarts) and the SeiNetwork `Ready`, but the chain never produces a block: `kubectl exec <pod> -c seid -- seid status` shows `latest_block_height: 0`, `catching_up: true`, `latest_block_time: 1970-01-01`, and seid spams `level=ERROR msg="no progress since last advance" logger=tendermint/internal/blocksync` (last_advance frozen at startup). Validators never form consensus.
+
+**Cause.** The genesis ceremony's S3 artifacts — `genesis.json`, `peers.json`, per-node gentxs/identities — are keyed by **chain-id**: the seictl assembler writes and reads them under the prefix `<chain-id>/` in the genesis-artifacts bucket (`seictl/sidecar/tasks/assemble_genesis.go`, `prefix := a.chainID + "/"`). Deleting and re-creating a chain with the **same chain-id** regenerates fresh node/validator keys but leaves the prior incarnation's artifacts under that prefix; the fresh keys then mismatch the stale validator set / peer identities, so no validator is a proper member and consensus can't form. (Confirmed empirically: an identical 4-validator network — same image, same `migrate_evm` — reached height 740 under a **new** chain-id while the reused-chain-id one stayed at height 0.)
+
+**Fix.** Recreate with a **fresh chain-id** (cleanest — guarantees no stale artifacts), or purge the artifacts under the old chain-id's `<chain-id>/` prefix in the genesis bucket before re-creating. A fresh chain-id is the safe default for a throwaway dev chain.
+
+> Not a chain bug — a ceremony-lifecycle footgun. Reuse a chain-id only after clearing its S3 artifacts.
+
 ## Profiling (pprof)
 
 Dev chains applied via the seictl `genesis-chain` and `rpc` presets carry `network.rpc.pprof_listen_address: "0.0.0.0:6060"` — in `spec.configOverrides` on a SeiNetwork, `spec.overrides` on a follower SeiNode. seid exposes Go pprof at port 6060 inside the pod.
@@ -227,6 +272,8 @@ seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --network <id> --ima
   --set spec.overrides."network.rpc.pprof_listen_address"="0.0.0.0:6060" \
   -n eng-<alias>
 ```
+
+**Running-node caveat**: an override applied to a Running node never reaches its on-disk config — it takes effect only on the node's next init path (see *configOverrides edits never reach a Running node* above). To profile an existing node, re-provision the follower with the override set from first boot.
 
 **Production caveat**: seictl ships one set of presets (`genesis-chain`, `rpc`) used in both dev and prod; there is no separate prod preset. When promoting a follower to prod, strip the pprof override explicitly: `--set spec.overrides."network.rpc.pprof_listen_address"=""`. Pprof must never be reachable in prod — it exposes profile dumps and memory state to anyone with HTTP access to port 6060.
 

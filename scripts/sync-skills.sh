@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# sync-skills.sh — copy Tide skill directories to a target .claude/skills/ directory.
+# sync-skills.sh — copy sei-internal-skills skill directories to a target .claude/skills/ directory.
 #
-# Sibling of sync-agents.sh. Tide is the canonical home; this pushes outward to
+# Sibling of sync-agents.sh. sei-internal-skills is the canonical home; this pushes outward to
 # user-scope (~/.claude/skills/) and other repos so they stay current.
 #
 # SINGLE SOURCE OF TRUTH: each skill's own `category:` SKILL.md frontmatter.
@@ -14,7 +14,7 @@
 # silently dropped.
 #
 # Daily flow:
-#   make update                     # from the Tide repo: pull + sync everything + verify
+#   make update                     # from the sei-internal-skills repo: pull + sync everything + verify
 #   ./scripts/sync-skills.sh        # equivalent to: --target ~ --categories portable
 #
 # Usage:
@@ -30,7 +30,7 @@
 # --force:       overwrite existing target skills without prompting
 # --verify:      run ONLY the coverage guard (every skill's category resolves to a
 #                known alias) and exit non-zero on any gap. No copying. For CI.
-# --inject-doctrine: also inject the Tide operating-doctrine managed block into
+# --inject-doctrine: also inject the sei-internal-skills operating-doctrine managed block into
 #                <target>/AGENTS.md (+ a CLAUDE.md pointer). Off by default;
 #                intended for a consuming package, not user-scope ($HOME).
 #
@@ -56,16 +56,16 @@ SKILLS_DIR="$(cd "$SCRIPT_DIR/../.claude/skills" && pwd)"
 #
 # Every domain a skill may declare in `category:` must appear in exactly one of
 # the three lists below. The coverage guard enforces this. `all` = PORTABLE+SEI
-# (Tide-local domains are deliberately never synced outward).
+# (sei-internal-skills-local domains are deliberately never synced outward).
 
-PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation skill-authoring code-quality performance writing-quality product-management security"
+PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation skill-authoring code-quality performance writing-quality product-management security platform-infra blockchain data-architecture"
 SEI_DOMAINS="project-management release-operations engineer-self-service recruiting"
-# Tide-local — deliberately NOT synced outward:
-#   output-quality (brevity, pr-quality) — Tide-development meta-skills.
+# sei-internal-skills-local — deliberately NOT synced outward:
+#   output-quality (brevity, pr-quality) — sei-internal-skills-development meta-skills.
 # NOTE: security (tee) is now PORTABLE — its kits are self-contained on public
 # primary sources (vendor specs, RFCs, sei-chain); the research corpus relocated
 # to bdchatham-designs (Design 05 / PLT-709) and is non-required provenance.
-TIDE_LOCAL_DOMAINS="output-quality"
+SEI_INTERNAL_SKILLS_LOCAL_DOMAINS="output-quality"
 
 # --- small helpers ----------------------------------------------------------
 
@@ -84,11 +84,11 @@ skill_category() {
     | sed 's/^category:[[:space:]]*//; s/[[:space:]]*$//; s/^["'"'"']//; s/["'"'"']$//'
 }
 
-# alias_for_domain <domain> — echoes portable|sei|tide-local|UNKNOWN
+# alias_for_domain <domain> — echoes portable|sei|sei-internal-skills-local|UNKNOWN
 alias_for_domain() {
   if   in_list "$1" "$PORTABLE_DOMAINS";   then echo portable
   elif in_list "$1" "$SEI_DOMAINS";        then echo sei
-  elif in_list "$1" "$TIDE_LOCAL_DOMAINS"; then echo tide-local
+  elif in_list "$1" "$SEI_INTERNAL_SKILLS_LOCAL_DOMAINS"; then echo sei-internal-skills-local
   else echo UNKNOWN; fi
 }
 
@@ -111,7 +111,7 @@ run_coverage_guard() {
     fi
     al="$(alias_for_domain "$cat")"
     if [ "$al" = "UNKNOWN" ]; then
-      echo "  ✗ $name: category '$cat' maps to no sync alias — add '$cat' to PORTABLE_DOMAINS, SEI_DOMAINS, or TIDE_LOCAL_DOMAINS in sync-skills.sh" >&2
+      echo "  ✗ $name: category '$cat' maps to no sync alias — add '$cat' to PORTABLE_DOMAINS, SEI_DOMAINS, or SEI_INTERNAL_SKILLS_LOCAL_DOMAINS in sync-skills.sh" >&2
       errs=$((errs+1))
     fi
   done < <(list_skill_dirs)
@@ -119,7 +119,7 @@ run_coverage_guard() {
     echo "skill catalog coverage: $errs problem(s) — every skill's category must map to an alias." >&2
     return 1
   fi
-  echo "skill catalog coverage ✓ (every skill's category resolves to portable/sei/tide-local)"
+  echo "skill catalog coverage ✓ (every skill's category resolves to portable/sei/sei-internal-skills-local)"
   return 0
 }
 
@@ -176,9 +176,9 @@ fi
 # --- Build skill list from requested categories -----------------------------
 # A requested token is an alias (portable|sei|all) or a literal domain name.
 # A skill is included if its category's alias — or the category itself — matches.
-# Requesting a Tide-local domain by name is an explicit error.
+# Requesting a sei-internal-skills-local domain by name is an explicit error.
 
-TIDE_LOCAL_REQUESTED=false
+SEI_INTERNAL_SKILLS_LOCAL_REQUESTED=false
 want_skill() {  # want_skill <category> <requested-token> -> 0 include / 1 exclude
   local cat="$1" tok="$2" al
   al="$(alias_for_domain "$cat")"
@@ -187,7 +187,7 @@ want_skill() {  # want_skill <category> <requested-token> -> 0 include / 1 exclu
     portable) [ "$al" = "portable" ] ;;
     sei)      [ "$al" = "sei" ] ;;
     output-quality)
-      TIDE_LOCAL_REQUESTED=true; return 1 ;;
+      SEI_INTERNAL_SKILLS_LOCAL_REQUESTED=true; return 1 ;;
     *)        [ "$cat" = "$tok" ] ;;   # literal domain request
   esac
 }
@@ -201,8 +201,8 @@ while IFS= read -r name; do
   done
 done < <(list_skill_dirs)
 
-if $TIDE_LOCAL_REQUESTED; then
-  echo "Note: output-quality is a Tide-local domain — its skills are not synced outward. Edit them in Tide." >&2
+if $SEI_INTERNAL_SKILLS_LOCAL_REQUESTED; then
+  echo "Note: output-quality is a sei-internal-skills-local domain — its skills are not synced outward. Edit them in sei-internal-skills." >&2
 fi
 
 # Deduplicate while preserving order (bash 3.2 compatible)
@@ -226,7 +226,7 @@ fi
 
 if $INJECT_DOCTRINE; then
   doctrine_mode="write"; $DRY_RUN && doctrine_mode="dry-run"
-  inject_doctrine "$TARGET" "$SCRIPT_DIR/tide-doctrine.md" "$doctrine_mode"
+  inject_doctrine "$TARGET" "$SCRIPT_DIR/sei-internal-skills-doctrine.md" "$doctrine_mode"
 fi
 
 if $DRY_RUN; then

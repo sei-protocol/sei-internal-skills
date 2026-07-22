@@ -25,7 +25,7 @@ The controller reconciles each `SeiNode` into:
 - `Failed` — terminal; operator must delete and recreate
 - `Terminating` — being torn down (finalizer running)
 
-**`Running` is discoverability, not serve-readiness.** It means config applied + sidecar self-marked ready, NOT that the EVM listener is accepting connections — there is a real post-Running window where `.status.endpoint` is published but a dial gets connection-refused. Before pointing a load tool at a follower, probe `/status` for `catching_up=false AND height>1`.
+**`Running` is discoverability, not serve-readiness.** It means config applied + sidecar self-marked ready, NOT that the EVM listener is accepting connections — there is a real post-Running window where `.status.endpoint` is published but a dial gets connection-refused. Before pointing a load tool at a follower, run `seictl node watch <name> --until=caught-up` (the SDK serve-readiness gate: `catching_up=false` with height>1, plus EVM serving when the node publishes an EVM endpoint).
 
 ## Spec fields you'll touch (operator's view)
 
@@ -35,6 +35,7 @@ The 6 fields engineers actually edit:
 - `spec.image` — full container image ref (with tag or digest); flat (no `spec.template`)
 - `spec.peers` — peer discovery (one of `EC2Tags`, `Static`, `Label`). For a network's follower, the `Label` selector keys `sei.io/seinetwork` (set automatically by `seictl node apply --network <X>`).
 - `spec.fullNode | archive | replayer | validator` — mutually exclusive role marker
+- `spec.fullNode.snapshot` — bootstrap-from-snapshot config (exactly one of `s3` | `stateSync`); `snapshot.rpcServers` declares ≥2 light-client witness endpoints (bare `host:port`) replacing the platform syncer registry — the self-service path for state-syncing onto your own chain. See `state-sync-bootstrap.md`
 - `spec.sidecar` — seictl sidecar overrides (image, env, resources)
 - `spec.overrides` — TOML config patches applied via seictl `config patch`
 

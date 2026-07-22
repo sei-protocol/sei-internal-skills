@@ -51,7 +51,7 @@ curl -LO https://github.com/sei-protocol/seictl/releases/latest/download/seictl_
 tar -xzf seictl_Linux_x86_64.tar.gz
 sudo mv seictl /usr/local/bin/
 
-# Linux (ARM64) / (ARMv7) — same shape with seictl_Linux_arm64.tar.gz / seictl_Linux_armv7.tar.gz
+# Linux — same shape with seictl_Linux_arm64.tar.gz / seictl_Linux_x86_64.tar.gz
 ```
 
 Build-from-source fallback — needed when the engineer requires a commit newer than the latest release:
@@ -165,7 +165,7 @@ Then run `aws configure sso --sso-session sei` — it reuses this session and pr
 
 ### Gate 4: harbor kubeconfig context exists and is current
 
-**Verifies:** `kubectl config get-contexts -o name` lists `harbor`, AND `kubectl config current-context` returns `harbor`.
+**Verifies:** `kubectl config get-contexts -o name` lists `harbor` (or the EKS ARN form `arn:aws:eks:eu-central-1:189176372795:cluster/harbor`), AND `kubectl config current-context` returns either of those forms.
 
 **Why:** kubectl needs the cluster endpoint, CA cert, and auth provider config in the kubeconfig before any `kubectl …` (or `seictl network|node …`, which reuses kubeconfig) can resolve harbor. `seictl network|node apply` has no `--context` flag; it uses whatever context is currently set. If the engineer last used a different cluster, every `seictl network|node …` invocation would silently hit that cluster instead of harbor.
 
@@ -179,11 +179,11 @@ aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>
 kubectl config use-context harbor
 ```
 
-`<chosen>` is the profile resolved at gate 4 — never literal `sei` (engineers configure their own). The first command is idempotent; the second sets the active context. Re-check both — `current-context` must return `harbor` before continuing.
+`<chosen>` is the profile resolved at gate 3 — never literal `sei` (engineers configure their own). The first command is idempotent; the second sets the active context. Re-check both — `current-context` must return `harbor` (or the ARN form) before continuing.
 
 **Edge case — engineer prefers a non-default kubeconfig path:** respect `$KUBECONFIG`. The `update-kubeconfig` command writes to whichever file `$KUBECONFIG` points at (or `~/.kube/config` if unset). Don't override.
 
-**Edge case — context drift mid-session:** if a later kubectl call returns an unexpected cluster's resource (or fails with `cluster.local` errors), re-run gate 5 and resume.
+**Edge case — context drift mid-session:** if a later kubectl call returns an unexpected cluster's resource (or fails with `cluster.local` errors), re-run gates 4 + 5 and resume.
 
 ### Gate 5: kubectl can reach harbor with engineer-side reach
 
@@ -193,11 +193,13 @@ kubectl config use-context harbor
 
 **Recovery (out-of-band):** the platform team grants the access entry. Surface:
 
-> Your AWS principal can't list seinetworks in `eng-<alias>` on harbor. This means the EKS access entry isn't in place yet. Ask the platform team to add you — file a one-line request in `#harbor-onboarding` with your AWS principal ARN (the same one gate 4 echoed when it resolved your profile).
+> Your AWS principal can't list seinetworks in `eng-<alias>` on harbor. This means the EKS access entry isn't in place yet. Ask the platform team to add you — file a one-line request in `#harbor-onboarding` with your AWS principal ARN (the same one gate 3 echoed when it resolved your profile).
 
 Halt until the access entry lands. Same-day turnaround typically.
 
-**Edge case — alias not yet known.** On a brand-new engineer, the alias is captured in First Run (gate 6 path) before they have an `eng-<alias>` namespace. Run gate 6 against the *resolved* alias from First Run; if the engineer is mid-onboarding (PR open but not merged), gate 6 may still pass on namespace-list reach even though the namespace doesn't exist yet. Gate 6 covers the namespace-existence check.
+**Workflow-CRD sub-gate:** before the first `seictl workflow` invocation in a session, separately verify `kubectl auth can-i patch seinodetaskworkflows -n eng-<alias> --context=harbor` returns `yes` — `patch` is the verb server-side apply exercises. A `no` means the namespace Role predates the workflow CRD; halt all `workflow` verbs and ask the platform team via `#harbor-onboarding` to add `seinodetaskworkflows` (verbs `get`, `list`, `watch`, `create`, `patch`, `delete`, plus `seinodetaskworkflows/status` read) to the Role. The failure otherwise surfaces mid-operation as `is forbidden: ... cannot patch resource "seinodetaskworkflows"`.
+
+**Edge case — alias not yet known.** On a brand-new engineer, the alias is captured in First Run (gate 6 path) before they have an `eng-<alias>` namespace. Run this gate against the *resolved* alias from First Run; if the engineer is mid-onboarding (PR open but not merged), it may still pass on namespace-list reach even though the namespace doesn't exist yet — gate 6 owns the namespace-existence check.
 
 **Edge case — gate passes but `apply` later fails with `Forbidden`:** the access entry may be read-only. Surface that as a separate gap when `seictl network|node apply` returns `metav1.Status.reason=Forbidden`. The platform team escalates the access entry to write.
 
@@ -262,7 +264,7 @@ For a literal "fresh laptop" engineer, the first session looks like:
 9. Gate 6 fails (namespace doesn't exist). Enter First Run: prompt for alias (default from `$USER`), validate the regex, generate the PR body following the fromtherain pattern, open the PR via `gh pr create`. Surface the PR URL and halt. "Merge this; ping me when done."
 10. Engineer merges, says "merged."
 11. Poll gate 6 — namespace + RBAC + workload SA + Flux watcher all reconcile from the same merge (~60s). Once `kubectl get namespace eng-<alias>` returns 0, gate 6 passes.
-12. All five gates pass. "You're on the rails. Try `spin up a chain of 4 validators with image X`."
+12. All gates pass. "You're on the rails. Try `spin up a chain of 4 validators with image X`."
 
 Total elapsed wall-clock: typically one platform-team turnaround (gate 5) plus one PR merge (gate 6). Pre-flight in the warm case (returning engineer): <2s.
 

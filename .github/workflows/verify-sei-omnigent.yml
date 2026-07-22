@@ -49,10 +49,14 @@ jobs:
         # Editable install of the overlay (--no-deps ⇒ omnigent is NOT pulled, so
         # this stays omnigent-free). The package is under src/ and not auto-on
         # sys.path, so this install is how `import sei_omnigent` resolves for the
-        # suite. ruff + pytest are the linter + runner.
+        # suite. ruff + pytest are the linter + runner; httpx is a direct overlay
+        # dependency (the omni receiver/PD client import it by name and the unit
+        # suite mocks httpx.MockTransport) — installed explicitly here because
+        # --no-deps omits it. It is lightweight and pure-python, so the job stays
+        # "omnigent-free" in spirit (no heavy omnigent tree), not "dependency-free".
         run: |
           python -m pip install --upgrade pip
-          pip install ruff pytest
+          pip install ruff pytest httpx
           pip install -e . --no-deps
 
       - name: Ruff lint

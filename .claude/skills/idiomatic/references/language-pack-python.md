@@ -97,7 +97,7 @@ Further sub-packs (deferred until the work is common — add each as a conformin
 
 - **correctness:** the mutable-default bug (`B006`/`RUF012`), a bare/swallowing `except` that hides failures (`E722`), a real type mismatch a checker flags (mypy `[arg-type]`/`[return-value]`), a `==`-on-singleton identity bug (`E711`). Always wins.
 - **idiom-divergence-with-consequence:** legacy typing that misleads tooling / breaks on `from __future__`-free runtime introspection (`UP006`/`UP045`), `os.path` vs `pathlib` portability, a wildcard import shadowing names (`F403`/`F405`), a missing public-boundary annotation (`ANN201`).
-- **style:** naming (`N8xx`), import ordering (`I001`), line length (`E501`), docstring presence (`D1xx`), formatting black owns. Bundle these; never lead with them.
+- **style:** naming (`N8xx`), import ordering (`I001`), line length (`E501`), docstring presence (`D1xx`), P10 comment *form* nits (not history/tombstone/drift-narration — those are tier-2, see `comment-discipline.md`), formatting black owns. Bundle these; never lead with them.
 
 *Framework overlays map onto the same tiers:* FastAPI FA3 (unfiltered fields leak to the client) and FA5 (a blocked event loop starves all requests) are **correctness**; FA1/FA2/FA4 are **idiom-divergence-with-consequence** (lost typing/reuse, a `B008` false-positive flood, a silently-unhandled path param); FA6 is mixed (returned-`HTTPException` is correctness; magic `status_code` is style). The asyncio overlay's event-loop block (A1) is likewise correctness.
 

@@ -16,10 +16,13 @@ Those five live only in ``omnigent/cli.py`` and are the drift-prone half: when
 the pinned tag bumps, this file is the one place to re-verify against the new
 ``omnigent/cli.py``.
 
-Authored/verified against the local ``omnigent`` checkout (0.1.0 + main); the
-deploy pin is ``omnigent == 0.1.1`` (see ``sei_omnigent.PINNED_OMNIGENT``) —
-re-confirm the private-helper locations against the 0.1.1 wheel on bump.
-  - create_app                       omnigent/server/app.py:672
+Authored/verified against the local ``omnigent`` checkout; the deploy pin is
+``omnigent == 0.3.0`` (see ``sei_omnigent.PINNED_OMNIGENT``) — re-verified
+symbol-by-symbol against the 0.3.0 source on the 0.2.0→0.3.0 bump (all symbols
+present, no signature breaks; ``create_app`` reordered its params but the seam
+wires every arg by keyword, so the reorder is absorbed). Re-confirm the
+private-helper locations against the wheel on the next bump.
+  - create_app                       omnigent/server/app.py:967
   - init (init_runtime)              omnigent/runtime/__init__.py:31  (keyword-only)
   - RuntimeCaps / AgentCache         omnigent/runtime/{caps,agent_cache}.py
   - store ABCs                       omnigent/stores/<name>/__init__.py
@@ -104,7 +107,13 @@ from omnigent.cli import (
     _default_db_uri,
     _default_artifact_location,
     _server_uvicorn_log_config,
+    main as omnigent_cli_main,
 )
+
+# Host-launcher coupling (PLT-715): the host-connect class the proxy-bearer patch wraps. Routed
+# through the shim so host_launch.py never imports omnigent directly (single-coupling-surface).
+# Re-verify HostProcess on bump. (The CLI `main` rides in the cli import block above.)
+from omnigent.host.connect import HostProcess
 
 __all__ = [
     "create_app",
@@ -148,4 +157,7 @@ __all__ = [
     "_default_db_uri",
     "_default_artifact_location",
     "_server_uvicorn_log_config",
+    # host-launcher coupling (PLT-715)
+    "omnigent_cli_main",
+    "HostProcess",
 ]

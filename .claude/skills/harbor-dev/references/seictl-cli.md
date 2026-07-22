@@ -1,6 +1,6 @@
 # seictl CLI surface
 
-Canonical command reference for the engineer-facing surface. **`seictl network --help` / `seictl node --help` are the source of truth** — when this file disagrees, the CLI wins.
+Canonical command reference for the engineer-facing surface. **`seictl network --help` / `seictl node --help` / `seictl workflow --help` are the source of truth** — when this file disagrees, the CLI wins.
 
 ## Top-level commands
 
@@ -14,8 +14,9 @@ Canonical command reference for the engineer-facing surface. **`seictl network -
 | `seictl report` | local | Analyze shadow chain comparison data |
 | `seictl network` | cluster | Manage `SeiNetwork` CRs via the `genesis-chain` preset |
 | `seictl node` | cluster | Manage `SeiNode` CRs via the `rpc` preset |
+| `seictl workflow` | cluster | Re-bootstrap or migrate an **existing** SeiNode via a `SeiNodeTaskWorkflow` |
 
-The skill invokes the `network` and `node` subtrees above. The `local` commands are out of scope for engineer-facing intents.
+The skill invokes the `network` and `node` subtrees above. The `workflow` subtree is a third, **imperative** tree — it operates on an existing node rather than declaring a new one, so it sits outside the GitOps-PR bring-up flow (see `seictl workflow state-sync` below). The `local` commands are out of scope for engineer-facing intents.
 
 The pre-#133 cluster verbs (`context`, `onboard`, `bench up/down/list`) are gone — replaced by the preset-driven `network`/`node` trees below. The single `nodedeployment` (alias `nd`) tree that preceded these is also gone: `SeiNodeDeployment` was a fleet Kind that split into `SeiNetwork` (the genesis validator pool) + standalone `SeiNode` CRs (each follower). If a reference to any of those older names surfaces in older docs, it's stale.
 
@@ -52,7 +53,7 @@ Loads the `genesis-chain` preset, applies discrete-flag and `--set` overrides, a
 
 1. Preset YAML (embedded in the seictl binary).
 2. Discrete flags (`--chain-id`, `--image`, `--replicas`).
-3. `--set <dotted.path>=<value>`. Strategic-merge: maps merge per-key, lists replace wholesale. Wins on collision with discrete flags. SeiNetwork config overrides live under `spec.configOverrides` (reach them via `--set`); there is **no `--override` flag** on `network apply`.
+3. `--set <dotted.path>=<value>`. Strategic-merge: maps merge per-key, lists replace wholesale. Wins on collision with discrete flags. SeiNetwork config overrides live under `spec.configOverrides` (reach them via `--set`); there is **no `--override` flag** on `network apply`. Overrides take effect only on an **init path** — set them at create time; an edit to a Running network's overrides never reaches its nodes' on-disk config (see `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*).
 
 **Immutability (apply-time, load-bearing):** `spec.genesis` and `spec.replicas` are admission-immutable. Re-applying `network apply <same-name>` with a changed `--chain-id` or `--replicas` is **rejected** with `metav1.Status.reason=Invalid` — it is not a silent no-op. To change either, `delete` + re-create. This is the new-CRD analogue of the old `updateStrategy` trap.
 
@@ -85,7 +86,7 @@ Loads the `rpc` preset and server-side-applies a single `SeiNode`. An RPC fleet 
 
 **`--external-address`** advertises a reachable host:port for external p2p. Leave unset for in-cluster ephemeral chains (followers peer over headless DNS).
 
-**`--override <toml.key>=<value>`** targets `spec.overrides` (per-node `config.toml`/`app.toml`, applied at config-apply). `--set` does strategic-merge on the whole spec and wins on collision.
+**`--override <toml.key>=<value>`** targets `spec.overrides` (per-node `config.toml`/`app.toml`, applied at config-apply — an **init-path** task). Set overrides at create time: a re-apply against a Running node updates only the spec; the on-disk config never changes until the node next traverses an init path (see `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*). `--set` does strategic-merge on the whole spec and wins on collision.
 
 **Required:** `<name>`, `--preset rpc`. `--chain-id`, `--image`, and `--network` must resolve after layering, else `Invalid`.
 
@@ -118,7 +119,7 @@ seictl node    list [-A] [-l <label-selector>] [-o yaml | json | name | jsonpath
 
 Returns a `SeiNetworkList` / `SeiNodeList`. `-A` overrides `-n` and lists across all namespaces. `--selector` (`-l`) accepts standard label selectors (e.g. `-l sei.io/seinetwork=foo,sei.io/role=node`).
 
-**`node list -o json` is the PRIMARY fleet read** — `.items[].status.endpoint` carries each follower's published scalar; assemble the fleet of URLs via `jq` over `.items[]` (see `cluster-inspection-recipes.md` recipe #1).
+**`node list -o json` is the PRIMARY fleet read** — `.items[].status.endpoint` carries each follower's published URLs; assemble the fleet of URLs via `jq` over `.items[]` (see `cluster-inspection-recipes.md` recipe #1).
 
 **Failure:** `metav1.Status` on stderr.
 
@@ -146,14 +147,96 @@ seictl node    watch <name> --until <phase> [--timeout <duration>] [-n <ns>]
 
 Streams every event for the named CR as one NDJSON line on stdout. **Exits 0** when `.status.phase == --until` (exact match). **Exits 1** on `--timeout` exceeded (`metav1.Status.reason=Timeout`), terminal `Failed` phase (stderr lifts `.status.plan.failedTaskDetail.error`), or a transient API failure.
 
-**Two phase vocabularies — the terminal phases differ:**
+**Two phase vocabularies (the terminal phases differ), plus one non-phase sentinel:**
 
 - `seictl network watch --until=Ready` — `SeiNetworkPhase` reaches `Ready`. Common values: `Pending`, `Initializing`, `Ready`, `Degraded`, `Failed`, `Terminating`.
 - `seictl node watch --until=Running` — `SeiNodePhase` reaches `Running`. Common values: `Pending`, `Initializing`, `Running`, `Failed`, `Terminating`. **There is no `Ready` on a node** — `node watch --until=Ready` is rejected at parse with `Invalid`. An operator who waits for a node to reach `Ready` waits forever.
+- `seictl node watch --until=caught-up` — the **one legal non-phase sentinel, nodes only**: waits for `Running`, then gates on the SDK serve-readiness check (committed height>1 with `catching_up=false`, plus EVM serving when the node publishes an EVM endpoint). This is the post-state-sync and pre-load verification watch.
 
-The `--until` flag is **required**. Matching is exact; an illegal value for the tree errors `Invalid` at parse rather than timing out silently.
+The `--until` flag is **required**. Matching is exact against the phase set (plus the node-only `caught-up` sentinel); any other value errors `Invalid` at parse rather than timing out silently.
 
 **Idiom for the agent:** `network apply` then `network watch --until=Ready` is the genesis 2-step; for an RPC fleet, loop `node apply` then `node watch --until=Running` per follower, then assemble endpoints via `node list … -o json | jq` (the fleet is N CRs — there is no single object to read endpoints from).
+
+## `seictl workflow state-sync`
+
+**This is the one command in the skill that destroys data.** It re-bootstraps an *existing* SeiNode by wiping its local chain state and re-syncing, with no undo — only "resync again." Read the decision rule and the destructive-op gate below before running it, and treat every invocation (standard resync or migration) as an `rm -rf` on that node's chain data.
+
+`seictl workflow` is a third tree alongside `network`/`node`. It shares the CRUD verbs — `apply`, `get`, `list`, `delete` — and adds `state-sync`, the task-generating verb documented here. Unlike `network`/`node`, it is **imperative**: it renders a `SeiNodeTaskWorkflow` CR, server-side-applies it, and watches it to a terminal phase. `seictl workflow --help` is the source of truth for the tree, and the CLI wins on any disagreement; the shipped seictl `workflow/README.md` documents the fuller contract.
+
+`state-sync` is the convenience form of the one recipe this tree carries (`state-sync` is the only preset today). `seictl workflow apply --preset state-sync <same flags>` renders and applies the identical spec through the generic verb — it is not a second destructive path, and the gate below applies to it identically.
+
+```
+seictl workflow state-sync <node>
+                 [--migration GigaStore --backend <pebbledb|rocksdb>]
+                 [--rpc-servers <host:port>] [--rpc-servers ...]
+                 [--name <workflow-name>]
+                 [--dry-run] [--no-watch] [--timeout <duration>]
+                 [-n <ns>] [--kubeconfig <path>]
+```
+
+**Required:** `<node>` (the target SeiNode's `metadata.name`). The workflow is named `<node>-state-sync` unless `--name` is given. Streams plan progress as NDJSON on stdout until a terminal phase.
+
+The recipe: hold the node's readiness gate, stop seid, **`reset-data` (wipes the data directory)**, configure state-sync, then release the readiness gate — the release is the terminal step, so **the workflow completes at release**. `Complete` means every mutation landed and the node was released to re-bootstrap; seid restarts and catches up *after* Complete, and catch-up is verified node-side with `seictl node watch <node> --until=caught-up` (the CLI prints this handoff on success). A migration inserts one extra step (config-patch) after `reset-data`; otherwise a standard resync and a migration run the same steps, both including the `reset-data` wipe.
+
+### When to reach for it
+
+**Key on node identity, not the word "state-sync."** Both this and the S3-snapshot create-time path get you a synced node without a full fresh sync, so they are easy to conflate — but they are different mechanisms at different lifecycle stages (the S3 path is a sidecar tarball restore baked into CR creation; this is CometBFT p2p state-sync on a live node):
+
+- **New follower, nothing to preserve → the S3-snapshot create-time path** (`--set spec.fullNode.snapshot.s3.targetHeight=<h>` on `node apply`; see `ephemeral-chain-flow.md` → *Snapshot bootstrap*). The default for standing up a follower.
+- **Existing node to re-bootstrap in place → `seictl workflow state-sync`.** Reach for it only when the node already exists and needs its state rebuilt (a store migration, or a follower whose local state is unrecoverable). **If a healthy node is serving, or a plain restart would fix it, you almost never want this command.** For an ephemeral follower that has merely fallen behind, `delete` + re-apply the SeiNode through the GitOps PR flow gets a fresh snapshot bootstrap that is non-destructive to shared state, in the audit trail, and human-reviewed — prefer that over the imperative wipe whenever the node is disposable.
+
+### Before you run it — the destructive-op gate
+
+This tree has no PR-review gate. Give it back by hand, every time, on **both** the standard and the migration path (both wipe):
+
+1. **Get explicit engineer sign-off before the side-effecting apply.** The agent does not volunteer this command and does not self-authorize the wipe — the same rule as the direct-apply escape hatch in `SKILL.md` ("Escape hatch: direct `seictl network|node apply`"). State plainly what will be wiped: node, namespace, standard-resync vs migration, and (for a migration) the backend.
+2. **Verify the target is the intended node with a concrete read, not a self-confirm:** `seictl node get <node> -n eng-<alias> -o jsonpath='{.spec.chainId}{"  phase="}{.status.phase}{"\n"}'` — match chain-id, phase, and identity against intent. Pointing this at the wrong follower deletes its state.
+3. **Never wipe a follower anyone else depends on** (a shared RPC endpoint, another engineer's load job, a dApp). Dependency is not observable from the cluster, so this is an escalation, not a check: on a long-lived `pacific-1` / `atlantic-2` follower or any shared node, escalate to the node's owner — do not wipe on agent initiative. Your own follower in your own `eng-<alias>` namespace is fair game; a shared one is not.
+4. **`--dry-run` first** to render and inspect the CR without mutating anything, then apply:
+
+```sh
+# 1. render + inspect — no cluster mutation
+seictl workflow state-sync <node> --dry-run -n eng-<alias>
+# 2. after sign-off + target verification, apply and watch
+seictl workflow state-sync <node> -n eng-<alias>
+```
+
+### Store migration (`--migration`) — irreversible, extra gate
+
+`--migration GigaStore --backend <pebbledb|rocksdb>` sets the giga store flags on the way through the resync: state-store (`ss-enable`, `evm-ss-split`, `ss-backend`) and state-commit (`sc-enable`). Beyond the wipe every resync does, a migration **changes the storage engine and is not reversible without another resync**. Extra rules:
+
+- **Both tokens are required** — a migration cannot be triggered by a single flag. **Omit both unless the task is explicitly a store migration**; `--migration` silently escalates a recoverable standard resync into an irreversible engine change.
+- **`--backend rocksdb` needs a seid image built with `-tags rocksdbBackend`.** `reset-data` wipes *before* seid restarts on the new backend, and `--dry-run` does not check the running image's build tags — so a wrong image wipes first, then fails to boot, leaving a Failed workflow holding the node (an outage with the data already gone). Verify the target's image supports the backend before a rocksdb migration; prefer `pebbledb` (no build tag) unless rocksdb is specifically required.
+
+```sh
+seictl workflow state-sync <node> --migration GigaStore --backend pebbledb --dry-run -n eng-<alias>
+```
+
+### Witnesses (`--rpc-servers`)
+
+Optional. Sets the CometBFT light-client servers (a primary plus witnesses) for trust-point verification; bare `host:port`, repeatable, at least two or the plan refuses to compile. When omitted, the node's resolved state-syncers are used — the harbor norm. Snapshot chunks arrive separately over p2p from snapshot-serving peers, so a witness is not a snapshot provider.
+
+### Never commit a workflow CR to the Flux workspace repo
+
+Unlike `network`/`node`, a `SeiNodeTaskWorkflow` is a one-shot, spec-immutable request object. Under Flux ownership its recovery path breaks: a force-deleted Failed workflow is re-created from git on the next reconcile, and any edit to a committed workflow YAML is rejected by the spec CEL and wedges the whole Kustomization. Run it imperatively — the audit trail is the Complete CR left in-cluster plus the logged invocation.
+
+### Re-run and recovery
+
+- **Re-running a terminal workflow is refused by the CLI.** `seictl workflow state-sync` pre-flights the target on the watch path: if a same-named workflow is already `Complete` or `Failed`, it refuses with an actionable error rather than a silent no-op. (A *changed* spec is separately rejected by the CRD's CEL — params are immutable.)
+- **A Failed workflow always holds the node not-ready until it is removed** (release is the terminal step, so failure can only happen while the node is held), so a mid-operation failure is a node outage, not just an unfinished task.
+- **Recovery is force-delete first, always.** Remove the Failed workflow — annotate `sei.io/force-delete-workflow=<reason>`, then `seictl workflow delete <name>` — which releases the node; only then re-run (same name, or `--name` for a fresh one). A `--name` run *without* first removing the Failed workflow leaves the node still held by the first workflow and starts a second `reset-data` on it — a stacked double-wipe, not a recovery.
+
+### Output and timeout
+
+- **Success:** plan progress as NDJSON on stdout, one line per workflow event (the full CR); exit 0 when `.status.phase` reaches `Complete`. **`Complete` means the recipe's mutations landed and the node was released — not that it caught up.** The resync runs after Complete; the CLI prints the verification handoff (`seictl node watch <node> --until=caught-up`) on success, and reporting a state-sync as done without that watch passing is premature. `--dry-run` / `--no-watch` stop after render / apply and emit the CR instead of watching. **Avoid `--no-watch` on this command** — with it the agent never observes a Failed phase, and a Failed workflow silently holds the node not-ready.
+- **Failure:** `metav1.Status` on stderr, non-zero exit. Human diagnostic lines on stderr are prefixed `seictl:`; strip them before parsing:
+
+```sh
+seictl workflow state-sync <node> -n eng-<alias> 2>err.log; grep -v '^seictl:' err.log | jq -r .reason
+```
+
+  `.reason` is `Timeout` on `--timeout`, `InternalError` on a terminal `Failed` phase.
+- **Timeout:** `--timeout` defaults to 15m (60m on older binaries — the bound is the binary's; the watch semantics below are the controller's, regardless of binary). The watch ends when the workflow releases the node — catch-up happens after Complete and is not part of the watch — so a timeout **usually means a wedged recipe step, not a slow sync**. On a timeout, **do not kill-and-retry**: read the plan first (`seictl workflow list -n eng-<alias>`, then `.status.plan.tasks` on the one in-flight workflow) and map the verb to what you see. An archive-scale `reset-data` still clearing is the one legitimately slow case — raise `--timeout` and wait. Any other step parked past its budget is wedged — force-delete, never stack a second wipe. One version discriminator: a plan whose **last** task is `await-condition` means the cluster's controller predates the release-terminal recipe, and there a long watch is a legitimately slow catch-up, not a wedge.
 
 ## Conventions across the surface
 
@@ -216,13 +299,20 @@ Layered with `--chain-id` and `--image`, the `genesis` block populates and `spec
 ```
 --genesis-override staking.params.unbonding_time=600s
 --genesis-override bank.params.default_send_enabled=true
---genesis-override gov.params.voting_period_seconds=120
---genesis-override mint.params.inflation='{"min":0.05,"max":0.2}'
+--genesis-override gov.voting_params.voting_period=120s
+--genesis-override gov.voting_params.expedited_voting_period=60s
+--genesis-override gov.deposit_params.min_deposit='[{"denom":"usei","amount":"100"}]'
 ```
 
-Each entry writes a flat dotted-key into `spec.genesis.overrides`. The first segment is a cosmos module that exists in `app_state` (`staking`, `bank`, `gov`, `mint`, `slashing`, etc.). Values parse as JSON when they parse (numbers, bools, objects, arrays); otherwise as raw strings. To force a numeric-looking value to render as string, wrap in JSON quotes: `--genesis-override foo.bar='"42"'`.
+Each entry writes a flat dotted-key into `spec.genesis.overrides`. The first segment is a cosmos module that exists in `app_state` (`staking`, `bank`, `gov`, `mint`, `slashing`, etc.). Values parse as JSON when they parse (numbers, bools, objects, arrays); otherwise as raw strings — durations like `120s` fail JSON parse and land as the string `"120s"`, which is exactly the proto-JSON duration encoding genesis expects. To force a numeric-looking value to render as string, wrap in JSON quotes: `--genesis-override foo.bar='"42"'`.
 
 Single-segment keys (`--genesis-override staking=...`) and empty values are rejected at apply time.
+
+**The sharp edge — only the module segment is validated; the rest of the key is not.** The genesis assembler checks that the first segment names an existing `app_state` module, then creates any missing deeper path segments and writes the value verbatim, unvalidated. A wrong field name therefore passes `--dry-run`, passes apply, passes genesis assembly — and then **every node crash-loops at InitChain** with an "unknown field" panic, and the chain never starts. The intended change never applies. Two upstream-Cosmos-shaped keys that do NOT exist on sei and have caused exactly this: `gov.params.voting_period_seconds` (sei's gov genesis nests under `voting_params`/`deposit_params`/`tally_params`; there is no `params` object) and `mint.params.inflation` (sei's mint module is custom — `mint_denom` + `token_release_schedule` only; inflation-rate semantics are not expressible in any key).
+
+**Key provenance rule:** never guess a key from upstream Cosmos docs — sei's forks diverge. Take keys from a real genesis: `app_state.<module>` in `curl <any-node>:26657/genesis` on a running chain, or the embedded chains in sei-config. Value shapes matter too: durations and decimals are JSON strings (`"60s"`, `"0.4"`). Production precedent for fast governance: the sei-k8s-controller nightly upgrade suite pins `gov.voting_params.voting_period: "60s"` (`test/integration/upgrade_test.go`).
+
+**Verify after Ready** (cheap, do it): from a validator pod, `seid q gov params voting` (or read `/genesis` on 26657) confirms the override landed; a throwaway proposal submitted with the full min-deposit proves the voting window behaviorally.
 
 **Not reachable via this flag:** `consensus_params.*` (CometBFT consensus params, sibling to `app_state` in `genesis.json`, not under any cosmos module). `block.max_gas`, `validator.pub_key_types`, etc. are not currently reachable through `spec.genesis.overrides`.
 

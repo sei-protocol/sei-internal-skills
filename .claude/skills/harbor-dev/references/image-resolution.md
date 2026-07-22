@@ -22,6 +22,8 @@ Both workflows accept `workflow_dispatch` for unpushed commits or in-flight CI. 
 
 The `mock-<sha>` variant (`GO_BUILD_TAGS=mock_balances`) is published from the same workflow run as the regular tag — once the run completes, both tags are in ECR.
 
+**No SeiDB write-mode override is needed for main/nightly images.** config-apply omits the write/read-mode keys, so each seid image applies its own native default. If a chain needs an explicit mode (e.g. `migrate_evm` for a SeiDB-migration chain), set a value the image accepts using the **unified key** `storage.state_commit.write_mode` — the raw `state-commit.sc-write-mode` is silently rejected. See `troubleshooting-seinode.md` → *seid CrashLoopBackOff: invalid state-commit.sc-write-mode*.
+
 ## Resolution flow
 
 1. **Resolve to a full commit SHA** from the engineer's input.
@@ -146,7 +148,7 @@ For named release tags (`release/**` on sei-chain, `v*` on sei-load), the symbol
 Engineers occasionally want to compare against what nightly is running. The pins are in the platform repo:
 
 ```sh
-grep -A1 'SEID_IMAGE\|SEILOAD_IMAGE' clusters/harbor/nightly/load/cronjob.yaml
+grep -A1 'SEID_IMAGE\|SEILOAD_IMAGE' clusters/harbor/nightly/harness/cronjobs.yaml
 ```
 
 That's a comparison input — not a default. Always prompt the engineer for an explicit input when their intent doesn't supply one.

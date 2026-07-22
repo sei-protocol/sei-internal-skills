@@ -27,7 +27,7 @@ Cluster facts the skill assumes.
 | `gateway` | Istio Gateway + HTTPRoutes |
 | `istio-system` | Istio control plane |
 | `monitoring` | Prometheus, kube-state-metrics |
-| `sei-k8s-controller` | The controller manager |
+| `sei-k8s-controller-system` | The controller manager |
 | `autobake` | Nightly load-test workload |
 | `eng-<alias>` | Per-engineer namespaces (one per onboarded engineer) |
 
@@ -47,3 +47,5 @@ SEI_GENESIS_BUCKET            harbor-sei-k8s-genesis-artifacts
 ```
 
 The controller watches `SeiNetwork` and `SeiNode` cluster-wide.
+
+> **Note (PLT-451):** the `SEI_GATEWAY_*` vars are *loaded* and most are **required at boot** (the controller's `Validate()` fails closed if they're unset), yet **no reconciler consumes them** — networking is GitOps-owned, not controller-orchestrated. So they're vestigial: don't expect the controller to act on them — but **don't delete them from the manager patch** without the coordinated controller-side `Validate()` change (PLT-451), or the controller fleet crashloops at startup.

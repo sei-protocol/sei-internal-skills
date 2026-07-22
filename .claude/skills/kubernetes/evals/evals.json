@@ -1,0 +1,114 @@
+{
+  "skill": "kubernetes",
+  "evals": [
+    {
+      "id": "happy-path-clean-plan-driven-reconciler",
+      "type": "happy-path",
+      "prompt": "Review a SeiNode reconcile change that builds a TaskPlan, persists it with MergeFromWithOptimisticLock and ResultRequeueImmediate before executing, runs a stateless executor, sets always-present conditions with CamelCase reasons + observedGeneration, and distinguishes Terminal(err) from transient.",
+      "expected_behavior": [
+        "Loads sei-controller-profile.md + kit-plan-driven-reconciliation.md before judging (Guardrail 1)",
+        "Concludes it conforms — cites the persist-before-execute, optimistic-lock single-patch, and always-present-conditions patterns as correct against the profile",
+        "Does not manufacture findings to look thorough; idiom nits (if any) are bundled, not led, and deferred to /idiomatic"
+      ],
+      "source": "method.md (the 5 dimensions); profile §1/§2/§3; kit-plan-driven-reconciliation"
+    },
+    {
+      "id": "profile-overrides-generic-status-write",
+      "type": "discipline",
+      "prompt": "A reconciler uses `r.Status().Update(ctx, obj)` (or a plain client.MergeFrom on status). The author says 'this is standard controller-runtime, it's fine.'",
+      "expected_behavior": [
+        "Flags it against profile §2 (optimistic-lock single-patch) as a correctness defect — names the concurrent-plan race (two reconciles both see plan==nil, second silently wins)",
+        "Cites the profile rule, not generic preference; the fix is MergeFromWithOptimisticLock with one end-of-reconcile patch off a single DeepCopy snapshot",
+        "Does not accept 'it's standard controller-runtime' — the repo profile overrides generic habit (Guardrail 1)"
+      ],
+      "source": "profile §2; the headline repo convention"
+    },
+    {
+      "id": "crd-field-change-is-a-one-way-door",
+      "type": "discipline",
+      "prompt": "A PR narrows the validation on an existing served `v1alpha1` SeiNode spec field (optional → required) and renames another. The author wants it merged as a cleanup.",
+      "expected_behavior": [
+        "Flags both as incompatible in-version changes — the compatibility law (sources.md §api_changes): a call that succeeded before must succeed after",
+        "Routes to a new version + storage-version/conversion (or an additive optional field), not the in-place change",
+        "Flags it for HUMAN APPROVAL as a one-way door — does NOT assert the breaking change as the fix (Guardrail 3/4, kit-crd-design §5)"
+      ],
+      "source": "Guardrail 4 (one-way door); sources.md §api_changes; kit-crd-design"
+    },
+    {
+      "id": "condition-by-removal-banned-except-the-latch",
+      "type": "discipline",
+      "prompt": "A reconciler calls removeCondition(\"SidecarReady\") to represent 'sidecar feature off'. Separately, the SeiNodeTask controller latches Ready and Failed conditions independently on terminal state.",
+      "expected_behavior": [
+        "Flags the removeCondition as a profile §3 violation — 'off' is Status=False with a stable Reason, never absence",
+        "Does NOT flag the SeiNodeTask Ready/Failed independent latch — recognizes it as the documented mixed-polarity exception (the seitask-runner depends on kubectl wait --for=condition=Ready/Failed)",
+        "Distinguishes the two correctly rather than blanket-applying or blanket-exempting"
+      ],
+      "source": "profile §3 (always-present conditions + the kubectl-wait latch exception); kit-crd-design §2"
+    },
+    {
+      "id": "sidecar-signaling-not-annotations",
+      "type": "discipline",
+      "prompt": "To tell a node to run a task, a reconciler patches an annotation on the SeiNode and expects the node to notice. The author is modeling it on a generic 'annotation as trigger' pattern.",
+      "expected_behavior": [
+        "Flags it: the side-effect channel is the seictl sidecar HTTP task API (SubmitTask/GetTask), not annotations/ConfigMaps (kit-sidecar-task-integration §3)",
+        "Names the submit→poll contract, deterministic task IDs for restart-safety, and local Validate()-before-submit",
+        "Cites the sidecar kit, not generic intuition"
+      ],
+      "source": "kit-sidecar-task-integration §2/§3"
+    },
+    {
+      "id": "no-stale-indexer-mental-model",
+      "type": "discipline",
+      "prompt": "Asked to design how the controller 'subscribes to chain events over a WebSocket and persists a cursor in a ConfigMap' to drive reconciliation.",
+      "expected_behavior": [
+        "Does NOT adopt that model — this controller does not index chain events, use WebSockets, or persist a ConfigMap cursor; it is plan-driven with state in .status.plan and signals the sidecar over HTTP (profile architecture paragraph)",
+        "Redirects to the actual patterns (plan-driven reconcile, sidecar tasks); flags the premise as not matching this architecture",
+        "If chain-event awareness is genuinely needed, scopes it to the real mechanism (sidecar task / polling), not a WS indexer in the control loop"
+      ],
+      "source": "profile (architecture paragraph + 'no field indexers'); the dated-agent-expertise correction"
+    },
+    {
+      "id": "no-panic-and-failure-modes",
+      "type": "discipline",
+      "prompt": "A reconcile path calls panic() on an unexpected nil, and returns a bare error for a permanently-invalid spec (causing infinite requeue).",
+      "expected_behavior": [
+        "Flags the panic — no panic in controller code; it crashes the manager and starves all resources (profile §1). Return the error.",
+        "Flags the terminal-as-transient: a permanently-invalid spec should be a terminal FailedPhase, not an infinitely-requeued bare error (Terminal(err) discrimination, kit-plan-driven §3)",
+        "Ranks both as correctness/failure-mode findings (dimension 3)"
+      ],
+      "source": "profile §1; method.md dimension 3; sources.md §reconcile"
+    },
+    {
+      "id": "halt-no-target",
+      "type": "halt-condition",
+      "prompt": "Asked '/kubernetes review the SeiNode controller' with no diff, no code path, and no repo in scope.",
+      "expected_behavior": [
+        "Halts and asks for the code/diff/CRD to review; never reviews a controller from memory or from the profile alone",
+        "Does not fabricate findings about unseen code"
+      ],
+      "source": "Halt conditions (no target)"
+    },
+    {
+      "id": "dont-duplicate-adjacent-lenses",
+      "type": "discipline",
+      "prompt": "During a controller review, the user also asks to set the StatefulSet's CPU/memory requests and pick a Karpenter NodePool, and to rename a Go variable for style.",
+      "expected_behavior": [
+        "Redirects the requests/limits + NodePool choice to k8s-capacity-management (capacity/scheduling is not this lens)",
+        "Redirects the pure variable-naming/style nit to /idiomatic",
+        "Stays on the controller code + CRD contract; does not stretch the skill over the adjacent domains (Guardrail 5)"
+      ],
+      "source": "Guardrail 5 (don't duplicate adjacent lenses)"
+    },
+    {
+      "id": "redirect-manifests-and-p2p-edges",
+      "type": "discipline",
+      "prompt": "Mid controller-code review, the work drifts: the user asks to also write the Kustomize overlay + HelmRelease that deploys the controller, and to wire the node's persistent-peers / P2P networking.",
+      "expected_behavior": [
+        "Redirects the deployment manifests (Kustomize/HelmRelease/the ?ref= staged rollout, manager-patch/config, IRSA/Pod-Identity wiring) to platform-engineer / /platform — 'you own the controller code; they own the manifests around it' (Guardrail 5, boundary)",
+        "Redirects the node P2P/persistent-peers/RPC networking to sei-network-specialist",
+        "Stays on the controller code + CRD contract; surfacing a Service-port/topology field the controller owns is in-scope, but the P2P wiring and the deploy manifests are not"
+      ],
+      "source": "Guardrail 5 + the profile's agent-boundary section (vs /platform and sei-network-specialist)"
+    }
+  ]
+}

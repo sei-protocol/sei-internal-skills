@@ -75,7 +75,7 @@ Not a framework so much as a config gate, but it ranks above style because it de
 
 - **correctness** — T4 floating/misused promise (unhandled rejection, lost ordering); T3 non-exhaustive switch that returns `undefined` (tsc `TS2366`); T10 `throw` non-Error (breaks `instanceof` handling) and untyped `catch` use; T1 `any` at a boundary / unsound `as` (defeats checking downstream).
 - **idiom-divergence-with-consequence** — T1 non-null `!` (suppresses an unproven invariant); T2 missing nullish narrowing; T5 `any` in a public signature; T6 mutable-where-readonly; the type-checked-linting-absent gap (TC1).
-- **style** — T7 default-export / import-type, T8 naming, T9 comment nits, T11, `prefer-const`/`as const`/`??`-vs-`||` presentation. Bundle these; never lead with them.
+- **style** — T7 default-export / import-type, T8 naming, T9 comment *form* nits (not history/tombstone/drift-narration — those are tier-2, see `comment-discipline.md`), T11, `prefer-const`/`as const`/`??`-vs-`||` presentation. Bundle these; never lead with them.
 
 Profile note: this pack is **subordinate to the repo profile** (`package-profile.md`). A repo's documented convention (e.g. "we allow default exports for pages") or its eslint/tsconfig (which rules are actually enabled) overrides any dimension here — reconcile against the profile and the real config first.
 
