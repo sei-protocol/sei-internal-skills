@@ -10,7 +10,7 @@ In the current sei-omnigent MVP (Design 20) your **only** signal source is the G
 |---|---|---|
 | 1. `describe pod` / events | out of envelope; restart/OOM/pressure survive as kube-state metrics (`kube_pod_container_status_restarts_total`, `kube_pod_status_phase`) — raw Events do not | `grafana__query_prometheus` |
 | 2. `logs [--previous]` | every pod's logs ship to Loki (alloy-logs); LogQL bounded to the crash/incident window | `grafana__query_loki_logs` |
-| 3. `seid status` sync_info | sync/height as metrics (`tendermint_consensus_latest_block_height`, catching-up series) | `grafana__query_prometheus` |
+| 3. `seid status` sync_info | sync/height as metrics (`tendermint_consensus_latest_block_height`; sync via `tendermint_consensus_block_syncing`/`_state_syncing`) | `grafana__query_prometheus` |
 | 4. `net_info`/`dump_consensus_state` | peers + rounds as metrics (`tendermint_p2p_peers`, `tendermint_consensus_rounds`); raw round-state is out of envelope | `grafana__query_prometheus` |
 | 5. Prometheus RED query | native | `grafana__query_prometheus` |
 
@@ -23,6 +23,8 @@ Datasource UIDs: **`prometheus`** (metrics), **`loki`** (logs). Bound every quer
 Run these before you have a hypothesis. They establish the search space.
 
 ### 1. `kubectl describe pod <pod> -n <ns>`
+
+> **MVP: out of envelope.** No `kubectl` — read restart/OOM/pressure from kube-state metrics (`kube_pod_container_status_restarts_total`, `kube_pod_status_phase`) via `grafana__query_prometheus`; raw Events have no metric proxy, punt per Step 6.
 
 The Events section is the highest-yield single signal in Kubernetes. Captures:
 
@@ -41,6 +43,8 @@ For long-running pods that haven't crashed but are misbehaving, drop `--previous
 
 ### 3. `seid status | jq '.sync_info'`
 
+> **MVP: out of envelope.** No `seid`/`curl` — read height off `tendermint_consensus_latest_block_height` and sync off `tendermint_consensus_block_syncing`/`_state_syncing` via `grafana__query_prometheus`.
+
 (Or `curl -s :26657/status | jq '.result.sync_info'` if querying directly.)
 
 Separates three failure classes:
@@ -50,6 +54,8 @@ Separates three failure classes:
 - `latest_block_height` static → node is wedged. Investigate consensus (next rung).
 
 ### 4. `curl -s :26657/net_info | jq '.result.peers | length'` + `curl -s :26657/dump_consensus_state | jq '.result.round_state'`
+
+> **MVP: out of envelope.** Peers via `tendermint_p2p_peers`, rounds via `tendermint_consensus_rounds` (metrics). The raw `dump_consensus_state` round-state has NO metric proxy — if a decisive gate needs it, punt per Step 6.
 
 Peer count answers "am I isolated?" `dump_consensus_state` answers "do I see the same proposal/votes as the rest of the network at this height?"
 

@@ -32,7 +32,7 @@ executor:
 tools:
   grafana:
     type: mcp
-    url: http://localhost:8000/mcp
+    url: http://127.0.0.1:8000/mcp
 
 prompt: |
   You are a headless root-cause investigator for the Sei platform stack
@@ -59,8 +59,10 @@ prompt: |
   (`dump_consensus_state` round-state), or pprof — it is UNAVAILABLE in this
   MVP envelope: never attempt a shell command for it, and if a hypothesis's
   decisive gate depends on it, punt cleanly per Step 6 with that stated obstacle
-  (it is deferred to the read-only-k8s increment). See the signal ladder's "MVP
-  deployment envelope" section for the rung-by-rung mapping.
+  (it is deferred to the read-only-k8s increment). Metrics and logs LOCALIZE the
+  failure; when a decisive gate needs an out-of-envelope raw object/RPC read, a
+  localizing metric does NOT stand in for it — punt, never substitute. See the
+  signal ladder's "MVP deployment envelope" section for the rung-by-rung mapping.
 
   Load the bundled `/root-cause` skill and follow its six gated steps:
   - (1) Establish the effect in measurable terms (symptom, onset, baseline,
@@ -104,6 +106,9 @@ os_env:
 # credential-absence (INV-3') PLUS the host egress sandbox (INV-11). blast_radius
 # is "not a security boundary" by its own docstring, so it is the backstop here,
 # never the floor.
+# NOTE: the prompt above pins the Design-20 dev MVP envelope (DENY_SHELL=true,
+# Grafana-MCP-only) — a stronger, narrower floor than this deploy-default
+# backstop. See agents/root-cause/README.md "MVP deployment (Design 20)".
 guardrails:
   # Headless has no approver, so a short timeout makes a policy ASK fail closed
   # quickly (a propose-only agent should never wait on a mutation approval).

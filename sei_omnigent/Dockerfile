@@ -22,9 +22,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /src
 
-# Build context is sei_omnigent/ — pyproject + the src/ package are self-contained.
-# Copy them explicitly (the .dockerignore already prunes the context to these;
-# naming them avoids buildkit's CopyIgnoredFile warning on a bare `COPY . .`).
+# Build context is sei_omnigent/. Copy the builder inputs explicitly — the
+# .dockerignore denies-all then re-includes pyproject/src + the agent bundles;
+# naming these avoids buildkit's CopyIgnoredFile warning on a bare `COPY . .`.
 COPY pyproject.toml ./
 COPY src ./src
 
