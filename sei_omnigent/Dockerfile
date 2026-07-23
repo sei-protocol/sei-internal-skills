@@ -22,9 +22,9 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /src
 
-# Build context is sei_omnigent/ — pyproject + the src/ package are self-contained.
-# Copy them explicitly (the .dockerignore already prunes the context to these;
-# naming them avoids buildkit's CopyIgnoredFile warning on a bare `COPY . .`).
+# Build context is sei_omnigent/. Copy the builder inputs explicitly — the
+# .dockerignore denies-all then re-includes pyproject/src + the agent bundles;
+# naming these avoids buildkit's CopyIgnoredFile warning on a bare `COPY . .`.
 COPY pyproject.toml ./
 COPY src ./src
 
@@ -60,6 +60,11 @@ COPY --from=builder /install /usr/local
 # registers the dir at startup; the whole bundle incl. skills/ must be present).
 # Owned by uid 1000 (the runtime user); read-only at runtime.
 COPY --chown=1000:1000 agents/xreview /opt/sei-omnigent/agents/xreview
+
+# The root-cause bundle, baked at the same path convention for
+# OMNIGENT_BUILTIN_AGENT_DIRS registration. Its Grafana-MCP signal source is a
+# runtime sidecar (Design 20), not baked here.
+COPY --chown=1000:1000 agents/root-cause /opt/sei-omnigent/agents/root-cause
 
 USER 1000:1000
 

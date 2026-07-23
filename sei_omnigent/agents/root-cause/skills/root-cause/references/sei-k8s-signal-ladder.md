@@ -2,11 +2,29 @@
 
 The first signals to retrieve for any Sei-platform incident, in order. The lower rungs localize the failure and frequently reveal hypotheses you wouldn't have written. Never skip rungs to chase a favored hypothesis.
 
+## MVP deployment envelope (Grafana-MCP-only) — read first
+
+In the current sei-omnigent MVP (Design 20) your **only** signal source is the Grafana MCP: metrics (Prometheus) and logs (Loki). No shell, no `kubectl`, no `seid`, no `curl`, no node RPC. Read the rungs below through this mapping — don't attempt a denied command.
+
+| Rung | MVP path | Tool |
+|---|---|---|
+| 1. `describe pod` / events | out of envelope; restart/OOM/pressure survive as kube-state metrics (`kube_pod_container_status_restarts_total`, `kube_pod_status_phase`) — raw Events do not | `grafana__query_prometheus` |
+| 2. `logs [--previous]` | every pod's logs ship to Loki (alloy-logs); LogQL bounded to the crash/incident window | `grafana__query_loki_logs` |
+| 3. `seid status` sync_info | sync/height as metrics (`tendermint_consensus_height`; sync via `tendermint_consensus_block_syncing`/`_state_syncing`) | `grafana__query_prometheus` |
+| 4. `net_info`/`dump_consensus_state` | peers + rounds as metrics (`tendermint_p2p_peers`, `tendermint_consensus_rounds`); raw round-state is out of envelope | `grafana__query_prometheus` |
+| 5. Prometheus RED query | native | `grafana__query_prometheus` |
+
+Datasource UIDs: **`prometheus`** (metrics), **`loki`** (logs). Bound every query to ±15 min of onset.
+
+**Out of envelope → punt cleanly (Step 6), never fake.** Pod object-state/events, raw CometBFT round-state, `pprof`, `kubectl top`/node views, and `seid query` are unreachable here. If a hypothesis's decisive gate needs one, state the obstacle ("requires a cluster-state/RPC signal deferred to the read-only-k8s increment") — the metric substitutes above *localize*, they do not stand in for a raw object/RPC read at a final gate. Never substitute a weaker signal silently or fabricate output.
+
 ## The first five commands
 
 Run these before you have a hypothesis. They establish the search space.
 
 ### 1. `kubectl describe pod <pod> -n <ns>`
+
+> **MVP: out of envelope.** No `kubectl` — read restart/OOM/pressure from kube-state metrics (`kube_pod_container_status_restarts_total`, `kube_pod_status_phase`) via `grafana__query_prometheus`; raw Events have no metric proxy, punt per Step 6.
 
 The Events section is the highest-yield single signal in Kubernetes. Captures:
 
@@ -25,6 +43,8 @@ For long-running pods that haven't crashed but are misbehaving, drop `--previous
 
 ### 3. `seid status | jq '.sync_info'`
 
+> **MVP: out of envelope.** No `seid`/`curl` — read height off `tendermint_consensus_height` and sync off `tendermint_consensus_block_syncing`/`_state_syncing` via `grafana__query_prometheus`.
+
 (Or `curl -s :26657/status | jq '.result.sync_info'` if querying directly.)
 
 Separates three failure classes:
@@ -34,6 +54,8 @@ Separates three failure classes:
 - `latest_block_height` static → node is wedged. Investigate consensus (next rung).
 
 ### 4. `curl -s :26657/net_info | jq '.result.peers | length'` + `curl -s :26657/dump_consensus_state | jq '.result.round_state'`
+
+> **MVP: out of envelope.** Peers via `tendermint_p2p_peers`, rounds via `tendermint_consensus_rounds` (metrics). The raw `dump_consensus_state` round-state has NO metric proxy — if a decisive gate needs it, punt per Step 6.
 
 Peer count answers "am I isolated?" `dump_consensus_state` answers "do I see the same proposal/votes as the rest of the network at this height?"
 

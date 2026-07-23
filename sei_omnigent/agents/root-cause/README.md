@@ -6,6 +6,25 @@ the ControlPlane's PagerDuty route opens a session against this bundle, which
 runs the `/root-cause` discipline and returns a ranked, evidence-backed analysis
 with a **proposed** (never executed) remediation.
 
+## MVP deployment (Design 20) — manual launch, Grafana-MCP signal envelope
+
+The sections below frame this bundle for the PagerDuty-triggered path on the
+standing claude-native host. The Design-20 dev MVP runs the *same* bundle in a
+narrower envelope, and three assumptions differ for it:
+
+- **Manual, not PD-triggered.** An operator opens a managed session against this
+  bundle; the automation trigger is a later increment.
+- **`deny_shell=true`** (dev sets `SEI_OMNIGENT_DENY_SHELL=true`), *not* the
+  `False` the propose-only floor section below assumes — so the `kubectl`/`curl`
+  mutation classes are denied at the shell layer, a strictly stronger floor than
+  the `blast_radius` backstop alone.
+- **Grafana MCP is the only signal source** — metrics (Prometheus) + logs (Loki)
+  via a loopback sidecar the *server* dials; no cluster API, no node RPC. So the
+  runner has no *shell/OS/gh* mutating capability and no cluster/node credential
+  to reach one; the Grafana MCP surface it *can* reach is held read-only by the
+  sidecar flags (rollout gate 5 below), **not** by `deny_shell`. Out-of-envelope
+  signals are listed in the signal ladder's "MVP deployment envelope" section.
+
 ## Layout
 
 - `config.yaml` — the omni agent spec (`spec_version: 1`, `name: root-cause`).
@@ -56,6 +75,13 @@ floor differs **per mutation class**, and no single layer covers all of them:
   plus the **host egress allowlist (INV-11: no write-capable endpoint reachable
   with ambient credentials)**. This is the **C4 residual** — there is no policy
   layer for it, only the two host-side controls below.
+- **MCP tool calls** (the Grafana MCP surface this bundle adds under `tools:`) —
+  matched by **no** policy pattern: `deny_shell` covers shell, the read-only
+  defaults cover file/`gh`/`git`, none intercept an MCP `grafana__<tool>` call.
+  Gated ONLY by the **sidecar launch flags** (`--disable-write
+  --enabled-tools=datasource,prometheus,loki`) over a read-only Grafana **Viewer**
+  SA — a second **C4-style residual**: upstream `grafana/mcp-grafana` defaults to
+  write-enabled/all-tools, so the safe state is not the default (rollout gate 5).
 
 `config.yaml`'s `os_env.sandbox.type: none` matches the standing claude-native
 host's runner shape; the sandboxing lives on the host, not in the spec.
@@ -82,6 +108,12 @@ gates, not solved by this bundle:
    the PLT-715 Context-check halt that the build-time smoke (below) cannot see.
    (Long-term: a host readiness probe re-checking `~/.claude/agents/*.md` at
    container start closes this at runtime — owned by sre/platform.)
+5. The **Grafana MCP sidecar is launched read-only** — `--disable-write
+   --enabled-tools=datasource,prometheus,loki` over a Viewer service account —
+   verified before any live run (manual MVP or PD fire). Upstream default is
+   write-enabled, so an unflagged sidecar hands write-capable Grafana tools to a
+   runner that ingests attacker-influenceable Loki logs. This is the checkable
+   operator control for the MCP-tool mutation class above.
 
 ## harness: claude-native (required)
 
