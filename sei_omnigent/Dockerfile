@@ -63,7 +63,7 @@ COPY --chown=1000:1000 agents/xreview /opt/sei-omnigent/agents/xreview
 
 # The root-cause bundle, baked at the same path convention for
 # OMNIGENT_BUILTIN_AGENT_DIRS registration. Its Grafana-MCP signal source is a
-# runtime sidecar (Design 20), not baked here.
+# runtime sidecar, not baked here.
 COPY --chown=1000:1000 agents/root-cause /opt/sei-omnigent/agents/root-cause
 
 USER 1000:1000

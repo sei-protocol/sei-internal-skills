@@ -4,7 +4,7 @@ The first signals to retrieve for any Sei-platform incident, in order. The lower
 
 ## MVP deployment envelope (Grafana-MCP-only) — read first
 
-In the current sei-omnigent MVP (Design 20) your **only** signal source is the Grafana MCP: metrics (Prometheus) and logs (Loki). No shell, no `kubectl`, no `seid`, no `curl`, no node RPC. Read the rungs below through this mapping — don't attempt a denied command.
+In the current sei-omnigent MVP your **only** signal source is the Grafana MCP: metrics (Prometheus) and logs (Loki). No shell, no `kubectl`, no `seid`, no `curl`, no node RPC. Read the rungs below through this mapping — don't attempt a denied command.
 
 | Rung | MVP path | Tool |
 |---|---|---|

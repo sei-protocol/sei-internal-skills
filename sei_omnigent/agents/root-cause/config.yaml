@@ -23,11 +23,11 @@ executor:
     # without prompting (managed Claude settings disable bypassPermissions).
     permission_mode: auto
 
-# Tools — the Grafana MCP: the MVP's only signal source (Design 20,
-# sei-agentic-mesh). The server dials it, not the sandbox — it's a loopback
-# sidecar in the server pod (upstream grafana/mcp-grafana) on :8899 (the omnigent
-# server owns :8000 in-pod, so the MCP must not reuse it), so no endpoint or
-# credential reaches the untrusted sandbox. Read-only is structural:
+# Tools — the Grafana MCP: the MVP's only signal source. The server dials it,
+# not the sandbox — it's a loopback sidecar in the server pod (upstream
+# grafana/mcp-grafana) on :8899 (the omnigent server owns :8000 in-pod, so the
+# MCP must not reuse it), so no endpoint or credential reaches the untrusted
+# sandbox. Read-only is structural:
 # `--disable-write --enabled-tools=datasource,prometheus,loki` over a Viewer SA.
 # Tools surface to the agent as `grafana__<tool>`.
 tools:
@@ -107,9 +107,9 @@ os_env:
 # credential-absence (INV-3') PLUS the host egress sandbox (INV-11). blast_radius
 # is "not a security boundary" by its own docstring, so it is the backstop here,
 # never the floor.
-# NOTE: the prompt above pins the Design-20 dev MVP envelope (DENY_SHELL=true,
+# NOTE: the prompt above pins the dev MVP envelope (DENY_SHELL=true,
 # Grafana-MCP-only) — a stronger, narrower floor than this deploy-default
-# backstop. See agents/root-cause/README.md "MVP deployment (Design 20)".
+# backstop. See agents/root-cause/README.md "MVP deployment".
 guardrails:
   # Headless has no approver, so a short timeout makes a policy ASK fail closed
   # quickly (a propose-only agent should never wait on a mutation approval).
