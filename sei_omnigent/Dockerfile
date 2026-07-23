@@ -61,6 +61,11 @@ COPY --from=builder /install /usr/local
 # Owned by uid 1000 (the runtime user); read-only at runtime.
 COPY --chown=1000:1000 agents/xreview /opt/sei-omnigent/agents/xreview
 
+# The root-cause bundle, baked at the same path convention for
+# OMNIGENT_BUILTIN_AGENT_DIRS registration. Its Grafana-MCP signal source is a
+# runtime sidecar (Design 20), not baked here.
+COPY --chown=1000:1000 agents/root-cause /opt/sei-omnigent/agents/root-cause
+
 USER 1000:1000
 
 # No HEALTHCHECK — k8s liveness/readiness/startup probes own health (the in-image

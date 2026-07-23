@@ -6,6 +6,24 @@ the ControlPlane's PagerDuty route opens a session against this bundle, which
 runs the `/root-cause` discipline and returns a ranked, evidence-backed analysis
 with a **proposed** (never executed) remediation.
 
+## MVP deployment (Design 20) — manual launch, Grafana-MCP signal envelope
+
+The sections below frame this bundle for the PagerDuty-triggered path on the
+standing claude-native host. The Design-20 dev MVP runs the *same* bundle in a
+narrower envelope, and three assumptions differ for it:
+
+- **Manual, not PD-triggered.** An operator opens a managed session against this
+  bundle; the automation trigger is a later increment.
+- **`deny_shell=true`** (dev sets `SEI_OMNIGENT_DENY_SHELL=true`), *not* the
+  `False` the propose-only floor section below assumes — so the `kubectl`/`curl`
+  mutation classes are denied at the shell layer, a strictly stronger floor than
+  the `blast_radius` backstop alone.
+- **Grafana MCP is the only signal source** — metrics (Prometheus) + logs (Loki)
+  via a loopback sidecar the *server* dials; no cluster API, no node RPC. That is
+  what makes propose-only trivially hold here: the runner has no mutating
+  capability and no credential to reach one. Out-of-envelope signals are listed
+  in the signal ladder's "MVP deployment envelope" section.
+
 ## Layout
 
 - `config.yaml` — the omni agent spec (`spec_version: 1`, `name: root-cause`).
