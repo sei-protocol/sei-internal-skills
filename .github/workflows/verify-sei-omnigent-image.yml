@@ -74,18 +74,20 @@ jobs:
             docker run --rm --entrypoint python sei-omnigent:pr-smoke \
             -X faulthandler -c "import faulthandler; faulthandler.dump_traceback_later(60, exit=True); import sei_omnigent.server.serve_main; print('import-ok')"
 
-      - name: Bundle-presence smoke (the baked xreview agent)
-        # The image bakes agents/xreview so the deploy can register it via
-        # OMNIGENT_BUILTIN_AGENT_DIRS. The import smoke above does NOT stat the
-        # bundle, and a partial .dockerignore re-include would ship an incomplete
-        # tree that COPY does not error on — a silent gap that becomes a live
-        # registration failure once the deploy wires the env var. Assert the two
-        # load-bearing files (the agent config + the skill body the server tars at
-        # registration) actually landed. rc!=0 = FAILURE.
+      - name: Bundle-presence smoke (the baked xreview + root-cause agents)
+        # The image bakes agents/xreview and agents/root-cause so the deploy can
+        # register them via OMNIGENT_BUILTIN_AGENT_DIRS. The import smoke above does
+        # NOT stat the bundles, and a partial .dockerignore re-include would ship an
+        # incomplete tree that COPY does not error on — a silent gap that becomes a
+        # live registration failure once the deploy wires the env var. Assert the
+        # load-bearing files (each agent config + the skill body the server tars at
+        # registration) landed, for BOTH bundles. rc!=0 = FAILURE.
         run: |
           docker run --rm --entrypoint sh sei-omnigent:pr-smoke -c '
             test -f /opt/sei-omnigent/agents/xreview/config.yaml &&
             test -f /opt/sei-omnigent/agents/xreview/skills/xreview/SKILL.md &&
+            test -f /opt/sei-omnigent/agents/root-cause/config.yaml &&
+            test -f /opt/sei-omnigent/agents/root-cause/skills/root-cause/SKILL.md &&
             echo bundle-ok'
 
       - name: Boot config-parse smoke (yaml bool-resolver regression)

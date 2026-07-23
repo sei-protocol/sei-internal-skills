@@ -10,7 +10,7 @@ In the current sei-omnigent MVP (Design 20) your **only** signal source is the G
 |---|---|---|
 | 1. `describe pod` / events | out of envelope; restart/OOM/pressure survive as kube-state metrics (`kube_pod_container_status_restarts_total`, `kube_pod_status_phase`) — raw Events do not | `grafana__query_prometheus` |
 | 2. `logs [--previous]` | every pod's logs ship to Loki (alloy-logs); LogQL bounded to the crash/incident window | `grafana__query_loki_logs` |
-| 3. `seid status` sync_info | sync/height as metrics (`tendermint_consensus_latest_block_height`; sync via `tendermint_consensus_block_syncing`/`_state_syncing`) | `grafana__query_prometheus` |
+| 3. `seid status` sync_info | sync/height as metrics (`tendermint_consensus_height`; sync via `tendermint_consensus_block_syncing`/`_state_syncing`) | `grafana__query_prometheus` |
 | 4. `net_info`/`dump_consensus_state` | peers + rounds as metrics (`tendermint_p2p_peers`, `tendermint_consensus_rounds`); raw round-state is out of envelope | `grafana__query_prometheus` |
 | 5. Prometheus RED query | native | `grafana__query_prometheus` |
 
@@ -43,7 +43,7 @@ For long-running pods that haven't crashed but are misbehaving, drop `--previous
 
 ### 3. `seid status | jq '.sync_info'`
 
-> **MVP: out of envelope.** No `seid`/`curl` — read height off `tendermint_consensus_latest_block_height` and sync off `tendermint_consensus_block_syncing`/`_state_syncing` via `grafana__query_prometheus`.
+> **MVP: out of envelope.** No `seid`/`curl` — read height off `tendermint_consensus_height` and sync off `tendermint_consensus_block_syncing`/`_state_syncing` via `grafana__query_prometheus`.
 
 (Or `curl -s :26657/status | jq '.result.sync_info'` if querying directly.)
 
