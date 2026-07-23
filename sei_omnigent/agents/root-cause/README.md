@@ -6,10 +6,10 @@ the ControlPlane's PagerDuty route opens a session against this bundle, which
 runs the `/root-cause` discipline and returns a ranked, evidence-backed analysis
 with a **proposed** (never executed) remediation.
 
-## MVP deployment (Design 20) — manual launch, Grafana-MCP signal envelope
+## MVP deployment — manual launch, Grafana-MCP signal envelope
 
 The sections below frame this bundle for the PagerDuty-triggered path on the
-standing claude-native host. The Design-20 dev MVP runs the *same* bundle in a
+standing claude-native host. The dev MVP runs the *same* bundle in a
 narrower envelope, and three assumptions differ for it:
 
 - **Manual, not PD-triggered.** An operator opens a managed session against this
