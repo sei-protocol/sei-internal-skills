@@ -12,8 +12,7 @@
 # The baked agent bundles (config + skill body) — registered by the server via
 # OMNIGENT_BUILTIN_AGENT_DIRS. xreview (the review venue) and root-cause (the
 # operation kit; its Grafana-MCP signal source is a runtime sidecar, so nothing
-# extra is baked). Their skills/ trees are included;
-# caches are pruned below.
+# extra is baked). Their skills/ trees are included; caches are pruned below.
 !agents/xreview/**
 !agents/root-cause/**
 
