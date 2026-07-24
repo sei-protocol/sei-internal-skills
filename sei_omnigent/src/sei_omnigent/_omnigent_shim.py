@@ -19,14 +19,13 @@ the pinned tag bumps, this file is the one place to re-verify against the new
 Authored/verified against the local ``omnigent`` checkout; the deploy pin is
 ``omnigent == 0.6.0`` (see ``sei_omnigent.PINNED_OMNIGENT``) — re-verified
 symbol-by-symbol against the 0.6.0 source on the 0.3.0→0.6.0 bump (all symbols
-present, no signature breaks; ``create_app`` inserted ``scheduled_task_store``
-mid-signature and appended ``sharing_mode``/``public_sharing``/``server_config``,
-but the seam wires every arg by keyword and the boot canary asserts the exact
-param names/order, so the insertion is absorbed). Added for 0.6.0: ``SharingMode``
-(from ``omnigent.server.auth`` — NOT re-exported from ``omnigent/__init__``) for
-the sharing lockdown, and ``product_telemetry_is_disabled`` (from the new
-``omnigent.telemetry`` analytics client) for the boot telemetry assert. Re-confirm
-the private-helper locations against the wheel on the next bump.
+present, no signature breaks; the ``create_app`` signature reshape is wired by
+keyword and tripwired in ``serve.py`` — see ``_EXPECTED_CREATE_APP_PARAMS``).
+Added for 0.6.0: ``SharingMode`` (from ``omnigent.server.auth`` — NOT re-exported
+from ``omnigent/__init__``) for the sharing lockdown, and
+``product_telemetry_is_disabled`` (from the new ``omnigent.telemetry`` analytics
+client) for the boot telemetry assert. Re-confirm the private-helper locations
+against the wheel on the next bump.
   - create_app                       omnigent/server/app.py:967
   - init (init_runtime)              omnigent/runtime/__init__.py:31  (keyword-only)
   - RuntimeCaps / AgentCache         omnigent/runtime/{caps,agent_cache}.py

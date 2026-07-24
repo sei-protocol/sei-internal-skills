@@ -24,10 +24,12 @@ def accounts_mode_env_error(env: Mapping[str, str]) -> str | None:
     The fresh 0.3.0→0.6.0 cutover must carry NO leftover accounts auth env:
     ``OMNIGENT_AUTH_PROVIDER`` must be explicitly ``header``, and NEITHER
     ``OMNIGENT_AUTH_ENABLED`` NOR the deprecated-but-honored
-    ``OMNIGENT_ACCOUNTS_ENABLED`` may be present — either enables 0.6.0's
-    accounts mode (the first-user-is-admin bootstrap). Fail CLOSED on presence:
-    even a leftover ``=0`` is refused, because it is a latent flip waiting for
-    ``OMNIGENT_AUTH_PROVIDER`` to be unset. Complements
+    ``OMNIGENT_ACCOUNTS_ENABLED`` may be present — a *truthy* leftover would
+    select 0.6.0's accounts mode (the first-user-is-admin bootstrap) if the
+    explicit provider were ever dropped. Fail CLOSED on presence of either, even
+    a leftover ``=0``: ``=0`` would not itself flip (with the provider dropped it
+    still resolves to ``header``), but it is latent accounts-mode config one
+    value-edit away, so the cutover carries none of it. Complements
     :func:`header_posture_error` (which reads the *resolved* source — an explicit
     provider masks the leftover flags this negative assertion catches).
     """
@@ -41,10 +43,12 @@ def accounts_mode_env_error(env: Mapping[str, str]) -> str | None:
     present = [name for name in _ACCOUNTS_MODE_ENVS if name in env]
     if present:
         return (
-            f"accounts-mode env is set ({', '.join(present)}) — this flips 0.6.0 "
-            f"into accounts mode (first-user-is-admin) even alongside "
-            f"{_AUTH_PROVIDER_ENV}=header. Scrub it from the pod env; the "
-            f"header-mode cutover carries none of {_ACCOUNTS_MODE_ENVS}."
+            f"accounts-mode env is set ({', '.join(present)}). It is inert while "
+            f"{_AUTH_PROVIDER_ENV}=header is set — an explicit provider always wins "
+            f"in resolve_auth_source — but a truthy value would select accounts "
+            f"mode (first-user-is-admin) if that provider were ever dropped. Scrub "
+            f"it from the pod env; the header-mode cutover carries none of "
+            f"{_ACCOUNTS_MODE_ENVS}."
         )
     return None
 
