@@ -44,13 +44,14 @@ is NOT done here — ``make_stores`` takes a pre-loaded ``cfg`` dict and never s
 
 from __future__ import annotations
 
+import inspect
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sei_omnigent import _omnigent_shim as omni
-from sei_omnigent._posture import header_posture_error
+from sei_omnigent._posture import accounts_mode_env_error, header_posture_error
 
 if TYPE_CHECKING:  # types only — no runtime import of omnigent (drift contract)
     from fastapi import FastAPI
@@ -172,6 +173,141 @@ def _assert_header_posture() -> None:
     if err is not None:
         raise RuntimeError(err)
 
+    # Negative assertion (0.6.0): fail closed if the pod env carries any
+    # leftover accounts-mode switch. resolve_auth_source() honors an explicit
+    # OMNIGENT_AUTH_PROVIDER first, so a stray OMNIGENT_AUTH_ENABLED /
+    # OMNIGENT_ACCOUNTS_ENABLED passes the header check above yet is a latent
+    # flip to accounts mode — refuse it here.
+    accounts_err = accounts_mode_env_error(os.environ)
+    if accounts_err is not None:
+        raise RuntimeError(accounts_err)
+
+
+# The exact ``create_app`` parameter names AND order verified against omnigent
+# 0.6.0 (``omnigent/server/app.py``). The pin canary asserts this tuple so
+# the mid-signature ``scheduled_task_store`` insertion (0.6.0) — or any future
+# reorder — fails at boot/CI rather than as a silent positional mis-bind. A bare
+# ``signature.bind()`` succeeds against shifted slots, so the ordered tuple, not
+# just the bind, is the real guard. Keep in sync on every pinned-tag bump.
+_EXPECTED_CREATE_APP_PARAMS = (
+    "agent_store",
+    "file_store",
+    "conversation_store",
+    "artifact_store",
+    "agent_cache",
+    "runner_tunnel_tokens",
+    "comment_store",
+    "policy_store",
+    "permission_store",
+    "scheduled_task_store",
+    "auth_provider",
+    "host_store",
+    "account_store",
+    "extra_routers",
+    "policy_modules",
+    "admins",
+    "allowed_domains",
+    "sandbox_config",
+    "sharing_mode",
+    "public_sharing",
+    "server_config",
+)
+
+# The kwargs the overlay actually passes to create_app — bound against the live
+# signature (layer 1) to prove every name resolves. NOT scheduled_task_store /
+# server_config / extra_routers (omitted → None, deliberate: None keeps the
+# scheduler off, and telemetry is disabled via env not config).
+_OVERLAY_CREATE_APP_KWARGS = (
+    "agent_store",
+    "file_store",
+    "conversation_store",
+    "comment_store",
+    "policy_store",
+    "artifact_store",
+    "agent_cache",
+    "runner_tunnel_tokens",
+    "permission_store",
+    "auth_provider",
+    "host_store",
+    "account_store",
+    "policy_modules",
+    "admins",
+    "allowed_domains",
+    "sandbox_config",
+    "sharing_mode",
+    "public_sharing",
+)
+
+
+def _assert_create_app_arity() -> None:
+    """Signature guard, run before ``create_app`` is invoked (layers 1-2).
+
+    Runs before ``create_app`` is invoked (omnigent installed → real signature).
+    Layer 1: the parameter names AND order match the 0.6.0-verified tuple —
+    guards the mid-signature ``scheduled_task_store`` insertion a bare ``bind``
+    against shifted slots would silently accept — and binds the exact overlay
+    kwargs to prove each name resolves. Layer 2: the ``sharing_mode`` +
+    ``public_sharing`` params the sharing lockdown rides on are present.
+
+    Layers 1-2 alone still pass a fail-open build (they only prove the wiring
+    *can* bind); :func:`_assert_boot_posture` is the real gate.
+    """
+    sig = inspect.signature(omni.create_app)
+    params = tuple(sig.parameters)
+    if params != _EXPECTED_CREATE_APP_PARAMS:
+        raise RuntimeError(
+            "omnigent.create_app signature drifted from the 0.6.0-verified param "
+            "order (the mid-signature scheduled_task_store insertion is exactly the "
+            "silent positional mis-bind this guards). Re-verify the seam wiring. "
+            f"expected {_EXPECTED_CREATE_APP_PARAMS}, got {params}"
+        )
+    for required in ("sharing_mode", "public_sharing"):
+        if required not in sig.parameters:
+            raise RuntimeError(
+                f"omnigent.create_app lost the {required!r} param — the sharing "
+                "lockdown cannot be wired; abort rather than boot fail-open."
+            )
+    # Bind the exact kwargs the overlay passes; a removed/renamed param fails
+    # here, not deep in the call. Placeholder None values — bind checks names/
+    # arity, not types.
+    sig.bind(**{name: None for name in _OVERLAY_CREATE_APP_KWARGS})
+
+
+def _assert_boot_posture(app: FastAPI) -> None:
+    """Boot-assert on the built app (layers 3-4) — the real gates.
+
+    Layer 3: the sharing lockdown actually took on the built app —
+    ``RESTRICTED_READ_ONLY``, public sharing off, and BOTH ``*_writable`` frozen
+    ``False`` (the static-value path in create_app sets writable=False → ``PUT
+    /v1/sharing`` returns 403). Layer 4: the 0.6.0 product-analytics phone-home
+    is disabled, so the remote-config fetch thread never spawns (the confirmed
+    control is ``OMNIGENT_DISABLE_TELEMETRY`` in the pod env, asserted here).
+    """
+    mode = app.state.sharing_mode()
+    if mode != omni.SharingMode.RESTRICTED_READ_ONLY:
+        raise RuntimeError(
+            f"sharing_mode resolved {mode!r}, expected RESTRICTED_READ_ONLY "
+            "(the sharing lockdown did not take)."
+        )
+    if app.state.public_sharing() is not False:
+        raise RuntimeError("public_sharing is enabled, expected False (sharing lockdown).")
+    if app.state.sharing_mode_writable is not False:
+        raise RuntimeError(
+            "sharing_mode_writable is True — the PUT /v1/sharing override is "
+            "NOT frozen off (a non-static sharing_mode leaked through)."
+        )
+    if app.state.public_sharing_writable is not False:
+        raise RuntimeError(
+            "public_sharing_writable is True — the public-sharing override is "
+            "NOT frozen off."
+        )
+    if omni.product_telemetry_is_disabled() is not True:
+        raise RuntimeError(
+            "omnigent product telemetry is NOT disabled — the phone-home "
+            "config-fetch thread would spawn. Set OMNIGENT_DISABLE_TELEMETRY=1 in "
+            "the pod env."
+        )
+
 
 def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAPI:
     """Build the FastAPI app from the seam.
@@ -231,9 +367,24 @@ def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAP
     auth_provider = omni.create_auth_provider()
     account_store = None
 
-    # ONE-WAY DOOR: keyword-only — create_app's parameter order (app.py:967)
-    # differs from any natural store ordering; positional wiring mis-binds.
-    return omni.create_app(
+    # Signature guard (layers 1-2): assert create_app's param names/order match
+    # the 0.6.0-verified tuple and the overlay kwargs bind, BEFORE the call — so a
+    # signature drift (esp. the mid-signature scheduled_task_store insertion)
+    # surfaces here, not as a silent positional mis-bind at boot.
+    _assert_create_app_arity()
+
+    # ONE-WAY DOOR: keyword-only — create_app's parameter order differs from any
+    # natural store ordering, and 0.6.0 inserts `scheduled_task_store`
+    # mid-signature (between permission_store and auth_provider), so positional
+    # wiring past permission_store mis-binds. `scheduled_task_store` and
+    # `server_config` are OMITTED (→ None): None keeps the scheduler off and
+    # discards omnigent's config-based telemetry kill-path (disabled via env
+    # instead). The sharing lockdown: static `sharing_mode` + `public_sharing`
+    # freeze the sharing posture at RESTRICTED_READ_ONLY / disabled AND set
+    # `*_writable=False` (the static path), so the runtime `PUT /v1/sharing`
+    # override is frozen off. Static values (not env) are required — env would
+    # leave `*_writable=True`.
+    app = omni.create_app(
         agent_store=s.agent,
         file_store=s.file,
         conversation_store=s.conversation,
@@ -250,4 +401,11 @@ def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAP
         admins=omni.config_str_list(cfg.get("admins")),
         allowed_domains=omni.config_str_list(cfg.get("allowed_domains")),
         sandbox_config=sandbox_config,
+        sharing_mode=omni.SharingMode.RESTRICTED_READ_ONLY,
+        public_sharing=False,
     )
+
+    # Boot-assert (layers 3-4, the real gates): the sharing lockdown took and
+    # is frozen non-writable, and product-analytics telemetry is disabled.
+    _assert_boot_posture(app)
+    return app

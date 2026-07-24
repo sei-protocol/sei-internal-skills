@@ -13,7 +13,7 @@ and enforceable as a CI lint / a session-launch precondition:
 2. **Roster-discoverable guard** (a fail-closed *check* — returns a message; the
    caller raises). What the omnigent source actually establishes (verified
    against the local ``omnigent`` 0.1.0 checkout — ``inner/bundle_skills.py``
-   ``:82-114`` + ``inner/claude_sdk_executor.py:1004-1014``; deploy pins 0.2.0
+   ``:82-114`` + ``inner/claude_sdk_executor.py:1004-1014``; deploy pins 0.6.0
    (``sei_omnigent.PINNED_OMNIGENT``)): ``skills_filter: "none"`` emits
    ``--setting-sources ""``, which suppresses *host setting-source discovery*
    (``~/.claude/skills/`` and the cwd's project ``.claude/`` scope). omnigent
@@ -44,7 +44,7 @@ signal below). The canary needs a running claude session and is deferred to the
 session-launch wiring (PLT-672), like the header-posture behavioral test.
 ``--strict-mcp-config`` (named in design §2.5) does not appear in the local
 omnigent 0.1.0 source — no check is wired for a flag the pinned runtime never
-emits; re-confirm against the 0.2.0 wheel on bump.
+emits; re-confirm against the 0.6.0 wheel on bump.
 
 Non-goal: roster *tampering* (a malicious agent *added* to ``.claude/agents/``).
 The count guard detects subtraction, not addition; content/digest pinning of the

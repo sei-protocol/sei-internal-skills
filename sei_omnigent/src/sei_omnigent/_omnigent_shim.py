@@ -17,11 +17,16 @@ the pinned tag bumps, this file is the one place to re-verify against the new
 ``omnigent/cli.py``.
 
 Authored/verified against the local ``omnigent`` checkout; the deploy pin is
-``omnigent == 0.3.0`` (see ``sei_omnigent.PINNED_OMNIGENT``) — re-verified
-symbol-by-symbol against the 0.3.0 source on the 0.2.0→0.3.0 bump (all symbols
-present, no signature breaks; ``create_app`` reordered its params but the seam
-wires every arg by keyword, so the reorder is absorbed). Re-confirm the
-private-helper locations against the wheel on the next bump.
+``omnigent == 0.6.0`` (see ``sei_omnigent.PINNED_OMNIGENT``) — re-verified
+symbol-by-symbol against the 0.6.0 source on the 0.3.0→0.6.0 bump (all symbols
+present, no signature breaks; ``create_app`` inserted ``scheduled_task_store``
+mid-signature and appended ``sharing_mode``/``public_sharing``/``server_config``,
+but the seam wires every arg by keyword and the boot canary asserts the exact
+param names/order, so the insertion is absorbed). Added for 0.6.0: ``SharingMode``
+(from ``omnigent.server.auth`` — NOT re-exported from ``omnigent/__init__``) for
+the sharing lockdown, and ``product_telemetry_is_disabled`` (from the new
+``omnigent.telemetry`` analytics client) for the boot telemetry assert. Re-confirm
+the private-helper locations against the wheel on the next bump.
   - create_app                       omnigent/server/app.py:967
   - init (init_runtime)              omnigent/runtime/__init__.py:31  (keyword-only)
   - RuntimeCaps / AgentCache         omnigent/runtime/{caps,agent_cache}.py
@@ -32,8 +37,10 @@ private-helper locations against the wheel on the next bump.
   - parse_sandbox_config             omnigent/server/managed_hosts.py
   - config_str_list                  omnigent/server/server_config.py  (NOT a cli internal)
   - RUNNER_TUNNEL_MAX_MESSAGE_BYTES   omnigent/runner/transports/ws_tunnel/limits.py
-  - resolve_auth_source/create_auth_provider/UnifiedAuthProvider
+  - resolve_auth_source/create_auth_provider/UnifiedAuthProvider/SharingMode
                                      omnigent/server/auth.py
+  - is_disabled (product_telemetry_is_disabled)
+                                     omnigent/telemetry/__init__.py  (NEW in 0.6.0)
   - _create_artifact_store/_preregister_agent/_ensure_sqlite_parent_dir/
     _default_db_uri/_default_artifact_location/_server_uvicorn_log_config
                                      omnigent/cli.py  (private — re-verify on bump)
@@ -53,8 +60,16 @@ from omnigent.server.auth import (
     create_auth_provider,
     local_single_user_enabled,
     resolve_auth_source,
+    SharingMode,
     UnifiedAuthProvider,
 )
+
+# Product-analytics phone-home kill-switch (new in 0.6.0). DISTINCT from the OTLP
+# tracer `telemetry` below (omnigent.runtime.telemetry): this is the opt-out
+# analytics client whose `is_disabled()` short-circuits `init_client` before the
+# remote-config fetch thread spawns. Routed through the shim so serve.py's
+# boot-assert can reach it without importing omnigent directly.
+from omnigent.telemetry import is_disabled as product_telemetry_is_disabled
 
 # Store ABCs — the seam (Stores) types its fields to these. Re-exported here so
 # serve.py can import them under TYPE_CHECKING *through the shim* and keep the
@@ -127,7 +142,9 @@ __all__ = [
     "create_auth_provider",
     "local_single_user_enabled",
     "resolve_auth_source",
+    "SharingMode",
     "UnifiedAuthProvider",
+    "product_telemetry_is_disabled",
     # store ABCs (seam types)
     "AgentStore",
     "FileStore",
