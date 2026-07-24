@@ -44,10 +44,12 @@ if TYPE_CHECKING:
 # (lowercase). Built from omnigent's `safety.py` families AND extended for the
 # native edit set: omnigent/policies/builtins/safety.py::_NATIVE_OS_TOOLS omits
 # `MultiEdit`/`NotebookEdit`, but omnigent's own server treats them as
-# first-class native file-edit tools (server/routes/sessions.py:486-488) and
-# they arrive verbatim in the PreToolUse tool_call event. They MUST be denied,
-# or a native multi-file / notebook write slips through on a read-only server.
-# (Re-verify this set against safety.py + sessions.py on each pinned-tag bump.)
+# first-class native file-edit tools (server/routes/sessions.py, the
+# `_CLAUDE_NATIVE_EDIT_TOOLS` frozenset — anchored by symbol since 0.6.0 moved
+# its line) and they arrive verbatim in the PreToolUse tool_call event. They
+# MUST be denied, or a native multi-file / notebook write slips through on a
+# read-only server. (Re-verify this set against safety.py::_NATIVE_OS_TOOLS +
+# sessions.py::_CLAUDE_NATIVE_EDIT_TOOLS on each pinned-tag bump.)
 _READ_TOOLS = frozenset({"sys_os_read", "Read", "Glob", "Grep", "read"})
 _FILE_MUTATION_TOOLS = frozenset(
     {

@@ -40,17 +40,26 @@ context here) — a ``sandbox:`` typo surfaces as a raw ``ValueError``. Relative
 ``artifact_location`` resolution against the config-file dir (stock cli.py:3003)
 is NOT done here — ``make_stores`` takes a pre-loaded ``cfg`` dict and never sees
 ``config_path``; that resolution belongs to the config-load step (PLT-672).
+
+0.6.0 deltas: (a) the sharing lockdown is wired via STATIC ``sharing_mode`` /
+``public_sharing`` on ``create_app`` — static, not env, because the static path
+freezes ``*_writable=False`` so ``PUT /v1/sharing`` returns 403 (env would leave
+the runtime override open); (b) ``scheduled_task_store`` and ``server_config``
+are omitted (both → None): the scheduler stays off, and product telemetry is
+disabled via env rather than the config-based kill-path; (c) the 0.6.0
+product-analytics phone-home is disabled, asserted at boot.
 """
 
 from __future__ import annotations
 
+import inspect
 import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from sei_omnigent import _omnigent_shim as omni
-from sei_omnigent._posture import header_posture_error
+from sei_omnigent._posture import accounts_mode_env_error, header_posture_error
 
 if TYPE_CHECKING:  # types only — no runtime import of omnigent (drift contract)
     from fastapi import FastAPI
@@ -172,6 +181,109 @@ def _assert_header_posture() -> None:
     if err is not None:
         raise RuntimeError(err)
 
+    # Negative assertion (0.6.0): fail closed if the pod env carries any
+    # leftover accounts-mode switch. resolve_auth_source() honors an explicit
+    # OMNIGENT_AUTH_PROVIDER first, so a stray OMNIGENT_AUTH_ENABLED /
+    # OMNIGENT_ACCOUNTS_ENABLED passes the header check above yet is a latent
+    # flip to accounts mode — refuse it here.
+    accounts_err = accounts_mode_env_error(os.environ)
+    if accounts_err is not None:
+        raise RuntimeError(accounts_err)
+
+
+# The exact ``create_app`` parameter names AND order verified against omnigent
+# 0.6.0 (``omnigent/server/app.py``). This tuple is a DRIFT TRIPWIRE: the overlay
+# wires create_app 100% by keyword, so its own call cannot mis-bind — the
+# exact-order equality instead forces a seam re-verify whenever upstream reshapes
+# the signature on a pin bump. 0.6.0, for instance, inserted
+# ``scheduled_task_store`` mid-signature (between ``permission_store`` and
+# ``auth_provider``) and appended ``sharing_mode`` / ``public_sharing`` /
+# ``server_config``; equality trips on any such move at boot/CI, prompting a
+# re-review of what the new params mean for the seam. Keep in sync on every
+# pinned-tag bump.
+_EXPECTED_CREATE_APP_PARAMS = (
+    "agent_store",
+    "file_store",
+    "conversation_store",
+    "artifact_store",
+    "agent_cache",
+    "runner_tunnel_tokens",
+    "comment_store",
+    "policy_store",
+    "permission_store",
+    "scheduled_task_store",
+    "auth_provider",
+    "host_store",
+    "account_store",
+    "extra_routers",
+    "policy_modules",
+    "admins",
+    "allowed_domains",
+    "sandbox_config",
+    "sharing_mode",
+    "public_sharing",
+    "server_config",
+)
+
+
+def _assert_create_app_arity() -> None:
+    """Assert create_app's signature matches the 0.6.0-verified param tuple.
+
+    Runs before ``create_app`` is invoked (omnigent installed → real signature).
+    The exact name-and-order equality is a drift tripwire: it forces a seam
+    re-verify if upstream reshapes the signature on a pin bump. It is NOT a guard
+    against the overlay's own call, which is 100% keyword and cannot mis-bind. If
+    a param the overlay passes (e.g. ``sharing_mode``) is ever dropped upstream,
+    equality fails first with the expected-vs-got message.
+    """
+    params = tuple(inspect.signature(omni.create_app).parameters)
+    if params != _EXPECTED_CREATE_APP_PARAMS:
+        raise RuntimeError(
+            "omnigent.create_app signature drifted from the 0.6.0-verified param "
+            "order — re-verify the seam wiring against the new signature. "
+            f"expected {_EXPECTED_CREATE_APP_PARAMS}, got {params}"
+        )
+
+
+def _assert_boot_posture(app: FastAPI) -> None:
+    """Assert the built app's sharing lockdown and telemetry posture hold.
+
+    The real gate (the signature tripwire only proves the wiring can bind).
+    Sharing: ``RESTRICTED_READ_ONLY``, public sharing off, and BOTH ``*_writable``
+    frozen ``False`` (the static-path freeze; see the module header for the
+    ``PUT /v1/sharing`` 403 linkage). Telemetry: the 0.6.0 product-analytics
+    phone-home is disabled, so the remote-config fetch thread never spawns.
+
+    ``product_telemetry_is_disabled()`` memoizes on first call and also trips on
+    CI env vars / a config setting, so this proves the EFFECT (telemetry off);
+    the env-var CAUSE (``OMNIGENT_DISABLE_TELEMETRY`` in the pod) is guaranteed
+    separately by the deploy manifest.
+    """
+    mode = app.state.sharing_mode()
+    if mode != omni.SharingMode.RESTRICTED_READ_ONLY:
+        raise RuntimeError(
+            f"sharing_mode resolved {mode!r}, expected RESTRICTED_READ_ONLY "
+            "(the sharing lockdown did not take)."
+        )
+    if app.state.public_sharing() is not False:
+        raise RuntimeError("public_sharing is enabled, expected False (sharing lockdown).")
+    if app.state.sharing_mode_writable is not False:
+        raise RuntimeError(
+            "sharing_mode_writable is True — the PUT /v1/sharing override is "
+            "NOT frozen off (a non-static sharing_mode leaked through)."
+        )
+    if app.state.public_sharing_writable is not False:
+        raise RuntimeError(
+            "public_sharing_writable is True — the public-sharing override is "
+            "NOT frozen off."
+        )
+    if omni.product_telemetry_is_disabled() is not True:
+        raise RuntimeError(
+            "omnigent product telemetry is NOT disabled — the phone-home "
+            "config-fetch thread would spawn. Set OMNIGENT_DISABLE_TELEMETRY=1 in "
+            "the pod env."
+        )
+
 
 def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAPI:
     """Build the FastAPI app from the seam.
@@ -231,9 +343,21 @@ def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAP
     auth_provider = omni.create_auth_provider()
     account_store = None
 
-    # ONE-WAY DOOR: keyword-only — create_app's parameter order (app.py:967)
-    # differs from any natural store ordering; positional wiring mis-binds.
-    return omni.create_app(
+    # Drift tripwire: assert create_app's signature still matches the
+    # 0.6.0-verified tuple before the call, so an upstream reshape prompts a seam
+    # re-verify at boot/CI (see _EXPECTED_CREATE_APP_PARAMS).
+    _assert_create_app_arity()
+
+    # ONE-WAY DOOR: create_app is wired 100% by keyword — its parameter order
+    # differs from any natural store ordering and shifts across pins (see
+    # _EXPECTED_CREATE_APP_PARAMS), so keyword wiring is what keeps the call
+    # stable. `scheduled_task_store` + `server_config` are OMITTED (→ None): None
+    # keeps the scheduler off and discards omnigent's config-based telemetry
+    # kill-path (disabled via env instead). Static `sharing_mode` +
+    # `public_sharing` (NOT env) are load-bearing: the static path freezes
+    # `*_writable=False`; env would leave it True — do not "simplify" to env. See
+    # the module header for the full lockdown rationale.
+    app = omni.create_app(
         agent_store=s.agent,
         file_store=s.file,
         conversation_store=s.conversation,
@@ -250,4 +374,11 @@ def build_server(cfg: dict[str, Any], *, stores: Stores | None = None) -> FastAP
         admins=omni.config_str_list(cfg.get("admins")),
         allowed_domains=omni.config_str_list(cfg.get("allowed_domains")),
         sandbox_config=sandbox_config,
+        sharing_mode=omni.SharingMode.RESTRICTED_READ_ONLY,
+        public_sharing=False,
     )
+
+    # The real gate: the sharing lockdown took and is frozen non-writable, and
+    # product-analytics telemetry is disabled.
+    _assert_boot_posture(app)
+    return app

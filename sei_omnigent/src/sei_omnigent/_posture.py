@@ -8,6 +8,50 @@ isolation (Omnigent is a pinned runtime dep, absent from lint/unit CI). The
 
 from __future__ import annotations
 
+from collections.abc import Mapping
+
+#: The explicit auth-provider selector; must resolve to ``header`` mode.
+_AUTH_PROVIDER_ENV = "OMNIGENT_AUTH_PROVIDER"
+#: The accounts-mode switches. Presence of EITHER (even ``=0``) is refused —
+#: ``OMNIGENT_AUTH_ENABLED`` is the current name; ``OMNIGENT_ACCOUNTS_ENABLED``
+#: is the deprecated pre-rename name omnigent 0.6.0 still honors.
+_ACCOUNTS_MODE_ENVS = ("OMNIGENT_AUTH_ENABLED", "OMNIGENT_ACCOUNTS_ENABLED")
+
+
+def accounts_mode_env_error(env: Mapping[str, str]) -> str | None:
+    """Return an error if the pod env could silently flip 0.6.0 to accounts mode.
+
+    The fresh 0.3.0→0.6.0 cutover must carry NO leftover accounts auth env:
+    ``OMNIGENT_AUTH_PROVIDER`` must be explicitly ``header``, and NEITHER
+    ``OMNIGENT_AUTH_ENABLED`` NOR the deprecated-but-honored
+    ``OMNIGENT_ACCOUNTS_ENABLED`` may be present — a *truthy* leftover would
+    select 0.6.0's accounts mode (the first-user-is-admin bootstrap) if the
+    explicit provider were ever dropped. Fail CLOSED on presence of either, even
+    a leftover ``=0``: ``=0`` would not itself flip (with the provider dropped it
+    still resolves to ``header``), but it is latent accounts-mode config one
+    value-edit away, so the cutover carries none of it. Complements
+    :func:`header_posture_error` (which reads the *resolved* source — an explicit
+    provider masks the leftover flags this negative assertion catches).
+    """
+    provider = env.get(_AUTH_PROVIDER_ENV)
+    if provider is None or provider.strip().lower() != "header":
+        return (
+            f"{_AUTH_PROVIDER_ENV} must be explicitly 'header' on a deployed "
+            f"sei_omnigent server; got {provider!r}. An unset/other provider risks "
+            f"0.6.0's accounts-mode bootstrap."
+        )
+    present = [name for name in _ACCOUNTS_MODE_ENVS if name in env]
+    if present:
+        return (
+            f"accounts-mode env is set ({', '.join(present)}). It is inert while "
+            f"{_AUTH_PROVIDER_ENV}=header is set — an explicit provider always wins "
+            f"in resolve_auth_source — but a truthy value would select accounts "
+            f"mode (first-user-is-admin) if that provider were ever dropped. Scrub "
+            f"it from the pod env; the header-mode cutover carries none of "
+            f"{_ACCOUNTS_MODE_ENVS}."
+        )
+    return None
+
 
 def header_posture_error(*, auth_source: str, single_user_enabled: bool) -> str | None:
     """Return an error message if the deployed auth posture is invalid, else None.
