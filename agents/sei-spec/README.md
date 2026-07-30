@@ -105,20 +105,54 @@ Three properties an operator has to accept:
    silently absent from an otherwise healthy server. Asserting `GET /v1/agents`
    after the restart is the only thing that catches this.
 
-## Executor Safety Floor Is Not In This Bundle
+## Session Shape
 
-The bundle sets `os_env.type: caller_process` and deliberately does not set a
-sandbox, write scoping, or a credential posture. Those belong to the executor safety
-floor and the runner-topology decision, both tracked separately under PLT-872.
+A managed session is opened with `workspace` set to a git URL carrying an optional
+branch fragment, Docker build-context style:
 
-State the consequence plainly rather than reading the omission as inertness. Without
-that floor the agent runs unsandboxed with the runner's ambient credentials, which is
-a works-dangerously mode and not a will-not-work mode. Seeing the flow work proves
-nothing about the floor. It was accepted on the grounds that it is a pre-existing
-fleet condition, since Omnigent's bundled `polly` already ships sub-agents with
-`sandbox: {type: none}` and `yolo: true`.
+    https://github.com/sei-protocol/<repo>.git#<branch>
 
-One related behavior is easy to misread. `enforce_sandbox` never returns DENY. It
+The server clones that `--single-branch` into the sandbox and starts the agent in the
+clone, which is what `cwd: .` resolves to. Everything the flow needs is therefore
+repository content plus the runner image, not the engineer's machine.
+
+The agent owns git. Spec Kit computes a feature branch name but performs no git
+operations at all, so the branch, the commits, and the push are the agent's to make.
+It commits after each phase, pushes, and opens a draft pull request once `spec.md`
+exists. That last part is load-bearing rather than tidiness: the sandbox is ephemeral,
+the server retains the conversation but not the files, so an artifact that is never
+pushed is gone when the session ends. The pull request is also what makes the work
+readable to someone who was never in the session.
+
+If the repository has no `.specify/`, the agent scaffolds it with
+`specify init . --integration claude` and commits it. That requires the `specify` CLI
+in the runner image. Note that `specify init` also writes `.claude/skills/speckit-*`
+into the repository, which is inert for this agent because `skills: none` suppresses
+host scope, and useful to anyone running Claude Code in that repo directly.
+
+## Sandboxing Comes From The Deploy, Not This Bundle
+
+The bundle sets `os_env.type: caller_process` and deliberately declares no sandbox,
+write scoping, or credential posture. Declaring one would be pointless, because
+`enforce_sandbox` never returns DENY: it returns ALLOW carrying a data override that
+merges the admin sandbox over whatever the agent asked for.
+
+On seigent that override is a real boundary. The sandbox provider is `kubernetes`,
+runner pods land in `omnigent-sandboxes` under a deliberately powerless
+`omnigent-runner` service account, and they are pinned to an IMDS hop-limited nodepool
+so sandbox code cannot reach the node's instance role. Harness and git credentials
+arrive as a mounted rotating token rather than as ambient laptop credentials.
+
+That is a materially better posture than the laptop-runner topology this work was
+originally scoped against, where the agent would have run unsandboxed with the
+engineer's own credentials. The executor safety floor is still tracked separately
+under PLT-872, and two things about the current posture are worth holding onto.
+`write_paths` bounds writes and not reads, so a sandboxed agent can still read what
+its token can read. And the mechanism that makes the admin sandbox win is that admin
+defaults are concatenated last in the policy builder, an ordering invariant that is
+undocumented upstream and fragile to reordering.
+
+One consequence of the never-DENY behavior is easy to misread. `enforce_sandbox` never returns DENY. It
 returns ALLOW with a data override that merges the admin sandbox over the agent's, so
 an agent-supplied `sandbox: {type: none}` is silently overridden rather than refused,
 and any acceptance test phrased as "is refused" will observe a successful session and
@@ -145,23 +179,30 @@ left to be rediscovered.
   itself the commitment, and it is made before the task is described. The
   one-sentence rule and the one-way-door stop in the prompt are advisory, because
   they are prompt-level.
-- **One active feature per session.** `.specify/feature.json` is a repo-global
-  pointer the phase scripts re-persist on read. Co-drive is safe. `--fork` creates a
-  second session and is only safe if it does not share a runner and checkout.
+- **One active feature per session, now enforced rather than hoped for.**
+  `.specify/feature.json` is a repo-global pointer the phase scripts rewrite whenever
+  they read it, so a second session on the same repository can move it. `common.sh`
+  gives `SPECIFY_FEATURE_DIRECTORY` precedence over that file, so the prompt pins the
+  feature through the environment variable for the life of the session. Co-driving one
+  session was always safe. This is what makes two concurrent sessions on one
+  repository safe as well.
 
 ## Preconditions Outside This Directory
 
-- A repository with `.specify/` already initialised. The prompt tells the agent to
-  stop and say so rather than scaffold it, so `specify init .` is a human step.
-- A registered runner host. There is no server-side execution path on seigent today:
-  `GET /v1/hosts` returns one host, a laptop with `sandbox_provider: null`, and
-  `/v1/sandboxes` 404s. Execution binds to a registered host, so the open choice is
-  engineer laptops as registered hosts versus a persistent shared host. That choice
-  also settles the sandbox backend as the macOS one rather than `enforce_sandbox`'s
-  `linux_bwrap` default.
-- An admin for the deploy. The `OMNIGENT_BUILTIN_AGENT_DIRS` mount is image and
+- **The `specify` CLI in the runner image.** The agent scaffolds `.specify/` when a
+  repository lacks it, and cannot without the CLI. The host image
+  (`deploy/docker/Dockerfile.sei --target host` in the `bdchatham/omnigent` fork)
+  carries git, `gh`, and the credential bridge, but not `specify`. It should be added
+  with a pinned version, the same way `gh` and the other CLIs in that image are pinned
+  and checksum-verified.
+- **A git token that can push and open pull requests.** The runner image's credential
+  bridge reads a rotating token from `/mnt/secrets/git/token` and exports it for both
+  git and `gh`. Read-only scope is enough for `xreview`, which never writes. It is not
+  enough for this agent, whose whole durability story is push plus pull request.
+- **An admin for the deploy.** The `OMNIGENT_BUILTIN_AGENT_DIRS` mount is image and
   environment configuration with no API behind it, and the server-wide policy surface
-  is `is_admin`-gated.
+  is `is_admin`-gated. Registration is what puts the agent in the console dropdown,
+  which is the intended way engineers reach it.
 
 ## Lineage
 

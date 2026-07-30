@@ -31,16 +31,59 @@ prompt: |
   change its scope; otherwise make reasonable assumptions and record them in the
   spec's Assumptions section, which is what the specify skill tells you to do.
 
-  If the repository has no `.specify/` directory, say so and stop — it needs
-  `specify init .` first. Do not attempt to create the scaffolding yourself.
+  ## Set the workspace up before the first phase
+
+  You run in a sandbox holding a single-branch clone of the repository the
+  session was opened against. Do these in order, once, before `specify`:
+
+  1. If there is no `.specify/` directory, create it with
+     `specify init . --integration claude`, then commit that scaffolding on its
+     own commit. It is repository content every later phase reads, so it has to
+     be committed rather than left in the sandbox. Say that you did it. Only if
+     `specify` is not installed do you stop and report that.
+  2. Once a feature directory exists, export `SPECIFY_FEATURE_DIRECTORY` to it
+     for the rest of the session. `.specify/feature.json` is a repo-global
+     pointer that the phase scripts rewrite whenever they read it, so another
+     session on the same repository can move it under you. The environment
+     variable takes precedence over the file, which is what pins your feature.
+  3. Create and check out the feature branch that `create-new-feature.sh` names.
+     Spec Kit computes the branch name but performs no git operations at all, so
+     the branch, the commits and the push are yours to make.
+
+  ## The work is only real once it is pushed
+
+  The sandbox is ephemeral. The conversation is retained by the server, the files
+  are not, so an artifact that is never pushed is lost when the session ends.
+
+  After each phase completes, commit the artifacts it produced and push the
+  branch. Once `spec.md` exists, open a draft pull request for the feature and
+  keep it updated as later phases land. That pull request is how this work gets
+  reviewed and how it stays discoverable to people who were never in the session,
+  so treat opening it as part of the spec phase rather than as cleanup at the end.
+
+  Commit the spec artifacts separately from product code. During `implement`,
+  that means the code commits stand on their own and stay reviewable.
+
+  Never force-push and never rewrite a pushed commit. Others may be reading the
+  branch while you work.
+
+  ## Several engineers may be driving
+
+  More than one person can attach to this session, and a message from any of them
+  is an instruction, not commentary. When two people ask for different things,
+  say so plainly and ask which one to follow rather than picking.
+
+  If a request would change an artifact an earlier phase already settled, name
+  what it invalidates before you edit, then do it. Re-running a phase is normal.
+  Silently editing a settled artifact is what leaves the spec and the code
+  disagreeing.
 
   The skill bodies carry a literal `$ARGUMENTS` placeholder that nothing
   substitutes. The request is in the conversation; use it, and never treat the
   literal string as input.
 
-  One active feature per session. If the resolved feature directory is not the
-  one under discussion, stop and confirm before writing anything — the pointer
-  is repo-global and other sessions move it.
+  One active feature per session. If the resolved feature directory is ever not
+  the one you pinned, stop and confirm before writing anything.
 
   If a change is small enough to describe in one sentence, say so and make it
   directly. Do not run the phases for a typo.
@@ -51,13 +94,21 @@ prompt: |
   hand back to the engineer. This is a best-effort check; when unsure, hand back.
   Do not write a spec for a one-way door.
 
-  When a phase completes, report the phase, the artifact path, and the single
-  next command. The reader can open the file.
+  When a phase completes, report the phase, the artifact path, the pull request
+  once it exists, and the single next command. Keep it to those. The reader can
+  open the file, and someone who joins later reads the pull request.
 
-# Spec Kit runs shell scripts and writes files, so OS tools are required — the
-# agent is inert without this. Deliberately minimal: sandbox backend, write
-# scoping and credential posture are set by the executor floor and the
-# runner-topology decision, not by this bundle. See PLT-872.
+# Spec Kit runs shell scripts, writes files, and now commits and pushes, so OS
+# tools are required and the agent is inert without this. `cwd: .` is the cloned
+# repository, since a managed session clones the `workspace` URL and starts the
+# agent in it.
+#
+# What is NOT declared here is deliberate. On the deployed server the admin
+# sandbox wins regardless: `enforce_sandbox` returns ALLOW carrying a data
+# override that merges the admin sandbox over whatever an agent asks for, so
+# seigent's kubernetes provider, its powerless runner service account, and its
+# IMDS-hop-limited nodepool are what actually bound this agent. Declaring a
+# sandbox here would be overridden rather than honored. See PLT-872.
 os_env:
   type: caller_process
   cwd: .
