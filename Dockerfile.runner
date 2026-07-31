@@ -1,0 +1,93 @@
+# syntax=docker/dockerfile:1
+# check=skip=InvalidDefaultArgInFrom
+#
+# sei-omnigent runner overlay — layers this repo's two runner inputs onto the
+# omnigent host image: the `.claude/` agent roster and skills, and the Spec Kit CLI.
+#
+# Managed runners resolve their host-scope skills and their `.claude/agents/`
+# specialist roster from $HOME. The provider mounts an emptyDir at `_HOME_DIR`
+# (/home/omnigent), which IS $HOME, so an overlay staged at that path is shadowed
+# by the mount and never visible. The overlay is therefore staged outside $HOME and
+# seeded into it by a profile.d hook, which is the only available seed point: the
+# provider sets the Pod command explicitly (`bash -lc`), so there is no ENTRYPOINT
+# to hook, and a login shell sources profile.d.
+#
+# `/xreview` and `/root-cause` halt without a roster, and an agent that resolves
+# `skills: all` against an empty host scope runs with no skills. See PLT-872.
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# No USER at the end, matching the base image, which ends as root and relies on the
+# provider's runAsUser. A USER here would only change `docker run` semantics and
+# could surprise the sandbox launchers that supply their own command.
+USER root
+
+# Spec Kit CLI, in its own venv so its dependency closure cannot perturb omnigent's.
+# Pinned to the release the sei-spec bundle vendors its skill bodies from, so the
+# tool and the method cannot drift apart. `--only-binary` keeps a source
+# distribution's setup.py from executing during the build.
+#
+# The base image sha256-verifies each third-party CLI it installs and its authors
+# note that a version check alone is not a supply-chain control. That bar is not met
+# here: the exact version is immutable on PyPI, but the transitive closure resolves
+# fresh on every build. Closing it needs a hash-pinned requirements file, tracked
+# separately. The `--version` assertion below only fails the build if the pin stops
+# resolving; it is not integrity verification.
+ARG SPECIFY_VERSION=0.15.0
+RUN python3 -m venv /opt/specify \
+ && /opt/specify/bin/pip install --no-cache-dir --disable-pip-version-check \
+      --only-binary=:all: "specify-cli==${SPECIFY_VERSION}" \
+ && ln -s /opt/specify/bin/specify /usr/local/bin/specify \
+ && specify --version 2>&1 | grep -q "${SPECIFY_VERSION}"
+
+# The overlay, staged outside $HOME per the note above. Scoped to `agents/` and
+# `skills/` by Dockerfile.runner.dockerignore; `settings.json` is deliberately not
+# shipped, see that file.
+#
+# `a+rX` is load-bearing rather than cosmetic: the staged tree is root-owned and the
+# runtime uid is not the owner, so it needs other-read on files and other-traverse on
+# directories for the seeding copy to read it. The conditional-execute form of `X` is
+# why this is a separate RUN rather than a COPY --chmod octal, which would either
+# mark every skill executable or make directories untraversable.
+COPY .claude /opt/sei/claude-overlay
+RUN chmod -R a+rX /opt/sei/claude-overlay
+
+# Seed $HOME/.claude from the staged overlay at login-shell start.
+#
+# Four properties this has to hold, each asserted in verify-runner-image.yml:
+#
+#   Fail-visible, not fail-latched. The marker is written ONLY when the copy
+#   succeeded. Writing it unconditionally would let a copy that died partway
+#   (ephemeral-storage exhaustion, interrupt) seal a half-roster for the Pod's life,
+#   silently — the same invisible degradation this overlay exists to remove. `cp -n`
+#   exits 0 when every file is skipped, so coupling them stays idempotent.
+#
+#   Idempotent and cheap. This runs per `bash -lc`, not once per Pod, so the marker
+#   short-circuits every invocation after the first.
+#
+#   Non-destructive. claude-code creates its own state (sessions/, plugins/, cache/)
+#   in this directory, so the copy is no-clobber and never removes.
+#
+#   Never fatal. Pods are restartPolicy: Never, so a login shell exiting non-zero
+#   wedges the launch outright. Every path returns 0. The marker write is wrapped
+#   because a failed redirection prints before `||` can apply, which would emit a
+#   diagnostic on every command in the session.
+#
+# The lock covers the case where the init container's seed did not complete: the
+# provider runs `workspace-prep` with `bash -lc` against the same home volume, so
+# normally the seed lands there, once, before the host container starts. If it did
+# not, concurrent commands in the host container would otherwise race `cp` per-file.
+# `yy-` sorts after the venv and gh-token snippets and before zz-sei-cred-check.
+RUN printf '%s\n' \
+      '# Seed the staged .claude overlay into the emptyDir HOME (see Dockerfile.runner).' \
+      'if [ -d /opt/sei/claude-overlay ] && [ -n "${HOME:-}" ] \' \
+      '   && [ ! -e "$HOME/.claude/.sei-overlay" ]; then' \
+      '  if mkdir -p "$HOME/.claude" 2>/dev/null; then' \
+      '    flock "$HOME/.claude" sh -c '"'"'cp -Rn /opt/sei/claude-overlay/. "$HOME/.claude/"'"'"' 2>/dev/null \' \
+      '      && { : > "$HOME/.claude/.sei-overlay"; } 2>/dev/null || true' \
+      '  fi' \
+      'fi' \
+      > /etc/profile.d/yy-sei-claude-overlay.sh \
+ && chmod 0755 /etc/profile.d/yy-sei-claude-overlay.sh \
+ && sh -n /etc/profile.d/yy-sei-claude-overlay.sh
