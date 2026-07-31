@@ -1,20 +1,22 @@
 name: ECR Runner
 
-# Build + push the runner overlay image to us-east-2 ECR. Restores the publish
-# path for this repo's runner contribution, which was removed with ecr.yml in #269
-# and left the fleet running digest-pinned images no repo could rebuild.
+# Build + push the runner overlay image to us-east-2 ECR, gated on the same
+# assertions the PR check runs — but against the REAL base rather than a stub, which
+# is the fidelity the fork-safe PR gate trades away. A rosterless image cannot be
+# published.
 #
-# Same auth shape as the predecessor: OIDC into common/gha, amazon-ecr-login,
-# buildx. Tagged `runner-overlay-<sha>` in the shared sei/sei-omnigent repo so it
-# is distinguishable from the fork-built base (`runner-<forksha>-*`) and the
-# server image (`agents-main-*`).
+# Auth mirrors the repo's other ECR workflows: OIDC into common/gha, amazon-ecr-login,
+# buildx. Tagged `runner-overlay-<sha>` in the shared sei/sei-omnigent repo so it is
+# distinguishable from the fork-built base (`runner-<forksha>-*`) and the server image
+# (`agents-main-*`). Build cache lives in the dedicated sei/build-cache repo, kept out
+# of the deployable repo so a cache manifest can never be mistaken for a deploy tag.
 #
-# amd64 only, matching the provider's default nodeSelector
-# (kubernetes.io/arch: amd64) for sandbox Pods.
+# amd64 only, matching the provider's default nodeSelector (kubernetes.io/arch: amd64)
+# for sandbox Pods. The base is a multi-arch manifest list, so this narrows it: an
+# arm64 sandbox node would fail to pull. Revisit if the nodepool ever gains arm64.
 #
-# Deploying is a separate, deliberate step: bump the digest in platform's
-# clusters/dev/seigent/sandbox-config-patch.yaml. Publishing does not roll
-# anything by itself.
+# Publishing does not roll anything. Deploying is a deliberate digest bump in
+# platform's clusters/dev/seigent/sandbox-config-patch.yaml.
 
 on:
   push:
@@ -37,6 +39,7 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -51,31 +54,77 @@ jobs:
 
       - uses: docker/setup-buildx-action@v3
 
-      - id: base
-        name: Resolve the pinned base image
+      - id: vars
+        name: Resolve the pinned base and the target tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
         run: |
           set -euo pipefail
-          base="$(grep -vE '^\s*(#|$)' runner-base.txt | head -n1)"
+          # grep -m1 rather than `grep | head`: under pipefail, head closing early can
+          # surface as SIGPIPE from grep and fail the step.
+          base="$(grep -m1 -vE '^\s*(#|$)' runner-base.txt)"
           [ -n "$base" ] || { echo "runner-base.txt carries no image reference" >&2; exit 1; }
+          tag="${INPUT_TAG:-runner-overlay-${GITHUB_SHA}}"
           echo "image=$base" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
-      - name: Build and push the runner overlay
+      - name: Build against the real base
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.runner
-          build-args: BASE_IMAGE=${{ steps.base.outputs.image }}
+          build-args: BASE_IMAGE=${{ steps.vars.outputs.image }}
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: sei-runner-overlay:candidate
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-overlay
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-overlay,mode=max
+
+      - name: Gate — the overlay reaches $HOME on the real base
+        # Same assertion the PR gate makes on the stub. Running it here is what makes
+        # publishing safe: a rosterless or steward-missing image never gets a tag.
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          docker run --rm --user 1000660000:1000660000 \
+            --tmpfs /home/omnigent:exec,mode=1777 -e HOME=/home/omnigent \
+            --entrypoint bash sei-runner-overlay:candidate -lc '
+              set -euo pipefail
+              for a in prose-steward idiomatic-reviewer; do
+                test -f "$HOME/.claude/agents/$a.md" || { echo "FAIL: pinned steward agents/$a.md not seeded"; exit 1; }
+              done
+              for s in audit-skill author-skill root-cause xreview; do
+                test -f "$HOME/.claude/skills/$s/SKILL.md" || { echo "FAIL: skills/$s not seeded"; exit 1; }
+              done
+              n=$(ls "$HOME/.claude/agents"/*.md | wc -l)
+              [ "$n" -ge 20 ] || { echo "FAIL: roster shrank to $n"; exit 1; }
+              command -v specify >/dev/null || { echo "FAIL: specify absent"; exit 1; }
+              echo "real-base-ok agents=$n specify=$(specify --version 2>&1 | head -1)"
+            '
+
+      - name: Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.runner
+          build-args: BASE_IMAGE=${{ steps.vars.outputs.image }}
           push: true
           platforms: linux/amd64
-          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ inputs.tag || format('runner-overlay-{0}', github.sha) }}
-          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:runner-overlay-buildcache
-          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:runner-overlay-buildcache,mode=max
+          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-overlay
 
       - name: Report the digest to pin
+        env:
+          REF: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
         run: |
-          echo "Pin this in platform clusters/dev/seigent/sandbox-config-patch.yaml:" >> "$GITHUB_STEP_SUMMARY"
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
-          docker buildx imagetools inspect \
-            "${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ inputs.tag || format('runner-overlay-{0}', github.sha) }}" \
-            --format '{{.Manifest.Digest}}' >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
-          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          set -euo pipefail
+          # Interpolate via env, never inline into the shell. stderr stays in the log
+          # rather than the persisted summary.
+          digest="$(docker buildx imagetools inspect "$REF" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          {
+            echo "Pin in platform clusters/dev/seigent/sandbox-config-patch.yaml:"
+            echo '```'
+            echo "${digest:-<inspect failed, see the job log>}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

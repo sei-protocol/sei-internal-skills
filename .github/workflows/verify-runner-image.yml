@@ -1,15 +1,18 @@
 name: Verify Runner Image
 
-# Builds Dockerfile.runner and asserts the `.claude` overlay actually REACHES a
-# runner's $HOME. This is the guard whose absence let the roster go missing: the
-# predecessor check (verify-sei-omnigent-image.yml) was deleted in #269, and the
-# next deployed runner image shipped with no roster at all while a platform
-# manifest comment still claimed it carried one.
+# Asserts the `.claude` overlay actually REACHES a runner's $HOME, and that the
+# seeding hook holds its four stated properties.
 #
-# The assertions reproduce the two conditions that made the regression invisible:
-# the Pod runs as uid 1000660000, and an emptyDir is mounted over $HOME
-# (/home/omnigent), so anything merely baked at that path is shadowed. A check
-# that inspects the image alone would pass while a real runner had nothing.
+# Fork-safe by construction: NO push, NO registry login, NO id-token, NO AWS OIDC,
+# NO secrets. The build is the gate; nothing leaves the runner. The overlay layer is
+# built over a PUBLIC stub base that reproduces the two conditions which made the
+# original regression invisible — an emptyDir over $HOME and a non-root uid — so this
+# gate needs no access to the private base. Verification against the real base runs
+# in ecr-runner.yml, which holds credentials for publishing anyway.
+#
+# An image-only check would pass while a real runner had nothing, which is how the
+# roster went missing: `$HOME` is a fresh emptyDir per Pod, so an overlay staged at
+# that path is shadowed by the mount.
 
 on:
   pull_request:
@@ -21,102 +24,133 @@ on:
       - '.github/workflows/verify-runner-image.yml'
   workflow_dispatch:
 
-# id-token to assume the read-only ECR pull role; the base image is private.
 permissions:
-  id-token: write
   contents: read
 
 jobs:
   verify:
     runs-on: ubuntu-latest
+    # Backstop: a stalled `docker run` can otherwise burn GitHub's full job max.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
-      - uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::189176372795:role/common/gha
-          role-duration-seconds: 900
-          aws-region: us-east-2
-
-      - id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
-
       - uses: docker/setup-buildx-action@v3
 
-      - id: base
-        name: Resolve the pinned base image
+      - name: Build a public stub base
+        # Reproduces only what the assertions depend on: the image's non-root
+        # `sandbox` user at the provider's _RUN_AS_UID, python3 for the specify venv,
+        # and flock. Public base, so no registry credentials are needed.
         run: |
           set -euo pipefail
-          base="$(grep -vE '^\s*(#|$)' runner-base.txt | head -n1)"
-          [ -n "$base" ] || { echo "runner-base.txt carries no image reference" >&2; exit 1; }
-          echo "image=$base" >> "$GITHUB_OUTPUT"
-          echo "base: $base"
+          cat > /tmp/Dockerfile.stub <<'EOF'
+          FROM python:3.12-slim
+          RUN apt-get update \
+           && apt-get install -y --no-install-recommends util-linux \
+           && rm -rf /var/lib/apt/lists/* \
+           && useradd --uid 1000660000 --user-group --home-dir /sandbox --create-home sandbox
+          EOF
+          docker build -q -f /tmp/Dockerfile.stub -t runner-stub:base /tmp
 
       - name: Build the runner overlay
         uses: docker/build-push-action@v6
         with:
           context: .
           file: Dockerfile.runner
-          build-args: BASE_IMAGE=${{ steps.base.outputs.image }}
+          build-args: BASE_IMAGE=runner-stub:base
           push: false
           load: true
           platforms: linux/amd64
           tags: sei-runner-overlay:pr-smoke
 
       - name: Overlay reaches $HOME under an emptyDir-shadowed home
-        # A tmpfs at /home/omnigent stands in for the Pod's emptyDir, and --user
-        # matches _RUN_AS_UID. `bash -lc` is how the sandbox launchers exec, which
-        # is what sources the profile.d seeding hook.
-        timeout-minutes: 3
+        # A tmpfs at /home/omnigent stands in for the Pod's emptyDir; --user matches
+        # _RUN_AS_UID; `bash -lc` is how the sandbox launchers exec, which is what
+        # sources the seeding hook.
+        #
+        # Asserts the SPECIFIC stewards /xreview and /root-cause halt without, not a
+        # count. A count cannot distinguish a full roster from one missing
+        # prose-steward.md, and `.claude/**` is in this workflow's own paths filter,
+        # so that edit is the likeliest future regression.
+        timeout-minutes: 4
         run: |
           set -euo pipefail
           docker run --rm --user 1000660000:1000660000 \
             --tmpfs /home/omnigent:exec,mode=1777 -e HOME=/home/omnigent \
             --entrypoint bash sei-runner-overlay:pr-smoke -lc '
               set -euo pipefail
-              n_agents=$(ls "$HOME/.claude/agents"/*.md 2>/dev/null | wc -l)
-              [ "$n_agents" -gt 0 ] || { echo "FAIL: no .claude/agents roster in \$HOME (the /xreview and /root-cause skills would halt)"; exit 1; }
-              test -f "$HOME/.claude/skills/xreview/SKILL.md" || { echo "FAIL: xreview skill not seeded"; exit 1; }
+              for a in prose-steward idiomatic-reviewer; do
+                test -f "$HOME/.claude/agents/$a.md" || { echo "FAIL: pinned steward agents/$a.md not seeded (/xreview halts)"; exit 1; }
+              done
+              for s in audit-skill author-skill; do
+                test -f "$HOME/.claude/skills/$s/SKILL.md" || { echo "FAIL: pinned steward skills/$s not seeded (/xreview halts)"; exit 1; }
+              done
               test -f "$HOME/.claude/skills/root-cause/SKILL.md" || { echo "FAIL: root-cause skill not seeded"; exit 1; }
-              test -f "$HOME/.claude/settings.json" || { echo "FAIL: settings.json not seeded"; exit 1; }
+              test -f "$HOME/.claude/skills/xreview/SKILL.md" || { echo "FAIL: xreview skill not seeded"; exit 1; }
+              n=$(ls "$HOME/.claude/agents"/*.md | wc -l)
+              [ "$n" -ge 20 ] || { echo "FAIL: roster shrank to $n agents"; exit 1; }
               command -v specify >/dev/null || { echo "FAIL: specify CLI absent (sei-spec cannot scaffold .specify/)"; exit 1; }
-              echo "overlay-ok agents=$n_agents skills=$(ls -d "$HOME/.claude/skills"/*/ | wc -l) specify=$(specify --version 2>&1 | head -1)"
+              # settings.json is deliberately not shipped; see the dockerignore.
+              ! test -e "$HOME/.claude/settings.json" || { echo "FAIL: settings.json was seeded into a writable HOME"; exit 1; }
+              echo "overlay-ok agents=$n skills=$(ls -d "$HOME/.claude/skills"/*/ | wc -l) specify=$(specify --version 2>&1 | head -1)"
             '
 
-      - name: Seeding is idempotent and does not clobber claude-code state
-        # claude-code creates sessions/, plugins/ and cache/ in the same directory,
-        # and the hook runs on every `bash -lc` rather than once per Pod, so a
-        # clobbering or non-idempotent copy would corrupt a live session.
-        timeout-minutes: 3
+      - name: A failed copy withholds the marker instead of latching a half-seed
+        # The marker must be written ONLY on copy success. Latching it after a partial
+        # copy would seal a half-roster for the Pod's life, silently — the same
+        # invisible degradation this overlay exists to remove. A 1MB tmpfs cannot hold
+        # the tree, so the copy truncates.
+        timeout-minutes: 4
+        run: |
+          set -euo pipefail
+          docker run --rm --user 1000660000:1000660000 \
+            --tmpfs /home/omnigent:mode=1777,size=1m -e HOME=/home/omnigent \
+            --entrypoint bash sei-runner-overlay:pr-smoke -lc '
+              set -euo pipefail
+              if [ -e "$HOME/.claude/.sei-overlay" ]; then
+                echo "FAIL: marker written despite a truncated copy — a half-roster is now latched"; exit 1
+              fi
+              echo "partial-copy-ok marker withheld, next shell retries"
+            '
+
+      - name: Reseed is non-destructive and idempotent
+        # Two distinct properties. The marker short-circuit is one; `cp -n` is the
+        # other, and it only matters on the path where the marker is absent. Clearing
+        # the marker forces the copy to actually run again, otherwise this step would
+        # pass even with a clobbering `cp -R`.
+        #
+        # Ownership mirrors production rather than being more permissive: the Pod's
+        # emptyDir under fsGroup is root-owned, setgid, group-writable — the uid does
+        # NOT own its own HOME. A fixture that grants ownership would hide a
+        # permission bug that only bites in a real Pod.
+        timeout-minutes: 4
         run: |
           set -euo pipefail
           vol="runner-smoke-home-${GITHUB_RUN_ID}"
           docker volume create "$vol" >/dev/null
-          # A named volume mounts root-owned. The real Pod's emptyDir is chowned to
-          # fsGroup by the kubelet (fsGroupChangePolicy: OnRootMismatch), which is
-          # why /home/omnigent is group-writable there, so mirror that or the
-          # non-root uid cannot write to its own HOME and this tests nothing.
           docker run --rm -v "$vol":/home/omnigent --entrypoint bash \
             sei-runner-overlay:pr-smoke -lc \
-            'chown 1000660000:1000660000 /home/omnigent && chmod 2775 /home/omnigent'
+            'chown root:1000660000 /home/omnigent && chmod 2775 /home/omnigent'
           run() { docker run --rm --user 1000660000:1000660000 -v "$vol":/home/omnigent \
                     -e HOME=/home/omnigent --entrypoint bash sei-runner-overlay:pr-smoke -lc "$1"; }
-          run 'true'   # first shell seeds
-          run 'mkdir -p "$HOME/.claude/sessions" && echo live > "$HOME/.claude/sessions/mine.json" && echo EDITED > "$HOME/.claude/settings.json"'
+          run 'true'
+          run 'mkdir -p "$HOME/.claude/sessions" && echo live > "$HOME/.claude/sessions/mine.json" && echo EDITED > "$HOME/.claude/agents/prose-steward.md"'
+          # Clear the marker so the reseed copy genuinely executes.
+          run 'rm -f "$HOME/.claude/.sei-overlay"'
           run '
             set -euo pipefail
             test -f "$HOME/.claude/sessions/mine.json" || { echo "FAIL: claude-code state was removed"; exit 1; }
-            grep -q EDITED "$HOME/.claude/settings.json" || { echo "FAIL: a local edit was clobbered on reseed"; exit 1; }
-            n=$(ls "$HOME/.claude/agents"/*.md | wc -l); [ "$n" -gt 0 ] || { echo "FAIL: roster lost"; exit 1; }
-            echo "idempotent-ok roster=$n"
+            grep -q EDITED "$HOME/.claude/agents/prose-steward.md" || { echo "FAIL: cp clobbered an existing file — no-clobber is not in effect"; exit 1; }
+            test -e "$HOME/.claude/.sei-overlay" || { echo "FAIL: marker not re-written after a successful reseed"; exit 1; }
+            echo "reseed-ok non-destructive, marker restored"
           '
           docker volume rm "$vol" >/dev/null
 
       - name: An unwritable home degrades quietly rather than failing the launch
-        # Pods are restartPolicy: Never, so a non-zero login shell would wedge a
-        # launch outright. A failed redirection also prints BEFORE `||` can apply,
-        # so this catches a diagnostic emitted on every command in the session.
-        timeout-minutes: 3
+        # Pods are restartPolicy: Never, so a login shell exiting non-zero wedges the
+        # launch. A failed redirection also prints BEFORE `||` can apply, so this
+        # catches a diagnostic emitted on every command in the session.
+        timeout-minutes: 4
         run: |
           set -euo pipefail
           out=$(docker run --rm --user 1000660000:1000660000 --read-only \
@@ -124,6 +158,7 @@ jobs:
                   --entrypoint bash sei-runner-overlay:pr-smoke -lc 'echo shell-ok' 2>&1) || {
             echo "FAIL: login shell exited non-zero with an unwritable \$HOME"; exit 1; }
           echo "$out" | grep -q shell-ok || { echo "FAIL: shell produced no output"; exit 1; }
-          echo "$out" | grep -qi "no such file\|permission denied" && {
-            echo "FAIL: seeding hook leaked a diagnostic to stderr:"; echo "$out"; exit 1; }
+          if echo "$out" | grep -qiE "no such file|permission denied"; then
+            echo "FAIL: seeding hook leaked a diagnostic to stderr:"; echo "$out"; exit 1
+          fi
           echo "degrades-quietly-ok"

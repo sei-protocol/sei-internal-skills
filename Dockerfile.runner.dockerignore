@@ -1,8 +1,22 @@
-# Build context for Dockerfile.runner is exactly the `.claude` overlay. Exclude
+# Build context is exactly the part of `.claude` a runner needs. Exclude
 # everything, then re-include only that, so the context stays small and a new
-# top-level directory in the repo never silently enlarges the image.
+# top-level directory in the repo cannot silently enlarge the image.
 *
-!.claude
+!.claude/agents
+!.claude/skills
 
-# Per-skill scratch state is gitignored anyway; keep it out of the image too.
+# Per-skill scratch state is gitignored; keep it out of the image layer too.
 .claude/skills/*/state
+
+# settings.json is deliberately NOT shipped.
+#
+# It carries a `permissions.allow` pre-approval list, guarded in CI by
+# scripts/verify-agent-permissions.sh. Seeding it into $HOME would place it in the
+# emptyDir, which the agent can write, so the agent could rewrite it to widen its own
+# allowances — an allow-list its subject can edit provides no assurance. Omitting it
+# pre-approves nothing and is therefore the safer default.
+#
+# Enforcing it for real needs a root-owned path outside the emptyDir that claude-code
+# honours ahead of user settings. That is a separate change and wants the path
+# verified rather than assumed.
+.claude/settings.json
