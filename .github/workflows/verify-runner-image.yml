@@ -92,6 +92,13 @@ jobs:
           set -euo pipefail
           vol="runner-smoke-home-${GITHUB_RUN_ID}"
           docker volume create "$vol" >/dev/null
+          # A named volume mounts root-owned. The real Pod's emptyDir is chowned to
+          # fsGroup by the kubelet (fsGroupChangePolicy: OnRootMismatch), which is
+          # why /home/omnigent is group-writable there, so mirror that or the
+          # non-root uid cannot write to its own HOME and this tests nothing.
+          docker run --rm -v "$vol":/home/omnigent --entrypoint bash \
+            sei-runner-overlay:pr-smoke -lc \
+            'chown 1000660000:1000660000 /home/omnigent && chmod 2775 /home/omnigent'
           run() { docker run --rm --user 1000660000:1000660000 -v "$vol":/home/omnigent \
                     -e HOME=/home/omnigent --entrypoint bash sei-runner-overlay:pr-smoke -lc "$1"; }
           run 'true'   # first shell seeds
