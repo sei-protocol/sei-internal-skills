@@ -1,0 +1,78 @@
+# syntax=docker/dockerfile:1
+#
+# sei-omnigent runner overlay — a thin layer over the omnigent host image that
+# adds the two things a managed runner needs from THIS repo: the `.claude/`
+# overlay (the specialist agent roster + the skills) and the Spec Kit CLI.
+#
+# Why a derived image rather than a full rebuild. The predecessor,
+# `Dockerfile.host`, built the whole runner here and baked the overlay with a
+# single `COPY .claude /home/host/.claude`. It was removed in #269 along with the
+# `sei_omnigent` overlay package its builder stage installed, so it cannot be
+# restored as-is. Meanwhile the runner image the fleet actually deploys is built
+# from the omnigent fork (`deploy/docker/Dockerfile.sei --target host`). Layering
+# over that keeps one runner lineage instead of two divergent ones, and keeps the
+# overlay in the repo that owns it rather than vendoring it into the fork.
+#
+# What this fixes. The deployed runner has no roster at all, verified in a live
+# Pod: `$HOME/.claude` exists but holds only claude-code's own state, and
+# `$HOME/.claude/agents` is absent. Both the `/xreview` and `/root-cause` skills
+# hard-require a `.claude/agents/` roster and halt without one, and `sei-droid`
+# resolves `skills: all` against an empty host scope. See PLT-872.
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# Root for the install; no USER directive at the end, matching the base image.
+# The managed-sandbox provider sets runAsUser to the image's `sandbox` user
+# (1000660000), so a USER here would only change `docker run` semantics and could
+# surprise the `omnigent sandbox create` launchers that supply their own command.
+USER root
+
+# Spec Kit CLI, in its own venv so its dependency closure cannot perturb
+# omnigent's. Version-pinned to the same release the `sei-spec` agent bundle
+# vendors its skill bodies from, so the CLI and the method never drift apart.
+# The `--version` assertion fails the build if the pin stops resolving.
+ARG SPECIFY_VERSION=0.15.0
+RUN python3 -m venv /opt/specify \
+ && /opt/specify/bin/pip install --no-cache-dir --disable-pip-version-check \
+      "specify-cli==${SPECIFY_VERSION}" \
+ && ln -s /opt/specify/bin/specify /usr/local/bin/specify \
+ && specify --version 2>&1 | grep -q "${SPECIFY_VERSION}"
+
+# The `.claude` overlay, staged OUTSIDE $HOME on purpose.
+#
+# The provider mounts an emptyDir at `_HOME_DIR` (/home/omnigent), which IS
+# $HOME, so anything baked at that path is shadowed by the mount at runtime and
+# silently does nothing. The predecessor could bake straight into $HOME because
+# its home was /home/host with no volume over it, and its README carried a
+# standing warning not to mount one. That warning no longer holds, so the overlay
+# is staged here and seeded into $HOME by the hook below.
+COPY .claude /opt/sei/claude-overlay
+RUN chmod -R a+rX /opt/sei/claude-overlay
+
+# Seed $HOME/.claude from the staged overlay at shell start.
+#
+# The sandbox launchers exec through `bash -lc`, so profile.d is the hook that
+# runs inside the emptyDir-mounted home. Three properties matter:
+#   - Idempotent and cheap. The marker file short-circuits every invocation after
+#     the first, since this runs per command rather than once per Pod.
+#   - Non-destructive. claude-code creates its own state (sessions/, plugins/,
+#     cache/) in the same directory, so the copy is no-clobber and never removes.
+#   - Never fatal. A failure here must not wedge a launch, so each step tolerates
+#     error; an absent roster degrades to the current behaviour rather than a Pod
+#     that will not start.
+# `yy-` sorts after the venv/gh-token snippets and before zz-sei-cred-check.
+# The mkdir gates the rest rather than being tolerated, and the marker write has
+# its stderr suppressed: a failed redirection prints before `||` can apply, so an
+# unwritable HOME would otherwise emit a diagnostic on EVERY command in the
+# session.
+RUN printf '%s\n' \
+      '# Seed the baked .claude overlay into the emptyDir HOME (see Dockerfile.runner).' \
+      'if [ -d /opt/sei/claude-overlay ] && [ ! -e "$HOME/.claude/.sei-overlay" ]; then' \
+      '  if mkdir -p "$HOME/.claude" 2>/dev/null; then' \
+      '    cp -Rn /opt/sei/claude-overlay/. "$HOME/.claude/" 2>/dev/null || true' \
+      '    { : > "$HOME/.claude/.sei-overlay"; } 2>/dev/null || true' \
+      '  fi' \
+      'fi' \
+      > /etc/profile.d/yy-sei-claude-overlay.sh \
+ && chmod 0755 /etc/profile.d/yy-sei-claude-overlay.sh

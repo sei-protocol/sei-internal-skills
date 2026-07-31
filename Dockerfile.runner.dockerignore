@@ -1,0 +1,8 @@
+# Build context for Dockerfile.runner is exactly the `.claude` overlay. Exclude
+# everything, then re-include only that, so the context stays small and a new
+# top-level directory in the repo never silently enlarges the image.
+*
+!.claude
+
+# Per-skill scratch state is gitignored anyway; keep it out of the image too.
+.claude/skills/*/state

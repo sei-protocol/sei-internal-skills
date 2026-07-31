@@ -1,0 +1,122 @@
+name: Verify Runner Image
+
+# Builds Dockerfile.runner and asserts the `.claude` overlay actually REACHES a
+# runner's $HOME. This is the guard whose absence let the roster go missing: the
+# predecessor check (verify-sei-omnigent-image.yml) was deleted in #269, and the
+# next deployed runner image shipped with no roster at all while a platform
+# manifest comment still claimed it carried one.
+#
+# The assertions reproduce the two conditions that made the regression invisible:
+# the Pod runs as uid 1000660000, and an emptyDir is mounted over $HOME
+# (/home/omnigent), so anything merely baked at that path is shadowed. A check
+# that inspects the image alone would pass while a real runner had nothing.
+
+on:
+  pull_request:
+    paths:
+      - 'Dockerfile.runner'
+      - 'Dockerfile.runner.dockerignore'
+      - 'runner-base.txt'
+      - '.claude/**'
+      - '.github/workflows/verify-runner-image.yml'
+  workflow_dispatch:
+
+# id-token to assume the read-only ECR pull role; the base image is private.
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::189176372795:role/common/gha
+          role-duration-seconds: 900
+          aws-region: us-east-2
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - id: base
+        name: Resolve the pinned base image
+        run: |
+          set -euo pipefail
+          base="$(grep -vE '^\s*(#|$)' runner-base.txt | head -n1)"
+          [ -n "$base" ] || { echo "runner-base.txt carries no image reference" >&2; exit 1; }
+          echo "image=$base" >> "$GITHUB_OUTPUT"
+          echo "base: $base"
+
+      - name: Build the runner overlay
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.runner
+          build-args: BASE_IMAGE=${{ steps.base.outputs.image }}
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: sei-runner-overlay:pr-smoke
+
+      - name: Overlay reaches $HOME under an emptyDir-shadowed home
+        # A tmpfs at /home/omnigent stands in for the Pod's emptyDir, and --user
+        # matches _RUN_AS_UID. `bash -lc` is how the sandbox launchers exec, which
+        # is what sources the profile.d seeding hook.
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          docker run --rm --user 1000660000:1000660000 \
+            --tmpfs /home/omnigent:exec,mode=1777 -e HOME=/home/omnigent \
+            --entrypoint bash sei-runner-overlay:pr-smoke -lc '
+              set -euo pipefail
+              n_agents=$(ls "$HOME/.claude/agents"/*.md 2>/dev/null | wc -l)
+              [ "$n_agents" -gt 0 ] || { echo "FAIL: no .claude/agents roster in \$HOME (the /xreview and /root-cause skills would halt)"; exit 1; }
+              test -f "$HOME/.claude/skills/xreview/SKILL.md" || { echo "FAIL: xreview skill not seeded"; exit 1; }
+              test -f "$HOME/.claude/skills/root-cause/SKILL.md" || { echo "FAIL: root-cause skill not seeded"; exit 1; }
+              test -f "$HOME/.claude/settings.json" || { echo "FAIL: settings.json not seeded"; exit 1; }
+              command -v specify >/dev/null || { echo "FAIL: specify CLI absent (sei-spec cannot scaffold .specify/)"; exit 1; }
+              echo "overlay-ok agents=$n_agents skills=$(ls -d "$HOME/.claude/skills"/*/ | wc -l) specify=$(specify --version 2>&1 | head -1)"
+            '
+
+      - name: Seeding is idempotent and does not clobber claude-code state
+        # claude-code creates sessions/, plugins/ and cache/ in the same directory,
+        # and the hook runs on every `bash -lc` rather than once per Pod, so a
+        # clobbering or non-idempotent copy would corrupt a live session.
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          vol="runner-smoke-home-${GITHUB_RUN_ID}"
+          docker volume create "$vol" >/dev/null
+          run() { docker run --rm --user 1000660000:1000660000 -v "$vol":/home/omnigent \
+                    -e HOME=/home/omnigent --entrypoint bash sei-runner-overlay:pr-smoke -lc "$1"; }
+          run 'true'   # first shell seeds
+          run 'mkdir -p "$HOME/.claude/sessions" && echo live > "$HOME/.claude/sessions/mine.json" && echo EDITED > "$HOME/.claude/settings.json"'
+          run '
+            set -euo pipefail
+            test -f "$HOME/.claude/sessions/mine.json" || { echo "FAIL: claude-code state was removed"; exit 1; }
+            grep -q EDITED "$HOME/.claude/settings.json" || { echo "FAIL: a local edit was clobbered on reseed"; exit 1; }
+            n=$(ls "$HOME/.claude/agents"/*.md | wc -l); [ "$n" -gt 0 ] || { echo "FAIL: roster lost"; exit 1; }
+            echo "idempotent-ok roster=$n"
+          '
+          docker volume rm "$vol" >/dev/null
+
+      - name: An unwritable home degrades quietly rather than failing the launch
+        # Pods are restartPolicy: Never, so a non-zero login shell would wedge a
+        # launch outright. A failed redirection also prints BEFORE `||` can apply,
+        # so this catches a diagnostic emitted on every command in the session.
+        timeout-minutes: 3
+        run: |
+          set -euo pipefail
+          out=$(docker run --rm --user 1000660000:1000660000 --read-only \
+                  --tmpfs /home/omnigent:ro -e HOME=/home/omnigent \
+                  --entrypoint bash sei-runner-overlay:pr-smoke -lc 'echo shell-ok' 2>&1) || {
+            echo "FAIL: login shell exited non-zero with an unwritable \$HOME"; exit 1; }
+          echo "$out" | grep -q shell-ok || { echo "FAIL: shell produced no output"; exit 1; }
+          echo "$out" | grep -qi "no such file\|permission denied" && {
+            echo "FAIL: seeding hook leaked a diagnostic to stderr:"; echo "$out"; exit 1; }
+          echo "degrades-quietly-ok"

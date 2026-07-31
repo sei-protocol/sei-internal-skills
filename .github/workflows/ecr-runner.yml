@@ -1,0 +1,81 @@
+name: ECR Runner
+
+# Build + push the runner overlay image to us-east-2 ECR. Restores the publish
+# path for this repo's runner contribution, which was removed with ecr.yml in #269
+# and left the fleet running digest-pinned images no repo could rebuild.
+#
+# Same auth shape as the predecessor: OIDC into common/gha, amazon-ecr-login,
+# buildx. Tagged `runner-overlay-<sha>` in the shared sei/sei-omnigent repo so it
+# is distinguishable from the fork-built base (`runner-<forksha>-*`) and the
+# server image (`agents-main-*`).
+#
+# amd64 only, matching the provider's default nodeSelector
+# (kubernetes.io/arch: amd64) for sandbox Pods.
+#
+# Deploying is a separate, deliberate step: bump the digest in platform's
+# clusters/dev/seigent/sandbox-config-patch.yaml. Publishing does not roll
+# anything by itself.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Dockerfile.runner'
+      - 'Dockerfile.runner.dockerignore'
+      - 'runner-base.txt'
+      - '.claude/**'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (defaults to runner-overlay-<git sha>)"
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::189176372795:role/common/gha
+          role-duration-seconds: 900
+          aws-region: us-east-2
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - id: base
+        name: Resolve the pinned base image
+        run: |
+          set -euo pipefail
+          base="$(grep -vE '^\s*(#|$)' runner-base.txt | head -n1)"
+          [ -n "$base" ] || { echo "runner-base.txt carries no image reference" >&2; exit 1; }
+          echo "image=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push the runner overlay
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.runner
+          build-args: BASE_IMAGE=${{ steps.base.outputs.image }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ inputs.tag || format('runner-overlay-{0}', github.sha) }}
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:runner-overlay-buildcache
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:runner-overlay-buildcache,mode=max
+
+      - name: Report the digest to pin
+        run: |
+          echo "Pin this in platform clusters/dev/seigent/sandbox-config-patch.yaml:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          docker buildx imagetools inspect \
+            "${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ inputs.tag || format('runner-overlay-{0}', github.sha) }}" \
+            --format '{{.Manifest.Digest}}' >> "$GITHUB_STEP_SUMMARY" 2>&1 || true
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
