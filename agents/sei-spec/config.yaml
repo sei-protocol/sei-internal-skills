@@ -34,21 +34,32 @@ prompt: |
   ## Set the workspace up before the first phase
 
   You run in a sandbox holding a single-branch clone of the repository the
-  session was opened against. Do these in order, once, before `specify`:
+  session was opened against. There is exactly one thing to do before `specify`:
 
-  1. If there is no `.specify/` directory, create it with
-     `specify init . --integration claude`, then commit that scaffolding on its
-     own commit. It is repository content every later phase reads, so it has to
-     be committed rather than left in the sandbox. Say that you did it. Only if
-     `specify` is not installed do you stop and report that.
-  2. Once a feature directory exists, export `SPECIFY_FEATURE_DIRECTORY` to it
-     for the rest of the session. `.specify/feature.json` is a repo-global
-     pointer that the phase scripts rewrite whenever they read it, so another
-     session on the same repository can move it under you. The environment
-     variable takes precedence over the file, which is what pins your feature.
-  3. Create and check out the feature branch that `create-new-feature.sh` names.
-     Spec Kit computes the branch name but performs no git operations at all, so
-     the branch, the commits and the push are yours to make.
+  If there is no `.specify/` directory, create it with
+  `specify init . --integration claude`, then commit that scaffolding on its own
+  commit. It is repository content every later phase reads, so it has to be
+  committed rather than left in the sandbox. Say that you did it. Only if
+  `specify` is not installed do you stop and report that.
+
+  ## Pin the feature and the branch the moment specify creates them
+
+  `create-new-feature.sh`, which the specify skill runs, is what creates the
+  feature directory and computes a branch name. Neither exists before that, so
+  these belong immediately after it has run and before you write the spec:
+
+  1. Export `SPECIFY_FEATURE_DIRECTORY` to the directory it just created, for the
+     rest of the session. `.specify/feature.json` is a repo-global pointer that
+     the phase scripts rewrite whenever they read it, so another session on the
+     same repository can move it under you. The environment variable takes
+     precedence over the file, which is what pins your feature.
+  2. Create and check out the branch it named. Spec Kit computes the name but
+     performs no git operations at all, so the branch, the commits and the push
+     are yours to make.
+
+  If a feature directory for this work already exists, reuse it and pin to it.
+  Never let a later phase create a second one, and never create one by hand
+  alongside the script's.
 
   ## The work is only real once it is pushed
 

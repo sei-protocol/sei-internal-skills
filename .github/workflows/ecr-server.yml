@@ -90,7 +90,14 @@ jobs:
           import sys
           from pathlib import Path
           from omnigent.spec.parser import parse, discover_host_skills
-          EXPECT = {"sei-spec": ("none", 8), "xreview": ("all", 1), "root-cause": ("all", 1)}
+          # Mirrors verify-agent-bundles.yml. The prefix matters as much as the
+          # count: a swap that keeps eight skills would otherwise pass here while
+          # breaking the Spec Kit contract, so both gates assert the same thing.
+          EXPECT = {
+              "sei-spec":   ("none", 8, "speckit-"),
+              "xreview":    ("all",  1, None),
+              "root-cause": ("all",  1, None),
+          }
           root = Path("/opt/sei-omnigent/agents")
           dirs = sorted(p for p in root.iterdir() if p.is_dir())
           if len(dirs) != len(EXPECT):
@@ -98,14 +105,19 @@ jobs:
           bad = False
           for d in dirs:
               spec = parse(d)
-              want_filter, want_skills = EXPECT[d.name]
-              n = len(spec.skills)
+              want_filter, want_skills, want_prefix = EXPECT[d.name]
+              names = sorted(s.name for s in spec.skills)
+              n = len(names)
               if spec.name != d.name:
                   print(f"FAIL {d.name}: name is {spec.name!r}"); bad = True
               if spec.skills_filter != want_filter:
                   print(f"FAIL {d.name}: filter {spec.skills_filter!r} != {want_filter!r}"); bad = True
               if n != want_skills:
-                  print(f"FAIL {d.name}: {n} skills != {want_skills}"); bad = True
+                  print(f"FAIL {d.name}: {n} skills != {want_skills} — {names}"); bad = True
+              if want_prefix:
+                  stray = [x for x in names if not x.startswith(want_prefix)]
+                  if stray:
+                      print(f"FAIL {d.name}: non-{want_prefix} skills vendored in: {stray}"); bad = True
               if spec.skills_filter == "none" and discover_host_skills(d, spec.skills_filter):
                   print(f"FAIL {d.name}: host scope leaked despite skills: none"); bad = True
               print(f"  ok {d.name} filter={spec.skills_filter!r} skills={n}")
