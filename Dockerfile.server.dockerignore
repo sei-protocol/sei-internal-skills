@@ -1,0 +1,7 @@
+# Build context is exactly the agent bundles. Exclude everything, then re-include
+# only those, so a new top-level directory cannot silently enlarge the image.
+*
+!agents
+
+# Per-skill scratch state is gitignored; keep it out of the image layer too.
+agents/*/skills/*/state

@@ -1,0 +1,108 @@
+name: Verify Agent Bundles
+
+# Parses every bundle under agents/ with the same library the server uses at startup,
+# and asserts the invariants a bundle silently fails on.
+#
+# Fork-safe by construction: NO push, NO registry login, NO id-token, NO AWS OIDC, NO
+# secrets. omnigent comes from PyPI, so this needs no access to the private server
+# image. The in-image parse against the real base runs in ecr-server.yml.
+#
+# Why parse rather than lint the YAML: a bundle that parses but resolves the wrong
+# skills registers successfully and behaves wrongly. `sei-spec` in particular depends
+# on `skills: none` to suppress host-scope discovery, and if that regressed the agent
+# would silently pick up the host's Coral skills and stop following Spec Kit — a
+# failure with no error anywhere.
+
+on:
+  pull_request:
+    paths:
+      - 'agents/**'
+      - '.github/workflows/verify-agent-bundles.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install the parser
+        # Pinned to the minor the deployed server runs, so the gate and production
+        # agree on what a valid bundle is.
+        run: pip install --disable-pip-version-check 'omnigent==0.7.0'
+
+      - name: Parse every bundle and assert its contract
+        run: |
+          python - <<'PY'
+          import sys
+          from pathlib import Path
+          from omnigent.spec.parser import parse, discover_host_skills
+
+          # Per-bundle expectations. `sei-spec` is the strict one: `skills: none` is the
+          # only thing keeping the host's Coral skills out of a Spec Kit session, and it
+          # carries its method as vendored bodies rather than relying on the host.
+          EXPECT = {
+              'sei-spec':   {'filter': 'none', 'skills': 8, 'prefix': 'speckit-'},
+              'xreview':    {'filter': 'all',  'skills': 1},
+              'root-cause': {'filter': 'all',  'skills': 1},
+          }
+
+          root = Path('agents')
+          dirs = sorted(p for p in root.iterdir() if p.is_dir())
+          if not dirs:
+              print('FAIL: no bundles found under agents/'); sys.exit(1)
+
+          failed = False
+          for d in dirs:
+              try:
+                  spec = parse(d)
+              except Exception as exc:
+                  print(f'FAIL {d.name}: does not parse — {exc}'); failed = True; continue
+
+              # The deploy registers by in-image directory path and the venues resolve
+              # by bundle name, so a mismatch registers an agent nothing can address.
+              if spec.name != d.name:
+                  print(f'FAIL {d.name}: bundle name is {spec.name!r}; the directory name is the addressable identity')
+                  failed = True
+
+              exp = EXPECT.get(d.name)
+              if exp is None:
+                  print(f'FAIL {d.name}: new bundle with no expectations — add it to EXPECT so its contract is asserted')
+                  failed = True
+                  continue
+
+              if spec.skills_filter != exp['filter']:
+                  print(f'FAIL {d.name}: skills filter is {spec.skills_filter!r}, expected {exp["filter"]!r}')
+                  failed = True
+
+              names = sorted(s.name for s in spec.skills)
+              if len(names) != exp['skills']:
+                  print(f'FAIL {d.name}: {len(names)} bundled skills, expected {exp["skills"]} — {names}')
+                  failed = True
+
+              if pref := exp.get('prefix'):
+                  stray = [n for n in names if not n.startswith(pref)]
+                  if stray:
+                      print(f'FAIL {d.name}: non-{pref} skills vendored in: {stray}')
+                      failed = True
+
+              # With `none`, host discovery must return nothing even from a directory
+              # that has host skills to offer.
+              if spec.skills_filter == 'none':
+                  host = discover_host_skills(d, spec.skills_filter)
+                  if host:
+                      print(f'FAIL {d.name}: host scope leaked {len(host)} skills despite skills: none')
+                      failed = True
+
+              print(f'ok {d.name}: filter={spec.skills_filter!r} skills={len(names)}')
+
+          sys.exit(1 if failed else 0)
+          PY

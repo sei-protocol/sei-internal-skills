@@ -1,0 +1,8 @@
+# Base image for Dockerfile.server: the omnigent server image the fleet deploys.
+#
+# Read by .github/workflows/verify-server-image.yml and ecr-server.yml, so bumping the
+# base is one reviewable line. Digest-pinned rather than tag-pinned: the tag is mutable,
+# and a silent base change under a stale claim is how the runner roster went missing.
+#
+# Current: tag agents-main-mvp-664732a0-k8s.
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:0513a22319d5f6747969ea347c7d356549f741e95272cb45b411a14fac4d0289

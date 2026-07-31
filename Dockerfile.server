@@ -1,0 +1,36 @@
+# syntax=docker/dockerfile:1
+# check=skip=InvalidDefaultArgInFrom
+#
+# sei-omnigent server overlay — bakes this repo's agent bundles into the omnigent
+# server image so the deploy can register them.
+#
+# Registration is `OMNIGENT_BUILTIN_AGENT_DIRS`, a list of in-image bundle paths the
+# server materialises at lifespan startup. There is no registration API, so a bundle
+# reaches the agent dropdown only by being on the server's filesystem at a path that
+# variable names. The server tars the whole directory, skills included, so a partial
+# bundle registers broken rather than not at all.
+#
+# All bundles come from `agents/` in this repo, which makes the repo the single source
+# of truth for their content. The previously baked copies of xreview and root-cause
+# came from a recipe that no longer exists, so this replaces them with the tracked
+# versions rather than layering a third bundle beside two unrebuildable ones.
+#
+# Deploy pairs this with two changes in platform: the server image digest, and adding
+# each bundle path to OMNIGENT_BUILTIN_AGENT_DIRS. A path in the variable with no
+# matching directory is logged and skipped, so a typo yields an agent silently absent
+# from a healthy server, and `GET /v1/agents` is the only thing that catches it.
+
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+USER root
+
+# Owned by uid 1000, matching the server image's runtime user, and read-only in
+# effect: the server only reads these to materialise a session's bundle.
+COPY --chown=1000:1000 agents /opt/sei-omnigent/agents
+
+# The bundle README is repo documentation, not a bundle. Registration names explicit
+# directories so it would never be registered, but it does not belong in the image.
+RUN rm -f /opt/sei-omnigent/agents/README.md
+
+USER 1000:1000
