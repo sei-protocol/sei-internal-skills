@@ -15,8 +15,9 @@ Canonical command reference for the engineer-facing surface. **`seictl network -
 | `seictl network` | cluster | Manage `SeiNetwork` CRs via the `genesis-chain` preset |
 | `seictl node` | cluster | Manage `SeiNode` CRs via the `rpc` preset |
 | `seictl workflow` | cluster | Re-bootstrap or migrate an **existing** SeiNode via a `SeiNodeTaskWorkflow` |
+| `seictl task` | cluster | Drive **one** node's sidecar task API directly (`/v0/tasks` through its in-pod kube-rbac-proxy) |
 
-The skill invokes the `network` and `node` subtrees above. The `workflow` subtree is a third, **imperative** tree — it operates on an existing node rather than declaring a new one, so it sits outside the GitOps-PR bring-up flow (see `seictl workflow state-sync` below). The `local` commands are out of scope for engineer-facing intents.
+The skill invokes the `network` and `node` subtrees above. The `workflow` and `task` subtrees are **imperative** — they operate on an existing node rather than declaring a new one, so they sit outside the GitOps-PR bring-up flow (see `seictl workflow state-sync` and `seictl task` below). The two differ in who executes: `workflow` creates a CR the controller executes; `task` posts straight to one pod's sidecar, controller uninvolved. The `local` commands are out of scope for engineer-facing intents.
 
 The pre-#133 cluster verbs (`context`, `onboard`, `bench up/down/list`) are gone — replaced by the preset-driven `network`/`node` trees below. The single `nodedeployment` (alias `nd`) tree that preceded these is also gone: `SeiNodeDeployment` was a fleet Kind that split into `SeiNetwork` (the genesis validator pool) + standalone `SeiNode` CRs (each follower). If a reference to any of those older names surfaces in older docs, it's stale.
 
@@ -163,6 +164,8 @@ The `--until` flag is **required**. Matching is exact against the phase set (plu
 
 `seictl workflow` is a third tree alongside `network`/`node`. It shares the CRUD verbs — `apply`, `get`, `list`, `delete` — and adds `state-sync`, the task-generating verb documented here. Unlike `network`/`node`, it is **imperative**: it renders a `SeiNodeTaskWorkflow` CR, server-side-applies it, and watches it to a terminal phase. `seictl workflow --help` is the source of truth for the tree, and the CLI wins on any disagreement; the shipped seictl `workflow/README.md` documents the fuller contract.
 
+**Provenance for the controller-side claims in this section** (recipe order, adoption exclusivity, target eligibility, the force-delete gate): verified against `sei-k8s-controller` main @ `2d670ad` and `seictl` main @ `821f2f8` (v0.0.70) on 2026-08-05. harbor and the prod cells track controller main closely, so treat this as describing the deployed behavior and not just the tip of the tree. The asymmetry to keep in mind runs the other way: the **engineer's local seictl binary** is the thing that lags (hence the version floors in `SKILL.md` gate 1), while the controller-side semantics here are current.
+
 `state-sync` is the convenience form of the one recipe this tree carries (`state-sync` is the only preset today). `seictl workflow apply --preset state-sync <same flags>` renders and applies the identical spec through the generic verb — it is not a second destructive path, and the gate below applies to it identically.
 
 ```
@@ -175,6 +178,10 @@ seictl workflow state-sync <node>
 ```
 
 **Required:** `<node>` (the target SeiNode's `metadata.name`). The workflow is named `<node>-state-sync` unless `--name` is given. Streams plan progress as NDJSON on stdout until a terminal phase.
+
+**`fullNode` targets only.** A SeiNode is exactly one mode (`fullNode` | `archive` | `replayer` | `validator` | `seed`, enforced by CRD CEL), and only `fullNode` is an eligible target. The workflow's own CEL can't see the target's mode at admission, so the refusal lands at adoption: the workflow fails **terminally** with a message naming the mode (`ReasonWorkflowTargetRejected`), which is why `kubectl wait --for=condition=Failed` resolves instead of parking Pending forever. A terminal refusal here never held the node and never wiped anything. Seed nodes are refused because they store no chain state to re-bootstrap.
+
+**One workflow per node.** The node carries a single `status.adoptedWorkflow` pointer, and it is only ever consulted when nil — so while it is set, no other workflow for that node is even considered. A workflow queued behind an actively-executing one is seeded Pending (`ReasonWorkflowQueued`); one queued behind a **parked-Failed** workflow gets no status at all, because the adoption path it would be seeded from is never reached. A paused node or one mid-drift-plan (an image roll) defers adoption (`ReasonWorkflowTargetNotReady`) rather than racing it. This exclusivity is what makes the double-wipe scenario structurally impossible — see *Re-run and recovery*.
 
 The recipe: hold the node's readiness gate, stop seid, **`reset-data` (wipes the data directory)**, configure state-sync, then release the readiness gate — the release is the terminal step, so **the workflow completes at release**. `Complete` means every mutation landed and the node was released to re-bootstrap; seid restarts and catches up *after* Complete, and catch-up is verified node-side with `seictl node watch <node> --until=caught-up` (the CLI prints this handoff on success). A migration inserts one extra step (config-patch) after `reset-data`; otherwise a standard resync and a migration run the same steps, both including the `reset-data` wipe.
 
@@ -222,9 +229,10 @@ Unlike `network`/`node`, a `SeiNodeTaskWorkflow` is a one-shot, spec-immutable r
 
 ### Re-run and recovery
 
-- **Re-running a terminal workflow is refused by the CLI.** `seictl workflow state-sync` pre-flights the target on the watch path: if a same-named workflow is already `Complete` or `Failed`, it refuses with an actionable error rather than a silent no-op. (A *changed* spec is separately rejected by the CRD's CEL — params are immutable.)
+- **Re-running a terminal workflow is refused by the CLI.** `seictl workflow state-sync` pre-flights the target on the watch path: if a **same-named** workflow is already `Complete` or `Failed`, it refuses with an actionable error rather than a silent no-op. The pre-flight is name-scoped — a `--name` run skips it entirely, so it is not a backstop against a wrong-target re-run. (A *changed* spec is separately rejected by the CRD's CEL — params are immutable.)
 - **A Failed workflow always holds the node not-ready until it is removed** (release is the terminal step, so failure can only happen while the node is held), so a mid-operation failure is a node outage, not just an unfinished task.
-- **Recovery is force-delete first, always.** Remove the Failed workflow — annotate `sei.io/force-delete-workflow=<reason>`, then `seictl workflow delete <name>` — which releases the node; only then re-run (same name, or `--name` for a fresh one). A `--name` run *without* first removing the Failed workflow leaves the node still held by the first workflow and starts a second `reset-data` on it — a stacked double-wipe, not a recovery.
+- **Recovery is force-delete first, always.** Remove the Failed workflow — annotate `sei.io/force-delete-workflow=<reason>`, then `seictl workflow delete <name>` — which releases the node; only then re-run (same name, or `--name` for a fresh one). **The annotation is not optional today:** the controller's data-state verification is a stub that always reports unavailable (fail-closed by design), so an un-annotated delete parks the workflow `Terminating` with the node still held, emitting a `WorkflowDeleteHeld` warning event that names the annotation. Order doesn't matter — annotating a workflow already stuck `Terminating` releases it on the next poll (≤30s), so a delete-first mistake is recoverable without touching finalizers by hand. (A `Complete` workflow needs no annotation — its finalizer is reaped on the next reconcile of the target.)
+- **A `--name` run is not a recovery for a Failed workflow** — but it is not a second wipe either. Adoption is exclusive (one `status.adoptedWorkflow` pointer per node), so while the Failed workflow holds the node the fresh workflow is never adopted: no plan is compiled, no `reset-data` runs, and the watch ends at `--timeout` (`reason=Timeout`) having changed nothing while the node stays held. The wasted 15m is the cost, not a stacked wipe. Remove the Failed workflow first, every time — that removal is what releases the node.
 
 ### Output and timeout
 
@@ -236,7 +244,42 @@ seictl workflow state-sync <node> -n eng-<alias> 2>err.log; grep -v '^seictl:' e
 ```
 
   `.reason` is `Timeout` on `--timeout`, `InternalError` on a terminal `Failed` phase.
-- **Timeout:** `--timeout` defaults to 15m (60m on older binaries — the bound is the binary's; the watch semantics below are the controller's, regardless of binary). The watch ends when the workflow releases the node — catch-up happens after Complete and is not part of the watch — so a timeout **usually means a wedged recipe step, not a slow sync**. On a timeout, **do not kill-and-retry**: read the plan first (`seictl workflow list -n eng-<alias>`, then `.status.plan.tasks` on the one in-flight workflow) and map the verb to what you see. An archive-scale `reset-data` still clearing is the one legitimately slow case — raise `--timeout` and wait. Any other step parked past its budget is wedged — force-delete, never stack a second wipe. One version discriminator: a plan whose **last** task is `await-condition` means the cluster's controller predates the release-terminal recipe, and there a long watch is a legitimately slow catch-up, not a wedge.
+- **Timeout:** `--timeout` defaults to 15m (60m on older binaries — the bound is the binary's; the watch semantics below are the controller's, regardless of binary). The watch ends when the workflow releases the node — catch-up happens after Complete and is not part of the watch — so a timeout **usually means a wedged recipe step, not a slow sync**. On a timeout, **do not kill-and-retry**: read the plan first (`seictl workflow list -n eng-<alias>`, then `.status.plan.tasks` on the one in-flight workflow) and map the verb to what you see. An archive-scale `reset-data` still clearing is the one legitimately slow case — raise `--timeout` and wait. Any other step parked past its budget is wedged — force-delete it. Launching a second workflow alongside it does not help and is not a shortcut: adoption is exclusive, so the new one parks unadopted behind the held node and times out too. One version tell, and on the current fleet it should never fire: a plan whose **last** task is `await-condition` comes from a controller predating the release-terminal recipe, where a long watch would be a slow catch-up rather than a wedge. harbor and the prod cells track controller main closely, so seeing that shape means you are on an unexpectedly stale cell — establish which controller image the cell runs before acting on it, rather than settling in to wait.
+
+## `seictl task`
+
+The operator-facing surface over **one** node's sidecar task API (`/v0/tasks`), reached directly through that pod's in-pod kube-rbac-proxy on **:8443** (not the sidecar's own :7777). Sibling of `seictl workflow`, and the distinction is load-bearing: `workflow` creates a CR the **controller** executes with its hold/ordering machinery; `task` posts to **one pod's sidecar** with the controller uninvolved. Added by seictl #229 and **first shipped in `v0.0.66`** — above the skill's `v0.0.59` preflight floor, so confirm with `seictl task --help` before the first invocation in a session rather than assuming the binary has it. `seictl task --help` is the source of truth.
+
+Every verb addresses a single pod. Target with `--node <name>` (the SeiNode / headless-service name; the sidecar resolves at `<node>-0.<node>.<ns>`) — required on every verb except `snapshot-upload`'s discovery path. Shared flags: `-n/--namespace`, `--port` (default `8443`), `--kubeconfig`. The verbs dial the pod, so run them from somewhere with cluster network reachability.
+
+### `seictl task snapshot-upload` — the paved road
+
+```
+seictl task snapshot-upload [--node <name> | --chain <chain-id>]
+                            [--timeout 2h15m] [--poll-interval 20s]
+                            [-n <ns>] [--port 8443] [--kubeconfig <path>]
+```
+
+Submits one `snapshot-upload-once` with a fresh unique task ID and polls it to a terminal state. This is the procedure the per-(network, cluster) CronJob invokes daily — reach for it when an engineer needs an on-demand snapshot publish, not as part of chain bring-up.
+
+- **Target:** `--node` names one explicitly; `--chain` discovers a random pod labelled `sei.io/snapshot-publish=true,sei.io/chain=<chain>` (exact match). Mutually exclusive. When no pod carries the labels, discovery says so — fall back to `--node`.
+- **Exit codes are kubectl-wait-compatible:** 0 when the task ends `uploaded` **or** `noop` — a `noop` is healthy (the chain hasn't advanced a snapshot interval; the verb prints which outcome it was). Nonzero on a failed task, or on `--timeout`, where the task **may still be running server-side** — `seictl task delete <id>` cancels it.
+- **Defaults:** `--timeout` 2h15m, deliberately above the sidecar's own 2h upload deadline so the CLI bound never fires before the server's. `--poll-interval` 20s (sidecar-local, cheap).
+- **Output:** the terminal `TaskResult` as JSON on stdout; progress and the verdict on stderr.
+- **The fresh task ID is load-bearing.** The engine coalesces a reused ID onto an existing Completed row and never re-runs it — which is why the verb mints its own. Don't hand-craft a repeated ID via `submit` and expect a re-run.
+
+### Raw verbs — thin wrappers over the sidecar client
+
+| Verb | What it does |
+|---|---|
+| `seictl task get <id> --node <name>` | Read one task result |
+| `seictl task list --node <name>` | List recent task results (the node's task history) |
+| `seictl task submit <type> --node <name> [--params '<json>']` | POST an arbitrary task; params validated server-side |
+| `seictl task delete <id> --node <name>` | Delete a task result, or **cancel** it if still running |
+
+`list` and `get` are the read side and are safe — they're a useful diagnosis path when a workflow step is parked (read the node's own task history rather than inferring from `.status.plan.tasks` alone).
+
+**`submit` is a genuine escape hatch — treat it like the direct-apply escape hatch, not like a read.** It POSTs any task type the sidecar's wire protocol accepts, and that set includes destructive ones (`reset-data` among them). Submitted this way a task runs **without** the workflow recipe around it — no `mark-not-ready` hold, no `stop-seid` first, no ordering guarantee, and no adoption pointer telling the controller a node is occupied. Prefer `seictl workflow state-sync` for anything the recipe already covers, and require explicit engineer sign-off (naming node, namespace, and task type) before submitting a mutating task by hand.
 
 ## Conventions across the surface
 
