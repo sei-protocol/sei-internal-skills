@@ -160,7 +160,7 @@ The `--until` flag is **required**. Matching is exact against the phase set (plu
 
 ## `seictl workflow state-sync`
 
-**This is the one command in the skill that destroys data.** It re-bootstraps an *existing* SeiNode by wiping its local chain state and re-syncing, with no undo — only "resync again." Read the decision rule and the destructive-op gate below before running it, and treat every invocation (standard resync or migration) as an `rm -rf` on that node's chain data.
+**This is the destructive paved road — the recipe-gated way to destroy a node's data.** It re-bootstraps an *existing* SeiNode by wiping its local chain state and re-syncing, with no undo — only "resync again." Read the decision rule and the destructive-op gate below before running it, and treat every invocation (standard resync or migration) as an `rm -rf` on that node's chain data. (It is not the *only* way to reach a wipe: a raw `seictl task submit reset-data` does it through one pod's sidecar with none of these protections — see `seictl task` below. Guardrail #9 gates both.)
 
 `seictl workflow` is a third tree alongside `network`/`node`. It shares the CRUD verbs — `apply`, `get`, `list`, `delete` — and adds `state-sync`, the task-generating verb documented here. Unlike `network`/`node`, it is **imperative**: it renders a `SeiNodeTaskWorkflow` CR, server-side-applies it, and watches it to a terminal phase. `seictl workflow --help` is the source of truth for the tree, and the CLI wins on any disagreement; the shipped seictl `workflow/README.md` documents the fuller contract.
 
