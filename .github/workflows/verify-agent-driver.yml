@@ -19,6 +19,8 @@ on:
       - main
     paths:
       - 'sei-agent-driver/**'
+      - 'Makefile'
+      - '.github/workflows/verify-agent-driver.yml'
 
 permissions:
   contents: read

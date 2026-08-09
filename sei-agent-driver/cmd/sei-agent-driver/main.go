@@ -10,7 +10,7 @@
 //
 // Configured entirely by environment so no credential lands in an argument; the
 // arguments identify only the unit of work. Exit codes are the contract with the
-// calling workflow — see the Exit constants in the xreview package.
+// calling workflow — see the Exit constants in the driver package.
 package main
 
 import (
@@ -30,14 +30,20 @@ import (
 	"github.com/urfave/cli/v3"
 )
 
+// version is stamped at build time; see the driver-build target. "dev" means a
+// build that did not go through it, which a consumer pinning an artifact needs
+// to be able to tell.
+var version = "dev"
+
 func main() {
 	// Logs go to stderr so stdout carries only the verdict payload and a caller
 	// can consume one without parsing around the other.
 	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 	cmd := &cli.Command{
-		Name:  "sei-agent-driver",
-		Usage: "drive an Omnigent agent session to a machine-readable answer",
+		Name:    "sei-agent-driver",
+		Usage:   "drive an Omnigent agent session to a machine-readable answer",
+		Version: version,
 		Commands: []*cli.Command{
 			xreviewCommand(log),
 		},

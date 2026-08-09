@@ -12,7 +12,7 @@ same exit codes.
 
 **One session per pull request, not per invocation.** The session is the agent's
 memory of having reviewed this pull request, so a review ends by *stopping* the
-turn rather than deleting it, and the next `seidroid xreview` on the same pull
+turn rather than deleting it, and the next dispatch on the same pull
 request picks up the same conversation — it can say what changed since, and
 whether what it raised last time was addressed. An earlier version keyed the
 session on the trigger and deleted it on the way out, which meant every
@@ -24,8 +24,9 @@ is also the only thing that reclaims the sandbox: the Kubernetes launcher report
 stays up while the session exists. A close event that never arrives leaves one
 running until a server-side TTL or a sweep catches it.
 
-It is normally invoked by [`.github/workflows/seidroid-xreview.yml`](../../.github/workflows/seidroid-xreview.yml)
-in response to a `seidroid xreview` PR comment, not run by hand — but every
+It is normally invoked by a workflow rather than run by hand — today
+[`.github/workflows/omni-xreview.yml`](../../../.github/workflows/omni-xreview.yml),
+which is `workflow_dispatch` only — but every
 input below is a plain environment variable or CLI flag, so it runs the same
 way in a terminal.
 
@@ -107,7 +108,7 @@ default or, for the client id, defaults to `sei-droid`.
 | Variable | Default | Meaning |
 |---|---|---|
 | `XREVIEW_ALLOW_POLICIES` | *(empty)* | Comma-separated exact `policy_name` values to accept automatically. |
-| `XREVIEW_ALLOW_TOOLS` | *(empty)* | Comma-separated exact `tool_name` values to accept automatically, e.g. `Bash`. This deployment does send `tool_name`, measured, so this is the narrower of the two allowlists: `policy_name` is `claude_native_permission` for every native permission request, which makes allowing it equivalent to accepting every tool call. `seidroid-xreview.yml` passes `Bash,Read` — the binary's own default stays closed, so a bare local run allows nothing. |
+| `XREVIEW_ALLOW_TOOLS` | *(empty)* | Comma-separated exact `tool_name` values to accept automatically, e.g. `Bash`. This deployment does send `tool_name`, measured, so this is the narrower of the two allowlists: `policy_name` is `claude_native_permission` for every native permission request, which makes allowing it equivalent to accepting every tool call. The review workflow passes `Bash,Read` — the binary's own default stays closed, so a bare local run allows nothing. |
 
 See [Permission policy](#permission-policy) below — **read this before
 assuming a blank allowlist is merely "cautious."**

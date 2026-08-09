@@ -84,6 +84,13 @@ driver-check: ## Everything enforced about sei-agent-driver: fmt, build, vet, te
 	cd sei-agent-driver && go test ./... -race
 	cd sei-agent-driver && go mod tidy -diff
 
+# -buildvcs=false because a nested module cannot stamp VCS info, which is also
+# why the version is passed in: without it the binary cannot say which commit it
+# is, and neither can runtime/debug.ReadBuildInfo.
+DRIVER_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
 .PHONY: driver-build
 driver-build: ## Build the sei-agent-driver binary into sei-agent-driver/bin/
-	cd sei-agent-driver && go build -trimpath -buildvcs=false -o bin/sei-agent-driver ./cmd/sei-agent-driver
+	cd sei-agent-driver && go build -trimpath -buildvcs=false \
+	  -ldflags "-X main.version=$(DRIVER_VERSION)" \
+	  -o bin/sei-agent-driver ./cmd/sei-agent-driver
