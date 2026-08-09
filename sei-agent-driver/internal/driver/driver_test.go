@@ -1,4 +1,4 @@
-package xreview
+package driver
 
 import (
 	"context"
@@ -654,7 +654,7 @@ func TestDriverRunHappyPath(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 42, Trigger: "trigger-happy"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 42, Trigger: "trigger-happy"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
@@ -670,21 +670,21 @@ func TestDriverRunHappyPath(t *testing.T) {
 	if !result.TeardownOK {
 		t.Error("TeardownOK = false, want true")
 	}
-	if result.Verdict == nil {
+	if result.Reply == nil {
 		t.Fatal("Verdict = nil, want a verdict")
 	}
-	if result.Verdict.Text != reply {
-		t.Errorf("Verdict.Text = %q, want %q", result.Verdict.Text, reply)
+	if result.Reply.Text != reply {
+		t.Errorf("Reply.Text = %q, want %q", result.Reply.Text, reply)
 	}
-	if got := result.Verdict.Decision(); got != "approve" {
-		t.Errorf("Verdict.Decision() = %q, want approve", got)
+	if !carriesDecision(result.Reply, "approve") {
+		t.Errorf("reply does not carry decision approve: %q", result.Reply.Text)
 	}
-	if result.Verdict.TurnID != "resp_claude_a" {
-		t.Errorf("Verdict.TurnID = %q, want resp_claude_a: the comment names its own provenance",
-			result.Verdict.TurnID)
+	if result.Reply.TurnID != "resp_claude_a" {
+		t.Errorf("Reply.TurnID = %q, want resp_claude_a: the comment names its own provenance",
+			result.Reply.TurnID)
 	}
-	if result.Verdict.ItemID != "item_reply" {
-		t.Errorf("Verdict.ItemID = %q, want item_reply", result.Verdict.ItemID)
+	if result.Reply.ItemID != "item_reply" {
+		t.Errorf("Reply.ItemID = %q, want item_reply", result.Reply.ItemID)
 	}
 
 	if got := fs.AgentReqAfter(); len(got) != 2 || got[0] != "" || got[1] != "ag_other" {
@@ -698,7 +698,7 @@ func TestDriverRunHappyPath(t *testing.T) {
 	if creates[0].AgentID != "ag_1" {
 		t.Errorf("create AgentID = %q, want ag_1", creates[0].AgentID)
 	}
-	wantRunKey := RunKey(req.Repo, req.PR)
+	wantRunKey := testRunKey(req.Repo, req.PR)
 	if got := creates[0].Labels[RunKeyLabel]; got != wantRunKey {
 		t.Errorf("create Labels[%s] = %q, want %q", RunKeyLabel, got, wantRunKey)
 	}
@@ -710,8 +710,10 @@ func TestDriverRunHappyPath(t *testing.T) {
 	if events[0].Type != "message" {
 		t.Errorf("event[0].Type = %q, want message", events[0].Type)
 	}
-	if got := driverPromptText(t, events[0].Data); got != BuildPrompt(req) {
-		t.Errorf("prompt sent = %q, want %q", got, BuildPrompt(req))
+	// The driver sends what the workload asked for, verbatim. What that text
+	// should say is the workload's to test.
+	if got := driverPromptText(t, events[0].Data); got != req.Prompt() {
+		t.Errorf("prompt sent = %q, want the workload's prompt %q", got, req.Prompt())
 	}
 
 	// The session is no longer deleted on a normal run: the conversation is the
@@ -758,7 +760,7 @@ func TestDriverIgnoresTheInjectionAcknowledgement(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 8, Trigger: "trigger-ack"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 8, Trigger: "trigger-ack"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
@@ -769,8 +771,8 @@ func TestDriverIgnoresTheInjectionAcknowledgement(t *testing.T) {
 		t.Fatalf("ExitCode = %d, want ExitOK: a response lifecycle event must not end a turn",
 			result.ExitCode)
 	}
-	if result.Verdict == nil || result.Verdict.Decision() != "comment" {
-		t.Fatalf("Verdict = %+v, want the decision the turn actually produced", result.Verdict)
+	if !carriesDecision(result.Reply, "comment") {
+		t.Fatalf("Verdict = %+v, want the decision the turn actually produced", result.Reply)
 	}
 }
 
@@ -804,16 +806,16 @@ func TestDriverIgnoresBareIdleEdges(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 9, Trigger: "trigger-idle"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 9, Trigger: "trigger-idle"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if result.Verdict == nil || result.Verdict.Decision() != "request_changes" {
+	if !carriesDecision(result.Reply, "request_changes") {
 		t.Fatalf("Verdict = %+v, want request_changes: a bare idle edge must not end the turn",
-			result.Verdict)
+			result.Reply)
 	}
 }
 
@@ -851,23 +853,23 @@ func TestDriverIgnoresATurnThatEndedBeforeItsOwnPrompt(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 10, Trigger: "trigger-boundary"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 10, Trigger: "trigger-boundary"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if result.Verdict == nil {
+	if result.Reply == nil {
 		t.Fatal("Verdict = nil")
 	}
-	if result.Verdict.TurnID != "resp_claude_a" {
-		t.Errorf("Verdict.TurnID = %q, want resp_claude_a: an idle edge before the boundary "+
-			"belongs to another turn", result.Verdict.TurnID)
+	if result.Reply.TurnID != "resp_claude_a" {
+		t.Errorf("Reply.TurnID = %q, want resp_claude_a: an idle edge before the boundary "+
+			"belongs to another turn", result.Reply.TurnID)
 	}
-	if got := result.Verdict.Decision(); got != "approve" {
-		t.Errorf("Verdict.Decision() = %q, want approve: the earlier invocation's verdict "+
-			"was published as this one's", got)
+	if !carriesDecision(result.Reply, "approve") {
+		t.Errorf("reply does not carry decision approve; the earlier invocation's "+
+			"verdict was published as this one's: %q", result.Reply.Text)
 	}
 }
 
@@ -904,22 +906,22 @@ func TestDriverAttributesByTurnIDRatherThanRecency(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 11, Trigger: "trigger-recency"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 11, Trigger: "trigger-recency"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if result.Verdict == nil {
+	if result.Reply == nil {
 		t.Fatal("Verdict = nil")
 	}
-	if got := result.Verdict.Decision(); got != "approve" {
-		t.Errorf("Verdict.Decision() = %q, want approve: attribution must read the turn id, "+
-			"not the position", got)
+	if !carriesDecision(result.Reply, "approve") {
+		t.Errorf("reply does not carry decision approve: attribution must read the "+
+			"turn id, not the position: %q", result.Reply.Text)
 	}
-	if result.Verdict.ItemID != "item_ours" {
-		t.Errorf("Verdict.ItemID = %q, want item_ours", result.Verdict.ItemID)
+	if result.Reply.ItemID != "item_ours" {
+		t.Errorf("Reply.ItemID = %q, want item_ours", result.Reply.ItemID)
 	}
 }
 
@@ -950,7 +952,7 @@ func TestDriverRefusesWhenTwoTurnsRepliedIntoTheSession(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 12, Trigger: "trigger-two"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 12, Trigger: "trigger-two"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
@@ -961,8 +963,10 @@ func TestDriverRefusesWhenTwoTurnsRepliedIntoTheSession(t *testing.T) {
 		t.Errorf("ExitCode = %d, want ExitNoVerdict (%d): two reply groups must refuse",
 			result.ExitCode, ExitNoVerdict)
 	}
-	if result.Verdict != nil && result.Verdict.HasVerdict() {
-		t.Errorf("Verdict = %+v, want no verdict when attribution is ambiguous", result.Verdict)
+	// Ambiguous attribution yields no reply at all, not an unusable one: the
+	// driver refuses to name a turn's answer rather than guessing between two.
+	if result.Reply != nil && result.Reply.Text != "" {
+		t.Errorf("Reply = %+v, want none when attribution is ambiguous", result.Reply)
 	}
 }
 
@@ -991,7 +995,7 @@ func TestDriverFailsWhenAPermissionPromptCannotBeAnswered(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 13, Trigger: "trigger-stuck"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 13, Trigger: "trigger-stuck"}
 	driver := NewDriver(cfg, NewPolicy("approve_shell", ""), driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
@@ -1028,7 +1032,7 @@ func TestDriverTurnFailedLeavesTheSessionRunning(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 7, Trigger: "trigger-fail"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 7, Trigger: "trigger-fail"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
@@ -1038,8 +1042,8 @@ func TestDriverTurnFailedLeavesTheSessionRunning(t *testing.T) {
 	if result.ExitCode != ExitTurnFailed {
 		t.Errorf("ExitCode = %d, want ExitTurnFailed (%d)", result.ExitCode, ExitTurnFailed)
 	}
-	if result.Verdict != nil {
-		t.Errorf("Verdict = %+v, want nil on a failed turn", result.Verdict)
+	if result.Reply != nil {
+		t.Errorf("Verdict = %+v, want nil on a failed turn", result.Reply)
 	}
 	if !result.TeardownOK {
 		t.Error("TeardownOK = false, want true: teardown must still run on a failed turn")
@@ -1077,7 +1081,7 @@ func TestDriverAnswersElicitationsOncePerIDAndPostsTheApprovalShape(t *testing.T
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 14, Trigger: "trigger-elicit"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 14, Trigger: "trigger-elicit"}
 	driver := NewDriver(cfg, NewPolicy("approve_shell", ""), driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
@@ -1132,7 +1136,7 @@ func TestDriverTeardownReusesTheMintedTokenInsteadOfMintingAgain(t *testing.T) {
 	cfg.MachineClientID = "machine-id"
 	cfg.MachineClientSecret = "machine-secret"
 
-	req := Request{Repo: "sei-protocol/sandbox", PR: 16, Trigger: "trigger-mint"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 16, Trigger: "trigger-mint"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
@@ -1189,8 +1193,9 @@ func TestReplyForReadsAFinishedTurnEvenAfterTheClockExpires(t *testing.T) {
 	if err != nil {
 		t.Fatalf("replyFor returned %v, want the verdict: a finished turn outranks the clock", err)
 	}
-	if got := verdict.Decision(); got != "approve" {
-		t.Errorf("Decision() = %q, want approve", got)
+	if !carriesDecision(&verdict, "approve") {
+		t.Errorf("reply = %q, want the finished turn's answer: a finished turn "+
+			"outranks the clock", verdict.Text)
 	}
 }
 
@@ -1252,7 +1257,7 @@ func TestDriverSalvagesAVerdictFromAFailedTurn(t *testing.T) {
 			})
 
 			result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-				Run(context.Background(), Request{
+				Run(context.Background(), testWork{
 					Repo: "sei-protocol/sandbox", PR: 20, Trigger: "trigger-salvage"})
 			if err != nil {
 				t.Fatalf("Run: %v", err)
@@ -1260,8 +1265,10 @@ func TestDriverSalvagesAVerdictFromAFailedTurn(t *testing.T) {
 			if result.ExitCode != tc.wantExit {
 				t.Errorf("ExitCode = %d, want %d", result.ExitCode, tc.wantExit)
 			}
-			if hasReview := result.Verdict != nil && result.Verdict.HasVerdict(); hasReview != tc.wantReview {
-				t.Errorf("carried a review = %v, want %v", hasReview, tc.wantReview)
+			// The driver carries a reply or it does not; whether that reply is a
+			// review is the workload's reading, tested there.
+			if got := result.Reply != nil && result.Reply.Text != ""; got != tc.wantReview {
+				t.Errorf("carried a reply = %v, want %v", got, tc.wantReview)
 			}
 			// Whatever the outcome, the session is released rather than leaked.
 			if got := driverStops(fs.EventReqs()); got != 0 {
@@ -1306,21 +1313,21 @@ func TestDriverRejectsATurnIDThatPredatesItsOwn(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), Request{
+		Run(context.Background(), testWork{
 			Repo: "sei-protocol/sandbox", PR: 30, Trigger: "trigger-stale"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if result.Verdict == nil {
+	if result.Reply == nil {
 		t.Fatal("Verdict = nil")
 	}
-	if result.Verdict.TurnID != "resp_claude_ours" {
-		t.Errorf("Verdict.TurnID = %q, want resp_claude_ours: an id already on the session "+
-			"cannot be the turn answering our prompt", result.Verdict.TurnID)
+	if result.Reply.TurnID != "resp_claude_ours" {
+		t.Errorf("Reply.TurnID = %q, want resp_claude_ours: an id already on the session "+
+			"cannot be the turn answering our prompt", result.Reply.TurnID)
 	}
-	if got := result.Verdict.Decision(); got != "request_changes" {
-		t.Errorf("Decision() = %q, want request_changes: the other run's review was published "+
-			"as ours", got)
+	if !carriesDecision(result.Reply, "request_changes") {
+		t.Errorf("reply does not carry decision request_changes: the other run's "+
+			"review was published as ours: %q", result.Reply.Text)
 	}
 }
 
@@ -1392,7 +1399,7 @@ func TestDriverRecoversAReviewWhoseStreamDied(t *testing.T) {
 
 			log, sink := driverCapturingLogger()
 			result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, log).
-				Run(context.Background(), Request{
+				Run(context.Background(), testWork{
 					Repo: "sei-protocol/sandbox", PR: 31, Trigger: "trigger-drop"})
 			if err != nil {
 				t.Fatalf("Run: %v", err)
@@ -1404,7 +1411,7 @@ func TestDriverRecoversAReviewWhoseStreamDied(t *testing.T) {
 				t.Errorf("the reply never reached the logs; want %q in:\n%s",
 					tc.wantLogged, sink.String())
 			}
-			if got := result.Verdict != nil && result.Verdict.HasVerdict(); got != tc.wantReview {
+			if got := result.Reply != nil && result.Reply.Text != ""; got != tc.wantReview {
 				t.Errorf("carried a review = %v, want %v", got, tc.wantReview)
 			}
 			// The session is released whatever happened to the stream.
@@ -1412,51 +1419,6 @@ func TestDriverRecoversAReviewWhoseStreamDied(t *testing.T) {
 				t.Errorf("stop_session posts = %d, want 0", got)
 			}
 		})
-	}
-}
-
-// TestPromptsNameTheDiffCommand guards the property that makes a review a review.
-//
-// A prompt that grants the capability to "inspect the diff" is satisfied by
-// `gh pr view`, which returns a title and a description — so the agent can write
-// a fluent review of the pull request's summary without reading a line of code,
-// and nothing in the reply distinguishes that from a real review. The exact
-// command has to be in the text, with this pull request's number and repository
-// interpolated into it, or the reader is back to choosing its own.
-func TestPromptsNameTheDiffCommand(t *testing.T) {
-	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
-	// Written out rather than built from the helper the prompts use, which would
-	// assert only that they agree with each other.
-	// Relative on purpose: only a read inside the working directory goes
-	// unprompted.
-	wantCommand := "gh pr diff 3861 --repo sei-protocol/sei-chain > " +
-		"pr-3861.diff && wc -l pr-3861.diff"
-
-	for _, p := range []struct {
-		name string
-		text string
-	}{
-		{"BuildPrompt", BuildPrompt(req)},
-		{"AdoptedPrompt", AdoptedPrompt(req)},
-	} {
-		if !strings.Contains(p.text, wantCommand) {
-			t.Errorf("%s does not name %q; an abstract instruction to inspect the diff "+
-				"is satisfiable by `gh pr view`", p.name, wantCommand)
-		}
-	}
-
-	// The report headings are the other half: a findings array may be empty and a
-	// summary can be written from the title, so the sections are what cannot be
-	// filled honestly without having read the changed lines.
-	// Matched in their numbered form. The bare words also appear in the checklist
-	// and the verification gate, so a check for those would pass with the report
-	// contract deleted.
-	for _, heading := range []string{
-		"1. Blocking", "2. Security", "3. Non-blocking", "4. Summary",
-	} {
-		if !strings.Contains(BuildPrompt(req), heading) {
-			t.Errorf("BuildPrompt does not require a %q section", heading)
-		}
 	}
 }
 
@@ -1483,7 +1445,7 @@ func TestDriverWaitsForTheSandboxBeforeSendingItsPrompt(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 11, Trigger: "trigger-wait"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 11, Trigger: "trigger-wait"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
 	if _, err := driver.Run(context.Background(), req); err != nil {
@@ -1513,7 +1475,7 @@ func TestDriverReportsASandboxThatNeverLaunched(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 12, Trigger: "trigger-failed"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 12, Trigger: "trigger-failed"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
 	result, err := driver.Run(context.Background(), req)
@@ -1546,7 +1508,7 @@ func TestDriverResubscribesWhileThePromptIsStillWaiting(t *testing.T) {
 	})
 
 	cfg := driverTestConfig(t, fs.URL)
-	req := Request{Repo: "sei-protocol/sandbox", PR: 31, Trigger: "trigger-cold"}
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 31, Trigger: "trigger-cold"}
 
 	if _, err := NewDriver(cfg, Policy{}, driverTestLogger()).
 		Run(context.Background(), req); err != nil {
@@ -1591,11 +1553,11 @@ func TestDriverAnchorsOnAPendingInput(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), Request{Repo: "sei-protocol/sandbox", PR: 41, Trigger: "t-pending"})
+		Run(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 41, Trigger: "t-pending"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if result.Verdict == nil {
+	if result.Reply == nil {
 		t.Fatal("Verdict = nil, want a review: a prompt queued as a pending input is " +
 			"queued, and its consume event names the pending id it drained")
 	}
@@ -1658,7 +1620,7 @@ func TestDriverRejoinsAnIdleSessionWhoseReplyIsNotAReview(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), Request{Repo: "sei-protocol/sandbox", PR: 52, Trigger: "t-idle"})
+		Run(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 52, Trigger: "t-idle"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1666,11 +1628,11 @@ func TestDriverRejoinsAnIdleSessionWhoseReplyIsNotAReview(t *testing.T) {
 		t.Fatalf("stream subscriptions = %d, want more than 1: an idle session whose "+
 			"reply is not a review must be rejoined, not published", fs.StreamHits())
 	}
-	if result.Verdict == nil {
+	if result.Reply == nil {
 		t.Fatal("Verdict = nil, want the review the turn went on to write")
 	}
-	if strings.Contains(result.Verdict.Text, narration) {
-		t.Errorf("published the agent's opening line as its review: %q", result.Verdict.Text)
+	if strings.Contains(result.Reply.Text, narration) {
+		t.Errorf("published the agent's opening line as its review: %q", result.Reply.Text)
 	}
 	if result.ExitCode != ExitOK {
 		t.Errorf("ExitCode = %d, want ExitOK: the turn finished on the second stream",
@@ -1712,7 +1674,7 @@ func TestDriverFollowsATurnAcrossStreams(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), Request{Repo: "sei-protocol/sandbox", PR: 51, Trigger: "t-long"})
+		Run(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 51, Trigger: "t-long"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1720,14 +1682,14 @@ func TestDriverFollowsATurnAcrossStreams(t *testing.T) {
 		t.Fatalf("stream subscriptions = %d, want more than 1: a turn still running "+
 			"must be followed onto the next stream", fs.StreamHits())
 	}
-	if result.Verdict == nil {
+	if result.Reply == nil {
 		t.Fatal("Verdict = nil, want the finished review")
 	}
 	if got := len(driverPrompts(fs.EventReqs())); got != 1 {
 		t.Errorf("prompt posts = %d, want 1: re-subscribing must not re-send a prompt "+
 			"that is already queued", got)
 	}
-	if strings.Contains(result.Verdict.Text, "I'll read the diff") {
+	if strings.Contains(result.Reply.Text, "I'll read the diff") {
 		t.Error("published the agent's opening line: a turn the session still reports " +
 			"as running must not be salvaged half-written")
 	}

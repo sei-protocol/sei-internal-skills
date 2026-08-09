@@ -1,4 +1,4 @@
-package xreview
+package driver
 
 import (
 	"strings"

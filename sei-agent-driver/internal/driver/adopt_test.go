@@ -1,4 +1,4 @@
-package xreview
+package driver
 
 import (
 	"context"
@@ -22,8 +22,8 @@ import (
 func TestDriverAdoptsAnExistingSessionForTheSameRunKey(t *testing.T) {
 	t.Parallel()
 
-	req := Request{Repo: "sei-protocol/sandbox", PR: 12, Trigger: "redelivered-comment"}
-	runKey := RunKey(req.Repo, req.PR)
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 12, Trigger: "redelivered-comment"}
+	runKey := testRunKey(req.Repo, req.PR)
 
 	// The listing answers with a session already carrying this run key, which is
 	// what a second dispatch of the same trigger would find.
@@ -68,8 +68,8 @@ func TestDriverAdoptsAnExistingSessionForTheSameRunKey(t *testing.T) {
 	}
 	// It still drives the adopted session to a verdict rather than treating the
 	// duplicate as nothing to do.
-	if result.Verdict == nil || result.Verdict.Decision() != "comment" {
-		t.Errorf("Verdict = %+v, want the adopted session driven to a verdict", result.Verdict)
+	if !carriesDecision(result.Reply, "comment") {
+		t.Errorf("Verdict = %+v, want the adopted session driven to a verdict", result.Reply)
 	}
 }
 
@@ -95,7 +95,7 @@ func TestDriverCreatesWhenNoSessionCarriesTheRunKey(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), Request{
+		Run(context.Background(), testWork{
 			Repo: "sei-protocol/sandbox", PR: 13, Trigger: "fresh"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -115,8 +115,8 @@ func TestDriverCreatesWhenNoSessionCarriesTheRunKey(t *testing.T) {
 func TestDriverAdoptsRatherThanCreatingWhenTheLabelIsOnALaterPage(t *testing.T) {
 	t.Parallel()
 
-	req := Request{Repo: "sei-protocol/sandbox", PR: 14, Trigger: "page-two"}
-	runKey := RunKey(req.Repo, req.PR)
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 14, Trigger: "page-two"}
+	runKey := testRunKey(req.Repo, req.PR)
 
 	// The fake server serves one listing body, so instead of two pages this
 	// asserts the narrower thing the same code path turns on: a page whose
@@ -240,8 +240,8 @@ func TestSIGTERMEndsTheRunWithoutTouchingTheSession(t *testing.T) {
 func TestDeleteSessionForPRReportsAFailedDelete(t *testing.T) {
 	t.Parallel()
 
-	req := Request{Repo: "sei-protocol/sandbox", PR: 23}
-	runKey := RunKey(req.Repo, req.PR)
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 23}
+	runKey := testRunKey(req.Repo, req.PR)
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
 		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
@@ -251,7 +251,7 @@ func TestDeleteSessionForPRReportsAFailedDelete(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		DeleteSessionForPR(context.Background(), req)
+		DeleteSession(context.Background(), req)
 	if err != nil {
 		t.Fatalf("DeleteSessionForPR: %v", err)
 	}
@@ -274,8 +274,8 @@ func TestDeleteSessionForPRReportsAFailedDelete(t *testing.T) {
 func TestDeleteSessionForPRDestroysTheSession(t *testing.T) {
 	t.Parallel()
 
-	req := Request{Repo: "sei-protocol/sandbox", PR: 21}
-	runKey := RunKey(req.Repo, req.PR)
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 21}
+	runKey := testRunKey(req.Repo, req.PR)
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
 		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
@@ -284,7 +284,7 @@ func TestDeleteSessionForPRDestroysTheSession(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		DeleteSessionForPR(context.Background(), req)
+		DeleteSession(context.Background(), req)
 	if err != nil {
 		t.Fatalf("DeleteSessionForPR: %v", err)
 	}
@@ -307,7 +307,7 @@ func TestDeleteSessionForPRIsQuietWhenThereIsNoSession(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		DeleteSessionForPR(context.Background(), Request{Repo: "sei-protocol/sandbox", PR: 22})
+		DeleteSession(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
 	if err != nil {
 		t.Fatalf("DeleteSessionForPR: %v", err)
 	}
@@ -329,17 +329,17 @@ func TestDeleteSessionForPRIsQuietWhenThereIsNoSession(t *testing.T) {
 func TestTwoDifferentTriggersShareOneSession(t *testing.T) {
 	t.Parallel()
 
-	first := Request{Repo: "sei-protocol/sandbox", PR: 30, Trigger: "comment-111"}
-	second := Request{Repo: "sei-protocol/sandbox", PR: 30, Trigger: "comment-222"}
+	first := testWork{Repo: "sei-protocol/sandbox", PR: 30, Trigger: "comment-111"}
+	second := testWork{Repo: "sei-protocol/sandbox", PR: 30, Trigger: "comment-222"}
 
-	if RunKey(first.Repo, first.PR) != RunKey(second.Repo, second.PR) {
+	if testRunKey(first.Repo, first.PR) != testRunKey(second.Repo, second.PR) {
 		t.Fatal("two triggers on one pull request produced different keys; " +
 			"each invocation would start a fresh session and lose the context")
 	}
 
 	// And the driver acts on that: with a session already carrying the key, the
 	// second dispatch adopts rather than creating.
-	runKey := RunKey(second.Repo, second.PR)
+	runKey := testRunKey(second.Repo, second.PR)
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
 		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
 		CreateResp: driverSessionResp("conv_should_not_be_created", "ag_1"),
@@ -377,8 +377,8 @@ func TestTwoDifferentTriggersShareOneSession(t *testing.T) {
 func TestDriverReplacesASessionThatCannotRunATurn(t *testing.T) {
 	t.Parallel()
 
-	req := Request{Repo: "sei-protocol/sandbox", PR: 21, Trigger: "trigger-dead"}
-	runKey := RunKey(req.Repo, req.PR)
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 21, Trigger: "trigger-dead"}
+	runKey := testRunKey(req.Repo, req.PR)
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
 		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
@@ -429,8 +429,8 @@ func TestDriverReplacesASessionThatCannotRunATurn(t *testing.T) {
 func TestDriverKeepsASessionWhoseHostCanBeWoken(t *testing.T) {
 	t.Parallel()
 
-	req := Request{Repo: "sei-protocol/sandbox", PR: 22, Trigger: "trigger-asleep"}
-	runKey := RunKey(req.Repo, req.PR)
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 22, Trigger: "trigger-asleep"}
+	runKey := testRunKey(req.Repo, req.PR)
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
 		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},

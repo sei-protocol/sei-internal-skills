@@ -2,7 +2,6 @@ package xreview
 
 import (
 	"fmt"
-	"regexp"
 	"strings"
 	"unicode/utf8"
 )
@@ -18,41 +17,6 @@ import (
 // than runes — so a body inside this bound is inside GitHub's limit whichever unit
 // that limit turns out to count.
 const MaxBodyBytes = 60_000
-
-// secretPatterns match shapes that must never reach a public pull request. The
-// agent holds gh credentials inside its sandbox and can quote anything it reads,
-// and the repositories this posts to are public.
-var secretPatterns = []struct {
-	name string
-	re   *regexp.Regexp
-}{
-	{"github token", regexp.MustCompile(`gh[pousr]_[A-Za-z0-9]{20,}`)},
-	{"github pat", regexp.MustCompile(`github_pat_[A-Za-z0-9_]{20,}`)},
-	{"aws access key id", regexp.MustCompile(`AKIA[0-9A-Z]{16}`)},
-	{"pem private key", regexp.MustCompile(`-----BEGIN [A-Z ]*PRIVATE KEY-----`)},
-	{"json web token", regexp.MustCompile(`eyJ[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{10,}`)},
-}
-
-// ScanSecrets names the first credential shape found in text, or "" when there is
-// none. The literals are values this process holds and must never republish.
-//
-// Only the pattern's name is returned, never what matched: a diagnostic that
-// quoted the match would leak the thing it exists to protect.
-func ScanSecrets(text string, literals ...string) string {
-	for _, literal := range literals {
-		// A short or empty literal would match everything. An unset credential is
-		// not a reason to refuse every review.
-		if len(literal) >= 8 && strings.Contains(text, literal) {
-			return "a credential this process holds"
-		}
-	}
-	for _, pattern := range secretPatterns {
-		if pattern.re.MatchString(text) {
-			return pattern.name
-		}
-	}
-	return ""
-}
 
 // RenderComment renders the body to post for a verdict.
 //

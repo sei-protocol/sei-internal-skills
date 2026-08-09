@@ -25,6 +25,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/xreview"
 	"github.com/urfave/cli/v3"
 )
@@ -54,7 +55,7 @@ func main() {
 		if errors.As(err, &exit) {
 			os.Exit(exit.code)
 		}
-		os.Exit(xreview.ExitConfig)
+		os.Exit(driver.ExitConfig)
 	}
 }
 
@@ -110,12 +111,12 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 		return err
 	}
 
-	cfg, err := xreview.LoadConfig()
+	cfg, err := driver.LoadConfig()
 	if err != nil {
-		return &exitError{code: xreview.ExitConfig, err: err}
+		return &exitError{code: driver.ExitConfig, err: err}
 	}
 	if err := cfg.RequireAuth(); err != nil {
-		return &exitError{code: xreview.ExitConfig, err: err}
+		return &exitError{code: driver.ExitConfig, err: err}
 	}
 
 	// A terminate signal cancels the context rather than killing the process, so
@@ -125,7 +126,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	policy := xreview.NewPolicy(
+	policy := driver.NewPolicy(
 		os.Getenv("XREVIEW_ALLOW_POLICIES"),
 		os.Getenv("XREVIEW_ALLOW_TOOLS"),
 	)
@@ -134,7 +135,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 			"hint", "set XREVIEW_ALLOW_POLICIES to the policy_name values this run logs")
 	}
 
-	req := xreview.Request{
+	work := xreview.New(xreview.Request{
 		Repo: repo,
 		PR:   pr,
 		Trigger: xreview.TriggerID(
@@ -143,37 +144,37 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 			os.Getenv("GITHUB_RUN_ATTEMPT"),
 			repo, pr,
 		),
-	}
+	})
 
-	driver := xreview.NewDriver(cfg, policy, log)
+	d := driver.NewDriver(cfg, policy, log)
 
 	// --close ends the unit of work. Reviewing keeps the conversation so the next
 	// invocation builds on it; this is what finally destroys it, and with it the
 	// sandbox the Kubernetes launcher cannot otherwise reclaim.
 	if cmd.Bool("close") {
-		result, err := driver.DeleteSessionForPR(ctx, req)
+		result, err := d.DeleteSession(ctx, work)
 		if err != nil {
 			return &exitError{code: result.ExitCode, err: err}
 		}
 		if err := report("", "", result); err != nil {
-			return &exitError{code: xreview.ExitConfig, err: err}
+			return &exitError{code: driver.ExitConfig, err: err}
 		}
-		if result.ExitCode != xreview.ExitOK {
+		if result.ExitCode != driver.ExitOK {
 			return &exitError{code: result.ExitCode,
 				err: fmt.Errorf("close finished with exit code %d", result.ExitCode)}
 		}
 		return nil
 	}
 
-	result, err := driver.Run(ctx, req)
+	result, err := d.Run(ctx, work)
 	if err != nil {
 		return &exitError{code: result.ExitCode, err: err}
 	}
 
 	if err := report(cmd.String("out"), cmd.String("findings-out"), result); err != nil {
-		return &exitError{code: xreview.ExitConfig, err: err}
+		return &exitError{code: driver.ExitConfig, err: err}
 	}
-	if result.ExitCode != xreview.ExitOK {
+	if result.ExitCode != driver.ExitOK {
 		return &exitError{
 			code: result.ExitCode,
 			err:  fmt.Errorf("review finished with exit code %d", result.ExitCode),
@@ -182,8 +183,11 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	return nil
 }
 
-// report prints the machine-readable result and, when asked, writes the verdict
-// text for the caller to post.
+// report parses the driver's reply into a verdict, prints the machine-readable
+// result, and when asked writes the verdict text for the caller to post.
+//
+// Parsing lives here rather than in the driver because what counts as an answer
+// is the workload's. The driver attributes a reply to a turn and stops.
 //
 // The file is written only on a *structured* verdict, and the emphasis is the
 // whole point. Its absence is how the caller tells "ready to post" from "nothing
@@ -192,22 +196,28 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 // say). So the gate has to be the same thing the driver itself calls a verdict.
 //
 // Gating on non-empty text instead would post the prose from a run that reported
-// [xreview.ExitNoVerdict], upserting unparsed prose over a previous good review.
+// [driver.ExitNoVerdict], upserting unparsed prose over a previous good review.
 // That prose is deliberately not published; stdout carries the decision, the
 // structured block and, when there is no verdict, the reason there is none.
-func report(outPath, findingsPath string, result xreview.Result) error {
+func report(outPath, findingsPath string, result driver.Result) error {
 	payload := map[string]any{
 		"session_id":  result.SessionID,
 		"exit_code":   result.ExitCode,
 		"teardown_ok": result.TeardownOK,
 	}
-	if result.Verdict != nil {
-		payload["decision"] = result.Verdict.Decision()
-		payload["structured"] = result.Verdict.Structured
+	var verdict xreview.Verdict
+	if result.Reply != nil {
+		verdict = xreview.ParseVerdict(result.Reply.Text)
+		verdict.TurnID = result.Reply.TurnID
+		verdict.ItemID = result.Reply.ItemID
+		payload["decision"] = verdict.Decision()
+		payload["structured"] = verdict.Structured
 		// Why there is no verdict is the actionable half of a no-verdict run, so it
-		// travels in the payload rather than only in the logs.
-		if !result.Verdict.HasVerdict() {
-			payload["reason"] = result.Verdict.Reason
+		// travels in the payload rather than only in the logs. The driver's own
+		// reason wins when it had one: it names a failure the text cannot show,
+		// like a reply refused for carrying a credential.
+		if !verdict.HasVerdict() {
+			payload["reason"] = firstNonEmpty(result.Reply.Reason, verdict.Reason)
 		}
 	}
 	blob, err := json.MarshalIndent(payload, "", "  ")
@@ -216,14 +226,24 @@ func report(outPath, findingsPath string, result xreview.Result) error {
 	}
 	fmt.Println(string(blob))
 
-	if outPath == "" || result.Verdict == nil || !result.Verdict.HasVerdict() {
+	if outPath == "" || !verdict.HasVerdict() {
 		return nil
 	}
-	body := xreview.RenderComment(*result.Verdict, result.SessionID)
+	body := xreview.RenderComment(verdict, result.SessionID)
 	if err := os.WriteFile(outPath, []byte(body), 0o644); err != nil {
 		return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
 	}
-	return writeFindings(findingsPath, *result.Verdict)
+	return writeFindings(findingsPath, verdict)
+}
+
+// firstNonEmpty returns the first of its arguments that says something.
+func firstNonEmpty(vals ...string) string {
+	for _, v := range vals {
+		if v != "" {
+			return v
+		}
+	}
+	return ""
 }
 
 // writeFindings hands the caller the observations it can post against a line.
@@ -257,13 +277,13 @@ func parseTarget(args []string) (string, int, error) {
 	if len(args) != 2 {
 		return "", 0, fmt.Errorf(
 			"%w: expected <owner/name> <pr-number>, got %d argument(s)",
-			xreview.ErrConfig, len(args))
+			driver.ErrConfig, len(args))
 	}
 	repo := args[0]
 	owner, name, ok := strings.Cut(repo, "/")
 	if !ok || owner == "" || name == "" || strings.Contains(name, "/") {
 		return "", 0, fmt.Errorf("%w: repository must be \"owner/name\", got %q",
-			xreview.ErrConfig, repo)
+			driver.ErrConfig, repo)
 	}
 	// Atoi, not Sscanf: Sscanf("%d") stops at the first non-digit and reports
 	// success, so "4.9" would parse as 4 and this would review a different pull
@@ -271,7 +291,7 @@ func parseTarget(args []string) (string, int, error) {
 	pr, err := strconv.Atoi(args[1])
 	if err != nil || pr <= 0 {
 		return "", 0, fmt.Errorf("%w: pull request must be a positive number, got %q",
-			xreview.ErrConfig, args[1])
+			driver.ErrConfig, args[1])
 	}
 	return repo, pr, nil
 }
