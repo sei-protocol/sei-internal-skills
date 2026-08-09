@@ -28,8 +28,10 @@ func (w testWork) AdoptedPrompt() string {
 	return fmt.Sprintf("review %s#%d again", w.Repo, w.PR)
 }
 
-// Complete defaults to the review workload's rule — a closing fenced block —
-// because that is what the fixtures produce.
+// Complete defaults to a coarse stand-in for the review workload's rule: the
+// presence of a fenced block, not a parse of it. Deliberately weaker, because
+// this package must not depend on a workload to test itself. A test that needs
+// "looks finished but is not" supplies its own, as the rejoin test does.
 func (w testWork) Complete(text string) bool {
 	if w.complete != nil {
 		return w.complete(text)

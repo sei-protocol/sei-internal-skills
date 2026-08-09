@@ -567,7 +567,7 @@ func driverPrompts(reqs []driverEventReq) []driverEventReq {
 
 // driverStops counts stop_session inputs. A review must post none: stopping a
 // session frees no compute and costs the next invocation a fresh runner, so
-// the session is left running and DeleteSessionForPR reclaims it on close.
+// the session is left running and DeleteSession reclaims it on close.
 func driverStops(reqs []driverEventReq) int {
 	n := 0
 	for _, r := range reqs {

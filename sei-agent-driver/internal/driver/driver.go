@@ -10,11 +10,14 @@ import (
 	omnigent "github.com/sei-protocol/omnigent-go-sdk"
 )
 
-// RunKeyLabel carries the run key on the session so a later run can recognise a
-// session this driver created. Namespaced because labels are a shared surface.
 // RunKeyLabel carries a workload's run key on the session, so a later dispatch
 // recognises a session an earlier one created. Namespaced because labels are a
 // shared surface.
+//
+// The value still says xreview because it is written on live sessions: changing
+// it orphans every session a running deployment would otherwise adopt. One
+// workload shares this key today. A second one needs a workload discriminator
+// beside it, or their run keys collide in one namespace.
 const RunKeyLabel = "xreview.seinetwork.io/run-key"
 
 // Result is the outcome of a run.
@@ -142,36 +145,36 @@ func (d *Driver) review(
 		return d.classify(result, err)
 	}
 
-	verdict, err := d.driveTurn(ctx, client, session.ID, w, adopted, prior)
+	reply, err := d.driveTurn(ctx, client, session.ID, w, adopted, prior)
 	if err != nil {
 		// A turn can produce a reply and still fail: a stream that expires after
 		// the agent answered is the ordinary case. classify returns on the error
 		// and the text goes with it, which otherwise leaves a failed run with no
 		// record of what the agent said and no way to tell a truncated review
 		// from a refusal.
-		if verdict.Text != "" || verdict.Reason != "" {
+		if reply.Text != "" || reply.Reason != "" {
 			d.log.Warn("a reply was read but the run failed before publishing it",
-				"session_id", session.ID, "turn_id", verdict.TurnID,
-				"chars", len(verdict.Text), "reason", verdict.Reason,
-				"preview", clip(verdict.Text, replyPreviewChars))
+				"session_id", session.ID, "turn_id", reply.TurnID,
+				"chars", len(reply.Text), "reason", reply.Reason,
+				"preview", clip(reply.Text, replyPreviewChars))
 		}
 		return d.classify(result, err)
 	}
 
-	if !w.Complete(verdict.Text) {
+	if !w.Complete(reply.Text) {
 		d.log.Warn("turn produced no usable reply", "session_id", session.ID,
-			"reason", verdict.Reason, "chars", len(verdict.Text),
-			"preview", clip(verdict.Text, replyPreviewChars))
+			"reason", reply.Reason, "chars", len(reply.Text),
+			"preview", clip(reply.Text, replyPreviewChars))
 		result.ExitCode = ExitNoVerdict
 		// Carried even with no text, so the reason reaches the caller's payload
 		// rather than only the logs.
-		result.Reply = &verdict
+		result.Reply = &reply
 		return result
 	}
 
-	result.Reply = &verdict
+	result.Reply = &reply
 	d.log.Info("turn complete", "session_id", session.ID,
-		"turn_id", verdict.TurnID, "chars", len(verdict.Text))
+		"turn_id", reply.TurnID, "chars", len(reply.Text))
 	return result
 }
 
@@ -365,7 +368,7 @@ func (d *Driver) findByRunKey(
 	}
 }
 
-// DeleteSessionForPR destroys the session for a pull request, and with it the
+// DeleteSession destroys the session for a pull request, and with it the
 // conversation.
 //
 // This is the end of the unit of work, not the end of a run — it belongs to the
@@ -404,6 +407,9 @@ func (d *Driver) DeleteSession(ctx context.Context, w Workload) (Result, error) 
 	return Result{ExitCode: ExitOK, SessionID: session.ID, TeardownOK: true}, nil
 }
 
+// turn is the state of one prompt-and-answer exchange.
+//
+// One value, constructed once and never field-reset. A run drives exactly one
 // turn, so there is no reset path for an implementer to forget to advance.
 type turn struct {
 	// anchor is our own prompt's item id, as the server assigned it.
@@ -438,7 +444,7 @@ type turn struct {
 
 	// deltaChars counts streamed text. Logged, never published: on a recorded
 	// trace the chunks arrive out of index order and land one chunk short of the
-	// committed message, so reassembling them cannot produce a verdict.
+	// committed message, so reassembling them cannot produce a reply.
 	deltaChars int
 
 	// prior is every response id already on the session when this run started. An
@@ -465,7 +471,7 @@ type turn struct {
 	// session goes idle mid-turn, so an idle snapshot with only the agent's
 	// opening sentence behind it is a turn still being written, not a finished
 	// one -- reading it as finished publishes a review the agent never wrote. It
-	// is set when the reply carries a verdict, and when two replies make
+	// is set when the reply carries a reply, and when two replies make
 	// attribution impossible; both are outcomes waiting cannot improve. It stays
 	// false while the agent may still be working.
 	turnSettled bool
@@ -645,7 +651,7 @@ func (d *Driver) driveTurn(
 	// problem with a reply already committed, and [Driver.recoverFromStreamLoss]
 	// reads it back rather than starting again.
 	for attempt := 1; ; attempt++ {
-		verdict, err := d.consumeTurn(ctx, client, sessionID, prompt, t, prior, opts)
+		reply, err := d.consumeTurn(ctx, client, sessionID, prompt, t, prior, opts)
 
 		// The connection has a lifetime of its own, measured at around three
 		// minutes, and a review runs longer than that. So a stream ending is not
@@ -668,13 +674,13 @@ func (d *Driver) driveTurn(
 		// fatal cause of its own, since a launch the server reported as failed does
 		// not become un-failed by subscribing again.
 		if t.ended() || ctx.Err() != nil || t.failure != nil {
-			return verdict, err
+			return reply, err
 		}
 		if attempt >= resubscribeLimit {
 			d.log.Error("the stream would not stay up long enough to finish the turn",
 				"session_id", sessionID, "attempts", attempt,
 				"prompt_sent", t.anchor != "", "error", err)
-			return verdict, err
+			return reply, err
 		}
 
 		// Before the prompt is in, the sandbox may have come up while the stream was
@@ -692,7 +698,7 @@ func (d *Driver) driveTurn(
 		// turn it reports as finished is resolved from what it committed rather
 		// than rejoined.
 		if t.anchor != "" && t.turnSettled {
-			return verdict, err
+			return reply, err
 		}
 		d.log.Info("stream ended before the turn did; re-subscribing",
 			"session_id", sessionID, "attempt", attempt, "prompt_sent", t.anchor != "")
@@ -926,7 +932,7 @@ func (d *Driver) replyFor(
 //
 // Fails closed in all three directions: the failed edge must have named a response
 // id, a reply must be attributable to that id, and that reply must carry a full
-// verdict. Anything short of all three reports the failure the server sent, which
+// reply. Anything short of all three reports the failure the server sent, which
 // is why a partial review cannot be published as a complete one — the closing
 // block is the agent's own statement that it finished.
 func (d *Driver) salvageFailedTurn(
@@ -939,13 +945,13 @@ func (d *Driver) salvageFailedTurn(
 	if t.failedTurnID == "" {
 		return Reply{}, t.failure
 	}
-	verdict, err := d.fetchReply(ctx, client, sessionID, t.failedTurnID, prior)
-	if err != nil || !t.complete(verdict.Text) {
+	reply, err := d.fetchReply(ctx, client, sessionID, t.failedTurnID, prior)
+	if err != nil || !t.complete(reply.Text) {
 		return Reply{}, t.failure
 	}
 	d.log.Warn("recovered a complete verdict from a turn the server reported as failed",
 		"session_id", sessionID, "turn_id", t.failedTurnID, "error", t.failure)
-	return verdict, nil
+	return reply, nil
 }
 
 // fetchReply reads the turn's reply off the session.
@@ -1064,7 +1070,7 @@ func (d *Driver) priorResponseIDs(
 // Fails closed in three directions. Only a genuine stream fault is recovered, not
 // any error the iterator happens to yield; the prompt must have been echoed back,
 // so a run whose input never landed has nothing of its own to find; and exactly
-// one new reply group must exist and carry a full verdict, so an ambiguous or
+// one new reply group must exist and carry a full reply, so an ambiguous or
 // half-finished session reports the transport error it arrived with.
 func (d *Driver) recoverFromStreamLoss(
 	ctx context.Context,
@@ -1119,7 +1125,7 @@ func (d *Driver) recoverFromStreamLoss(
 		return Reply{}, cause
 	}
 
-	verdict, err := d.fetchReply(ctx, client, sessionID, groups[0], t.prior)
+	reply, err := d.fetchReply(ctx, client, sessionID, groups[0], t.prior)
 	if err != nil {
 		return Reply{}, cause
 	}
@@ -1128,17 +1134,17 @@ func (d *Driver) recoverFromStreamLoss(
 	// agent mid-answer rather than an answer. That is the only reliable reading
 	// here: the session reports itself idle between tool calls, so neither its
 	// status nor its absent active response distinguishes the two.
-	if !t.complete(verdict.Text) {
+	if !t.complete(reply.Text) {
 		d.log.Warn("the session reads idle but its reply is not a review; rejoining",
 			"session_id", sessionID, "turn_id", groups[0],
-			"chars", len(verdict.Text), "reason", verdict.Reason)
+			"chars", len(reply.Text), "reason", reply.Reason)
 		return Reply{}, cause
 	}
 
 	t.turnSettled = true
 	d.log.Warn("recovered a complete verdict from a session whose stream died",
 		"session_id", sessionID, "turn_id", groups[0], "error", cause)
-	return verdict, nil
+	return reply, nil
 }
 
 // answerPending decides the prompts already parked on a session.
@@ -1167,7 +1173,7 @@ func (d *Driver) answerPending(
 	return nil
 }
 
-// answer decides one prompt and sends the verdict, once.
+// answer decides one prompt and sends the reply, once.
 //
 // Every decision is logged with the attested fields it turned on and the rule that
 // fired, so an operator can see which policy name to allow rather than only that

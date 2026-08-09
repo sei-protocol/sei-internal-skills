@@ -15,7 +15,7 @@ const (
 	ExitConfig = 2
 
 	// ExitTimeout is the run deadline expiring. The turn is stopped and the
-	// conversation kept, like every other exit — only DeleteSessionForPR destroys a
+	// conversation kept, like every other exit — only DeleteSession destroys a
 	// session, and it runs when the pull request closes.
 	ExitTimeout = 3
 

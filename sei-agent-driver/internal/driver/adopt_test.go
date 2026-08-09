@@ -233,11 +233,11 @@ func TestSIGTERMEndsTheRunWithoutTouchingTheSession(t *testing.T) {
 	}
 }
 
-// TestDeleteSessionForPRReportsAFailedDelete is the only path that still produces
+// TestDeleteSessionReportsAFailedDelete is the only path that still produces
 // ExitTeardownLeak. A refused delete has to reach the exit code rather than the
 // logs, because the run reads as successful otherwise and nothing reclaims the
 // sandbox afterwards.
-func TestDeleteSessionForPRReportsAFailedDelete(t *testing.T) {
+func TestDeleteSessionReportsAFailedDelete(t *testing.T) {
 	t.Parallel()
 
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 23}
@@ -253,7 +253,7 @@ func TestDeleteSessionForPRReportsAFailedDelete(t *testing.T) {
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
 		DeleteSession(context.Background(), req)
 	if err != nil {
-		t.Fatalf("DeleteSessionForPR: %v", err)
+		t.Fatalf("DeleteSession: %v", err)
 	}
 	if result.ExitCode != ExitTeardownLeak {
 		t.Errorf("ExitCode = %d, want ExitTeardownLeak (%d): a refused delete has to be "+
@@ -268,10 +268,10 @@ func TestDeleteSessionForPRReportsAFailedDelete(t *testing.T) {
 	}
 }
 
-// TestDeleteSessionForPRDestroysTheSession covers the close path, which is the
+// TestDeleteSessionDestroysTheSession covers the close path, which is the
 // only thing that reclaims a sandbox: a review deletes nothing, so the pod runs
 // from the first review until this does.
-func TestDeleteSessionForPRDestroysTheSession(t *testing.T) {
+func TestDeleteSessionDestroysTheSession(t *testing.T) {
 	t.Parallel()
 
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 21}
@@ -286,7 +286,7 @@ func TestDeleteSessionForPRDestroysTheSession(t *testing.T) {
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
 		DeleteSession(context.Background(), req)
 	if err != nil {
-		t.Fatalf("DeleteSessionForPR: %v", err)
+		t.Fatalf("DeleteSession: %v", err)
 	}
 	if result.ExitCode != ExitOK {
 		t.Errorf("ExitCode = %d, want ExitOK", result.ExitCode)
@@ -296,9 +296,9 @@ func TestDeleteSessionForPRDestroysTheSession(t *testing.T) {
 	}
 }
 
-// TestDeleteSessionForPRIsQuietWhenThereIsNoSession keeps a pull request that was
+// TestDeleteSessionIsQuietWhenThereIsNoSession keeps a pull request that was
 // closed without ever being reviewed from reading as a failure.
-func TestDeleteSessionForPRIsQuietWhenThereIsNoSession(t *testing.T) {
+func TestDeleteSessionIsQuietWhenThereIsNoSession(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
@@ -309,7 +309,7 @@ func TestDeleteSessionForPRIsQuietWhenThereIsNoSession(t *testing.T) {
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
 		DeleteSession(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
 	if err != nil {
-		t.Fatalf("DeleteSessionForPR: %v", err)
+		t.Fatalf("DeleteSession: %v", err)
 	}
 	if result.ExitCode != ExitOK {
 		t.Errorf("ExitCode = %d, want ExitOK for a PR with no session", result.ExitCode)

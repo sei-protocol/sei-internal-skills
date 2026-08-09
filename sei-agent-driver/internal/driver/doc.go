@@ -1,8 +1,13 @@
-// Package xreview drives one sei-droid review of a pull request inside an
-// Omnigent managed sandbox: resolve the agent, create or adopt the session for
-// that pull request, send the review prompt, answer the permission prompts the
-// turn parks on, read a verdict off the session, and render it for a caller to
-// post.
+// Package driver runs one Omnigent agent session to an answer: resolve the
+// agent, create or adopt the session for the unit of work, send the prompt,
+// answer the permission prompts the turn parks on, and read the reply off the
+// session.
+//
+// What the agent is asked, and how to tell it has finished answering, is the
+// [Workload]'s. This package attributes a reply to a turn and stops; reading
+// that reply is the caller's. The vocabulary below says "review" in places
+// because the first workload is one, and because several names on the wire are
+// compatibility contracts that outlive the rename.
 //
 // It is the Go successor to the Python driver this repository's history carries,
 // and it keeps that driver's contract: the same environment variables, the same
@@ -12,7 +17,7 @@
 // The build carries no runtime dependency install, so the credential-holding
 // runner installs nothing while it holds a live token.
 //
-// # One session per pull request
+// # One session per unit of work
 //
 // The unit of work is a pull request, not a run. A session is created on the
 // first review and adopted by every later one, so the agent's memory of having
@@ -27,7 +32,7 @@
 // transcript before it can work. The runner's own idle timeout reclaims it
 // unasked.
 //
-// So [Driver.DeleteSessionForPR], driven by the pull request closing, is the only
+// So [Driver.DeleteSession], driven by the pull request closing, is the only
 // thing that reclaims a sandbox. Nothing else will: the Kubernetes launcher sets
 // no lifetime cap and the server runs no sweep, so a session nothing deletes
 // holds its pod's reserved cpu and memory indefinitely.
@@ -101,4 +106,4 @@
 // The exit codes in errors.go are a contract with a calling workflow that may be
 // pinned to an older ref, so their meanings only ever widen. The operator-facing
 // description of every environment variable and exit code is cmd/sei-agent-driver/README.md.
-package xreview
+package driver
