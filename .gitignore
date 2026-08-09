@@ -10,3 +10,6 @@ __pycache__/
 
 # sei-agent-driver build output
 sei-agent-driver/bin/
+
+# goreleaser output
+sei-agent-driver/dist/

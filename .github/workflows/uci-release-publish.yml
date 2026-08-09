@@ -1,0 +1,36 @@
+name: Releaser
+
+# Cuts the tag from version.json, then builds the sei-agent-driver binaries for
+# it. Same two-step shape seictl uses: release-publish decides whether a release
+# happened, goreleaser only runs when one did.
+#
+# The tag is a plain vX.Y.Z. Deliberately NOT the sei-agent-driver/vX.Y.Z form a
+# nested Go module needs for `go install`: that path is not offered, because the
+# repository is private and a consumer would need GOPRIVATE and git credentials
+# on top of the prefixed tag. Consumers take the binary.
+
+on:
+  push:
+    paths: [ 'version.json' ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    uses: sei-protocol/uci/.github/workflows/release-publish.yml@v0.0.15
+
+  goreleaser:
+    needs: publish
+    if: needs.publish.outputs.release_created == 'true'
+    uses: sei-protocol/uci/.github/workflows/goreleaser-release.yml@v0.0.15
+    with:
+      # The module is nested, so goreleaser resolves its config and go.mod here.
+      # go-version-file defaults to <working-directory>/go.mod, which is right.
+      working-directory: sei-agent-driver
+      ref: ${{ needs.publish.outputs.version }}
