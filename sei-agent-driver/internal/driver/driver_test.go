@@ -1630,7 +1630,7 @@ func TestDriverRejoinsAnIdleSessionWhoseReplyIsNotAReview(t *testing.T) {
 			// The connection expired mid-turn: no done sentinel.
 		},
 		LaterStreamFrames: []string{
-			driverAckFrame(),
+			driverConsumedFrame("item_2"),
 			driverIdleFrame("resp_claude_a"),
 			driverDoneFrame(),
 		},

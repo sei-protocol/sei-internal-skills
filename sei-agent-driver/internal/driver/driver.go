@@ -728,11 +728,22 @@ func (d *Driver) driveTurn(
 
 		// Before the prompt is in, the sandbox may have come up while the stream was
 		// down, in which case the ready edge has already passed and waiting for it
-		// again would hang. After it is in, the send hook must not fire a second
-		// time and queue the prompt twice.
-		if t.anchor == "" && d.sessionIsLive(ctx, client, sessionID) {
-			opts.OnSubscribed = d.sendOnSubscribe(client, prompt, t)
+		// again would hang.
+		if t.anchor == "" {
+			if d.sessionIsLive(ctx, client, sessionID) {
+				opts.OnSubscribed = d.sendOnSubscribe(client, prompt, t)
+			}
+			continue
 		}
+
+		// Once it is in, the hook is disarmed. It fires on every subscribe, so
+		// leaving it armed re-sends the prompt on each re-open: measured live, five
+		// re-opens sent it twice, and the second injection reached a terminal busy
+		// running the first one's shell command, which the harness refuses with "the
+		// message was not delivered" and fails the turn. Disarmed here rather than
+		// guarded inside the send, because the anchor is set from the stream's
+		// goroutine and this runs between streams, where there is nothing to race.
+		opts.OnSubscribed = nil
 
 		// A stream is a snapshot and a live tail with no replay, so a turn that
 		// ended while this one was down sent its last edge to nobody. Watching for
