@@ -64,3 +64,33 @@ update-agent-permissions: ## Install canonical read-only allow-list into ./.clau
 .PHONY: verify-agent-permissions
 verify-agent-permissions: ## Fail if .claude/settings.json contains mutating patterns or has drifted
 	@./scripts/verify-agent-permissions.sh
+
+# --- sei-agent-driver (Go) ---------------------------------------------------
+#
+# The one Go module in this repo. Kept behind its own targets rather than folded
+# into the workspace ones above, because those install into a user's ~/.claude and
+# this builds a binary — a contributor working on skills should never need a Go
+# toolchain to run them.
+
+.PHONY: driver-check
+driver-check: ## Everything enforced about sei-agent-driver: fmt, build, vet, test, tidy (CI)
+	@cd sei-agent-driver && \
+	  unformatted="$$(gofmt -l .)"; \
+	  if [ -n "$$unformatted" ]; then \
+	    printf 'gofmt: these files need formatting:\n%s\n' "$$unformatted" >&2; exit 1; \
+	  fi
+	cd sei-agent-driver && go build ./...
+	cd sei-agent-driver && go vet ./...
+	cd sei-agent-driver && go test ./... -race
+	cd sei-agent-driver && go mod tidy -diff
+
+# -buildvcs=false because a nested module cannot stamp VCS info, which is also
+# why the version is passed in: without it the binary cannot say which commit it
+# is, and neither can runtime/debug.ReadBuildInfo.
+DRIVER_VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+
+.PHONY: driver-build
+driver-build: ## Build the sei-agent-driver binary into sei-agent-driver/bin/
+	cd sei-agent-driver && go build -trimpath -buildvcs=false \
+	  -ldflags "-X main.version=$(DRIVER_VERSION)" \
+	  -o bin/sei-agent-driver ./cmd/sei-agent-driver
