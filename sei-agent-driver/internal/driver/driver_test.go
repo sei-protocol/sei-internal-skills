@@ -1762,3 +1762,41 @@ func TestCloseReportsAnUnreachableServerAsTransport(t *testing.T) {
 			result.ExitCode, ExitTransport)
 	}
 }
+
+// TestClassifyTellsARequestTimeoutFromTheRunDeadline pins the distinction a live
+// run got wrong.
+//
+// A review against a real deployment spent 90 seconds in a create that never
+// returned headers, another 90 in the reconcile that followed, and reported "run
+// deadline exceeded" on a run whose deadline was twenty minutes. The SDK's unary
+// timeout produces an error satisfying errors.Is(err, context.DeadlineExceeded), so
+// the run context is the only thing that says which deadline expired.
+func TestClassifyTellsARequestTimeoutFromTheRunDeadline(t *testing.T) {
+	t.Parallel()
+
+	d := NewDriver(Config{RunDeadline: 20 * time.Minute}, Policy{}, driverTestLogger())
+
+	t.Run("a request timeout on a live run is transport", func(t *testing.T) {
+		t.Parallel()
+		// The shape net/http produces for Client.Timeout: it wraps
+		// context.DeadlineExceeded while the caller's own context is still good.
+		err := fmt.Errorf("Post %q: %w (Client.Timeout exceeded while awaiting headers)",
+			"https://example.invalid/v1/sessions", context.DeadlineExceeded)
+		got := d.classify(context.Background(), Result{ExitCode: ExitOK}, err)
+		if got.ExitCode != ExitTransport {
+			t.Errorf("ExitCode = %d, want ExitTransport (%d): the run had budget left, one call did not",
+				got.ExitCode, ExitTransport)
+		}
+	})
+
+	t.Run("the run deadline expiring is a timeout", func(t *testing.T) {
+		t.Parallel()
+		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+		defer cancel()
+		<-ctx.Done()
+		got := d.classify(ctx, Result{ExitCode: ExitOK}, context.DeadlineExceeded)
+		if got.ExitCode != ExitTimeout {
+			t.Errorf("ExitCode = %d, want ExitTimeout (%d)", got.ExitCode, ExitTimeout)
+		}
+	})
+}

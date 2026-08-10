@@ -88,6 +88,11 @@ jobs:
       - name: Fetch the driver
         env:
           GH_TOKEN: ${{ github.token }}
+          # Outside the workspace: the tarball's binary is named sei-agent-driver and
+          # so is this repo's module directory, so extracting into the checkout fails
+          # on the collision. runner.* is not available in job-level env, so both
+          # steps name it themselves.
+          DRIVER_BIN: ${{ runner.temp }}/driver/sei-agent-driver
           # Through the environment, not interpolated into the script. A dispatch
           # input reaching a shell as text is an injection, and this one is the last
           # input not validated above.
@@ -99,11 +104,13 @@ jobs:
             tag="$(jq -r '.version' version.json)"
           fi
           echo "driver $tag"
+          dest="$(dirname "$DRIVER_BIN")"
+          mkdir -p "$dest"
           gh release download "$tag" --repo "$GITHUB_REPOSITORY" \
-            --pattern 'sei-agent-driver_*_linux_amd64.tar.gz' --pattern 'checksums.txt' --dir .
-          sha256sum --check --ignore-missing checksums.txt
-          tar xzf sei-agent-driver_*_linux_amd64.tar.gz
-          ./sei-agent-driver --version
+            --pattern 'sei-agent-driver_*_linux_amd64.tar.gz' --pattern 'checksums.txt' --dir "$dest"
+          ( cd "$dest" && sha256sum --check --ignore-missing checksums.txt )
+          tar xzf "$dest"/sei-agent-driver_*_linux_amd64.tar.gz -C "$dest"
+          "$DRIVER_BIN" --version
 
       # Runner-side identity, and it stays runner-side: it reads the pull request
       # and posts the comment. The sandbox is a separate trust domain and gets none
@@ -112,8 +119,10 @@ jobs:
         id: apptoken
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          app-id: ${{ secrets.PLATFORM_CODE_AGENT_APP_ID }}
-          private-key: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
+          # The seidroid app, which is the identity holding permissions on the repos
+          # this reviews. PLATFORM_CODE_AGENT_* is not available in this context.
+          app-id: ${{ secrets.SEIDROID_APP_ID }}
+          private-key: ${{ secrets.SEIDROID_APP_PRIVATE_KEY }}
           owner: ${{ steps.target.outputs.owner }}
           repositories: ${{ steps.target.outputs.name }}
           # Scoped explicitly. Without these the token carries every permission the
@@ -128,6 +137,14 @@ jobs:
       - name: Review
         id: review
         env:
+          DRIVER_BIN: ${{ runner.temp }}/driver/sei-agent-driver
+          # Both spellings, because they straddle a rename: the pinned release reads
+          # OMNIGENT_MACHINE_CLIENT_*, and the current driver reads OMNIGENT_M2M_*,
+          # which is what the deployment calls its own registry entry. Setting both
+          # means this works either side of it; drop the old pair once the pinned
+          # version is past the rename.
+          OMNIGENT_MACHINE_CLIENT_ID: sei-droid
+          OMNIGENT_MACHINE_CLIENT_SECRET: ${{ secrets.OMNIGENT_M2M_CLIENT_SECRET }}
           OMNIGENT_M2M_CLIENT_ID: sei-droid
           OMNIGENT_M2M_CLIENT_SECRET: ${{ secrets.OMNIGENT_M2M_CLIENT_SECRET }}
           GH_TOKEN: ${{ steps.apptoken.outputs.token }}
@@ -139,7 +156,7 @@ jobs:
           XREVIEW_ALLOW_TOOLS: Bash,Read
         run: |
           set -uo pipefail
-          ./sei-agent-driver xreview "$TARGET_REPO" "$TARGET_PR" --out verdict.md
+          "$DRIVER_BIN" xreview "$TARGET_REPO" "$TARGET_PR" --out verdict.md
           rc=$?
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           # Exit codes are the contract, so they are read rather than collapsed to

@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"os"
 	"os/signal"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"syscall"
@@ -35,6 +36,26 @@ import (
 // to be able to tell.
 var version = "dev"
 
+// resolvedVersion prefers the stamped value and falls back to the module version
+// the toolchain records.
+//
+// A `go install` applies no ldflags, so a binary fetched that way would otherwise
+// report "dev" and a consumer could not tell which release it was running. The
+// toolchain does record the module version for a proxy-fetched build, which is a
+// different thing from the VCS stamping a nested module cannot do.
+func resolvedVersion() string {
+	if version != "dev" {
+		return version
+	}
+	if info, ok := debug.ReadBuildInfo(); ok {
+		// "(devel)" is a local build off a working tree, which is what "dev" means.
+		if v := info.Main.Version; v != "" && v != "(devel)" {
+			return v
+		}
+	}
+	return version
+}
+
 func main() {
 	// Logs go to stderr so stdout carries only the verdict payload and a caller
 	// can consume one without parsing around the other.
@@ -43,7 +64,7 @@ func main() {
 	cmd := &cli.Command{
 		Name:    "sei-agent-driver",
 		Usage:   "drive an Omnigent agent session to a machine-readable answer",
-		Version: version,
+		Version: resolvedVersion(),
 		Commands: []*cli.Command{
 			xreviewCommand(log),
 		},
