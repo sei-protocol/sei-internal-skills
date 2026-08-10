@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 )
 
 // requireEncryptedOrLocal rejects a base URL that would put the client secret on
@@ -64,12 +65,19 @@ var ErrMint = errors.New("token exchange")
 // non-loopback base URL arrives one call too late — the secret is already on the
 // wire. No working configuration loses anything: every URL rejected here is one
 // [omnigent.New] rejects a moment later.
-func MintToken(ctx context.Context, client *http.Client, baseURL, clientID, clientSecret string) (string, error) {
+// The returned lifetime is what the server said, so a caller can tell whether a
+// token minted once will outlive the work it was minted for. Zero when the
+// response omitted it.
+func MintToken(
+	ctx context.Context,
+	client *http.Client,
+	baseURL, clientID, clientSecret string,
+) (string, time.Duration, error) {
 	if clientID == "" || clientSecret == "" {
-		return "", fmt.Errorf("%w: client id and secret are both required", ErrMint)
+		return "", 0, fmt.Errorf("%w: client id and secret are both required", ErrMint)
 	}
 	if err := requireEncryptedOrLocal(baseURL); err != nil {
-		return "", err
+		return "", 0, err
 	}
 
 	form := url.Values{
@@ -81,7 +89,7 @@ func MintToken(ctx context.Context, client *http.Client, baseURL, clientID, clie
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint,
 		strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", fmt.Errorf("%w: %w", ErrMint, err)
+		return "", 0, fmt.Errorf("%w: %w", ErrMint, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
@@ -94,7 +102,7 @@ func MintToken(ctx context.Context, client *http.Client, baseURL, clientID, clie
 		//
 		// The error from Do embeds the request URL but not the body, so the
 		// secret cannot reach a log through here.
-		return "", fmt.Errorf("token exchange could not reach the server: %w", err)
+		return "", 0, fmt.Errorf("token exchange could not reach the server: %w", err)
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxTokenBody))
@@ -103,7 +111,7 @@ func MintToken(ctx context.Context, client *http.Client, baseURL, clientID, clie
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenBody))
 	if err != nil {
-		return "", fmt.Errorf("%w: reading response: %w", ErrMint, err)
+		return "", 0, fmt.Errorf("%w: reading response: %w", ErrMint, err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -112,7 +120,7 @@ func MintToken(ctx context.Context, client *http.Client, baseURL, clientID, clie
 		// unsupported_grant_type means the grant is not enabled on this server.
 		// The rest of the body is withheld: a non-2xx here need not have come
 		// from this API at all.
-		return "", fmt.Errorf("%w: %s returned %d (%s)",
+		return "", 0, fmt.Errorf("%w: %s returned %d (%s)",
 			ErrMint, endpoint, resp.StatusCode, oauthErrorCode(body))
 	}
 
@@ -122,12 +130,12 @@ func MintToken(ctx context.Context, client *http.Client, baseURL, clientID, clie
 		ExpiresIn   int    `json:"expires_in"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return "", fmt.Errorf("%w: response was not JSON: %w", ErrMint, err)
+		return "", 0, fmt.Errorf("%w: response was not JSON: %w", ErrMint, err)
 	}
 	if payload.AccessToken == "" {
-		return "", fmt.Errorf("%w: response carried no access_token", ErrMint)
+		return "", 0, fmt.Errorf("%w: response carried no access_token", ErrMint)
 	}
-	return payload.AccessToken, nil
+	return payload.AccessToken, time.Duration(payload.ExpiresIn) * time.Second, nil
 }
 
 // oauthErrorCode pulls the RFC 6749 error code out of a failed response, or

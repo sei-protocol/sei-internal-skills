@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestMintSurvivesSecretsThatBasicAuthWouldCorrupt is the reason this package
@@ -45,7 +47,7 @@ func TestMintSurvivesSecretsThatBasicAuthWouldCorrupt(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			token, err := MintToken(context.Background(), srv.Client(), srv.URL, "sei-droid", secret)
+			token, _, err := MintToken(context.Background(), srv.Client(), srv.URL, "sei-droid", secret)
 			if err != nil {
 				t.Fatalf("MintToken: %v", err)
 			}
@@ -86,7 +88,7 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 			t.Error("a request was sent despite absent credentials")
 		}))
 		defer srv.Close()
-		if _, err := MintToken(context.Background(), srv.Client(), srv.URL, "", ""); !errors.Is(err, ErrMint) {
+		if _, _, err := MintToken(context.Background(), srv.Client(), srv.URL, "", ""); !errors.Is(err, ErrMint) {
 			t.Fatalf("error = %v, want ErrMint", err)
 		}
 	})
@@ -101,7 +103,7 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		_, err := MintToken(context.Background(), srv.Client(), srv.URL, "id", "sec")
+		_, _, err := MintToken(context.Background(), srv.Client(), srv.URL, "id", "sec")
 		if !errors.Is(err, ErrMint) {
 			t.Fatalf("error = %v, want ErrMint", err)
 		}
@@ -121,7 +123,7 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		token, err := MintToken(context.Background(), srv.Client(), srv.URL, "id", "sec")
+		token, _, err := MintToken(context.Background(), srv.Client(), srv.URL, "id", "sec")
 		if !errors.Is(err, ErrMint) || token != "" {
 			t.Fatalf("got (%q, %v), want (\"\", ErrMint)", token, err)
 		}
@@ -225,7 +227,7 @@ func TestMintRefusesToSendTheSecretInClear(t *testing.T) {
 			t.Parallel()
 
 			probe := &mintProbeTransport{}
-			_, err := MintToken(context.Background(), &http.Client{Transport: probe},
+			_, _, err := MintToken(context.Background(), &http.Client{Transport: probe},
 				tc.baseURL, "id", "s3cret-value")
 
 			// Every case errors: a rejected URL by the guard, an accepted one because
@@ -255,5 +257,34 @@ func TestMintRefusesToSendTheSecretInClear(t *testing.T) {
 				t.Errorf("the error quotes the secret: %v", err)
 			}
 		})
+	}
+}
+
+// TestMintReportsTheLifetimeTheServerGave covers the guard against a run that
+// outlives its own credential.
+//
+// The deployment sets OMNIGENT_M2M_TOKEN_TTL to 1800 and the default run deadline
+// is 1200, so the shipped pair is safe. Nothing enforces that, and the driver mints
+// once with no re-mint, so raising the deadline past the token's life spends the
+// tail of a review on rejected calls with nothing naming the token.
+func TestMintReportsTheLifetimeTheServerGave(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = io.WriteString(w,
+			`{"access_token":"tok","token_type":"Bearer","expires_in":1800}`)
+	}))
+	defer srv.Close()
+
+	token, ttl, err := MintToken(context.Background(), srv.Client(), srv.URL, "sei-droid", "sec")
+	if err != nil {
+		t.Fatalf("MintToken: %v", err)
+	}
+	if token != "tok" {
+		t.Errorf("token = %q, want tok", token)
+	}
+	if ttl != 30*time.Minute {
+		t.Errorf("ttl = %v, want 30m — the caller cannot compare a lifetime it was not told", ttl)
 	}
 }
