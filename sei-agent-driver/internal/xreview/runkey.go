@@ -35,9 +35,9 @@ func RunKey(repo string, pr int) string {
 
 // TriggerID identifies this dispatch, for log correlation only.
 //
-// It is no longer part of [RunKey] — the session is keyed on the pull request so
-// it survives across invocations. This just answers "which comment or run
-// produced this log line" when reading back a session's history.
+// Not part of [RunKey], which keys on the pull request so a session survives
+// across invocations. This answers only "which comment or run produced this log
+// line".
 //
 // The explicit value is what a caller passes for a comment-triggered review: the
 // comment id. Absent that, GitHub's run id and attempt number distinguish one

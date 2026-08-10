@@ -16,31 +16,17 @@ const (
 	// sentinel to pass that guard — the same value the Python client sends.
 	DefaultOrigin = "omnigent://internal"
 
-	// DefaultBaseURL is loopback, matching the address a self-hosted server
-	// advertises. Plain http is legitimate here only because nothing leaves the
-	// machine — the SDK exempts loopback from its cleartext-credential refusal for
-	// that reason, and so does [MintToken].
+	// DefaultBaseURL is loopback rather than a deployment's address: callers pin
+	// this binary at a ref, so a hostname here would tie every one of them to one
+	// deployment and point a bare local run at it. OMNIGENT_BASE_URL carries the
+	// real one.
 	//
-	// Deliberately not a deployment's address. This binary is fetched and built by
-	// caller repositories at a pinned ref, so a hostname baked in here would couple
-	// every caller to one deployment and would point a bare local run at it by
-	// default. A real deployment's URL belongs in OMNIGENT_BASE_URL, which the
-	// review workflow always sets.
-	//
-	// https or loopback, with no way to opt out. The SDK offers one
-	// (WithInsecureCredentialTransport) and this package deliberately does not pass
-	// it, so the in-cluster ClusterIP Service — plain http on port 80 — is not a
-	// usable address here even though the hop stays inside the mesh.
-	//
-	// Not passing it is a policy choice, so it is worth saying why rather than
-	// leaving it to be re-litigated. A run reaches the deployment over its https
-	// ingress instead, which costs nothing that matters: the runner can still be
-	// in-cluster, since which runner executes the job and which URL it dials are
-	// independent. And the alternative it would unlock is worse than it looks —
-	// header auth is only safe because nothing outside the mesh can set
-	// X-Forwarded-Email, so carrying it over a public ingress turns an
-	// identity assertion into an auth bypass unless that ingress provably strips
-	// the header.
+	// https or loopback, with no opt-out. The SDK offers one
+	// (WithInsecureCredentialTransport) and this package does not pass it, so the
+	// plain-http ClusterIP is not usable here. That costs nothing — which runner
+	// runs the job and which URL it dials are independent, so the runner can still
+	// be in-cluster — and what the opt-out would unlock is worse: header auth is
+	// safe only because nothing outside the mesh can set X-Forwarded-Email.
 	DefaultBaseURL = "http://127.0.0.1:6767"
 
 	// DefaultAgent is the agent name to resolve. A name, not an id: ids differ
@@ -81,31 +67,25 @@ type Config struct {
 	// distinction, so do not cross-wire the two. Never logged.
 	MachineClientSecret string
 
-	// RunDeadline bounds the whole run: resolve, create, drive and teardown. On
-	// expiry the turn is stopped and the conversation kept.
+	// RunDeadline bounds the whole run: resolve, create or adopt, drive. On expiry
+	// the run ends and the session is left as it is — the turn keeps running
+	// server-side and the next invocation's prompt queues behind it.
 	RunDeadline time.Duration
 
-	// RequestTimeout bounds the requests this package times itself: the token
-	// mint, the release, and the post-turn reply read.
+	// RequestTimeout bounds the requests this package times itself: the token mint
+	// and the post-turn reply read.
 	//
-	// It is deliberately not handed to the SDK as a unary timeout, so the client's
-	// own calls — listing, create, send, resolve — keep the SDK's default instead.
-	// Tightening this knob therefore does not tighten those. The event stream is
-	// not covered either, because a stream outliving a long turn cannot carry a
-	// whole-exchange deadline; StreamIdleTimeout bounds that.
+	// Not handed to the SDK as a unary timeout, so tightening it does not tighten
+	// the client's own calls. The stream is bounded by StreamIdleTimeout instead,
+	// since a stream outliving a long turn cannot carry a whole-exchange deadline.
 	RequestTimeout time.Duration
 
-	// StreamIdleTimeout is how long the stream may be silent before it is
-	// treated as dead. The server emits a heartbeat every 15s on an idle
-	// stream, so this must stay comfortably above that or a healthy idle
-	// stream is torn down between turns.
+	// StreamIdleTimeout is how long the stream may be silent before it is treated
+	// as dead.
 	//
-	// The heartbeat cadence is the wrong thing to size this against on a session
-	// that was just created, which is why this is minutes rather than seconds. A
-	// cold managed sandbox provisions, clones the repository and connects a runner
-	// before it announces itself, and stays quiet throughout — long enough on a
-	// large repository to outlast a heartbeat-sized budget. The run deadline is the
-	// backstop.
+	// Minutes rather than seconds, and not sized against the 15s heartbeat: a cold
+	// sandbox provisions, clones and connects a runner before it announces itself,
+	// staying quiet throughout for longer than a heartbeat-sized budget allows.
 	StreamIdleTimeout time.Duration
 }
 
@@ -126,9 +106,7 @@ func LoadConfig() (Config, error) {
 		MachineClientSecret: strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_SECRET")),
 	}
 
-	// Durations are configured in seconds because that is what the original
-	// driver's variables meant, and an operator's existing values must keep
-	// working.
+	// Seconds, because that is what an operator's existing values mean.
 	for _, d := range []struct {
 		name string
 		secs float64
@@ -148,18 +126,14 @@ func LoadConfig() (Config, error) {
 	return cfg, nil
 }
 
-// RequireAuth reports whether a usable credential was supplied, in either of the
-// two accepted forms: a bearer token, or a machine client id and secret to mint
-// one with.
+// RequireAuth reports whether a usable credential was supplied: a bearer token,
+// or a machine client to mint one with.
 //
-// Separate from [LoadConfig] and loud rather than silent: no credential would
-// otherwise send an anonymous request, and the server's answer to that is a 401
-// that reads like a misconfigured server rather than a missing secret.
-//
-// A half-supplied machine client is rejected on its own rather than falling
-// through to "no credential", because the two mistakes have different fixes and
-// an operator who set one of the pair does not need to be told about the token
-// variables.
+// Separate from [LoadConfig] and loud, because an anonymous request earns a 401
+// that reads like a misconfigured server rather than a missing secret. A
+// half-supplied machine client is called out on its own — that mistake has a
+// different fix, and naming the token variables would send an operator the wrong
+// way.
 func (c Config) RequireAuth() error {
 	id, secret := c.MachineClientID, c.MachineClientSecret
 	switch {
@@ -188,12 +162,10 @@ func (c Config) MintsOwnToken() bool {
 	return c.Token == "" && c.MachineClientID != "" && c.MachineClientSecret != ""
 }
 
-// resolveToken prefers a mounted file over an inline variable.
-//
-// The file is read on each invocation so a rotated credential is picked up
-// without a redeploy. An unreadable file yields an empty token rather than an
-// error here, which [Config.RequireAuth] then rejects with one message for both
-// causes — the distinction does not change what an operator has to do.
+// resolveToken prefers a mounted file over an inline variable, re-read each run
+// so a rotated credential needs no redeploy. An unreadable file yields an empty
+// token for [Config.RequireAuth] to reject: the distinction does not change what
+// an operator has to do.
 func resolveToken() string {
 	if path := os.Getenv("OMNIGENT_API_TOKEN_FILE"); path != "" {
 		raw, err := os.ReadFile(path)

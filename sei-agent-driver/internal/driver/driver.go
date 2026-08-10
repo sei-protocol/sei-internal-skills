@@ -228,24 +228,15 @@ func (d *Driver) resolveAgent(ctx context.Context, client *omnigent.Client) (str
 // createOrAdopt returns the session for this run key, creating one only if none
 // exists yet.
 //
-// The search comes first, and that ordering is the whole idempotency guarantee.
-// The run key is recorded as a label on the session, which is server-side state:
-// it survives the runner that created it, so a second dispatch of the same
-// trigger — a redelivered webhook, most plausibly — finds the first run's session
-// and drives that instead of starting a second review of the same tree.
+// Searching first is the idempotency guarantee. The run key is a label on the
+// session, so it outlives the runner and a redelivered trigger finds the first
+// run's session rather than reviewing the same tree twice. It walks every page
+// because the server has no label filter and a page holds the agent's 20 newest.
 //
-// Server-side state is the only kind that outlives the runner: a per-job scratch
-// file is emptied before the process starts, so a claim written there is never
-// read back.
-//
-// The search walks every page because the server has no label filter — a listing
-// page holds 20 of the agent's newest sessions, and the one being looked for is
-// not reliably among them.
-//
-// It is not a lock. Two genuinely simultaneous runs can both search, both find
-// nothing, and both create; the caller's concurrency group is what prevents that,
-// and it prevents it better than a per-runner file could. What this rules out is
-// the sequential duplicate.
+// It is not a lock: two simultaneous runs can both find nothing and both create,
+// which the caller's concurrency group prevents. This rules out the sequential
+// duplicate.
+
 // adoption is where a run's session came from, split into the two questions the
 // rest of the run actually asks. They were one boolean until a session turned up
 // that was continued but not live, and answering both from that one bit sent the
@@ -640,39 +631,23 @@ func (d *Driver) driveTurn(
 		opts.OnSubscribed = d.sendOnSubscribe(client, prompt, t)
 	}
 
-	// The stream is re-established for as long as the prompt is still waiting to
-	// go in. A launching sandbox emits almost nothing and a quiet connection is
-	// dropped in transit, so on a cold start the first stream usually dies before
-	// the sandbox is ready — waiting longer cannot help, because the connection
-	// does not survive the wait. Re-subscribing costs a request; giving up costs
-	// the review.
+	// A launching sandbox emits almost nothing and a quiet connection is dropped in
+	// transit, so on a cold start the first stream usually dies before the sandbox
+	// is ready. Waiting longer cannot help — the connection does not survive the
+	// wait — so the stream is re-established while the prompt is still unsent.
 	//
-	// Only while the prompt is unsent. Once it is in, a lost stream is a different
-	// problem with a reply already committed, and [Driver.recoverFromStreamLoss]
-	// reads it back rather than starting again.
+	// Once it is in, a lost stream is a different problem with a reply already
+	// committed, which [Driver.recoverFromStreamLoss] reads back.
 	for attempt := 1; ; attempt++ {
 		reply, err := d.consumeTurn(ctx, client, sessionID, prompt, t, prior, opts)
 
-		// The connection has a lifetime of its own, measured at around three
-		// minutes, and a review runs longer than that. So a stream ending is not
-		// evidence the work stopped — it is the expected way a long turn's
-		// connection dies — and the turn is followed across as many streams as it
-		// takes.
+		// A connection lives about three minutes and a review runs longer, so a
+		// stream ending is not evidence the work stopped. The turn is followed
+		// across as many streams as it takes.
 		//
-		// This loop lives here rather than in the SDK on purpose. The server does
-		// not replay a stream, so rejoining means reconciling against a snapshot,
-		// and what counts as this run's reply — one new response group since a
-		// pre-turn baseline — is this driver's rule, not a property of the
-		// protocol. The Python client draws the same line and says so: reconnection
-		// is the caller's, "because the snapshot/dedupe step is
-		// application-specific".
-		//
-		// Three things end the loop rather than continuing:
-		//
-		// A finished turn, because there is nothing left to watch. An expired run
-		// deadline, which is the real bound on all of this. And a turn carrying a
-		// fatal cause of its own, since a launch the server reported as failed does
-		// not become un-failed by subscribing again.
+		// The loop is here rather than in the SDK because the server replays
+		// nothing: rejoining means reconciling against a snapshot, and what counts
+		// as this run's reply is this driver's rule, not the protocol's.
 		if t.ended() || ctx.Err() != nil || t.failure != nil {
 			return reply, err
 		}
@@ -790,16 +765,11 @@ func (d *Driver) consumeTurn(
 // sendPrompt posts the review instruction and records the item id the server gave
 // it.
 //
-// That id is the anchor, and keeping it is the whole defence against a reused
-// session's history: the SDK documents it as the correlation key between a send
-// and its echo, and the echo is what marks where this invocation's own work
-// begins. An input the server accepts without queueing produces no anchor, so
-// there would be nothing to attribute a reply against and this refuses rather
-// than reviewing blind.
-//
-// Returning the error rather than logging and continuing: if the prompt does not
-// land there is no turn to wait for, and streaming on would burn the whole run
-// deadline before saying so.
+// That id is the anchor, and it is the defence against a reused session's
+// history: it correlates a send with its echo, and the echo marks where this
+// invocation's work begins. An input accepted without queueing produces no
+// anchor, so this refuses rather than reviewing blind — streaming on would burn
+// the run deadline before saying so.
 func (d *Driver) sendPrompt(
 	ctx context.Context,
 	client *omnigent.Client,
@@ -1060,18 +1030,16 @@ func (d *Driver) priorResponseIDs(
 
 // recoverFromStreamLoss tries to rescue a review whose stream died under it.
 //
-// The SDK documents a dropped stream as routine rather than exceptional, and
-// recoverable by snapshot: the server persists an item before it publishes one,
-// so anything the stream would have carried is already readable. Without this the
-// run discards a review that may be complete and paid for, and
-// [Driver.salvageFailedTurn] cannot help — it keys on a server-reported failure
-// edge, and a transport drop produces none.
+// A dropped stream is routine and recoverable by snapshot: the server persists an
+// item before publishing it, so anything the stream would have carried is already
+// readable. Without this a run discards a review that may be complete and paid
+// for, and [Driver.salvageFailedTurn] cannot help — it keys on a failure edge a
+// transport drop never produces.
 //
-// Fails closed in three directions. Only a genuine stream fault is recovered, not
-// any error the iterator happens to yield; the prompt must have been echoed back,
-// so a run whose input never landed has nothing of its own to find; and exactly
-// one new reply group must exist and carry a full reply, so an ambiguous or
-// half-finished session reports the transport error it arrived with.
+// Fails closed three ways: only a genuine stream fault is recovered; the prompt
+// must have been echoed, or the run has nothing of its own to find; and exactly
+// one new reply group must exist and be complete, so an ambiguous or unfinished
+// session reports the transport error instead.
 func (d *Driver) recoverFromStreamLoss(
 	ctx context.Context,
 	client *omnigent.Client,

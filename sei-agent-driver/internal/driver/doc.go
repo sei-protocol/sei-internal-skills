@@ -4,42 +4,33 @@
 // session.
 //
 // What the agent is asked, and how to tell it has finished answering, is the
-// [Workload]'s. This package attributes a reply to a turn and stops; reading
-// that reply is the caller's. The vocabulary below says "review" in places
-// because the first workload is one, and because several names on the wire are
-// compatibility contracts that outlive the rename.
+// [Workload]'s. This package attributes a reply to a turn and stops. The
+// vocabulary says "review" in places because the first workload is one, and
+// because several names on the wire are compatibility contracts.
 //
-// It is the Go successor to the Python driver this repository's history carries,
-// and it keeps that driver's contract: the same environment variables, the same
-// exit codes, the same run-key idempotency, and the same fail-closed permission
-// policy keyed on server-attested tool identity.
-//
-// The build carries no runtime dependency install, so the credential-holding
-// runner installs nothing while it holds a live token.
+// It keeps the Python driver's contract: the same environment variables, exit
+// codes, run-key idempotency, and fail-closed permission policy keyed on
+// server-attested tool identity.
 //
 // # One session per unit of work
 //
 // The unit of work is a pull request, not a run. A session is created on the
-// first review and adopted by every later one, so the agent's memory of having
-// reviewed this tree survives between invocations and the adopted prompt can ask
-// what changed. The run key is a label on the session, which is server-side state
-// and therefore outlives the runner.
+// first review and adopted by every later one, so the agent's memory of the tree
+// survives between invocations and the adopted prompt can ask what changed. The
+// run key is a label on the session, so it outlives the runner.
 //
-// A review therefore ends without tearing anything down, and the reason it does
-// not bother is that it cannot. stop_session ends the agent process and the
-// runner, never the sandbox, so the pod bills the same either way; all a stop
-// buys is that the next invocation has to spawn a fresh runner and rebuild its
-// transcript before it can work. The runner's own idle timeout reclaims it
-// unasked.
+// A review tears nothing down, because stopping buys nothing: stop_session ends
+// the agent process and the runner, never the sandbox, so the pod bills the same
+// either way — and a stopped runner costs the next invocation a fresh one and a
+// rebuilt transcript. The runner's idle timeout reclaims it unasked.
 //
-// So [Driver.DeleteSession], driven by the pull request closing, is the only
-// thing that reclaims a sandbox. Nothing else will: the Kubernetes launcher sets
-// no lifetime cap and the server runs no sweep, so a session nothing deletes
-// holds its pod's reserved cpu and memory indefinitely.
+// So [Driver.DeleteSession], on the pull request closing, is the only thing that
+// reclaims a sandbox. Nothing else will: the Kubernetes launcher sets no lifetime
+// cap and the server runs no sweep, so a session nothing deletes holds its pod's
+// cpu and memory indefinitely.
 //
-// A run drives exactly one turn. A run that ends without a verdict is re-run, and
-// because the next invocation adopts the same session with its context intact,
-// re-running is the retry.
+// A run drives exactly one turn, and re-running is the retry: the next invocation
+// adopts the same session with its context intact.
 //
 // # Two response-id namespaces
 //
