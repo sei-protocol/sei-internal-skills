@@ -280,7 +280,7 @@ func (d *Driver) createOrAdopt(
 		if live, revivable := reachability(existing); live || revivable {
 			d.log.Info("adopting the session an earlier dispatch created",
 				"run_key", runKey, "session_id", existing.ID, "live", live)
-			return existing, adoption{continued: true, answered: holdsAnswer(existing), live: live}, nil
+			return existing, adoption{continued: true, answered: holdsAnswer(existing, w.Complete), live: live}, nil
 		}
 		d.log.Warn("the session for this pull request cannot run a turn; replacing it",
 			"run_key", runKey, "session_id", existing.ID)
@@ -320,11 +320,11 @@ func (d *Driver) createOrAdopt(
 		return nil, adoption{}, err
 	}
 	live, _ := reachability(committed)
-	return committed, adoption{continued: true, answered: holdsAnswer(committed), live: live}, nil
+	return committed, adoption{continued: true, answered: holdsAnswer(committed, w.Complete), live: live}, nil
 }
 
 // holdsAnswer reports whether this session's conversation already carries a
-// completed assistant reply.
+// reply the workload counts as finished.
 //
 // This is what [adoption.answered] means, and it cannot be read off how the
 // session was found. The session reconciled above is one this run just created,
@@ -335,11 +335,19 @@ func (d *Driver) createOrAdopt(
 // work, so sending it into an empty conversation puts a follow-up question to an
 // agent that was never asked the first one.
 //
-// A turn still in flight reads as no answer, which is the safe direction: the
-// worst case is answering in full twice, against publishing a what-changed pass
-// over nothing.
-func holdsAnswer(s *omnigent.SessionResponse) bool {
-	return len(ReplyGroupsSince(s.Items, nil)) > 0
+// The workload's own rule decides, rather than the presence of a message. An
+// agent commits its opening sentence as a completed message before it has done
+// anything, so "a reply exists" would count a run that died mid-answer as having
+// answered. Both that and a turn still in flight read as no answer, which is the
+// safe direction: the worst case is answering in full twice, against putting a
+// follow-up question to an agent that never answered the first one.
+func holdsAnswer(s *omnigent.SessionResponse, complete func(string) bool) bool {
+	for _, id := range ReplyGroupsSince(s.Items, nil) {
+		if reply, ok := TurnReply(s.Items, id); ok && complete(reply.Text) {
+			return true
+		}
+	}
+	return false
 }
 
 // reachability reads whether a session can take a prompt now, and whether it

@@ -488,6 +488,10 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 	empty := `{"data":[],"has_more":false}`
 	priorReply := driverReplyItem("item_old", "resp_claude_old",
 		driverVerdict("Read it before.", "comment"))
+	// A completed message that is not a finished answer. An agent commits its
+	// opening sentence like this before it has read anything.
+	openingSentence := driverReplyItem("item_open", "resp_claude_open",
+		"I'll start by reading the diff.")
 	newReply := driverReplyItem("item_new", "resp_claude_a",
 		driverVerdict("Read it again.", "comment"))
 
@@ -516,6 +520,18 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 					driverSessionResp("conv_silent", "ag_1"),
 					driverSessionResp("conv_silent", "ag_1"),
 					driverSessionWithItems("conv_silent", "ag_1", newReply),
+				},
+			},
+			want: req.Prompt(false),
+		},
+		{
+			name: "a session holding only an unfinished reply is asked for a full review",
+			cfg: driverFakeServerConfig{
+				SessionListResp: labelled("conv_partial"),
+				SessionResps: []string{
+					driverSessionWithItems("conv_partial", "ag_1", openingSentence),
+					driverSessionWithItems("conv_partial", "ag_1", openingSentence),
+					driverSessionWithItems("conv_partial", "ag_1", openingSentence, newReply),
 				},
 			},
 			want: req.Prompt(false),

@@ -14,11 +14,12 @@ type Workload interface {
 
 	// Prompt is the message to send.
 	//
-	// answered reports that this work has already been answered in this
-	// conversation, and it is the reason a session is worth reusing: the earlier
-	// answer is still in front of the agent, so a later dispatch can ask what
-	// changed rather than put the whole question again. A workload with nothing
-	// different to say on a second pass may ignore it and return one message.
+	// answered reports that this conversation already holds a reply [Workload.Complete]
+	// accepted. It is the reason a session is worth reusing: that reply is still in
+	// front of the agent, so a later dispatch has the option of asking what changed
+	// instead of putting the whole question again. Taking that option is the
+	// workload's call, and one with nothing different to say may ignore the flag and
+	// return the same message either way.
 	Prompt(answered bool) string
 
 	// Complete reports whether a reply is a finished answer rather than an agent
