@@ -150,12 +150,12 @@ func TestRequireAuthAcceptsEitherCredentialForm(t *testing.T) {
 		{
 			name:   "half-configured: no secret",
 			cfg:    Config{MachineClientID: "id"},
-			wantIn: "OMNIGENT_MACHINE_CLIENT_SECRET is not set",
+			wantIn: "OMNIGENT_M2M_CLIENT_SECRET is not set",
 		},
 		{
 			name:   "half-configured: no id",
 			cfg:    Config{MachineClientSecret: "sec"},
-			wantIn: "OMNIGENT_MACHINE_CLIENT_ID is not set",
+			wantIn: "OMNIGENT_M2M_CLIENT_ID is not set",
 		},
 		{name: "nothing at all", cfg: Config{}, wantIn: "no API credential"},
 	}
