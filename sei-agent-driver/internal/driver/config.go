@@ -58,6 +58,12 @@ type Config struct {
 
 	// MachineClientID is the confidential client's identifier, matching the
 	// server's OMNIGENT_MACHINE_CLIENT_ID.
+	//
+	// Needs a server that implements the OAuth2 client-credentials grant, which
+	// upstream does not: /oauth/token accepts only the device-code and refresh
+	// grants and answers anything else with unsupported_grant_type. The grant is
+	// proposed in omnigent-ai/omnigent#3977 and is unmerged, so against a stock
+	// deployment this pair mints nothing and the run fails at the exchange.
 	MachineClientID string
 
 	// MachineClientSecret is that client's secret in plaintext.
@@ -152,9 +158,12 @@ func (c Config) RequireAuth() error {
 		return fmt.Errorf("%w: machine client is half-configured; %s is not set",
 			ErrConfig, missing)
 	default:
-		return fmt.Errorf("%w: no API credential; set OMNIGENT_API_TOKEN, "+
-			"OMNIGENT_API_TOKEN_FILE, or OMNIGENT_MACHINE_CLIENT_ID with "+
-			"OMNIGENT_MACHINE_CLIENT_SECRET", ErrConfig)
+		// The token variables come first because they are the pair that works
+		// against a stock server; the machine client needs an unmerged upstream
+		// grant. See MachineClientID.
+		return fmt.Errorf("%w: no API credential; set OMNIGENT_API_TOKEN or "+
+			"OMNIGENT_API_TOKEN_FILE (or OMNIGENT_MACHINE_CLIENT_ID with "+
+			"OMNIGENT_MACHINE_CLIENT_SECRET, which needs omnigent#3977)", ErrConfig)
 	}
 }
 
