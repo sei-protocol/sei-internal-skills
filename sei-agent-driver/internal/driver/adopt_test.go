@@ -479,6 +479,13 @@ func TestDriverKeepsASessionWhoseHostCanBeWoken(t *testing.T) {
 func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 	t.Parallel()
 
+	// Named, so each row below says which prompt it expects rather than carrying a
+	// bare boolean.
+	const (
+		unanswered = false
+		answered   = true
+	)
+
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 21, Trigger: "dispatch"}
 	runKey := testRunKey(req.Repo, req.PR)
 	labelled := func(id string) string {
@@ -510,7 +517,7 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 					driverSessionWithItems("conv_prior", "ag_1", priorReply, newReply),
 				},
 			},
-			want: req.Prompt(true),
+			want: req.Prompt(answered),
 		},
 		{
 			name: "a session an expired run left unanswered is asked for a full review",
@@ -522,7 +529,7 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 					driverSessionWithItems("conv_silent", "ag_1", newReply),
 				},
 			},
-			want: req.Prompt(false),
+			want: req.Prompt(unanswered),
 		},
 		{
 			name: "a session holding only an unfinished reply is asked for a full review",
@@ -534,7 +541,7 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 					driverSessionWithItems("conv_partial", "ag_1", openingSentence, newReply),
 				},
 			},
-			want: req.Prompt(false),
+			want: req.Prompt(unanswered),
 		},
 		{
 			// The reported bug: create fails after committing, so the reconcile
@@ -549,7 +556,7 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 					driverSessionWithItems("conv_committed", "ag_1", newReply),
 				},
 			},
-			want: req.Prompt(false),
+			want: req.Prompt(unanswered),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
