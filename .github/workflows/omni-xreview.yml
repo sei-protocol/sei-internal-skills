@@ -53,16 +53,33 @@ jobs:
         id: target
         run: |
           set -euo pipefail
+          bad() { echo "::error::$1"; exit 1; }
+
+          # Character set first, and a newline is the one that matters. Shape alone
+          # would pass "owner/name\nname=", whose name half then writes a second
+          # line into $GITHUB_OUTPUT and blanks it — and an empty `repositories`
+          # widens the App token below from one repository to every one the app can
+          # reach in the owner.
           case "$TARGET_REPO" in
-            */*/*|/*|*/) echo "::error::repo must be owner/name, got '$TARGET_REPO'"; exit 1 ;;
+            *[!A-Za-z0-9._/-]*) bad "repo has characters GitHub does not allow in an owner or name" ;;
+          esac
+          case "$TARGET_REPO" in
+            */*/*) bad "repo must be owner/name, got '$TARGET_REPO'" ;;
             */*) ;;
-            *) echo "::error::repo must be owner/name, got '$TARGET_REPO'"; exit 1 ;;
+            *) bad "repo must be owner/name, got '$TARGET_REPO'" ;;
           esac
+          owner="${TARGET_REPO%%/*}"
+          name="${TARGET_REPO#*/}"
+          [ -n "$owner" ] || bad "repo has an empty owner"
+          [ -n "$name" ] || bad "repo has an empty name"
+
+          # Rejects a newline already: it is not a digit, so the negated class matches.
           case "$TARGET_PR" in
-            ''|*[!0-9]*) echo "::error::pr must be a number, got '$TARGET_PR'"; exit 1 ;;
+            ''|*[!0-9]*) bad "pr must be a number, got '$TARGET_PR'" ;;
           esac
-          echo "owner=${TARGET_REPO%%/*}" >> "$GITHUB_OUTPUT"
-          echo "name=${TARGET_REPO##*/}" >> "$GITHUB_OUTPUT"
+
+          echo "owner=$owner" >> "$GITHUB_OUTPUT"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
 
       # The binary is a release asset of this repo, which is private, so the
       # download needs a credential. The job's own token is exactly scoped for it.
@@ -114,6 +131,12 @@ jobs:
           OMNIGENT_M2M_CLIENT_ID: sei-droid
           OMNIGENT_M2M_CLIENT_SECRET: ${{ secrets.OMNIGENT_M2M_CLIENT_SECRET }}
           GH_TOKEN: ${{ steps.apptoken.outputs.token }}
+          # The driver declines every permission prompt it is not told to accept, so
+          # without this the agent is refused the shell it needs to read the diff and
+          # reviews nothing. Matched on tool_name, not policy_name: this deployment
+          # sends claude_native_permission as the policy for every native request, so
+          # allowing that one value accepts every tool call the agent asks for.
+          XREVIEW_ALLOW_TOOLS: Bash,Read
         run: |
           set -uo pipefail
           ./sei-agent-driver xreview "$TARGET_REPO" "$TARGET_PR" --out verdict.md
