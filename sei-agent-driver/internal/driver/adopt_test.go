@@ -506,7 +506,7 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 					driverSessionWithItems("conv_prior", "ag_1", priorReply, newReply),
 				},
 			},
-			want: req.AdoptedPrompt(),
+			want: req.Prompt(true),
 		},
 		{
 			name: "a session an expired run left unanswered is asked for a full review",
@@ -518,7 +518,7 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 					driverSessionWithItems("conv_silent", "ag_1", newReply),
 				},
 			},
-			want: req.Prompt(),
+			want: req.Prompt(false),
 		},
 		{
 			// The reported bug: create fails after committing, so the reconcile
@@ -533,7 +533,7 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 					driverSessionWithItems("conv_committed", "ag_1", newReply),
 				},
 			},
-			want: req.Prompt(),
+			want: req.Prompt(false),
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -12,13 +12,14 @@ type Workload interface {
 	// Title names the session for a human reading a session list.
 	Title() string
 
-	// Prompt is the first message a fresh session receives.
-	Prompt() string
-
-	// AdoptedPrompt is what a session already holding this work's history receives
-	// instead. It can refer to what the agent did before; that conversation is
-	// still in front of it.
-	AdoptedPrompt() string
+	// Prompt is the message to send.
+	//
+	// answered reports that this work has already been answered in this
+	// conversation, and it is the reason a session is worth reusing: the earlier
+	// answer is still in front of the agent, so a later dispatch can ask what
+	// changed rather than put the whole question again. A workload with nothing
+	// different to say on a second pass may ignore it and return one message.
+	Prompt(answered bool) string
 
 	// Complete reports whether a reply is a finished answer rather than an agent
 	// still working.

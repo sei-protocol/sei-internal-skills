@@ -741,8 +741,8 @@ func TestDriverRunHappyPath(t *testing.T) {
 	}
 	// The driver sends what the workload asked for, verbatim. What that text
 	// should say is the workload's to test.
-	if got := driverPromptText(t, events[0].Data); got != req.Prompt() {
-		t.Errorf("prompt sent = %q, want the workload's prompt %q", got, req.Prompt())
+	if got := driverPromptText(t, events[0].Data); got != req.Prompt(false) {
+		t.Errorf("prompt sent = %q, want the workload's prompt %q", got, req.Prompt(false))
 	}
 
 	// The session is no longer deleted on a normal run: the conversation is the

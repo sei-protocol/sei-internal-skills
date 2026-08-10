@@ -22,10 +22,11 @@ func (w testWork) RunKey() string { return testRunKey(w.Repo, w.PR) }
 
 func (w testWork) Title() string { return fmt.Sprintf("test %s#%d", w.Repo, w.PR) }
 
-func (w testWork) Prompt() string { return fmt.Sprintf("review %s#%d", w.Repo, w.PR) }
-
-func (w testWork) AdoptedPrompt() string {
-	return fmt.Sprintf("review %s#%d again", w.Repo, w.PR)
+func (w testWork) Prompt(answered bool) string {
+	if answered {
+		return fmt.Sprintf("review %s#%d again", w.Repo, w.PR)
+	}
+	return fmt.Sprintf("review %s#%d", w.Repo, w.PR)
 }
 
 // Complete defaults to a coarse stand-in for the review workload's rule: the

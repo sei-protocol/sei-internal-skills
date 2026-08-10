@@ -40,12 +40,15 @@ func (r Review) RunKey() string { return RunKey(r.req.Repo, r.req.PR) }
 // Title names the session for a human reading a session list.
 func (r Review) Title() string { return fmt.Sprintf("xreview %s#%d", r.req.Repo, r.req.PR) }
 
-// Prompt is the review instruction a fresh session receives.
-func (r Review) Prompt() string { return BuildPrompt(r.req) }
-
-// AdoptedPrompt is what a session that has already reviewed this pull request
-// receives instead.
-func (r Review) AdoptedPrompt() string { return AdoptedPrompt(r.req) }
+// Prompt is the review instruction. A session that has already reviewed this
+// pull request is asked what changed rather than handed the contract a second
+// time; the two texts are [BuildPrompt] and [AdoptedPrompt].
+func (r Review) Prompt(answered bool) string {
+	if answered {
+		return AdoptedPrompt(r.req)
+	}
+	return BuildPrompt(r.req)
+}
 
 // Complete reports whether a reply is a finished review.
 //
