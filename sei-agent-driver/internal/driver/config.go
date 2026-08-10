@@ -92,13 +92,22 @@ type Config struct {
 	RequestTimeout time.Duration
 
 	// UnaryTimeout bounds one non-streaming exchange, and exists because the SDK's
-	// own default of 90 seconds is shorter than creating a session takes.
+	// own default of 90 seconds is shorter than creating a session takes: measured
+	// against the deployment, POST /v1/sessions did not return headers inside 90
+	// seconds and the run died having created nothing.
 	//
-	// Creating a managed session provisions a sandbox, and a cold one waits on a
-	// node before it answers. Measured against the deployment, POST /v1/sessions
-	// did not return headers inside 90 seconds and the run died having created
-	// nothing. The run deadline is the real bound; this only has to be longer than
-	// the slowest single call.
+	// It also prices stream recovery, which is not obvious and cost a run. The SDK
+	// gives the streaming client no whole-response timeout, correctly, but shares
+	// the unary transport, whose ResponseHeaderTimeout is this value or 30 seconds,
+	// whichever is larger. So this is also how long a stream open that will never
+	// answer takes to give up, and the re-subscribe loop pays it per attempt. At 300
+	// seconds, four consecutive failed opens spent the whole run deadline.
+	//
+	// Halved to 150 for that reason. Above the 90 that demonstrably fails a create,
+	// and cheap enough that a run can absorb several dead opens and still have time
+	// to review. There is no measurement of what a create actually needs -- the run
+	// that set 300 adopted a session and never created one -- so this is bounded
+	// guessing on both sides, and the number to revisit once a create is timed.
 	UnaryTimeout time.Duration
 
 	// StreamIdleTimeout is how long the stream may be silent before it is treated
@@ -138,7 +147,7 @@ func LoadConfig() (Config, error) {
 	}{
 		{"XREVIEW_RUN_DEADLINE_S", 1200, &cfg.RunDeadline},
 		{"XREVIEW_REQUEST_TIMEOUT_S", 30, &cfg.RequestTimeout},
-		{"XREVIEW_UNARY_TIMEOUT_S", 300, &cfg.UnaryTimeout},
+		{"XREVIEW_UNARY_TIMEOUT_S", 150, &cfg.UnaryTimeout},
 		{"XREVIEW_STREAM_IDLE_TIMEOUT_S", 60, &cfg.StreamIdleTimeout},
 	} {
 		secs, err := secondsOr(d.name, d.secs)
