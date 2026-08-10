@@ -83,9 +83,12 @@ type Config struct {
 	// StreamIdleTimeout is how long the stream may be silent before it is treated
 	// as dead.
 	//
-	// Minutes rather than seconds, and not sized against the 15s heartbeat: a cold
-	// sandbox provisions, clones and connects a runner before it announces itself,
-	// staying quiet throughout for longer than a heartbeat-sized budget allows.
+	// Sized against the server's 15-second heartbeat, which exists so a client can
+	// run a timeout this tight: an idle stream keeps emitting on that cadence from
+	// the moment it is subscribed, so silence past a few intervals is a half-open
+	// socket rather than slow work. A launching sandbox is not the exception it
+	// looks like — the cadence does not wait for it, and a stream dropped early is
+	// re-established with the prompt still unsent.
 	StreamIdleTimeout time.Duration
 }
 
@@ -114,7 +117,7 @@ func LoadConfig() (Config, error) {
 	}{
 		{"XREVIEW_RUN_DEADLINE_S", 1200, &cfg.RunDeadline},
 		{"XREVIEW_REQUEST_TIMEOUT_S", 30, &cfg.RequestTimeout},
-		{"XREVIEW_STREAM_IDLE_TIMEOUT_S", 300, &cfg.StreamIdleTimeout},
+		{"XREVIEW_STREAM_IDLE_TIMEOUT_S", 60, &cfg.StreamIdleTimeout},
 	} {
 		secs, err := secondsOr(d.name, d.secs)
 		if err != nil {

@@ -289,7 +289,15 @@ func (fs *driverFakeServer) handleStream(w http.ResponseWriter, r *http.Request)
 	if fs.streamHits.Load() > 1 && fs.laterStreamFrames != nil {
 		body = fs.laterStreamFrames
 	}
-	for _, frame := range append(fs.sandboxFrames, body...) {
+	// Sandbox frames ride the first open only. The server delivers live from the
+	// moment a client subscribes and replays nothing, so a re-subscribe sees the
+	// launch edges only if they have not happened yet.
+	if fs.streamHits.Load() > 1 {
+		body = append([]string(nil), body...)
+	} else {
+		body = append(append([]string(nil), fs.sandboxFrames...), body...)
+	}
+	for _, frame := range body {
 		if _, err := io.WriteString(w, frame); err != nil {
 			return
 		}

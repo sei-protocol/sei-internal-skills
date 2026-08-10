@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	omnigent "github.com/sei-protocol/omnigent-go-sdk"
 )
@@ -455,6 +456,10 @@ type turn struct {
 	complete func(text string) bool
 	seen     map[string]int
 
+	// frames counts everything this turn has read off any stream, so a
+	// reconnect can tell an open that carried something from one that did not.
+	frames int
+
 	// turnSettled records that waiting longer cannot change this turn's outcome,
 	// which is what stops a reconnect from watching for edges that will not come.
 	//
@@ -638,8 +643,14 @@ func (d *Driver) driveTurn(
 	//
 	// Once it is in, a lost stream is a different problem with a reply already
 	// committed, which [Driver.recoverFromStreamLoss] reads back.
-	for attempt := 1; ; attempt++ {
+	// The budget is generous because a healthy long turn spends it: the connection
+	// cap is roughly three minutes and a review runs longer, so several reconnects
+	// are success rather than failure. Sized too tightly, a transient open failure
+	// lands on a budget already spent that way and ends a turn that was fine.
+	for opens := 1; ; opens++ {
+		framesBefore := t.frames
 		reply, err := d.consumeTurn(ctx, client, sessionID, prompt, t, prior, opts)
+		carriedNothing := t.frames == framesBefore
 
 		// A connection lives about three minutes and a review runs longer, so a
 		// stream ending is not evidence the work stopped. The turn is followed
@@ -651,9 +662,9 @@ func (d *Driver) driveTurn(
 		if t.ended() || ctx.Err() != nil || t.failure != nil {
 			return reply, err
 		}
-		if attempt >= resubscribeLimit {
+		if opens >= openLimit {
 			d.log.Error("the stream would not stay up long enough to finish the turn",
-				"session_id", sessionID, "attempts", attempt,
+				"session_id", sessionID, "opens", opens,
 				"prompt_sent", t.anchor != "", "error", err)
 			return reply, err
 		}
@@ -675,15 +686,42 @@ func (d *Driver) driveTurn(
 		if t.anchor != "" && t.turnSettled {
 			return reply, err
 		}
+		// The error class separates a transport that ended from one that went quiet,
+		// which is what tells an operator whether an intermediary is capping the
+		// connection or the far end stopped talking. Logged per drop because the two
+		// have different fixes and neither is visible from a timeout alone.
 		d.log.Info("stream ended before the turn did; re-subscribing",
-			"session_id", sessionID, "attempt", attempt, "prompt_sent", t.anchor != "")
+			"session_id", sessionID, "opens", opens,
+			"prompt_sent", t.anchor != "", "frames", t.frames,
+			"idle_timeout", errors.Is(err, omnigent.ErrStreamIdle),
+			"interrupted", errors.Is(err, omnigent.ErrStreamInterrupted), "error", err)
+
+		// Only an open that carried nothing waits. One that carried frames and then
+		// died is the ordinary connection cap, and pausing there spends the deadline.
+		if carriedNothing {
+			d.backoff(ctx, opens)
+		}
 	}
 }
 
-// resubscribeLimit bounds how many times the stream is re-established while the
-// prompt waits. The run deadline is the real bound; this stops a server that
-// refuses to stream at all from spinning against it.
-const resubscribeLimit = 10
+// openLimit bounds how many times the stream is re-established. Set well above
+// what a long turn needs, since a review outlives the roughly three-minute
+// connection cap a handful of times; it catches only a server that will not
+// stream at all. The run deadline is the real bound.
+const openLimit = 40
+
+// backoff waits before re-opening a stream that carried nothing, so a server
+// coming back from a restart is not hammered while it does. Capped, because the
+// run deadline is the real bound and a long sleep spends it without trying.
+func (d *Driver) backoff(ctx context.Context, failedOpens int) {
+	wait := min(time.Duration(failedOpens)*250*time.Millisecond, 5*time.Second)
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+	case <-timer.C:
+	}
+}
 
 // replyPreviewChars bounds how much of a reply reaches a log line.
 //
@@ -729,6 +767,7 @@ func (d *Driver) consumeTurn(
 			return d.recoverFromStreamLoss(ctx, client, sessionID, t, err)
 		}
 		t.seen[eventKey(ev)]++
+		t.frames++
 
 		switch e := ev.(type) {
 		case omnigent.SessionSandboxStatusEvent:
