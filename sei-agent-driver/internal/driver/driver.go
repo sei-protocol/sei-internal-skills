@@ -736,13 +736,11 @@ func (d *Driver) driveTurn(
 			continue
 		}
 
-		// Once it is in, the hook is disarmed. It fires on every subscribe, so
-		// leaving it armed re-sends the prompt on each re-open: measured live, five
-		// re-opens sent it twice, and the second injection reached a terminal busy
-		// running the first one's shell command, which the harness refuses with "the
-		// message was not delivered" and fails the turn. Disarmed here rather than
-		// guarded inside the send, because the anchor is set from the stream's
-		// goroutine and this runs between streams, where there is nothing to race.
+		// The hook fires on every subscribe, so once the prompt is in it is disarmed.
+		// A second injection reaches a terminal still running the first one's work,
+		// which the harness refuses outright and the turn fails with it. Disarmed
+		// here rather than guarded inside the send: the anchor is written from the
+		// stream's goroutine, and this runs with the stream closed.
 		opts.OnSubscribed = nil
 
 		// A stream is a snapshot and a live tail with no replay, so a turn that
