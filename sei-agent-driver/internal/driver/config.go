@@ -26,6 +26,21 @@ const (
 	// every caller to one deployment and would point a bare local run at it by
 	// default. A real deployment's URL belongs in OMNIGENT_BASE_URL, which the
 	// review workflow always sets.
+	//
+	// https or loopback, with no way to opt out. The SDK offers one
+	// (WithInsecureCredentialTransport) and this package deliberately does not pass
+	// it, so the in-cluster ClusterIP Service — plain http on port 80 — is not a
+	// usable address here even though the hop stays inside the mesh.
+	//
+	// Not passing it is a policy choice, so it is worth saying why rather than
+	// leaving it to be re-litigated. A run reaches the deployment over its https
+	// ingress instead, which costs nothing that matters: the runner can still be
+	// in-cluster, since which runner executes the job and which URL it dials are
+	// independent. And the alternative it would unlock is worse than it looks —
+	// header auth is only safe because nothing outside the mesh can set
+	// X-Forwarded-Email, so carrying it over a public ingress turns an
+	// identity assertion into an auth bypass unless that ingress provably strips
+	// the header.
 	DefaultBaseURL = "http://127.0.0.1:6767"
 
 	// DefaultAgent is the agent name to resolve. A name, not an id: ids differ
