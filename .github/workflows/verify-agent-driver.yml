@@ -1,13 +1,5 @@
 name: Verify sei-agent-driver
 
-# The one Go module in this repo, so this is the only workflow that needs a Go
-# toolchain. Path-scoped for that reason: a pull request that touches only skills
-# or agents should not wait on a build it cannot break.
-#
-# `make driver-check` is the same target a contributor runs locally, invoked here
-# rather than reimplemented, so what gates the pull request cannot drift from what
-# passes on a laptop.
-
 on:
   pull_request:
     paths:
