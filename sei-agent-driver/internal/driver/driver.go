@@ -137,7 +137,7 @@ func (d *Driver) review(
 	}
 	result.SessionID = session.ID
 	d.log.Info("session ready", "session_id", session.ID,
-		"continued", adopted.continued, "live", adopted.live)
+		"continued", adopted.continued, "reviewed", adopted.reviewed, "live", adopted.live)
 
 	// The response ids already on the session, captured before the turn so its own
 	// reply can be told apart from the history a reused session carries.
@@ -243,9 +243,14 @@ func (d *Driver) resolveAgent(ctx context.Context, client *omnigent.Client) (str
 // that was continued but not live, and answering both from that one bit sent the
 // prompt into a sandbox that did not exist.
 type adoption struct {
-	// continued reports that this session already holds a review of this pull
-	// request, which decides which prompt it gets.
+	// continued reports that this session was found rather than opened here, so it
+	// may be holding prompts parked before this stream existed.
 	continued bool
+
+	// reviewed reports that its conversation already holds a review of this pull
+	// request, which decides which prompt it gets. Distinct from continued because
+	// a found session need not have been answered in: see [holdsReview].
+	reviewed bool
 
 	// live reports that a runner is registered right now, which decides whether
 	// the prompt goes in on subscribe or waits for the launch pipeline.
@@ -275,7 +280,7 @@ func (d *Driver) createOrAdopt(
 		if live, revivable := reachability(existing); live || revivable {
 			d.log.Info("adopting the session an earlier dispatch created",
 				"run_key", runKey, "session_id", existing.ID, "live", live)
-			return existing, adoption{continued: true, live: live}, nil
+			return existing, adoption{continued: true, reviewed: holdsReview(existing), live: live}, nil
 		}
 		d.log.Warn("the session for this pull request cannot run a turn; replacing it",
 			"run_key", runKey, "session_id", existing.ID)
@@ -315,7 +320,26 @@ func (d *Driver) createOrAdopt(
 		return nil, adoption{}, err
 	}
 	live, _ := reachability(committed)
-	return committed, adoption{continued: true, live: live}, nil
+	return committed, adoption{continued: true, reviewed: holdsReview(committed), live: live}, nil
+}
+
+// holdsReview reports whether this session's conversation already carries a
+// completed assistant reply.
+//
+// This is what [adoption.reviewed] means, and it cannot be read off how the
+// session was found. The session reconciled above is one this run just created,
+// so the run key finds it while the agent has never answered in it; a run that
+// expired before its first reply leaves the same thing for the next one to adopt.
+// Both look continued and are not. The distinction is load-bearing because the
+// what-changed-since prompt tells the agent it has reviewed this pull request
+// before, so sending it into an empty conversation skips the first-review
+// checklist and yields a shallow review of a pull request nobody has read.
+//
+// A turn still in flight reads as no review, which is the safe direction: the
+// worst case is reviewing in full twice, against publishing a what-changed pass
+// over nothing.
+func holdsReview(s *omnigent.SessionResponse) bool {
+	return len(ReplyGroupsSince(s.Items, nil)) > 0
 }
 
 // reachability reads whether a session can take a prompt now, and whether it
@@ -376,7 +400,7 @@ func (d *Driver) DeleteSession(ctx context.Context, w Workload) (Result, error) 
 
 	client, err := d.newClient(ctx)
 	if err != nil {
-		return Result{ExitCode: ExitConfig}, err
+		return d.classify(Result{ExitCode: ExitOK}, err), err
 	}
 	agentID, err := d.resolveAgent(ctx, client)
 	if err != nil {
@@ -616,12 +640,17 @@ func (d *Driver) driveTurn(
 
 	defer d.logTurnObserved(sessionID, t)
 
-	// A continued session already holds a review of this pull request, so it gets
-	// the what-changed-since prompt, and prompts parked before this stream existed
-	// are read from its snapshot rather than replayed onto it.
+	// A session that already carries a review gets the what-changed-since prompt.
 	prompt := w.Prompt()
-	if from.continued {
+	if from.reviewed {
 		prompt = w.AdoptedPrompt()
+	}
+
+	// Asked of any session this run did not open, reviewed or not: a prompt parked
+	// before this stream existed is never replayed onto it, so it is read from the
+	// snapshot instead. A session an earlier run left blocked on an elicitation has
+	// no reply yet and is exactly the one that needs this.
+	if from.continued {
 		if err := d.answerPending(ctx, client, sessionID, t.answered); err != nil {
 			return Reply{}, err
 		}

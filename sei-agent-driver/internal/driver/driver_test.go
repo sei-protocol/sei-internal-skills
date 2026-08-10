@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -44,6 +45,10 @@ type driverFakeServerConfig struct {
 	// CreateResp is the SessionResponse body for POST /v1/sessions.
 	CreateResp string
 
+	// CreateStatus fails POST /v1/sessions with this code, for the case where a
+	// create commits server-side and loses its response.
+	CreateStatus int
+
 	// StreamFrames is served verbatim, in order, for GET .../stream.
 	StreamFrames []string
 
@@ -76,6 +81,10 @@ type driverFakeServerConfig struct {
 	// is what every test wants except the adoption one.
 	SessionListResp string
 
+	// SessionListResps is served in order, last body repeating, for a test that
+	// needs the search to answer differently before and after a create.
+	SessionListResps []string
+
 	// ItemsResp is the body for GET /v1/sessions/{id}/items, the paged read that
 	// builds the pre-turn response-id set. Empty means an empty page, i.e. a
 	// session with no history, which is what most tests want.
@@ -107,6 +116,7 @@ type driverFakeServerConfig struct {
 type driverFakeServer struct {
 	approvalStatus int
 	sessionList    string
+	sessionLists   []string
 	itemsResp      string
 	sessionResps   []string
 	listSessHits   atomic.Int64
@@ -118,6 +128,7 @@ type driverFakeServer struct {
 
 	agentPages   []string
 	createResp   string
+	createStatus int
 	streamFrames []string
 	// sandboxFrames precede streamFrames, mirroring the deployed server: a managed
 	// session's launch pipeline announces itself before anything else. A created
@@ -153,6 +164,8 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		t:                 t,
 		agentPages:        cfg.AgentPages,
 		createResp:        cfg.CreateResp,
+		createStatus:      cfg.CreateStatus,
+		sessionLists:      cfg.SessionListResps,
 		streamFrames:      cfg.StreamFrames,
 		sandboxFrames:     cfg.SandboxFrames,
 		laterStreamFrames: cfg.LaterStreamFrames,
@@ -214,8 +227,11 @@ func (fs *driverFakeServer) handleListAgents(w http.ResponseWriter, r *http.Requ
 // handleListSessions answers the pre-create search for a session already
 // carrying this run key. An empty configuration means no prior session.
 func (fs *driverFakeServer) handleListSessions(w http.ResponseWriter, _ *http.Request) {
-	fs.listSessHits.Add(1)
+	hit := int(fs.listSessHits.Add(1))
 	body := fs.sessionList
+	if n := len(fs.sessionLists); n > 0 {
+		body = fs.sessionLists[min(hit, n)-1]
+	}
 	if body == "" {
 		body = `{"data":[],"has_more":false}`
 	}
@@ -273,6 +289,11 @@ func (fs *driverFakeServer) handleCreateSession(w http.ResponseWriter, r *http.R
 	fs.mu.Unlock()
 
 	w.Header().Set("Content-Type", "application/json")
+	if fs.createStatus != 0 {
+		w.WriteHeader(fs.createStatus)
+		_, _ = io.WriteString(w, `{"detail":"create failed"}`)
+		return
+	}
 	_, _ = io.WriteString(w, fs.createResp)
 }
 
@@ -1700,5 +1721,42 @@ func TestDriverFollowsATurnAcrossStreams(t *testing.T) {
 	if strings.Contains(result.Reply.Text, "I'll read the diff") {
 		t.Error("published the agent's opening line: a turn the session still reports " +
 			"as running must not be salvaged half-written")
+	}
+}
+
+// TestCloseReportsAnUnreachableServerAsTransport pins the close path's exit code
+// to the same rule the run path uses.
+//
+// The mint deliberately leaves a failure-to-reach unwrapped so it classifies as
+// transport, because the exit code is the caller's contract: it decides whether a
+// workflow retries an outage or tells an operator to go fix a secret. Reading
+// every client failure as configuration throws that distinction away.
+func TestCloseReportsAnUnreachableServerAsTransport(t *testing.T) {
+	t.Parallel()
+
+	// A port with nothing behind it: the exchange fails in transit rather than
+	// being rejected, which is the case the two codes separate.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	addr := ln.Addr().String()
+	if err := ln.Close(); err != nil {
+		t.Fatalf("close listener: %v", err)
+	}
+
+	cfg := driverTestConfig(t, "http://"+addr)
+	cfg.Token = ""
+	cfg.MachineClientID = "client"
+	cfg.MachineClientSecret = "secret"
+
+	result, err := NewDriver(cfg, Policy{}, driverTestLogger()).
+		DeleteSession(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+	if err == nil {
+		t.Fatal("DeleteSession: want an error when the server cannot be reached")
+	}
+	if result.ExitCode != ExitTransport {
+		t.Errorf("ExitCode = %d, want ExitTransport (%d): an outage is retryable, a bad secret is not",
+			result.ExitCode, ExitTransport)
 	}
 }

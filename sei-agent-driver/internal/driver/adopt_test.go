@@ -465,3 +465,101 @@ func TestDriverKeepsASessionWhoseHostCanBeWoken(t *testing.T) {
 			"conversation it exists to keep", got)
 	}
 }
+
+// TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne pins which prompt a
+// session gets, which is decided by what the conversation holds rather than by how
+// the session was found.
+//
+// The two ways of finding one that holds nothing are the cases worth pinning. A
+// create that commits and loses its response leaves a session this run just made,
+// and a run that expired before its first reply leaves one an earlier dispatch
+// made. Both are found by the run key and neither has been reviewed, so the
+// what-changed-since prompt would tell the agent it had already read a pull
+// request nobody has read.
+func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
+	t.Parallel()
+
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 21, Trigger: "dispatch"}
+	runKey := testRunKey(req.Repo, req.PR)
+	labelled := func(id string) string {
+		return `{"data":[{"id":"` + id + `","agent_id":"ag_1","labels":` +
+			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`
+	}
+	empty := `{"data":[],"has_more":false}`
+	priorReply := driverReplyItem("item_old", "resp_claude_old",
+		driverVerdict("Read it before.", "comment"))
+	newReply := driverReplyItem("item_new", "resp_claude_a",
+		driverVerdict("Read it again.", "comment"))
+
+	for _, tc := range []struct {
+		name string
+		cfg  driverFakeServerConfig
+		want string
+	}{
+		{
+			name: "a session that already replied is asked what changed",
+			cfg: driverFakeServerConfig{
+				SessionListResp: labelled("conv_prior"),
+				SessionResps: []string{
+					driverSessionWithItems("conv_prior", "ag_1", priorReply),
+					driverSessionWithItems("conv_prior", "ag_1", priorReply),
+					driverSessionWithItems("conv_prior", "ag_1", priorReply, newReply),
+				},
+			},
+			want: req.AdoptedPrompt(),
+		},
+		{
+			name: "a session an expired run left unanswered is asked for a full review",
+			cfg: driverFakeServerConfig{
+				SessionListResp: labelled("conv_silent"),
+				SessionResps: []string{
+					driverSessionResp("conv_silent", "ag_1"),
+					driverSessionResp("conv_silent", "ag_1"),
+					driverSessionWithItems("conv_silent", "ag_1", newReply),
+				},
+			},
+			want: req.Prompt(),
+		},
+		{
+			// The reported bug: create fails after committing, so the reconcile
+			// search finds the session this very run opened.
+			name: "a session reconciled after a lost create is asked for a full review",
+			cfg: driverFakeServerConfig{
+				CreateStatus:     http.StatusInternalServerError,
+				SessionListResps: []string{empty, labelled("conv_committed")},
+				SessionResps: []string{
+					driverSessionResp("conv_committed", "ag_1"),
+					driverSessionResp("conv_committed", "ag_1"),
+					driverSessionWithItems("conv_committed", "ag_1", newReply),
+				},
+			},
+			want: req.Prompt(),
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			tc.cfg.AgentPages = []string{driverAgentPage("ag_1", "sei-droid", "", false)}
+			tc.cfg.StreamFrames = []string{
+				driverAckFrame(),
+				driverConsumedFrame("item_1"),
+				driverIdleFrame("resp_claude_a"),
+				driverDoneFrame(),
+			}
+			fs := newDriverFakeServer(t, tc.cfg)
+
+			if _, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
+				Run(context.Background(), req); err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+
+			events := driverPrompts(fs.EventReqs())
+			if len(events) != 1 {
+				t.Fatalf("prompt posts = %d, want exactly 1", len(events))
+			}
+			if got := driverPromptText(t, events[0].Data); got != tc.want {
+				t.Errorf("prompt sent = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
