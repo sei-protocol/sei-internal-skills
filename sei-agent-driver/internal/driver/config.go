@@ -91,6 +91,16 @@ type Config struct {
 	// since a stream outliving a long turn cannot carry a whole-exchange deadline.
 	RequestTimeout time.Duration
 
+	// UnaryTimeout bounds one non-streaming exchange, and exists because the SDK's
+	// own default of 90 seconds is shorter than creating a session takes.
+	//
+	// Creating a managed session provisions a sandbox, and a cold one waits on a
+	// node before it answers. Measured against the deployment, POST /v1/sessions
+	// did not return headers inside 90 seconds and the run died having created
+	// nothing. The run deadline is the real bound; this only has to be longer than
+	// the slowest single call.
+	UnaryTimeout time.Duration
+
 	// StreamIdleTimeout is how long the stream may be silent before it is treated
 	// as dead.
 	//
@@ -128,6 +138,7 @@ func LoadConfig() (Config, error) {
 	}{
 		{"XREVIEW_RUN_DEADLINE_S", 1200, &cfg.RunDeadline},
 		{"XREVIEW_REQUEST_TIMEOUT_S", 30, &cfg.RequestTimeout},
+		{"XREVIEW_UNARY_TIMEOUT_S", 300, &cfg.UnaryTimeout},
 		{"XREVIEW_STREAM_IDLE_TIMEOUT_S", 60, &cfg.StreamIdleTimeout},
 	} {
 		secs, err := secondsOr(d.name, d.secs)

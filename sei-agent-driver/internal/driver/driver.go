@@ -73,7 +73,7 @@ func (d *Driver) Run(ctx context.Context, w Workload) (Result, error) {
 		// mislabelled a token exchange that failed on the network as a
 		// configuration fault, and the exit code is the caller's contract: it
 		// decides whether to tell an operator to fix a secret or to retry.
-		return d.classify(Result{ExitCode: ExitOK, TeardownOK: true}, err), err
+		return d.classify(ctx, Result{ExitCode: ExitOK, TeardownOK: true}, err), err
 	}
 
 	result := d.review(ctx, client, w, runKey)
@@ -117,6 +117,7 @@ func (d *Driver) newClient(ctx context.Context) (*omnigent.Client, error) {
 		omnigent.WithAuthHeader("Origin", d.cfg.Origin),
 		omnigent.WithUserAgent("seidroid-xreview"),
 		omnigent.WithStreamIdleTimeout(d.cfg.StreamIdleTimeout),
+		omnigent.WithUnaryTimeout(d.cfg.UnaryTimeout),
 	)
 }
 
@@ -136,13 +137,13 @@ func (d *Driver) review(
 
 	agentID, err := d.resolveAgent(ctx, client)
 	if err != nil {
-		return d.classify(result, err)
+		return d.classify(ctx, result, err)
 	}
 	d.log.Info("resolved agent", "agent", d.cfg.Agent, "agent_id", agentID)
 
 	session, adopted, err := d.createOrAdopt(ctx, client, agentID, runKey, w)
 	if err != nil {
-		return d.classify(result, err)
+		return d.classify(ctx, result, err)
 	}
 	result.SessionID = session.ID
 	d.log.Info("session ready", "session_id", session.ID,
@@ -152,7 +153,7 @@ func (d *Driver) review(
 	// reply can be told apart from the history a reused session carries.
 	prior, err := d.priorResponseIDs(ctx, client, session.ID)
 	if err != nil {
-		return d.classify(result, err)
+		return d.classify(ctx, result, err)
 	}
 
 	reply, err := d.driveTurn(ctx, client, session.ID, w, adopted, prior)
@@ -168,7 +169,7 @@ func (d *Driver) review(
 				"chars", len(reply.Text), "reason", reply.Reason,
 				"preview", clip(reply.Text, replyPreviewChars))
 		}
-		return d.classify(result, err)
+		return d.classify(ctx, result, err)
 	}
 
 	if !w.Complete(reply.Text) {
@@ -189,9 +190,14 @@ func (d *Driver) review(
 }
 
 // classify maps an error onto the exit code the caller reports.
-func (d *Driver) classify(result Result, err error) Result {
+//
+// The run context decides what a deadline error means. An expired unary timeout
+// also satisfies errors.Is(err, context.DeadlineExceeded), so without consulting
+// the run context a single slow request is reported as the whole run running out
+// of budget -- which it was, for a run that had spent three of twenty minutes.
+func (d *Driver) classify(ctx context.Context, result Result, err error) Result {
 	switch {
-	case errors.Is(err, context.DeadlineExceeded):
+	case errors.Is(err, context.DeadlineExceeded) && ctx.Err() != nil:
 		d.log.Error("run deadline exceeded", "budget", d.cfg.RunDeadline)
 		result.ExitCode = ExitTimeout
 	case errors.Is(err, context.Canceled):
@@ -426,15 +432,15 @@ func (d *Driver) DeleteSession(ctx context.Context, w Workload) (Result, error) 
 
 	client, err := d.newClient(ctx)
 	if err != nil {
-		return d.classify(Result{ExitCode: ExitOK}, err), err
+		return d.classify(ctx, Result{ExitCode: ExitOK}, err), err
 	}
 	agentID, err := d.resolveAgent(ctx, client)
 	if err != nil {
-		return d.classify(Result{ExitCode: ExitOK}, err), err
+		return d.classify(ctx, Result{ExitCode: ExitOK}, err), err
 	}
 	session, err := d.findByRunKey(ctx, client, agentID, runKey)
 	if err != nil {
-		return d.classify(Result{ExitCode: ExitOK}, err), err
+		return d.classify(ctx, Result{ExitCode: ExitOK}, err), err
 	}
 	if session == nil {
 		d.log.Info("no session for this pull request; nothing to close", "run_key", runKey)
