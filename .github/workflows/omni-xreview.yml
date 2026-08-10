@@ -119,8 +119,10 @@ jobs:
         id: apptoken
         uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          app-id: ${{ secrets.PLATFORM_CODE_AGENT_APP_ID }}
-          private-key: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
+          # The seidroid app, which is the identity holding permissions on the repos
+          # this reviews. PLATFORM_CODE_AGENT_* is not available in this context.
+          app-id: ${{ secrets.SEIDROID_APP_ID }}
+          private-key: ${{ secrets.SEIDROID_APP_PRIVATE_KEY }}
           owner: ${{ steps.target.outputs.owner }}
           repositories: ${{ steps.target.outputs.name }}
           # Scoped explicitly. Without these the token carries every permission the
