@@ -94,12 +94,21 @@ func (d *Driver) Run(ctx context.Context, w Workload) (Result, error) {
 func (d *Driver) newClient(ctx context.Context) (*omnigent.Client, error) {
 	token := d.cfg.Token
 	if d.cfg.MintsOwnToken() {
-		minted, err := MintToken(ctx, &http.Client{Timeout: d.cfg.RequestTimeout},
+		minted, ttl, err := MintToken(ctx, &http.Client{Timeout: d.cfg.RequestTimeout},
 			d.cfg.BaseURL, d.cfg.MachineClientID, d.cfg.MachineClientSecret)
 		if err != nil {
 			return nil, err
 		}
-		d.log.Info("minted a machine token", "client_id", d.cfg.MachineClientID)
+		d.log.Info("minted a machine token",
+			"client_id", d.cfg.MachineClientID, "token_ttl", ttl)
+
+		// Minted once and never re-minted, so a deadline past the token's life
+		// spends its tail on 401s: the review is still running, every call is
+		// rejected, and nothing in that failure names the token as the cause.
+		if ttl > 0 && ttl < d.cfg.RunDeadline {
+			d.log.Warn("the run deadline outlives the minted token, so a long turn will start failing as unauthorised",
+				"token_ttl", ttl, "run_deadline", d.cfg.RunDeadline)
+		}
 		token = minted
 	}
 
@@ -291,12 +300,21 @@ func (d *Driver) createOrAdopt(
 		}
 	}
 
-	session, err := client.CreateSession(ctx, omnigent.SessionCreateRequest{
+	create := omnigent.SessionCreateRequest{
 		AgentID:  agentID,
 		HostType: "managed",
 		Title:    w.Title(),
 		Labels:   map[string]string{RunKeyLabel: runKey},
-	})
+	}
+
+	// Set only when the work declares one, so a workload with no tree sends no
+	// field rather than an empty string. Never logged: a private clone carries its
+	// credential in this URL and the server keeps it as a cleartext session label.
+	if c, ok := w.(Cloner); ok {
+		create.Workspace = c.Workspace()
+	}
+
+	session, err := client.CreateSession(ctx, create)
 	if err == nil {
 		return session, adoption{}, nil
 	}

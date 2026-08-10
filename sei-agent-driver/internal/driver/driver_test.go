@@ -21,10 +21,11 @@ import (
 // driverCreateReq is the subset of a session-create body this file asserts
 // on.
 type driverCreateReq struct {
-	AgentID  string            `json:"agent_id"`
-	HostType string            `json:"host_type"`
-	Title    string            `json:"title"`
-	Labels   map[string]string `json:"labels"`
+	AgentID   string            `json:"agent_id"`
+	HostType  string            `json:"host_type"`
+	Title     string            `json:"title"`
+	Workspace string            `json:"workspace"`
+	Labels    map[string]string `json:"labels"`
 }
 
 // driverEventReq is the subset of a POST .../events body this file asserts

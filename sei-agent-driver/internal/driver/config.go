@@ -57,14 +57,25 @@ type Config struct {
 	Token string
 
 	// MachineClientID is the confidential client's identifier, matching the
-	// server's OMNIGENT_MACHINE_CLIENT_ID.
+	// server's OMNIGENT_M2M_CLIENT_ID.
+	//
+	// The grant is mounted only in the server's cookie-based auth modes, oidc and
+	// accounts, because it signs with the same cookie secret those configure. A
+	// deployment running header auth does not serve /oauth/token at all, and the
+	// exchange there fails on a route that is not there rather than on the
+	// credential.
+	//
+	// It is not upstream: the deployment gets it from the image built at
+	// omnigent 664732a0, and omnigent-ai/omnigent#3977 is where it is proposed for
+	// merge. Do not read upstream main to check this contract.
 	MachineClientID string
 
 	// MachineClientSecret is that client's secret in plaintext.
 	//
-	// The server stores only its digest, under
-	// OMNIGENT_MACHINE_CLIENT_SECRET_HASH — the missing _HASH here is the whole
-	// distinction, so do not cross-wire the two. Never logged.
+	// The server keeps only its digest, in OMNIGENT_M2M_CLIENT_SECRET_HASH, hashed
+	// under the cookie secret. The _HASH suffix is the whole distinction between
+	// what the server holds and what this sends, so do not cross-wire the two.
+	// Never logged.
 	MachineClientSecret string
 
 	// RunDeadline bounds the whole run: resolve, create or adopt, drive. On expiry
@@ -103,10 +114,10 @@ func LoadConfig() (Config, error) {
 		Agent:   envOr("SEIDROID_AGENT_ID", DefaultAgent),
 		Token:   resolveToken(),
 
-		// Named to mirror the server's own machine-client variables so an
-		// operator configures one pair, not two vocabularies.
-		MachineClientID:     strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_ID")),
-		MachineClientSecret: strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_SECRET")),
+		// M2M, matching what the server names its own registry entry, so an
+		// operator configures one vocabulary rather than translating between two.
+		MachineClientID:     strings.TrimSpace(os.Getenv("OMNIGENT_M2M_CLIENT_ID")),
+		MachineClientSecret: strings.TrimSpace(os.Getenv("OMNIGENT_M2M_CLIENT_SECRET")),
 	}
 
 	// Seconds, because that is what an operator's existing values mean.
@@ -145,16 +156,16 @@ func (c Config) RequireAuth() error {
 	case id != "" && secret != "":
 		return nil
 	case id != "" || secret != "":
-		missing := "OMNIGENT_MACHINE_CLIENT_SECRET"
+		missing := "OMNIGENT_M2M_CLIENT_SECRET"
 		if id == "" {
-			missing = "OMNIGENT_MACHINE_CLIENT_ID"
+			missing = "OMNIGENT_M2M_CLIENT_ID"
 		}
 		return fmt.Errorf("%w: machine client is half-configured; %s is not set",
 			ErrConfig, missing)
 	default:
-		return fmt.Errorf("%w: no API credential; set OMNIGENT_API_TOKEN, "+
-			"OMNIGENT_API_TOKEN_FILE, or OMNIGENT_MACHINE_CLIENT_ID with "+
-			"OMNIGENT_MACHINE_CLIENT_SECRET", ErrConfig)
+		return fmt.Errorf("%w: no API credential; set OMNIGENT_M2M_CLIENT_ID with "+
+			"OMNIGENT_M2M_CLIENT_SECRET, or OMNIGENT_API_TOKEN or "+
+			"OMNIGENT_API_TOKEN_FILE", ErrConfig)
 	}
 }
 
