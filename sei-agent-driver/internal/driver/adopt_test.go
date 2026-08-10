@@ -586,3 +586,85 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 		})
 	}
 }
+
+// cloningWork is a workload that declares a workspace, which is the shape of work
+// whose agent has to read a tree.
+type cloningWork struct {
+	testWork
+	workspace string
+}
+
+func (w cloningWork) Workspace() string { return w.workspace }
+
+// TestDriverSendsAWorkspaceOnlyWhenTheWorkDeclaresOne pins both halves of the
+// optional capability, and that the value stays out of the logs.
+//
+// The secret half is the point. A private clone carries its credential in that
+// URL and the server keeps the whole workspace as a cleartext session label, so a
+// driver that also logged it would put the credential somewhere with a longer life
+// and a wider audience than the label.
+func TestDriverSendsAWorkspaceOnlyWhenTheWorkDeclaresOne(t *testing.T) {
+	t.Parallel()
+
+	const secret = "https://x-access-token:ghs_SUPERSECRET@github.com/sei-protocol/sandbox#head"
+
+	newFake := func(t *testing.T) *driverFakeServer {
+		return newDriverFakeServer(t, driverFakeServerConfig{
+			AgentPages:      []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+			CreateResp:      driverSessionResp("conv_ws", "ag_1"),
+			SessionListResp: `{"data":[],"has_more":false}`,
+			StreamFrames: []string{
+				driverAckFrame(),
+				driverConsumedFrame("item_1"),
+				driverIdleFrame("resp_claude_a"),
+				driverDoneFrame(),
+			},
+			SessionResps: []string{
+				driverSessionWithItems("conv_ws", "ag_1",
+					driverReplyItem("item_reply", "resp_claude_a", driverVerdict("Fine.", "approve"))),
+			},
+		})
+	}
+
+	t.Run("work with no tree sends no workspace", func(t *testing.T) {
+		t.Parallel()
+		fs := newFake(t)
+		_, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
+			Run(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 31})
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		creates := fs.CreateReqs()
+		if len(creates) != 1 {
+			t.Fatalf("creates = %d, want 1", len(creates))
+		}
+		if creates[0].Workspace != "" {
+			t.Errorf("Workspace = %q, want empty: work with no tree must not send the field",
+				creates[0].Workspace)
+		}
+	})
+
+	t.Run("work with a tree sends it and never logs it", func(t *testing.T) {
+		t.Parallel()
+		fs := newFake(t)
+		log, sink := driverCapturingLogger()
+		work := cloningWork{
+			testWork:  testWork{Repo: "sei-protocol/sandbox", PR: 32},
+			workspace: secret,
+		}
+		if _, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, log).
+			Run(context.Background(), work); err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		creates := fs.CreateReqs()
+		if len(creates) != 1 {
+			t.Fatalf("creates = %d, want 1", len(creates))
+		}
+		if creates[0].Workspace != secret {
+			t.Errorf("Workspace = %q, want the declared workspace", creates[0].Workspace)
+		}
+		if strings.Contains(sink.String(), "ghs_SUPERSECRET") {
+			t.Error("the workspace credential reached the logs")
+		}
+	})
+}
