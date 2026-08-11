@@ -165,14 +165,27 @@ func healthCheckedClient(log *slog.Logger) (*http.Client, error) {
 	// stream's body is unbounded by design.
 	transport.ResponseHeaderTimeout = defaultResponseHeaderTimeout
 
+	if _, err := configureHealthChecks(transport); err != nil {
+		return nil, err
+	}
+
+	return &http.Client{Transport: &tracingTransport{base: transport, log: log}}, nil
+}
+
+// configureHealthChecks enables HTTP/2 keepalive pings on transport and returns the
+// HTTP/2 transport it configured.
+//
+// Separate from its caller, and returning what it set, because http2's configure
+// call refuses a transport it has already enabled — so a test cannot re-derive these
+// settings from a finished client, only from doing the configuring itself.
+func configureHealthChecks(transport *http.Transport) (*http2.Transport, error) {
 	h2, err := http2.ConfigureTransports(transport)
 	if err != nil {
 		return nil, fmt.Errorf("%w: configuring http/2 health checks: %w", ErrConfig, err)
 	}
 	h2.ReadIdleTimeout = http2ReadIdleTimeout
 	h2.PingTimeout = http2PingTimeout
-
-	return &http.Client{Transport: &tracingTransport{base: transport, log: log}}, nil
+	return h2, nil
 }
 
 // review is the body of a run, after the client is built. It tears nothing down;

@@ -16,7 +16,6 @@ import (
 	"time"
 
 	omnigent "github.com/sei-protocol/omnigent-go-sdk"
-	"golang.org/x/net/http2"
 )
 
 // driverCreateReq is the subset of a session-create body this file asserts
@@ -1812,42 +1811,54 @@ func TestClassifyTellsARequestTimeoutFromTheRunDeadline(t *testing.T) {
 func TestHealthCheckedClientPingsAnIdleConnection(t *testing.T) {
 	t.Parallel()
 
-	client, err := healthCheckedClient(driverTestLogger())
-	if err != nil {
-		t.Fatalf("healthCheckedClient: %v", err)
-	}
-	traced, ok := client.Transport.(*tracingTransport)
-	if !ok {
-		t.Fatalf("Transport = %T, want *tracingTransport", client.Transport)
-	}
-	transport, ok := traced.base.(*http.Transport)
-	if !ok {
-		t.Fatalf("base = %T, want *http.Transport", traced.base)
-	}
-	if transport.ResponseHeaderTimeout != defaultResponseHeaderTimeout {
-		t.Errorf("ResponseHeaderTimeout = %v, want %v",
-			transport.ResponseHeaderTimeout, defaultResponseHeaderTimeout)
-	}
-	// No whole-request timeout: a stream's body is unbounded by design, and one here
-	// would cut a healthy long turn.
-	if client.Timeout != 0 {
-		t.Errorf("Timeout = %v, want 0", client.Timeout)
-	}
-
-	h2, err := http2.ConfigureTransports(transport)
-	if err != nil {
-		// Already configured, which is the point: the helper got there first.
-		if h2 != nil {
-			t.Fatalf("unexpected second config: %v", err)
+	t.Run("the pings are configured", func(t *testing.T) {
+		t.Parallel()
+		// Configured here rather than read back off a finished client: http2 refuses
+		// a transport it has already enabled, so asking twice yields an error and no
+		// settings to inspect.
+		h2, err := configureHealthChecks(http.DefaultTransport.(*http.Transport).Clone())
+		if err != nil {
+			t.Fatalf("configureHealthChecks: %v", err)
 		}
-		return
-	}
-	if h2.ReadIdleTimeout != http2ReadIdleTimeout || h2.PingTimeout != http2PingTimeout {
-		t.Errorf("h2 = {ReadIdle:%v Ping:%v}, want {%v %v}",
-			h2.ReadIdleTimeout, h2.PingTimeout, http2ReadIdleTimeout, http2PingTimeout)
-	}
-	// Above the server's 15s stream heartbeat, or a healthy stream pings needlessly.
-	if http2ReadIdleTimeout <= 15*time.Second {
-		t.Errorf("http2ReadIdleTimeout = %v, must exceed the server's 15s heartbeat", http2ReadIdleTimeout)
-	}
+		if h2.ReadIdleTimeout != http2ReadIdleTimeout {
+			t.Errorf("ReadIdleTimeout = %v, want %v", h2.ReadIdleTimeout, http2ReadIdleTimeout)
+		}
+		if h2.PingTimeout != http2PingTimeout {
+			t.Errorf("PingTimeout = %v, want %v", h2.PingTimeout, http2PingTimeout)
+		}
+	})
+
+	t.Run("the idle bound clears the server's heartbeat", func(t *testing.T) {
+		t.Parallel()
+		// Below it, a healthy stream is pinged for being quiet between heartbeats.
+		if http2ReadIdleTimeout <= 15*time.Second {
+			t.Errorf("http2ReadIdleTimeout = %v, must exceed the server's 15s heartbeat",
+				http2ReadIdleTimeout)
+		}
+	})
+
+	t.Run("the client bounds headers and not the body", func(t *testing.T) {
+		t.Parallel()
+		client, err := healthCheckedClient(driverTestLogger())
+		if err != nil {
+			t.Fatalf("healthCheckedClient: %v", err)
+		}
+		traced, ok := client.Transport.(*tracingTransport)
+		if !ok {
+			t.Fatalf("Transport = %T, want *tracingTransport", client.Transport)
+		}
+		transport, ok := traced.base.(*http.Transport)
+		if !ok {
+			t.Fatalf("base = %T, want *http.Transport", traced.base)
+		}
+		if transport.ResponseHeaderTimeout != defaultResponseHeaderTimeout {
+			t.Errorf("ResponseHeaderTimeout = %v, want %v",
+				transport.ResponseHeaderTimeout, defaultResponseHeaderTimeout)
+		}
+		// A stream's body is unbounded by design; a whole-request timeout would cut
+		// a healthy long turn.
+		if client.Timeout != 0 {
+			t.Errorf("Timeout = %v, want 0", client.Timeout)
+		}
+	})
 }
