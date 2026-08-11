@@ -1800,3 +1800,65 @@ func TestClassifyTellsARequestTimeoutFromTheRunDeadline(t *testing.T) {
 		}
 	})
 }
+
+// TestHealthCheckedClientPingsAnIdleConnection pins the settings that let a dead
+// connection be noticed.
+//
+// A flow dropped without a reset leaves the socket ESTABLISHED and the connection a
+// reuse candidate, so requests are written into a socket nothing reads and recovery
+// waits on the kernel's retransmit ceiling. The pings are what turn that into a
+// re-dial.
+func TestHealthCheckedClientPingsAnIdleConnection(t *testing.T) {
+	t.Parallel()
+
+	t.Run("the pings are configured", func(t *testing.T) {
+		t.Parallel()
+		// Configured here rather than read back off a finished client: http2 refuses
+		// a transport it has already enabled, so asking twice yields an error and no
+		// settings to inspect.
+		h2, err := configureHealthChecks(http.DefaultTransport.(*http.Transport).Clone())
+		if err != nil {
+			t.Fatalf("configureHealthChecks: %v", err)
+		}
+		if h2.ReadIdleTimeout != http2ReadIdleTimeout {
+			t.Errorf("ReadIdleTimeout = %v, want %v", h2.ReadIdleTimeout, http2ReadIdleTimeout)
+		}
+		if h2.PingTimeout != http2PingTimeout {
+			t.Errorf("PingTimeout = %v, want %v", h2.PingTimeout, http2PingTimeout)
+		}
+	})
+
+	t.Run("the idle bound clears the server's heartbeat", func(t *testing.T) {
+		t.Parallel()
+		// Below it, a healthy stream is pinged for being quiet between heartbeats.
+		if http2ReadIdleTimeout <= 15*time.Second {
+			t.Errorf("http2ReadIdleTimeout = %v, must exceed the server's 15s heartbeat",
+				http2ReadIdleTimeout)
+		}
+	})
+
+	t.Run("the client bounds headers and not the body", func(t *testing.T) {
+		t.Parallel()
+		client, err := healthCheckedClient(driverTestLogger())
+		if err != nil {
+			t.Fatalf("healthCheckedClient: %v", err)
+		}
+		traced, ok := client.Transport.(*tracingTransport)
+		if !ok {
+			t.Fatalf("Transport = %T, want *tracingTransport", client.Transport)
+		}
+		transport, ok := traced.base.(*http.Transport)
+		if !ok {
+			t.Fatalf("base = %T, want *http.Transport", traced.base)
+		}
+		if transport.ResponseHeaderTimeout != defaultResponseHeaderTimeout {
+			t.Errorf("ResponseHeaderTimeout = %v, want %v",
+				transport.ResponseHeaderTimeout, defaultResponseHeaderTimeout)
+		}
+		// A stream's body is unbounded by design; a whole-request timeout would cut
+		// a healthy long turn.
+		if client.Timeout != 0 {
+			t.Errorf("Timeout = %v, want 0", client.Timeout)
+		}
+	})
+}

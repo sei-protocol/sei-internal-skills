@@ -5,10 +5,12 @@ go 1.24.5
 require (
 	github.com/sei-protocol/omnigent-go-sdk v0.1.2
 	github.com/urfave/cli/v3 v3.4.1
+	golang.org/x/net v0.48.0
 )
 
 require (
 	github.com/apapsch/go-jsonmerge/v2 v2.0.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/oapi-codegen/runtime v1.6.0 // indirect
+	golang.org/x/text v0.32.0 // indirect
 )
