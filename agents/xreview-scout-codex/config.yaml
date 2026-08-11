@@ -31,6 +31,11 @@ executor:
 # Matches the sibling review bundles rather than being derived again. A scout is
 # the same shape of work — read a tree, report — so a difference here would be a
 # difference nobody decided.
+# No method of its own, and none of the host's. A scout is told what to do by the
+# driver's per-run prompt, so anything discovered here would be capability it was
+# never asked to use — and on this harness, silently so.
+skills: none
+
 os_env:
   type: caller_process
   cwd: .
