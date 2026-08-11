@@ -53,6 +53,10 @@ jobs:
               'sei-spec':   {'filter': 'none', 'skills': 8, 'prefix': 'speckit-'},
               'xreview':    {'filter': 'all',  'skills': 1},
               'root-cause': {'filter': 'all',  'skills': 1},
+              # A scout carries no method and takes none from the host: the driver's
+              # per-run prompt is its whole instruction, so a discovered skill would
+              # be capability it was never asked to use.
+              'xreview-scout-codex': {'filter': 'none', 'skills': 0},
           }
 
           root = Path('agents')

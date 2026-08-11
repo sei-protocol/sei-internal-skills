@@ -97,6 +97,7 @@ jobs:
               "sei-spec":   ("none", 8, "speckit-"),
               "xreview":    ("all",  1, None),
               "root-cause": ("all",  1, None),
+              "xreview-scout-codex": ("none", 0, None),
           }
           root = Path("/opt/sei-omnigent/agents")
           dirs = sorted(p for p in root.iterdir() if p.is_dir())
