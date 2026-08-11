@@ -37,29 +37,30 @@ func treePath(req Request) string { return fmt.Sprintf("pr-%d-tree", req.PR) }
 
 // cloneCommands are the commands the prompts name for getting a working tree.
 //
-// The agent clones with its own mounted credential rather than being handed one.
-// A workspace this driver supplied would carry a token in its URL, and the server
-// keeps that URL as a cleartext session label — so the credential would outlive
-// the clone in a database, to do a job the sandbox can already do with the
-// credential it already has. See [driver.Cloner], which this workload declines
-// for that reason.
+// The agent clones with the credential already mounted in its sandbox. A workspace
+// this driver supplied would carry a token in its URL, and the server keeps that
+// URL as a cleartext session label — so the credential would outlive the clone in
+// a database, to do a job the sandbox can already do. See [driver.Cloner], which
+// this workload declines for that reason.
 //
-// Blobless rather than shallow: the review reads files around each hunk, which a
-// depth-limited clone can refuse, while a blobless one fetches them on demand and
-// still skips the history this never walks.
+// The ref is the pull request's merge, not its head: that is the tree that would
+// result from merging, which is what a reviewer is deciding about, and it matches
+// the checkout the repository's other review tooling uses. Depth 1 for the same
+// reason — this reads the tree, never its history.
 //
 // The clone is guarded because these run on a session that outlives its run. A
 // second dispatch finds the tree already there, and an unguarded clone fails on
 // the existing directory — which the prompt reads as "no tree", so every review
 // after the first would silently drop back to the diff alone. Fetch and checkout
-// are unguarded on purpose: they are what moves an existing tree to the head
-// under review, and they are also correct on one just cloned.
+// are unguarded on purpose: the merge ref moves as the pull request changes, so
+// they are what brings an existing tree up to date, and they are correct on one
+// just cloned.
 func cloneCommands(req Request) []string {
 	tree := treePath(req)
 	return []string{
-		fmt.Sprintf("[ -d %s ] || gh repo clone %s %s -- --filter=blob:none --no-tags --quiet",
+		fmt.Sprintf("[ -d %s ] || git clone --depth=1 --no-tags --quiet https://github.com/%s %s",
 			tree, req.Repo, tree),
-		fmt.Sprintf("git -C %s fetch --quiet origin pull/%d/head && git -C %s checkout --quiet FETCH_HEAD",
+		fmt.Sprintf("git -C %s fetch --depth=1 --quiet origin refs/pull/%d/merge && git -C %s checkout --quiet FETCH_HEAD",
 			tree, req.PR, tree),
 	}
 }

@@ -111,9 +111,12 @@ func TestReviewPromptsCloneWithTheSandboxsOwnCredential(t *testing.T) {
 	t.Parallel()
 
 	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
-	wantClone := "[ -d pr-3861-tree ] || gh repo clone sei-protocol/sei-chain pr-3861-tree " +
-		"-- --filter=blob:none --no-tags --quiet"
-	wantCheckout := "git -C pr-3861-tree fetch --quiet origin pull/3861/head && " +
+	wantClone := "[ -d pr-3861-tree ] || git clone --depth=1 --no-tags --quiet " +
+		"https://github.com/sei-protocol/sei-chain pr-3861-tree"
+	// The merge ref, not the head: the tree that results from merging is what the
+	// reviewer is deciding about, and it is the ref this repo's other review
+	// tooling checks out.
+	wantCheckout := "git -C pr-3861-tree fetch --depth=1 --quiet origin refs/pull/3861/merge && " +
 		"git -C pr-3861-tree checkout --quiet FETCH_HEAD"
 
 	for _, p := range []struct {
