@@ -28,6 +28,34 @@ executor:
     # looking like a reading that found nothing.
     harness: codex-native
 
+# Matches the sibling review bundles rather than being derived again. A scout is
+# the same shape of work — read a tree, report — so a difference here would be a
+# difference nobody decided.
+os_env:
+  type: caller_process
+  cwd: .
+  sandbox:
+    type: none
+
+guardrails:
+  # Five seconds, not a default. An ASK that reaches nobody is the failure mode
+  # this whole arrangement has already paid for once: a permission request with a
+  # day-long budget wedged a session for its entire life. A scout is headless by
+  # construction, so an ask it cannot answer must fail fast and become a note the
+  # review is shown.
+  ask_timeout: 5
+  policies:
+    # Read-only is the contract, and this is the part of it that is mechanical
+    # rather than instructed. The prompt says never push; this gates it.
+    blast_radius:
+      type: function
+      true:
+        - tool_call
+      function:
+        path: omnigent.inner.nessie.policies.blast_radius
+        arguments:
+          gate_pushes: true
+
 prompt: |
   You are one of several independent readers of a pull request. Another model
   merges the readings afterwards and writes the review, so yours is an opinion to
