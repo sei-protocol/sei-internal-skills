@@ -868,6 +868,12 @@ func (d *Driver) sessionIsLive(
 
 	session, err := client.GetSession(readCtx, sessionID, omnigent.GetSessionOptions{})
 	if err != nil {
+		// Logged rather than swallowed. Whether this read succeeds while the stream
+		// will not open is what separates a stream that is wedged from a server that
+		// is: one says the fault is scoped to the stream path, the other says nothing
+		// is getting through. Returning a bare false discards the difference.
+		d.log.Warn("could not read the session while deciding whether it is live",
+			"session_id", sessionID, "error", err)
 		return false
 	}
 	return session.RunnerOnline != nil && *session.RunnerOnline
@@ -1232,6 +1238,13 @@ func (d *Driver) recoverFromStreamLoss(
 		IncludeItems: omnigent.Ptr(true),
 	})
 	if err != nil {
+		// The stream error is returned, since it is what the caller acts on, but this
+		// one is logged rather than dropped: a snapshot that reads cleanly while the
+		// stream will not open says the fault is scoped to the stream path, and one
+		// that fails the same way says nothing is getting through. Returning only the
+		// stream's error leaves both looking identical.
+		d.log.Warn("could not read the session to salvage a reply from it",
+			"session_id", sessionID, "error", err, "stream_error", cause)
 		return Reply{}, cause
 	}
 
