@@ -9,6 +9,23 @@ import (
 	"time"
 
 	omnigent "github.com/sei-protocol/omnigent-go-sdk"
+	"golang.org/x/net/http2"
+)
+
+// How an HTTP/2 connection proves it is still there.
+//
+// The idle bound is above the server's 15-second stream heartbeat so a healthy
+// stream keeps resetting it, and a ping is only sent once frames have actually
+// stopped. The ping bound is short because a live peer answers immediately; the
+// cost of waiting is another request written into a dead socket.
+const (
+	h2ReadIdleTimeout = 20 * time.Second
+	h2PingTimeout     = 5 * time.Second
+
+	// defaultResponseHeaderTimeout bounds the wait for response headers. Long
+	// enough for a create that provisions a sandbox, short enough that a stream
+	// open which will never answer is retried rather than waited out.
+	defaultResponseHeaderTimeout = 60 * time.Second
 )
 
 // RunKeyLabel carries a workload's run key on the session, so a later dispatch
@@ -112,13 +129,50 @@ func (d *Driver) newClient(ctx context.Context) (*omnigent.Client, error) {
 		token = minted
 	}
 
+	httpClient, err := healthCheckedClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return omnigent.New(d.cfg.BaseURL,
+		omnigent.WithHTTPClient(httpClient),
 		omnigent.WithBearerToken(token),
 		omnigent.WithAuthHeader("Origin", d.cfg.Origin),
 		omnigent.WithUserAgent("seidroid-xreview"),
 		omnigent.WithStreamIdleTimeout(d.cfg.StreamIdleTimeout),
 		omnigent.WithUnaryTimeout(d.cfg.UnaryTimeout),
 	)
+}
+
+// healthCheckedClient returns a client whose HTTP/2 connections answer for
+// themselves.
+//
+// Without this, nothing tells the transport a connection has stopped carrying
+// traffic. A middlebox that drops a flow without a reset leaves the socket
+// ESTABLISHED, the connection stays a reuse candidate, and every request handed to
+// it is written into a socket nothing is reading. Recovery then waits on the
+// kernel's retransmit ceiling, which is minutes.
+//
+// ReadIdleTimeout makes the transport send a PING once a connection has been quiet;
+// PingTimeout drops the connection when the PING is not answered, so the next
+// request dials a new one. The idle bound sits above the server's 15-second stream
+// heartbeat, so a healthy stream resets the timer and pings only when frames have
+// genuinely stopped.
+func healthCheckedClient() (*http.Client, error) {
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+
+	// The header bound is the only timeout a streaming request can carry, since a
+	// stream's body is unbounded by design.
+	transport.ResponseHeaderTimeout = defaultResponseHeaderTimeout
+
+	h2, err := http2.ConfigureTransports(transport)
+	if err != nil {
+		return nil, fmt.Errorf("%w: configuring http/2 health checks: %w", ErrConfig, err)
+	}
+	h2.ReadIdleTimeout = h2ReadIdleTimeout
+	h2.PingTimeout = h2PingTimeout
+
+	return &http.Client{Transport: transport}, nil
 }
 
 // review is the body of a run, after the client is built. It tears nothing down;

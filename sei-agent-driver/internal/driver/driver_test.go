@@ -16,6 +16,7 @@ import (
 	"time"
 
 	omnigent "github.com/sei-protocol/omnigent-go-sdk"
+	"golang.org/x/net/http2"
 )
 
 // driverCreateReq is the subset of a session-create body this file asserts
@@ -1799,4 +1800,50 @@ func TestClassifyTellsARequestTimeoutFromTheRunDeadline(t *testing.T) {
 			t.Errorf("ExitCode = %d, want ExitTimeout (%d)", got.ExitCode, ExitTimeout)
 		}
 	})
+}
+
+// TestHealthCheckedClientPingsAnIdleConnection pins the settings that let a dead
+// connection be noticed.
+//
+// A flow dropped without a reset leaves the socket ESTABLISHED and the connection a
+// reuse candidate, so requests are written into a socket nothing reads and recovery
+// waits on the kernel's retransmit ceiling. The pings are what turn that into a
+// re-dial.
+func TestHealthCheckedClientPingsAnIdleConnection(t *testing.T) {
+	t.Parallel()
+
+	client, err := healthCheckedClient()
+	if err != nil {
+		t.Fatalf("healthCheckedClient: %v", err)
+	}
+	transport, ok := client.Transport.(*http.Transport)
+	if !ok {
+		t.Fatalf("Transport = %T, want *http.Transport", client.Transport)
+	}
+	if transport.ResponseHeaderTimeout != defaultResponseHeaderTimeout {
+		t.Errorf("ResponseHeaderTimeout = %v, want %v",
+			transport.ResponseHeaderTimeout, defaultResponseHeaderTimeout)
+	}
+	// No whole-request timeout: a stream's body is unbounded by design, and one here
+	// would cut a healthy long turn.
+	if client.Timeout != 0 {
+		t.Errorf("Timeout = %v, want 0", client.Timeout)
+	}
+
+	h2, err := http2.ConfigureTransports(transport)
+	if err != nil {
+		// Already configured, which is the point: the helper got there first.
+		if h2 != nil {
+			t.Fatalf("unexpected second config: %v", err)
+		}
+		return
+	}
+	if h2.ReadIdleTimeout != h2ReadIdleTimeout || h2.PingTimeout != h2PingTimeout {
+		t.Errorf("h2 = {ReadIdle:%v Ping:%v}, want {%v %v}",
+			h2.ReadIdleTimeout, h2.PingTimeout, h2ReadIdleTimeout, h2PingTimeout)
+	}
+	// Above the server's 15s stream heartbeat, or a healthy stream pings needlessly.
+	if h2ReadIdleTimeout <= 15*time.Second {
+		t.Errorf("h2ReadIdleTimeout = %v, must exceed the server's 15s heartbeat", h2ReadIdleTimeout)
+	}
 }
