@@ -668,3 +668,90 @@ func TestDriverSendsAWorkspaceOnlyWhenTheWorkDeclaresOne(t *testing.T) {
 		}
 	})
 }
+
+// namingWork is work that runs on an agent of its own, for [AgentNamer].
+type namingWork struct {
+	testWork
+	agent string
+}
+
+func (w namingWork) AgentName() string { return w.agent }
+
+// TestDriverResolvesTheAgentTheWorkNames guards the capability the multi-reader
+// arrangement rests on.
+//
+// The agent fixes the harness, so a workload that names one and gets the default
+// is a second opinion from the same model that produced the first — corroboration
+// that corroborates nothing, and indistinguishable in every output from the real
+// thing. Both halves are driven, because a test that only checks the naming case
+// passes just as well when the default is what always resolves.
+func TestDriverResolvesTheAgentTheWorkNames(t *testing.T) {
+	t.Parallel()
+
+	newFake := func(t *testing.T) *driverFakeServer {
+		return newDriverFakeServer(t, driverFakeServerConfig{
+			// One page carrying both, so the name is what selects between them
+			// rather than which page happens to be served.
+			AgentPages: []string{`{"data":[` +
+				`{"id":"ag_1","name":"sei-droid","created_at":1},` +
+				`{"id":"ag_2","name":"sei-droid-codex","created_at":1}],"has_more":false}`},
+			CreateResp:      driverSessionResp("conv_a", "ag_1"),
+			SessionListResp: `{"data":[],"has_more":false}`,
+			StreamFrames: []string{
+				driverAckFrame(), driverConsumedFrame("item_1"),
+				driverIdleFrame("resp_claude_a"), driverDoneFrame(),
+			},
+			SessionResps: []string{
+				driverSessionWithItems("conv_a", "ag_1",
+					driverReplyItem("item_reply", "resp_claude_a", driverVerdict("Fine.", "approve"))),
+			},
+		})
+	}
+
+	for _, c := range []struct {
+		name string
+		work Workload
+		want string
+	}{
+		{"work naming no agent takes the run's default", testWork{Repo: "r/n", PR: 1}, "ag_1"},
+		{"work naming its own agent gets that one",
+			namingWork{testWork{Repo: "r/n", PR: 1}, "sei-droid-codex"}, "ag_2"},
+		{"an empty name means no preference",
+			namingWork{testWork{Repo: "r/n", PR: 1}, ""}, "ag_1"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			fs := newFake(t)
+			if _, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
+				Run(context.Background(), c.work); err != nil {
+				t.Fatalf("Run: %v", err)
+			}
+			creates := fs.CreateReqs()
+			if len(creates) != 1 {
+				t.Fatalf("creates = %d, want 1", len(creates))
+			}
+			if creates[0].AgentID != c.want {
+				t.Errorf("create AgentID = %q, want %q: a reading on the wrong harness is "+
+					"not independent of the one it is checking", creates[0].AgentID, c.want)
+			}
+		})
+	}
+
+	t.Run("an agent the server does not know fails the run", func(t *testing.T) {
+		t.Parallel()
+		fs := newFake(t)
+		// Run reports a classified fault in the Result rather than as an error, so
+		// the exit code is the contract a caller has to read. A caller that only
+		// checked err would treat this as a completed reading.
+		result, _ := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
+			Run(context.Background(), namingWork{testWork{Repo: "r/n", PR: 1}, "sei-droid-absent"})
+		if result.ExitCode != ExitConfig {
+			t.Fatalf("ExitCode = %d, want ExitConfig (%d): falling back to the default would "+
+				"answer on the review's own harness and read like a second opinion",
+				result.ExitCode, ExitConfig)
+		}
+		if len(fs.CreateReqs()) != 0 {
+			t.Error("a session was created for an agent the server does not know")
+		}
+	})
+}

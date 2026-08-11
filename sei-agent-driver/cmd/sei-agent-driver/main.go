@@ -188,10 +188,10 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 		),
 	}
 
-	specs, err := parseScouts(os.Getenv("XREVIEW_SCOUTS"))
-	if err != nil {
-		return &exitError{code: driver.ExitConfig, err: err}
-	}
+	// Parsed leniently here and enforced below, so a malformed scout list cannot
+	// refuse --close: that is the only path that reclaims a sandbox, and it must
+	// not depend on an unrelated variable being well-formed.
+	specs, scoutErr := parseScouts(os.Getenv("XREVIEW_SCOUTS"), cfg.Agent)
 
 	d := driver.NewDriver(cfg, policy, log)
 
@@ -203,6 +203,10 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 		// Deleted first and best-effort: the review's session is the one whose
 		// failure the exit code must report, and a scout that cannot be found is
 		// already gone.
+		if scoutErr != nil {
+			log.Warn("the scout list is malformed, so only the review's session is deleted",
+				"error", scoutErr)
+		}
 		for _, spec := range specs {
 			if _, err := d.DeleteSession(ctx, xreview.NewScout(req, spec.name, spec.agent)); err != nil {
 				log.Warn("could not delete a scout session; its sandbox may be left running",
@@ -221,6 +225,10 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 				err: fmt.Errorf("close finished with exit code %d", result.ExitCode)}
 		}
 		return nil
+	}
+
+	if scoutErr != nil {
+		return &exitError{code: driver.ExitConfig, err: scoutErr}
 	}
 
 	// The readings are gathered before the review so they can ride in its prompt.
@@ -362,11 +370,12 @@ func parseTarget(args []string) (string, int, error) {
 // may spend between them.
 //
 // They run in parallel, so this is wall-clock for all of them together rather than
-// each. The review keeps the rest, and keeping it is the point: [driver.Driver.Run]
-// applies the whole deadline per session, so an unbounded gather would let the
-// readings spend the budget and leave nothing to write the verdict with. A review
-// that heard from nobody still publishes; a run that never reaches the review
-// publishes nothing at all.
+// each. It is not carved out of the review's budget: [driver.Driver.Run] applies
+// the whole deadline to every session it drives, so a run costs at worst
+// RunDeadline x (1 + this share) end to end, and the calling job's timeout has to
+// cover that. Bounding the gather is still what keeps the review reachable — a
+// review that heard from nobody still publishes, and a run that never reaches the
+// review publishes nothing at all.
 const (
 	scoutShareNum   = 2
 	scoutShareDenom = 5
@@ -384,25 +393,36 @@ type scoutSpec struct {
 // An empty value configures none, which is the solo review. A malformed entry is
 // an error rather than a skip: a typo that silently drops a reader would publish a
 // review that looks like it weighed opinions it never heard.
-func parseScouts(raw string) ([]scoutSpec, error) {
+func parseScouts(raw, reviewAgent string) ([]scoutSpec, error) {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return nil, nil
 	}
 	var out []scoutSpec
 	seen := map[string]bool{}
+	agents := map[string]string{}
 	for _, entry := range strings.Split(raw, ",") {
 		name, agent, ok := strings.Cut(strings.TrimSpace(entry), "=")
 		name, agent = strings.TrimSpace(name), strings.TrimSpace(agent)
 		if !ok || name == "" || agent == "" {
-			return nil, fmt.Errorf("scout %q is not name=agent", entry)
+			return nil, fmt.Errorf("%w: scout %q is not name=agent", driver.ErrConfig, entry)
 		}
 		if seen[name] {
 			// Two scouts under one name would share a run key, so the second would
 			// adopt the first's session and report its findings back as its own.
-			return nil, fmt.Errorf("scout %q is configured twice", name)
+			return nil, fmt.Errorf("%w: scout %q is configured twice", driver.ErrConfig, name)
 		}
-		seen[name] = true
+		if agent == reviewAgent {
+			// The bundle fixes the harness, so this is the review reading its own
+			// diff and being shown the result as an independent opinion.
+			return nil, fmt.Errorf("%w: scout %q runs the review's own agent %q, so its "+
+				"reading would not be independent", driver.ErrConfig, name, agent)
+		}
+		if dup, ok := agents[agent]; ok {
+			return nil, fmt.Errorf("%w: scouts %q and %q both run agent %q, so one opinion "+
+				"would be counted twice", driver.ErrConfig, dup, name, agent)
+		}
+		seen[name], agents[agent] = true, name
 		out = append(out, scoutSpec{name: name, agent: agent})
 	}
 	return out, nil
@@ -459,36 +479,85 @@ func gatherScouts(
 	return out
 }
 
+// scoutNote renders why a scout contributed nothing, from the driver's own
+// classification.
+//
+// A fixed vocabulary rather than the error text. A driver error can carry a
+// workspace URL, which [driver.Cloner] documents as credential-bearing, and this
+// string reaches both a log line and a prompt whose answer is published verbatim
+// to a public thread. The exit code already says what went wrong precisely enough
+// for an operator to act on.
+func scoutNote(result driver.Result) string {
+	switch result.ExitCode {
+	case driver.ExitConfig:
+		return "its agent or credential is not configured on this server"
+	case driver.ExitTimeout:
+		return "it did not answer within its share of the deadline"
+	case driver.ExitTurnFailed:
+		return "its session reported the turn failed"
+	case driver.ExitNoVerdict:
+		return "it ended the turn without a readable report"
+	case driver.ExitTransport:
+		return "the connection to its session failed"
+	default:
+		return fmt.Sprintf("it ended with exit code %d", result.ExitCode)
+	}
+}
+
 // runScout drives one scout and turns whatever happened into a result.
+//
+// The panic guard is what makes "a scout never fails the review" true rather than
+// intended: a bare goroutine panicking takes the process with it, so one scout's
+// bug would kill a review that had already gathered the others.
 func runScout(
 	ctx context.Context,
 	d *driver.Driver,
 	req xreview.Request,
 	spec scoutSpec,
 	log *slog.Logger,
-) xreview.ScoutResult {
-	res := xreview.ScoutResult{Name: spec.name}
+) (res xreview.ScoutResult) {
+	res = xreview.ScoutResult{Name: spec.name}
+	defer func() {
+		if p := recover(); p != nil {
+			log.Error("scout panicked", "scout", spec.name, "panic", p)
+			res = xreview.ScoutResult{Name: spec.name, Note: "it failed unexpectedly"}
+		}
+	}()
 
 	result, err := d.Run(ctx, xreview.NewScout(req, spec.name, spec.agent))
+	// The session id is logged even on failure: it names the sandbox, and nothing
+	// else reclaims one, so this is the operator's only handle on a leak.
+	log.Info("scout finished", "scout", spec.name, "agent", spec.agent,
+		"session_id", result.SessionID, "exit_code", result.ExitCode)
+
 	switch {
 	case err != nil:
-		// The error text is the operator's diagnostic and reaches the review's
-		// prompt, so it is bounded and flattened where it is rendered.
-		res.Note = err.Error()
+		res.Note = scoutNote(result)
+		return res
+	case result.ExitCode != driver.ExitOK:
+		// Run reports a classified failure in the result, not as an error, so a
+		// scout that only checked err would call every one of these an answer.
+		res.Note = scoutNote(result)
 		return res
 	case result.Reply == nil:
-		res.Note = "the session ended without an answer"
+		res.Note = "it ended the turn without answering"
+		return res
+	case result.Reply.Reason != "":
+		res.Note = "its reply was not usable"
 		return res
 	}
 
-	report := xreview.ParseScoutReport(result.Reply.Text)
-	if !report.HasReport() {
-		// Reaching here means the turn ended but the reply carried no findings
-		// block, which the workload's Complete should have refused. Recorded
-		// rather than trusted.
-		res.Note = "the reply carried no findings block"
+	parsed := xreview.ParseScoutReport(result.Reply.Text)
+	switch {
+	case !parsed.HasReport():
+		res.Note = parsed.Reason
+		return res
+	case !parsed.Read():
+		// It answered, and what it answered is that it never got the diff. That is
+		// not a clean reading however empty its findings list.
+		res.Note = "it reported reading no diff"
 		return res
 	}
-	res.Findings = report.Findings
+	res.Findings = parsed.Findings
 	return res
 }

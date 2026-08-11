@@ -10,6 +10,8 @@ import "testing"
 // second adopts the first's session and reports its findings back as a second
 // reading of the same pull request.
 func TestParseScouts(t *testing.T) {
+	t.Parallel()
+
 	for _, c := range []struct {
 		name    string
 		raw     string
@@ -29,8 +31,12 @@ func TestParseScouts(t *testing.T) {
 		{name: "missing name", raw: "=sei-droid-codex", wantErr: true},
 		{name: "no separator", raw: "codex", wantErr: true},
 		{name: "duplicate name collides on the run key", raw: "codex=a,codex=b", wantErr: true},
+		// The bundle fixes the harness, so both of these produce a reading that is
+		// not independent of the thing it is meant to check.
+		{name: "scout on the review's own agent", raw: "codex=sei-droid", wantErr: true},
+		{name: "two scouts on one agent", raw: "codex=a,cursor=a", wantErr: true},
 	} {
-		got, err := parseScouts(c.raw)
+		got, err := parseScouts(c.raw, "sei-droid")
 		if c.wantErr {
 			if err == nil {
 				t.Errorf("%s: parseScouts(%q) succeeded; a silently dropped scout makes a "+

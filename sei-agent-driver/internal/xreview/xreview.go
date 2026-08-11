@@ -33,7 +33,18 @@ type Request struct {
 // maxScoutDetail bounds one rendered finding. A scout's detail is unbounded model
 // output, and several verbose scouts would otherwise crowd the diff out of the
 // review's context — the one thing it must not lose.
-const maxScoutDetail = 500
+const (
+	maxScoutDetail = 500
+
+	// maxScoutField bounds the short fields. They are model output too, and a
+	// bound on the detail alone leaves the same door open one column to the left.
+	maxScoutField = 120
+
+	// maxScoutFindings bounds how many of one scout's findings are rendered. The
+	// count is reported in full, so a truncated list reads as truncated rather
+	// than as all a scout had.
+	maxScoutFindings = 25
+)
 
 // ScoutResult is one scout's contribution, as the orchestrator observed it.
 //

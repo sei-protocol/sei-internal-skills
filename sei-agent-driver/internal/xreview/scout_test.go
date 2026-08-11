@@ -53,10 +53,14 @@ func TestScoutCompleteRequiresAFindingsBlock(t *testing.T) {
 		want bool
 	}{
 		{"prose only", "I am starting to look at the diff now.", false},
-		{"block without findings", "done\n```json\n{\"summary\": \"looks fine\"}\n```", false},
+		{"block without findings", "done\n```json\n{\"read\": 9, \"summary\": \"fine\"}\n```", false},
 		{"malformed block", "done\n```json\n{\"findings\": [}\n```", false},
-		{"empty findings is an answer", "nothing to report\n```json\n{\"findings\": []}\n```", true},
-		{"populated findings", "one thing\n```json\n{\"findings\": [" +
+		// Without the read count the orchestrator cannot tell a scout that read
+		// the diff from one that never got it, so the report is not an answer.
+		{"findings without a read count", "done\n```json\n{\"findings\": []}\n```", false},
+		{"read nothing is an answer", "the fetch failed\n```json\n{\"read\": 0, \"findings\": []}\n```", true},
+		{"read and found nothing", "clean\n```json\n{\"read\": 812, \"findings\": []}\n```", true},
+		{"populated findings", "one thing\n```json\n{\"read\": 812, \"findings\": [" +
 			"{\"file\": \"a.go\", \"line\": 4, \"severity\": \"high\", \"detail\": \"boom\"}]}\n```", true},
 	} {
 		if got := s.Complete(c.text); got != c.want {
@@ -72,7 +76,7 @@ func TestScoutCompleteRequiresAFindingsBlock(t *testing.T) {
 // accepted the other's block, a scout could end its turn on a quoted verdict, or a
 // review could publish a scout's reading as its own decision.
 func TestScoutAndVerdictContractsStayApart(t *testing.T) {
-	scoutReply := "found one\n```json\n{\"findings\": [" +
+	scoutReply := "found one\n```json\n{\"read\": 812, \"findings\": [" +
 		"{\"file\": \"a.go\", \"line\": 4, \"severity\": \"high\", \"detail\": \"boom\"}]}\n```"
 	verdictReply := "reviewed\n```json\n{\"decision\": \"comment\", \"summary\": \"ok\", \"findings\": []}\n```"
 
@@ -131,5 +135,97 @@ func TestScoutNamesItsOwnAgent(t *testing.T) {
 	}
 	if s.Name() != "codex" {
 		t.Errorf("Name = %q, want the identity the synthesis attributes findings with", s.Name())
+	}
+}
+
+// TestScoutReportSeparatesAFailedReadFromACleanOne guards the distinction three
+// doc comments claim the design rests on.
+//
+// A scout that never got the diff and a scout that read it and found nothing both
+// close with an empty findings list. Only the read count separates them, and
+// without it the orchestrator renders the first as the second — positive evidence
+// of a clean review, generated indefinitely, with no error anywhere.
+func TestScoutReportSeparatesAFailedReadFromACleanOne(t *testing.T) {
+	t.Parallel()
+
+	failed := ParseScoutReport("could not fetch\n```json\n{\"read\": 0, \"findings\": []}\n```")
+	clean := ParseScoutReport("nothing found\n```json\n{\"read\": 812, \"findings\": []}\n```")
+
+	if !failed.HasReport() || !clean.HasReport() {
+		t.Fatal("both are answers; neither should hang the turn")
+	}
+	if failed.Read() {
+		t.Error("a scout reporting read=0 is recorded as having read the diff")
+	}
+	if !clean.Read() {
+		t.Error("a scout reporting a line count is not recorded as having read the diff")
+	}
+	if failed.Read() == clean.Read() {
+		t.Error("a failed read is indistinguishable from a clean one, which is the " +
+			"failure the design says it exists to prevent")
+	}
+}
+
+// TestParseScoutReportSaysWhyItRefused guards the operator's diagnostic. The
+// sibling ParseVerdict sets a distinct reason on every refusal path; a scout that
+// burns its whole budget and returns one generic sentence tells nobody anything.
+func TestParseScoutReportSaysWhyItRefused(t *testing.T) {
+	t.Parallel()
+
+	seen := map[string]bool{}
+	for _, text := range []string{
+		"just prose",
+		"bad\n```json\n{not json}\n```",
+		"no list\n```json\n{\"read\": 9}\n```",
+		"no count\n```json\n{\"findings\": []}\n```",
+	} {
+		r := ParseScoutReport(text)
+		if r.HasReport() {
+			t.Errorf("%q was accepted as a report", text)
+			continue
+		}
+		if r.Reason == "" {
+			t.Errorf("%q was refused with no reason for the operator", text)
+			continue
+		}
+		if seen[r.Reason] {
+			t.Errorf("%q reuses the reason %q, so two faults read alike", text, r.Reason)
+		}
+		seen[r.Reason] = true
+	}
+}
+
+// TestReconcileStepWillNotPointTheReviewOutOfTheTree guards what a scout can send
+// the review to open.
+//
+// The review is told to check each claim against the diff, which means reading
+// what the claim names, in a sandbox holding a live credential. A file field is
+// model output about attacker-influenceable input, so a path leaving the tree is
+// rendered as text rather than as somewhere to go.
+func TestReconcileStepWillNotPointTheReviewOutOfTheTree(t *testing.T) {
+	t.Parallel()
+
+	for _, escape := range []string{
+		"/etc/passwd", "~/.config/gh/hosts.yml", "../../.git/config", "a/../../../etc/shadow",
+	} {
+		req := Request{Repo: "r/n", PR: 1, Scouts: []ScoutResult{{
+			Name:     "codex",
+			Findings: []Finding{{File: escape, Line: 1, Severity: "high", Detail: "look here"}},
+		}}}
+		rendered := strings.Join(reconcileStep(req), "\n")
+		if strings.Contains(rendered, escape) {
+			t.Errorf("%q is rendered as a location the review is told to open", escape)
+		}
+		if !strings.Contains(rendered, "no place in this tree") {
+			t.Errorf("%q is dropped silently rather than shown as unplaceable", escape)
+		}
+	}
+
+	// A real path still renders as one.
+	ok := Request{Repo: "r/n", PR: 1, Scouts: []ScoutResult{{
+		Name: "codex", Findings: []Finding{{File: "p2p/router.go", Line: 174, Severity: "low", Detail: "x"}},
+	}}}
+	if !strings.Contains(strings.Join(reconcileStep(ok), "\n"), "p2p/router.go:174") {
+		t.Error("an in-tree path is not rendered as a location")
 	}
 }

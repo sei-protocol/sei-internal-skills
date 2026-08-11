@@ -284,11 +284,6 @@ func (d *Driver) classify(ctx context.Context, result Result, err error) Result 
 	return result
 }
 
-// resolveAgent turns the configured agent name into its id.
-//
-// There is no lookup-by-name route, so this pages the listing until the name
-// matches. It pages rather than reading one page because the deployment's agent
-// count is not this driver's to assume.
 // agentNameFor returns the agent this workload runs on: the one it names when it
 // names one, and the run's configured default otherwise. See [AgentNamer].
 func (d *Driver) agentNameFor(w Workload) string {
@@ -300,6 +295,8 @@ func (d *Driver) agentNameFor(w Workload) string {
 	return d.cfg.Agent
 }
 
+// resolveAgent turns an agent name into the id the server knows it by, paging
+// the listing until the name matches.
 func (d *Driver) resolveAgent(
 	ctx context.Context, client *omnigent.Client, name string,
 ) (string, error) {
