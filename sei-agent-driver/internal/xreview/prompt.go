@@ -48,6 +48,17 @@ func treePath(req Request) string { return fmt.Sprintf("pr-%d-tree", req.PR) }
 // the checkout the repository's other review tooling uses. Depth 1 for the same
 // reason — this reads the tree, never its history.
 //
+// The merge ref does not always exist. GitHub computes it lazily, and a pull
+// request with conflicts has none at all — so the fetch falls back to the head.
+// Both fetches failing must not reach a checkout: FETCH_HEAD would still hold
+// whatever the last dispatch left. The tree is then removed rather than left
+// behind, which is what makes the failure nameable. Asking the agent to check the
+// commit instead does not work — when both fetches fail nothing is printed to
+// check, and a tree still at an earlier dispatch's merge of this same pull request
+// truthfully answers "yes, that is this pull request's". Deleted, the tree is
+// either current or absent, and absent is the one case both prompts already
+// cover.
+//
 // The clone is guarded because these run on a session that outlives its run. A
 // second dispatch finds the tree already there, and an unguarded clone fails on
 // the existing directory — which the prompt reads as "no tree", so every review
@@ -60,8 +71,11 @@ func cloneCommands(req Request) []string {
 	return []string{
 		fmt.Sprintf("[ -d %s ] || git clone --depth=1 --no-tags --quiet https://github.com/%s %s",
 			tree, req.Repo, tree),
-		fmt.Sprintf("git -C %s fetch --depth=1 --quiet origin refs/pull/%d/merge && git -C %s checkout --quiet FETCH_HEAD",
-			tree, req.PR, tree),
+		fmt.Sprintf("{ git -C %s fetch --depth=1 --quiet origin refs/pull/%d/merge "+
+			"|| git -C %s fetch --depth=1 --quiet origin refs/pull/%d/head; } "+
+			"&& git -C %s checkout --quiet FETCH_HEAD && git -C %s log -1 --format=%%H "+
+			"|| rm -rf %s",
+			tree, req.PR, tree, req.PR, tree, tree, tree),
 	}
 }
 
@@ -209,8 +223,14 @@ func BuildPrompt(req Request) string {
 		"",
 		fmt.Sprintf("Read the changed files around each hunk under %s, and what they call",
 			treePath(req)),
-		"into. If the clone fails, say so in your summary and review from the diff",
-		"alone — a diff-only review is worth publishing; a silent one is not.",
+		"into. The commands print the commit they reached, and delete the tree if they",
+		"cannot bring it to this pull request — a merge ref is absent while GitHub is",
+		"still computing one, and for a pull request that conflicts.",
+		"",
+		fmt.Sprintf("So %s is either current or gone. If it is not there, say so in your",
+			treePath(req)),
+		"summary and review from the diff alone — a diff-only review is worth",
+		"publishing; one that silently read the wrong tree is not.",
 		"",
 		"If either read fails, make that your first line and set the decision to",
 		"comment. Do not review from the title, the description or a list of file",
@@ -314,6 +334,15 @@ func AdoptedPrompt(req Request) string {
 		"    " + fetchDiffCommand(req),
 		"",
 		"    " + strings.Join(cloneCommands(req), "\n    "),
+		"",
+		"The commands print the commit you are reading, and delete the tree if they",
+		"cannot bring it to this pull request's current state. A tree left at an earlier",
+		"dispatch's checkout is worse than none, so there is never one to mistake for",
+		"current.",
+		"",
+		fmt.Sprintf("If %s is not there after they run, review from the diff alone and",
+			treePath(req)),
+		"say so, exactly as on your first review.",
 		"",
 		"Review the current state against the same checklist, and report under the same",
 		"headings, as your first review in this session.",
