@@ -1,7 +1,7 @@
 ---
 name: research
 category: investigation
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when a research question needs a durable, verified, lineage-threaded answer — 'research X', 'do a deep dive on Y', 'survey the options for Z', 'investigate the state of the art on W', 'gather evidence on whether ...', '/research'. Runs a scoped, multi-modal sweep, adversarially verifies each finding, runs a completeness pass, and captures a research artifact threaded to issues/bets. Anti-triggers: NOT incident/bug root-causing in the Sei platform stack (use /root-cause); NOT capturing a design decision (use /design — research discovers, design decides); NOT a quick one-off lookup that needs no durable artifact (just answer); NOT launching a workstream (a research effort may be checkpoint-gated by /workstream but never launches one). Reuses /xreview's assigned-dissent primitive for finding-refutation; composes /design-style capture + /execution-plan lineage."
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: design
 category: workstream-bootstrap
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when a coral/council session, an issue pickup, or a standalone authoring pass produces a design (LLD, architecture sketch, system-tier decision) that should land as a durable markdown doc — 'design this', 'capture this design', 'write up the design', 'design doc for issue #X', 'design doc for ENG-123', 'turn this into a design', '/design'. Seeds from a source issue on GitHub (`--issue 14`) or Linear (`--issue ENG-123`) and threads bidirectional lineage. Companion to /issue — captures the design while /issue captures the next workstream. Anti-triggers: NOT for filing a new issue (use /issue); NOT for code review write-ups; NOT for postmortems; NOT for cross-reviewing a design (coral/council do that BEFORE /design captures); NOT for maintaining the doc's status over time (status transitions are manual edits)."
 ---
 

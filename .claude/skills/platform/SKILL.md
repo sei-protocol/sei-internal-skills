@@ -1,7 +1,7 @@
 ---
 name: platform
 category: platform-infra
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when designing or reviewing platform/infra artifacts — Kustomize manifests, Flux GitOps, EKS cloud-auth, secrets, Pod Security, terraform cell provisioning — especially the Sei platform fleet: '/platform', 'review this manifest', 'is this GitOps-reconcilable', 'how should this secret be handled', 'wire cloud identity for X', 'design the cell overlay'. A citable corpus (OpenGitOps, Kustomize, Pod Security Standards, EKS, NSA/CISA hardening) + an always-first Sei-platform profile (Flux GitOps, two-layer Kustomize, EKS Pod Identity, SOPS + per-cell KMS, PSS + CEL VAP, Cilium/VPC-CNI) + pluggable kits. Backs the platform-engineer agent. NOT controller/CRD code (/kubernetes); NOT right-sizing/Karpenter/HPA (k8s-capacity-management); NOT telemetry-stack values/PromQL (observability agents); NOT node P2P/RPC (sei-network-specialist); NOT SLO/alerts/runbooks (sre-engineer). Designs/reviews the platform; doesn't operate it."
 ---
 

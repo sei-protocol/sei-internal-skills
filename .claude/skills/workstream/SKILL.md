@@ -1,7 +1,7 @@
 ---
 name: workstream
 category: workflow
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when launching a substantial multi-step workstream on the Coral stack with declared gates — 'launch a workstream', 'kick off this goal with checkpoints', 'start a workstream with a PR sign-off gate', '/workstream'. Scaffolds the Coral lifecycle (council → xreview → /design → /issue → /execution-plan) and declares three gate kinds: human **checkpoints** (surface + confirm before proceeding), signal **guards** (fail-closed metric gates watching a live signal during a cutover), and **review-gates** (merge-on-consensus — satisfied when the /xreview slate is unanimous and declared checks pass, e.g. 'merge once no agents have concerns and bugbot is clean'). Anti-triggers: NOT the Claude Code /goal harness command (that sets the objective; this governs how it's pursued); NOT a single 1–2 specialist slice (use /coral); NOT scope-tiered design alone (use /council); NOT capturing a finished design (use /design). Composes council/xreview/design/issue/execution-plan/lingua; never edits them."
 ---
 

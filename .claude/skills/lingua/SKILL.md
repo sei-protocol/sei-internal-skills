@@ -1,7 +1,7 @@
 ---
 name: lingua
 category: writing-quality
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when translating an org artifact (design doc, HLD, PRD, 1-pager) so it reads correctly for BOTH audiences — the human reviewer and the consuming AI agent — '/lingua <doc>', 'translate this doc for both audiences', 'make this read well for humans and agents', 'dual-audience pass', 'agent-readable rewrite'. Anti-triggers: NOT for code idiom (use /idiomatic); NOT for correctness/logic review (use /code-review); NOT for the PRFAQ vertical lifecycle — authoring/reviewing/verdicting a PRFAQ (use /prfaq; /lingua may translate a PRFAQ's prose on request but defers thesis/voice/falsification to /prfaq); NOT for scope cutting (product-manager); NOT for systems-level quality (use /systems); NOT for tightening PR bodies/comments (use /brevity). Review-as-a-lens is the prose-steward agent's surface (PLT-480), which applies this doctrine."
 ---
 

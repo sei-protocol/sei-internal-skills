@@ -1,7 +1,7 @@
 ---
 name: kubernetes
 category: platform-infra
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when designing or reviewing Kubernetes operator/controller code — CRDs, reconcilers, controller-runtime/kubebuilder, child-resource lifecycle, status/conditions — especially in sei-k8s-controller: '/kubernetes', 'design this CRD', 'review this reconciler', 'is this reconcile idempotent', 'will this status patch race'. A citable corpus (K8s API conventions, controller-runtime, CRD versioning) + an always-first Sei-controller profile (plan-driven reconcile, optimistic-lock status, always-present conditions, CEL immutability one-way-doors) + pluggable kits. Backs the kubernetes-specialist agent. NOT general Go idiom (/idiomatic); NOT right-sizing/Karpenter/HPA/scheduling (k8s-capacity-management); NOT manifests/Kustomize/GitOps/cloud-auth (/platform); NOT telemetry-stack/PromQL (observability agents); NOT Sei node P2P/RPC (sei-network-specialist). Designs/reviews the controller; doesn't run the cluster."
 ---
 

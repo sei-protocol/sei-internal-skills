@@ -1,7 +1,7 @@
 ---
 name: data-mesh
 category: data-architecture
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when designing or reviewing data architecture — domain decomposition, data products & contracts, federated governance, self-serve data platforms, data quality/observability — especially federated, verifiable data sharing across organizations: '/data-mesh', 'is a data mesh right for us', 'design this data product/contract', 'design cross-org data governance', 'review this data architecture'. A citable corpus (Dehghani's four principles, ODCS contracts, OpenLineage, the observability pillars) + an always-first profile encoding the cross-org / no-trusted-operator use-case (verifiable data products, federated computational governance, provenance-as-circuit-breaker, claim-class quality) + pluggable kits. Backs the data-platform-architect agent. NOT product→architecture (product-engineer); NOT the infra it runs on (platform-engineer); NOT the telemetry stack (observability agents); NOT building the gating/bonding contracts (solidity-developer). Designs the data architecture; doesn't run the platform."
 ---
 
