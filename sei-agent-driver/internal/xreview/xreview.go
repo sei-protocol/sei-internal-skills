@@ -23,7 +23,55 @@ type Request struct {
 	// Trigger distinguishes this dispatch from another for the same pull
 	// request. See [TriggerID].
 	Trigger string
+
+	// Scouts is what the independent readings returned, in dispatch order. Empty
+	// runs the review alone, which is the only mode before any scout is
+	// configured.
+	Scouts []ScoutResult
 }
+
+// maxScoutDetail bounds one rendered finding. A scout's detail is unbounded model
+// output, and several verbose scouts would otherwise crowd the diff out of the
+// review's context — the one thing it must not lose.
+const (
+	maxScoutDetail = 500
+
+	// maxScoutField bounds the short fields. They are model output too, and a
+	// bound on the detail alone leaves the same door open one column to the left.
+	maxScoutField = 120
+
+	// maxScoutFindings bounds how many of one scout's findings are rendered. The
+	// count is reported in full, so a truncated list reads as truncated rather
+	// than as all a scout had.
+	maxScoutFindings = 25
+)
+
+// ScoutResult is one scout's contribution, as the orchestrator observed it.
+//
+// The orchestrator builds this, not the scout: Name is the identity the scout was
+// dispatched under, so attribution cannot be forged by anything the scout — or
+// anything the scout read — put in its reply. A reading that arrives claiming to
+// be from somewhere else is still recorded here as what it actually is.
+type ScoutResult struct {
+	// Name identifies the scout, e.g. "codex".
+	Name string
+
+	// Findings is what it reported. Empty with Note unset means it read the diff
+	// and found nothing, which is an answer.
+	Findings []Finding
+
+	// Note records why this scout contributed nothing, and is empty when it
+	// contributed normally.
+	//
+	// It exists so the review can tell a scout that found nothing from one that
+	// never ran. Collapsing those is how a fleet-wide credential failure reads as
+	// a clean bill of health on every pull request at once.
+	Note string
+}
+
+// Failed reports whether this scout contributed nothing because something went
+// wrong, as opposed to finding nothing.
+func (s ScoutResult) Failed() bool { return s.Note != "" }
 
 // Review is the review workload for one pull request.
 type Review struct {
