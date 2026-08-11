@@ -49,8 +49,7 @@ guardrails:
     # rather than instructed. The prompt says never push; this gates it.
     blast_radius:
       type: function
-      true:
-        - tool_call
+      on: [tool_call]
       function:
         path: omnigent.inner.nessie.policies.blast_radius
         arguments:
