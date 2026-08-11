@@ -51,9 +51,13 @@ func treePath(req Request) string { return fmt.Sprintf("pr-%d-tree", req.PR) }
 // The merge ref does not always exist. GitHub computes it lazily, and a pull
 // request with conflicts has none at all — so the fetch falls back to the head.
 // Both fetches failing must not reach a checkout: FETCH_HEAD would still hold
-// whatever the last dispatch left, and the review would read a stale tree while
-// believing it read this one. The final command prints the commit reached so the
-// agent can check it against the pull request rather than assume.
+// whatever the last dispatch left. The tree is then removed rather than left
+// behind, which is what makes the failure nameable. Asking the agent to check the
+// commit instead does not work — when both fetches fail nothing is printed to
+// check, and a tree still at an earlier dispatch's merge of this same pull request
+// truthfully answers "yes, that is this pull request's". Deleted, the tree is
+// either current or absent, and absent is the one case both prompts already
+// cover.
 //
 // The clone is guarded because these run on a session that outlives its run. A
 // second dispatch finds the tree already there, and an unguarded clone fails on
@@ -69,8 +73,9 @@ func cloneCommands(req Request) []string {
 			tree, req.Repo, tree),
 		fmt.Sprintf("{ git -C %s fetch --depth=1 --quiet origin refs/pull/%d/merge "+
 			"|| git -C %s fetch --depth=1 --quiet origin refs/pull/%d/head; } "+
-			"&& git -C %s checkout --quiet FETCH_HEAD && git -C %s log -1 --format=%%H",
-			tree, req.PR, tree, req.PR, tree, tree),
+			"&& git -C %s checkout --quiet FETCH_HEAD && git -C %s log -1 --format=%%H "+
+			"|| rm -rf %s",
+			tree, req.PR, tree, req.PR, tree, tree, tree),
 	}
 }
 
@@ -218,11 +223,12 @@ func BuildPrompt(req Request) string {
 		"",
 		fmt.Sprintf("Read the changed files around each hunk under %s, and what they call",
 			treePath(req)),
-		"into. The last command prints the commit it reached: check that it is this",
-		"pull request's, because a merge ref is absent while GitHub is still computing",
-		"one and for a pull request that conflicts.",
+		"into. The commands print the commit they reached, and delete the tree if they",
+		"cannot bring it to this pull request — a merge ref is absent while GitHub is",
+		"still computing one, and for a pull request that conflicts.",
 		"",
-		"If any of it fails, or the commit is not this pull request's, say so in your",
+		fmt.Sprintf("So %s is either current or gone. If it is not there, say so in your",
+			treePath(req)),
 		"summary and review from the diff alone — a diff-only review is worth",
 		"publishing; one that silently read the wrong tree is not.",
 		"",
@@ -329,10 +335,14 @@ func AdoptedPrompt(req Request) string {
 		"",
 		"    " + strings.Join(cloneCommands(req), "\n    "),
 		"",
-		"The last command prints the commit you are reading. Check it is this pull",
-		"request's: the merge ref is absent while GitHub computes one and for a pull",
-		"request that conflicts, and a tree left on an earlier dispatch's checkout is",
-		"worse than no tree at all. If it is not, review from the diff alone and say so.",
+		"The commands print the commit you are reading, and delete the tree if they",
+		"cannot bring it to this pull request's current state. A tree left at an earlier",
+		"dispatch's checkout is worse than none, so there is never one to mistake for",
+		"current.",
+		"",
+		fmt.Sprintf("If %s is not there after they run, review from the diff alone and",
+			treePath(req)),
+		"say so, exactly as on your first review.",
 		"",
 		"Review the current state against the same checklist, and report under the same",
 		"headings, as your first review in this session.",

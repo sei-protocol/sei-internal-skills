@@ -118,7 +118,8 @@ func TestReviewPromptsCloneWithTheSandboxsOwnCredential(t *testing.T) {
 	// tooling checks out.
 	wantCheckout := "{ git -C pr-3861-tree fetch --depth=1 --quiet origin refs/pull/3861/merge " +
 		"|| git -C pr-3861-tree fetch --depth=1 --quiet origin refs/pull/3861/head; } " +
-		"&& git -C pr-3861-tree checkout --quiet FETCH_HEAD && git -C pr-3861-tree log -1 --format=%H"
+		"&& git -C pr-3861-tree checkout --quiet FETCH_HEAD && git -C pr-3861-tree log -1 --format=%H " +
+		"|| rm -rf pr-3861-tree"
 
 	for _, p := range []struct {
 		name string
@@ -188,6 +189,19 @@ func TestPromptsSurviveAMissingMergeRef(t *testing.T) {
 		if !strings.Contains(p.text, "review from the diff") {
 			t.Errorf("%s does not say to fall back to the diff, so a wrong tree is reviewed "+
 				"as if it were the right one", p.name)
+		}
+		// The failure state has to be one the instruction can name. A tree that
+		// cannot be updated is deleted, so both prompts key on its absence — asking
+		// the agent to judge the commit fails twice over: nothing is printed when
+		// both fetches fail, and a tree at an earlier dispatch's merge of this same
+		// pull request truthfully is this pull request's commit.
+		if !strings.Contains(p.text, "|| rm -rf pr-3861-tree") {
+			t.Errorf("%s leaves a tree it could not update, which reads as current", p.name)
+		}
+		if !strings.Contains(p.text, "pr-3861-tree is either current or gone") &&
+			!strings.Contains(p.text, "pr-3861-tree is not there after they run") {
+			t.Errorf("%s does not tell the agent what an absent tree means, so the one "+
+				"unambiguous failure signal goes unread", p.name)
 		}
 	}
 }
