@@ -53,6 +53,24 @@ RUN python3 -m venv /opt/specify \
 COPY .claude /opt/sei/claude-overlay
 RUN chmod -R a+rX /opt/sei/claude-overlay
 
+# Claude Code's admin policy, read from this path ahead of user settings and not
+# overridable by `--settings`.
+#
+# It is not part of the overlay above, and that is the point: the overlay is seeded
+# into $HOME, which is an agent-writable emptyDir, so a permission file placed there
+# is one its own subject can rewrite. /etc is outside every mount and owned by root,
+# so this lands on every runner and the runtime uid cannot edit it.
+#
+# Every listed tool runs without raising a permission request. A request from a
+# sandbox reaches no human: omnigent's PermissionRequest hook long-polls for a day
+# holding a half-hour credential, so one unanswered request wedges the session for
+# the rest of its life. Anything unlisted still asks, and still carries that risk —
+# the list is deliberately wide enough to cover what a review does rather than
+# minimal. scripts/agent-permissions.json holds the narrower per-command patterns
+# this should converge on.
+COPY scripts/managed-settings.json /etc/claude-code/managed-settings.json
+RUN chmod 0444 /etc/claude-code/managed-settings.json
+
 # Seed $HOME/.claude from the staged overlay at login-shell start.
 #
 # Four properties this has to hold, each asserted in verify-runner-image.yml:
