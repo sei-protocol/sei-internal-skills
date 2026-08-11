@@ -33,6 +33,24 @@ type Workload interface {
 	Complete(text string) bool
 }
 
+// AgentNamer is an optional [Workload] capability: work that names the agent it
+// must run on rather than taking the run's configured default.
+//
+// Optional because a run usually has one agent and every workload wants it. It
+// exists for work composed of several asks that must not share a conversation —
+// a review that gathers independent opinions before merging them needs each
+// opinion from a different agent, since the agent is what fixes the harness, and
+// an opinion from the same harness as the one merging them is not independent.
+//
+// The name is the bundle's, not the server-assigned id, and it is resolved the
+// same way the configured default is. A name the server does not know fails the
+// run: falling back would answer on the default harness, which looks like a
+// working run and reads like corroboration the work never got. An empty string
+// means no preference and takes the default.
+type AgentNamer interface {
+	AgentName() string
+}
+
 // Cloner is an optional [Workload] capability: work whose agent needs a
 // repository cloned into its sandbox before it can read anything.
 //

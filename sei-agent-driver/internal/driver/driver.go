@@ -202,11 +202,12 @@ func (d *Driver) review(
 ) Result {
 	result := Result{ExitCode: ExitOK, TeardownOK: true}
 
-	agentID, err := d.resolveAgent(ctx, client)
+	agentName := d.agentNameFor(w)
+	agentID, err := d.resolveAgent(ctx, client, agentName)
 	if err != nil {
 		return d.classify(ctx, result, err)
 	}
-	d.log.Info("resolved agent", "agent", d.cfg.Agent, "agent_id", agentID)
+	d.log.Info("resolved agent", "agent", agentName, "agent_id", agentID)
 
 	session, adopted, err := d.createOrAdopt(ctx, client, agentID, runKey, w)
 	if err != nil {
@@ -288,7 +289,20 @@ func (d *Driver) classify(ctx context.Context, result Result, err error) Result 
 // There is no lookup-by-name route, so this pages the listing until the name
 // matches. It pages rather than reading one page because the deployment's agent
 // count is not this driver's to assume.
-func (d *Driver) resolveAgent(ctx context.Context, client *omnigent.Client) (string, error) {
+// agentNameFor returns the agent this workload runs on: the one it names when it
+// names one, and the run's configured default otherwise. See [AgentNamer].
+func (d *Driver) agentNameFor(w Workload) string {
+	if a, ok := w.(AgentNamer); ok {
+		if name := a.AgentName(); name != "" {
+			return name
+		}
+	}
+	return d.cfg.Agent
+}
+
+func (d *Driver) resolveAgent(
+	ctx context.Context, client *omnigent.Client, name string,
+) (string, error) {
 	var opts omnigent.ListAgentsOptions
 	for {
 		page, err := client.ListAgents(ctx, opts)
@@ -296,13 +310,13 @@ func (d *Driver) resolveAgent(ctx context.Context, client *omnigent.Client) (str
 			return "", err
 		}
 		for _, agent := range page.Data {
-			if agent.Name == d.cfg.Agent {
+			if agent.Name == name {
 				return agent.ID, nil
 			}
 		}
 		if !page.HasMore || len(page.Data) == 0 {
 			return "", fmt.Errorf("%w: no agent named %q on this server",
-				ErrConfig, d.cfg.Agent)
+				ErrConfig, name)
 		}
 		opts.After = page.LastID
 	}
@@ -501,7 +515,8 @@ func (d *Driver) DeleteSession(ctx context.Context, w Workload) (Result, error) 
 	if err != nil {
 		return d.classify(ctx, Result{ExitCode: ExitOK}, err), err
 	}
-	agentID, err := d.resolveAgent(ctx, client)
+	agentName := d.agentNameFor(w)
+	agentID, err := d.resolveAgent(ctx, client, agentName)
 	if err != nil {
 		return d.classify(ctx, Result{ExitCode: ExitOK}, err), err
 	}

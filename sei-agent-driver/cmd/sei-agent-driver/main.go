@@ -24,7 +24,9 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/xreview"
@@ -175,7 +177,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 			"hint", "set XREVIEW_ALLOW_POLICIES to the policy_name values this run logs")
 	}
 
-	work := xreview.New(xreview.Request{
+	req := xreview.Request{
 		Repo: repo,
 		PR:   pr,
 		Trigger: xreview.TriggerID(
@@ -184,7 +186,12 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 			os.Getenv("GITHUB_RUN_ATTEMPT"),
 			repo, pr,
 		),
-	})
+	}
+
+	specs, err := parseScouts(os.Getenv("XREVIEW_SCOUTS"))
+	if err != nil {
+		return &exitError{code: driver.ExitConfig, err: err}
+	}
 
 	d := driver.NewDriver(cfg, policy, log)
 
@@ -192,7 +199,17 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	// invocation builds on it; this is what finally destroys it, and with it the
 	// sandbox the Kubernetes launcher cannot otherwise reclaim.
 	if cmd.Bool("close") {
-		result, err := d.DeleteSession(ctx, work)
+		// The scouts hold sessions of their own, and nothing else reclaims them.
+		// Deleted first and best-effort: the review's session is the one whose
+		// failure the exit code must report, and a scout that cannot be found is
+		// already gone.
+		for _, spec := range specs {
+			if _, err := d.DeleteSession(ctx, xreview.NewScout(req, spec.name, spec.agent)); err != nil {
+				log.Warn("could not delete a scout session; its sandbox may be left running",
+					"scout", spec.name, "error", err)
+			}
+		}
+		result, err := d.DeleteSession(ctx, xreview.New(req))
 		if err != nil {
 			return &exitError{code: result.ExitCode, err: err}
 		}
@@ -206,7 +223,12 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 		return nil
 	}
 
-	result, err := d.Run(ctx, work)
+	// The readings are gathered before the review so they can ride in its prompt.
+	// Their budget is carved out of the run deadline; see [scoutShareNum].
+	req.Scouts = gatherScouts(ctx, d, req, specs,
+		cfg.RunDeadline*scoutShareNum/scoutShareDenom, log)
+
+	result, err := d.Run(ctx, xreview.New(req))
 	if err != nil {
 		return &exitError{code: result.ExitCode, err: err}
 	}
@@ -334,4 +356,139 @@ func parseTarget(args []string) (string, int, error) {
 			driver.ErrConfig, args[1])
 	}
 	return repo, pr, nil
+}
+
+// scoutShareNum over scoutShareDenom is how much of the run's deadline the scouts
+// may spend between them.
+//
+// They run in parallel, so this is wall-clock for all of them together rather than
+// each. The review keeps the rest, and keeping it is the point: [driver.Driver.Run]
+// applies the whole deadline per session, so an unbounded gather would let the
+// readings spend the budget and leave nothing to write the verdict with. A review
+// that heard from nobody still publishes; a run that never reaches the review
+// publishes nothing at all.
+const (
+	scoutShareNum   = 2
+	scoutShareDenom = 5
+)
+
+// scoutSpec is one configured scout: the name findings are attributed to, and the
+// agent bundle that fixes its harness.
+type scoutSpec struct {
+	name  string
+	agent string
+}
+
+// parseScouts reads the scout list, formatted "name=agent,name=agent".
+//
+// An empty value configures none, which is the solo review. A malformed entry is
+// an error rather than a skip: a typo that silently drops a reader would publish a
+// review that looks like it weighed opinions it never heard.
+func parseScouts(raw string) ([]scoutSpec, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+	var out []scoutSpec
+	seen := map[string]bool{}
+	for _, entry := range strings.Split(raw, ",") {
+		name, agent, ok := strings.Cut(strings.TrimSpace(entry), "=")
+		name, agent = strings.TrimSpace(name), strings.TrimSpace(agent)
+		if !ok || name == "" || agent == "" {
+			return nil, fmt.Errorf("scout %q is not name=agent", entry)
+		}
+		if seen[name] {
+			// Two scouts under one name would share a run key, so the second would
+			// adopt the first's session and report its findings back as its own.
+			return nil, fmt.Errorf("scout %q is configured twice", name)
+		}
+		seen[name] = true
+		out = append(out, scoutSpec{name: name, agent: agent})
+	}
+	return out, nil
+}
+
+// gatherScouts runs the scouts and returns what each contributed, in dispatch
+// order.
+//
+// A scout never fails the review. Every way one can go wrong — no such agent, no
+// credential for its harness, a turn that never ends — becomes a note on that
+// scout's result, and the review proceeds having heard from fewer readers. The
+// note matters as much as the findings: a reading that failed must not arrive
+// looking like a reading that found nothing, or an outage reads as a clean bill of
+// health on every pull request at once.
+//
+// Results are written to a slot each, so dispatch order survives without a lock
+// and the review sees the same order every run.
+func gatherScouts(
+	ctx context.Context,
+	d *driver.Driver,
+	req xreview.Request,
+	specs []scoutSpec,
+	budget time.Duration,
+	log *slog.Logger,
+) []xreview.ScoutResult {
+	if len(specs) == 0 {
+		return nil
+	}
+	log.Info("gathering independent readings", "scouts", len(specs), "budget", budget)
+
+	// Bounded here rather than left to the driver, which applies the whole run
+	// deadline per session.
+	ctx, cancel := context.WithTimeout(ctx, budget)
+	defer cancel()
+
+	out := make([]xreview.ScoutResult, len(specs))
+	var wg sync.WaitGroup
+	for i, spec := range specs {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			out[i] = runScout(ctx, d, req, spec, log)
+		}()
+	}
+	wg.Wait()
+
+	for _, r := range out {
+		if r.Failed() {
+			log.Warn("scout contributed nothing", "scout", r.Name, "note", r.Note)
+		} else {
+			log.Info("scout reported", "scout", r.Name, "findings", len(r.Findings))
+		}
+	}
+	return out
+}
+
+// runScout drives one scout and turns whatever happened into a result.
+func runScout(
+	ctx context.Context,
+	d *driver.Driver,
+	req xreview.Request,
+	spec scoutSpec,
+	log *slog.Logger,
+) xreview.ScoutResult {
+	res := xreview.ScoutResult{Name: spec.name}
+
+	result, err := d.Run(ctx, xreview.NewScout(req, spec.name, spec.agent))
+	switch {
+	case err != nil:
+		// The error text is the operator's diagnostic and reaches the review's
+		// prompt, so it is bounded and flattened where it is rendered.
+		res.Note = err.Error()
+		return res
+	case result.Reply == nil:
+		res.Note = "the session ended without an answer"
+		return res
+	}
+
+	report := xreview.ParseScoutReport(result.Reply.Text)
+	if !report.HasReport() {
+		// Reaching here means the turn ended but the reply carried no findings
+		// block, which the workload's Complete should have refused. Recorded
+		// rather than trusted.
+		res.Note = "the reply carried no findings block"
+		return res
+	}
+	res.Findings = report.Findings
+	return res
 }
