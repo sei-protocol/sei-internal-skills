@@ -111,7 +111,8 @@ func TestReviewPromptsCloneWithTheSandboxsOwnCredential(t *testing.T) {
 	t.Parallel()
 
 	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
-	wantClone := "gh repo clone sei-protocol/sei-chain pr-3861-tree -- --filter=blob:none --no-tags --quiet"
+	wantClone := "[ -d pr-3861-tree ] || gh repo clone sei-protocol/sei-chain pr-3861-tree " +
+		"-- --filter=blob:none --no-tags --quiet"
 	wantCheckout := "git -C pr-3861-tree fetch --quiet origin pull/3861/head && " +
 		"git -C pr-3861-tree checkout --quiet FETCH_HEAD"
 
@@ -129,6 +130,13 @@ func TestReviewPromptsCloneWithTheSandboxsOwnCredential(t *testing.T) {
 		if !strings.Contains(p.text, wantCheckout) {
 			t.Errorf("%s clones without checking out the pull request head, so the tree is "+
 				"the base branch and the review reads code the diff did not change", p.name)
+		}
+		// The session outlives the run, so every dispatch after the first finds the
+		// tree already there. An unguarded clone fails on it, and the prompt reads
+		// that as no tree — so the review silently drops to the diff alone forever.
+		if !strings.Contains(p.text, "[ -d pr-3861-tree ] ||") {
+			t.Errorf("%s clones unguarded, so it fails on a tree an earlier dispatch "+
+				"left behind and every later review is diff-only", p.name)
 		}
 	}
 

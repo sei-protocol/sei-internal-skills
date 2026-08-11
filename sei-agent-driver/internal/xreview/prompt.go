@@ -47,11 +47,18 @@ func treePath(req Request) string { return fmt.Sprintf("pr-%d-tree", req.PR) }
 // Blobless rather than shallow: the review reads files around each hunk, which a
 // depth-limited clone can refuse, while a blobless one fetches them on demand and
 // still skips the history this never walks.
+//
+// The clone is guarded because these run on a session that outlives its run. A
+// second dispatch finds the tree already there, and an unguarded clone fails on
+// the existing directory — which the prompt reads as "no tree", so every review
+// after the first would silently drop back to the diff alone. Fetch and checkout
+// are unguarded on purpose: they are what moves an existing tree to the head
+// under review, and they are also correct on one just cloned.
 func cloneCommands(req Request) []string {
 	tree := treePath(req)
 	return []string{
-		fmt.Sprintf("gh repo clone %s %s -- --filter=blob:none --no-tags --quiet",
-			req.Repo, tree),
+		fmt.Sprintf("[ -d %s ] || gh repo clone %s %s -- --filter=blob:none --no-tags --quiet",
+			tree, req.Repo, tree),
 		fmt.Sprintf("git -C %s fetch --quiet origin pull/%d/head && git -C %s checkout --quiet FETCH_HEAD",
 			tree, req.PR, tree),
 	}
