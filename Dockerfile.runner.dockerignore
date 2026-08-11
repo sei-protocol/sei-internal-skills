@@ -1,9 +1,10 @@
-# Build context is exactly the part of `.claude` a runner needs. Exclude
-# everything, then re-include only that, so the context stays small and a new
-# top-level directory in the repo cannot silently enlarge the image.
+# Build context is exactly what a runner needs: the `.claude` overlay and the admin
+# policy. Exclude everything, then re-include only those, so the context stays small
+# and a new top-level directory in the repo cannot silently enlarge the image.
 *
 !.claude/agents
 !.claude/skills
+!scripts/managed-settings.json
 
 # Per-skill scratch state is gitignored; keep it out of the image layer too.
 .claude/skills/*/state
@@ -16,7 +17,7 @@
 # allowances — an allow-list its subject can edit provides no assurance. Omitting it
 # pre-approves nothing and is therefore the safer default.
 #
-# Enforcing it for real needs a root-owned path outside the emptyDir that claude-code
-# honours ahead of user settings. That is a separate change and wants the path
-# verified rather than assumed.
+# The enforced list ships instead as scripts/managed-settings.json, copied to
+# /etc/claude-code/managed-settings.json — root-owned, outside every mount, and read
+# ahead of user settings.
 .claude/settings.json

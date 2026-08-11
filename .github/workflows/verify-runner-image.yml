@@ -21,6 +21,7 @@ on:
       - 'Dockerfile.runner.dockerignore'
       - 'runner-base.txt'
       - '.claude/**'
+      - 'scripts/managed-settings.json'
       - '.github/workflows/verify-runner-image.yml'
   workflow_dispatch:
 
@@ -90,7 +91,16 @@ jobs:
               command -v specify >/dev/null || { echo "FAIL: specify CLI absent (sei-spec cannot scaffold .specify/)"; exit 1; }
               # settings.json is deliberately not shipped; see the dockerignore.
               ! test -e "$HOME/.claude/settings.json" || { echo "FAIL: settings.json was seeded into a writable HOME"; exit 1; }
-              echo "overlay-ok agents=$n skills=$(ls -d "$HOME/.claude/skills"/*/ | wc -l) specify=$(specify --version 2>&1 | head -1)"
+              # The admin policy, asserted on the three properties it rests on:
+              # present on every runner, unwritable by the uid it governs, and
+              # parseable — a malformed file disables the policy silently, and an
+              # unlisted tool then asks a question no one in a sandbox can answer.
+              P=/etc/claude-code/managed-settings.json
+              test -f "$P" || { echo "FAIL: $P absent (a headless permission request wedges the session)"; exit 1; }
+              ! test -w "$P" || { echo "FAIL: $P is writable by the agent uid it governs"; exit 1; }
+              python3 -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d[\"permissions\"][\"allow\"] else 1)" "$P" \
+                || { echo "FAIL: $P is not valid JSON carrying a non-empty permissions.allow"; exit 1; }
+              echo "overlay-ok agents=$n skills=$(ls -d "$HOME/.claude/skills"/*/ | wc -l) specify=$(specify --version 2>&1 | head -1) policy=ok"
             '
 
       - name: A failed copy withholds the marker instead of latching a half-seed
