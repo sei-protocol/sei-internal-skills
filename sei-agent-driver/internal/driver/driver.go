@@ -129,7 +129,7 @@ func (d *Driver) newClient(ctx context.Context) (*omnigent.Client, error) {
 		token = minted
 	}
 
-	httpClient, err := healthCheckedClient()
+	httpClient, err := healthCheckedClient(d.log)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +158,7 @@ func (d *Driver) newClient(ctx context.Context) (*omnigent.Client, error) {
 // request dials a new one. The idle bound sits above the server's 15-second stream
 // heartbeat, so a healthy stream resets the timer and pings only when frames have
 // genuinely stopped.
-func healthCheckedClient() (*http.Client, error) {
+func healthCheckedClient(log *slog.Logger) (*http.Client, error) {
 	transport := http.DefaultTransport.(*http.Transport).Clone()
 
 	// The header bound is the only timeout a streaming request can carry, since a
@@ -172,7 +172,7 @@ func healthCheckedClient() (*http.Client, error) {
 	h2.ReadIdleTimeout = http2ReadIdleTimeout
 	h2.PingTimeout = http2PingTimeout
 
-	return &http.Client{Transport: transport}, nil
+	return &http.Client{Transport: &tracingTransport{base: transport, log: log}}, nil
 }
 
 // review is the body of a run, after the client is built. It tears nothing down;

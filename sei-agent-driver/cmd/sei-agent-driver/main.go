@@ -56,10 +56,23 @@ func resolvedVersion() string {
 	return version
 }
 
+// logLevel reads XREVIEW_LOG_LEVEL, defaulting to info.
+//
+// Debug carries a line per HTTP request with the connection it used and how long it
+// had been idle. That is noise on a healthy run and the whole diagnosis on a run
+// whose connection died, so it is a knob rather than a rebuild.
+func logLevel() slog.Level {
+	var level slog.Level
+	if err := level.UnmarshalText([]byte(os.Getenv("XREVIEW_LOG_LEVEL"))); err != nil {
+		return slog.LevelInfo
+	}
+	return level
+}
+
 func main() {
 	// Logs go to stderr so stdout carries only the verdict payload and a caller
 	// can consume one without parsing around the other.
-	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelInfo}))
+	log := slog.New(slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{Level: logLevel()}))
 
 	cmd := &cli.Command{
 		Name:    "sei-agent-driver",

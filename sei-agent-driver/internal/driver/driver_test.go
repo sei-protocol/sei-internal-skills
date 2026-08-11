@@ -1812,13 +1812,17 @@ func TestClassifyTellsARequestTimeoutFromTheRunDeadline(t *testing.T) {
 func TestHealthCheckedClientPingsAnIdleConnection(t *testing.T) {
 	t.Parallel()
 
-	client, err := healthCheckedClient()
+	client, err := healthCheckedClient(driverTestLogger())
 	if err != nil {
 		t.Fatalf("healthCheckedClient: %v", err)
 	}
-	transport, ok := client.Transport.(*http.Transport)
+	traced, ok := client.Transport.(*tracingTransport)
 	if !ok {
-		t.Fatalf("Transport = %T, want *http.Transport", client.Transport)
+		t.Fatalf("Transport = %T, want *tracingTransport", client.Transport)
+	}
+	transport, ok := traced.base.(*http.Transport)
+	if !ok {
+		t.Fatalf("base = %T, want *http.Transport", traced.base)
 	}
 	if transport.ResponseHeaderTimeout != defaultResponseHeaderTimeout {
 		t.Errorf("ResponseHeaderTimeout = %v, want %v",
