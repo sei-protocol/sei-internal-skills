@@ -116,8 +116,9 @@ func TestReviewPromptsCloneWithTheSandboxsOwnCredential(t *testing.T) {
 	// The merge ref, not the head: the tree that results from merging is what the
 	// reviewer is deciding about, and it is the ref this repo's other review
 	// tooling checks out.
-	wantCheckout := "git -C pr-3861-tree fetch --depth=1 --quiet origin refs/pull/3861/merge && " +
-		"git -C pr-3861-tree checkout --quiet FETCH_HEAD"
+	wantCheckout := "{ git -C pr-3861-tree fetch --depth=1 --quiet origin refs/pull/3861/merge " +
+		"|| git -C pr-3861-tree fetch --depth=1 --quiet origin refs/pull/3861/head; } " +
+		"&& git -C pr-3861-tree checkout --quiet FETCH_HEAD && git -C pr-3861-tree log -1 --format=%H"
 
 	for _, p := range []struct {
 		name string
@@ -148,6 +149,45 @@ func TestReviewPromptsCloneWithTheSandboxsOwnCredential(t *testing.T) {
 		if strings.Contains(BuildPrompt(req), leak) {
 			t.Errorf("the prompt carries %q; the sandbox clones with its own mounted "+
 				"credential and must be handed none", leak)
+		}
+	}
+}
+
+// TestPromptsSurviveAMissingMergeRef guards the two ways a checkout goes wrong
+// quietly.
+//
+// GitHub computes the merge ref lazily and a conflicting pull request has none, so
+// the fetch fails on pull requests that are otherwise perfectly reviewable. The
+// fallback keeps those reviewable at the head. The grouping is the other half: if
+// both fetches fail, a checkout must not run, because FETCH_HEAD still holds
+// whatever the last dispatch left and the review would read that tree believing it
+// read this one.
+func TestPromptsSurviveAMissingMergeRef(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
+	for _, p := range []struct{ name, text string }{
+		{"BuildPrompt", BuildPrompt(req)},
+		{"AdoptedPrompt", AdoptedPrompt(req)},
+	} {
+		if !strings.Contains(p.text, "|| git -C pr-3861-tree fetch --depth=1 --quiet origin refs/pull/3861/head") {
+			t.Errorf("%s has no fallback to the head, so a conflicting pull request — which "+
+				"has no merge ref — gets no tree at all", p.name)
+		}
+		// Grouped, so a checkout cannot run when both fetches failed.
+		if !strings.Contains(p.text, "; } && git -C pr-3861-tree checkout") {
+			t.Errorf("%s can reach the checkout with both fetches failed, so FETCH_HEAD is "+
+				"the previous dispatch's and the review reads a stale tree", p.name)
+		}
+		if !strings.Contains(p.text, "log -1 --format=%H") {
+			t.Errorf("%s never prints the commit reached, so the agent cannot tell whether "+
+				"the tree is this pull request's", p.name)
+		}
+		// Both prompts must say what to do when it is wrong; AdoptedPrompt had no
+		// such guidance at all, which is the path a stale tree survives on.
+		if !strings.Contains(p.text, "review from the diff") {
+			t.Errorf("%s does not say to fall back to the diff, so a wrong tree is reviewed "+
+				"as if it were the right one", p.name)
 		}
 	}
 }
