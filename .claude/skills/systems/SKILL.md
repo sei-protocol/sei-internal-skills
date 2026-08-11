@@ -1,7 +1,7 @@
 ---
 name: systems
 category: code-quality
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when reviewing or designing code/architecture for systems-level quality — reliability, performance, observability, safety, API durability — 'systems review', '/systems', 'will this hold under load', 'is this resilient/observable', 'is this API backward-compatible'. A citable standards corpus (Google SRE, AWS Builder's Library, OTel semconv, TigerBeetle TIGER STYLE, Google AIP, …) the systems-engineer agent hooks into; findings ranked by consequence-under-load, each cited. Anti-triggers: NOT for language-idiom conformance (use /idiomatic); NOT for line-level correctness bugs (use /code-review); NOT for cross-component interface consistency (use /xreview); NOT for operating running services — SLOs/alerts/runbooks/incidents (sre-engineer), manifests/runtimes (platform-engineer), telemetry SDK/backend (the observability agents). Reviews how code behaves on the machine and over time; does not run the platform."
 ---
 

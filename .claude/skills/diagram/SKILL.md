@@ -1,7 +1,7 @@
 ---
 name: diagram
 category: platform-infra
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when generating, regenerating, composing, or validating a house-grammar skill/architecture diagram from a git-tracked spec — '/diagram', 'diagram this skill', 'regenerate the xreview diagram', 'render the pipeline-to-cohort composite', 'validate this diagram spec', 'is this render stale'. The git-tracked spec is the single source of truth; an always-first house-style profile + per-token kits (one per the 7 `token` values) bind it to the Design-14 grammar by version, and it renders one-way to Lucid as a regenerable output. Backs the diagram-architect agent. NOT for defining or changing the grammar — colors/shapes/legend/assignment rule live in Design 14 (Grammar-version 14.1.0), cited not restated. NOT for editing diagrams directly in Lucid (one-way render; edits are lost). NOT for authoring skills (/author-skill) or capturing designs (/design). Generates diagrams to the house standard; does not author the standard."
 ---
 

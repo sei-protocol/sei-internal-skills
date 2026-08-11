@@ -1,7 +1,7 @@
 ---
 name: prfaq
 category: product-management
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when authoring or reviewing a PRFAQ (Amazon working-backwards Press Release + FAQ) for a product / feature / new initiative — 'draft a PRFAQ for X', 'write a press release for our new product', 'should we build Y?', 'let's working-backwards on this', 'review my PRFAQ', '/prfaq'. Forces customer-thesis discipline before any engineering scoping: named customer, named pain, named existing alternatives, falsification thresholds. Refuses theater: buzzword soup, 'we are excited to announce' openings, customer-absent prose, FAQ-as-marketing, polished perfectionism in place of thinking, length creep beyond 1-page PR / 6-page doc. Anti-triggers: NOT for external marketing announcements (this is internal product-decision tooling); NOT for incident postmortems; NOT for engineering design docs (use /design); NOT for tracking issues (use /issue); NOT for general strategy memos (use a 6-pager pattern instead)."
 ---
 

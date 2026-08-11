@@ -1,7 +1,7 @@
 ---
 name: harbor-dev
 category: engineer-self-service
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when an engineer needs ephemeral Sei chains, RPC fleets, benches, comparative benches, or namespace teardown on the harbor EKS dev cluster — 'spin up a chain', 'start a chain', 'ephemeral chain', 'give me N validators', 'add an RPC fleet', 'attach RPC nodes', 'tear down my chain', 'what's running in my namespace', 'compare PR X to main', 'bench latest sei-chain', 'onboard me', 'set me up on harbor', 're-bootstrap a stuck node', 'state-sync a follower', 'migrate a node to giga store', '/harbor-dev'. Also fires on first-time engineer setup against the harbor cluster. Anti-triggers: NEVER for production clusters — harbor is dev-only; NOT for sei-k8s-controller code changes; NOT for autobake nightly cron changes; NOT for chaos testing (use chaos-suite); NOT for cross-tenant work — operates only on the caller's eng-<alias> namespace. For multi-component design work, use /council or /coral."
 ---
 

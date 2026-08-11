@@ -1,7 +1,7 @@
 ---
 name: interview
 category: recruiting
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when evaluating a candidate's technical interview artifact (primarily a coding take-home) and preparing the live discussion — 'review this take-home', 'score this coding sample against our bar', 'what should I dig into with this candidate', 'what level does this signal', '/interview'. Scores the artifact against a behaviorally-anchored rubric grounded in structured-interview best practice (Google re:Work, BARS, work-sample validity) with an always-first Sei hiring-bar overlay, then derives deep-dive verticals tailored to the candidate's own implementation (productionization north-star). Pluggable kits per interview format; the corpus the sei-interview-expert agent hooks into. Outputs are human-first per the /lingua rails (distilled, decision-first, jargon-free). Anti-triggers: NOT for authoring the question (the team writes it); NOT for correctness review of our own code (use /code-review); NOT for language idiom (use /idiomatic); NOT for making the hire/level decision (it informs the human, who decides). Reviews the artifact and proposes discussion; it does not run the interview or contact the candidate."
 ---
 

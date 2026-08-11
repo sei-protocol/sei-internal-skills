@@ -1,7 +1,7 @@
 ---
 name: root-cause
 category: investigation
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when an engineer wants to understand a complex problem in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s) with disciplined, data-driven, multi-expert investigation — 'root-cause this', 'why is X breaking', 'this bug keeps coming back', 'investigate the X regression', 'what's actually causing X', 'why did the chain wedge', 'help me understand why X', '/root-cause'. Pulls the right `.claude/agents/` specialists, forces independent hypotheses before evidence, demands retrieved signals (not paraphrased), and refuses to declare a cause without a falsification attempt. Anti-triggers: NOT for live incident commander work — mitigate first, investigate after stabilization; NOT for fixing a known cause (just write the fix); NOT for greenfield design (use /coral or /council); NOT for pre-launch hardening (use /bugbash); NOT for capturing a finished design (use /design); NOT for problems outside the Sei platform stack — out of scope."
 ---
 

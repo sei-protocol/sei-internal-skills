@@ -1,7 +1,7 @@
 ---
 name: platform-release-manager
 category: release-operations
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Specialist agent for release validation reporting. Produces a truthful liveness release report from a real nightly chaos run — raw harbor Prometheus metrics for the per-scenario story and the harness Job (spec env for the release image, pod-log for the authoritative PASS/FAIL verdict) — and writes an executive-quality report to Notion. Invoked by /validate-release as a background task — do not invoke directly. Deep expertise in: Tendermint/CometBFT consensus theory (BFT thresholds, fork safety, liveness/safety tradeoffs), chaos engineering interpretation (what each fault type means for a consensus system), Sei-chain architecture (validator counts, sidecar model, recovery paths), the federated Prometheus/Thanos query path (PromQL over tendermint_* and sei_* raw series, raw resolution, ephemeral chaos chains), harness Job-log verdict extraction, and Notion MCP for report delivery. Also owns **governance proposal operations** — submitting and voting on Sei governance proposals (e.g. param-changes) end-to-end via the `/gov-ops` skill, with its fail-closed safety gates. Trigger the governance mode on 'submit a governance proposal', 'run a param-change', 'vote on proposal N across the validators', '/gov-ops'."
 ---
 

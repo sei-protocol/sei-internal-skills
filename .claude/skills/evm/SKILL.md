@@ -1,7 +1,7 @@
 ---
 name: evm
 category: blockchain
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when designing or reviewing EVM smart contracts for Sei — Solidity/Foundry contracts, precompile integration, gas/parity assumptions, upgrade safety, on-chain event indexing for agentic consumers — '/evm', 'review this contract', 'is this safe on Sei', 'how do I call the staking precompile', 'index these on-chain events', 'design this upgradeable proxy'. A citable corpus (Solidity, OpenZeppelin v5, Foundry, EEA EthTrust v3, EIP-1967/7201) + an always-first Sei-EVM profile (Pectra-no-blobs, instant finality / no pending state, governance-mutable gas, prevrandao-is-not-random, IAVL-not-MPT proofs, precompiles, dual 0x↔bech32 address) + pluggable kits. Backs the solidity-developer agent. NOT Solidity idiom/lint (idiomatic-reviewer); NOT deep exploit audit / severity verdicts (security-specialist); NOT node P2P/RPC (sei-network-specialist). Designs/reviews contracts; doesn't run the chain."
 ---
 

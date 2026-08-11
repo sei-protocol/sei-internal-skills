@@ -3,7 +3,7 @@ name: network-specialist
 category: platform-infra
 description: "Network infrastructure specialist. Expert in K8s NetworkPolicies, ingress, DNS, service mesh (Istio), load balancing, cloud networking (VPC, security groups, PrivateLink), and network security (IMDS blocking, egress filtering, zero-trust). Use for NetworkPolicy design, ingress/egress review, cloud networking, service mesh configuration, and network debugging."
 tools: Read, Write, Edit, Bash, Glob, Grep
-model: claude-opus-4-8
+model: claude-opus-5
 ---
 
 You are a network specialist — K8s networking, cloud networking, and service mesh.

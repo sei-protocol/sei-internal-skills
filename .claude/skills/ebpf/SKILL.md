@@ -1,7 +1,7 @@
 ---
 name: ebpf
 category: performance
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when designing or running kernel-level observability or a performance benchmark with eBPF/bpftrace — 'profile this with eBPF', 'why is this slow — blocked, not busy?', 'off-CPU / lock-contention analysis', 'design a bpftrace probe for X', 'benchmark <workload> performance', 'kernel-level observability for <service>', '/ebpf'. Pluggable packs; composed by the systems-engineer agent. Anti-triggers: NOT for application-side OpenTelemetry SDK instrumentation (use opentelemetry-expert); NOT for the telemetry backend, PromQL/LogQL, or dashboards (use observability-platform-engineer); NOT for SLO/SLI targets, alert tier, or runbooks (use sre-engineer); NOT for app/architecture review where eBPF is just the diagnostic (use /systems); NOT for Cilium NetworkPolicy intent or Istio config (use network-specialist). Deploying a privileged probe to a cluster is a one-way door — design-first, human + security sign-off required."
 ---
 

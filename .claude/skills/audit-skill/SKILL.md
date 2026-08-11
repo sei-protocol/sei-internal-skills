@@ -1,7 +1,7 @@
 ---
 name: audit-skill
 category: skill-authoring
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when auditing an existing skill against sei-internal-skills and Anthropic best-practice conventions — 'audit the X skill', 'review this skill against conventions', 'check if this skill meets standards', 'pressure-test the existing X skill', 'how does X measure up to conventions', '/audit-skill'. Anti-triggers: NOT for authoring a new skill (use /author-skill); NOT for in-conversation code review of arbitrary code (this audits skill-shaped artifacts under .claude/skills/); NOT for adversarial review of running systems (use /bugbash); NOT for Claude Code built-ins like /loop, /schedule, /init. For multi-component design work, use /council. For capturing a session's design, use /design."
 ---
 

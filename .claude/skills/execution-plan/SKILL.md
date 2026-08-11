@@ -1,7 +1,7 @@
 ---
 name: execution-plan
 category: project-management
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when an agentic-PM step needs to decorate or read the bet↔design↔issue↔PR graph — map a bet to its Linear project, read the execution-plan graph (betGraph), stamp a design-URL link onto an issue, or reconcile/backfill lineage. The shared mechanism /issue, /design, /impact-weekly, /impact-portfolio and the technical-program-manager agent call so identity/mapping/cache/read logic lives in one place. Triggers: 'map this bet to its project', 'read the bet graph', 'stamp the design link', 'reconcile the execution plan', 'backfill the bet lineage', '/execution-plan'. Anti-triggers: NOT for drafting the weekly exec entry (use /impact-weekly); NOT for the cross-project report (use /impact-portfolio); NOT for filing issues (use /issue) or capturing designs (use /design); NOT for deciding scope (product-manager) or judging on-course/at-risk (the technical-program-manager agent). It decorates and reads the graph; it does not author summaries or make judgments."
 ---
 

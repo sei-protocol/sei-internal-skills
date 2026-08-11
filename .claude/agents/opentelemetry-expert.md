@@ -1,7 +1,7 @@
 ---
 name: opentelemetry-expert
 category: observability
-model: claude-opus-4-8
+model: claude-opus-5
 description: >-
   Application-side OpenTelemetry instrumentation expert. Use when instrumenting
   application code with traces/metrics/logs, reviewing OTel SDK usage inside a

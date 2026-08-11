@@ -1,7 +1,7 @@
 ---
 name: validate-release
 category: release-operations
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Produces a truthful chaos release report from a real nightly harness run by consuming what the live harness emits — raw harbor Prometheus metrics for the per-scenario story and the harness Job (spec env for the release image, pod-log for the authoritative PASS/FAIL verdict) — then pushes an executive-quality report to Notion for a go/no-go decision. The report is a LIVENESS gate (the chain stayed live and recovered under fault); tx-correctness is NOT validated. Trigger on 'validate release', 'generate release report', 'chaos suite report', 'summarize the chaos run', '/validate-release [RUN_TOKEN]'. RUN_TOKEN = the shared base36 token of a chaos run (chains are chaos-<token>-<scenario>); omit to resolve the latest run from Prometheus. NOT for running the chaos suite itself. NOT for debugging a single scenario (read the harness Job log directly). NOT for production monitoring (use the Grafana dashboards)."
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: issue
 category: workstream-bootstrap
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when synthesizing the current Claude Code session — typically a /coral or /council workstream — into a standard-format issue that bootstraps the next pickup, filed to GitHub or Linear. Trigger on 'file this as an issue', 'capture this in an issue', 'turn this into an issue', 'open an issue for the follow-up', 'file this in Linear', 'create a Linear ticket', 'track this as a Linear issue', 'bootstrap this as a workstream', '/issue'. Coral and council offer this at handoff moments (deferred slice, end of session, scope cut); the sink (GitHub or Linear, or print) is chosen at the create step. Anti-triggers: NOT for pull requests (use `gh pr create`); NOT for triaging or commenting on existing issues; NOT for capturing this work's design (use /design); NOT for in-conversation TODOs that won't be tracked across sessions (use TaskCreate)."
 ---
 

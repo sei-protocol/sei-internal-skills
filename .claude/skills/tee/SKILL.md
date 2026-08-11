@@ -1,7 +1,7 @@
 ---
 name: tee
 category: security
-model: claude-opus-4-8
+model: claude-opus-5
 description: "Use when designing or reviewing a Trusted Execution Environment integration — attestation flows, on-chain verification of enclave identity, attestation-conditioned key release, cross-vendor verifier abstraction, Sei-specific TEE patterns — 'design a TEE attestation flow', 'verify this enclave on-chain', 'which TEE for X', 'review this attestation verifier', '/tee'. Pluggable across platforms (AWS Nitro, Intel SGX/TDX, AMD SEV-SNP, NVIDIA CC, TPM/RATS); backs the tee-specialist agent. Anti-triggers: NOT general (non-TEE) threat modeling (use security-specialist); NOT building the controller/contract/runtime that consumes the attestation (dispatch the specialist — kubernetes-specialist, solidity-developer — this skill designs/reviews the attestation, it does not author the system); NOT correctness/logic review (use /code-review). Backs the tee-specialist agent, dispatched as a domain lens into /coral, /council, /xreview on any TEE/attestation boundary; also directly invocable."
 ---
 
