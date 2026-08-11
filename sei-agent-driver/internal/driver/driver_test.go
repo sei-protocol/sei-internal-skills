@@ -1838,12 +1838,12 @@ func TestHealthCheckedClientPingsAnIdleConnection(t *testing.T) {
 		}
 		return
 	}
-	if h2.ReadIdleTimeout != h2ReadIdleTimeout || h2.PingTimeout != h2PingTimeout {
+	if h2.ReadIdleTimeout != http2ReadIdleTimeout || h2.PingTimeout != http2PingTimeout {
 		t.Errorf("h2 = {ReadIdle:%v Ping:%v}, want {%v %v}",
-			h2.ReadIdleTimeout, h2.PingTimeout, h2ReadIdleTimeout, h2PingTimeout)
+			h2.ReadIdleTimeout, h2.PingTimeout, http2ReadIdleTimeout, http2PingTimeout)
 	}
 	// Above the server's 15s stream heartbeat, or a healthy stream pings needlessly.
-	if h2ReadIdleTimeout <= 15*time.Second {
-		t.Errorf("h2ReadIdleTimeout = %v, must exceed the server's 15s heartbeat", h2ReadIdleTimeout)
+	if http2ReadIdleTimeout <= 15*time.Second {
+		t.Errorf("http2ReadIdleTimeout = %v, must exceed the server's 15s heartbeat", http2ReadIdleTimeout)
 	}
 }

@@ -19,8 +19,8 @@ import (
 // stopped. The ping bound is short because a live peer answers immediately; the
 // cost of waiting is another request written into a dead socket.
 const (
-	h2ReadIdleTimeout = 20 * time.Second
-	h2PingTimeout     = 5 * time.Second
+	http2ReadIdleTimeout = 20 * time.Second
+	http2PingTimeout     = 5 * time.Second
 
 	// defaultResponseHeaderTimeout bounds the wait for response headers. Long
 	// enough for a create that provisions a sandbox, short enough that a stream
@@ -169,8 +169,8 @@ func healthCheckedClient() (*http.Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: configuring http/2 health checks: %w", ErrConfig, err)
 	}
-	h2.ReadIdleTimeout = h2ReadIdleTimeout
-	h2.PingTimeout = h2PingTimeout
+	h2.ReadIdleTimeout = http2ReadIdleTimeout
+	h2.PingTimeout = http2PingTimeout
 
 	return &http.Client{Transport: transport}, nil
 }
