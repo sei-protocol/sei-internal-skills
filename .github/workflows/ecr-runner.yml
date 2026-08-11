@@ -26,6 +26,7 @@ on:
       - 'Dockerfile.runner.dockerignore'
       - 'runner-base.txt'
       - '.claude/**'
+      - 'scripts/managed-settings.json'
   workflow_dispatch:
     inputs:
       tag:
@@ -82,8 +83,9 @@ jobs:
           cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-overlay,mode=max
 
       - name: Gate — the overlay reaches $HOME on the real base
-        # Same assertion the PR gate makes on the stub. Running it here is what makes
-        # publishing safe: a rosterless or steward-missing image never gets a tag.
+        # Same assertions the PR gate makes on the stub. Running them here is what
+        # makes publishing safe: an image missing its roster, a pinned steward, or the
+        # admin policy never gets a tag.
         timeout-minutes: 5
         run: |
           set -euo pipefail
@@ -100,7 +102,12 @@ jobs:
               n=$(ls "$HOME/.claude/agents"/*.md | wc -l)
               [ "$n" -ge 20 ] || { echo "FAIL: roster shrank to $n"; exit 1; }
               command -v specify >/dev/null || { echo "FAIL: specify absent"; exit 1; }
-              echo "real-base-ok agents=$n specify=$(specify --version 2>&1 | head -1)"
+              P=/etc/claude-code/managed-settings.json
+              test -f "$P" || { echo "FAIL: $P absent (a headless permission request wedges the session)"; exit 1; }
+              ! test -w "$P" || { echo "FAIL: $P is writable by the agent uid it governs"; exit 1; }
+              python3 -c "import json,sys; d=json.load(open(sys.argv[1])); sys.exit(0 if d[\"permissions\"][\"allow\"] else 1)" "$P" \
+                || { echo "FAIL: $P is not valid JSON carrying a non-empty permissions.allow"; exit 1; }
+              echo "real-base-ok agents=$n specify=$(specify --version 2>&1 | head -1) policy=ok"
             '
 
       - name: Push
