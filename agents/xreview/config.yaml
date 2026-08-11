@@ -21,8 +21,28 @@ executor:
     # the multi-expert subagent fan-out the discipline depends on. The deployed
     # host provides the tmux + ~/.claude seed claude-native needs.
     harness: claude-native
-    # Headless: there is no human to answer ApprovalCards, so auto-approve
-    # without prompting (managed Claude settings disable bypassPermissions).
+    # Inert on this path, and recorded rather than removed so nobody reads its
+    # absence as a decision. Two reasons it does nothing:
+    #
+    # `auto` is not a Claude Code permission mode -- the set is default,
+    # acceptEdits, plan, bypassPermissions -- and an unknown value falls back to
+    # default, which prompts on every gated tool.
+    #
+    # It would not arrive even if it were valid. This field reaches the claude-sdk
+    # and cursor harnesses; claude-native takes its mode from a --permission-mode
+    # argument, which the server derives only for a named sub-agent create. A
+    # top-level session, which is what a review opens, keeps its body args and
+    # never goes through that derivation.
+    #
+    # So nothing here governs permissions today. What governs them is that the
+    # sandbox has no Claude settings at all: no allow-list in the runner image, in
+    # the agent's HOME, or at the managed-settings path claude-code reads first.
+    # The agent therefore prompts, and a prompt no one answers parks for a day --
+    # the headless case has no auto-resolve on this harness.
+    #
+    # An earlier note here claimed managed Claude settings disable
+    # bypassPermissions. No such file exists on the deployed host, so that stance
+    # was never enforced.
     permission_mode: auto
 
 prompt: |
