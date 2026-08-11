@@ -98,3 +98,45 @@ func TestBuildPromptAttributesScoutsFromTheOrchestrator(t *testing.T) {
 		t.Errorf("cursor is introduced %d times; a reply forged a second attributed heading", n)
 	}
 }
+
+// TestReviewPromptsCloneWithTheSandboxsOwnCredential guards how the tree arrives.
+//
+// The alternative is [driver.Cloner], where this driver supplies a workspace URL —
+// which for a private repository carries a token, and which the server persists as
+// a cleartext session label. The sandbox already holds a credential for the same
+// repositories, so a clone it runs itself needs no secret from us and leaves none
+// behind. The commands are written out rather than built from the helper, which
+// would assert only that they agree with each other.
+func TestReviewPromptsCloneWithTheSandboxsOwnCredential(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
+	wantClone := "gh repo clone sei-protocol/sei-chain pr-3861-tree -- --filter=blob:none --no-tags --quiet"
+	wantCheckout := "git -C pr-3861-tree fetch --quiet origin pull/3861/head && " +
+		"git -C pr-3861-tree checkout --quiet FETCH_HEAD"
+
+	for _, p := range []struct {
+		name string
+		text string
+	}{
+		{"BuildPrompt", BuildPrompt(req)},
+		{"AdoptedPrompt", AdoptedPrompt(req)},
+	} {
+		if !strings.Contains(p.text, wantClone) {
+			t.Errorf("%s does not name the clone, so the agent has only the diff and will "+
+				"go looking for another way to read the files", p.name)
+		}
+		if !strings.Contains(p.text, wantCheckout) {
+			t.Errorf("%s clones without checking out the pull request head, so the tree is "+
+				"the base branch and the review reads code the diff did not change", p.name)
+		}
+	}
+
+	// No credential of ours may appear in what we hand the agent.
+	for _, leak := range []string{"x-access-token", "ghs_", "github_pat_", "@github.com"} {
+		if strings.Contains(BuildPrompt(req), leak) {
+			t.Errorf("the prompt carries %q; the sandbox clones with its own mounted "+
+				"credential and must be handed none", leak)
+		}
+	}
+}

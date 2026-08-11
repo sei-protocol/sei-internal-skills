@@ -169,6 +169,12 @@ func ParseScoutReport(text string) ScoutReport {
 // request's summary. The closing block is the other half — it cannot be filled
 // without having looked at lines.
 //
+// A scout gets the diff and no tree, unlike the review. The roles differ: a scout
+// surfaces ranked leads, and the review verifies them against the files. Cloning
+// per scout would also multiply the clone into every sandbox in the gather — they
+// share no filesystem — and the gather is bounded at a fraction of the run, so a
+// large repository would spend that budget on checkouts rather than readings.
+//
 // A scout is told it is one of several and that another model merges the results.
 // That is not context for its own sake: a scout that believes it is the only
 // reviewer hedges toward completeness, and the merge wants a sharp, ranked opinion
