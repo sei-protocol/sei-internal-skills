@@ -16,6 +16,20 @@ description: >-
 
 executor:
   type: omnigent
+  # A sibling of `config`, not inside it — the parser reads executor.model.
+  #
+  # The prefix is what routes the request. Without one, omnigent's codex harness
+  # launches against model_provider="omnigent_databricks", its default as a
+  # Databricks-hosted product, and this deployment has no such gateway: the turn
+  # then fails with OPENAI_API_KEY sitting unread in the sandbox. An `openai/`
+  # model resolves the provider to api.openai.com, which is the key already
+  # projected into every runner Pod.
+  #
+  # gpt-5.5 is the model the harness asks for by itself, so this changes where the
+  # request goes and not what answers it. The repository's other review tooling
+  # pins no model at all — it runs Codex CLI directly, where the API key is the
+  # only routing decision, so there is no model there to copy.
+  model: openai/gpt-5.5
   config:
     # codex, and that is the point. The bundle is what fixes the harness,
     # so this is the one field that makes this a genuinely different reader
