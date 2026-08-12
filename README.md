@@ -64,8 +64,24 @@ Coral and council offer **`/design`** (capture this work as a durable doc) and *
   - **Release operations** — `platform-release-manager`
 - **Sync machinery** (`scripts/`, `Makefile`):
   - `sync-skills.sh` / `sync-agents.sh` — copy skills/agents into user-scope (`~/.claude/`) or sibling repos, by domain or alias
-  - `Makefile` — `make bootstrap` (one-shot install), plus `make sync-skills` / `make sync-agents`
+  - `sync-output-styles.sh` — copy output styles into `~/.claude/output-styles/`; ships them, never activates them
+  - `Makefile` — `make bootstrap` (one-shot install), plus `make sync-skills` / `make sync-agents` / `make sync-output-styles`
   - `update-agent-permissions.sh` — installs the canonical read-only permission set
+
+### Output styles
+
+An **output style** governs how Claude writes its replies for a whole session. It is a
+different layer from a skill (knowledge, invoked on demand) and an agent (a persona
+dispatched for a task).
+
+`make update` installs the styles into `~/.claude/output-styles/` but leaves every one of
+them **off**. Activating a style rewrites assistant behavior in every session and every
+repo, so that choice belongs to you, not to the installer — and writing it automatically
+would overwrite anyone who already picked a different style.
+
+Shipped: **ASD-STE100** — Simplified Technical English. Short sentences, active voice, one
+meaning per word, outcome first. Turn it on with `/config` → Output Style → ASD-STE100, or
+put `"outputStyle": "ASD-STE100"` in `~/.claude/settings.json`.
 
 ## Organization & selective sync
 
@@ -90,7 +106,8 @@ Claude Code discovers skills/agents **flat** (`~/.claude/skills/<name>/`, `~/.cl
 AGENTS.md                   # Agent roster + how the skills dispatch them
 CLAUDE.md                   # Project context auto-loaded into every session
 assets/                     # Banner image
-scripts/                    # sync-agents.sh, sync-skills.sh, permission tooling
+.claude/output-styles/      # Response-format styles (shipped, opt-in — see Output styles)
+scripts/                    # sync-agents.sh, sync-skills.sh, sync-output-styles.sh, permission tooling
 ```
 
 ## Where to start

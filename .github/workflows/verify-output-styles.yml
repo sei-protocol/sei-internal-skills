@@ -1,0 +1,17 @@
+name: Verify Output Styles
+
+on:
+  pull_request:
+    paths:
+      - '.claude/output-styles/**'
+      - 'scripts/sync-output-styles.sh'
+      - 'scripts/tests/sync-output-styles.test.sh'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run the output-style syncer regression suite
+        run: make test-output-styles

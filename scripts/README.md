@@ -6,9 +6,11 @@ Utility scripts for sei-internal-skills repo maintenance. Most are wrapped by Ma
 |--------|---------|-----------|
 | `sync-agents.sh` | Copy agents to other `.claude/agents/` directories (membership derived from each agent's `category:`) | `make update` / `make sync-agents`, manually |
 | `sync-skills.sh` | Copy skills to other `.claude/skills/` directories (membership derived from each skill's `category:`) | `make update` / `make sync-skills`, manually |
+| `sync-output-styles.sh` | Copy output styles to other `.claude/output-styles/` directories. Ships the file; **never** activates it — activation is opt-in per user | `make update` / `make sync-output-styles`, manually |
 | `update-agent-permissions.sh` | Install canonical read-only allow-list into `./.claude/settings.json` | `make update-agent-permissions` |
 | `verify-agent-permissions.sh` | Fail if `.claude/settings.json` contains mutating patterns or has drifted | `make verify-agent-permissions`, CI |
 | `agent-permissions.json` | Canonical read-only permission set (source of truth) | Read by both agent-permissions scripts |
+| `tests/sync-output-styles.test.sh` | Regression suite for `sync-output-styles.sh` — most importantly, that sync never activates a style | `make test-output-styles`, CI |
 
 ---
 
@@ -27,7 +29,7 @@ It clones sei-internal-skills to `~/.sei-internal-skills` (override with `SEI_IN
 **Already have the repo?** From your checkout:
 
 ```bash
-make update     # fast-forward this checkout + sync ALL skills/agents into ~/.claude + verify the catalog
+make update     # fast-forward this checkout + sync ALL skills/agents/output-styles into ~/.claude + verify the catalog
 ```
 
 These are the only commands you need to keep your environment current. `make bootstrap` installs only the **portable** set into a *consumer* repo (external use); for your own `~/.claude` use `make update` (or the over-the-wire one-liner above).
