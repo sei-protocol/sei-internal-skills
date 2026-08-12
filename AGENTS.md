@@ -78,7 +78,7 @@ The operating doctrine — engineering principles, output discipline, the workfl
 
 ## Install
 
-The fastest path is `make bootstrap` from the repo root, which runs `make sync-agents`, `make sync-skills`, and `make update-agent-permissions`. See the README's Setup section for the full flow.
+The fastest path is `make bootstrap` from the repo root, which runs `make sync-agents`, `make sync-skills`, `make sync-output-styles`, and `make update-agent-permissions`. See the README's Setup section for the full flow.
 
 Agents and skills travel the same way — sei-internal-skills is the canonical home, and the sync scripts push them out to user-scope (`~/.claude/`) and sibling repos.
 
