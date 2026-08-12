@@ -7,7 +7,7 @@ spec_version: 1
 name: xreview-scout-codex
 description: >-
   One independent reading of a pull request, gathered before the review that
-  merges it. Runs on codex-native so the reading comes from a different model
+  merges it. Runs on the codex harness so the reading comes from a different model
   than the review's — the whole value of a scout is being a reading the
   synthesis did not produce. Returns structured findings and NO decision:
   deciding is the review's job, and the two contracts are kept apart so a
@@ -17,16 +17,23 @@ description: >-
 executor:
   type: omnigent
   config:
-    # codex-native, and that is the point. The bundle is what fixes the harness,
+    # codex, and that is the point. The bundle is what fixes the harness,
     # so this is the one field that makes this a genuinely different reader
     # rather than the same model asked twice. The driver refuses a scout that
     # names the review's own agent for the same reason.
+    #
+    # `codex`, not `codex-native`: the deployed runner advertises
+    # ['claude-native', 'claude-sdk', 'codex', 'openai-agents', 'open-responses',
+    # 'pi'] on connect, and codex-native needs the Codex CLI in the image, which
+    # this one does not carry. Asking for a harness the runner does not have fails
+    # the session create with no session id, which reaches the review as a
+    # transport failure rather than as anything naming the real cause.
     #
     # Needs OPENAI_API_KEY in the sandbox, which rides omnigent-creds and is
     # projected into every runner Pod via envFrom. Without it the scout fails and
     # the review is shown a note saying so — a failed reading must never arrive
     # looking like a reading that found nothing.
-    harness: codex-native
+    harness: codex
 
 # Matches the sibling review bundles rather than being derived again. A scout is
 # the same shape of work — read a tree, report — so a difference here would be a

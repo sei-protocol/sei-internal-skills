@@ -10,7 +10,7 @@ another scout, and the review then verifies its claims against the diff and keep
 what holds.
 
 The value is entirely in being a reading the review did not produce. That is why
-the harness matters: `executor.config.harness` is `codex-native`, so this is a
+the harness matters: `executor.config.harness` is `codex`, so this is a
 different model rather than the same one asked twice. The driver refuses a scout
 configured on the review's own agent for exactly that reason, and refuses two
 scouts sharing one agent, which would count one opinion twice.
