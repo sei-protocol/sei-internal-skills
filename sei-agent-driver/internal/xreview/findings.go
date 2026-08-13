@@ -16,13 +16,71 @@ type Finding struct {
 	// placeable only at the top of the file, so such a finding is dropped too.
 	Line int `json:"line"`
 
-	// Severity is high, medium or low as the prompt defines them. Carried
-	// verbatim rather than normalised: it is the agent's word, and rewriting it
-	// would misreport what the review said.
+	// Side is which side of the diff Line counts against: RIGHT for the new file,
+	// LEFT for the old one. It is what makes a finding about a REMOVED line
+	// placeable at all — without it such a finding either lands on an unrelated
+	// new line or is dropped.
+	//
+	// Empty means RIGHT, which is what the overwhelming majority of findings are
+	// and what every finding written before this field existed meant.
+	Side string `json:"side"`
+
+	// Severity is blocker, suggestion or nit. Carried verbatim rather than
+	// normalised once recognised: it is the agent's word, and rewriting it would
+	// misreport what the review said. The older high/medium/low vocabulary maps
+	// onto it, because a session that has reviewed before still speaks it.
 	Severity string `json:"severity"`
 
 	// Detail is what is wrong and why it matters.
 	Detail string `json:"detail"`
+}
+
+// PreExistingIssue is a problem the change did not introduce.
+//
+// Kept apart from [Finding] because the two answer different questions. A
+// finding is about this pull request; a pre-existing issue is about the code it
+// landed in, and presenting one as the other tells an author they broke
+// something they did not touch.
+type PreExistingIssue struct {
+	// Severity is blocker or suggestion. Blocker is reserved for something
+	// critical on its own — an exploitable hole, data loss, a likely outage —
+	// rather than for anything the change happened to sit near.
+	Severity string `json:"severity"`
+
+	// Body identifies the location and the impact in one line.
+	Body string `json:"body"`
+}
+
+// severityAliases maps the vocabulary a session learned before this contract
+// onto the current one. An adopted session carries its first prompt in context,
+// so it keeps answering in the words that prompt used.
+var severityAliases = map[string]string{
+	"high":   "blocker",
+	"medium": "suggestion",
+	"low":    "nit",
+}
+
+// normalizeSeverity returns the current word for a severity, and "" for one this
+// does not recognise. An unrecognised severity is not guessed at: the caller
+// decides what to do with a finding whose weight the agent did not state.
+func normalizeSeverity(raw string) string {
+	s := strings.ToLower(strings.TrimSpace(raw))
+	if mapped, ok := severityAliases[s]; ok {
+		return mapped
+	}
+	switch s {
+	case "blocker", "suggestion", "nit":
+		return s
+	}
+	return ""
+}
+
+// normalizeSide returns RIGHT or LEFT, defaulting to RIGHT.
+func normalizeSide(raw string) string {
+	if strings.EqualFold(strings.TrimSpace(raw), "LEFT") {
+		return "LEFT"
+	}
+	return "RIGHT"
 }
 
 // PlaceableFindings returns the findings a caller can post against a line.
@@ -32,18 +90,34 @@ type Finding struct {
 // still in the prose the summary comment carries, so nothing is lost from the
 // review — only from the inline placement.
 func PlaceableFindings(v Verdict) []Finding {
-	raw, _ := v.Structured["findings"].([]any)
+	raw := listField(v.Structured, "inline_comments")
+	if raw == nil {
+		// A session that reviewed under the previous contract answers in its
+		// vocabulary, and it cannot be told otherwise once its first prompt is in
+		// context. Reading both is what stops a schema change from silently
+		// placing nothing on every pull request already reviewed.
+		raw = listField(v.Structured, "findings")
+	}
 	out := make([]Finding, 0, len(raw))
 	for _, entry := range raw {
 		fields, ok := entry.(map[string]any)
 		if !ok {
 			continue
 		}
+		file := strings.TrimSpace(stringField(fields, "path"))
+		if file == "" {
+			file = strings.TrimSpace(stringField(fields, "file"))
+		}
+		body := strings.TrimSpace(stringField(fields, "body"))
+		if body == "" {
+			body = strings.TrimSpace(stringField(fields, "detail"))
+		}
 		f := Finding{
-			File:     strings.TrimSpace(stringField(fields, "file")),
+			File:     file,
 			Line:     intField(fields, "line"),
-			Severity: strings.TrimSpace(stringField(fields, "severity")),
-			Detail:   strings.TrimSpace(stringField(fields, "detail")),
+			Side:     normalizeSide(stringField(fields, "side")),
+			Severity: normalizeSeverity(stringField(fields, "severity")),
+			Detail:   body,
 		}
 		if f.File == "" || f.Line <= 0 || f.Detail == "" {
 			continue
@@ -51,6 +125,76 @@ func PlaceableFindings(v Verdict) []Finding {
 		out = append(out, f)
 	}
 	return out
+}
+
+// Blockers returns the must-fix findings that name no single line.
+//
+// They exist because the alternative is losing them. A review that says the
+// change needs a test, or that two functions now disagree, has nowhere to put
+// that against a line, and a contract with only line-tied findings drops it
+// silently — the author reads a clean set of inline comments and never learns
+// the review's most important objection.
+func Blockers(v Verdict) []string { return bulletList(v.Structured, "blockers") }
+
+// NonBlockers returns the same for observations that do not block.
+func NonBlockers(v Verdict) []string { return bulletList(v.Structured, "non_blockers") }
+
+// PreExisting returns problems the change did not introduce.
+func PreExisting(v Verdict) []PreExistingIssue {
+	raw := listField(v.Structured, "pre_existing_issues")
+	out := make([]PreExistingIssue, 0, len(raw))
+	for _, entry := range raw {
+		fields, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		body := strings.TrimSpace(stringField(fields, "body"))
+		if body == "" {
+			continue
+		}
+		severity := normalizeSeverity(stringField(fields, "severity"))
+		if severity == "nit" {
+			// The bucket admits blocker or suggestion only; a nit about code the
+			// change did not touch is noise on someone else's work.
+			severity = "suggestion"
+		}
+		out = append(out, PreExistingIssue{Severity: severity, Body: body})
+	}
+	return out
+}
+
+// bulletList reads a list of one-line strings, dropping empties.
+func bulletList(m map[string]any, key string) []string {
+	raw := listField(m, key)
+	out := make([]string, 0, len(raw))
+	for _, entry := range raw {
+		if s := strings.TrimSpace(toString(entry)); s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// listField reads a JSON array, returning nil when the key is absent so a caller
+// can tell "not written" from "written empty".
+func listField(m map[string]any, key string) []any {
+	raw, ok := m[key].([]any)
+	if !ok {
+		return nil
+	}
+	return raw
+}
+
+// toString renders a bullet an agent may have written as a bare string or as an
+// object with a body.
+func toString(v any) string {
+	switch t := v.(type) {
+	case string:
+		return t
+	case map[string]any:
+		return stringField(t, "body")
+	}
+	return ""
 }
 
 func stringField(m map[string]any, key string) string {
