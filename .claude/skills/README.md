@@ -9,10 +9,10 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
    ```sh
    gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
    ```
-   It clones sei-internal-skills to `~/.sei-internal-skills` (override `SEI_INTERNAL_SKILLS_HOME`), then syncs every portable + Sei skill and agent into `~/.claude`.
+   It clones sei-internal-skills to `~/.sei-internal-skills` (override `SEI_INTERNAL_SKILLS_HOME`), then syncs every **core** skill and agent (portable + Sei) plus the output styles into `~/.claude`. Nothing under `experimental/` is installed.
 3. **Already have the repo?** One command from your checkout:
    ```sh
-   make update     # fast-forward this checkout (run from main) + sync ALL skills/agents into ~/.claude + verify
+   make update     # fast-forward this checkout (run from main) + sync the core skills/agents/output-styles into ~/.claude + verify
    ```
    (To install only the **portable** set into an external *consumer* repo, run `make bootstrap` instead.)
 4. **Re-run either any time** — both are idempotent.
@@ -40,7 +40,7 @@ Edit these in sei-internal-skills, never in `~/.claude/skills/` — your edits w
 - **`xreview/`** — Standalone xreview action between the orchestrator and the coral/council experts. Dispatches the relevant specialists to **independently** review a produced artifact (design, plan, diff, or set of expert outputs), then synthesizes a COMPATIBLE / MISMATCH / MISSING findings table. Enforces blinded review + an assigned dissenter + evidence-bearing findings to defeat rubber-stamping and consensus theater. The review counterpart to coral's "produce"; `/council` invokes it as its xreview phase.
 
 ### Skill Authoring & Auditing
-- **`author-skill/`** — Author a new skill for a specific domain. Drives Intake → deep web research (parallel subagents) → subagent-based RED-GREEN-REFACTOR pressure testing → scaffolds the skill into `<repo>/.claude/skills/<name>/` per `SKILL-TEMPLATE.md`, with evals derived from the surviving pressure scenarios. Built on Anthropic's skill-authoring best practices and Obra's TDD-for-skills methodology (`references/obra-best-practices.md`, `references/testing-with-subagents.md`, `references/persuasion-principles.md`). Refuses to overwrite canonical workflow skills (coral, council, design, issue, bugbash) or skip the RED baseline.
+- **`author-skill/`** — Author a new skill for a specific domain. Drives Intake → deep web research (parallel subagents) → subagent-based RED-GREEN-REFACTOR pressure testing → scaffolds the skill per `SKILL-TEMPLATE.md` — into `experimental/skills/<name>/` by default, or `<repo>/.claude/skills/<name>/` when the tier gate is cleared — with evals derived from the surviving pressure scenarios. Built on Anthropic's skill-authoring best practices and Obra's TDD-for-skills methodology (`references/obra-best-practices.md`, `references/testing-with-subagents.md`, `references/persuasion-principles.md`). Refuses to overwrite canonical workflow skills (coral, council, design, issue, bugbash) or skip the RED baseline.
 - **`audit-skill/`** — Audit an existing skill against the team's conventions catalog (`references/conventions-catalog.md`). Two phases: **audit-only** is the default — runs static + semantic + pressure checks and produces a findings report in the DRI's `<engineer>-designs` repo at `designs/<arc>/audits/<skill>-<date>.md` (Design 13; in-repo `docs/skill-audits/` only when no DRI repo and the user confirms), no edits made. **Refactor** is opt-in via `--apply` — per-finding diffs, diff-before-write gate, append-only evals, automatic rollback on verify failure. Canonical skills are auditable freely; refactor requires `--override-protected`. The brown-field sibling of `/author-skill`.
 
 ### Code Quality
@@ -105,12 +105,20 @@ repo under `experimental/`.
 
 ## Adding a New Skill
 
-1. Read [`SKILL-TEMPLATE.md`](./SKILL-TEMPLATE.md).
-2. Draft the guardrails stanza FIRST. If you can't articulate what the skill refuses to do, it isn't ready to author.
-3. Scaffold the directory structure from the template.
-4. Add an entry to the catalog above under the appropriate section.
-5. Make sure `state/` is gitignored (the repo-level `.gitignore` already covers `.claude/skills/*/state/`).
-6. Pre-approve the skill's happy-path permissions in `.claude/settings.json` or `.claude/settings.local.json`.
+1. **Pick the tier first.** A new skill goes in [`experimental/skills/`](../../experimental/README.md) unless you can say why it belongs in the core. The core is what every teammate installs, so each addition costs everyone the effort of filtering past it. `experimental/` costs nobody anything.
+
+   It belongs in the **core** when an engineering team outside its author would reach for it on ordinary work, *and* it is stable enough that changing it is a considered act. Anything else — still forming, narrow audience, exploratory — starts in `experimental/`. Promotion later is one `git mv`.
+
+   Skipping this step is how the catalog reached 33 skills before the 2026-08 slim-down cut it to 17.
+
+2. Read [`SKILL-TEMPLATE.md`](./SKILL-TEMPLATE.md).
+3. Draft the guardrails stanza FIRST. If you can't articulate what the skill refuses to do, it isn't ready to author.
+4. Scaffold the directory structure from the template, under the tier you picked.
+5. Catalog it: a core skill gets an entry in the catalog above, under the appropriate section; an experimental skill gets a row in [`experimental/README.md`](../../experimental/README.md).
+6. Make sure `state/` is gitignored. The repo-level `.gitignore` covers both tiers — `.claude/skills/*/state/` and `experimental/skills/*/state/`.
+7. Pre-approve the skill's happy-path permissions in `.claude/settings.json` or `.claude/settings.local.json`.
+
+Only a **core** skill needs a `category:` that maps to a sync alias — `make verify-catalog` enforces that, and it only reads `.claude/skills/`. An experimental skill keeps its `category:` frontmatter (so promotion needs no edit), but nothing checks it while it is parked.
 
 ## Cross-Repo Skills
 
@@ -119,7 +127,7 @@ A project-scope skill in this repo is only discoverable when Claude Code is runn
 ```sh
 ./scripts/sync-skills.sh                    # daily: portable skills → ~/.claude/skills/
 ./scripts/sync-skills.sh --categories all                 # also sync the sei-team skills
-./scripts/sync-skills.sh --categories project-management  # just one domain
+./scripts/sync-skills.sh --categories code-quality        # just one domain
 ./scripts/sync-skills.sh --target ~/work/sei-k8s-controller --force  # to another repo
 ```
 

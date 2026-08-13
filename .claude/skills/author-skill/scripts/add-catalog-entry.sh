@@ -2,7 +2,7 @@
 # add-catalog-entry.sh — Append a catalog entry to .claude/skills/README.md.
 #
 # Usage:
-#   add-catalog-entry.sh --name <skill-name> --section <Workflow|Workstream Bootstrap|Hardening|Release Operations|Engineer Self-Service|Future Slots> --tagline "<one-line description>" [--dry-run]
+#   add-catalog-entry.sh --name <skill-name> --section <Workflow|Skill Authoring & Auditing|Code Quality|Platform Infrastructure|Blockchain|Writing Quality|Investigation|Release Operations|Engineer Self-Service|Future Slots> --tagline "<one-line description>" [--dry-run]
 #
 # Behavior:
 #   - Locates the README.md catalog.

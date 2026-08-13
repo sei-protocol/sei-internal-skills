@@ -6,6 +6,13 @@ A **procedural skill** executes a fixed sequence of steps with side effects on e
 
 Procedural skills live at **project scope** (`<repo>/.claude/skills/<name>/`) unless they're truly repo-agnostic, in which case they live at user scope (`~/.claude/skills/<name>/`). The default is project scope.
 
+**In sei-internal-skills, pick the tier before you pick the shape.** This repo ships a focused
+**core** (`.claude/skills/`) that every teammate installs, and parks everything else in
+**[`experimental/skills/`](../../experimental/README.md)**, which installs only on opt-in. A new
+skill starts in `experimental/` unless you can say why an engineering team outside its author
+would reach for it on ordinary work. Promotion later is one `git mv` — there is no manifest to
+update. Everything below applies identically to both tiers.
+
 ## Canonical Directory Shape
 
 ```
@@ -25,7 +32,7 @@ Procedural skills live at **project scope** (`<repo>/.claude/skills/<name>/`) un
     .gitkeep
 ```
 
-Claude Code discovers skills as direct subdirectories of `.claude/skills/`. Nested folders are NOT discovered. Logical grouping across skills happens in `.claude/skills/README.md` (the catalog), not in directory structure.
+Claude Code discovers skills as direct subdirectories of `.claude/skills/`. Nested folders are NOT discovered. Logical grouping across skills happens in `.claude/skills/README.md` (the catalog), not in directory structure. This is also why `experimental/` parks a skill: it is not a nested group under `.claude/skills/` but a sibling tree the sync scripts never read, so exclusion needs no flag and cannot drift.
 
 ## SKILL.md Anatomy
 
@@ -162,8 +169,10 @@ When creating a new procedural skill:
 - [ ] State convention followed — `state/` gitignored, run-ID subdir, audit.log.
 - [ ] Happy-path permissions pre-approved in `settings.json` or documented.
 - [ ] At least one happy-path eval and one halt-path eval.
-- [ ] Entry added to `.claude/skills/README.md` catalog.
-- [ ] `state/` is covered by `.gitignore` (usually via `.claude/skills/*/state/`).
+- [ ] Tier chosen deliberately — core (`.claude/skills/`) or `experimental/skills/`.
+- [ ] Catalogued in the tier's catalog — `.claude/skills/README.md` for core, `experimental/README.md` for experimental.
+- [ ] `state/` is covered by `.gitignore` (`.claude/skills/*/state/` or `experimental/skills/*/state/`).
+- [ ] For a core skill only: `category:` maps to a sync alias (`make verify-catalog` fails closed otherwise).
 
 ## Anti-Patterns
 

@@ -13,10 +13,10 @@ The methodology is RED-GREEN-REFACTOR for documentation (see `references/testing
 
 ## Guardrails
 
-This skill operates on **`<repo>/.claude/skills/<name>/`** by default. Before any side-effecting action:
+This skill operates on **`<repo>/.claude/skills/<name>/`** by default. In sei-internal-skills the default target is **`experimental/skills/<name>/`** — see the tier gate in step 2. Before any side-effecting action:
 
 1. **Context check** — confirm the target directory does not already exist and is not a canonical workflow skill (coral, council, design, issue, bugbash, author-skill itself). These are off-limits — redirect to direct editing in a PR.
-2. **Scope confirmation** — echo the resolved skill name, target path, scope (project vs user), and shape (procedural / orchestration / discipline / technique / pattern / reference) back to the user. Require explicit 'confirm' before scaffolding.
+2. **Scope confirmation** — echo the resolved skill name, target path, scope (project vs user), **tier (core `.claude/skills/` vs `experimental/skills/`)**, and shape (procedural / orchestration / discipline / technique / pattern / reference) back to the user. Require explicit 'confirm' before scaffolding. **Default the tier to `experimental/`** and say why: the core is what every teammate installs, so an addition there costs everyone the effort of filtering past it. Propose core only when the skill serves an engineering team beyond its author on ordinary work.
 3. **Refusal conditions** — this skill will refuse to run if:
    - The author cannot write a guardrails stanza for the proposed skill (no clear refusal conditions → not safe to author).
    - The RED phase produces zero rationalizations across all pressure scenarios — the skill may be unnecessary (the constraint might be enforceable mechanically, not via documentation).
@@ -76,7 +76,7 @@ Each step names what it produces and where (`state/run-<ISO-timestamp>/...`).
 
     **Preview first with `--dry-run`.** Before the real apply, run with `--dry-run` to print the manifest of directories and files that will be created. Show this to the user; on confirmation, re-run without the flag to apply. This matches the pattern in `scripts/add-catalog-entry.sh` and `scripts/sync-check.sh` and gives the user a final review gate before the scaffold lands.
 
-12. **Add to the catalog.** Call `scripts/add-catalog-entry.sh --name <name> --section <Workflow|Workstream Bootstrap|Hardening|Release Operations|Engineer Self-Service|Future Slots>`. The script proposes the catalog line and the section; the user confirms before the edit lands. Reuses the format already in `.claude/skills/README.md`.
+12. **Add to the catalog.** Call `scripts/add-catalog-entry.sh --name <name> --section <Workflow|Skill Authoring & Auditing|Code Quality|Platform Infrastructure|Blockchain|Writing Quality|Investigation|Release Operations|Engineer Self-Service|Future Slots>`. The section must already exist in the catalog — the script exits 2 on an unknown heading. A skill scaffolded into `experimental/` is catalogued in `experimental/README.md` instead, by hand. The script proposes the catalog line and the section; the user confirms before the edit lands. Reuses the format already in `.claude/skills/README.md`.
 
 13. **Sync-list decision.** Call `scripts/sync-check.sh` — if the skill is portable (general-purpose, not sei-internal-skills-specific), offer to add it to `PORTABLE=( ... )` in `scripts/sync-skills.sh`. The script proposes the diff; the user confirms.
 

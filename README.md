@@ -4,7 +4,7 @@
 
 # sei-internal-skills
 
-sei-internal-skills is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It's the centralized, version-controlled home for the workflows and personas that help us research problems, groom work, document progress in git and tickets, author and iterate on designs and 1-pagers, automate operational processes like releases and root-cause analysis, and collaborate with specialist agents.
+sei-internal-skills is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It's the centralized, version-controlled home for the workflows and personas that help us review code, investigate failures, operate releases, run ephemeral chains, and collaborate with specialist agents.
 
 Skills and agents are authored once here and synced out to your user-scope (`~/.claude/`) and sibling repos, so the same `/xreview`, `/root-cause`, or `kubernetes-specialist` works the same way everywhere.
 
@@ -42,6 +42,35 @@ Most work starts with one of these:
 - **`/pr-quality`** — the locked pre-PR gate. **`/brevity`** — tighten the PR body.
 
 Heavier orchestration — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — is [experimental](./experimental/README.md) and installs only on opt-in.
+
+## The two tiers
+
+The boundary between them is the point.
+
+| | What it is | Who gets it |
+|---|---|---|
+| **`.claude/`** — the core | 17 skills, 17 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
+| **[`experimental/`](./experimental/README.md)** | 12 skills, 2 agents. Still forming, narrow audience, or exploratory. | Only on `make sync-experimental` |
+
+The core is what every teammate installs, so anything added there costs everyone the
+effort of filtering past it. That is the whole reason for the split: **a new skill starts
+in `experimental/`** unless it clears the bar of serving an engineering team beyond its
+author on ordinary work.
+
+The exclusion is structural, not a setting. `sync-skills.sh` and `sync-agents.sh` read
+`.claude/skills/` and `.claude/agents/` and nothing else, so a resource is excluded *by
+living in* `experimental/`. Parking and promoting are the same one-line operation:
+
+```sh
+git mv experimental/skills/<name> .claude/skills/<name>   # promote (then: make verify-catalog)
+git mv .claude/skills/<name> experimental/skills/<name>   # park
+```
+
+There is no third list to keep in step, which is what makes the boundary hold.
+
+A prior generation of this repo carried 33 skills and 22 agents, including several
+product explorations. Those were cut in 2026-08 and preserved with full history in a
+private snapshot rather than deleted outright.
 
 ## What's in here
 
@@ -103,24 +132,32 @@ Claude Code discovers skills/agents **flat** (`~/.claude/skills/<name>/`, `~/.cl
 ## Repository structure
 
 ```
-.claude/agents/             # Specialist personas dispatched by the skills
-.claude/skills/             # Skill definitions (SKILL.md + references + evals)
-.claude/skills/README.md    # Skill catalog — start here
-.claude/skills/SKILL-TEMPLATE.md  # Authoring standard for new skills
-.github/workflows/          # CI (read-only permission enforcement)
-AGENTS.md                   # Agent roster + how the skills dispatch them
+.claude/skills/             # THE CORE — skill definitions (SKILL.md + references + evals)
+.claude/skills/README.md    #   Skill catalog — start here
+.claude/skills/SKILL-TEMPLATE.md  #   Authoring standard for new skills
+.claude/agents/             # THE CORE — specialist personas dispatched by the skills
+.claude/output-styles/      # Response-format styles (shipped, opt-in — see Output styles)
+experimental/               # Parked skills + agents; never installed by default
+experimental/README.md      #   What's parked, and the promote/park mechanism
+agents/                     # Omni agent bundles baked into the omnigent server image
+sei-agent-driver/           # Go module — the headless review driver
+scripts/                    # sync-*.sh, permission tooling, regression suites
+.github/workflows/          # CI — catalog, doctrine, permissions, experimental isolation
+AGENTS.md                   # Agent roster + the distributed operating-doctrine block
 CLAUDE.md                   # Project context auto-loaded into every session
 assets/                     # Banner image
-.claude/output-styles/      # Response-format styles (shipped, opt-in — see Output styles)
-scripts/                    # sync-agents.sh, sync-skills.sh, sync-output-styles.sh, permission tooling
 ```
+
+The two `.claude/` trees and `experimental/` are the tier split. `agents/` is unrelated
+despite the name — those are omnigent server bundles, not Claude Code agent personas.
 
 ## Where to start
 
 | If you're... | Start here |
 |---|---|
 | **Using the skills day to day** | `.claude/skills/README.md` (the catalog) |
-| **Authoring a new skill** | `.claude/skills/SKILL-TEMPLATE.md`, then `/author-skill` |
+| **Authoring a new skill** | Pick the tier first ([`experimental/README.md`](experimental/README.md) — it is the default), then `.claude/skills/SKILL-TEMPLATE.md`, then `/author-skill` |
+| **Looking for a skill that isn't installed** | [`experimental/README.md`](experimental/README.md), then `make sync-experimental` |
 | **Auditing an existing skill** | `/audit-skill <name>` → report in the DRI's `<engineer>-designs` repo under `designs/<arc>/audits/` (Design 13) |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
 | **Wiring a sibling repo to use these** | `scripts/sync-agents.sh --target <path>` and `scripts/sync-skills.sh --target <path>` |
@@ -141,4 +178,5 @@ scripts/                    # sync-agents.sh, sync-skills.sh, sync-output-styles
 | `AGENTS.md` | Agent roster + how the skills dispatch them |
 | `.claude/skills/README.md` | Skill catalog and cross-repo sync guidance |
 | `.claude/skills/SKILL-TEMPLATE.md` | Authoring standard for new skills |
+| `experimental/README.md` | What is parked, why, and how to promote or park a resource |
 | `scripts/README.md` | What each script does and when CI vs. humans run them |
