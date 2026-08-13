@@ -53,6 +53,12 @@ type driverFakeServerConfig struct {
 	// StreamFrames is served verbatim, in order, for GET .../stream.
 	StreamFrames []string
 
+	// StreamHoldAfterFrames keeps the stream open after its frames are served,
+	// so a run can reach its deadline mid-turn instead of seeing the stream
+	// close. Without it nothing here can exercise a deadline that lands after
+	// the boundary, which is the only window the deadline salvage covers.
+	StreamHoldAfterFrames time.Duration
+
 	// LaterStreamFrames replace StreamFrames from the second subscription on.
 	LaterStreamFrames []string
 
@@ -128,6 +134,7 @@ type driverFakeServer struct {
 	URL string
 
 	agentPages   []string
+	streamHold   time.Duration
 	createResp   string
 	createStatus int
 	streamFrames []string
@@ -164,6 +171,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 	fs := &driverFakeServer{
 		t:                 t,
 		agentPages:        cfg.AgentPages,
+		streamHold:        cfg.StreamHoldAfterFrames,
 		createResp:        cfg.CreateResp,
 		createStatus:      cfg.CreateStatus,
 		sessionLists:      cfg.SessionListResps,
@@ -324,6 +332,12 @@ func (fs *driverFakeServer) handleStream(w http.ResponseWriter, r *http.Request)
 			return
 		}
 		_ = ctrl.Flush()
+	}
+	if fs.streamHold > 0 {
+		select {
+		case <-time.After(fs.streamHold):
+		case <-r.Context().Done():
+		}
 	}
 }
 
@@ -1998,5 +2012,80 @@ func TestTerminalBacked(t *testing.T) {
 		if got := terminalBacked(tc.harness); got != tc.want {
 			t.Errorf("terminalBacked(%q) = %t, want %t", tc.harness, got, tc.want)
 		}
+	}
+}
+
+// TestDriverSalvagesAVerdictAtTheDeadline covers the loss this backstop exists
+// for: the agent answered, the reply committed, and the turn end never arrived
+// before the clock did. Before it, that review was discarded and the run reported
+// only the deadline.
+func TestDriverSalvagesAVerdictAtTheDeadline(t *testing.T) {
+	t.Parallel()
+
+	reply := driverVerdict("Two findings.", "comment")
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPageWithHarness("ag_1", "sei-droid", "codex")},
+		CreateResp: driverSessionResp("conv_1", "ag_1"),
+		// Held open past the run's deadline, so the clock lands after the boundary
+		// and before any turn end -- the window this backstop exists for.
+		StreamHoldAfterFrames: 5 * time.Second,
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverCreatedFrame(),
+		},
+		SessionResps: []string{
+			driverSessionWithItems("conv_1", "ag_1",
+				driverReplyItem("item_reply", "resp_1", reply)),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	// Long enough to cross the boundary, far short of the stream's hold.
+	cfg.RunDeadline = 250 * time.Millisecond
+	driver := NewDriver(cfg, Policy{}, driverTestLogger())
+
+	result, err := driver.Run(context.Background(),
+		testWork{Repo: "sei-protocol/sandbox", PR: 42, Trigger: "deadline-salvage"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.Reply == nil {
+		t.Fatal("Reply = nil: the committed verdict was discarded with the clock")
+	}
+	if result.Reply.Text != reply {
+		t.Errorf("Reply.Text = %q, want %q", result.Reply.Text, reply)
+	}
+}
+
+// TestDriverDoesNotSalvageBeforeTheBoundary is the guard on the arm above. With
+// the prompt never consumed, any reply on the session predates this run, and
+// publishing it would post an earlier invocation's review as this one's.
+func TestDriverDoesNotSalvageBeforeTheBoundary(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPageWithHarness("ag_1", "sei-droid", "codex")},
+		CreateResp: driverSessionResp("conv_1", "ag_1"),
+		StreamFrames: []string{
+			driverAckFrame(),
+			// No session.input.consumed: the boundary is never crossed.
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			driverSessionWithItems("conv_1", "ag_1",
+				driverReplyItem("item_old", "resp_1",
+					driverVerdict("An earlier run's review.", "approve"))),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	cfg.RunDeadline = time.Nanosecond
+	driver := NewDriver(cfg, Policy{}, driverTestLogger())
+
+	result, _ := driver.Run(context.Background(),
+		testWork{Repo: "sei-protocol/sandbox", PR: 42, Trigger: "no-boundary"})
+	if result.Reply != nil {
+		t.Fatalf("published %q from before the boundary", result.Reply.Text)
 	}
 }

@@ -991,7 +991,7 @@ func (d *Driver) consumeTurn(
 ) (Reply, error) {
 	for ev, err := range client.Stream(ctx, sessionID, opts) {
 		if err != nil {
-			return d.recoverFromStreamLoss(ctx, client, sessionID, t, err)
+			return d.recoverFromStreamLoss(ctx, client, sessionID, t, err, prior)
 		}
 		t.seen[eventKey(ev)]++
 		t.frames++
@@ -1178,11 +1178,75 @@ func (d *Driver) replyFor(
 	case t.failure != nil:
 		return d.salvageFailedTurn(ctx, client, sessionID, t, prior)
 	case ctx.Err() != nil:
-		return Reply{}, ctx.Err()
+		return d.salvageAtDeadline(ctx, client, sessionID, t, prior)
 	default:
 		return Reply{}, fmt.Errorf(
 			"the stream ended before the turn did (boundary crossed: %t)", t.crossed)
 	}
+}
+
+// salvageAtDeadline recovers a review from a turn whose end never reached us
+// before the clock ran out.
+//
+// The reply commits ahead of the edge that ends a turn, so an agent that answered
+// with seconds to spare has already stored its review by the time the deadline
+// lands. Returning the clock error there throws away work that is sitting in the
+// session, which is what a codex scout did on every run for as long as its turn
+// end was undetectable: it answered in two minutes and the run reported a
+// deadline eight minutes later.
+//
+// Attribution without a turn id is the whole difficulty, and it is why this reads
+// the id off the session rather than inferring one. Exactly one reply group since
+// the pre-run snapshot means one turn answered into this session while ours ran,
+// so that group's response id is ours; [Driver.fetchReply] then attributes
+// positively against it, the same read every other path takes. Any other count
+// reports the clock. The negative form — publish the newest reply absent from the
+// snapshot — is the one this deliberately does not use, because it fails open on
+// anything the snapshot missed.
+//
+// Fails closed in four directions: the boundary must have been crossed, exactly
+// one turn must have replied, a reply must be attributable to it, and that reply
+// must be complete. Short of all four the deadline is reported as it was before.
+func (d *Driver) salvageAtDeadline(
+	ctx context.Context,
+	client *omnigent.Client,
+	sessionID string,
+	t *turn,
+	prior map[string]bool,
+) (Reply, error) {
+	if !t.crossed {
+		return Reply{}, ctx.Err()
+	}
+
+	// Detached and separately bounded: the run's context is the thing that
+	// expired, and this is the last chance to recover what the agent produced.
+	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.cfg.RequestTimeout)
+	defer cancel()
+
+	session, err := client.GetSession(readCtx, sessionID, omnigent.GetSessionOptions{
+		IncludeItems: omnigent.Ptr(true),
+	})
+	if err != nil {
+		d.log.Warn("could not read the session for a verdict after the deadline",
+			"session_id", sessionID, "error", err)
+		return Reply{}, ctx.Err()
+	}
+
+	groups := ReplyGroupsSince(session.Items, prior)
+	if len(groups) != 1 {
+		d.log.Info("no single turn replied into this session before the deadline",
+			"session_id", sessionID, "reply_groups", groups)
+		return Reply{}, ctx.Err()
+	}
+
+	reply, err := d.fetchReply(ctx, client, sessionID, groups[0], prior)
+	if err != nil || !t.complete(reply.Text) {
+		return Reply{}, ctx.Err()
+	}
+
+	d.log.Warn("recovered a complete verdict from a turn whose end never arrived",
+		"session_id", sessionID, "turn_id", groups[0], "error", ctx.Err())
+	return reply, nil
 }
 
 // salvageFailedTurn recovers a review from a turn the server reported as failed.
@@ -1338,8 +1402,16 @@ func (d *Driver) recoverFromStreamLoss(
 	sessionID string,
 	t *turn,
 	cause error,
+	prior map[string]bool,
 ) (Reply, error) {
 	if !errors.Is(cause, omnigent.ErrStreamInterrupted) && !errors.Is(cause, omnigent.ErrStreamIdle) {
+		// The run's clock arrives here as a read error rather than through
+		// [Driver.replyFor], so the deadline salvage has to be reachable from this
+		// arm too. Without it a turn that answered and then ran out of time is
+		// reported as a bare deadline with its review left in the session.
+		if ctx.Err() != nil {
+			return d.salvageAtDeadline(ctx, client, sessionID, t, prior)
+		}
 		return Reply{}, cause
 	}
 	if !t.crossed {
