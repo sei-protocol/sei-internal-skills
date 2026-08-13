@@ -19,15 +19,24 @@ executor:
   # A sibling of `config`, not inside it — the parser reads executor.model.
   #
   # A model id, not a route. An earlier version wrote `openai/gpt-5.5` on the
-  # theory that the family prefix would resolve the provider; it does not. The
-  # codex harness sets model_provider itself, and on a fresh pod with the prefixed
-  # model it still launched against model_provider="omnigent_databricks" — its
-  # default as a Databricks-hosted product. Routing is the deployment's
-  # host_config.providers, not this field.
+  # theory that the family prefix would resolve the provider. It does not, and
+  # nothing on this path strips a prefix, so it reached OpenAI as a literal model
+  # id. Routing is the deployment's host_config.providers, not this field.
   #
-  # gpt-5.5 is what the harness asks for by itself, so this pins the id the
-  # provider is asked for and nothing else.
-  model: gpt-5.5
+  # Do NOT read model_provider="omnigent_databricks" in the codex argv as proof
+  # that routing went somewhere wrong. It is a hardcoded label applied to every
+  # vendor-neutral gateway, read live off a process that was routed at
+  # api.openai.com. Misreading it produced three wrong diagnoses.
+  #
+  # gpt-5.6-sol is what ai-review's codex pass resolves to: that workflow pins no
+  # model and takes openai/codex-action's default, measured on a passing run.
+  # Matching it is the point — a scout on a different model than the reference
+  # reviewer is not the second opinion we mean to reproduce.
+  #
+  # Dotted, not dashed: codex spells it gpt-5.6-sol where the catalog writes
+  # gpt-5-6-sol. This value goes verbatim to `codex -c model=`, and the dotted
+  # form is the one the API accepts.
+  model: gpt-5.6-sol
   config:
     # codex, and that is the point. The bundle is what fixes the harness,
     # so this is the one field that makes this a genuinely different reader
