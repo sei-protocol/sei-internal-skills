@@ -32,6 +32,11 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 |-------|-------|
 | `solidity-developer` | EVM smart-contract engineering on Sei — Solidity/Foundry, precompiles, gas/parity, address association, upgrade safety, on-chain event indexing. Backed by `/evm`. |
 
+### writing-quality
+| Agent | Scope |
+|-------|-------|
+| `prose-steward` | Dual-audience prose steward — reviews org artifacts (design docs/HLDs, PRDs, 1-pagers) so they read correctly for **both** the human reviewer who scans and the consuming AI agent that ingests linearly and acts on the text. Doctrine-and-profile-first (backed by the `/lingua` skill; repo `CLAUDE.md` writing conventions outrank the generic doctrine), citation-tier honest (Cited findings carry `Basis:`; Stated-opinion is advisory-only, never blocking), suggest-only. Pinned unconditionally by `/xreview` on any `skill-package` change. NOT code idiom (`idiomatic-reviewer`), NOT scope (`product-manager`). |
+
 ### code-quality
 | Agent | Scope |
 |-------|-------|
@@ -50,10 +55,9 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 |-------|-------|
 | `platform-release-manager` | Release management and cut discipline |
 
-Three more agents live in [`experimental/agents/`](./experimental/README.md) and are **not**
-installed by default — `prose-steward` (with `/lingua`), `sei-interview-expert` (with
-`/interview`), and `technical-program-manager` (with `/execution-plan`). Opt in with
-`make sync-experimental`.
+Two more agents live in [`experimental/agents/`](./experimental/README.md) and are **not**
+installed by default — `sei-interview-expert` (with `/interview`) and
+`technical-program-manager` (with `/execution-plan`). Opt in with `make sync-experimental`.
 
 The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
@@ -123,7 +127,7 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 
 - **Blinded and independent** — each reviewer commits its findings before seeing the others'; no reviewer's view is summarized into another's brief.
 - **An assigned dissenter** — one reviewer is tasked to argue against the emerging consensus and surface the strongest counter-case.
-- **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) — not domain experts alone. For doc artifacts, add the prose axis (`prose-steward`) when it is installed; it is an experimental agent.
+- **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) *and*, for doc artifacts, the prose axis (`prose-steward`) — not domain experts alone.
 - **Automated review is co-equal** — treat an automated reviewer (e.g. Cursor Bugbot) as a peer input, not noise; an unresolved flag blocks.
 - **Confirmed-consensus iteration** — after a fix, re-dispatch the reviewer that raised the finding to confirm closure; merge only on unanimous sign-off with no open concerns. `/xreview` owns the procedure.
 
@@ -137,5 +141,5 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 
 ### Roles, not roster
 
-Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champion is a named contract: `idiomatic-reviewer` (code idiom, `/idiomatic`). The full roster of available specialists lives in the synced `.claude/agents/` files.
+Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose, `/lingua`). The full roster of available specialists lives in the synced `.claude/agents/` files.
 <!-- END sei-internal-skills-managed -->

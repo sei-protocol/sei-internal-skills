@@ -100,7 +100,9 @@ jobs:
                 test -f "$HOME/.claude/skills/$s/SKILL.md" || { echo "FAIL: skills/$s not seeded"; exit 1; }
               done
               n=$(ls "$HOME/.claude/agents"/*.md | wc -l)
-              [ "$n" -ge 20 ] || { echo "FAIL: roster shrank to $n"; exit 1; }
+              # Floor, not a target — see verify-runner-image.yml. Reset by the
+              # 2026-08 slim-down; catches accidental loss, not deliberate change.
+              [ "$n" -ge 17 ] || { echo "FAIL: roster shrank to $n"; exit 1; }
               command -v specify >/dev/null || { echo "FAIL: specify absent"; exit 1; }
               P=/etc/claude-code/managed-settings.json
               test -f "$P" || { echo "FAIL: $P absent (a headless permission request wedges the session)"; exit 1; }

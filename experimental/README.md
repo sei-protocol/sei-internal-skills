@@ -29,11 +29,12 @@ make sync-experimental          # into ~/.claude
 | **Workflow orchestration** | `coral`, `council`, `workstream`, `issue`, `design`, `research` |
 | **Exec reporting** | `impact-weekly`, `impact-portfolio`, `execution-plan` + `technical-program-manager` |
 | **Deep-dive engineering** | `ebpf`, `bugbash` |
-| **Writing quality** | `lingua` + `prose-steward` |
 | **Recruiting** | `interview` + `sei-interview-expert` |
 
-`prose-steward` and `lingua` are paired deliberately: the agent's operating manual
-*is* the skill, so parking one without the other would leave a broken agent.
+`lingua` and `prose-steward` are **not** here. `/xreview` pins `prose-steward`
+unconditionally on any `skill-package` change and halts when a pinned steward is
+missing from its registry, and `prose-steward`'s operating manual *is* `/lingua` —
+so both are load-bearing for a core skill and stay in the core.
 
 ## Promoting and parking
 

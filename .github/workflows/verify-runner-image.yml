@@ -87,7 +87,10 @@ jobs:
               test -f "$HOME/.claude/skills/root-cause/SKILL.md" || { echo "FAIL: root-cause skill not seeded"; exit 1; }
               test -f "$HOME/.claude/skills/xreview/SKILL.md" || { echo "FAIL: xreview skill not seeded"; exit 1; }
               n=$(ls "$HOME/.claude/agents"/*.md | wc -l)
-              [ "$n" -ge 20 ] || { echo "FAIL: roster shrank to $n agents"; exit 1; }
+              # Floor, not a target. Reset 20 -> 17 by the 2026-08 slim-down, which
+              # moved 3 agents to experimental/ and removed 3. It still catches an
+              # ACCIDENTAL roster loss; a deliberate change moves this line with it.
+              [ "$n" -ge 17 ] || { echo "FAIL: roster shrank to $n agents"; exit 1; }
               command -v specify >/dev/null || { echo "FAIL: specify CLI absent (sei-spec cannot scaffold .specify/)"; exit 1; }
               # settings.json is deliberately not shipped; see the dockerignore.
               ! test -e "$HOME/.claude/settings.json" || { echo "FAIL: settings.json was seeded into a writable HOME"; exit 1; }

@@ -45,25 +45,27 @@ Heavier orchestration — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`,
 
 ## What's in here
 
-- **Skills** (`.claude/skills/`) — 16 self-contained Claude Code skills, grouped by domain:
+- **Skills** (`.claude/skills/`) — 17 self-contained Claude Code skills, grouped by domain:
   - **Workflow** — `/xreview`
   - **Investigation** — `/root-cause`
   - **Code quality** — `/idiomatic`, `/systems`
+  - **Writing quality** — `/lingua`
   - **Skill authoring** — `/author-skill`, `/audit-skill`
   - **Output quality** (sei-internal-skills-local) — `/brevity`, `/pr-quality`
   - **Platform infra** — `/platform`, `/kubernetes`
   - **Blockchain** — `/evm`
   - **Release operations** — `/chaos-suite`, `/validate-release`, `/gov-ops`, `/validator-platform`
   - **Engineer self-service** — `/harbor-dev`
-- **Agents** (`.claude/agents/`) — 16 specialist personas dispatched by the skills (or directly via the Agent tool), grouped by domain:
+- **Agents** (`.claude/agents/`) — 17 specialist personas dispatched by the skills (or directly via the Agent tool), grouped by domain:
   - **Platform infra** — `kubernetes-specialist`, `platform-engineer`, `network-specialist`, `k8s-capacity-management`, `sei-network-specialist`
   - **Observability** — `opentelemetry-expert`, `observability-platform-engineer`, `sre-engineer`
   - **Security** — `security-specialist`
   - **Blockchain** — `solidity-developer`
   - **Code quality** — `idiomatic-reviewer`, `systems-engineer`
+  - **Writing quality** — `prose-steward`
   - **Product management** — `product-engineer`, `product-manager`, `go-to-market-specialist`
   - **Release operations** — `platform-release-manager`
-- **[`experimental/`](./experimental/README.md)** — 13 skills and 3 agents that do **not** ship by default: workflow orchestration, exec reporting, `ebpf`/`bugbash`, `lingua`+`prose-steward`, `interview`+`sei-interview-expert`. Opt in with `make sync-experimental`.
+- **[`experimental/`](./experimental/README.md)** — 12 skills and 2 agents that do **not** ship by default: workflow orchestration, exec reporting, `ebpf`/`bugbash`, and `interview`+`sei-interview-expert`. Opt in with `make sync-experimental`.
 - **Sync machinery** (`scripts/`, `Makefile`):
   - `sync-skills.sh` / `sync-agents.sh` — copy skills/agents into user-scope (`~/.claude/`) or sibling repos, by domain or alias
   - `sync-output-styles.sh` — copy output styles into `~/.claude/output-styles/`; ships them, never activates them
