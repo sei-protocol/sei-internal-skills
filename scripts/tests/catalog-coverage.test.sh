@@ -38,8 +38,12 @@ check      "agents --verify passes on the real tree" "$AGENTS_SH" --verify
 echo "derivation — known skills land in the expected alias"
 check      "gov-ops is in sei (the bug this fixes)"        bash -c "'$SKILLS_SH' --target /tmp/_cov --categories sei --dry-run 2>/dev/null | grep -q '^  - gov-ops$'"
 check      "gov-ops is in all"                              bash -c "'$SKILLS_SH' --target /tmp/_cov --categories all --dry-run 2>/dev/null | grep -q '^  - gov-ops$'"
-check      "ebpf is in portable (performance→portable)"     bash -c "'$SKILLS_SH' --target /tmp/_cov --categories portable --dry-run 2>/dev/null | grep -q '^  - ebpf$'"
-check      "tee is synced (portable security)"               bash -c "'$SKILLS_SH' --target /tmp/_cov --categories portable --dry-run 2>/dev/null | grep -q '^  - tee$'"
+check      "idiomatic is in portable (code-quality→portable)" bash -c "'$SKILLS_SH' --target /tmp/_cov --categories portable --dry-run 2>/dev/null | grep -q '^  - idiomatic$'"
+check      "root-cause is in portable (investigation→portable)" bash -c "'$SKILLS_SH' --target /tmp/_cov --categories portable --dry-run 2>/dev/null | grep -q '^  - root-cause$'"
+# A parked skill is outside every alias. This is the experimental tier's contract
+# stated where the derivation itself is under test — if `all` ever picks up a
+# skill from experimental/, the tier has silently stopped being a tier.
+check_fail "a parked skill (coral) is in no alias, not even all" bash -c "'$SKILLS_SH' --target /tmp/_cov --categories all --dry-run 2>/dev/null | grep -q '^  - coral$'"
 check_fail "brevity is NOT synced (sei-internal-skills-local output-quality)" bash -c "'$SKILLS_SH' --target /tmp/_cov --categories all --dry-run 2>/dev/null | grep -q '^  - brevity$'"
 check      "sei-network-specialist is in sei (name override)" bash -c "'$AGENTS_SH' --target /tmp/_cov --categories sei --dry-run 2>/dev/null | grep -q '^  - sei-network-specialist$'"
 check_fail "sei-network-specialist is NOT in portable"        bash -c "'$AGENTS_SH' --target /tmp/_cov --categories portable --dry-run 2>/dev/null | grep -q '^  - sei-network-specialist$'"

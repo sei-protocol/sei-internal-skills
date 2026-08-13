@@ -17,12 +17,12 @@ This package consumes portable Claude Code skills and specialist agents authored
 
 ### Using the skills
 
-- **`/coral`** — lightweight expert iteration on a defined slice; the fast path. Hands off to `/council` when the work outgrows it (≥3 components, interface changes, one-way doors, multi-session).
-- **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to coral's "produce."
-- **`/council`** — full-ceremony workflow for multi-component, multi-session design; gates one-way doors.
-- **`/bugbash`** — long-running adversarial review of an existing component before launch.
+- **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to producing the work.
 - **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
-- **Handoffs:** `/design` captures *this* work as a durable design doc; `/issue` files *next* work as a tracked issue.
+- **`/idiomatic`** and **`/systems`** — review code for language/package idiom, then for systems-level quality on top. Idiom ⊂ systems quality; run them in that order.
+- **`/pr-quality`** — the locked pre-PR rule gate. **`/brevity`** — tighten a PR body.
+
+Further workflow skills — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — are **experimental** and ship only on opt-in (`make sync-experimental`). Use them when they are installed; never assume they are.
 
 ### xreview discipline
 

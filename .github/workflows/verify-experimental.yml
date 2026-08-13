@@ -1,0 +1,21 @@
+name: Verify Experimental Isolation
+
+on:
+  pull_request:
+    paths:
+      - 'experimental/**'
+      - 'scripts/sync-experimental.sh'
+      - 'scripts/sync-skills.sh'
+      - 'scripts/sync-agents.sh'
+      - 'scripts/tests/experimental-isolation.test.sh'
+      - 'Makefile'
+      - '.gitignore'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Nothing in experimental/ may ship by default
+        run: make test-experimental

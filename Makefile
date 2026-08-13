@@ -50,6 +50,10 @@ sync-skills: ## Install sei-internal-skills's portable skills into ~/.claude/ski
 sync-output-styles: ## Install sei-internal-skills's output styles into ~/.claude/output-styles/ (ships the file; activation stays opt-in)
 	@./scripts/sync-output-styles.sh --target ~/ --force
 
+.PHONY: sync-experimental
+sync-experimental: ## OPT-IN: install experimental/ skills+agents into ~/.claude. Never runs as part of update/sync-all/bootstrap.
+	@./scripts/sync-experimental.sh --target ~/ --force
+
 .PHONY: sync-doctrine-self
 sync-doctrine-self: ## Re-inject the operating-doctrine block into this repo's own AGENTS.md (dogfood; run after editing scripts/sei-internal-skills-doctrine.md)
 	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/sei-internal-skills-doctrine.md" write'
@@ -66,6 +70,10 @@ test-doctrine: ## Run the doctrine-injector regression suite (scripts/tests/inje
 .PHONY: test-output-styles
 test-output-styles: ## Run the output-style syncer regression suite (scripts/tests/sync-output-styles.test.sh)
 	@./scripts/tests/sync-output-styles.test.sh
+
+.PHONY: test-experimental
+test-experimental: ## Run the experimental-tier isolation suite (nothing in experimental/ ships by default)
+	@./scripts/tests/experimental-isolation.test.sh
 
 .PHONY: update-agent-permissions
 update-agent-permissions: ## Install canonical read-only allow-list into ./.claude/settings.json (DRY_RUN=1 to preview)
