@@ -119,6 +119,28 @@ out="$("$fake/scripts/prune-retired.sh" --target "$ft" --apply 2>&1)"
 check "the core copy survives a stale list entry" test -d "$ft/.claude/skills/lingua"
 if echo "$out" | grep -q "GUARDED"; then ok "and the stale entry is reported as GUARDED"; else no "no GUARDED diagnostic emitted"; fi
 
+# Bugbot #299, low severity, confirmed. --retired-only skipped BUILDING the parked
+# list, so installed experimental resources fell through to "not from this repo,
+# left alone" — the same bucket as the user's own work. On the one command whose
+# value is accurate classification, that mislabels 14 resources.
+echo "--retired-only still RECOGNIZES the parked set"
+t="$scratch/retlabel"; seed_env "$t"
+out="$("$PRUNE" --target "$t" --retired-only 2>&1)"
+unknown="$(echo "$out" | sed -n 's/^KEPT — not from this repo, left alone: \([0-9]*\)$/\1/p')"
+if [ "$unknown" = "3" ]; then ok "only the 3 user-authored resources count as unknown"; else no "unknown bucket is $unknown, expected 3 (parked leaked into it)"; fi
+check "parked reported as recognized-but-skipped" bash -c "echo '$out' | grep -q 'PARKED — recognized but skipped'"
+check "a parked skill is named in that section"   bash -c "echo '$out' | grep -q 'skill/coral'"
+
+# Bugbot #299, high severity, NOT reproducible: the ${arr+"${arr[@]}"} idiom does
+# preserve quoting. Kept as a regression test anyway — this is the only script that
+# deletes, and a target path with spaces is ordinary on macOS.
+echo "a target path containing spaces is handled exactly"
+t="$scratch/dir with spaces"; seed_env "$t"
+check      "apply exits 0 under a spaced path"  "$PRUNE" --target "$t" --apply
+check_fail "retired removed under a spaced path" test -d "$t/.claude/skills/tee"
+check      "core survived under a spaced path"   test -d "$t/.claude/skills/language"
+check      "user work survived under a spaced path" grep -q MINE "$t/.claude/skills/my-own-skill/SKILL.md"
+
 echo "argument handling"
 check      "--help exits 0"             "$PRUNE" --help
 check_fail "unknown arg exits non-zero" "$PRUNE" --nonsense

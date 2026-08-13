@@ -100,7 +100,11 @@ while IFS= read -r d; do [ -n "$d" ] && CORE_SKILLS+=("$(basename "$d")"); done 
 while IFS= read -r f; do [ -n "$f" ] && CORE_AGENTS+=("$(basename "$f" .md)"); done \
   < <(find "$REPO_ROOT/.claude/agents" -maxdepth 1 -type f -name '*.md' | sort)
 
-if ! $RETIRED_ONLY && [ -d "$REPO_ROOT/experimental" ]; then
+# Always built, even under --retired-only. The flag decides what gets DELETED, never
+# what gets RECOGNIZED: a parked resource reported as "not from this repo" is
+# indistinguishable from the user's own work, and telling those two apart is the
+# entire value of this report.
+if [ -d "$REPO_ROOT/experimental" ]; then
   while IFS= read -r d; do [ -n "$d" ] && PARKED_SKILLS+=("$(basename "$d")"); done \
     < <(find "$REPO_ROOT/experimental/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
   while IFS= read -r f; do [ -n "$f" ] && PARKED_AGENTS+=("$(basename "$f" .md)"); done \
@@ -149,7 +153,8 @@ fi
 # --- Report -----------------------------------------------------------------
 
 if $CHECK; then
-  n=$(( ${#DEL_RETIRED[@]} + ${#DEL_PARKED[@]} ))
+  n=${#DEL_RETIRED[@]}
+  $RETIRED_ONLY || n=$(( n + ${#DEL_PARKED[@]} ))
   if [ "$n" -gt 0 ]; then
     echo "→ ${n} retired/parked resource(s) still installed in ${TARGET%/}/.claude — run 'make prune-retired' to review"
   fi
@@ -160,20 +165,33 @@ echo "Repo:   $REPO_ROOT"
 echo "Target: ${TARGET%/}/.claude"
 echo ""
 
+# A record is kind|name|path. Name is field 2; path is everything after the last
+# '|', so a path containing '|' still round-trips.
+record_label() { local e="$1"; local rest="${e#*|}"; echo "${e%%|*}/${rest%%|*}"; }
+
 show() {  # show <header> <entries...>
   local header="$1"; shift
-  echo "$header (${#@})"
+  echo "$header ($#)"
   [ "$#" -eq 0 ] && { echo "  (none)"; return; }
   local e
-  for e in "$@"; do echo "  - ${e%%|*}/$(echo "$e" | cut -d'|' -f2)"; done
+  for e in "$@"; do echo "  - $(record_label "$e")"; done
 }
 
-show "RETIRED — gone from the repo, recoverable only from the archive" ${DEL_RETIRED+"${DEL_RETIRED[@]}"}
+if [ "${#DEL_RETIRED[@]}" -gt 0 ]; then
+  show "RETIRED — gone from the repo, recoverable only from the archive" "${DEL_RETIRED[@]}"
+else
+  show "RETIRED — gone from the repo, recoverable only from the archive"
+fi
 echo ""
 if $RETIRED_ONLY; then
-  echo "PARKED — skipped (--retired-only)"
+  echo "PARKED — recognized but skipped (--retired-only): ${#DEL_PARKED[@]}"
+  if [ "${#DEL_PARKED[@]}" -gt 0 ]; then
+    for e in "${DEL_PARKED[@]}"; do echo "  - $(record_label "$e")"; done
+  fi
+elif [ "${#DEL_PARKED[@]}" -gt 0 ]; then
+  show "PARKED — still in experimental/, restore with 'make sync-experimental'" "${DEL_PARKED[@]}"
 else
-  show "PARKED — still in experimental/, restore with 'make sync-experimental'" ${DEL_PARKED+"${DEL_PARKED[@]}"}
+  show "PARKED — still in experimental/, restore with 'make sync-experimental'"
 fi
 echo ""
 echo "KEPT — current core: ${#KEPT_CORE[@]}"
@@ -186,7 +204,8 @@ if [ "${#GUARDED[@]}" -gt 0 ]; then
   echo "  Drop these from the retired list in $0 — the list has gone stale." >&2
 fi
 
-TOTAL=$(( ${#DEL_RETIRED[@]} + ${#DEL_PARKED[@]} ))
+TOTAL=${#DEL_RETIRED[@]}
+$RETIRED_ONLY || TOTAL=$(( TOTAL + ${#DEL_PARKED[@]} ))
 echo ""
 if [ "$TOTAL" -eq 0 ]; then
   echo "Nothing to prune."
@@ -202,12 +221,17 @@ fi
 # --- Execute ----------------------------------------------------------------
 
 REMOVED=0
-for e in ${DEL_RETIRED+"${DEL_RETIRED[@]}"} ${DEL_PARKED+"${DEL_PARKED[@]}"}; do
-  path="${e##*|}"
-  rm -rf -- "$path"
-  echo "  removed ${e%%|*}/$(echo "$e" | cut -d'|' -f2)"
-  REMOVED=$((REMOVED+1))
-done
+remove_all() {
+  local e path
+  for e in "$@"; do
+    path="${e##*|}"
+    rm -rf -- "$path"
+    echo "  removed $(record_label "$e")"
+    REMOVED=$((REMOVED+1))
+  done
+}
+[ "${#DEL_RETIRED[@]}" -gt 0 ] && remove_all "${DEL_RETIRED[@]}"
+if ! $RETIRED_ONLY && [ "${#DEL_PARKED[@]}" -gt 0 ]; then remove_all "${DEL_PARKED[@]}"; fi
 
 echo ""
 echo "Removed: $REMOVED"
