@@ -53,7 +53,7 @@ Copies agent personas from `.claude/agents/` to a target `.claude/agents/` direc
 ./scripts/sync-agents.sh --target ~/ --dry-run
 ```
 
-Categories: agent **domains** (`platform-infra`, `observability`, `security`, `blockchain`, `code-quality`, `writing-quality`, `product-management`, `release-operations`, `project-management`) or **aliases** `portable` (default, all non-Sei agents), `sei`, `all`. `--verify` runs only the coverage guard (CI). Non-destructive by default — pass `--force` to overwrite changed files.
+Categories: agent **domains** in the core (`platform-infra`, `observability`, `security`, `blockchain`, `code-quality`, `writing-quality`, `product-management`, `release-operations`) or **aliases** `portable` (default, all non-Sei agents), `sei`, `all`. Agents under `experimental/agents/` are outside every domain and alias — this script never reads that tree. `--verify` runs only the coverage guard (CI). Non-destructive by default — pass `--force` to overwrite changed files.
 
 ## `sync-skills.sh`
 
@@ -63,17 +63,17 @@ Sibling of `sync-agents.sh` — same shape, same flags. Copies skills from `.cla
 # Sync portable skills to user-level (default category)
 ./scripts/sync-skills.sh --target ~/
 
-# Also sync the sei-team skills (impact-weekly, impact-portfolio, chaos-suite, validate-release, harbor-dev)
+# Also sync the sei-team skills (chaos-suite, validate-release, gov-ops, validator-platform, harbor-dev)
 ./scripts/sync-skills.sh --target ~/ --categories all
 
 # Or install a single domain
-./scripts/sync-skills.sh --target ~/ --categories project-management
+./scripts/sync-skills.sh --target ~/ --categories code-quality
 
 # Preview without copying
 ./scripts/sync-skills.sh --target ~/ --dry-run
 ```
 
-Categories: skill **domains** (`workflow`, `workstream-bootstrap`, `hardening`, `investigation`, `skill-authoring`, `code-quality`, `performance`, `platform-infra`, `writing-quality`, `product-management`, `project-management`, `release-operations`, `engineer-self-service`, `recruiting`) or **aliases** `portable` (default), `sei`, `all`. `output-quality` (brevity, pr-quality) and `security` (tee) are sei-internal-skills-local and not synced. `--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script; only a new/renamed **domain** (or a change to which alias it belongs to) needs a script edit.
+Categories: skill **domains** in the core (`workflow`, `investigation`, `skill-authoring`, `code-quality`, `platform-infra`, `blockchain`, `writing-quality`, `output-quality`, `release-operations`, `engineer-self-service`) or **aliases** `portable` (default), `sei`, `all`. `output-quality` (brevity, pr-quality) is sei-internal-skills-local and never synced outward. Skills under `experimental/skills/` are outside every domain and alias — this script never reads that tree, so a domain used only by parked skills (`hardening`, `performance`, `project-management`, `recruiting`, `workstream-bootstrap`) resolves to nothing until one is promoted. `--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script; only a new/renamed **domain** (or a change to which alias it belongs to) needs a script edit.
 
 ## `update-agent-permissions.sh` + `verify-agent-permissions.sh` + `agent-permissions.json`
 

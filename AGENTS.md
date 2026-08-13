@@ -67,6 +67,8 @@ The operating doctrine — engineering principles, output discipline, the workfl
 
 The fastest path is `make bootstrap` from the repo root, which runs `make sync-agents`, `make sync-skills`, `make sync-output-styles`, and `make update-agent-permissions`. See the README's Setup section for the full flow.
 
+This installs the **core** only. The agents and skills under [`experimental/`](./experimental/README.md) never ride along — opt in by name with `make sync-experimental`.
+
 Agents and skills travel the same way — sei-internal-skills is the canonical home, and the sync scripts push them out to user-scope (`~/.claude/`) and sibling repos.
 
 For sibling-repo or finer-grained installs, call the scripts directly:
@@ -81,11 +83,14 @@ For sibling-repo or finer-grained installs, call the scripts directly:
 # Copy portable + sei agents to a sibling repo
 ./scripts/sync-agents.sh --target ~/work/platform --categories portable,sei
 
-# Copy the sei-team skills (impact-weekly, impact-portfolio, chaos-suite, validate-release, harbor-dev) to user-level
+# Copy the sei-team skills (chaos-suite, validate-release, gov-ops, validator-platform, harbor-dev) to user-level
 ./scripts/sync-skills.sh --target ~/ --categories sei
 
-# Install a single domain (e.g. project-management → impact-weekly, impact-portfolio)
-./scripts/sync-skills.sh --target ~/ --categories project-management
+# Install a single domain (e.g. code-quality → idiomatic, systems)
+./scripts/sync-skills.sh --target ~/ --categories code-quality
+
+# Opt into the parked resources (never installed by the commands above)
+./scripts/sync-experimental.sh --target ~/
 
 # Preview without copying
 ./scripts/sync-agents.sh --target ~/ --dry-run
