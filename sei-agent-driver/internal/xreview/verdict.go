@@ -60,6 +60,32 @@ func (v Verdict) Decision() string {
 	return normalizeDecision(v.Structured["decision"])
 }
 
+// Summary returns the review's one- or two-sentence summary, empty when it wrote
+// none.
+func (v Verdict) Summary() string {
+	if v.Structured == nil {
+		return ""
+	}
+	return strings.TrimSpace(stringField(v.Structured, "summary"))
+}
+
+// CheckConclusion renders the decision as a GitHub check-run conclusion.
+//
+// Derived rather than asked for separately. The two say the same thing about the
+// same review, and a review that could disagree with itself — request_changes
+// beside a passing check — would leave a reader no way to tell which is meant.
+func (v Verdict) CheckConclusion() string {
+	switch v.Decision() {
+	case "request_changes":
+		return "failure"
+	case "comment":
+		return "neutral"
+	case "approve":
+		return "success"
+	}
+	return ""
+}
+
 // HasVerdict reports whether the turn produced a decision this driver can act
 // on. Its absence is a no-verdict outcome: a review that cannot be decided
 // mechanically is one a human has to read anyway.
