@@ -49,7 +49,7 @@ Heavier orchestration — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`,
   - **Workflow** — `/xreview`
   - **Investigation** — `/root-cause`
   - **Code quality** — `/idiomatic`, `/systems`
-  - **Writing quality** — `/lingua`
+  - **Writing quality** — `/language`
   - **Skill authoring** — `/author-skill`, `/audit-skill`
   - **Output quality** (sei-internal-skills-local) — `/brevity`, `/pr-quality`
   - **Platform infra** — `/platform`, `/kubernetes`

@@ -1,10 +1,10 @@
 {
-  "skill": "lingua",
+  "skill": "language",
   "evals": [
     {
       "id": "happy-path-translate-hld",
       "type": "happy-path",
-      "prompt": "Using /lingua, translate this HLD excerpt for both audiences:\n\n## Retry handling\nBack when we ran the old gateway, retries were a constant source of pain... The new design takes a much more relaxed approach. We connect through the standard pool, and the pool handles most transient blips transparently. We should probably keep retries capped at 3 with exponential backoff so we don't repeat history, though the exact ceiling is something folks have gone back and forth on. Downstream of the pool, handlers are written to be idempotent.",
+      "prompt": "Using /language, translate this HLD excerpt for both audiences:\n\n## Retry handling\nBack when we ran the old gateway, retries were a constant source of pain... The new design takes a much more relaxed approach. We connect through the standard pool, and the pool handles most transient blips transparently. We should probably keep retries capped at 3 with exponential backoff so we don't repeat history, though the exact ceiling is something folks have gone back and forth on. Downstream of the pool, handlers are written to be idempotent.",
       "expected_behavior": [
         "Loads audience-model.md + pack (or flags missing pack) and reads/flags the repo profile BEFORE transforming (two-part gate)",
         "Output uses the SKILL.md format: Translation + Change log + Open questions extracted + Advisory + Deliberately unchanged",

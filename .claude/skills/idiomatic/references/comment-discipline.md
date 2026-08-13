@@ -1,6 +1,6 @@
 # In-source comment discipline
 
-`idiomatic-reviewer` is the **champion-of-record** for the in-source comment axis — code comments and config-file (e.g. YAML) annotations. This file defines the standard, is the tie-break when it's in question, and the reviewer enforces it on every xreview cycle. The adjacent doc/prose axis — design docs, READMEs, and file/package **header docs** as narrative — is owned by `prose-steward` via `/lingua`; see "Boundary" below.
+`idiomatic-reviewer` is the **champion-of-record** for the in-source comment axis — code comments and config-file (e.g. YAML) annotations. This file defines the standard, is the tie-break when it's in question, and the reviewer enforces it on every xreview cycle. The adjacent doc/prose axis — design docs, READMEs, and file/package **header docs** as narrative — is owned by `prose-steward` via `/language`; see "Boundary" below.
 
 ## The standard
 
@@ -41,4 +41,4 @@ History-in-source and regression-guard-as-comment **mislead an agent reading lin
 
 ## Boundary — in-source comments vs. doc artifacts
 
-This axis owns **whether an in-source comment should exist and where it sits** — including the placement/existence of a top-of-file package/type doc and config-field annotations. The **narrative prose quality** of a header doc, README, guide, or design doc is `prose-steward`'s via `/lingua`. The **canonical boundary table** — full axis/owner/surface split, the header-doc aspect rule, and dispute resolution — lives in `/lingua` `references/audience-model.md`; this section points there rather than restating it.
+This axis owns **whether an in-source comment should exist and where it sits** — including the placement/existence of a top-of-file package/type doc and config-field annotations. The **narrative prose quality** of a header doc, README, guide, or design doc is `prose-steward`'s via `/language`. The **canonical boundary table** — full axis/owner/surface split, the header-doc aspect rule, and dispute resolution — lives in `/language` `references/audience-model.md`; this section points there rather than restating it.

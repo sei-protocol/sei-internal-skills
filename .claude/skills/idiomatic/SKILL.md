@@ -80,7 +80,7 @@ Every finding names its basis: a language-idiom authority (e.g. "Effective Go: E
 
 ### Rule 4 — Comment discipline (owned axis)
 
-`idiomatic-reviewer` is the **champion-of-record for the in-source comment axis** (code comments + config annotations): present-state only, sparingly, top-located, no inline change/why/history, no per-line config annotations. Apply it on every diff that touches comments; the full standard + decision procedure live in `references/comment-discipline.md`. The adjacent doc/prose axis (READMEs, design docs, narrative quality) is owned by `prose-steward` via `/lingua` — do not adjudicate prose there.
+`idiomatic-reviewer` is the **champion-of-record for the in-source comment axis** (code comments + config annotations): present-state only, sparingly, top-located, no inline change/why/history, no per-line config annotations. Apply it on every diff that touches comments; the full standard + decision procedure live in `references/comment-discipline.md`. The adjacent doc/prose axis (READMEs, design docs, narrative quality) is owned by `prose-steward` via `/language` — do not adjudicate prose there.
 
 ### Rationalization table
 

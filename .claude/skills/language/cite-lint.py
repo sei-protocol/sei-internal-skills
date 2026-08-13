@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Sonar cite-lint — mechanical verification of /lingua corpus citations (Design 06 / PLT-493).
+"""Sonar cite-lint — mechanical verification of /language corpus citations (Design 06 / PLT-493).
 
 Validates that every `cite: <vertical>/<kind>/<target>` prose-string in the corpus resolves to a
 declared anchor — the grep-invisible defect class (wrapped spans, renamed/removed anchors) that manual
 review catches by hand today.
 
-A `cite:` is a Sonar Resource Name with the `lingua` domain elided: the full SRN is
-`srn:lingua:<vertical>/<kind>/<target>` (Design 06). This lint validates the domain-elided prose form
+A `cite:` is a Sonar Resource Name with the `language` domain elided: the full SRN is
+`srn:language:<vertical>/<kind>/<target>` (Design 06). This lint validates the domain-elided prose form
 in place; nothing is rewritten.
 
 Resolution rules (the three kinds):
@@ -16,7 +16,7 @@ Resolution rules (the three kinds):
   prfaq/source/<Q>  -> /prfaq (sibling skill) primary-sources.md  Q-id       (cross-skill)
 
 Anchors are matched GitHub-slug style (so /prfaq's prose headings like
-'## Press release — section-by-section' resolve as 'press-release--section-by-section'); the /lingua
+'## Press release — section-by-section' resolve as 'press-release--section-by-section'); the /language
 headings are already kebab, on which slugify is idempotent.
 
 Reserved-source check: DEFERRED (Design 06 §4). The spec calls for flagging a cite whose resolved target
@@ -35,7 +35,7 @@ import re
 import sys
 from pathlib import Path
 
-HERE = Path(__file__).resolve().parent           # .../skills/lingua
+HERE = Path(__file__).resolve().parent           # .../skills/language
 REF = HERE / "references"
 PRFAQ = HERE.parent / "prfaq" / "references"      # sibling skill (cross-skill prfaq cites)
 

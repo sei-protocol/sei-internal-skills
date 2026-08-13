@@ -35,7 +35,7 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 ### writing-quality
 | Agent | Scope |
 |-------|-------|
-| `prose-steward` | Dual-audience prose steward — reviews org artifacts (design docs/HLDs, PRDs, 1-pagers) so they read correctly for **both** the human reviewer who scans and the consuming AI agent that ingests linearly and acts on the text. Doctrine-and-profile-first (backed by the `/lingua` skill; repo `CLAUDE.md` writing conventions outrank the generic doctrine), citation-tier honest (Cited findings carry `Basis:`; Stated-opinion is advisory-only, never blocking), suggest-only. Pinned unconditionally by `/xreview` on any `skill-package` change. NOT code idiom (`idiomatic-reviewer`), NOT scope (`product-manager`). |
+| `prose-steward` | Dual-audience prose steward — reviews org artifacts (design docs/HLDs, PRDs, 1-pagers) so they read correctly for **both** the human reviewer who scans and the consuming AI agent that ingests linearly and acts on the text. Doctrine-and-profile-first (backed by the `/language` skill; repo `CLAUDE.md` writing conventions outrank the generic doctrine), citation-tier honest (Cited findings carry `Basis:`; Stated-opinion is advisory-only, never blocking), suggest-only. Pinned unconditionally by `/xreview` on any `skill-package` change. NOT code idiom (`idiomatic-reviewer`), NOT scope (`product-manager`). |
 
 ### code-quality
 | Agent | Scope |
@@ -110,7 +110,7 @@ This package consumes portable Claude Code skills and specialist agents authored
 ### Output discipline
 
 - **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the component in scope.
-- **Comments & documentation.** Present-state only — never change/history/why-removed inline (that belongs in the PR/commit); sparingly; top-located (package/file/type doc, not the body); comprehensive context in one centralized doc. Champions: `idiomatic-reviewer` owns in-source comments + config annotations (`/idiomatic`); `prose-steward` owns doc artifacts + header-doc prose (`/lingua`). The full rules and the champion-boundary decision procedure live in those two skills.
+- **Comments & documentation.** Present-state only — never change/history/why-removed inline (that belongs in the PR/commit); sparingly; top-located (package/file/type doc, not the body); comprehensive context in one centralized doc. Champions: `idiomatic-reviewer` owns in-source comments + config annotations (`/idiomatic`); `prose-steward` owns doc artifacts + header-doc prose (`/language`). The full rules and the champion-boundary decision procedure live in those two skills.
 
 ### Using the skills
 
@@ -141,5 +141,5 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 
 ### Roles, not roster
 
-Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose, `/lingua`). The full roster of available specialists lives in the synced `.claude/agents/` files.
+Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose, `/language`). The full roster of available specialists lives in the synced `.claude/agents/` files.
 <!-- END sei-internal-skills-managed -->
