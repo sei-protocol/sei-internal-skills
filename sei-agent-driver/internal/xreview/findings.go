@@ -1,6 +1,9 @@
 package xreview
 
-import "strings"
+import (
+	"strconv"
+	"strings"
+)
 
 // Finding is one observation a review made about a specific line.
 //
@@ -17,18 +20,17 @@ type Finding struct {
 	Line int `json:"line"`
 
 	// Side is which side of the diff Line counts against: RIGHT for the new file,
-	// LEFT for the old one. It is what makes a finding about a REMOVED line
-	// placeable at all — without it such a finding either lands on an unrelated
-	// new line or is dropped.
+	// LEFT for the old one. It is what makes a finding about a removed line
+	// placeable at all — without it such a finding lands on an unrelated new line
+	// or is dropped.
 	//
-	// Empty means RIGHT, which is what the overwhelming majority of findings are
-	// and what every finding written before this field existed meant.
+	// Empty means RIGHT, which is what a finding naming no side means and what
+	// nearly every finding is.
 	Side string `json:"side"`
 
-	// Severity is blocker, suggestion or nit. Carried verbatim rather than
-	// normalised once recognised: it is the agent's word, and rewriting it would
-	// misreport what the review said. The older high/medium/low vocabulary maps
-	// onto it, because a session that has reviewed before still speaks it.
+	// Severity is blocker, suggestion or nit, carried verbatim once recognised:
+	// it is the agent's word, and rewriting it would misreport what the review
+	// said. A review speaking the high/medium/low vocabulary maps onto it.
 	Severity string `json:"severity"`
 
 	// Detail is what is wrong and why it matters.
@@ -51,9 +53,9 @@ type PreExistingIssue struct {
 	Body string `json:"body"`
 }
 
-// severityAliases maps the vocabulary a session learned before this contract
-// onto the current one. An adopted session carries its first prompt in context,
-// so it keeps answering in the words that prompt used.
+// severityAliases maps the older vocabulary onto the current one. A session
+// carries its first prompt in context and answers in the words that prompt
+// used, so both are spoken here.
 var severityAliases = map[string]string{
 	"high":   "blocker",
 	"medium": "suggestion",
@@ -90,41 +92,68 @@ func normalizeSide(raw string) string {
 // still in the prose the summary comment carries, so nothing is lost from the
 // review — only from the inline placement.
 func PlaceableFindings(v Verdict) []Finding {
-	raw := listField(v.Structured, "inline_comments")
-	if raw == nil {
-		// A session that reviewed under the previous contract answers in its
-		// vocabulary, and it cannot be told otherwise once its first prompt is in
-		// context. Reading both is what stops a schema change from silently
-		// placing nothing on every pull request already reviewed.
-		raw = listField(v.Structured, "findings")
-	}
-	out := make([]Finding, 0, len(raw))
-	for _, entry := range raw {
+	seen := make(map[string]bool)
+	out := make([]Finding, 0)
+	for _, entry := range reportedFindings(v) {
 		fields, ok := entry.(map[string]any)
 		if !ok {
 			continue
 		}
-		file := strings.TrimSpace(stringField(fields, "path"))
-		if file == "" {
-			file = strings.TrimSpace(stringField(fields, "file"))
-		}
-		body := strings.TrimSpace(stringField(fields, "body"))
-		if body == "" {
-			body = strings.TrimSpace(stringField(fields, "detail"))
-		}
-		f := Finding{
-			File:     file,
-			Line:     intField(fields, "line"),
-			Side:     normalizeSide(stringField(fields, "side")),
-			Severity: normalizeSeverity(stringField(fields, "severity")),
-			Detail:   body,
-		}
-		if f.File == "" || f.Line <= 0 || f.Detail == "" {
+		f := findingFrom(fields)
+		if !f.placeable() || seen[f.dedupeKey()] {
 			continue
 		}
+		seen[f.dedupeKey()] = true
 		out = append(out, f)
 	}
 	return out
+}
+
+// reportedFindings returns the raw entries a reply offered as line-tied
+// findings, under either key it may have used.
+//
+// Both keys are read, always, rather than one falling back to the other. A
+// session answers in the vocabulary its first prompt taught and cannot be told
+// otherwise, so a re-review shown the current schema can write an empty
+// inline_comments beside a filled findings. A fallback that fires only when the
+// key is absent does not fire there, and the result is a run that places nothing
+// and reports success.
+func reportedFindings(v Verdict) []any {
+	return append(listField(v.Structured, "inline_comments"),
+		listField(v.Structured, "findings")...)
+}
+
+// findingFrom decodes one entry, taking either vocabulary's field names.
+func findingFrom(fields map[string]any) Finding {
+	return Finding{
+		File:     firstNonEmpty(fields, "path", "file"),
+		Line:     intField(fields, "line"),
+		Side:     normalizeSide(stringField(fields, "side")),
+		Severity: normalizeSeverity(stringField(fields, "severity")),
+		Detail:   firstNonEmpty(fields, "body", "detail"),
+	}
+}
+
+// placeable reports whether this finding can be posted against a line.
+func (f Finding) placeable() bool {
+	return f.File != "" && f.Line > 0 && f.Detail != ""
+}
+
+// dedupeKey identifies a finding by what it says and where. A reply that wrote
+// the same finding under both keys means it once, and posting it twice is a
+// duplicate the author reads as noise.
+func (f Finding) dedupeKey() string {
+	return strings.Join([]string{f.File, f.Side, strconv.Itoa(f.Line), f.Detail}, "\x00")
+}
+
+// firstNonEmpty returns the first of keys that carries a non-empty string.
+func firstNonEmpty(fields map[string]any, keys ...string) string {
+	for _, k := range keys {
+		if s := strings.TrimSpace(stringField(fields, k)); s != "" {
+			return s
+		}
+	}
+	return ""
 }
 
 // Blockers returns the must-fix findings that name no single line.

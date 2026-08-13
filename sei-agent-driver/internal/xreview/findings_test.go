@@ -1,6 +1,9 @@
 package xreview
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestPlaceableFindingsDropsWhatCannotBePlaced pins the rule that decides which
 // observations become inline comments.
@@ -140,4 +143,64 @@ func verdictFrom(t *testing.T, block string) Verdict {
 		t.Fatalf("no verdict parsed from %s", block)
 	}
 	return v
+}
+
+// TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty is the case a fallback
+// misses. A session shown the current schema on re-review knows the new key
+// exists and writes it empty, while still reporting under the vocabulary its
+// first prompt taught. Reading the old key only when the new one is ABSENT
+// places nothing here, and reports success doing it.
+func TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"decision":"comment","summary":"s",
+	  "inline_comments":[],
+	  "findings":[{"file":"a.go","line":9,"severity":"high","detail":"boom"}]}`)
+
+	got := PlaceableFindings(v)
+	if len(got) != 1 {
+		t.Fatalf("placed %d, want 1: an empty inline_comments must not hide a "+
+			"filled findings", len(got))
+	}
+	if got[0].Severity != "blocker" || got[0].File != "a.go" {
+		t.Errorf("finding = %+v", got[0])
+	}
+}
+
+// TestPlaceableFindingsDedupesAcrossKeys covers the other half of reading both:
+// a reply that wrote one finding under each key means it once.
+func TestPlaceableFindingsDedupesAcrossKeys(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"decision":"comment","summary":"s",
+	  "inline_comments":[{"path":"a.go","line":9,"side":"RIGHT","severity":"blocker","body":"boom"}],
+	  "findings":[{"file":"a.go","line":9,"severity":"high","detail":"boom"}]}`)
+
+	if got := PlaceableFindings(v); len(got) != 1 {
+		t.Fatalf("placed %d, want 1: the same finding under both keys is one "+
+			"finding, and posting it twice is noise on the author's diff", len(got))
+	}
+}
+
+// TestBothPromptsCarryTheBucketRules pins what a session can actually read.
+// Sessions outlive runs, so every dispatch after the first takes the adopted
+// path; rules that live only in the other prompt stop applying there.
+func TestBothPromptsCarryTheBucketRules(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "sei-protocol/sandbox", PR: 42}
+	for name, prompt := range map[string]string{
+		"BuildPrompt":   BuildPrompt(req),
+		"AdoptedPrompt": AdoptedPrompt(req),
+	} {
+		for _, want := range []string{
+			"inline_comments", "blockers", "non_blockers", "pre_existing_issues",
+			"side is RIGHT for an added or changed line",
+			"blocker, suggestion or nit",
+		} {
+			if !strings.Contains(prompt, want) {
+				t.Errorf("%s does not carry %q", name, want)
+			}
+		}
+	}
 }
