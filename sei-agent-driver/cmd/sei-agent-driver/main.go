@@ -121,6 +121,10 @@ func xreviewCommand(log *slog.Logger) *cli.Command {
 				Name:  "findings-out",
 				Usage: "write the placeable findings here as json for the caller to post inline",
 			},
+			&cli.StringFlag{
+				Name:  "check-out",
+				Usage: "write the check run here as json for the caller to publish",
+			},
 			&cli.BoolFlag{
 				Name: "close",
 				Usage: "delete this pull request's session instead of reviewing; " +
@@ -217,7 +221,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 		if err != nil {
 			return &exitError{code: result.ExitCode, err: err}
 		}
-		if err := report("", "", result); err != nil {
+		if err := report("", "", "", result); err != nil {
 			return &exitError{code: driver.ExitConfig, err: err}
 		}
 		if result.ExitCode != driver.ExitOK {
@@ -241,7 +245,8 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 		return &exitError{code: result.ExitCode, err: err}
 	}
 
-	if err := report(cmd.String("out"), cmd.String("findings-out"), result); err != nil {
+	if err := report(cmd.String("out"), cmd.String("findings-out"),
+		cmd.String("check-out"), result); err != nil {
 		return &exitError{code: driver.ExitConfig, err: err}
 	}
 	if result.ExitCode != driver.ExitOK {
@@ -269,7 +274,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 // [driver.ExitNoVerdict], upserting unparsed prose over a previous good review.
 // That prose is deliberately not published; stdout carries the decision, the
 // structured block and, when there is no verdict, the reason there is none.
-func report(outPath, findingsPath string, result driver.Result) error {
+func report(outPath, findingsPath, checkPath string, result driver.Result) error {
 	payload := map[string]any{
 		"session_id":  result.SessionID,
 		"exit_code":   result.ExitCode,
@@ -303,7 +308,33 @@ func report(outPath, findingsPath string, result driver.Result) error {
 	if err := os.WriteFile(outPath, []byte(body), 0o644); err != nil {
 		return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
 	}
-	return writeFindings(findingsPath, verdict)
+	if err := writeFindings(findingsPath, verdict); err != nil {
+		return err
+	}
+	return writeCheckRun(checkPath, verdict)
+}
+
+// writeCheckRun renders the check run the caller publishes.
+//
+// Written whenever there is a verdict, unlike the findings: a review that found
+// nothing still concludes, and a checks list with no xreview entry reads as a
+// review that did not run rather than one that passed.
+func writeCheckRun(path string, verdict xreview.Verdict) error {
+	if path == "" {
+		return nil
+	}
+	check, ok := xreview.BuildCheckRun(verdict)
+	if !ok {
+		return nil
+	}
+	blob, err := json.MarshalIndent(check, "", "  ")
+	if err != nil {
+		return fmt.Errorf("rendering the check run: %w", err)
+	}
+	if err := os.WriteFile(path, blob, 0o644); err != nil {
+		return fmt.Errorf("writing the check run to %s: %w", path, err)
+	}
+	return nil
 }
 
 // firstNonEmpty returns the first of its arguments that says something.
