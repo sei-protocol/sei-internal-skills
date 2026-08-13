@@ -1,6 +1,6 @@
 # PRFAQ vertical — pointer (no new sources)
 
-Part of the `/lingua` corpus cite contract (Design 03). The PRFAQ vertical is **owned by `/prfaq`**; this
+Part of the `/language` corpus cite contract (Design 03). The PRFAQ vertical is **owned by `/prfaq`**; this
 file is a pointer only. The corpus adds **zero** new PRFAQ sources and authors no PRFAQ shape — both
 already exist, license-clean, in `/prfaq`.
 

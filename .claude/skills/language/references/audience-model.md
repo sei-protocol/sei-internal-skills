@@ -143,7 +143,7 @@ This table is the **canonical home** for the cross-champion boundary; the in-sou
 
 | Axis | Owner | Surface |
 |---|---|---|
-| Documentation artifacts + prose | `prose-steward` (`/lingua`) | design docs, READMEs, runbooks; the **narrative prose** of a file/package/module header doc |
+| Documentation artifacts + prose | `prose-steward` (`/language`) | design docs, READMEs, runbooks; the **narrative prose** of a file/package/module header doc |
 | In-source comments + config annotations | `idiomatic-reviewer` (`/idiomatic`) | comments **interleaved with code**, inline/config-field annotations; **whether a header-doc comment should exist and where it sits** |
 
 The dividing line is **the unit being described, not the file extension** — *and, for a header doc, the aspect*. Whether a top-of-file package/type doc should exist and where it sits is `idiomatic-reviewer`'s call (placement/existence); the quality of its narrative wording is `prose-steward`'s (prose). A comment three lines into a function is wholly `idiomatic-reviewer`. When one artifact carries both (an LLD with embedded code), the two review separately with no shared findings; disputes on existence/placement resolve to `idiomatic-reviewer`, disputes on narrative wording to `prose-steward`. The shared PLT-626 philosophy means rulings converge rather than conflict.

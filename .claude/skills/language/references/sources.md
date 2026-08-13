@@ -1,13 +1,13 @@
 # Sources & licensing
 
-Part of the `/lingua` skill (its `SKILL.md` lands in PLT-479). This file plus `exemplars/` are the
+Part of the `/language` skill (its `SKILL.md` lands in PLT-479). This file plus `exemplars/` are the
 corpus cite contract from **Design 03 — The exemplar corpus**
 (https://github.com/sei-protocol/bdchatham-designs/blob/main/designs/sei-agentic-mesh/03-exemplar-corpus.md).
 This `sources.md` is THE single license table — there is no separate licenses registry.
 
 ## The cite discipline (the contract BG-2 builds against)
 
-A `/lingua` pack rule cites an exemplar as a **prose string**, resolved at author time by grep — the same
+A `/language` pack rule cites an exemplar as a **prose string**, resolved at author time by grep — the same
 pattern `/idiomatic` uses ("Effective Go: Errors") and `/systems` uses (cite-by-short-name). No URI scheme,
 no registry (both deferred per Design 03 until the corpus exceeds ~1 vertical and grep stops sufficing).
 
@@ -98,7 +98,7 @@ one-pager are ACTIVE — each has `exemplars/<vertical>/` canonical-shape + anno
 `candidate` rows are named sources not yet exemplified.
 
 **Registry un-defer trigger: MET as of PLT-490** — HLD and LLD are both ACTIVE with real entries, so
-Design 03's condition ("the corpus exceeds ~1 vertical") now holds. The `lingua://` URI scheme + indexed
+Design 03's condition ("the corpus exceeds ~1 vertical") now holds. The `language://` URI scheme + indexed
 `registry.md` + resolver are **not built here** (the identifier scheme is a soft one-way door requiring a
 deliberate human decision); they are the flagged next corpus build goal, no longer an indefinite deferral.
 Until then, grep over prose-string cites remains the resolution mechanism.

@@ -1,11 +1,11 @@
 ---
-name: lingua
+name: language
 category: writing-quality
 model: claude-opus-5
-description: "Use when translating an org artifact (design doc, HLD, PRD, 1-pager) so it reads correctly for BOTH audiences — the human reviewer and the consuming AI agent — '/lingua <doc>', 'translate this doc for both audiences', 'make this read well for humans and agents', 'dual-audience pass', 'agent-readable rewrite'. Anti-triggers: NOT for code idiom (use /idiomatic); NOT for correctness/logic review (use /code-review); NOT for the PRFAQ vertical lifecycle — authoring/reviewing/verdicting a PRFAQ (use /prfaq; /lingua may translate a PRFAQ's prose on request but defers thesis/voice/falsification to /prfaq); NOT for scope cutting (product-manager); NOT for systems-level quality (use /systems); NOT for tightening PR bodies/comments (use /brevity). Review-as-a-lens is the prose-steward agent's surface (PLT-480), which applies this doctrine."
+description: "Use when translating an org artifact (design doc, HLD, PRD, 1-pager) so it reads correctly for BOTH audiences — the human reviewer and the consuming AI agent — '/language <doc>', 'translate this doc for both audiences', 'make this read well for humans and agents', 'dual-audience pass', 'agent-readable rewrite'. Anti-triggers: NOT for code idiom (use /idiomatic); NOT for correctness/logic review (use /code-review); NOT for the PRFAQ vertical lifecycle — authoring/reviewing/verdicting a PRFAQ (use /prfaq; /language may translate a PRFAQ's prose on request but defers thesis/voice/falsification to /prfaq); NOT for scope cutting (product-manager); NOT for systems-level quality (use /systems); NOT for tightening PR bodies/comments (use /brevity). Review-as-a-lens is the prose-steward agent's surface (PLT-480), which applies this doctrine."
 ---
 
-# Lingua
+# Language
 
 Translate an existing org artifact so it is **dual-aligned**: legible to the human who scans it and to
 the AI agent that ingests it linearly and acts on it. This is a *technique* skill with a *discipline
@@ -55,7 +55,7 @@ These hold under time pressure, authority, and a tidy-looking rewrite:
 
 `python3 cite-lint.py` verifies every `cite: <vertical>/<kind>/<target>` in the corpus resolves to a
 declared anchor — the grep-invisible defect class (wrapped spans, renamed/removed anchors). A `cite:` is
-a **Sonar Resource Name** with the `lingua` domain elided (`srn:lingua:<vertical>/<kind>/<target>`,
+a **Sonar Resource Name** with the `language` domain elided (`srn:language:<vertical>/<kind>/<target>`,
 Design 06 / PLT-493). Exit non-zero on any unresolved cite; run it as the pre-PR gate when touching the
 corpus. Reserved-source over-quotation stays human-review (Guardrail 7); the per-cite adjacency flag is
 deferred (Design 06 §4). `lint:ignore-cite` on a line opts out documentation of the cite *syntax*.
@@ -77,7 +77,7 @@ loaded). All three failed in ways this spine now counters:
 
 ## When to use / when not
 
-| Use `/lingua` for… | Use instead… |
+| Use `/language` for… | Use instead… |
 |---|---|
 | Re-rendering a doc so human scan + agent ingestion both work | — |
 | Surfacing buried/soft-modal constraints as typed Open questions | — |
@@ -186,5 +186,5 @@ Stop and surface rather than proceeding when:
 Compose mode + a standalone Review surface — when Translate is validated on real artifacts (review
 arrives sooner via `prose-steward`, PLT-480). PRD pack — when a real consumer reviews that vertical
 (one-file-add; LLD + 1-pager packs landed in PLT-494). Separate audience-pack files — when a second artifact pack would duplicate
-`audience-model.md`. Any agent-parsed format — only through an explicit council gate. The `lingua://`
+`audience-model.md`. Any agent-parsed format — only through an explicit council gate. The `language://`
 registry — when the corpus exceeds ~1 vertical (per Design 03).

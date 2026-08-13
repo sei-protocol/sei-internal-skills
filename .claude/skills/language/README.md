@@ -1,10 +1,10 @@
-# Lingua
+# Language
 
 > A dual-audience prose pass applied across the design and workstream lifecycle stages it touches.
 
-![Lingua architecture diagram](assets/lingua.png)
+![Language architecture diagram](assets/language.png)
 
-Lingua translates an existing org artifact (HLD, LLD, PRD, 1-pager) so it reads correctly for both the human who scans it and the AI agent that ingests it linearly and acts on it. It re-renders meaning without ever adding it: the one thing it guarantees is fidelity — a soft modal stays a typed Open question, a constraint stays where it applies, and no commitment the source never made is invented to make the prose look finished.
+Language translates an existing org artifact (HLD, LLD, PRD, 1-pager) so it reads correctly for both the human who scans it and the AI agent that ingests it linearly and acts on it. It re-renders meaning without ever adding it: the one thing it guarantees is fidelity — a soft modal stays a typed Open question, a constraint stays where it applies, and no commitment the source never made is invented to make the prose look finished.
 
 | | |
 |---|---|

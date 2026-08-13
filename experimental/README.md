@@ -31,9 +31,9 @@ make sync-experimental          # into ~/.claude
 | **Deep-dive engineering** | `ebpf`, `bugbash` |
 | **Recruiting** | `interview` + `sei-interview-expert` |
 
-`lingua` and `prose-steward` are **not** here. `/xreview` pins `prose-steward`
+`language` and `prose-steward` are **not** here. `/xreview` pins `prose-steward`
 unconditionally on any `skill-package` change and halts when a pinned steward is
-missing from its registry, and `prose-steward`'s operating manual *is* `/lingua` —
+missing from its registry, and `prose-steward`'s operating manual *is* `/language` —
 so both are load-bearing for a core skill and stay in the core.
 
 ## Promoting and parking
