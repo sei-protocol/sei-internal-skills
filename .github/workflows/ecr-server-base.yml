@@ -14,6 +14,9 @@ name: ECR Server Base
 # therefore cannot trigger this — the ref is an explicit input, which suits
 # something bumped deliberately against an upstream release.
 #
+# That cross-repo checkout assumes the fork stays public, which it is today. See
+# the token line below for what to do if that changes.
+#
 # amd64 only, matching ecr-server.yml and the server deployment's nodes. The
 # hand-built base was multi-arch; nothing consumed the arm64 half, and building
 # it doubles the run for a platform the fleet does not schedule.
@@ -47,6 +50,13 @@ jobs:
         with:
           repository: bdchatham/omnigent
           ref: ${{ inputs.ref }}
+          # The fork is public, so the job's own token reads it. The fallback is
+          # here because that is a property of the fork rather than of this
+          # workflow: if it is ever made private the default token stops working
+          # and the failure reads as "repository not found", which names neither
+          # the cause nor the fix. Setting OMNIGENT_FORK_TOKEN then repairs it
+          # without touching this file.
+          token: ${{ secrets.OMNIGENT_FORK_TOKEN || github.token }}
           # The build reads the git history for its version string.
           fetch-depth: 0
 
