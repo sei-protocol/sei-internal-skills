@@ -1,0 +1,162 @@
+name: ECR Server Base
+
+# Build + push the server BASE image — the omnigent fork itself, which
+# Dockerfile.server then layers the agent bundles onto.
+#
+# This exists because the base had no pipeline. The deployed base
+# (agents-main-mvp-664732a0-k8s, sha256:0513a223) was pushed by hand on
+# 2026-07-29 and pinned by digest in server-base.txt, so nothing recorded how to
+# reproduce it and the fork drifted 812 commits behind upstream before anyone
+# could tell. A base you cannot rebuild is a base you cannot patch.
+#
+# Source is the fork, not this repo: the server binary and the bundles have
+# different owners, which is exactly why the image has two layers. A fork commit
+# therefore cannot trigger this — the ref is an explicit input, which suits
+# something bumped deliberately against an upstream release.
+#
+# That cross-repo checkout assumes the fork stays public, which it is today. See
+# the token line below for what to do if that changes.
+#
+# amd64 only, matching ecr-server.yml and the server deployment's nodes. The
+# hand-built base was multi-arch; nothing consumed the arm64 half, and building
+# it doubles the run for a platform the fleet does not schedule.
+#
+# Publishing does not roll anything. Deploying is three deliberate steps: the
+# digest here into server-base.txt, then ecr-server.yml for the overlay, then the
+# overlay digest into platform's kustomization.yaml with a config-revision bump.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "omnigent fork ref to build (branch, tag or sha)"
+        required: true
+        default: feat/sei-base
+      tag:
+        description: "Image tag (defaults to agents-main-<short ref sha>-k8s)"
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out the fork at the requested ref
+        uses: actions/checkout@v4
+        with:
+          repository: bdchatham/omnigent
+          ref: ${{ inputs.ref }}
+          # The fork is public, so the job's own token reads it. The fallback is
+          # here because that is a property of the fork rather than of this
+          # workflow: if it is ever made private the default token stops working
+          # and the failure reads as "repository not found", which names neither
+          # the cause nor the fix. Setting OMNIGENT_FORK_TOKEN then repairs it
+          # without touching this file.
+          token: ${{ secrets.OMNIGENT_FORK_TOKEN || github.token }}
+          # The build reads the git history for its version string.
+          fetch-depth: 0
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::189176372795:role/common/gha
+          role-duration-seconds: 3600
+          aws-region: us-east-2
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - id: vars
+        name: Resolve the target tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse --short=8 HEAD)"
+          echo "tag=${INPUT_TAG:-agents-main-${sha}-k8s}" >> "$GITHUB_OUTPUT"
+          echo "built ${sha} ($(git log -1 --format=%s | cut -c1-60))"
+
+      - name: Build the base
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          # The kubernetes extra is what lets the server launch managed sandboxes.
+          # Without it the server starts and then cannot create a single Pod.
+          build-args: OMNIGENT_EXTRAS=kubernetes
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: sei-omnigent-base:candidate
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-server-base
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-server-base,mode=max
+
+      - name: Gate — the image carries the extra and the fork's carried patch
+        # Mirrors ecr-server.yml's discipline: prove it in the built image before
+        # publishing, with the same library the server will run. Both assertions
+        # have failed in practice — a base built without the extra 404s every
+        # sandbox launch, and a base built from the wrong ref silently drops the
+        # machine-auth grant, which shows up as /oauth/token returning 404 on
+        # every driver run rather than as a build error.
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint python sei-omnigent-base:candidate -c '
+          import sys
+          bad = False
+
+          import omnigent
+          print("  omnigent", getattr(omnigent, "__version__", "?"))
+
+          try:
+              from omnigent.onboarding.sandboxes.kubernetes import KubernetesSandboxProvider  # noqa: F401
+              print("  ok kubernetes extra present")
+          except Exception as exc:
+              print(f"  FAIL kubernetes extra missing: {exc}"); bad = True
+
+          try:
+              from omnigent.server.routes.client_credentials import (  # noqa: F401
+                  create_client_credentials_router,
+              )
+              print("  ok client_credentials grant present")
+          except Exception as exc:
+              print(f"  FAIL client_credentials grant missing: {exc}"); bad = True
+
+          print("server-base-ok" if not bad else "server-base-FAILED")
+          sys.exit(1 if bad else 0)
+          '
+
+      - name: Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile
+          build-args: OMNIGENT_EXTRAS=kubernetes
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-server-base
+
+      - name: Report the digest to pin in server-base.txt
+        env:
+          REF: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "$REF" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          [ -n "$digest" ] || { echo "could not resolve the pushed digest" >&2; exit 1; }
+          {
+            echo "### Server base published"
+            echo
+            echo "Pin this in \`server-base.txt\`, then run **ECR Server** to rebuild the overlay:"
+            echo
+            echo '```'
+            echo "189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@${digest}"
+            echo '```'
+            echo
+            echo "Tag: \`${{ steps.vars.outputs.tag }}\` — built from \`${{ inputs.ref }}\`."
+          } >> "$GITHUB_STEP_SUMMARY"
