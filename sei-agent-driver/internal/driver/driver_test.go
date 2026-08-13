@@ -569,6 +569,15 @@ func driverAgentPage(id, name, lastID string, hasMore bool) string {
 		id, name, lastID, hasMore)
 }
 
+// driverAgentPageWithHarness is driverAgentPage plus the field that decides which
+// signal ends a turn. Kept separate so the existing pages keep exercising the
+// harness-absent case, which resolves to the stricter terminal-backed rule.
+func driverAgentPageWithHarness(id, name, harness string) string {
+	return fmt.Sprintf(
+		`{"data":[{"id":%q,"name":%q,"created_at":1,"harness":%q}],"last_id":%q,"has_more":false}`,
+		id, name, harness, id)
+}
+
 func driverTestConfig(t *testing.T, baseURL string) Config {
 	t.Helper()
 	return Config{
@@ -1861,4 +1870,133 @@ func TestHealthCheckedClientPingsAnIdleConnection(t *testing.T) {
 			t.Errorf("Timeout = %v, want 0", client.Timeout)
 		}
 	})
+}
+
+// TestDriverInProcessTurnEndsOnResponseCompleted is the codex scout's failure,
+// reduced. The harness is in-process, so no status edge ever carries a response
+// id — the server documents that field as absent there. Before this, the wait ran
+// to its deadline and discarded a complete report; the recorded run produced a
+// valid verdict at 18:17:18 and gave up at 18:23:22.
+func TestDriverInProcessTurnEndsOnResponseCompleted(t *testing.T) {
+	t.Parallel()
+
+	reply := driverVerdict("Two findings.", "comment")
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPageWithHarness("ag_1", "sei-droid", "codex")},
+		CreateResp: driverSessionResp("conv_1", "ag_1"),
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverCreatedFrame(),
+			driverDeltaFrame("Two find"),
+			driverCompletedFrame(),
+			// No id-bearing idle: the whole point is that one never arrives.
+			driverBareIdleFrame(),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			driverSessionWithItems("conv_1", "ag_1",
+				driverReplyItem("item_reply", "resp_1", reply)),
+		},
+	})
+
+	driver := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger())
+	result, err := driver.Run(context.Background(),
+		testWork{Repo: "sei-protocol/sandbox", PR: 42, Trigger: "in-process"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.ExitCode != ExitOK {
+		t.Fatalf("ExitCode = %d, want ExitOK (%d)", result.ExitCode, ExitOK)
+	}
+	if result.Reply == nil {
+		t.Fatal("Reply = nil: the turn never ended, which is the bug this covers")
+	}
+	if result.Reply.Text != reply {
+		t.Errorf("Reply.Text = %q, want %q", result.Reply.Text, reply)
+	}
+	if result.Reply.TurnID != "resp_1" {
+		t.Errorf("Reply.TurnID = %q, want resp_1 (the completed response)", result.Reply.TurnID)
+	}
+}
+
+// TestDriverTerminalBackedIgnoresResponseCompleted is the regression guard for the
+// harness we did not break. There the same event only acknowledges that the prompt
+// reached the terminal, so it arrives before the answer exists; ending on it
+// publishes a review the agent has not written yet.
+//
+// Both candidate ends are on the stream, each with its own reply attributed to it.
+// Ending on the wrong one is therefore visible in the published text, not just in
+// a timing.
+func TestDriverTerminalBackedIgnoresResponseCompleted(t *testing.T) {
+	t.Parallel()
+
+	finished := driverVerdict("Two findings.", "comment")
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPageWithHarness("ag_1", "sei-droid", "claude-native")},
+		CreateResp: driverSessionResp("conv_1", "ag_1"),
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverCreatedFrame(),
+			// The injection acknowledgement. Ending here is the failure.
+			driverCompletedFrame(),
+			driverBareIdleFrame(),
+			driverRunningFrame("resp_claude_a"),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			// Only the finished reply is on the session. Ending on the
+			// acknowledgement would look for resp_1's reply, which does not exist,
+			// so the wrong end cannot quietly produce the right text.
+			driverSessionWithItems("conv_1", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_a", finished)),
+		},
+	})
+
+	driver := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger())
+	result, err := driver.Run(context.Background(),
+		testWork{Repo: "sei-protocol/sandbox", PR: 42, Trigger: "terminal-backed"})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if result.Reply == nil {
+		t.Fatal("Reply = nil, want the finished reply")
+	}
+	if result.Reply.TurnID != "resp_claude_a" {
+		t.Fatalf("Reply.TurnID = %q, want resp_claude_a: the turn ended on the "+
+			"acknowledgement instead of the Stop-hook edge", result.Reply.TurnID)
+	}
+	if result.Reply.Text != finished {
+		t.Errorf("published %q, want %q", result.Reply.Text, finished)
+	}
+}
+
+// TestTerminalBacked pins the classification, including the fail-safe: an
+// unrecognised or absent harness keeps the stricter rule, because publishing a
+// half-written review costs more than waiting out a deadline.
+func TestTerminalBacked(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		harness string
+		want    bool
+	}{
+		{"codex", false},
+		{"claude_sdk", false},
+		{"openai-agents", false},
+		{"pi", false},
+		{"claude-native", true},
+		{"codex-native", true},
+		{"native-claude", true},
+		{"CLAUDE-NATIVE", true},
+		{"  codex-native  ", true},
+		{"", true},
+		{"something-we-have-not-seen", true},
+	} {
+		if got := terminalBacked(tc.harness); got != tc.want {
+			t.Errorf("terminalBacked(%q) = %t, want %t", tc.harness, got, tc.want)
+		}
+	}
 }
