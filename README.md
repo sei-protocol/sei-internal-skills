@@ -169,7 +169,7 @@ scripts/                    # sync-*.sh, permission tooling, regression suites
 .github/workflows/          # CI — catalog, doctrine, permissions, experimental isolation
 AGENTS.md                   # Agent roster + the distributed operating-doctrine block
 CLAUDE.md                   # Project context auto-loaded into every session
-assets/                     # Banner image
+assets/                     # Repo logo used by this README
 ```
 
 The two `.claude/` trees and `experimental/` are the tier split. `agents/` is unrelated
