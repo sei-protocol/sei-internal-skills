@@ -36,6 +36,17 @@ unconditionally on any `skill-package` change and halts when a pinned steward is
 missing from its registry, and `prose-steward`'s operating manual *is* `/language` —
 so both are load-bearing for a core skill and stay in the core.
 
+## Getting rid of one you already have
+
+Parking a resource does not un-install it from environments that synced it earlier.
+
+```sh
+make prune-retired          # report what is stale. Deletes nothing.
+make prune-retired-apply    # remove them
+```
+
+Removing a parked resource is reversible — `make sync-experimental` puts it back.
+
 ## Promoting and parking
 
 Moving a resource is the whole mechanism — there is no manifest to update.

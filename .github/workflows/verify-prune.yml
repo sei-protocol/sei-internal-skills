@@ -1,0 +1,25 @@
+name: Verify Prune Safety
+
+# The one script here that deletes. The suite asserts what it must NOT remove —
+# a core resource, or anything the user authored themselves — so this gate runs
+# on any change to the script, its list, or the tiers it reads.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/prune-retired.sh'
+      - 'scripts/tests/prune-retired.test.sh'
+      - 'scripts/sync-experimental.sh'
+      - '.claude/skills/**'
+      - '.claude/agents/**'
+      - 'experimental/**'
+      - 'Makefile'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Prune never removes a core or user-authored resource
+        run: make test-prune
