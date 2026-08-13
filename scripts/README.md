@@ -7,8 +7,10 @@ Utility scripts for sei-internal-skills repo maintenance. Most are wrapped by Ma
 | `sync-agents.sh` | Copy agents to other `.claude/agents/` directories (membership derived from each agent's `category:`) | `make update` / `make sync-agents`, manually |
 | `sync-skills.sh` | Copy skills to other `.claude/skills/` directories (membership derived from each skill's `category:`) | `make update` / `make sync-skills`, manually |
 | `sync-output-styles.sh` | Copy output styles to other `.claude/output-styles/` directories. Ships the file; **never** activates it — activation is opt-in per user | `make update` / `make sync-output-styles`, manually |
+| `sync-experimental.sh` | OPT-IN installer for `experimental/` skills+agents. Never runs as part of update/sync-all/bootstrap | `make sync-experimental`, manually |
 | `update-agent-permissions.sh` | Install canonical read-only allow-list into `./.claude/settings.json` | `make update-agent-permissions` |
 | `verify-agent-permissions.sh` | Fail if `.claude/settings.json` contains mutating patterns or has drifted | `make verify-agent-permissions`, CI |
+| `tests/experimental-isolation.test.sh` | Regression suite for the `experimental/` tier — nothing in it ships by default | `make test-experimental`, CI |
 | `agent-permissions.json` | Canonical read-only permission set (source of truth) | Read by both agent-permissions scripts |
 | `tests/sync-output-styles.test.sh` | Regression suite for `sync-output-styles.sh` — most importantly, that sync never activates a style | `make test-output-styles`, CI |
 

@@ -17,12 +17,12 @@ This package consumes portable Claude Code skills and specialist agents authored
 
 ### Using the skills
 
-- **`/coral`** — lightweight expert iteration on a defined slice; the fast path. Hands off to `/council` when the work outgrows it (≥3 components, interface changes, one-way doors, multi-session).
-- **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to coral's "produce."
-- **`/council`** — full-ceremony workflow for multi-component, multi-session design; gates one-way doors.
-- **`/bugbash`** — long-running adversarial review of an existing component before launch.
+- **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to producing the work.
 - **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
-- **Handoffs:** `/design` captures *this* work as a durable design doc; `/issue` files *next* work as a tracked issue.
+- **`/idiomatic`** and **`/systems`** — review code for language/package idiom, then for systems-level quality on top. Idiom ⊂ systems quality; run them in that order.
+- **`/pr-quality`** — the locked pre-PR rule gate. **`/brevity`** — tighten a PR body.
+
+Further workflow skills — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — are **experimental** and ship only on opt-in (`make sync-experimental`). Use them when they are installed; never assume they are.
 
 ### xreview discipline
 
@@ -30,7 +30,7 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 
 - **Blinded and independent** — each reviewer commits its findings before seeing the others'; no reviewer's view is summarized into another's brief.
 - **An assigned dissenter** — one reviewer is tasked to argue against the emerging consensus and surface the strongest counter-case.
-- **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) *and*, for doc artifacts, the prose axis (`prose-steward`) — not domain experts alone.
+- **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) — not domain experts alone. For doc artifacts, add the prose axis (`prose-steward`) when it is installed; it is an experimental agent.
 - **Automated review is co-equal** — treat an automated reviewer (e.g. Cursor Bugbot) as a peer input, not noise; an unresolved flag blocks.
 - **Confirmed-consensus iteration** — after a fix, re-dispatch the reviewer that raised the finding to confirm closure; merge only on unanimous sign-off with no open concerns. `/xreview` owns the procedure.
 
@@ -44,4 +44,4 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 
 ### Roles, not roster
 
-Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose, `/lingua`). The full roster of available specialists lives in the synced `.claude/agents/` files.
+Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champion is a named contract: `idiomatic-reviewer` (code idiom, `/idiomatic`). The full roster of available specialists lives in the synced `.claude/agents/` files.

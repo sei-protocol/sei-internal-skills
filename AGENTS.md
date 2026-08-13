@@ -26,17 +26,11 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 | Agent | Scope |
 |-------|-------|
 | `security-specialist` | Security + adversarial design |
-| `tee-specialist` | TEE + attestation |
 
 ### blockchain
 | Agent | Scope |
 |-------|-------|
 | `solidity-developer` | EVM smart-contract engineering on Sei — Solidity/Foundry, precompiles, gas/parity, address association, upgrade safety, on-chain event indexing. Backed by `/evm`. |
-
-### data-architecture
-| Agent | Scope |
-|-------|-------|
-| `data-platform-architect` | Data architecture — domain decomposition, data products & contracts (ODCS), federated computational governance, self-serve data platforms, data quality/observability — with federated/verifiable cross-organizational data sharing as the core use-case. Knows when a mesh is the *wrong* answer (the fit-check). Backed by `/data-mesh`. |
 
 ### code-quality
 | Agent | Scope |
@@ -44,33 +38,22 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 | `idiomatic-reviewer` | Idiomatic-conformance review, language-pluggable. Digests the repo's agent files + `doc.go` into a local idiom profile that outranks generic idiom, overlays a per-language pack, emits two-altitude (design + surgical) cited findings. Reviews for idiom; does **not** author the system (that's the language specialist, e.g. `kubernetes-specialist`). Backed by the `/idiomatic` skill. |
 | `systems-engineer` | Systems software engineer — builds **and** reviews high-performance, reliable, observable, maintainable application code/architectures. Owns "how software behaves on the machine and over time": perf (CPU/mem/I/O/concurrency/latency), failure-modes-by-design (timeouts, back-pressure, idempotency, graceful degradation), observability-by-design, Linux/OS behavior, maintainability. Hooks into the `/idiomatic` standards (idiom ⊂ systems quality) and leans on `idiomatic-reviewer` for the pure idiom pass. Builds/reviews code; does **not** run the platform (→ `sre-engineer` / `platform-engineer` / observability agents). |
 
-### writing-quality
-
-| Agent | Scope |
-|-------|-------|
-| `prose-steward` | Dual-audience prose steward — reviews org artifacts (design docs/HLDs, PRDs, 1-pagers) so they read correctly for **both** the human reviewer who scans and the consuming AI agent that ingests linearly and acts on the text. Doctrine-and-profile-first (backed by the `/lingua` skill; repo `CLAUDE.md` writing conventions outrank the generic doctrine), citation-tier honest (Cited findings carry `Basis:`; Stated-opinion is advisory-only, never blocking), suggest-only. Standalone-invocable — auto-dispatch wiring deferred until validated. NOT code idiom (`idiomatic-reviewer`), NOT the PRFAQ vertical (`/prfaq`), NOT scope (`product-manager`). |
-
 ### product-management
 | Agent | Scope |
 |-------|-------|
 | `product-engineer` | Product engineering |
 | `product-manager` | Product management, scope discipline |
-| `go-to-market-specialist` | GTM strategy for novel products — ICP / JTBD / motion / launch. Partner to `product-manager`. Pairs with the `/prfaq` skill (same domain). |
-
-### project-management
-| Agent | Scope |
-|-------|-------|
-| `technical-program-manager` | Longitudinal execution conscience: keeps in-flight work on-course toward aligned requirements and makes progress auto-discoverable. Reads/decorates the `bet↔design↔issue↔PR` graph via the `/execution-plan` skill, surfaces drift (orphan / stalled / broken-lineage), assembles the manager "what did my team do this week" narrative (draft→confirm). Observations + decorations only — never scope decisions (`product-manager`), build (`product-engineer`), lifecycle/exec writes, or a second source of truth. Sei/Impact-Hub-scoped (`sei` sync alias). |
+| `go-to-market-specialist` | GTM strategy for novel products — ICP / JTBD / motion / launch. Partner to `product-manager`. |
 
 ### release-operations
 | Agent | Scope |
 |-------|-------|
 | `platform-release-manager` | Release management and cut discipline |
 
-### recruiting
-| Agent | Scope |
-|-------|-------|
-| `sei-interview-expert` | Evaluates a candidate's technical interview artifact (a coding take-home) against a behaviorally-anchored rubric (the Sei hiring bar) and proposes deep-dive discussion verticals tailored to the candidate's own implementation (productionizing the system as the north star). Backed by the `/interview` skill (pluggable kits per format). **Primary customer is a human** — outputs follow the `/lingua` R6 rails (distilled, decision-first, jargon-free). Evidence-grounded; suggest-only (informs the human's hire/level call, never decides). Sei-scoped (`sei` sync alias). |
+Three more agents live in [`experimental/agents/`](./experimental/README.md) and are **not**
+installed by default — `prose-steward` (with `/lingua`), `sei-interview-expert` (with
+`/interview`), and `technical-program-manager` (with `/execution-plan`). Opt in with
+`make sync-experimental`.
 
 The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
@@ -127,12 +110,12 @@ This package consumes portable Claude Code skills and specialist agents authored
 
 ### Using the skills
 
-- **`/coral`** — lightweight expert iteration on a defined slice; the fast path. Hands off to `/council` when the work outgrows it (≥3 components, interface changes, one-way doors, multi-session).
-- **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to coral's "produce."
-- **`/council`** — full-ceremony workflow for multi-component, multi-session design; gates one-way doors.
-- **`/bugbash`** — long-running adversarial review of an existing component before launch.
+- **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to producing the work.
 - **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
-- **Handoffs:** `/design` captures *this* work as a durable design doc; `/issue` files *next* work as a tracked issue.
+- **`/idiomatic`** and **`/systems`** — review code for language/package idiom, then for systems-level quality on top. Idiom ⊂ systems quality; run them in that order.
+- **`/pr-quality`** — the locked pre-PR rule gate. **`/brevity`** — tighten a PR body.
+
+Further workflow skills — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — are **experimental** and ship only on opt-in (`make sync-experimental`). Use them when they are installed; never assume they are.
 
 ### xreview discipline
 
@@ -140,7 +123,7 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 
 - **Blinded and independent** — each reviewer commits its findings before seeing the others'; no reviewer's view is summarized into another's brief.
 - **An assigned dissenter** — one reviewer is tasked to argue against the emerging consensus and surface the strongest counter-case.
-- **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) *and*, for doc artifacts, the prose axis (`prose-steward`) — not domain experts alone.
+- **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) — not domain experts alone. For doc artifacts, add the prose axis (`prose-steward`) when it is installed; it is an experimental agent.
 - **Automated review is co-equal** — treat an automated reviewer (e.g. Cursor Bugbot) as a peer input, not noise; an unresolved flag blocks.
 - **Confirmed-consensus iteration** — after a fix, re-dispatch the reviewer that raised the finding to confirm closure; merge only on unanimous sign-off with no open concerns. `/xreview` owns the procedure.
 
@@ -154,5 +137,5 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 
 ### Roles, not roster
 
-Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose, `/lingua`). The full roster of available specialists lives in the synced `.claude/agents/` files.
+Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champion is a named contract: `idiomatic-reviewer` (code idiom, `/idiomatic`). The full roster of available specialists lives in the synced `.claude/agents/` files.
 <!-- END sei-internal-skills-managed -->

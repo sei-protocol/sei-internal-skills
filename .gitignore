@@ -3,6 +3,9 @@
 .claude/skills/*/state/**
 !.claude/skills/*/state/
 !.claude/skills/*/state/.gitkeep
+experimental/skills/*/state/**
+!experimental/skills/*/state/
+!experimental/skills/*/state/.gitkeep
 
 # python bytecode
 __pycache__/

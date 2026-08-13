@@ -6,7 +6,7 @@
 
 sei-internal-skills is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It's the centralized, version-controlled home for the workflows and personas that help us research problems, groom work, document progress in git and tickets, author and iterate on designs and 1-pagers, automate operational processes like releases and root-cause analysis, and collaborate with specialist agents.
 
-Skills and agents are authored once here and synced out to your user-scope (`~/.claude/`) and sibling repos, so the same `/coral`, `/xreview`, `/root-cause`, or `kubernetes-specialist` works the same way everywhere.
+Skills and agents are authored once here and synced out to your user-scope (`~/.claude/`) and sibling repos, so the same `/xreview`, `/root-cause`, or `kubernetes-specialist` works the same way everywhere.
 
 ## Setup
 
@@ -33,39 +33,42 @@ Run `make` with no args to list all targets.
 
 ## Daily use
 
-Most work starts with one of the collaboration skills:
+Most work starts with one of these:
 
-- **`/coral`** — lightweight expert iteration on a defined slice. Picks the right specialist(s) and iterates. The fast path; reach for it first.
-- **`/xreview`** — have the relevant specialists independently review a design, plan, diff, or set of expert outputs, then synthesize a findings table. The review counterpart to coral's "produce."
-- **`/council`** — full-ceremony engineering for multi-component design, scope-tier selection, and multi-session workstreams. The heavier sibling of coral.
-- **`/bugbash`** — long-running adversarial review of an existing system before launch.
-- **`/root-cause`** — disciplined, multi-expert investigation of a complex problem.
+- **`/xreview`** — have the relevant specialists independently review a design, plan, diff, or set of expert outputs, then synthesize a findings table. Blinded, with an assigned dissenter.
+- **`/root-cause`** — disciplined, multi-expert investigation of a complex problem. Signals before hypotheses; falsification before conclusion.
+- **`/idiomatic`** then **`/systems`** — review code for language and package idiom, then for systems-level quality on top.
+- **`/harbor-dev`** — spin up an ephemeral chain, attach an RPC fleet, run a bench, tear it down.
+- **`/pr-quality`** — the locked pre-PR gate. **`/brevity`** — tighten the PR body.
 
-Coral and council offer **`/design`** (capture this work as a durable doc) and **`/issue`** (file the next workstream) at natural handoff moments.
+Heavier orchestration — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — is [experimental](./experimental/README.md) and installs only on opt-in.
 
 ## What's in here
 
-- **Skills** (`.claude/skills/`) — self-contained Claude Code skills, grouped by domain:
-  - **Workflow** — `/coral`, `/council`, `/xreview`
-  - **Workstream bootstrap** — `/design`, `/issue`
-  - **Hardening & investigation** — `/bugbash`, `/root-cause`
+- **Skills** (`.claude/skills/`) — 16 self-contained Claude Code skills, grouped by domain:
+  - **Workflow** — `/xreview`
+  - **Investigation** — `/root-cause`
+  - **Code quality** — `/idiomatic`, `/systems`
   - **Skill authoring** — `/author-skill`, `/audit-skill`
   - **Output quality** (sei-internal-skills-local) — `/brevity`, `/pr-quality`
-  - **Product management** — `/prfaq`
-  - **Project management** — `/impact-weekly`, `/impact-portfolio`
-  - **Release operations** — `/chaos-suite`, `/validate-release`
+  - **Platform infra** — `/platform`, `/kubernetes`
+  - **Blockchain** — `/evm`
+  - **Release operations** — `/chaos-suite`, `/validate-release`, `/gov-ops`, `/validator-platform`
   - **Engineer self-service** — `/harbor-dev`
-- **Agents** (`.claude/agents/`) — specialist personas dispatched by the skills (or directly via the Agent tool), grouped by domain:
+- **Agents** (`.claude/agents/`) — 16 specialist personas dispatched by the skills (or directly via the Agent tool), grouped by domain:
   - **Platform infra** — `kubernetes-specialist`, `platform-engineer`, `network-specialist`, `k8s-capacity-management`, `sei-network-specialist`
   - **Observability** — `opentelemetry-expert`, `observability-platform-engineer`, `sre-engineer`
-  - **Security** — `security-specialist`, `tee-specialist`
+  - **Security** — `security-specialist`
   - **Blockchain** — `solidity-developer`
+  - **Code quality** — `idiomatic-reviewer`, `systems-engineer`
   - **Product management** — `product-engineer`, `product-manager`, `go-to-market-specialist`
   - **Release operations** — `platform-release-manager`
+- **[`experimental/`](./experimental/README.md)** — 13 skills and 3 agents that do **not** ship by default: workflow orchestration, exec reporting, `ebpf`/`bugbash`, `lingua`+`prose-steward`, `interview`+`sei-interview-expert`. Opt in with `make sync-experimental`.
 - **Sync machinery** (`scripts/`, `Makefile`):
   - `sync-skills.sh` / `sync-agents.sh` — copy skills/agents into user-scope (`~/.claude/`) or sibling repos, by domain or alias
   - `sync-output-styles.sh` — copy output styles into `~/.claude/output-styles/`; ships them, never activates them
-  - `Makefile` — `make bootstrap` (one-shot install), plus `make sync-skills` / `make sync-agents` / `make sync-output-styles`
+  - `sync-experimental.sh` — opt-in installer for `experimental/`; never runs as part of update/sync-all/bootstrap
+  - `Makefile` — `make bootstrap` (one-shot install), plus `make sync-skills` / `make sync-agents` / `make sync-output-styles` / `make sync-experimental`
   - `update-agent-permissions.sh` — installs the canonical read-only permission set
 
 ### Output styles
@@ -85,11 +88,11 @@ put `"outputStyle": "ASD-STE100"` in `~/.claude/settings.json`.
 
 ## Organization & selective sync
 
-Skills and agents are grouped into **domains** for navigation and selective install — e.g. `project-management` (`/impact-weekly`, `/impact-portfolio`), `product-management` (`/prfaq`, `go-to-market-specialist`), `workflow`, `platform-infra`, and so on. The domain is **metadata, not directory structure**: each skill/agent carries a `category:` in its frontmatter, the catalogs ([`.claude/skills/README.md`](.claude/skills/README.md), [`AGENTS.md`](AGENTS.md)) group by it, and the sync scripts let you install one domain at a time:
+Skills and agents are grouped into **domains** for navigation and selective install — e.g. `code-quality` (`/idiomatic`, `/systems`), `release-operations` (`/gov-ops`, `/validate-release`), `platform-infra`, `investigation`, and so on. The domain is **metadata, not directory structure**: each skill/agent carries a `category:` in its frontmatter, the catalogs ([`.claude/skills/README.md`](.claude/skills/README.md), [`AGENTS.md`](AGENTS.md)) group by it, and the sync scripts let you install one domain at a time:
 
 ```sh
 make sync-skills                                            # the `portable` set (default)
-./scripts/sync-skills.sh --categories project-management    # just one domain
+./scripts/sync-skills.sh --categories code-quality          # just one domain
 ./scripts/sync-skills.sh --categories all                   # everything syncable
 ```
 
