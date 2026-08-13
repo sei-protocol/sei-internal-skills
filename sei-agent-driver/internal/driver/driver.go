@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	omnigent "github.com/sei-protocol/omnigent-go-sdk"
@@ -203,13 +204,18 @@ func (d *Driver) review(
 	result := Result{ExitCode: ExitOK, TeardownOK: true}
 
 	agentName := d.agentNameFor(w)
-	agentID, err := d.resolveAgent(ctx, client, agentName)
+	agent, err := d.resolveAgent(ctx, client, agentName)
 	if err != nil {
 		return d.classify(ctx, result, err)
 	}
-	d.log.Info("resolved agent", "agent", agentName, "agent_id", agentID)
+	harness := ""
+	if agent.Harness != nil {
+		harness = *agent.Harness
+	}
+	d.log.Info("resolved agent", "agent", agentName, "agent_id", agent.ID,
+		"harness", harness)
 
-	session, adopted, err := d.createOrAdopt(ctx, client, agentID, runKey, w)
+	session, adopted, err := d.createOrAdopt(ctx, client, agent.ID, runKey, w)
 	if err != nil {
 		return d.classify(ctx, result, err)
 	}
@@ -224,7 +230,7 @@ func (d *Driver) review(
 		return d.classify(ctx, result, err)
 	}
 
-	reply, err := d.driveTurn(ctx, client, session.ID, w, adopted, prior)
+	reply, err := d.driveTurn(ctx, client, session.ID, w, adopted, prior, harness)
 	if err != nil {
 		// A turn can produce a reply and still fail: a stream that expires after
 		// the agent answered is the ordinary case. classify returns on the error
@@ -295,24 +301,27 @@ func (d *Driver) agentNameFor(w Workload) string {
 	return d.cfg.Agent
 }
 
-// resolveAgent turns an agent name into the id the server knows it by, paging
-// the listing until the name matches.
+// resolveAgent finds the agent the server knows by this name, paging the listing
+// until it matches.
+//
+// It returns the whole agent rather than its id because the harness travels on
+// it, and the harness decides which signal ends a turn.
 func (d *Driver) resolveAgent(
 	ctx context.Context, client *omnigent.Client, name string,
-) (string, error) {
+) (omnigent.AgentObject, error) {
 	var opts omnigent.ListAgentsOptions
 	for {
 		page, err := client.ListAgents(ctx, opts)
 		if err != nil {
-			return "", err
+			return omnigent.AgentObject{}, err
 		}
 		for _, agent := range page.Data {
 			if agent.Name == name {
-				return agent.ID, nil
+				return agent, nil
 			}
 		}
 		if !page.HasMore || len(page.Data) == 0 {
-			return "", fmt.Errorf("%w: no agent named %q on this server",
+			return omnigent.AgentObject{}, fmt.Errorf("%w: no agent named %q on this server",
 				ErrConfig, name)
 		}
 		opts.After = page.LastID
@@ -513,11 +522,11 @@ func (d *Driver) DeleteSession(ctx context.Context, w Workload) (Result, error) 
 		return d.classify(ctx, Result{ExitCode: ExitOK}, err), err
 	}
 	agentName := d.agentNameFor(w)
-	agentID, err := d.resolveAgent(ctx, client, agentName)
+	agent, err := d.resolveAgent(ctx, client, agentName)
 	if err != nil {
 		return d.classify(ctx, Result{ExitCode: ExitOK}, err), err
 	}
-	session, err := d.findByRunKey(ctx, client, agentID, runKey)
+	session, err := d.findByRunKey(ctx, client, agent.ID, runKey)
 	if err != nil {
 		return d.classify(ctx, Result{ExitCode: ExitOK}, err), err
 	}
@@ -611,19 +620,55 @@ type turn struct {
 	// is the one that actually stopped it.
 	failure error
 
+	// terminalBacked reports that this turn runs on a harness whose status edges
+	// carry a response id, which is what makes the id-bearing idle edge available
+	// as a turn end. False for an in-process harness, where that edge never comes
+	// and the response lifecycle is the end instead.
+	//
+	// Unknown harnesses are terminal-backed, deliberately: the failure that costs
+	// more is publishing a half-written review, and that is what the lifecycle
+	// event produces on the harnesses that ack their injection.
+	terminalBacked bool
+
 	// failedTurnID is the response id a failed edge named, when it named one.
 	// Deliberately not id: a failed turn did not end, and only
 	// [Driver.salvageFailedTurn] may read a reply against this.
 	failedTurnID string
 }
 
-func newTurn(prior map[string]bool, complete func(string) bool) *turn {
+func newTurn(prior map[string]bool, complete func(string) bool, terminalBacked bool) *turn {
 	return &turn{
-		prior:    prior,
-		complete: complete,
-		answered: map[string]bool{},
-		seen:     map[string]int{},
+		prior:          prior,
+		complete:       complete,
+		answered:       map[string]bool{},
+		seen:           map[string]int{},
+		terminalBacked: terminalBacked,
 	}
+}
+
+// inProcessHarnesses are the harnesses whose turns end on the response lifecycle,
+// listed rather than pattern-matched so an unknown one cannot silently take the
+// looser rule. These are what the deployed runner advertises on connect.
+var inProcessHarnesses = map[string]bool{
+	"codex":             true,
+	"claude-sdk":        true,
+	"claude_sdk":        true,
+	"openai-agents":     true,
+	"openai-agents-sdk": true,
+	"agents_sdk":        true,
+	"open-responses":    true,
+	"pi":                true,
+}
+
+// terminalBacked reports whether a harness drives a real terminal, which is what
+// decides where its status edges get a response id.
+//
+// An allowlist rather than a test for "native" in the name: a harness this does
+// not recognise answers true and keeps the stricter rule. Getting that backwards
+// costs a published half-written review, where getting it this way costs a turn
+// that waits for its deadline — the same failure we already know how to see.
+func terminalBacked(harness string) bool {
+	return !inProcessHarnesses[strings.ToLower(strings.TrimSpace(harness))]
 }
 
 func (t *turn) fail(err error) {
@@ -682,6 +727,25 @@ func (t *turn) observeStatus(e omnigent.SessionStatusEvent) {
 	t.id = *e.ResponseID
 }
 
+// observeResponseTerminal reads a response-lifecycle terminal event, which is what
+// ends a turn on an in-process harness.
+//
+// Ignored on a terminal-backed harness, where the same event means only that the
+// prompt reached the terminal. The prior check is the one the idle path already
+// makes: a response that was live before our prompt can complete inside our window
+// and its event is otherwise indistinguishable from ours.
+func (t *turn) observeResponseTerminal(id, kind string, detail error) {
+	if t.terminalBacked || !t.crossed || id == "" || t.prior[id] {
+		return
+	}
+	if detail != nil {
+		t.failedTurnID = id
+		t.fail(detail)
+		return
+	}
+	t.id = id
+}
+
 // observeSuperseded ends the turn on a Claude /clear.
 //
 // The live terminal moves to a new conversation, so a verdict read here would land
@@ -728,13 +792,24 @@ func eventKey(ev omnigent.Event) string {
 // driveTurn sends the prompt and reads the stream until the turn that answers it
 // ends.
 //
-// The turn's end is the single signal this driver trusts: a session status edge
-// reporting idle and carrying a response id, arriving after the server has echoed
-// our own prompt back. Every other candidate was tried and is wrong on this
-// harness. The response lifecycle's terminal event in particular is an injection
-// acknowledgement — it arrives before our prompt has even been persisted, in an id
-// namespace that can never match a conversation item — so treating it as a turn
-// end ended the turn a second or two in, before the agent had done anything.
+// Which signal ends the turn depends on the harness, because the server emits a
+// different one for each and neither is available on the other.
+//
+// On a terminal-backed harness it is a session status edge reporting idle and
+// carrying a response id, arriving after the server has echoed our prompt back.
+// The response lifecycle's terminal event is not usable there: it is an
+// acknowledgement that the prompt reached the terminal, so it arrives before the
+// answer exists, and treating it as the end finished the turn a second or two in.
+// A bare idle is not usable either — one recorded trace carries five, one of them
+// squarely mid-work.
+//
+// On an in-process harness that id-bearing edge never comes. The server documents
+// response_id as "None for ordinary in-process runtime edges", and only the route
+// a native forwarder posts to attaches one, from Claude Code's Stop hook. Waiting
+// for it there is waiting for something the server will never send: a codex scout
+// produced a complete report and the wait ran its full budget and discarded it.
+// The response lifecycle IS the end there — the executor yields it only on a final
+// answer, and the relay commits the assistant message before publishing it.
 //
 // The prompt is sent from the subscription hook rather than before the stream
 // opens. The server buffers nothing, so a turn started before the subscription is
@@ -746,8 +821,9 @@ func (d *Driver) driveTurn(
 	w Workload,
 	from adoption,
 	prior map[string]bool,
+	harness string,
 ) (Reply, error) {
-	t := newTurn(prior, w.Complete)
+	t := newTurn(prior, w.Complete, terminalBacked(harness))
 
 	defer d.logTurnObserved(sessionID, t)
 
@@ -940,6 +1016,24 @@ func (d *Driver) consumeTurn(
 		case omnigent.SessionStatusEvent:
 			t.observeStatus(e)
 
+		case omnigent.ResponseCompletedEvent:
+			t.observeResponseTerminal(e.Response.ID, "completed", nil)
+
+		case omnigent.ResponseFailedEvent:
+			t.observeResponseTerminal(e.Response.ID, "failed",
+				fmt.Errorf("%w: the response failed", ErrTurnFailed))
+
+		case omnigent.ResponseCancelledEvent:
+			t.observeResponseTerminal(e.Response.ID, "cancelled",
+				fmt.Errorf("%w: the response was cancelled", ErrTurnFailed))
+
+		case omnigent.IncompleteEvent:
+			// Terminal but truncated, so it is failed rather than ended: the text
+			// behind it is a review that stops mid-sentence, and publishing one is
+			// worse than reporting that nothing came back.
+			t.observeResponseTerminal(e.Response.ID, "incomplete",
+				fmt.Errorf("%w: the response ended incomplete", ErrTurnFailed))
+
 		case omnigent.SessionSupersededEvent:
 			t.observeSuperseded(e)
 		}
@@ -971,9 +1065,17 @@ func (d *Driver) sendPrompt(
 		return fmt.Errorf("sending the review prompt: %w", err)
 	}
 	if !accepted.Queued {
-		// A refusal and a control input both land here. The server distinguishes
-		// them with denied/reason, which this cannot read until the SDK release
-		// carrying those fields is picked up.
+		// A refusal and a control input both land here, and the server says which
+		// with denied/reason. Reporting the server's own reason beats reporting
+		// that something unspecified went wrong.
+		if accepted.Denied {
+			reason := accepted.Reason
+			if reason == "" {
+				reason = "no reason given"
+			}
+			return fmt.Errorf("%w: the server refused the prompt: %s",
+				ErrTurnFailed, reason)
+		}
 		return fmt.Errorf("%w: the server did not queue the prompt, so this run has "+
 			"no turn to wait for", ErrTurnFailed)
 	}

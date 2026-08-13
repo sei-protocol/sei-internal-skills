@@ -55,19 +55,33 @@
 // opens with a prologue that replays earlier work, so without this line a previous
 // invocation's completed reply is indistinguishable from a fresh one.
 //
-// The end is a session.status edge reporting idle and carrying a response id,
-// arriving after the boundary. That edge's response id is the turn id. An idle
-// edge with no response id is terminal churn and ends nothing. No response
-// lifecycle event ends a turn on this harness: the completed one is an
-// acknowledgement that the prompt was injected into the terminal, and it arrives
-// before the prompt has even been persisted.
+// The end depends on the harness, because the server emits a different signal for
+// each and neither is available on the other. [terminalBacked] picks.
 //
-// This is the server's intended contract rather than a workaround for a missing
-// one. The forwarder derives that edge from the agent's Stop hook, which fires
-// once per finished turn, and it attaches a response id for exactly this purpose:
-// to distinguish a turn-end edge from the runner's own idle badge, which is a
-// quiescence heuristic that oscillates on every mid-turn lull. Two producers emit
-// idle and only one of them means a turn ended.
+// On a terminal-backed harness — the *-native ones, which drive a real terminal —
+// the end is a session.status edge reporting idle and carrying a response id,
+// arriving after the boundary. That edge's response id is the turn id. A bare idle
+// edge is terminal churn and ends nothing: two producers emit idle and only one of
+// them means a turn ended, and one recorded trace carries five, one squarely
+// mid-work. No response lifecycle event ends a turn there either — the completed
+// one acknowledges that the prompt reached the terminal, so it arrives before the
+// answer exists, and ending on it publishes a review the agent has not written.
+//
+// That edge is the server's intended contract rather than a workaround. The
+// forwarder derives it from Claude Code's Stop hook, which fires once per finished
+// turn, and attaches a response id for exactly this purpose.
+//
+// On an in-process harness that edge never arrives, and waiting for it is waiting
+// for something the server does not send. The field is documented as "None for
+// ordinary in-process runtime edges", and only the route a native forwarder posts
+// to attaches one. So the end there is the response lifecycle: the executor yields
+// it only on a final answer, and the relay commits the assistant message before
+// publishing it. Requiring the id-bearing edge on that harness made the predicate
+// unsatisfiable by specification — a codex scout produced a complete report, and
+// the run waited out its whole budget and discarded it.
+//
+// An unrecognised harness takes the terminal-backed rule. Waiting too long is a
+// failure that announces itself; publishing half a review is not.
 //
 // The server publishes no link between the input item and the turn that answers
 // it, so pairing them by that ordering is this package's one inference. The
