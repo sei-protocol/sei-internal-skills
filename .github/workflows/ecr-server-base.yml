@@ -108,13 +108,17 @@ jobs:
           set -euo pipefail
           docker run --rm --entrypoint python sei-omnigent-base:candidate -c '
           import sys
+          from importlib.metadata import version
           bad = False
 
-          import omnigent
-          print("  omnigent", getattr(omnigent, "__version__", "?"))
+          print("  omnigent", version("omnigent"))
 
           try:
-              from omnigent.onboarding.sandboxes.kubernetes import KubernetesSandboxProvider  # noqa: F401
+              # What OMNIGENT_EXTRAS=kubernetes installs is the kubernetes client
+              # itself. Assert that, plus the provider module that imports it --
+              # the module is present either way, so on its own it proves nothing.
+              print("  kubernetes client", version("kubernetes"))
+              from omnigent.onboarding.sandboxes import kubernetes  # noqa: F401
               print("  ok kubernetes extra present")
           except Exception as exc:
               print(f"  FAIL kubernetes extra missing: {exc}"); bad = True
