@@ -2089,3 +2089,44 @@ func TestDriverDoesNotSalvageBeforeTheBoundary(t *testing.T) {
 		t.Fatalf("published %q from before the boundary", result.Reply.Text)
 	}
 }
+
+// TestDriverDoesNotSalvageOnCancellation separates the two ways a context ends.
+// The workflow runs with cancel-in-progress, so a push supersedes the run in
+// flight; salvaging there would publish a review of the commit that was just
+// replaced. Only a deadline means the work was still wanted.
+func TestDriverDoesNotSalvageOnCancellation(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages:            []string{driverAgentPageWithHarness("ag_1", "sei-droid", "codex")},
+		CreateResp:            driverSessionResp("conv_1", "ag_1"),
+		StreamHoldAfterFrames: 5 * time.Second,
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverCreatedFrame(),
+		},
+		SessionResps: []string{
+			driverSessionWithItems("conv_1", "ag_1",
+				driverReplyItem("item_reply", "resp_1",
+					driverVerdict("A review of the superseded commit.", "comment"))),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	// Long enough that the deadline cannot be what ends this run.
+	cfg.RunDeadline = 30 * time.Second
+	driver := NewDriver(cfg, Policy{}, driverTestLogger())
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		time.Sleep(200 * time.Millisecond)
+		cancel()
+	}()
+	defer cancel()
+
+	result, _ := driver.Run(ctx, testWork{Repo: "sei-protocol/sandbox", PR: 42, Trigger: "cancelled"})
+	if result.Reply != nil {
+		t.Fatalf("published %q after cancellation", result.Reply.Text)
+	}
+}

@@ -1214,6 +1214,14 @@ func (d *Driver) salvageAtDeadline(
 	t *turn,
 	prior map[string]bool,
 ) (Reply, error) {
+	// A deadline and a cancellation both land in ctx.Err(), and only one of them
+	// may publish. A deadline means the work was wanted and ran out of time. A
+	// cancellation means it is no longer wanted: the workflow runs with
+	// cancel-in-progress, so a push supersedes the run in flight, and salvaging
+	// there would post a review of the commit that was just replaced.
+	if !errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return Reply{}, ctx.Err()
+	}
 	if !t.crossed {
 		return Reply{}, ctx.Err()
 	}
