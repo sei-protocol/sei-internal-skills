@@ -28,6 +28,7 @@ sync-all: ## Sync ALL skills+agents (portable+sei) + output styles into ~/.claud
 	@$(MAKE) --no-print-directory verify-catalog
 	@echo "→ syncing output styles…"
 	@./scripts/sync-output-styles.sh --target ~/ --force
+	@./scripts/prune-retired.sh --target ~/ --check
 	@echo "✓ environment current with sei-internal-skills $$(git rev-parse --short HEAD)"
 
 .PHONY: verify-catalog
@@ -54,6 +55,14 @@ sync-output-styles: ## Install sei-internal-skills's output styles into ~/.claud
 sync-experimental: ## OPT-IN: install experimental/ skills+agents into ~/.claude. Never runs as part of update/sync-all/bootstrap.
 	@./scripts/sync-experimental.sh --target ~/ --force
 
+.PHONY: prune-retired
+prune-retired: ## Report which retired/parked resources are still installed in ~/.claude. Read-only — deletes nothing.
+	@./scripts/prune-retired.sh --target ~/
+
+.PHONY: prune-retired-apply
+prune-retired-apply: ## DELETES the retired + parked resources listed by `make prune-retired` from ~/.claude. The only target here that removes anything.
+	@./scripts/prune-retired.sh --target ~/ --apply
+
 .PHONY: sync-doctrine-self
 sync-doctrine-self: ## Re-inject the operating-doctrine block into this repo's own AGENTS.md (dogfood; run after editing scripts/sei-internal-skills-doctrine.md)
 	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/sei-internal-skills-doctrine.md" write'
@@ -74,6 +83,10 @@ test-output-styles: ## Run the output-style syncer regression suite (scripts/tes
 .PHONY: test-experimental
 test-experimental: ## Run the experimental-tier isolation suite (nothing in experimental/ ships by default)
 	@./scripts/tests/experimental-isolation.test.sh
+
+.PHONY: test-prune
+test-prune: ## Run the prune-retired regression suite (never deletes core or user-authored resources)
+	@./scripts/tests/prune-retired.test.sh
 
 .PHONY: update-agent-permissions
 update-agent-permissions: ## Install canonical read-only allow-list into ./.claude/settings.json (DRY_RUN=1 to preview)

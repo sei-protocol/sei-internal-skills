@@ -68,6 +68,30 @@ git mv .claude/skills/<name> experimental/skills/<name>   # park
 
 There is no third list to keep in step, which is what makes the boundary hold.
 
+### Retiring something
+
+Syncing never deletes — a target-only file is usually your own work, and a sync that
+pruned by difference would eat it. The cost is that *retiring* a resource does not
+un-install it: after the slim-down, every environment that had ever synced still
+carried the removed skills, and Claude Code kept discovering them.
+
+`make prune-retired` closes that gap. It reports; it does not act:
+
+```sh
+make prune-retired          # report what is stale. Deletes nothing.
+make prune-retired-apply    # actually remove them
+```
+
+It distinguishes two kinds. **Retired** resources are gone from the repo entirely
+(recoverable only from the archive) and are listed by hand in the script, so retiring
+something is reviewed in a diff. **Parked** ones still live in `experimental/`, so
+removing them is reversible with `make sync-experimental` — that list is derived at
+runtime and cannot drift.
+
+It will never remove a resource in the current core, or one it does not recognize —
+a skill you authored yourself is reported and left alone. `make update` runs the
+check and prints a one-line hint when something is stale, but never deletes.
+
 A prior generation of this repo carried 33 skills and 22 agents, including several
 product explorations. Those were cut in 2026-08 and preserved with full history in a
 private snapshot rather than deleted outright.
