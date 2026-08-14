@@ -88,7 +88,12 @@ func historyStep(req Request) []string {
 		if t.Resolved {
 			state = "resolved"
 		}
-		where := fmt.Sprintf("%s:%d", clip(oneLine(t.File), maxScoutField), t.Line)
+		where := clip(oneLine(t.File), maxScoutField)
+		// A thread GitHub holds against a whole file carries no line, and printing
+		// the zero would name line 0 as the place the finding is about.
+		if t.Line > 0 {
+			where = fmt.Sprintf("%s:%d", where, t.Line)
+		}
 		if !pointsSomewhereReal(t.File) {
 			where = "(no place in this tree)"
 		}
