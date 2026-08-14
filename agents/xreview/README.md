@@ -148,8 +148,11 @@ overlay's `sei_omnigent/src/sei_omnigent/harness.py` invariant requires it and
 subagent fan-out — breaking the multi-expert dispatch the `/xreview` discipline
 depends on (blinded independent reviewers + an assigned dissenter). The deployed
 host provides the tmux + `~/.claude` seed claude-native needs.
-`permission_mode: auto` is required because a headless runner has no human to
-answer ApprovalCards.
+A headless runner has no human to answer ApprovalCards, and `permission_mode`
+does not answer them either. What does is the driver: it is given
+`XREVIEW_ALLOW_TOOLS` and replies to each permission elicitation, declining
+anything not named there. A run without that allowlist is refused the shell it
+needs to read the diff and reviews nothing.
 
 ## DEPENDENCY — `.claude/agents/` roster via the host `~/.claude` seed
 
