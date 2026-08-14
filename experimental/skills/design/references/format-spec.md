@@ -10,7 +10,6 @@ The canonical body produced by `/design`. Section order is fixed; empty optional
 **Status:** Draft
 **Date:** YYYY-MM-DD
 **Issue:** <ref>   (`#14` for a GitHub source, or `ENG-123 — https://linear.app/...` for a Linear source; omit the line if no source issue)
-**Impact:** <slug> — <url>   (the Impact Hub bet this design advances; omit if none. The page ID in the URL is the identity; the slug is a display alias.)
 **Authors:** <git user.name>, ...
 ```
 

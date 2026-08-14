@@ -64,7 +64,6 @@ Capture in the DRI's designs repo — the engineer's `<name>-designs` repo, unde
 **Status:** <Draft | Final>
 **Date:** YYYY-MM-DD
 **Issue:** <#n | EID — url>     (omit if none)
-**Impact:** <slug> — <url>      (omit if no bet)
 **Authors:** <user>, ...
 
 ## Question
@@ -88,7 +87,7 @@ Capture in the DRI's designs repo — the engineer's `<name>-designs` repo, unde
 <sources, prior research, related designs/issues>
 ```
 
-**Lineage.** Thread exactly as `/design` does: frontmatter `Issue:`/`Impact:` on the findings artifact. Bet-graph decoration is retired; there is no automatic accrual to stamp.
+**Lineage.** Thread exactly as `/design` does: a frontmatter `Issue:` line on the findings artifact pointing at the ticket the research serves.
 
 
 ## Rationalization table

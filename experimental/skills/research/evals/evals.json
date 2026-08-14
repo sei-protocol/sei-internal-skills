@@ -13,7 +13,7 @@
           "runs a multi-modal sweep with angles blind to each other (by-source/by-entity/by-time/by-counter-thesis), recording the source + surfacing angle per finding",
           "runs a refutation pass per material finding and tags each [verified]/[unverified] (dropping refuted ones), reusing the assigned-dissent primitive — NOT invoking /xreview on the findings",
           "runs one completeness pass reporting gaps, grounds the recommendation only in verified findings, and captures a research artifact in the DRI's designs repo (designs/<arc>/research/<slug>.md) with the Question/Findings(tagged)/Completeness/Synthesis shape",
-          "threads lineage like /design (frontmatter Issue:/Impact:) and, if a bet is involved, threads through the issue carrying the label+design-link rather than treating the research-doc URL as the discriminator"
+          "threads lineage like /design (frontmatter Issue:) and threads through the issue carrying the label+design-link rather than treating the research-doc URL as the discriminator"
         ],
         "forbidden_signals": [
           "starts sweeping before scoping the decision/claims",

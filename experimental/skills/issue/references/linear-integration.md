@@ -30,7 +30,6 @@ The Linear MCP tools must be connected and authenticated — at minimum `list_te
    - **Labels** (`labels`) — call the `list_issue_labels` tool (scoped to the team); pass label names or IDs.
    - **Priority** (`priority`) — `0` None, `1` Urgent, `2` High, `3` Medium, `4` Low.
    - **Assignee** (`assignee`) — user ID / name / email / "me".
-   - **Impact bet** (optional) — if this work advances an Impact Hub bet, offer to apply its `impact:<slug>` label (see *Impact-bet decoration* below).
 
    These are MCP tool calls, not CLI commands — there is no Linear CLI. If a list comes back long, ask the user to name the project/label rather than enumerating dozens. Skip any the user doesn't want. Don't block on them; a title + team + description is a complete Linear issue.
 
@@ -49,7 +48,6 @@ The Linear MCP tools must be connected and authenticated — at minimum `list_te
 - **One issue per invocation.** Same as the GitHub path — if a session produced multiple deferred slices, the user picks which to file; don't batch-create.
 - **No fabricated identifiers.** If creation fails or the MCP is unavailable, surface the failure and offer GitHub / print. A made-up `ENG-NNN` is worse than an honest "couldn't reach Linear."
 - **One sink, one issue per invocation.** No cross-posting the same issue to both GitHub and Linear, and no parent/sub-issue (`parentId`) linking — both are deferred. Un-defer when a user actually asks; until then, file one issue to one sink.
-- **Impact-bet decoration is offered, never forced or guessed.** Never invent a bet or a slug; resolve the bet from Notion and let the user pick. The bet's **page ID is the identity**, the `impact:<slug>` label is the alias — don't treat the slug as the join key.
 
 ## Lineage with `/design`
 
