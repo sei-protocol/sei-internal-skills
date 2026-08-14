@@ -1,6 +1,9 @@
 package xreview
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // Bounds on the history a prompt carries. A pull request reviewed many times
 // accumulates threads without limit, and a prompt that grows with them crowds out
@@ -29,6 +32,46 @@ type PriorThread struct {
 
 	// Resolved reports that the thread is marked resolved on GitHub.
 	Resolved bool `json:"resolved"`
+}
+
+// collapseRepeats merges prior threads saying the same thing in the same place.
+//
+// Runs before a review could see its own history left the same finding on a line
+// several times over. On one live pull request 5 of 13 threads were byte-identical
+// repeats of two findings — more than a third of what a prompt can carry, spent
+// restating two points, and teaching a review that repeating itself is normal.
+// Stopping that is what this history is for.
+//
+// The survivor keeps every reply anyone left on any copy, and stays open if any
+// copy is open: an author who resolved three of four identical threads has not
+// resolved the finding.
+func collapseRepeats(threads []PriorThread) []PriorThread {
+	at := make(map[string]int, len(threads))
+	out := make([]PriorThread, 0, len(threads))
+	for _, t := range threads {
+		// NUL-separated, because it cannot occur in a path or a comment body, so
+		// no pair of different threads can collide into one key.
+		key := fmt.Sprintf("%s\x00%d\x00%s", t.File, t.Line, t.Body)
+		i, seen := at[key]
+		if !seen {
+			at[key] = len(out)
+			out = append(out, t)
+			continue
+		}
+		out[i].Resolved = out[i].Resolved && t.Resolved
+		out[i].Replies = withNewReplies(out[i].Replies, t.Replies)
+	}
+	return out
+}
+
+// withNewReplies appends the replies into does not already carry, in order.
+func withNewReplies(into, more []string) []string {
+	for _, r := range more {
+		if !slices.Contains(into, r) {
+			into = append(into, r)
+		}
+	}
+	return into
 }
 
 // selectThreads picks which threads a prompt carries when there are more than it
@@ -72,11 +115,12 @@ func historyStep(req Request) []string {
 		return nil
 	}
 
-	shown := selectThreads(req.PriorThreads, maxPriorThreads)
+	threads := collapseRepeats(req.PriorThreads)
+	shown := selectThreads(threads, maxPriorThreads)
 
 	out := []string{
 		fmt.Sprintf("You have left %d finding(s) on this pull request before, %d shown.",
-			len(req.PriorThreads), len(shown)),
+			len(threads), len(shown)),
 		"",
 		"What follows is yours, with whatever came back under it. The layout is this",
 		"process's: two spaces introduces a finding, six spaces a reply, and nothing",

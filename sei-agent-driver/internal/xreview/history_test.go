@@ -1,6 +1,7 @@
 package xreview
 
 import (
+	"slices"
 	"strings"
 	"testing"
 )
@@ -155,5 +156,73 @@ func TestHistoryStepNamesAFileWithoutALine(t *testing.T) {
 	}
 	if strings.Contains(out, "internal/c.go:0") {
 		t.Errorf("line 0 is rendered as if it were a place:\n%s", out)
+	}
+}
+
+// TestCollapseRepeatsMergesIdenticalFindings pins what a live pull request
+// showed: repeated runs left the same finding on the same line several times, and
+// carrying each copy spends the budget restating one point.
+func TestCollapseRepeatsMergesIdenticalFindings(t *testing.T) {
+	t.Parallel()
+
+	same := PriorThread{File: "a.go", Line: 9, Body: "the default is duplicated"}
+	other := PriorThread{File: "b.go", Line: 1, Body: "something else"}
+	got := collapseRepeats([]PriorThread{same, same, other, same})
+	if len(got) != 2 {
+		t.Fatalf("collapsed to %d, want 2: %+v", len(got), got)
+	}
+	if got[0].Body != same.Body || got[1].Body != other.Body {
+		t.Errorf("arrival order not kept: %+v", got)
+	}
+}
+
+// TestCollapseRepeatsKeepsTheFindingOpen covers an author who resolved some
+// copies of one finding and not others. The finding is not resolved.
+func TestCollapseRepeatsKeepsTheFindingOpen(t *testing.T) {
+	t.Parallel()
+
+	body := "the default is duplicated"
+	got := collapseRepeats([]PriorThread{
+		{File: "a.go", Line: 9, Body: body, Resolved: true},
+		{File: "a.go", Line: 9, Body: body, Resolved: true},
+		{File: "a.go", Line: 9, Body: body},
+	})
+	if len(got) != 1 || got[0].Resolved {
+		t.Fatalf("got %+v, want one open thread", got)
+	}
+}
+
+// TestCollapseRepeatsKeepsEveryReply covers the replies scattered across copies:
+// the surviving thread carries what anyone said to any of them, once each.
+func TestCollapseRepeatsKeepsEveryReply(t *testing.T) {
+	t.Parallel()
+
+	body := "the default is duplicated"
+	got := collapseRepeats([]PriorThread{
+		{File: "a.go", Line: 9, Body: body, Replies: []string{"me: moot as of a4b857e"}},
+		{File: "a.go", Line: 9, Body: body, Replies: []string{"me: moot as of a4b857e", "you: disagree"}},
+	})
+	if len(got) != 1 {
+		t.Fatalf("collapsed to %d, want 1", len(got))
+	}
+	want := []string{"me: moot as of a4b857e", "you: disagree"}
+	if !slices.Equal(got[0].Replies, want) {
+		t.Errorf("replies = %q, want %q", got[0].Replies, want)
+	}
+}
+
+// TestCollapseRepeatsKeepsDistinctFindingsApart guards the other direction: a
+// finding differing only by line, or only by wording, is its own finding.
+func TestCollapseRepeatsKeepsDistinctFindingsApart(t *testing.T) {
+	t.Parallel()
+
+	got := collapseRepeats([]PriorThread{
+		{File: "a.go", Line: 9, Body: "x"},
+		{File: "a.go", Line: 10, Body: "x"},
+		{File: "b.go", Line: 9, Body: "x"},
+		{File: "a.go", Line: 9, Body: "y"},
+	})
+	if len(got) != 4 {
+		t.Errorf("collapsed %d distinct findings into %d", 4, len(got))
 	}
 }
