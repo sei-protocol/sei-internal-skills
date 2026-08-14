@@ -245,6 +245,7 @@ func BuildPrompt(req Request) string {
 		"",
 	}
 	lines = append(lines, repoContextStep(req)...)
+	lines = append(lines, historyStep(req)...)
 	lines = append(lines, []string{
 		"Step 2 — review the changed code. In the changed lines and what they call",
 		"into, look for:",
@@ -452,6 +453,7 @@ func AdoptedPrompt(req Request) string {
 		"",
 	}
 	lines = append(lines, repoContextStep(req)...)
+	lines = append(lines, historyStep(req)...)
 	lines = append(lines, []string{
 		"Review the current state against the same checklist, and report under the same",
 		"headings, as your first review in this session.",
