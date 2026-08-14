@@ -288,3 +288,115 @@ func TestMintReportsTheLifetimeTheServerGave(t *testing.T) {
 		t.Errorf("ttl = %v, want 30m — the caller cannot compare a lifetime it was not told", ttl)
 	}
 }
+
+// flakyTransport fails the first failures calls the way the gateway has been
+// failing, then hands the request to the real server.
+type flakyTransport struct {
+	failures int
+	attempts int
+	real     http.RoundTripper
+}
+
+func (f *flakyTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	f.attempts++
+	if f.attempts <= f.failures {
+		return nil, errors.New("read: connection reset by peer")
+	}
+	return f.real.RoundTrip(req)
+}
+
+// TestMintRidesOutAReset covers the failure that has been costing runs: the
+// connection is reset before the server answers.
+func TestMintRidesOutAReset(t *testing.T) {
+	t.Parallel()
+
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"tok","expires_in":3600}`))
+	}))
+	defer srv.Close()
+
+	flaky := &flakyTransport{failures: 2, real: srv.Client().Transport}
+	token, ttl, err := MintToken(t.Context(), &http.Client{Transport: flaky},
+		srv.URL, "id", "secret")
+	if err != nil {
+		t.Fatalf("a mint that succeeds on the third attempt still failed: %v", err)
+	}
+	if token != "tok" || ttl != time.Hour {
+		t.Errorf("token=%q ttl=%s, want tok and 1h", token, ttl)
+	}
+	if flaky.attempts != 3 {
+		t.Errorf("made %d attempts, want 3", flaky.attempts)
+	}
+}
+
+// TestMintStopsAfterItsAttempts keeps a server that is genuinely gone from
+// costing every caller the full backoff schedule forever.
+func TestMintStopsAfterItsAttempts(t *testing.T) {
+	t.Parallel()
+
+	flaky := &flakyTransport{failures: 99}
+	_, _, err := MintToken(t.Context(), &http.Client{Transport: flaky},
+		"https://gone.example", "id", "secret")
+	if err == nil {
+		t.Fatal("a mint that never reached a server reported success")
+	}
+	if flaky.attempts != mintAttempts {
+		t.Errorf("made %d attempts, want %d", flaky.attempts, mintAttempts)
+	}
+	if !strings.Contains(err.Error(), "could not reach the server") {
+		t.Errorf("the message no longer says what happened: %v", err)
+	}
+}
+
+// TestMintDoesNotRetryARefusal pins the half that must not retry. A wrong secret
+// is not transient, and asking again turns one clear failure into three — on this
+// endpoint a bad credential has also been seen to answer 503, so retrying by
+// status rather than by reachability would retry it too.
+func TestMintDoesNotRetryARefusal(t *testing.T) {
+	t.Parallel()
+
+	for _, status := range []int{http.StatusUnauthorized, http.StatusBadRequest,
+		http.StatusServiceUnavailable} {
+		calls := 0
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			calls++
+			w.WriteHeader(status)
+			_, _ = w.Write([]byte(`{"error":"invalid_client"}`))
+		}))
+		_, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "id", "secret")
+		srv.Close()
+
+		if err == nil {
+			t.Fatalf("%d was treated as a successful mint", status)
+		}
+		if calls != 1 {
+			t.Errorf("%d was asked %d times, want 1", status, calls)
+		}
+		if !errors.Is(err, ErrMint) {
+			t.Errorf("%d did not classify as a mint failure: %v", status, err)
+		}
+	}
+}
+
+// TestMintStopsWhenTheCallerDoes keeps the backoff from outliving the run that
+// is waiting on it.
+func TestMintStopsWhenTheCallerDoes(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(t.Context())
+	flaky := &flakyTransport{failures: 99}
+	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
+
+	start := time.Now()
+	if _, _, err := MintToken(ctx, &http.Client{Transport: flaky},
+		"https://gone.example", "id", "secret"); err == nil {
+		t.Fatal("a cancelled mint reported success")
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("kept waiting for %s after the caller gave up", elapsed.Round(time.Millisecond))
+	}
+	if flaky.attempts >= mintAttempts {
+		t.Errorf("made %d attempts despite cancellation", flaky.attempts)
+	}
+}

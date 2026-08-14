@@ -43,6 +43,36 @@ const maxTokenBody = 64 << 10
 // ErrMint is a failure to exchange machine credentials for an access token.
 var ErrMint = errors.New("token exchange")
 
+// errUnreached marks a mint that never got an answer: the connection was reset,
+// refused, or timed out. Distinct from [ErrMint], which is the server answering
+// that it will not mint — one is worth another attempt and the other is not.
+//
+// Matched with errors.Is and never rendered: unreached carries a message that
+// already says what happened, and a sentinel wrapped in front of it would put a
+// word an operator cannot act on ahead of the one they can.
+var errUnreached = errors.New("unreached")
+
+// unreached carries a transport failure and answers to [errUnreached] without
+// adding itself to the message.
+type unreached struct{ err error }
+
+func (u unreached) Error() string {
+	return "token exchange could not reach the server: " + u.err.Error()
+}
+func (u unreached) Unwrap() error        { return u.err }
+func (u unreached) Is(target error) bool { return target == errUnreached }
+
+// mintAttempts bounds how many times a mint that never reached a server is
+// tried. Three, because the failure this absorbs is a single reset rather than
+// an outage: a server that is actually down fails all three quickly, and one
+// blip costs the run a second instead of the whole review.
+const mintAttempts = 3
+
+// mintBackoff is the wait before each retry, indexed by the attempt just failed.
+// Short, because a reset is returned immediately and the run is holding a
+// sandbox while this sleeps.
+var mintBackoff = []time.Duration{500 * time.Millisecond, 2 * time.Second}
+
 // MintToken exchanges the machine client's credentials for a short-lived access
 // token at POST /oauth/token.
 //
@@ -80,6 +110,30 @@ func MintToken(
 		return "", 0, err
 	}
 
+	for attempt := 1; ; attempt++ {
+		token, ttl, err := mintOnce(ctx, client, baseURL, clientID, clientSecret)
+		if err == nil || attempt == mintAttempts || !errors.Is(err, errUnreached) {
+			return token, ttl, err
+		}
+		select {
+		case <-ctx.Done():
+			// The caller's deadline, not this loop's, decides when to stop
+			// waiting. Returning the mint's own error rather than the context's
+			// keeps the reason the run failed in the message.
+			return "", 0, err
+		case <-time.After(mintBackoff[attempt-1]):
+		}
+	}
+}
+
+// mintOnce is one exchange. Its failures are classified rather than merged:
+// whether another attempt could succeed is the only thing [MintToken] needs from
+// it, and only this function can tell.
+func mintOnce(
+	ctx context.Context,
+	client *http.Client,
+	baseURL, clientID, clientSecret string,
+) (string, time.Duration, error) {
 	form := url.Values{
 		"grant_type":    {"client_credentials"},
 		"client_id":     {clientID},
@@ -102,7 +156,7 @@ func MintToken(
 		//
 		// The error from Do embeds the request URL but not the body, so the
 		// secret cannot reach a log through here.
-		return "", 0, fmt.Errorf("token exchange could not reach the server: %w", err)
+		return "", 0, unreached{err}
 	}
 	defer func() {
 		_, _ = io.Copy(io.Discard, io.LimitReader(resp.Body, maxTokenBody))
