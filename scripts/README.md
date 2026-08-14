@@ -10,6 +10,8 @@ Utility scripts for sei-internal-skills repo maintenance. Most are wrapped by Ma
 | `sync-experimental.sh` | OPT-IN installer for `experimental/` skills+agents. Never runs as part of update/sync-all/bootstrap | `make sync-experimental`, manually |
 | `update-agent-permissions.sh` | Install canonical read-only allow-list into `./.claude/settings.json` | `make update-agent-permissions` |
 | `verify-agent-permissions.sh` | Fail if `.claude/settings.json` contains mutating patterns or has drifted | `make verify-agent-permissions`, CI |
+| `get.sh` | Take ONE piece — an output style, a skill, an agent — without cloning. Published as a piped one-liner; runs offline against a checkout via `SEI_SKILLS_LOCAL` | over the wire, or `bash scripts/get.sh` |
+| `tests/get.test.sh` | Regression suite for `get.sh`, including the piped invocation | `make test-get`, CI |
 | `prune-retired.sh` | Remove retired/parked resources from a synced `.claude/`. **The only script here that deletes** — dry-run by default, `--apply` to act. Never touches a core or unrecognized resource | `make prune-retired` / `make prune-retired-apply`, manually |
 | `tests/prune-retired.test.sh` | Regression suite for `prune-retired.sh` — asserts what it must NOT remove | `make test-prune`, CI |
 | `tests/experimental-isolation.test.sh` | Regression suite for the `experimental/` tier — nothing in it ships by default | `make test-experimental`, CI |

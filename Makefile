@@ -84,6 +84,10 @@ test-output-styles: ## Run the output-style syncer regression suite (scripts/tes
 test-experimental: ## Run the experimental-tier isolation suite (nothing in experimental/ ships by default)
 	@./scripts/tests/experimental-isolation.test.sh
 
+.PHONY: test-get
+test-get: ## Run the targeted-fetcher regression suite (scripts/tests/get.test.sh)
+	@./scripts/tests/get.test.sh
+
 .PHONY: test-prune
 test-prune: ## Run the prune-retired regression suite (never deletes core or user-authored resources)
 	@./scripts/tests/prune-retired.test.sh

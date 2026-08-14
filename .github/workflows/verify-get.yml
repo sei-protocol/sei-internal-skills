@@ -1,0 +1,22 @@
+name: Verify Targeted Fetch
+
+# get.sh is published as a copy-paste one-liner that pipes it into bash, so its
+# failure mode is a stranger's terminal rather than this repo's CI. The suite runs
+# offline against the checkout via SEI_SKILLS_LOCAL, and covers the piped
+# invocation specifically — $0 is "bash" there, which is how usage broke once.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/get.sh'
+      - 'scripts/tests/get.test.sh'
+      - '.claude/output-styles/**'
+      - 'Makefile'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The targeted fetcher installs only what was named
+        run: make test-get
