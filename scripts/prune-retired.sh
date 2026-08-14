@@ -56,11 +56,22 @@ RETIRED_SKILLS=(
   tee          # trusted execution environments
   diagram      # house-grammar Lucid diagrams
   lingua       # RENAMED, not cut — superseded by `language` (#294)
+
+  # The aggregators. Linear covers their job natively: Custom Views answer
+  # "which projects are at risk / shipped last quarter / are mine", and Pulse
+  # delivers daily-or-weekly project-update digests to the Inbox. A Project's
+  # own Activity tracker is the per-project record. Scraping all of that into a
+  # second surface was the job; the job is gone.
+  impact-weekly     # weekly roll-up into a bet's Weekly log
+  impact-portfolio  # cross-project weekly exec report page
+  execution-plan    # bet<->design<->issue<->PR lineage decoration
 )
 RETIRED_AGENTS=(
   data-platform-architect   # backed by /data-mesh
   tee-specialist            # backed by /tee
   diagram-architect         # backed by /diagram
+  technical-program-manager # backed by /execution-plan; the agent is a thin
+                            # wrapper over that mechanism, so it retires with it
 )
 
 # --- Argument parsing -------------------------------------------------------

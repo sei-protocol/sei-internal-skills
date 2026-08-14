@@ -30,15 +30,9 @@ The Linear MCP tools must be connected and authenticated — at minimum `list_te
    - **Labels** (`labels`) — call the `list_issue_labels` tool (scoped to the team); pass label names or IDs.
    - **Priority** (`priority`) — `0` None, `1` Urgent, `2` High, `3` Medium, `4` Low.
    - **Assignee** (`assignee`) — user ID / name / email / "me".
-   - **Impact bet** (optional) — if this work advances an Impact Hub bet, offer to apply its `impact:<slug>` label (see *Impact-bet decoration* below).
 
    These are MCP tool calls, not CLI commands — there is no Linear CLI. If a list comes back long, ask the user to name the project/label rather than enumerating dozens. Skip any the user doesn't want. Don't block on them; a title + team + description is a complete Linear issue.
 
-   **Impact-bet decoration (Linear-sink only) — delegated to `/execution-plan`.** If the work advances an Impact Hub bet, offer to decorate the created issue by calling the `/execution-plan` skill. **Do not re-implement label logic here** — `/execution-plan` is the single home for identity/labels/cache so the spine never forks:
-   - `ensurePlan(betPageId)` — resolve the bet via Notion (Impact Tracker, scoped to the engineer's `Person`; present their bets and let the user pick, or "none" — **never guess**), derive `slug = kebab(Name)`, ensure the `impact:<slug>` label exists (**first creation is confirm-gated**; reuse is silent), and cache `{pageId → {slug, labelId}}`.
-   - `stamp(issueId, betPageId)` — apply the `impact:<slug>` label + the bet's design-URL link to the issue (idempotent).
-   - The bet's Notion **page ID is the canonical identity**; `impact:<slug>` is a re-derivable alias. Slug-drift reconciliation and the cache are owned by `/execution-plan` (drift is human-resolved there) — `/issue` only invokes it; it does not create/apply/rename labels itself or reach into another skill's cache. Offer, don't force.
-   - **GitHub-sink:** a GitHub issue carries no Linear label — instead note the bet in **References** as `Impact bet: <Name> — <url>` (distinct from the body's `## Impact` cost section) and skip the label (the spine is Linear-only). Convention: `bdchatham-designs/designs/impact-hub-pm-skill-suite/impact-hub-pm-skill-suite.md` + the `/execution-plan` skill — the same spine `impact-weekly` consumes.
 
 3. **Create.** Call `save_issue` **without `id`** (passing `id` updates an existing issue — only create here):
    - `title` — the issue title.
@@ -54,7 +48,6 @@ The Linear MCP tools must be connected and authenticated — at minimum `list_te
 - **One issue per invocation.** Same as the GitHub path — if a session produced multiple deferred slices, the user picks which to file; don't batch-create.
 - **No fabricated identifiers.** If creation fails or the MCP is unavailable, surface the failure and offer GitHub / print. A made-up `ENG-NNN` is worse than an honest "couldn't reach Linear."
 - **One sink, one issue per invocation.** No cross-posting the same issue to both GitHub and Linear, and no parent/sub-issue (`parentId`) linking — both are deferred. Un-defer when a user actually asks; until then, file one issue to one sink.
-- **Impact-bet decoration is offered, never forced or guessed.** Never invent a bet or a slug; resolve the bet from Notion and let the user pick. The bet's **page ID is the identity**, the `impact:<slug>` label is the alias — don't treat the slug as the join key.
 
 ## Lineage with `/design`
 

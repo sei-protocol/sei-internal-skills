@@ -27,9 +27,9 @@ make sync-experimental          # into ~/.claude
 | Group | Resources |
 |---|---|
 | **Workflow orchestration** | `coral`, `council`, `workstream`, `issue`, `design`, `research` |
-| **Exec reporting** | `impact-weekly`, `impact-portfolio`, `execution-plan` + `technical-program-manager` |
 | **Deep-dive engineering** | `ebpf`, `bugbash` |
 | **Recruiting** | `interview` + `sei-interview-expert` |
+| **Project authoring** | `project-brief` |
 
 `language` and `prose-steward` are **not** here. `/xreview` pins `prose-steward`
 unconditionally on any `skill-package` change and halts when a pinned steward is

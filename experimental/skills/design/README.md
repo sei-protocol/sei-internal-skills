@@ -16,7 +16,7 @@
 ## What it does
 
 - Captures a session's design into a fixed-shape doc (Background, Goals, optional Acceptance criteria, Non-goals, Design with mermaid, Alternatives, Trade-offs, Open questions, References).
-- Seeds from a GitHub or Linear source issue and threads bidirectional lineage; carries Impact-bet lineage forward-only.
+- Seeds from a GitHub or Linear source issue and threads bidirectional lineage.
 - Lands the file in the DRI's `<name>-designs` repo, arc-foldered, never in the code package.
 - The refusal that matters most: no content xreview. It records what coral/council decided and will not critique, improve, or fill in the design — and it halts rather than fabricate a missing required field.
 

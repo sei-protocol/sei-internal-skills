@@ -90,7 +90,7 @@ t="$scratch/retonly"; seed_env "$t"
 check      "retired-only exits 0"        "$PRUNE" --target "$t" --apply --retired-only
 check_fail "retired still removed"       test -d "$t/.claude/skills/data-mesh"
 check      "parked skill left installed" test -d "$t/.claude/skills/coral"
-check      "parked agent left installed" test -f "$t/.claude/agents/technical-program-manager.md"
+check      "parked agent left installed" test -f "$t/.claude/agents/sei-interview-expert.md"
 
 echo "parked removal is reversible"
 t="$scratch/restore"; seed_env "$t"

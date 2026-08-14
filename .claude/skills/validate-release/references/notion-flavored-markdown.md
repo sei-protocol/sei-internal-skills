@@ -1,11 +1,11 @@
 # Notion-flavored-Markdown authoring guard
 
-**Why this is load-bearing:** a malformed line on the shared, exec-facing Impact Tracker renders wrong
+**Why this is load-bearing:** a malformed line on a shared, exec-facing Notion page renders wrong
 *silently* — the author can't see it without a re-fetch — **and** a line with tangled inline formatting
 **cannot be matched by a later `update_content`** (the only mutation path; `replace_content` is banned —
 see `write-contract.md`), so it can't be surgically fixed at all. The only reliable remedy is authoring it
 correctly the first time. These rules keep every written line **clean on render and re-matchable on edit.**
-They were distilled from live corruptions on the Impact Tracker, each noted below.
+They were distilled from live corruptions on a shared exec Notion board (the retired Impact Tracker), each noted below. The rules are surface-general: they apply to any Notion page this repo writes, which today means the release report.
 
 ## The hard rules (author to these; the failure each prevents is real)
 

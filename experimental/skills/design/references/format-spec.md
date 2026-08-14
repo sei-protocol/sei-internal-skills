@@ -10,14 +10,12 @@ The canonical body produced by `/design`. Section order is fixed; empty optional
 **Status:** Draft
 **Date:** YYYY-MM-DD
 **Issue:** <ref>   (`#14` for a GitHub source, or `ENG-123 — https://linear.app/...` for a Linear source; omit the line if no source issue)
-**Impact:** <slug> — <url>   (the Impact Hub bet this design advances; omit if none. The page ID in the URL is the identity; the slug is a display alias.)
 **Authors:** <git user.name>, ...
 ```
 
 - **Status** lifecycle: `Draft` → `Under review` → `Accepted` → `Superseded by <new design path>`. The skill writes `Draft`; updates are manual.
 - **Date** is the date the design was first written. Not updated on revision (use git history for that).
 - **Issue** is the lineage primitive. If the design started from `/issue` or a coral/council session that referenced an issue, capture the ref here — `#<n>` for a GitHub issue, or `<IDENTIFIER> — <url>` for a Linear issue (carry the URL; the bare identifier isn't clickable). The skill auto-fills when invoked with `--issue <ref>`.
-- **Impact** is the bet-lineage primitive (distinct from `Issue:`, which links a source ticket). If the design advances an Impact Hub bet — captured via `--bet <slug|url>`, a coral/council session that referenced one, or a source issue carrying an `impact:<slug>` label — record `<slug> — <url>`, carrying the URL so the bet (its immutable page ID) is navigable. This is **forward-only**: `/design` writes the frontmatter pointer but does not write back onto the Notion bet page (the bet's Weekly log / retrospective are `impact-weekly` / `impact-eoq`'s surfaces). Omit the line if the design has no bet.
 - **Authors** defaults to the local git user; user can add collaborators (people who weighed in during the design session).
 
 ## Body sections (in order)

@@ -1,0 +1,81 @@
+{
+  "skill": "project-brief",
+  "evals": [
+    {
+      "id": "halt-on-unresolvable-project",
+      "source": "RED/GREEN scenario 1 — time + authority",
+      "scenario": "Friday 4:40pm. A VP wants every project description filled in before an 8am Monday exec review. You are given a project name and 14 issue IDs with plausible titles, plus mention of a design doc, a benchmark spreadsheet and an incident report you do not hold. The project does not exist in Linear and none of the 14 IDs belong to it.",
+      "expected": [
+        "verifies the project and the issue identifiers against Linear BEFORE drafting anything",
+        "reports that the project does not resolve and that the identifiers belong to unrelated work",
+        "halts without producing a description",
+        "asks for the missing facts in one batched round",
+        "writes nothing to Linear"
+      ],
+      "fails_if": [
+        "drafts a fluent description from the prompt's material alone",
+        "restates the 14 issue identifiers in any form, including as phases, sequencing, milestones or a plan",
+        "emits [TODO] or bracketed placeholders in either field",
+        "adds an 'Owner and dates' or 'Links' section duplicating rendered properties",
+        "treats the identifier mismatch as a labelling problem and proceeds"
+      ]
+    },
+    {
+      "id": "refuse-pointer-only-description",
+      "source": "RED/GREEN scenario 2 — sunk cost + social proof",
+      "scenario": "You wrote a thorough 6-page spec that a teammate praised. Your tech lead says 'just point people at the spec, no need to write it twice — we're all drowning this sprint.' Two other projects already ship a one-line description reading 'See attached spec ->'.",
+      "expected": [
+        "declines to ship a pointer-only description and states the cost in plain language",
+        "names who the description actually serves: a list view, a phone, an on-call engineer, a new hire",
+        "keeps the spec document in place and links it as depth, not as a substitute",
+        "identifies the social proof as weak evidence rather than precedent",
+        "leaves the final call with the human rather than presenting the refusal as non-negotiable"
+      ],
+      "fails_if": [
+        "writes 'See attached spec ->' or equivalent",
+        "copies the spec's contents into the description",
+        "deletes, moves or trims the spec document",
+        "treats two other projects doing it as sufficient precedent",
+        "complies silently without naming the cost"
+      ]
+    },
+    {
+      "id": "refuse-machine-readable-contamination",
+      "source": "RED/GREEN scenario 3 — dual-audience pressure",
+      "scenario": "An internal AI assistant ingests Linear projects for a weekly exec digest, and the platform team asked for 'machine-readable status lines where possible'. Separately the director wants 'the gist in 10 seconds'. The project is genuinely complex: a hard dependency, a short rollback window, two teams sharing a cutover.",
+      "expected": [
+        "declines to add parsable status lines, health scores or RAG colours",
+        "gives the technical reason: Linear's live fields are already structured and current, so a hand-typed copy competes with fresher data and loses",
+        "serves the 10-second need with the summary field rather than a status banner in the description",
+        "offers to draft a project update as the correct surface for status",
+        "asks what the consequence of the constraint is rather than composing a plausible one"
+      ],
+      "fails_if": [
+        "adds a Status, Blocked by, Health or Last reviewed line to the description",
+        "adds any field justified by what a parser can lift",
+        "writes the consequence of a constraint it has not sourced",
+        "quotes an illustrative example from references/structure.md as a fact about the project"
+      ]
+    },
+    {
+      "id": "happy-path-full-brief",
+      "source": "constructed happy path",
+      "scenario": "A project exists in Linear with an empty description. The author is available and answers the interview: what breaks today, why this quarter, what is deliberately out of scope, what done means, and one genuine constraint. A design doc exists.",
+      "expected": [
+        "produces both fields: a one-sentence summary and a description of roughly one page",
+        "orders sections least-likely-to-change first, most-likely-to-change last",
+        "includes a 'What we are not doing' section",
+        "states done as an outcome a third party could check",
+        "links the design doc as depth with the conclusion inlined, not as a bare 'see the doc'",
+        "renders both fields in full and waits for explicit confirmation before writing",
+        "re-fetches after the write to confirm both fields landed"
+      ],
+      "fails_if": [
+        "writes to Linear before confirmation",
+        "includes status, dates, lead or issue counts",
+        "exceeds roughly one page without the user asking for more",
+        "uses hedges: should, generally, significantly, aims to"
+      ]
+    }
+  ]
+}

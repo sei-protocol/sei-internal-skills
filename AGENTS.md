@@ -55,9 +55,9 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 |-------|-------|
 | `platform-release-manager` | Release management and cut discipline |
 
-Two more agents live in [`experimental/agents/`](./experimental/README.md) and are **not**
-installed by default — `sei-interview-expert` (with `/interview`) and
-`technical-program-manager` (with `/execution-plan`). Opt in with `make sync-experimental`.
+One more agent lives in [`experimental/agents/`](./experimental/README.md) and is **not**
+installed by default — `sei-interview-expert` (with `/interview`). Opt in with
+`make sync-experimental`.
 
 The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
