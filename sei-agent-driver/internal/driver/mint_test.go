@@ -152,12 +152,12 @@ func TestRequireAuthAcceptsEitherCredentialForm(t *testing.T) {
 		{
 			name:   "half-configured: no secret",
 			cfg:    Config{MachineClientID: "id"},
-			wantIn: "OMNIGENT_M2M_CLIENT_SECRET is not set",
+			wantIn: "OMNIGENT_MACHINE_CLIENT_SECRET is not set",
 		},
 		{
 			name:   "half-configured: no id",
 			cfg:    Config{MachineClientSecret: "sec"},
-			wantIn: "OMNIGENT_M2M_CLIENT_ID is not set",
+			wantIn: "OMNIGENT_MACHINE_CLIENT_ID is not set",
 		},
 		{name: "nothing at all", cfg: Config{}, wantIn: "no API credential"},
 	}
@@ -398,5 +398,53 @@ func TestMintStopsWhenTheCallerDoes(t *testing.T) {
 	}
 	if flaky.attempts >= mintAttempts {
 		t.Errorf("made %d attempts despite cancellation", flaky.attempts)
+	}
+}
+
+// TestMachineCredentialPrefersTheDocumentedSpelling covers an operator who
+// follows the documentation. The deployment names these OMNIGENT_MACHINE_*, and
+// reading only the older OMNIGENT_M2M_* spelling met them with no token and a
+// config failure that named a variable they had already set.
+func TestMachineCredentialPrefersTheDocumentedSpelling(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		machine, m2m string
+		want         string
+	}{
+		{"documented spelling only", "machine", "", "machine"},
+		{"older spelling only", "", "m2m", "m2m"},
+		{"both set, as callers straddling the rename do", "machine", "m2m", "machine"},
+		{"neither", "", "", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv("OMNIGENT_MACHINE_CLIENT_ID", tc.machine)
+			t.Setenv("OMNIGENT_M2M_CLIENT_ID", tc.m2m)
+			if got := machineCredential("CLIENT_ID"); got != tc.want {
+				t.Errorf("machineCredential = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+// TestRequireAuthNamesTheDocumentedVariable keeps the diagnostic pointing at the
+// name an operator will find in the documentation.
+func TestRequireAuthNamesTheDocumentedVariable(t *testing.T) {
+	t.Setenv("OMNIGENT_API_TOKEN", "")
+	t.Setenv("OMNIGENT_API_TOKEN_FILE", "")
+	t.Setenv("OMNIGENT_MACHINE_CLIENT_ID", "")
+	t.Setenv("OMNIGENT_M2M_CLIENT_ID", "")
+	t.Setenv("OMNIGENT_MACHINE_CLIENT_SECRET", "")
+	t.Setenv("OMNIGENT_M2M_CLIENT_SECRET", "")
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig: %v", err)
+	}
+	err = cfg.RequireAuth()
+	if err == nil {
+		t.Fatal("RequireAuth accepted a configuration with no credential")
+	}
+	if !strings.Contains(err.Error(), "OMNIGENT_MACHINE_CLIENT_ID") {
+		t.Errorf("the diagnostic does not name the documented variable: %v", err)
 	}
 }
