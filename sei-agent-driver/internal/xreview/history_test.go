@@ -1,6 +1,7 @@
 package xreview
 
 import (
+	"fmt"
 	"slices"
 	"strings"
 	"testing"
@@ -171,8 +172,10 @@ func TestCollapseRepeatsMergesIdenticalFindings(t *testing.T) {
 	if len(got) != 2 {
 		t.Fatalf("collapsed to %d, want 2: %+v", len(got), got)
 	}
-	if got[0].Body != same.Body || got[1].Body != other.Body {
-		t.Errorf("arrival order not kept: %+v", got)
+	// By last mention, so the repeated finding lands after the one stated once
+	// before it was restated. The order is what bounding reads as recency.
+	if got[0].Body != other.Body || got[1].Body != same.Body {
+		t.Errorf("not ordered by last mention: %+v", got)
 	}
 }
 
@@ -224,5 +227,41 @@ func TestCollapseRepeatsKeepsDistinctFindingsApart(t *testing.T) {
 	})
 	if len(got) != 4 {
 		t.Errorf("collapsed %d distinct findings into %d", 4, len(got))
+	}
+}
+
+// TestCollapsedFindingSurvivesOnItsLatestMention covers the interaction between
+// collapsing and bounding: a finding first raised long ago and restated in the
+// most recent run is a recent finding, and the replies it carries were merged
+// from those recent copies. Ordering the survivor by its first appearance instead
+// would drop exactly that finding as old.
+func TestCollapsedFindingSurvivesOnItsLatestMention(t *testing.T) {
+	t.Parallel()
+
+	const restated = "the default is duplicated"
+	threads := []PriorThread{{File: "a.go", Line: 1, Body: restated}}
+	for i := 0; i < maxPriorThreads+3; i++ {
+		threads = append(threads, PriorThread{
+			File: "b.go", Line: i + 1, Body: fmt.Sprintf("finding %d", i),
+		})
+	}
+	// Raised again by the newest run, with the reply that argues it.
+	threads = append(threads, PriorThread{
+		File: "a.go", Line: 1, Body: restated, Replies: []string{"me: still true"},
+	})
+
+	shown := selectThreads(collapseRepeats(threads), maxPriorThreads)
+	var kept *PriorThread
+	for i := range shown {
+		if shown[i].Body == restated {
+			kept = &shown[i]
+		}
+	}
+	if kept == nil {
+		t.Fatalf("the restated finding was dropped as old; %d of %d shown",
+			len(shown), len(threads))
+	}
+	if !slices.Contains(kept.Replies, "me: still true") {
+		t.Errorf("the reply merged from the recent copy is missing: %+v", kept)
 	}
 }

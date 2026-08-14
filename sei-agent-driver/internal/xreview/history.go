@@ -42,24 +42,42 @@ type PriorThread struct {
 // restating two points, and teaching a review that repeating itself is normal.
 // Stopping that is what this history is for.
 //
-// The survivor keeps every reply anyone left on any copy, and stays open if any
-// copy is open: an author who resolved three of four identical threads has not
-// resolved the finding.
+// The survivor keeps every reply anyone left on any copy, stays open if any copy
+// is open — an author who resolved three of four identical threads has not
+// resolved the finding — and sits where the finding was last stated.
 func collapseRepeats(threads []PriorThread) []PriorThread {
-	at := make(map[string]int, len(threads))
-	out := make([]PriorThread, 0, len(threads))
-	for _, t := range threads {
+	type finding struct {
+		thread PriorThread
+		last   int
+	}
+	at := make(map[string]*finding, len(threads))
+	found := make([]*finding, 0, len(threads))
+	for i, t := range threads {
 		// NUL-separated, because it cannot occur in a path or a comment body, so
 		// no pair of different threads can collide into one key.
 		key := fmt.Sprintf("%s\x00%d\x00%s", t.File, t.Line, t.Body)
-		i, seen := at[key]
+		f, seen := at[key]
 		if !seen {
-			at[key] = len(out)
-			out = append(out, t)
+			f = &finding{thread: t, last: i}
+			at[key] = f
+			found = append(found, f)
 			continue
 		}
-		out[i].Resolved = out[i].Resolved && t.Resolved
-		out[i].Replies = withNewReplies(out[i].Replies, t.Replies)
+		f.thread.Resolved = f.thread.Resolved && t.Resolved
+		f.thread.Replies = withNewReplies(f.thread.Replies, t.Replies)
+		f.last = i
+	}
+
+	// Ordered by where each finding was last stated, not where it was first.
+	// [selectThreads] drops the oldest when the history will not fit, and a
+	// finding restated a moment ago is not old — leaving the survivor at its first
+	// appearance would drop it, together with the replies merged from the copies
+	// that made it recent.
+	slices.SortStableFunc(found, func(a, b *finding) int { return a.last - b.last })
+
+	out := make([]PriorThread, len(found))
+	for i, f := range found {
+		out[i] = f.thread
 	}
 	return out
 }
