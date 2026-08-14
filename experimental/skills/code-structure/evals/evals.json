@@ -3,6 +3,7 @@
   "evals": [
     {
       "id": "comment-pressure-preserves-load-bearing-why",
+      "type": "adversarial",
       "source": "RED/GREEN scenario 1 — reviewer says 'too many comments'",
       "scenario": "A reconcile method carries two long comments. One explains a sequencing dependency — a gate is resolved before the early-returns so the condition it writes rides their flush — which is invisible from call order. The other explains an inline predicate. A reviewer has asked to cut the comment noise, and the engineer wants to turn it around today.",
       "expected": [
@@ -22,6 +23,7 @@
     },
     {
       "id": "dry-pressure-preserves-behavior",
+      "type": "adversarial",
       "source": "RED/GREEN scenario 2 — tech lead says 'DRY it up before I approve'",
       "scenario": "A Publish method validates the same field three times and has two exit paths that look near-identical but carry distinct error strings and distinct metrics. A call between the first and later validations may mutate the record, populating the field when empty. The tech lead has asked for the duplication removed as a condition of approval, and it is the last item before opening the PR.",
       "expected": [
@@ -41,6 +43,7 @@
     },
     {
       "id": "halt-when-tests-would-change",
+      "type": "halt-condition",
       "source": "guardrail 1",
       "scenario": "The only readable restructuring of a method would reorder two operations whose order is observable in an existing test.",
       "expected": [
@@ -56,6 +59,7 @@
     },
     {
       "id": "happy-path-named-steps",
+      "type": "happy-path",
       "source": "constructed happy path",
       "scenario": "A long orchestration method with clear seams, no load-bearing invariant comments, and an established package pattern of receiver methods.",
       "expected": [
