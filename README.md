@@ -31,6 +31,64 @@ The canonical permission set is **strictly read-only by design**. Mutating patte
 
 Run `make` with no args to list all targets.
 
+## Just one piece
+
+The setup above installs the whole core. Give the same command a target and it
+installs one thing instead — no clone, no `make`, nothing else installed. If you
+already have the checkout, it reads that rather than downloading again.
+
+```sh
+# see everything available, by kind
+gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh \
+  -H 'Accept: application/vnd.github.raw' | bash -s -- list
+```
+
+Then name what you want:
+
+| Want | Command |
+|---|---|
+| **The output style** | `… \| bash -s -- output-style` |
+| **One skill** | `… \| bash -s -- skill xreview` |
+| **One agent** | `… \| bash -s -- agent idiomatic-reviewer` |
+
+Written out in full, for the output style:
+
+```sh
+gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh \
+  -H 'Accept: application/vnd.github.raw' | bash -s -- output-style
+```
+
+That lands `~/.claude/output-styles/asd-ste100.md` and prints how to turn it on. It
+does **not** turn it on — see [Output styles](#output-styles).
+
+`gh` is required rather than `curl` because sei-internal-skills is internal, so the fetch
+needs its auth. Same trust model as the installer one-liner above.
+
+**What it will not do:** delete anything, touch your `settings.json`, or install a
+second resource you did not name. Ask for a skill and you get that skill — not its
+agent, not the skills it references. If an agent names a skill it expects, take that
+too.
+
+Skills and agents come from either tier, and it tells you which:
+
+```
+✓ ~/.claude/skills/project-brief  (experimental)
+  Experimental: parked in the repo, not part of the shipped core, and may change.
+```
+
+Three environment variables, if you need them:
+
+| | |
+|---|---|
+| `SEI_SKILLS_REF` | Fetch from a branch or tag instead of `main` |
+| `SEI_SKILLS_TARGET` | Install somewhere other than `$HOME` — a sibling repo, say |
+| `SEI_INTERNAL_SKILLS_HOME` | Where the checkout lives. If one is there, a targeted install reads it instead of downloading |
+
+```sh
+# put one skill into another repo, from the checkout you already have
+SEI_SKILLS_TARGET=~/work/platform bash ~/.sei-internal-skills/scripts/install.sh skill harbor-dev
+```
+
 ## Daily use
 
 Most work starts with one of these:
@@ -123,6 +181,7 @@ private snapshot rather than deleted outright.
   - `sync-skills.sh` / `sync-agents.sh` — copy skills/agents into user-scope (`~/.claude/`) or sibling repos, by domain or alias
   - `sync-output-styles.sh` — copy output styles into `~/.claude/output-styles/`; ships them, never activates them
   - `sync-experimental.sh` — opt-in installer for `experimental/`; never runs as part of update/sync-all/bootstrap
+  - `install.sh` — the whole toolkit, or [one piece](#just-one-piece) without cloning
   - `Makefile` — `make bootstrap` (one-shot install), plus `make sync-skills` / `make sync-agents` / `make sync-output-styles` / `make sync-experimental`
   - `update-agent-permissions.sh` — installs the canonical read-only permission set
 
@@ -184,6 +243,7 @@ despite the name — those are omnigent server bundles, not Claude Code agent pe
 | **Looking for a skill that isn't installed** | [`experimental/README.md`](experimental/README.md), then `make sync-experimental` |
 | **Auditing an existing skill** | `/audit-skill <name>` → report in the DRI's `<engineer>-designs` repo under `designs/<arc>/audits/` (Design 13) |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
+| **Wanting exactly one thing** | [Just one piece](#just-one-piece) — the same installer, with a target |
 | **Wiring a sibling repo to use these** | `scripts/sync-agents.sh --target <path>` and `scripts/sync-skills.sh --target <path>` |
 
 ## Contributing & conventions
