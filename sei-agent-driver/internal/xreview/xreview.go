@@ -37,6 +37,14 @@ type Request struct {
 	// resolved the thread — which is the half that decides whether a finding is
 	// still worth making.
 	PriorThreads []PriorThread
+
+	// GuidelinesFile is the repository's standards file, relative to its root.
+	// Empty reads [DefaultGuidelinesFile].
+	GuidelinesFile string
+
+	// ExtraInstructions is guidance the calling repository adds to every review.
+	// Empty adds nothing.
+	ExtraInstructions string
 }
 
 // maxScoutDetail bounds one rendered finding. A scout's detail is unbounded model

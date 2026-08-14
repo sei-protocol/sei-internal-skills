@@ -245,6 +245,7 @@ func BuildPrompt(req Request) string {
 		"",
 	}
 	lines = append(lines, repoContextStep(req)...)
+	lines = append(lines, extraInstructionsStep(req)...)
 	lines = append(lines, historyStep(req)...)
 	lines = append(lines, []string{
 		"Step 2 — review the changed code. In the changed lines and what they call",
@@ -359,7 +360,7 @@ func bucketRules() []string {
 
 // repoContextStep names the two things a review reads for standards and intent.
 //
-// ai-review hands its models a REVIEW_GUIDELINES.md and a pr-context.md that its
+// ai-review hands its models a standards file and a pr-context.md that its
 // workflow wrote. Our agent runs in a sandbox pod, where a file the runner wrote
 // is not visible — but it has the tree and it has gh, so it fetches both itself.
 // Same inputs to the model, different plumbing to get them there.
@@ -393,19 +394,88 @@ func repoContextStep(req Request) []string {
 	}
 }
 
+// extraInstructionsStep carries guidance the calling repository added.
+//
+// Set in the caller's workflow, so it is the repository's own instruction rather
+// than anything the pull request can reach — the one input here that is not
+// treated as data.
+//
+// Beside the standards read from the base branch, because that is what it is: a
+// rule the repository sets, outranking the checklist. Not at the end. The end of
+// both prompts is the output contract, and guidance sitting after "finish with a
+// single fenced json block" reads as part of that contract rather than as
+// something to review by.
+func extraInstructionsStep(req Request) []string {
+	text := strings.TrimSpace(req.ExtraInstructions)
+	if text == "" {
+		return nil
+	}
+	return []string{
+		"",
+		"This repository adds the following, which outranks the checklist above:",
+		"",
+		clip(text, maxExtraInstructions),
+		"",
+	}
+}
+
+// maxExtraInstructions bounds what a caller can prepend to every review. Past
+// this the guidance is crowding out the diff it is meant to guide.
+const maxExtraInstructions = 4000
+
 // guidelinesCommand reads the repository's review standards from the base branch.
 //
 // From the base, not from the working tree. The tree is this pull request's
-// merge, so a change that adds or edits REVIEW_GUIDELINES.md would be handing
+// merge, so a change that adds or edits that file would be handing
 // itself the standards it is reviewed against — and these outrank the prompt's
 // own checklist, which makes that a way to approve anything. The base copy is the
 // one the repository agreed on before this change existed.
 func guidelinesCommand(req Request) string {
 	return fmt.Sprintf(
 		"base=$(gh pr view %d --repo %s --json baseRefName --jq .baseRefName) && "+
-			"gh api \"repos/%s/contents/REVIEW_GUIDELINES.md?ref=$base\" "+
+			"gh api \"repos/%s/contents/%s?ref=$base\" "+
 			"-H \"Accept: application/vnd.github.raw\"",
-		req.PR, req.Repo, req.Repo)
+		req.PR, req.Repo, req.Repo, req.guidelinesFile())
+}
+
+// DefaultGuidelinesFile is the standards file a repository is assumed to keep.
+//
+// REVIEW.md, which is what ai-review reads and what sei-chain has. Naming a file
+// no repository keeps costs the review its standards silently: the fetch 404s,
+// the prompt says a 404 means the repository has none, and the review proceeds
+// against the checklist alone.
+const DefaultGuidelinesFile = "REVIEW.md"
+
+// guidelinesFile is the standards file to read, and it is a path this process
+// writes into a command the agent runs.
+//
+// So it is checked rather than trusted. A caller sets it through a workflow
+// input, and a name carrying a quote or a substitution would end the argument and
+// start something else. Anything outside a plain repository path falls back to
+// the default, because a review that reads the standard file is a better failure
+// than one that runs an injected command.
+func (r Request) guidelinesFile() string {
+	if r.GuidelinesFile == "" || !isPlainRepoPath(r.GuidelinesFile) {
+		return DefaultGuidelinesFile
+	}
+	return r.GuidelinesFile
+}
+
+// isPlainRepoPath reports whether p is a repository-relative path and nothing
+// more: no shell metacharacter, no escape from the repository root.
+func isPlainRepoPath(p string) bool {
+	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "..") {
+		return false
+	}
+	for _, r := range p {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '.', r == '_', r == '-', r == '/':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // intentCommand reads the pull request's title and body.
@@ -453,6 +523,7 @@ func AdoptedPrompt(req Request) string {
 		"",
 	}
 	lines = append(lines, repoContextStep(req)...)
+	lines = append(lines, extraInstructionsStep(req)...)
 	lines = append(lines, historyStep(req)...)
 	lines = append(lines, []string{
 		"Review the current state against the same checklist, and report under the same",
