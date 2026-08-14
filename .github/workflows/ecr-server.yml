@@ -1,0 +1,158 @@
+name: ECR Server
+
+# Build + push the server overlay image, gated on parsing every bundle in-image with
+# the server's own omnigent. A bundle that would fail to register cannot be published.
+#
+# The server image is what `OMNIGENT_BUILTIN_AGENT_DIRS` points into, so this is how a
+# bundle reaches the agent dropdown: there is no registration API.
+#
+# Auth mirrors the repo's other ECR workflows. Tagged `server-overlay-<sha>` in the
+# shared sei/sei-omnigent repo, distinguishable from the fork-built server base
+# (`agents-main-*`) and the runner overlay (`runner-overlay-*`). Cache lives in the
+# dedicated sei/build-cache repo so a cache manifest cannot be mistaken for a deploy
+# tag. amd64 only, matching the server deployment's nodes.
+#
+# Publishing does not roll anything. Deploying is two deliberate changes in platform:
+# the image digest in kustomization.yaml, and adding each bundle path to
+# OMNIGENT_BUILTIN_AGENT_DIRS in configmap-patch.yaml. Registration runs only at
+# lifespan startup, so that also needs the config-revision bump to restart the server.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Dockerfile.server'
+      - 'Dockerfile.server.dockerignore'
+      - 'server-base.txt'
+      - 'agents/**'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Image tag (defaults to server-overlay-<git sha>)"
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::189176372795:role/common/gha
+          role-duration-seconds: 900
+          aws-region: us-east-2
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - id: vars
+        name: Resolve the pinned base and the target tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          # grep -m1 rather than `grep | head`: under pipefail, head closing early can
+          # surface as SIGPIPE from grep and fail the step.
+          base="$(grep -m1 -vE '^\s*(#|$)' server-base.txt)"
+          [ -n "$base" ] || { echo "server-base.txt carries no image reference" >&2; exit 1; }
+          echo "image=$base" >> "$GITHUB_OUTPUT"
+          echo "tag=${INPUT_TAG:-server-overlay-${GITHUB_SHA}}" >> "$GITHUB_OUTPUT"
+
+      - name: Build against the real base
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.server
+          build-args: BASE_IMAGE=${{ steps.vars.outputs.image }}
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: sei-server-overlay:candidate
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-server-overlay
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-server-overlay,mode=max
+
+      - name: Gate — every bundle parses with the server's own omnigent
+          # The PR gate parses from the checkout with a PyPI omnigent. This parses the
+          # baked copies with the exact library the server will use at startup, which is
+          # what makes publishing safe.
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          docker run --rm --entrypoint python sei-server-overlay:candidate -c '
+          import sys
+          from pathlib import Path
+          from omnigent.spec.parser import parse, discover_host_skills
+          # Mirrors verify-agent-bundles.yml. The prefix matters as much as the
+          # count: a swap that keeps eight skills would otherwise pass here while
+          # breaking the Spec Kit contract, so both gates assert the same thing.
+          EXPECT = {
+              "sei-spec":   ("none", 8, "speckit-"),
+              "xreview":    ("all",  1, None),
+              "root-cause": ("all",  1, None),
+              "xreview-scout-codex": ("none", 0, None),
+          }
+          root = Path("/opt/sei-omnigent/agents")
+          dirs = sorted(p for p in root.iterdir() if p.is_dir())
+          if len(dirs) != len(EXPECT):
+              print(f"FAIL: baked {[d.name for d in dirs]}, expected {sorted(EXPECT)}"); sys.exit(1)
+          bad = False
+          for d in dirs:
+              spec = parse(d)
+              want_filter, want_skills, want_prefix = EXPECT[d.name]
+              names = sorted(s.name for s in spec.skills)
+              n = len(names)
+              if spec.name != d.name:
+                  print(f"FAIL {d.name}: name is {spec.name!r}"); bad = True
+              if spec.skills_filter != want_filter:
+                  print(f"FAIL {d.name}: filter {spec.skills_filter!r} != {want_filter!r}"); bad = True
+              if n != want_skills:
+                  print(f"FAIL {d.name}: {n} skills != {want_skills} — {names}"); bad = True
+              if want_prefix:
+                  stray = [x for x in names if not x.startswith(want_prefix)]
+                  if stray:
+                      print(f"FAIL {d.name}: non-{want_prefix} skills vendored in: {stray}"); bad = True
+              if spec.skills_filter == "none" and discover_host_skills(d, spec.skills_filter):
+                  print(f"FAIL {d.name}: host scope leaked despite skills: none"); bad = True
+              print(f"  ok {d.name} filter={spec.skills_filter!r} skills={n}")
+          print("server-bundles-ok" if not bad else "server-bundles-FAILED")
+          sys.exit(1 if bad else 0)
+          '
+
+      - name: Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: Dockerfile.server
+          build-args: BASE_IMAGE=${{ steps.vars.outputs.image }}
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-server-overlay
+
+      - name: Report the digest and the registration paths to pin
+        env:
+          REF: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "$REF" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          {
+            echo "### Pin in platform"
+            echo
+            echo "\`clusters/dev/seigent/kustomization.yaml\` image digest:"
+            echo '```'
+            echo "${digest:-<inspect failed, see the job log>}"
+            echo '```'
+            echo "\`clusters/dev/seigent/configmap-patch.yaml\` OMNIGENT_BUILTIN_AGENT_DIRS:"
+            echo '```'
+            echo "/opt/sei-omnigent/agents/xreview:/opt/sei-omnigent/agents/root-cause:/opt/sei-omnigent/agents/sei-spec:/opt/agents/sei-droid"
+            echo '```'
+            echo "Registration runs only at lifespan startup, so bump \`sei.io/config-revision\` in the same commit."
+          } >> "$GITHUB_STEP_SUMMARY"
