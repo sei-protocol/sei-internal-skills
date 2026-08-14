@@ -58,14 +58,22 @@ gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh \
   -H 'Accept: application/vnd.github.raw' | bash -s -- output-style
 ```
 
-That lands `~/.claude/output-styles/asd-ste100.md` and prints how to turn it on. It
-does **not** turn it on — see [Output styles](#output-styles).
+That lands `~/.claude/output-styles/asd-ste100.md` **and turns it on**, because naming
+a style is the request to use it. It takes effect in your next session, or after
+`/clear` in the current one.
+
+It will not overwrite a style you already chose. If `outputStyle` is already set to
+something else, that gets reported and left alone. Every other key in `settings.json`
+is preserved, the file is backed up before the write, and a `settings.json` that does
+not parse is refused rather than guessed at. A symlinked `settings.json` is edited
+through rather than replaced, so a dotfiles setup stays linked.
+`--no-activate output-style` installs the file and stops.
 
 `gh` is required rather than `curl` because sei-internal-skills is internal, so the fetch
 needs its auth. Same trust model as the installer one-liner above.
 
-**What it will not do:** delete anything, touch your `settings.json`, or install a
-second resource you did not name. Ask for a skill and you get that skill — not its
+**What it will not do:** delete anything, or install a second resource you did not
+name. Only `output-style` writes `settings.json`; a skill or agent never does. Ask for a skill and you get that skill — not its
 agent, not the skills it references. If an agent names a skill it expects, take that
 too.
 

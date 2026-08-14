@@ -26,9 +26,17 @@
 #   rest. It does NOT clone and leaves no checkout behind, unless you already
 #   have one, in which case it reads that instead of re-downloading.
 #
-# WHAT A TARGETED INSTALL WILL NOT DO: delete anything, touch settings.json, or
-# install a second resource you did not name. Ask for a skill and you get that
-# skill — not its agent, and not the skills it references.
+# WHAT A TARGETED INSTALL WILL NOT DO: delete anything, or install a second
+# resource you did not name. Ask for a skill and you get that skill, not its
+# agent and not the skills it references.
+#
+# ONE EXCEPTION, AND ONLY ONE: `output-style` sets outputStyle in settings.json,
+# because naming a style is the request to use it. It backs the file up first,
+# preserves every other key, and REFUSES to overwrite a style you already chose
+# — that one gets reported and left alone. It edits through a symlink rather
+# than replacing it, so a dotfiles-managed settings.json stays linked.
+# `--no-activate <target>` installs the file without touching settings.
+# Nothing else this script does writes settings.json.
 #
 # Environment:
 #   SEI_INTERNAL_SKILLS_HOME   checkout location (default: ~/.sei-internal-skills)
@@ -42,6 +50,16 @@ SEI_INTERNAL_SKILLS_HOME="${SEI_INTERNAL_SKILLS_HOME:-$HOME/.sei-internal-skills
 REF="${SEI_SKILLS_REF:-main}"
 TARGET="${SEI_SKILLS_TARGET:-$HOME}"
 TARGET="${TARGET/#\~/$HOME}"
+
+# Consumed before dispatch so it can precede the target. It must NOT leave the
+# argument list empty: that would fall through to the no-argument path, which
+# clones and syncs everything. Someone reaching for the escape hatch is asking
+# to install less, not to mutate their whole environment.
+NO_ACTIVATE=false
+if [ "${1:-}" = "--no-activate" ]; then
+  NO_ACTIVATE=true; shift
+  [ -n "${1:-}" ] || { echo "Error: --no-activate needs a target, e.g. output-style" >&2; exit 2; }
+fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
 die()  { echo "Error: $*" >&2; exit 1; }
@@ -60,6 +78,8 @@ Everything (no arguments)
 One piece
   list                    show everything available, by kind
   output-style [name]     default: asd-ste100    -> ~/.claude/output-styles/
+                          also activates it in settings.json; never overwrites
+                          a style you already chose. --no-activate to skip.
   skill <name>            core or experimental   -> ~/.claude/skills/<name>/
   agent <name>            core or experimental   -> ~/.claude/agents/<name>.md
 
@@ -170,6 +190,96 @@ note_tier() {
   echo "  Experimental: parked in the repo, not part of the shipped core, and may change."
 }
 
+# Reads settings.json and prints the current outputStyle, or nothing. Prints
+# MALFORMED if the file exists but will not parse, so the caller can refuse
+# rather than overwrite a file it cannot understand.
+read_current_style() {
+  local f="$1"
+  [ -f "$f" ] || return 0
+  python3 - "$f" <<'PYEOF' 2>/dev/null || echo MALFORMED
+import json, sys
+try:
+    with open(sys.argv[1]) as fh:
+        d = json.load(fh)
+except Exception:
+    print("MALFORMED"); sys.exit(0)
+print(d.get("outputStyle", "") if isinstance(d, dict) else "MALFORMED")
+PYEOF
+}
+
+# Sets outputStyle while preserving every other key. Backs the file up first:
+# this is the user's own settings file, and the script is usually run piped from
+# the internet, where a bad write is not something they can easily undo.
+write_style() {
+  local f="$1" style="$2"
+  mkdir -p "$(dirname "$f")"
+  [ -e "$f" ] && cp "$f" "$f.bak-$(date +%Y%m%d%H%M%S)"
+  python3 - "$f" "$style" <<'PYEOF'
+import json, os, sys
+path, style = sys.argv[1], sys.argv[2]
+
+# Resolve the symlink before writing. os.replace onto a symlink swaps the LINK
+# for a regular file, which silently detaches a dotfiles-managed settings.json
+# and leaves the real file without the change. Editing through the link is what
+# the user meant by making it a link.
+path = os.path.realpath(path)
+
+d = {}
+if os.path.exists(path):
+    with open(path) as fh:
+        d = json.load(fh)
+    if not isinstance(d, dict):
+        raise SystemExit("settings.json is not a JSON object")
+d["outputStyle"] = style
+# Temp file beside the real target so the rename is atomic on one filesystem.
+tmp = path + ".tmp"
+with open(tmp, "w") as fh:
+    json.dump(d, fh, indent=2)
+    fh.write("\n")
+os.replace(tmp, path)
+PYEOF
+}
+
+# Turning a style on is the whole point of asking for it by name, so a targeted
+# install activates it. What it will not do is take that decision away from
+# someone who already made one: an existing, different style is reported and
+# left alone. Silently replacing it is the failure this used to avoid by never
+# activating at all.
+activate_style() {
+  local style="$1" settings="$TARGET/.claude/settings.json"
+
+  if ! have python3; then
+    echo "  Installed. Could not activate automatically, python3 was not found."
+    echo "  Turn it on with:  /config  ->  Output Style  ->  $style"
+    return 0
+  fi
+
+  local current; current="$(read_current_style "$settings")"
+
+  if [ "$current" = "MALFORMED" ]; then
+    echo "  Installed, but $settings does not parse as JSON, so it was left untouched."
+    echo "  Fix that file, then:  /config  ->  Output Style  ->  $style"
+    return 0
+  fi
+  if [ "$current" = "$style" ]; then
+    echo "  Already your active output style. Nothing else to do."
+    return 0
+  fi
+  if [ -n "$current" ]; then
+    echo "  Installed, but NOT activated. You already have \"$current\" set, and that is your call."
+    echo "  To switch:  /config  ->  Output Style  ->  $style"
+    return 0
+  fi
+
+  if write_style "$settings" "$style"; then
+    echo "  Activated in $settings."
+    echo "  Takes effect in your next session, or after /clear in this one."
+  else
+    echo "  Installed, but could not write $settings."
+    echo "  Turn it on with:  /config  ->  Output Style  ->  $style"
+  fi
+}
+
 cmd_list() {
   resolve_tree
   echo ""
@@ -195,14 +305,12 @@ cmd_output_style() {
   cp "$src" "$TARGET/.claude/output-styles/$name.md"
   echo "✓ $TARGET/.claude/output-styles/$name.md"
   echo ""
-  # Same contract as sync-output-styles.sh: ship the file, never flip the switch.
   local style; style="$(grep -m1 '^name:' "$src" | sed 's/^name: *//')"
-  if grep -q '"outputStyle"' "$TARGET/.claude/settings.json" 2>/dev/null; then
-    echo "  You already have an outputStyle set, so this one is installed but not active."
+  if $NO_ACTIVATE; then
+    echo "  Installed, not activated (--no-activate)."
+    echo "  Turn it on with:  /config  ->  Output Style  ->  $style"
   else
-    echo "  Installed but NOT active — activating a style is your call, not this script's."
-    echo "  Turn it on with:  /config  →  Output Style  →  $style"
-    echo "  Or add to $TARGET/.claude/settings.json:   \"outputStyle\": \"$style\""
+    activate_style "$style"
   fi
 }
 
