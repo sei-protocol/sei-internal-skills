@@ -223,7 +223,7 @@ func TestBothPromptsCarryTheRepoContext(t *testing.T) {
 			// and they outrank this prompt's checklist, which makes that a way to
 			// approve anything.
 			"--json baseRefName",
-			"REVIEW_GUIDELINES.md?ref=$base",
+			"REVIEW.md?ref=$base",
 			"never from pr-42-tree",
 			"outrank the checklist",
 			// Each command on its own indented line. Run together with the prose, an

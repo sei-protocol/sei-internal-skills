@@ -123,6 +123,15 @@ func xreviewCommand(log *slog.Logger) *cli.Command {
 				Usage: "write the placeable findings here as json for the caller to post inline",
 			},
 			&cli.StringFlag{
+				Name: "guidelines-file",
+				Usage: "repository standards file to read from the base branch " +
+					"(default " + xreview.DefaultGuidelinesFile + ")",
+			},
+			&cli.StringFlag{
+				Name:  "extra-instructions",
+				Usage: "guidance this repository adds to every review",
+			},
+			&cli.StringFlag{
 				Name:  "prior-threads",
 				Usage: "read this tool's earlier findings and their replies from here as json",
 			},
@@ -196,6 +205,9 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 			repo, pr,
 		),
 	}
+
+	req.GuidelinesFile = cmd.String("guidelines-file")
+	req.ExtraInstructions = cmd.String("extra-instructions")
 
 	// A history that cannot be read is not a reason to refuse the review. The
 	// review is still correct without it — it just repeats itself — where refusing
