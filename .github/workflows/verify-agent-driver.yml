@@ -1,0 +1,40 @@
+name: Verify sei-agent-driver
+
+on:
+  pull_request:
+    paths:
+      - 'sei-agent-driver/**'
+      - 'Makefile'
+      - '.github/workflows/verify-agent-driver.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'sei-agent-driver/**'
+      - 'Makefile'
+      - '.github/workflows/verify-agent-driver.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-agent-driver-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned to the module's declared floor rather than `stable`: the floor is
+      # what a consumer building this binary may be on, so it is the version that
+      # has to keep compiling.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: sei-agent-driver/go.mod
+          cache-dependency-path: sei-agent-driver/go.sum
+
+      - name: gofmt, build, vet, test -race, mod tidy
+        run: make driver-check
