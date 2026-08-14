@@ -13,7 +13,6 @@
 | 5. Dual-audience pass, then sign off | `/language` (on **every** captured design — criteria, when present, are the highest-stakes part; fidelity guardrails = anti-drift at authoring) | **`design-approval`** |
 | 6. Implement | (the work itself) | (council's one-way-door gate fires here for a one-way-door **change category** — persisted schema/field names, wire/on-disk formats, signed/indexed IDs — gated on category, not deployment target) |
 | 7. Capture deferred work | `/issue` — **only if a slice was cut** | — |
-| 8. Decorate lineage | `/execution-plan` (delegated; never duplicated) | (execution-plan's first-label confirm is its own gate) |
 | 9. Ship | — | **`pr-sign-off`** (human) **or** **`review-gate`** (consensus — reads `/xreview`'s review-ledger fail-closed + confirms declared checks green; operator chooses at declaration). **Plus the pre-merge drift check** when the captured design carries acceptance criteria — criteria-compliance (a Missing criterion blocks; `inconclusive ⇒ surface`) + design-staleness (surfaced, non-blocking); a *facet* of this seam, not a new gate kind (see SKILL.md "The pre-merge drift check") |
 
 ## Ordering rules (load-bearing)
@@ -23,7 +22,6 @@
 - **`/language` precedes `design-approval`.** The `/language` dual-audience pass runs at seam 5 on the captured design *before* the human signs off — **unconditionally** (it is the prose lens on every captured design, criteria or not); when the design carries **acceptance criteria**, those are the highest-stakes part of the pass. Its fidelity guardrails (no invented commitment; an unsettled modal stays typed-undecided, never hardened into a normative `SHALL`) are the anti-drift discipline applied at authoring time. Compose `/language`; never reimplement its doctrine.
 - **The pre-merge drift check runs at ship, conditionally.** It fires at seam 9 **only when** the captured design carries acceptance criteria, and **only inside a workstream** (never a `/coral` slice or a one-sentence diff). It is a *facet* of the ship seam (not a new gate kind, not a new lifecycle) and reuses the `review-gate`'s target-derivable resolution. Outcomes: a **Missing** criterion **blocks** (like an open finding); an unconfirmable criterion is `inconclusive ⇒ surface` (fail-closed in the never-silently-pass sense — surface it, not abort-the-merge); **design-staleness** only **surfaces** (non-blocking). A design with no criteria simply skips it. See SKILL.md "The pre-merge drift check" (owning definition) and `review-gate.md`.
 - **`/issue` is conditional.** Fire it only when there's a genuine deferred slice. Wiring it as a mandatory phase produces reflexive empty-issue prompts.
-- **Lineage is delegated.** `workstream` calls `/execution-plan` to stamp the bet label + design link. It never re-implements identity/label/stamp logic — a second implementation mints a second identity. `/execution-plan`'s own first-label-creation confirm is a separate human gate it owns; the ledger does not subsume it.
 
 ## Composition boundaries (what workstream is NOT)
 

@@ -2,14 +2,14 @@
 name: research
 category: investigation
 model: claude-opus-5
-description: "Use when a research question needs a durable, verified, lineage-threaded answer — 'research X', 'do a deep dive on Y', 'survey the options for Z', 'investigate the state of the art on W', 'gather evidence on whether ...', '/research'. Runs a scoped, multi-modal sweep, adversarially verifies each finding, runs a completeness pass, and captures a research artifact threaded to issues/bets. Anti-triggers: NOT incident/bug root-causing in the Sei platform stack (use /root-cause); NOT capturing a design decision (use /design — research discovers, design decides); NOT a quick one-off lookup that needs no durable artifact (just answer); NOT launching a workstream (a research effort may be checkpoint-gated by /workstream but never launches one). Reuses /xreview's assigned-dissent primitive for finding-refutation; composes /design-style capture + /execution-plan lineage."
+description: "Use when a research question needs a durable, verified, lineage-threaded answer — 'research X', 'do a deep dive on Y', 'survey the options for Z', 'investigate the state of the art on W', 'gather evidence on whether ...', '/research'. Runs a scoped, multi-modal sweep, adversarially verifies each finding, runs a completeness pass, and captures a research artifact threaded to issues/bets. Anti-triggers: NOT incident/bug root-causing in the Sei platform stack (use /root-cause); NOT capturing a design decision (use /design — research discovers, design decides); NOT a quick one-off lookup that needs no durable artifact (just answer); NOT launching a workstream (a research effort may be checkpoint-gated by /workstream but never launches one). Reuses /xreview's assigned-dissent primitive for finding-refutation; composes /design-style capture."
 ---
 
 # Research
 
 Answer a research question with a **durable, verified, lineage-threaded** artifact — not a chat reply that evaporates. This is a *technique* skill (a four-stage method you adapt to the question) with a *discipline spine* (no finding ships unverified; a vague question is refused). It generalizes the skill-authoring research recipe (`author-skill/references/research-recipe.md`) into a first-class capability the rest of the stack can use.
 
-It composes the framework rather than reinventing it: it reuses `/xreview`'s **assigned-dissent primitive** for finding-refutation (not the skill — see the spine), captures like `/design` does, and threads lineage via `/execution-plan`.
+It composes the framework rather than reinventing it: it reuses `/xreview`'s **assigned-dissent primitive** for finding-refutation (not the skill — see the spine), and captures like `/design` does.
 
 ## Why this skill exists (read this first)
 
@@ -88,7 +88,8 @@ Capture in the DRI's designs repo — the engineer's `<name>-designs` repo, unde
 <sources, prior research, related designs/issues>
 ```
 
-**Lineage.** Thread exactly as `/design` does: frontmatter `Issue:`/`Impact:` + offer an `/execution-plan` decoration call so the research accrues into the graph. **Precision (do not get this wrong):** `betGraph`'s `designLinked` means "links the *bet's design* URL" — a research-doc URL is *not* the bet's design URL. So a research effort that advances a bet threads through the **issue that already carries the `impact:<slug>` label and the bet's design-URL link**; the research doc is an *additional reference* on that issue, not a competing discriminator. (Whether `betGraph` should treat a research-doc URL as a second valid discriminator is a `/execution-plan` contract question — logged as a follow-up, out of scope here.)
+**Lineage.** Thread exactly as `/design` does: frontmatter `Issue:`/`Impact:` on the findings artifact. Bet-graph decoration is retired; there is no automatic accrual to stamp.
+
 
 ## Rationalization table
 

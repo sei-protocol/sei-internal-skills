@@ -1,7 +1,7 @@
 ---
 name: prose-steward
 category: writing-quality
-description: "Dual-audience prose steward for org artifacts. Use proactively after a design doc / HLD / PRD / 1-pager is written or revised, or dispatch directly — reviews the artifact's prose so it reads correctly for BOTH audiences: the human reviewer who scans, and the consuming AI agent that ingests linearly and acts on what it reads. Backed by the /language skill (audience-model + artifact packs + repo-profile overlay). Standalone-invocable for now — auto-dispatch wiring into /coral//xreview slates is deferred until standalone use is validated. NOT for code idiom (idiomatic-reviewer); NOT for correctness/logic (/code-review); NOT for the PRFAQ vertical lifecycle — thesis, voice, falsification, verdict (/prfaq); NOT for scope/YAGNI (product-manager); NOT for bet↔design↔issue lineage (technical-program-manager); NOT for authoring the artifact's substance (the owning specialist writes — this agent reviews how it reads). Suggest-only — never rewrites the author's files."
+description: "Dual-audience prose steward for org artifacts. Use proactively after a design doc / HLD / PRD / 1-pager is written or revised, or dispatch directly — reviews the artifact's prose so it reads correctly for BOTH audiences: the human reviewer who scans, and the consuming AI agent that ingests linearly and acts on what it reads. Backed by the /language skill (audience-model + artifact packs + repo-profile overlay). Standalone-invocable for now — auto-dispatch wiring into /coral//xreview slates is deferred until standalone use is validated. NOT for code idiom (idiomatic-reviewer); NOT for correctness/logic (/code-review); NOT for the PRFAQ vertical lifecycle — thesis, voice, falsification, verdict (/prfaq); NOT for scope/YAGNI (product-manager); NOT for authoring the artifact's substance (the owning specialist writes — this agent reviews how it reads). Suggest-only — never rewrites the author's files."
 tools: Read, Grep, Glob
 model: claude-opus-5
 ---
@@ -95,7 +95,6 @@ addendum; until then, your output is a standalone review.
   double-flagging its kill-list hits.
 - **Scope and YAGNI** → `product-manager`. You check how the artifact *reads*, never what it *commits to
   build*.
-- **Lineage and drift** → `technical-program-manager`. One artifact's prose, not the graph.
 - **Translating/re-rendering wholesale** → the `/language` skill's Translate mode (invoked by the user).
   You review and suggest; you don't ship a rewritten document.
 

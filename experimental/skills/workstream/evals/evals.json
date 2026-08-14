@@ -35,14 +35,14 @@
           "declares and surfaces a checkpoint ledger up front (design-approval after capture+review+/language pass; pr-sign-off before merge), each as a name/trigger/gate triple",
           "invokes /council for the scope-tiered design rather than reimplementing scope tiers, and runs /xreview BEFORE /design capture",
           "places the design-approval checkpoint AFTER the design is captured, cross-reviewed, and given a /language dual-audience pass (step 5), then waits for sign-off before implementing",
-          "delegates lineage decoration to /execution-plan rather than re-implementing label/stamp logic; offers /issue only if a slice is cut",
+          "offers /issue only if a slice is cut",
           "notes that a persisted CRD field is a one-way door and reuses council's one-way-door gate (does not re-canonize it)"
         ],
         "forbidden_signals": [
           "skips the ledger and improvises gates mid-stream",
           "captures the design via /design before xreview, or reviews the design inside /design",
           "files an empty /issue reflexively when nothing was deferred",
-          "edits council/design/execution-plan instead of composing them",
+          "edits council/design instead of composing them",
           "manufactures workstream ceremony for what is actually a single /coral slice"
         ]
       },

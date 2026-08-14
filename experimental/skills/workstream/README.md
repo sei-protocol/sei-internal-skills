@@ -4,7 +4,7 @@
 
 ![Workstream architecture diagram](assets/workstream.png)
 
-Workstream launches and governs a substantial, multi-step effort on the Coral stack, walking the council -> xreview -> design -> issue -> execution-plan lifecycle while inserting declared gates at the seams. Its core guarantee is the checkpoint discipline: a declared human gate outranks a `/goal` Stop hook, so the agent will never self-approve walking through a one-way door no matter how green the CI or how much "keep going" pressure it is under. It composes the existing skills and never edits or reimplements them.
+Workstream launches and governs a substantial, multi-step effort on the Coral stack, walking the council -> xreview -> design -> issue lifecycle while inserting declared gates at the seams. Its core guarantee is the checkpoint discipline: a declared human gate outranks a `/goal` Stop hook, so the agent will never self-approve walking through a one-way door no matter how green the CI or how much "keep going" pressure it is under. It composes the existing skills and never edits or reimplements them.
 
 | | |
 |---|---|
@@ -15,7 +15,7 @@ Workstream launches and governs a substantial, multi-step effort on the Coral st
 
 ## What it does
 
-- Scaffolds the Coral lifecycle (council, xreview, /design, /language, /issue, /execution-plan) and inserts gates at the transitions, composing each skill rather than driving or replacing it.
+- Scaffolds the Coral lifecycle (council, xreview, /design, /language, /issue) and inserts gates at the transitions, composing each skill rather than driving or replacing it.
 - Declares three gate kinds up front in a typed ledger: human **checkpoints** (surface + wait for explicit confirmation), signal **guards** (fail-closed metric watches during a cutover), and **review-gates** (merge-on-consensus, satisfied only when the /xreview ledger is unanimous and declared checks pass).
 - The one refusal that matters: it never self-approves a declared checkpoint. A Stop hook governs *stopping*, not *approval* — it cannot manufacture a sign-off the human never gave, and a guard or review-gate never discharges a one-way door.
 

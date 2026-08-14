@@ -142,6 +142,9 @@ the Notion page is ready — a few minutes. You can keep working."**
 6. Report assembly — the agent narrates `verdicts/*.json` (no arithmetic); see
    `references/analysis-guide.md`.
 7. `scripts/push-notion.py --run <TOKEN> --state-dir state/run-<ts>/` — assembles the
+   report. Authoring rules for a line that renders cleanly and stays re-matchable on
+   edit are `references/notion-flavored-markdown.md` (this skill owns them; it is the
+   only core skill that writes Notion).
    Notion payload (headline + run-identity header + per-cell provenance markers);
    triggers `mcp__claude_ai_Notion__notion-create-pages`.
 

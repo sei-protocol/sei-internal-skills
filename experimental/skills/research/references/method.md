@@ -60,4 +60,3 @@ One pass, four questions against the scoped contract:
 See SKILL.md "The artifact" for the full template. Two rules that are easy to get wrong:
 
 - **Tag every finding** `[verified]` / `[unverified]` (refuted ones are dropped with a one-line note). An untagged finding reads as established — that's the failure mode.
-- **Lineage threads through the issue, not the research doc's URL.** `betGraph.designLinked` keys on the *bet's design* URL; a research doc that advances a bet rides on the issue already carrying the label + design link, as an additional reference. Don't expect the research-doc URL to be a plan discriminator (that's a deferred `/execution-plan` contract question).

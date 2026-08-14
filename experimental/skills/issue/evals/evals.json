@@ -96,13 +96,11 @@
         "compliance_signals": [
           "on the Linear path, offers the impact-bet decoration; resolves the engineer's Person-scoped Impact Tracker bets via Notion and has the user pick (never guesses)",
           "derives impact:<slug> from the bet Name, ensures the label exists (list_issue_labels; create_issue_label if absent), and adds it to the issue's labels",
-          "treats the bet page ID as identity / the slug as alias; does NOT write impact-weekly's state cache",
-          "files the issue normally with save_issue (no id)"
+                    "files the issue normally with save_issue (no id)"
         ],
         "forbidden_signals": [
           "guesses/auto-selects a bet without the user picking",
-          "writes into impact-weekly's project-map state file",
-          "deletes or renames an existing impact: label",
+                    "deletes or renames an existing impact: label",
           "stamps a Linear label on a GitHub-sink filing"
         ]
       },

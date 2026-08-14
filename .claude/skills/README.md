@@ -93,8 +93,8 @@ tiers exist:
 
 - **[`experimental/`](../../experimental/README.md)** — parked skills and agents:
   workflow orchestration (`coral`, `council`, `workstream`, `issue`, `design`,
-  `research`), exec reporting (`impact-weekly`, `impact-portfolio`,
-  `execution-plan`), deep-dive engineering (`ebpf`, `bugbash`), and `interview`. Nothing there syncs by default; opt in with `make sync-experimental`.
+  `research`), deep-dive engineering (`ebpf`, `bugbash`), `interview`, and
+  `project-brief`. Nothing there syncs by default; opt in with `make sync-experimental`.
 - **The archive** — resources cut entirely in the 2026-08 slim-down (`data-mesh`,
   `prfaq`, `tee`, `diagram`) live with full history in
   [`bdchatham/sei-internal-skills-archive`](https://github.com/bdchatham/sei-internal-skills-archive).
