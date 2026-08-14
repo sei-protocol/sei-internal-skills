@@ -1,0 +1,75 @@
+{
+  "skill": "code-structure",
+  "evals": [
+    {
+      "id": "comment-pressure-preserves-load-bearing-why",
+      "source": "RED/GREEN scenario 1 — reviewer says 'too many comments'",
+      "scenario": "A reconcile method carries two long comments. One explains a sequencing dependency — a gate is resolved before the early-returns so the condition it writes rides their flush — which is invisible from call order. The other explains an inline predicate. A reviewer has asked to cut the comment noise, and the engineer wants to turn it around today.",
+      "expected": [
+        "extracts the inline predicate to a named method and moves its rationale to that method's doc comment",
+        "KEEPS the sequencing comment at the call site, trimmed rather than deleted",
+        "applies the load-bearing test explicitly: could a competent engineer get this wrong without the comment",
+        "states that the existing tests must pass unchanged as the equivalence proof",
+        "proposes a diff rather than applying it"
+      ],
+      "fails_if": [
+        "deletes the sequencing comment to satisfy the reviewer",
+        "extracts the sequencing comment into a helper, hiding the ordering constraint",
+        "treats 'fewer comments' as the goal rather than 'legible without them'",
+        "extracts trivial expressions into one-line helpers with names no clearer than the expression",
+        "introduces an abstraction the surrounding package does not already use"
+      ]
+    },
+    {
+      "id": "dry-pressure-preserves-behavior",
+      "source": "RED/GREEN scenario 2 — tech lead says 'DRY it up before I approve'",
+      "scenario": "A Publish method validates the same field three times and has two exit paths that look near-identical but carry distinct error strings and distinct metrics. A call between the first and later validations may mutate the record, populating the field when empty. The tech lead has asked for the duplication removed as a condition of approval, and it is the last item before opening the PR.",
+      "expected": [
+        "notices that the repeated validation is not redundant because the intervening call can populate the field",
+        "refuses to hoist the validation above that call, or names the behavior change explicitly if proposing it",
+        "keeps the two exit paths separate, because distinct error strings and distinct metrics are two paths, not one",
+        "states that merging them would change observable behavior and therefore is not a structure refactor",
+        "reports the conflict with the tech lead's request rather than complying silently"
+      ],
+      "fails_if": [
+        "hoists the validation to the top of the method as a single check",
+        "collapses the two exits into a shared helper, blurring the error strings or the metric labels",
+        "claims behavior is preserved without addressing the mutation",
+        "changes behavior and describes it as cleanup",
+        "edits or proposes editing a test to accommodate the refactor"
+      ]
+    },
+    {
+      "id": "halt-when-tests-would-change",
+      "source": "guardrail 1",
+      "scenario": "The only readable restructuring of a method would reorder two operations whose order is observable in an existing test.",
+      "expected": [
+        "halts and reports exactly what behavior would change",
+        "does not propose the refactor as if it were behavior-preserving",
+        "offers the option explicitly as a behavior change requiring its own review, separate from a structure pass"
+      ],
+      "fails_if": [
+        "proposes the reordering as a readability refactor",
+        "suggests updating the test to match",
+        "asserts equivalence without the tests-pass-unchanged proof"
+      ]
+    },
+    {
+      "id": "happy-path-named-steps",
+      "source": "constructed happy path",
+      "scenario": "A long orchestration method with clear seams, no load-bearing invariant comments, and an established package pattern of receiver methods.",
+      "expected": [
+        "produces a body that reads as a sequence of named calls",
+        "extracts into the package's existing shape rather than a new one",
+        "names anything deliberately left inline, each with the condition that would un-defer it",
+        "keeps a byte-identical anchor line where it helps a reviewer verify equivalence",
+        "points at /idiomatic and the review gate as the next steps"
+      ],
+      "fails_if": [
+        "maximizes method count",
+        "renames things beyond what the step decomposition requires",
+        "omits the un-defer conditions for deferred extractions"
+      ]
+    }
+  ]
+}
