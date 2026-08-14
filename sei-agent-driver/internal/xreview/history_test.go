@@ -140,3 +140,20 @@ func TestSelectThreadsKeepsEverythingItCan(t *testing.T) {
 		t.Fatalf("kept = %+v, want both in arrival order", kept)
 	}
 }
+
+// TestHistoryStepNamesAFileWithoutALine covers a thread GitHub holds against a
+// whole file: the publisher falls back to a file-level comment when a finding
+// cites a line outside the diff, and such a thread comes back carrying no line.
+func TestHistoryStepNamesAFileWithoutALine(t *testing.T) {
+	t.Parallel()
+
+	out := strings.Join(historyStep(Request{Repo: "o/r", PR: 1, PriorThreads: []PriorThread{
+		{File: "internal/c.go", Line: 0, Body: "cited at internal/c.go:88"},
+	}}), "\n")
+	if !strings.Contains(out, "internal/c.go —") {
+		t.Errorf("the file is not named on its own:\n%s", out)
+	}
+	if strings.Contains(out, "internal/c.go:0") {
+		t.Errorf("line 0 is rendered as if it were a place:\n%s", out)
+	}
+}
