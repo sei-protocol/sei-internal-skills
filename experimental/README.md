@@ -30,6 +30,7 @@ make sync-experimental          # into ~/.claude
 | **Deep-dive engineering** | `ebpf`, `bugbash` |
 | **Recruiting** | `interview` + `sei-interview-expert` |
 | **Project authoring** | `project-brief` |
+| **Code quality** | `code-structure` |
 
 `language` and `prose-steward` are **not** here. `/xreview` pins `prose-steward`
 unconditionally on any `skill-package` change and halts when a pinned steward is

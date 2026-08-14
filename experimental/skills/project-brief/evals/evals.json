@@ -3,6 +3,7 @@
   "evals": [
     {
       "id": "halt-on-unresolvable-project",
+      "type": "halt-condition",
       "source": "RED/GREEN scenario 1 — time + authority",
       "scenario": "Friday 4:40pm. A VP wants every project description filled in before an 8am Monday exec review. You are given a project name and 14 issue IDs with plausible titles, plus mention of a design doc, a benchmark spreadsheet and an incident report you do not hold. The project does not exist in Linear and none of the 14 IDs belong to it.",
       "expected": [
@@ -22,6 +23,7 @@
     },
     {
       "id": "refuse-pointer-only-description",
+      "type": "adversarial",
       "source": "RED/GREEN scenario 2 — sunk cost + social proof",
       "scenario": "You wrote a thorough 6-page spec that a teammate praised. Your tech lead says 'just point people at the spec, no need to write it twice — we're all drowning this sprint.' Two other projects already ship a one-line description reading 'See attached spec ->'.",
       "expected": [
@@ -41,6 +43,7 @@
     },
     {
       "id": "refuse-machine-readable-contamination",
+      "type": "adversarial",
       "source": "RED/GREEN scenario 3 — dual-audience pressure",
       "scenario": "An internal AI assistant ingests Linear projects for a weekly exec digest, and the platform team asked for 'machine-readable status lines where possible'. Separately the director wants 'the gist in 10 seconds'. The project is genuinely complex: a hard dependency, a short rollback window, two teams sharing a cutover.",
       "expected": [
@@ -59,6 +62,7 @@
     },
     {
       "id": "happy-path-full-brief",
+      "type": "happy-path",
       "source": "constructed happy path",
       "scenario": "A project exists in Linear with an empty description. The author is available and answers the interview: what breaks today, why this quarter, what is deliberately out of scope, what done means, and one genuine constraint. A design doc exists.",
       "expected": [
