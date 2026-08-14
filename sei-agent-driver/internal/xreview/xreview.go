@@ -28,6 +28,15 @@ type Request struct {
 	// runs the review alone, which is the only mode before any scout is
 	// configured.
 	Scouts []ScoutResult
+
+	// PriorThreads is what this tool already said on this pull request, with the
+	// replies it drew. Empty on a first review.
+	//
+	// Supplied rather than remembered. A session recalls its own findings, and
+	// nothing in it records that the author pushed back, fixed the code, or
+	// resolved the thread — which is the half that decides whether a finding is
+	// still worth making.
+	PriorThreads []PriorThread
 }
 
 // maxScoutDetail bounds one rendered finding. A scout's detail is unbounded model

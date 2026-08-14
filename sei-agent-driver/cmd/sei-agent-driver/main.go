@@ -14,6 +14,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -122,6 +123,10 @@ func xreviewCommand(log *slog.Logger) *cli.Command {
 				Usage: "write the placeable findings here as json for the caller to post inline",
 			},
 			&cli.StringFlag{
+				Name:  "prior-threads",
+				Usage: "read this tool's earlier findings and their replies from here as json",
+			},
+			&cli.StringFlag{
 				Name:  "check-out",
 				Usage: "write the check run here as json for the caller to publish",
 			},
@@ -190,6 +195,18 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 			os.Getenv("GITHUB_RUN_ATTEMPT"),
 			repo, pr,
 		),
+	}
+
+	// A history that cannot be read is not a reason to refuse the review. The
+	// review is still correct without it — it just repeats itself — where refusing
+	// leaves the pull request with no review at all.
+	if path := cmd.String("prior-threads"); path != "" {
+		threads, err := readPriorThreads(path)
+		if err != nil {
+			log.Warn("could not read the earlier findings; reviewing without them",
+				"path", path, "error", err)
+		}
+		req.PriorThreads = threads
 	}
 
 	// Parsed leniently here and enforced below, so a malformed scout list cannot
@@ -319,6 +336,28 @@ func report(outPath, findingsPath, checkPath string, result driver.Result) error
 // Written whenever there is a verdict, unlike the findings: a review that found
 // nothing still concludes, and a checks list with no xreview entry reads as a
 // review that did not run rather than one that passed.
+// readPriorThreads loads what this tool said on this pull request before.
+//
+// An absent file is not an error: a pull request reviewed for the first time has
+// no history, and that is the common case rather than a fault.
+func readPriorThreads(path string) ([]xreview.PriorThread, error) {
+	blob, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	if len(bytes.TrimSpace(blob)) == 0 {
+		return nil, nil
+	}
+	var threads []xreview.PriorThread
+	if err := json.Unmarshal(blob, &threads); err != nil {
+		return nil, fmt.Errorf("decoding %s: %w", path, err)
+	}
+	return threads, nil
+}
+
 func writeCheckRun(path string, verdict xreview.Verdict) error {
 	if path == "" {
 		return nil
