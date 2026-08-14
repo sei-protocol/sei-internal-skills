@@ -204,3 +204,37 @@ func TestBothPromptsCarryTheBucketRules(t *testing.T) {
 		}
 	}
 }
+
+// TestBothPromptsCarryTheRepoContext pins the standards and intent a review
+// reads. Adding a step to one prompt and not the other is how a rule reaches the
+// first dispatch on a pull request and no dispatch after it — and the adopted
+// path is the one almost every review takes.
+func TestBothPromptsCarryTheRepoContext(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "sei-protocol/sandbox", PR: 42}
+	for name, prompt := range map[string]string{
+		"BuildPrompt":   BuildPrompt(req),
+		"AdoptedPrompt": AdoptedPrompt(req),
+	} {
+		for _, want := range []string{
+			// From the BASE branch. Read from the working tree, a change that edits
+			// the standards would be handing itself the ones it is judged against —
+			// and they outrank this prompt's checklist, which makes that a way to
+			// approve anything.
+			"--json baseRefName",
+			"REVIEW_GUIDELINES.md?ref=$base",
+			"never from pr-42-tree",
+			"outrank the checklist",
+			// Each command on its own indented line. Run together with the prose, an
+			// agent copying it literally asked gh for a field called "body." and got
+			// no intent at all.
+			"\n    gh pr view 42 --repo sei-protocol/sandbox --json title,body\n",
+			"never justify one",
+		} {
+			if !strings.Contains(prompt, want) {
+				t.Errorf("%s does not carry %q", name, want)
+			}
+		}
+	}
+}
