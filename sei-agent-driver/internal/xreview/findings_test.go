@@ -204,3 +204,28 @@ func TestBothPromptsCarryTheBucketRules(t *testing.T) {
 		}
 	}
 }
+
+// TestBothPromptsCarryTheRepoContext pins the standards and intent a review
+// reads. Adding a step to one prompt and not the other is how a rule reaches the
+// first dispatch on a pull request and no dispatch after it — and the adopted
+// path is the one almost every review takes.
+func TestBothPromptsCarryTheRepoContext(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "sei-protocol/sandbox", PR: 42}
+	for name, prompt := range map[string]string{
+		"BuildPrompt":   BuildPrompt(req),
+		"AdoptedPrompt": AdoptedPrompt(req),
+	} {
+		for _, want := range []string{
+			"REVIEW_GUIDELINES.md",
+			"outranks the checklist",
+			"gh pr view 42 --repo sei-protocol/sandbox",
+			"never justify one",
+		} {
+			if !strings.Contains(prompt, want) {
+				t.Errorf("%s does not carry %q", name, want)
+			}
+		}
+	}
+}
