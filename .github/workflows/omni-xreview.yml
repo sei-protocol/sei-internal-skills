@@ -24,6 +24,13 @@ on:
         description: "sei-agent-driver release tag; defaults to this repo's version.json"
         required: false
         default: ""
+      approve-on-success:
+        description: "Approve the pull request when the review finds nothing"
+        required: false
+        type: boolean
+        # Off, because ai-review is the automation of record and this one is
+        # dispatched by hand. A trial run should not clear a review requirement.
+        default: false
 
 permissions:
   contents: read
@@ -130,6 +137,56 @@ jobs:
           # and posting one comment.
           permission-contents: read
           permission-pull-requests: write
+          # The check run is the merge gate, and it is written to the target repo,
+          # so this job's own GITHUB_TOKEN cannot reach it.
+          permission-checks: write
+
+      # What this reviewer said last time, and what the author said back. Read
+      # runner-side for the reason the diff is: a step the agent must perform is a
+      # step it can skip, and prose the author controls should not travel through a
+      # shell to get here.
+      #
+      # Its own threads only. ai-review posts under the same bot identity, so the
+      # marker each inline comment carries is what tells the two apart. A pull
+      # request this reviewer has never seen yields an empty list, which the driver
+      # reads as a first review.
+      - name: Read the threads this review left before
+        env:
+          GH_TOKEN: ${{ steps.apptoken.outputs.token }}
+          OWNER: ${{ steps.target.outputs.owner }}
+          NAME: ${{ steps.target.outputs.name }}
+        run: |
+          set -euo pipefail
+          # $owner and friends are GraphQL variables, so the query stays literal.
+          # shellcheck disable=SC2016
+          gh api graphql -f query='
+            query($owner: String!, $name: String!, $number: Int!) {
+              repository(owner: $owner, name: $name) {
+                pullRequest(number: $number) {
+                  reviewThreads(first: 100) {
+                    nodes {
+                      isResolved
+                      path
+                      line
+                      originalLine
+                      comments(first: 20) { nodes { body author { login } } }
+                    }
+                  }
+                }
+              }
+            }' -F owner="$OWNER" -F name="$NAME" -F number="$TARGET_PR" > threads.json
+
+          # line is null once a thread goes stale against the head commit, and
+          # originalLine still says where it was written — which is what makes a
+          # thread on since-rewritten code readable rather than a finding at line 0.
+          jq '[ .data.repository.pullRequest.reviewThreads.nodes[]
+                | select((.comments.nodes[0].body // "") | contains("<!-- seidroid-xreview -->"))
+                | { file: (.path // ""),
+                    line: (.line // .originalLine // 0),
+                    body: ((.comments.nodes[0].body // "") | sub("\n*<!-- seidroid-xreview -->"; "")),
+                    replies: [ .comments.nodes[1:][] | "\(.author.login // "someone"): \(.body)" ],
+                    resolved: .isResolved } ]' threads.json > prior-threads.json
+          echo "prior threads carried into this review: $(jq length prior-threads.json)"
 
       # The driver mints its own omnigent bearer from the M2M client. Passing the
       # client rather than a token keeps the credential out of a step output: a
@@ -156,7 +213,11 @@ jobs:
           XREVIEW_ALLOW_TOOLS: Bash,Read
         run: |
           set -uo pipefail
-          "$DRIVER_BIN" xreview "$TARGET_REPO" "$TARGET_PR" --out verdict.md
+          "$DRIVER_BIN" xreview "$TARGET_REPO" "$TARGET_PR" \
+            --out verdict.md \
+            --findings-out findings.json \
+            --check-out check.json \
+            --prior-threads prior-threads.json
           rc=$?
           echo "exit_code=$rc" >> "$GITHUB_OUTPUT"
           # Exit codes are the contract, so they are read rather than collapsed to
@@ -172,15 +233,184 @@ jobs:
 
       # Fail-closed: only reached with a verdict on disk, so a broken run posts
       # nothing rather than a partial one.
-      - name: Post the verdict
+      #
+      # Anchoring is this job's work, not the sandbox's. The driver reports what the
+      # review found; which of those findings GitHub will accept on a line is a
+      # property of the pull request, and this side is the side holding the identity
+      # that can ask.
+      - name: Publish the review
+        uses: actions/github-script@v9
         env:
-          GH_TOKEN: ${{ steps.apptoken.outputs.token }}
           EXIT_CODE: ${{ steps.review.outputs.exit_code }}
-        run: |
-          set -euo pipefail
-          body="$(cat verdict.md)"
-          if [ "$EXIT_CODE" != "0" ]; then
-            body="$(printf '%s\n\n<sub>driver exit %s — this review may be incomplete.</sub>\n' \
-              "$body" "$EXIT_CODE")"
-          fi
-          printf '%s' "$body" | gh pr comment "$TARGET_PR" --repo "$TARGET_REPO" --body-file -
+          OWNER: ${{ steps.target.outputs.owner }}
+          NAME: ${{ steps.target.outputs.name }}
+          APPROVE_ON_SUCCESS: ${{ inputs.approve-on-success }}
+        with:
+          github-token: ${{ steps.apptoken.outputs.token }}
+          script: |
+            const fs = require("fs");
+            const owner = process.env.OWNER;
+            const repo = process.env.NAME;
+            const number = Number(process.env.TARGET_PR);
+            const approveOnSuccess = process.env.APPROVE_ON_SUCCESS === "true";
+
+            // On every comment this reviewer writes, so a later run can tell its own
+            // threads from ai-review's under the same bot identity.
+            const MARKER = "<!-- seidroid-xreview -->";
+
+            const readText = (path) => {
+              try { return fs.readFileSync(path, "utf8"); } catch { return ""; }
+            };
+            const readJSON = (path, fallback) => {
+              const text = readText(path);
+              if (!text) return fallback;
+              try { return JSON.parse(text); }
+              catch (e) { core.warning(path + ": " + e.message); return fallback; }
+            };
+
+            const findings = readJSON("findings.json", []);
+            const check = readJSON("check.json", null);
+            let body = readText("verdict.md").trim();
+            if (!body) { core.setFailed("no verdict on disk"); return; }
+
+            const pr = (await github.rest.pulls.get({ owner, repo, pull_number: number })).data;
+            const sha = pr.head.sha;
+
+            // ---- which lines GitHub will accept a comment on -------------------
+            // A comment on any other line rejects the whole review, not just itself,
+            // so this is read from the diff rather than attempted and retried.
+            const commentable = { RIGHT: {}, LEFT: {} };
+            const files = await github.paginate(github.rest.pulls.listFiles, {
+              owner, repo, pull_number: number, per_page: 100,
+            });
+            for (const f of files) {
+              if (!f.patch) continue; // binary, or too large for GitHub to send a patch
+              commentable.RIGHT[f.filename] = new Set();
+              commentable.LEFT[f.filename] = new Set();
+              let oldLine = 0, newLine = 0;
+              for (const line of f.patch.split("\n")) {
+                const hunk = line.match(/^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/);
+                if (hunk) {
+                  oldLine = parseInt(hunk[1], 10);
+                  newLine = parseInt(hunk[2], 10);
+                } else if (line.startsWith("+")) {
+                  commentable.RIGHT[f.filename].add(newLine++);
+                } else if (line.startsWith("-")) {
+                  commentable.LEFT[f.filename].add(oldLine++);
+                } else if (line.startsWith(" ")) {
+                  commentable.RIGHT[f.filename].add(newLine++);
+                  commentable.LEFT[f.filename].add(oldLine++);
+                }
+              }
+            }
+
+            const tag = (severity) => {
+              const s = String(severity || "suggestion").toLowerCase();
+              if (s === "blocker") return "**[blocker]** ";
+              if (s === "nit") return "**[nit]** ";
+              return "**[suggestion]** ";
+            };
+
+            // ---- split what can be anchored from what cannot -------------------
+            const anchored = [], orphaned = [];
+            for (const f of findings) {
+              const path = String(f?.file ?? "").trim();
+              const detail = String(f?.detail ?? "").trim();
+              if (!path || !detail) continue;
+              const side = String(f?.side ?? "RIGHT").toUpperCase() === "LEFT" ? "LEFT" : "RIGHT";
+              const parsed = Number.parseInt(f?.line, 10);
+              const line = Number.isInteger(parsed) ? parsed : null;
+              const entry = { path, line, side, severity: f?.severity, detail };
+              if (line !== null && commentable[side][path]?.has(line)) anchored.push(entry);
+              else orphaned.push(entry);
+            }
+
+            // A finding whose line is gone is still a finding. Dropping it would make
+            // a rewritten diff look clean.
+            if (orphaned.length) {
+              const where = (o) => "`" + o.path + (o.line ? ":" + o.line : "") + "`";
+              body += "\n\n### Findings that do not sit on a line of this diff\n" +
+                orphaned.map((o) => "- " + where(o) + " \u2014 " + tag(o.severity) + o.detail).join("\n");
+            }
+            if (process.env.EXIT_CODE !== "0") {
+              body += "\n\n<sub>driver exit " + process.env.EXIT_CODE +
+                " \u2014 this review may be incomplete.</sub>";
+            }
+            body = MARKER + "\n" + body;
+
+            // The conclusion the driver derived from the findings, not the word the
+            // agent used for itself.
+            const conclusion = String(check?.conclusion ?? "").toLowerCase();
+            let event = "COMMENT";
+            if (conclusion === "failure") event = "REQUEST_CHANGES";
+            else if (conclusion === "success" && approveOnSuccess) event = "APPROVE";
+
+            // ---- post: inline, then body-only, then as a plain comment ---------
+            const comments = () => anchored.map((c) => ({
+              path: c.path, line: c.line, side: c.side,
+              body: tag(c.severity) + c.detail + "\n\n" + MARKER,
+            }));
+            const post = (event, withComments, text) => github.rest.pulls.createReview({
+              owner, repo, pull_number: number, commit_id: sha, event, body: text,
+              ...(withComments ? { comments: comments() } : {}),
+            });
+
+            let failure = null;
+            try {
+              await post(event, true, body);
+            } catch (inlineErr) {
+              core.warning("inline review failed (" + inlineErr.status + " " + inlineErr.message +
+                "); retrying without inline comments");
+              let flat = body;
+              if (anchored.length) {
+                flat += "\n\n### Inline comments this run could not post\n" +
+                  anchored.map((c) => "- `" + c.path + ":" + c.line + "` (" + c.side + ") \u2014 " +
+                    tag(c.severity) + c.detail).join("\n");
+              }
+              try {
+                await post(event, false, flat);
+              } catch (bodyErr) {
+                if (event === "COMMENT") { failure = bodyErr; }
+                else {
+                  core.warning("body-only " + event + " failed (" + bodyErr.status + " " +
+                    bodyErr.message + "); retrying as a plain comment");
+                  try { await post("COMMENT", false, flat); }
+                  catch (lastErr) { failure = lastErr; }
+                }
+              }
+            }
+
+            // ---- withdraw an earlier block this run no longer stands behind -----
+            // Scoped by marker: ai-review's blocks are its own to withdraw.
+            if (conclusion && conclusion !== "failure") {
+              try {
+                const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                  owner, repo, pull_number: number, per_page: 100,
+                });
+                for (const r of reviews) {
+                  if (r.state !== "CHANGES_REQUESTED" || !(r.body || "").includes(MARKER)) continue;
+                  await github.rest.pulls.dismissReview({
+                    owner, repo, pull_number: number, review_id: r.id,
+                    message: "Superseded: the latest xreview found nothing blocking.",
+                  });
+                }
+              } catch (e) {
+                core.warning("could not withdraw the earlier block: " + e.message);
+              }
+            }
+
+            // Written even when the review body did not post, so the gate still says
+            // what the run concluded rather than going silent.
+            if (check) {
+              try {
+                await github.rest.checks.create({
+                  owner, repo, name: "xreview", head_sha: sha, status: "completed",
+                  conclusion: check.conclusion,
+                  output: { title: check.title || "xreview", summary: check.summary || "" },
+                });
+              } catch (e) {
+                core.warning("could not write the check run: " + e.status + " " + e.message);
+              }
+            }
+
+            if (failure) throw failure;
