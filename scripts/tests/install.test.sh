@@ -91,6 +91,27 @@ before="$(cat "$t/.claude/settings.json")"
 grep_out "reports the malformed file" "does not parse" "$t" output-style
 if [ "$before" = "$(cat "$t/.claude/settings.json")" ]; then ok "malformed file left byte-identical"; else no "malformed file was modified"; fi
 
+# Bugbot #326: consuming the flag left the argument list empty, which fell
+# through to the no-argument path and cloned + synced everything. Someone
+# reaching for the escape hatch is asking to install LESS.
+echo "--no-activate alone must not become the full install"
+check_fail "bare --no-activate exits non-zero" run "$scratch/na" --no-activate
+o="$(run "$scratch/na" --no-activate 2>&1 || true)"
+if [[ "$o" == *"needs a target"* ]]; then ok "says what is missing"; else no "did not explain the missing target"; fi
+if [[ "$o" == *"git checkout"* ]]; then no "reached the clone path"; else ok "never reached the clone path"; fi
+
+# Bugbot #326: os.replace onto a symlink swaps the LINK for a regular file,
+# detaching a dotfiles-managed settings.json and leaving the real file without
+# the change. Editing through the link is what making it a link meant.
+echo "a symlinked settings.json is edited through, not replaced"
+t="$scratch/sym"; mkdir -p "$t/.claude" "$t/dotfiles"
+printf '{"model":"opus","permissions":{"allow":["Bash"]}}\n' > "$t/dotfiles/settings.json"
+ln -s "$t/dotfiles/settings.json" "$t/.claude/settings.json"
+silent run "$t" output-style
+check "the symlink survives"          test -L "$t/.claude/settings.json"
+check "the real file got the style"   bash -c "python3 -c \"import json;assert json.load(open('$t/dotfiles/settings.json'))['outputStyle']=='ASD-STE100'\""
+check "its other keys survived"       bash -c "python3 -c \"import json;d=json.load(open('$t/dotfiles/settings.json'));assert d['model']=='opus' and d['permissions']['allow']==['Bash']\""
+
 echo "--no-activate installs without touching settings"
 t="$scratch/os5"
 check      "exits 0"                  run "$t" --no-activate output-style

@@ -33,8 +33,10 @@
 # ONE EXCEPTION, AND ONLY ONE: `output-style` sets outputStyle in settings.json,
 # because naming a style is the request to use it. It backs the file up first,
 # preserves every other key, and REFUSES to overwrite a style you already chose
-# — that one gets reported and left alone. `--no-activate` installs the file
-# without touching settings. Nothing else this script does writes settings.json.
+# — that one gets reported and left alone. It edits through a symlink rather
+# than replacing it, so a dotfiles-managed settings.json stays linked.
+# `--no-activate <target>` installs the file without touching settings.
+# Nothing else this script does writes settings.json.
 #
 # Environment:
 #   SEI_INTERNAL_SKILLS_HOME   checkout location (default: ~/.sei-internal-skills)
@@ -49,9 +51,15 @@ REF="${SEI_SKILLS_REF:-main}"
 TARGET="${SEI_SKILLS_TARGET:-$HOME}"
 TARGET="${TARGET/#\~/$HOME}"
 
-# Consumed before dispatch so it can precede the target.
+# Consumed before dispatch so it can precede the target. It must NOT leave the
+# argument list empty: that would fall through to the no-argument path, which
+# clones and syncs everything. Someone reaching for the escape hatch is asking
+# to install less, not to mutate their whole environment.
 NO_ACTIVATE=false
-if [ "${1:-}" = "--no-activate" ]; then NO_ACTIVATE=true; shift; fi
+if [ "${1:-}" = "--no-activate" ]; then
+  NO_ACTIVATE=true; shift
+  [ -n "${1:-}" ] || { echo "Error: --no-activate needs a target, e.g. output-style" >&2; exit 2; }
+fi
 
 have() { command -v "$1" >/dev/null 2>&1; }
 die()  { echo "Error: $*" >&2; exit 1; }
@@ -205,10 +213,17 @@ PYEOF
 write_style() {
   local f="$1" style="$2"
   mkdir -p "$(dirname "$f")"
-  [ -f "$f" ] && cp "$f" "$f.bak-$(date +%Y%m%d%H%M%S)"
+  [ -e "$f" ] && cp "$f" "$f.bak-$(date +%Y%m%d%H%M%S)"
   python3 - "$f" "$style" <<'PYEOF'
 import json, os, sys
 path, style = sys.argv[1], sys.argv[2]
+
+# Resolve the symlink before writing. os.replace onto a symlink swaps the LINK
+# for a regular file, which silently detaches a dotfiles-managed settings.json
+# and leaves the real file without the change. Editing through the link is what
+# the user meant by making it a link.
+path = os.path.realpath(path)
+
 d = {}
 if os.path.exists(path):
     with open(path) as fh:
@@ -216,6 +231,7 @@ if os.path.exists(path):
     if not isinstance(d, dict):
         raise SystemExit("settings.json is not a JSON object")
 d["outputStyle"] = style
+# Temp file beside the real target so the rename is atomic on one filesystem.
 tmp = path + ".tmp"
 with open(tmp, "w") as fh:
     json.dump(d, fh, indent=2)

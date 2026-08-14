@@ -65,8 +65,9 @@ a style is the request to use it. It takes effect in your next session, or after
 It will not overwrite a style you already chose. If `outputStyle` is already set to
 something else, that gets reported and left alone. Every other key in `settings.json`
 is preserved, the file is backed up before the write, and a `settings.json` that does
-not parse is refused rather than guessed at. `--no-activate` installs the file and
-stops.
+not parse is refused rather than guessed at. A symlinked `settings.json` is edited
+through rather than replaced, so a dotfiles setup stays linked.
+`--no-activate output-style` installs the file and stops.
 
 `gh` is required rather than `curl` because sei-internal-skills is internal, so the fetch
 needs its auth. Same trust model as the installer one-liner above.
