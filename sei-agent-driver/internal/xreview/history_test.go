@@ -1,6 +1,8 @@
 package xreview
 
 import (
+	"fmt"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -155,5 +157,111 @@ func TestHistoryStepNamesAFileWithoutALine(t *testing.T) {
 	}
 	if strings.Contains(out, "internal/c.go:0") {
 		t.Errorf("line 0 is rendered as if it were a place:\n%s", out)
+	}
+}
+
+// TestCollapseRepeatsMergesIdenticalFindings pins what a live pull request
+// showed: repeated runs left the same finding on the same line several times, and
+// carrying each copy spends the budget restating one point.
+func TestCollapseRepeatsMergesIdenticalFindings(t *testing.T) {
+	t.Parallel()
+
+	same := PriorThread{File: "a.go", Line: 9, Body: "the default is duplicated"}
+	other := PriorThread{File: "b.go", Line: 1, Body: "something else"}
+	got := collapseRepeats([]PriorThread{same, same, other, same})
+	if len(got) != 2 {
+		t.Fatalf("collapsed to %d, want 2: %+v", len(got), got)
+	}
+	// By last mention, so the repeated finding lands after the one stated once
+	// before it was restated. The order is what bounding reads as recency.
+	if got[0].Body != other.Body || got[1].Body != same.Body {
+		t.Errorf("not ordered by last mention: %+v", got)
+	}
+}
+
+// TestCollapseRepeatsKeepsTheFindingOpen covers an author who resolved some
+// copies of one finding and not others. The finding is not resolved.
+func TestCollapseRepeatsKeepsTheFindingOpen(t *testing.T) {
+	t.Parallel()
+
+	body := "the default is duplicated"
+	got := collapseRepeats([]PriorThread{
+		{File: "a.go", Line: 9, Body: body, Resolved: true},
+		{File: "a.go", Line: 9, Body: body, Resolved: true},
+		{File: "a.go", Line: 9, Body: body},
+	})
+	if len(got) != 1 || got[0].Resolved {
+		t.Fatalf("got %+v, want one open thread", got)
+	}
+}
+
+// TestCollapseRepeatsKeepsEveryReply covers the replies scattered across copies:
+// the surviving thread carries what anyone said to any of them, once each.
+func TestCollapseRepeatsKeepsEveryReply(t *testing.T) {
+	t.Parallel()
+
+	body := "the default is duplicated"
+	got := collapseRepeats([]PriorThread{
+		{File: "a.go", Line: 9, Body: body, Replies: []string{"me: moot as of a4b857e"}},
+		{File: "a.go", Line: 9, Body: body, Replies: []string{"me: moot as of a4b857e", "you: disagree"}},
+	})
+	if len(got) != 1 {
+		t.Fatalf("collapsed to %d, want 1", len(got))
+	}
+	want := []string{"me: moot as of a4b857e", "you: disagree"}
+	if !slices.Equal(got[0].Replies, want) {
+		t.Errorf("replies = %q, want %q", got[0].Replies, want)
+	}
+}
+
+// TestCollapseRepeatsKeepsDistinctFindingsApart guards the other direction: a
+// finding differing only by line, or only by wording, is its own finding.
+func TestCollapseRepeatsKeepsDistinctFindingsApart(t *testing.T) {
+	t.Parallel()
+
+	got := collapseRepeats([]PriorThread{
+		{File: "a.go", Line: 9, Body: "x"},
+		{File: "a.go", Line: 10, Body: "x"},
+		{File: "b.go", Line: 9, Body: "x"},
+		{File: "a.go", Line: 9, Body: "y"},
+	})
+	if len(got) != 4 {
+		t.Errorf("collapsed %d distinct findings into %d", 4, len(got))
+	}
+}
+
+// TestCollapsedFindingSurvivesOnItsLatestMention covers the interaction between
+// collapsing and bounding: a finding first raised long ago and restated in the
+// most recent run is a recent finding, and the replies it carries were merged
+// from those recent copies. Ordering the survivor by its first appearance instead
+// would drop exactly that finding as old.
+func TestCollapsedFindingSurvivesOnItsLatestMention(t *testing.T) {
+	t.Parallel()
+
+	const restated = "the default is duplicated"
+	threads := []PriorThread{{File: "a.go", Line: 1, Body: restated}}
+	for i := 0; i < maxPriorThreads+3; i++ {
+		threads = append(threads, PriorThread{
+			File: "b.go", Line: i + 1, Body: fmt.Sprintf("finding %d", i),
+		})
+	}
+	// Raised again by the newest run, with the reply that argues it.
+	threads = append(threads, PriorThread{
+		File: "a.go", Line: 1, Body: restated, Replies: []string{"me: still true"},
+	})
+
+	shown := selectThreads(collapseRepeats(threads), maxPriorThreads)
+	var kept *PriorThread
+	for i := range shown {
+		if shown[i].Body == restated {
+			kept = &shown[i]
+		}
+	}
+	if kept == nil {
+		t.Fatalf("the restated finding was dropped as old; %d of %d shown",
+			len(shown), len(threads))
+	}
+	if !slices.Contains(kept.Replies, "me: still true") {
+		t.Errorf("the reply merged from the recent copy is missing: %+v", kept)
 	}
 }

@@ -1,6 +1,9 @@
 package xreview
 
-import "fmt"
+import (
+	"fmt"
+	"slices"
+)
 
 // Bounds on the history a prompt carries. A pull request reviewed many times
 // accumulates threads without limit, and a prompt that grows with them crowds out
@@ -29,6 +32,64 @@ type PriorThread struct {
 
 	// Resolved reports that the thread is marked resolved on GitHub.
 	Resolved bool `json:"resolved"`
+}
+
+// collapseRepeats merges prior threads saying the same thing in the same place.
+//
+// Runs before a review could see its own history left the same finding on a line
+// several times over. On one live pull request 5 of 13 threads were byte-identical
+// repeats of two findings — more than a third of what a prompt can carry, spent
+// restating two points, and teaching a review that repeating itself is normal.
+// Stopping that is what this history is for.
+//
+// The survivor keeps every reply anyone left on any copy, stays open if any copy
+// is open — an author who resolved three of four identical threads has not
+// resolved the finding — and sits where the finding was last stated.
+func collapseRepeats(threads []PriorThread) []PriorThread {
+	type finding struct {
+		thread PriorThread
+		last   int
+	}
+	at := make(map[string]*finding, len(threads))
+	found := make([]*finding, 0, len(threads))
+	for i, t := range threads {
+		// NUL-separated, because it cannot occur in a path or a comment body, so
+		// no pair of different threads can collide into one key.
+		key := fmt.Sprintf("%s\x00%d\x00%s", t.File, t.Line, t.Body)
+		f, seen := at[key]
+		if !seen {
+			f = &finding{thread: t, last: i}
+			at[key] = f
+			found = append(found, f)
+			continue
+		}
+		f.thread.Resolved = f.thread.Resolved && t.Resolved
+		f.thread.Replies = withNewReplies(f.thread.Replies, t.Replies)
+		f.last = i
+	}
+
+	// Ordered by where each finding was last stated, not where it was first.
+	// [selectThreads] drops the oldest when the history will not fit, and a
+	// finding restated a moment ago is not old — leaving the survivor at its first
+	// appearance would drop it, together with the replies merged from the copies
+	// that made it recent.
+	slices.SortStableFunc(found, func(a, b *finding) int { return a.last - b.last })
+
+	out := make([]PriorThread, len(found))
+	for i, f := range found {
+		out[i] = f.thread
+	}
+	return out
+}
+
+// withNewReplies appends the replies into does not already carry, in order.
+func withNewReplies(into, more []string) []string {
+	for _, r := range more {
+		if !slices.Contains(into, r) {
+			into = append(into, r)
+		}
+	}
+	return into
 }
 
 // selectThreads picks which threads a prompt carries when there are more than it
@@ -72,11 +133,12 @@ func historyStep(req Request) []string {
 		return nil
 	}
 
-	shown := selectThreads(req.PriorThreads, maxPriorThreads)
+	threads := collapseRepeats(req.PriorThreads)
+	shown := selectThreads(threads, maxPriorThreads)
 
 	out := []string{
 		fmt.Sprintf("You have left %d finding(s) on this pull request before, %d shown.",
-			len(req.PriorThreads), len(shown)),
+			len(threads), len(shown)),
 		"",
 		"What follows is yours, with whatever came back under it. The layout is this",
 		"process's: two spaces introduces a finding, six spaces a reply, and nothing",
