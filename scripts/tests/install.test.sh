@@ -108,7 +108,7 @@ check_fail "nothing was created on any failure" test -d "$t/.claude"
 # runs make, so it is asserted structurally rather than executed — running it
 # from a test would mutate the machine.
 echo "no arguments routes to the full install, not to usage"
-if grep -qE '^\s*"") *install_everything' "$GET"; then ok "empty target routes to install_everything"; else no "empty target does not route to install_everything"; fi
+if grep -qE '^[[:space:]]*"") *install_everything' "$GET"; then ok "empty target routes to install_everything"; else no "empty target does not route to install_everything"; fi
 if grep -q 'make -C "\$SEI_INTERNAL_SKILLS_HOME" sync-all' "$GET"; then ok "full install still calls make sync-all"; else no "full install lost its sync-all"; fi
 if grep -q 'git -C "\$SEI_INTERNAL_SKILLS_HOME" pull --ff-only' "$GET"; then ok "full install still fast-forwards an existing checkout"; else no "full install lost its fast-forward"; fi
 
