@@ -330,3 +330,32 @@ func verdictFunctionCallItem(t *testing.T, id, responseID string) omnigent.Conve
 		ID: id, ResponseID: responseID, Type: "function_call", Status: "completed", Data: data,
 	}
 }
+
+// TestGroupIsAfterAnchorRefusesAnEarlierReply pins the invariant doc.go states
+// and this package once broke: a stream opens by replaying earlier work, so a
+// completed reply from a previous invocation looks exactly like this turn's under
+// a newest-not-seen-before filter.
+func TestGroupIsAfterAnchorRefusesAnEarlierReply(t *testing.T) {
+	t.Parallel()
+
+	items := []omnigent.ConversationItem{
+		{ID: "i1", ResponseID: "resp_earlier", Type: "message"},
+		{ID: "i2", ResponseID: "", Type: "message"}, // this turn's prompt
+		{ID: "i3", ResponseID: "resp_mine", Type: "message"},
+	}
+	for _, tc := range []struct {
+		name             string
+		anchor, response string
+		want             bool
+	}{
+		{"this turn's reply, after the prompt", "i2", "resp_mine", true},
+		{"an earlier invocation's reply", "i2", "resp_earlier", false},
+		{"the anchor is not in the session", "gone", "resp_mine", false},
+		{"no anchor at all", "", "resp_mine", false},
+		{"a response the session does not carry", "i2", "resp_absent", false},
+	} {
+		if got := GroupIsAfterAnchor(items, tc.anchor, tc.response); got != tc.want {
+			t.Errorf("%s: GroupIsAfterAnchor = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}

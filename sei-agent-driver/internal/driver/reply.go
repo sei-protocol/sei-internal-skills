@@ -91,6 +91,44 @@ func ResponseIDs(items []omnigent.ConversationItem) map[string]bool {
 // being a superseded run whose stop lost the race against its own turn. The
 // driver refuses on that rather than choosing the newest group, because choosing
 // is precisely how another invocation's review gets published as this one.
+// GroupIsAfterAnchor reports whether every item carrying responseID sits after
+// the anchor item in the session's own order.
+//
+// The anchor is the item id SendInput returned for this turn's prompt, and
+// [doc.go] states the invariant it serves: nothing at or before it is ever
+// publishable. A stream opens by replaying earlier work, so an earlier
+// invocation's completed reply is indistinguishable from this turn's by recency
+// alone — which is how this package once published another invocation's verdict.
+//
+// An absent anchor answers false. Position cannot be proven against an item the
+// session does not carry, and refusing to publish is the safe direction.
+func GroupIsAfterAnchor(items []omnigent.ConversationItem, anchorID, responseID string) bool {
+	if anchorID == "" || responseID == "" {
+		return false
+	}
+	anchor := -1
+	for i, item := range items {
+		if item.ID == anchorID {
+			anchor = i
+			break
+		}
+	}
+	if anchor < 0 {
+		return false
+	}
+	found := false
+	for i, item := range items {
+		if item.ResponseID != responseID {
+			continue
+		}
+		if i <= anchor {
+			return false
+		}
+		found = true
+	}
+	return found
+}
+
 func ReplyGroupsSince(items []omnigent.ConversationItem, prior map[string]bool) []string {
 	groups := map[string]bool{}
 	for _, item := range items {

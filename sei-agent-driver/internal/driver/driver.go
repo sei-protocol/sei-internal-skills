@@ -534,7 +534,13 @@ func (d *Driver) DeleteSession(ctx context.Context, w Workload) (Result, error) 
 		d.log.Info("no session for this pull request; nothing to close", "run_key", runKey)
 		return Result{ExitCode: ExitOK, TeardownOK: true}, nil
 	}
-	if _, err := client.DeleteSession(ctx, session.ID, omnigent.DeleteSessionOptions{}); err != nil {
+	// Detached from the caller's cancellation, with its own budget. A terminate
+	// signal cancels ctx so teardown can run at all, and passing that same ctx
+	// here would abort the delete it exists to allow — leaving a pod nothing else
+	// reclaims. The same reasoning the reply reads are detached for.
+	del, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.cfg.RequestTimeout)
+	defer cancel()
+	if _, err := client.DeleteSession(del, session.ID, omnigent.DeleteSessionOptions{}); err != nil {
 		d.log.Error("could not delete the session; the sandbox will leak until reclaimed",
 			"session_id", session.ID, "error", err)
 		return Result{ExitCode: ExitTeardownLeak, SessionID: session.ID}, nil
@@ -1389,6 +1395,17 @@ func (d *Driver) recoverFromStreamLoss(
 		t.turnSettled = len(groups) > 1
 		d.log.Warn("stream died and the session does not name one new reply",
 			"session_id", sessionID, "reply_groups", groups, "error", cause)
+		return Reply{}, cause
+	}
+
+	// Positive attribution, not recency. The one group above was found by asking
+	// which response ids are new, which is the negative filter doc.go records as
+	// having published another invocation's verdict. Requiring the reply to sit
+	// after this turn's own prompt item is the invariant that filter cannot carry.
+	if !GroupIsAfterAnchor(session.Items, t.anchor, groups[0]) {
+		d.log.Warn("stream died and the new reply does not sit after this turn's prompt",
+			"session_id", sessionID, "anchor_item_id", t.anchor,
+			"response_id", groups[0], "error", cause)
 		return Reply{}, cause
 	}
 

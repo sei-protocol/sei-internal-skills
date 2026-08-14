@@ -276,7 +276,14 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 
 	if err := report(cmd.String("out"), cmd.String("findings-out"),
 		cmd.String("check-out"), result); err != nil {
-		return &exitError{code: driver.ExitConfig, err: err}
+		// The run's own outcome wins. Reporting ExitConfig here relabelled a review
+		// that timed out as one rejected before it reached the API, which is the
+		// opposite of what the exit code contract tells an operator to do next.
+		code := result.ExitCode
+		if code == driver.ExitOK {
+			code = driver.ExitConfig
+		}
+		return &exitError{code: code, err: err}
 	}
 	if result.ExitCode != driver.ExitOK {
 		return &exitError{
@@ -330,12 +337,25 @@ func report(outPath, findingsPath, checkPath string, result driver.Result) error
 	}
 	fmt.Println(string(blob))
 
-	if outPath == "" || !verdict.HasVerdict() {
+	// Cleared before anything is written, on every path. A workspace can be reused
+	// — a self-hosted runner, a second invocation in one job, the terminal use the
+	// README invites — and a caller posts on the file being present, so a previous
+	// run's verdict left on disk is published as this one's.
+	clearOutputs(outPath, findingsPath, checkPath)
+
+	if !verdict.HasVerdict() {
 		return nil
 	}
-	body := xreview.RenderComment(verdict, result.SessionID)
-	if err := os.WriteFile(outPath, []byte(body), 0o644); err != nil {
-		return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
+
+	// Each output answers to its own flag. Gating the findings and the check run
+	// on --out meant a caller asking only for the check got nothing and exit 0 —
+	// and an absent check reads as a review that did not run rather than one that
+	// passed, so the fail-closed signal was the one failing open.
+	if outPath != "" {
+		body := xreview.RenderComment(verdict, result.SessionID)
+		if err := os.WriteFile(outPath, []byte(body), 0o644); err != nil {
+			return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
+		}
 	}
 	if err := writeFindings(findingsPath, verdict); err != nil {
 		return err
@@ -396,6 +416,20 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// clearOutputs removes any output left by an earlier run.
+//
+// A missing file is the caller's signal that there is nothing to publish, so a
+// stale one is not merely untidy: it is a previous review published under this
+// run's name. Absent files are not an error — there is usually nothing there.
+func clearOutputs(paths ...string) {
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		_ = os.Remove(p)
+	}
 }
 
 // writeFindings hands the caller the observations it can post against a line.
