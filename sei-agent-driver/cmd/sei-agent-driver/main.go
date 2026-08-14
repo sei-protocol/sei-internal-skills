@@ -437,6 +437,17 @@ func parseTarget(args []string) (string, int, error) {
 		return "", 0, fmt.Errorf("%w: repository must be \"owner/name\", got %q",
 			driver.ErrConfig, repo)
 	}
+	// Checked for what it contains, not only for its shape. This value is written
+	// into the shell commands the prompt tells the agent to run — the diff fetch,
+	// the clone, the standards read, the intent read — so a name carrying a quote
+	// or a substitution would end the argument and start something else. The
+	// standards filename is checked for exactly this reason; the repository is the
+	// same kind of input and reaches more commands.
+	if !isPlainRepoName(repo) {
+		return "", 0, fmt.Errorf(
+			"%w: repository has characters GitHub does not allow in an owner or name: %q",
+			driver.ErrConfig, repo)
+	}
 	// Atoi, not Sscanf: Sscanf("%d") stops at the first non-digit and reports
 	// success, so "4.9" would parse as 4 and this would review a different pull
 	// request than the one asked for, silently. Atoi rejects the whole string.
@@ -468,6 +479,23 @@ const (
 type scoutSpec struct {
 	name  string
 	agent string
+}
+
+// isPlainRepoName reports whether s is an owner/name pair and nothing more.
+//
+// GitHub allows letters, digits, hyphen, underscore and dot in an owner or a
+// repository name, and nothing else. Anything outside that set cannot name a real
+// repository, so refusing it costs no caller a working target.
+func isPlainRepoName(s string) bool {
+	for _, r := range s {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		case r == '.', r == '_', r == '-', r == '/':
+		default:
+			return false
+		}
+	}
+	return true
 }
 
 // parseScouts reads the scout list, formatted "name=agent,name=agent".
