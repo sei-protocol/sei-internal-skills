@@ -57,17 +57,45 @@ check "exits 0"        run "$t" output-style
 check "file landed"    test -f "$t/.claude/output-styles/asd-ste100.md"
 check "content is the style, not a stub" grep -q "Simplified Technical English" "$t/.claude/output-styles/asd-ste100.md"
 
-# The whole contract of the output style: shipped, never switched on.
-echo "output-style NEVER activates itself"
-check_fail "no settings.json created" test -f "$t/.claude/settings.json"
-grep_out   "prints the opt-in" "NOT active" "$t" output-style
+# Asking for the style by name IS the request to use it, so a targeted install
+# activates it. Everything below guards the edges of that.
+echo "output-style activates itself"
+check "settings.json created"     test -f "$t/.claude/settings.json"
+check "outputStyle set to it"     bash -c "python3 -c \"import json;assert json.load(open('$t/.claude/settings.json'))['outputStyle']=='ASD-STE100'\""
+# On a fresh target: grep_out re-invokes, and by the second call the style is
+# already active, so the takes-effect line only appears on a target that has
+# not been activated yet.
+grep_out "says when it takes effect" "next session" "$scratch/os1b" output-style
+grep_out "re-running is a no-op"     "Already your active output style" "$t" output-style
 
-echo "…and does not nag once a style is already chosen"
+echo "…but it never overwrites a style you already chose"
 t="$scratch/os2"; mkdir -p "$t/.claude"
-printf '{\"outputStyle\":\"Explanatory\"}\n' > "$t/.claude/settings.json"
-grep_out      "reports installed-but-not-active" "already have an outputStyle" "$t" output-style
-grep_out_fail "does not print the turn-it-on pitch" "Turn it on" "$t" output-style
-check      "settings.json untouched"  grep -qF '"outputStyle":"Explanatory"' "$t/.claude/settings.json"
+printf '{"outputStyle":"Explanatory","model":"opus"}\n' > "$t/.claude/settings.json"
+grep_out "reports the existing choice" "already have" "$t" output-style
+check    "the existing style survives" bash -c "python3 -c \"import json;assert json.load(open('$t/.claude/settings.json'))['outputStyle']=='Explanatory'\""
+
+echo "…and preserves every other key when it does write"
+t="$scratch/os3"; mkdir -p "$t/.claude"
+printf '{"model":"opus","permissions":{"allow":["Bash"]}}\n' > "$t/.claude/settings.json"
+silent run "$t" output-style
+check "other keys survive"   bash -c "python3 -c \"import json;d=json.load(open('$t/.claude/settings.json'));assert d['model']=='opus' and d['permissions']['allow']==['Bash']\""
+check "style was added"      bash -c "python3 -c \"import json;assert json.load(open('$t/.claude/settings.json'))['outputStyle']=='ASD-STE100'\""
+check "a backup was taken"   bash -c "ls '$t/.claude/settings.json.bak-'* >/dev/null 2>&1"
+
+# A settings file it cannot parse is the one case where writing could destroy
+# real configuration, so it refuses rather than guessing.
+echo "…and refuses a settings.json it cannot parse"
+t="$scratch/os4"; mkdir -p "$t/.claude"
+printf '{ "outputStyle": "Explanatory",  <<< broken\n' > "$t/.claude/settings.json"
+before="$(cat "$t/.claude/settings.json")"
+grep_out "reports the malformed file" "does not parse" "$t" output-style
+if [ "$before" = "$(cat "$t/.claude/settings.json")" ]; then ok "malformed file left byte-identical"; else no "malformed file was modified"; fi
+
+echo "--no-activate installs without touching settings"
+t="$scratch/os5"
+check      "exits 0"                  run "$t" --no-activate output-style
+check      "the style file landed"    test -f "$t/.claude/output-styles/asd-ste100.md"
+check_fail "no settings.json written" test -f "$t/.claude/settings.json"
 
 echo "skill fetches the whole directory, from either tier"
 t="$scratch/sk"
@@ -93,6 +121,10 @@ n_sk="$(find "$t/.claude/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | w
 if [ "$n_sk" = "1" ]; then ok "one skill requested, one skill installed"; else no "expected 1 skill, found $n_sk"; fi
 check_fail "no agents dragged in"        test -d "$t/.claude/agents"
 check_fail "no output styles dragged in" test -d "$t/.claude/output-styles"
+# Only output-style may write settings. A skill or agent doing so would be
+# changing how Claude talks on the strength of an unrelated request.
+silent run "$t" agent idiomatic-reviewer
+check_fail "skill and agent never write settings.json" test -f "$t/.claude/settings.json"
 
 echo "unknown names fail loudly rather than installing nothing quietly"
 t="$scratch/err"
