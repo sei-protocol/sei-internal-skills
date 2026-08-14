@@ -245,6 +245,7 @@ func BuildPrompt(req Request) string {
 		"",
 	}
 	lines = append(lines, repoContextStep(req)...)
+	lines = append(lines, extraInstructionsStep(req)...)
 	lines = append(lines, historyStep(req)...)
 	lines = append(lines, []string{
 		"Step 2 — review the changed code. In the changed lines and what they call",
@@ -301,7 +302,6 @@ func BuildPrompt(req Request) string {
 		"",
 	}...)
 	lines = append(lines, bucketRules()...)
-	lines = append(lines, extraInstructionsStep(req)...)
 	return strings.Join(lines, "\n")
 }
 
@@ -398,8 +398,13 @@ func repoContextStep(req Request) []string {
 //
 // Set in the caller's workflow, so it is the repository's own instruction rather
 // than anything the pull request can reach — the one input here that is not
-// treated as data. Placed last, where a reader of the prompt sees it against
-// everything it might override.
+// treated as data.
+//
+// Beside the standards read from the base branch, because that is what it is: a
+// rule the repository sets, outranking the checklist. Not at the end. The end of
+// both prompts is the output contract, and guidance sitting after "finish with a
+// single fenced json block" reads as part of that contract rather than as
+// something to review by.
 func extraInstructionsStep(req Request) []string {
 	text := strings.TrimSpace(req.ExtraInstructions)
 	if text == "" {
@@ -518,6 +523,7 @@ func AdoptedPrompt(req Request) string {
 		"",
 	}
 	lines = append(lines, repoContextStep(req)...)
+	lines = append(lines, extraInstructionsStep(req)...)
 	lines = append(lines, historyStep(req)...)
 	lines = append(lines, []string{
 		"Review the current state against the same checklist, and report under the same",
@@ -546,7 +552,6 @@ func AdoptedPrompt(req Request) string {
 		"",
 	)
 	lines = append(lines, bucketRules()...)
-	lines = append(lines, extraInstructionsStep(req)...)
 
 	return strings.Join(append(lines,
 		"",

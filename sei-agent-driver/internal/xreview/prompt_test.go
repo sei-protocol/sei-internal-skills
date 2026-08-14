@@ -280,3 +280,35 @@ func TestExtraInstructionsAreAbsentWhenUnset(t *testing.T) {
 		t.Error("an unset extra-instructions still writes its heading")
 	}
 }
+
+// TestExtraInstructionsPrecedeTheOutputContract pins where the guidance sits, not
+// only that it is there.
+//
+// Both prompts end with the output contract, and guidance placed after "finish
+// with a single fenced json block" reads as part of that contract rather than as
+// something to review by. On the adopted path it also came between the schema and
+// "Nothing may follow it", leaving that sentence naming the guidance instead of
+// the block.
+func TestExtraInstructionsPrecedeTheOutputContract(t *testing.T) {
+	t.Parallel()
+
+	const guidance = "Treat every panic as blocking."
+	req := Request{Repo: "o/r", PR: 1, ExtraInstructions: guidance}
+	for name, prompt := range map[string]string{
+		"BuildPrompt":   BuildPrompt(req),
+		"AdoptedPrompt": AdoptedPrompt(req),
+	} {
+		at := strings.Index(prompt, guidance)
+		contract := strings.Index(prompt, "Finish with a single fenced json block")
+		if at < 0 || contract < 0 {
+			t.Fatalf("%s is missing the guidance or the contract", name)
+		}
+		if at > contract {
+			t.Errorf("%s puts the repository's guidance after the output contract", name)
+		}
+		// Beside the standards it belongs with, not floating earlier than them.
+		if standards := strings.Index(prompt, "?ref=$base"); at < standards {
+			t.Errorf("%s puts the guidance before the standards it sits with", name)
+		}
+	}
+}
