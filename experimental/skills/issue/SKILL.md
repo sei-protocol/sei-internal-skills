@@ -77,6 +77,7 @@ Preconditions are checked per sink, at the create step — not upfront. The body
    Never infer the sink silently from context (the repo, a prior issue) — an unstated sink is always asked, never guessed. A **weak cue is not a named sink**: "the last few went to Linear", "this is a Platform thing", or the repo's history do NOT count — only an explicit instruction in *this* request ("file this in Linear") does. When in doubt, ask. The same rendered body is used whichever sink is chosen.
 
 6. **File or print, per sink.**
+   - **GitHub:** `gh issue create --repo <target> --title "<title>" --body-file <tmp>`. Echo the resulting issue URL.
    - **Linear:** resolve the team, then create. See `references/linear-integration.md` for the full path. In short: list teams (`list_teams`) and have the user pick one — never guess the team; optionally offer project / labels / priority (offer, don't force); create with `save_issue` (`title`, `team`, `description` = the rendered body as Markdown — pass literal newlines, not escaped sequences). Echo the returned issue **identifier** (e.g. `ENG-123`) and URL.
    - **Print:** emit the body in a fenced markdown block.
 

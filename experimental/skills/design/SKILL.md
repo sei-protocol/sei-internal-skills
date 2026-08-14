@@ -89,6 +89,8 @@ Direct user invocation when there's no active workstream or upstream issue — e
      - **Linear** — normalized `<ref>` matches `^[A-Za-z][A-Za-z0-9]*-\d+$` (a team key that starts with a letter and may contain digits, then `-`, then the number — e.g. `ENG-123`, `PLA4-16916`). Fetch via the Linear `get_issue` MCP tool (`id: <ref>`); read its `title`, `description` (the issue body), `identifier`, `url`, and `labels`.
      - Ambiguous or unrecognized (e.g. a cross-repo `owner/repo#n`, or a string matching neither shape) → ask the user which sink rather than guessing.
      - **Seeding from the body:** when the issue body carries the standard `/issue` sections (`## Problem`, `## Out of scope`, `## Proposed approach`, `## References`), map them per the table in mode 2. When it doesn't — a Linear-native issue written in the UI, or any issue not filed via `/issue` — **don't force the mapping**: seed **Background** from the whole body and leave Goals / Non-goals / Design for the design pass to fill. Never invent section content that isn't there.
+   - Coral/council handoff with synthesized context → use that context (mode 1).
+   - Otherwise → prompt for each section (mode 3).
 3. **Gather inputs.** Required: **Title**, **Background**, **Goals**, **Design**. Optional: **Acceptance criteria** (falsifiable success conditions — offer when the design will be implemented + verified; skip for pure-decision/discovery designs, and run the traceability self-check on any criteria captured — see `references/format-spec.md`), **Non-goals**, **Alternatives**, **Trade-offs**, **Open questions**, **References**, **Status** (defaults to `Draft`), **Authors** (defaults to git user.name).
 
    Mode-specific:
