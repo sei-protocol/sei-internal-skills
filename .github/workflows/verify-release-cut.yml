@@ -1,0 +1,42 @@
+name: Verify release cut
+
+# A cut is tagged where it lands, so what it contains is whatever the base branch
+# already had when it merged -- not what the base has now. A cut that sits behind
+# ships a release missing the work merged past it, and nothing goes red: the tag,
+# the release and every check are green, and the absence is only visible by
+# reading the tagged tree.
+#
+# v0.10.0 and v0.10.1 both shipped that way, seven seconds and one merge behind
+# the fixes they were cut for.
+
+on:
+  pull_request:
+    paths: [ 'version.json' ]
+
+permissions:
+  contents: read
+
+jobs:
+  current:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require the cut to be current with its base
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          # The head commit, not the merge ref a checkout would give: the merge ref
+          # already contains the base, so it can never be behind and the check would
+          # pass on exactly the runs it exists to catch.
+          behind="$(gh api "repos/$REPO/compare/$BASE...$HEAD_SHA" --jq .behind_by)"
+          if [ "$behind" -eq 0 ]; then
+            echo "cut is current with $BASE"
+            exit 0
+          fi
+          echo "::error::this cut is $behind commit(s) behind $BASE, so the release it tags would not contain them. Rebase and push."
+          gh api "repos/$REPO/compare/$HEAD_SHA...$BASE" \
+            --jq '.commits[] | "  missing: \(.sha[0:8]) \(.commit.message | split("\n")[0])"'
+          exit 1
