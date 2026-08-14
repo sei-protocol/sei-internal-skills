@@ -78,3 +78,42 @@ func TestBuildCheckRunWithoutAVerdict(t *testing.T) {
 		t.Fatal("built a check run from no verdict")
 	}
 }
+
+// TestCheckConclusionFollowsTheFindings covers a reply that contradicts itself.
+// Observed on sei-chain#3899: decision approve beside three non_blockers, which
+// published a green check over a review that had three things to say.
+func TestCheckConclusionFollowsTheFindings(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		block string
+		want  string
+	}{
+		"approve with non-blocking notes is not clean": {
+			`{"decision":"approve","summary":"s","non_blockers":["a","b","c"]}`, "neutral",
+		},
+		"approve with a placeable finding is not clean": {
+			`{"decision":"approve","summary":"s",
+			  "inline_comments":[{"path":"a.go","line":3,"severity":"nit","body":"x"}]}`, "neutral",
+		},
+		"approve over a pre-existing issue is not clean": {
+			`{"decision":"approve","summary":"s",
+			  "pre_existing_issues":[{"severity":"suggestion","body":"old"}]}`, "neutral",
+		},
+		"blockers outrank a soft decision": {
+			`{"decision":"comment","summary":"s","blockers":["needs a test"]}`, "failure",
+		},
+		"request_changes stands on its own": {
+			`{"decision":"request_changes","summary":"s"}`, "failure",
+		},
+		"nothing found is clean": {
+			`{"decision":"approve","summary":"s","inline_comments":[],"blockers":[],
+			  "non_blockers":[],"pre_existing_issues":[]}`, "success",
+		},
+	} {
+		v := verdictFrom(t, tc.block)
+		if got := v.CheckConclusion(); got != tc.want {
+			t.Errorf("%s: conclusion = %q, want %q", name, got, tc.want)
+		}
+	}
+}

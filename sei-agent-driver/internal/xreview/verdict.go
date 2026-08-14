@@ -69,21 +69,39 @@ func (v Verdict) Summary() string {
 	return strings.TrimSpace(stringField(v.Structured, "summary"))
 }
 
-// CheckConclusion renders the decision as a GitHub check-run conclusion.
+// CheckConclusion renders a GitHub check-run conclusion for this review.
 //
-// Derived rather than asked for separately. The two say the same thing about the
-// same review, and a review that could disagree with itself — request_changes
-// beside a passing check — would leave a reader no way to tell which is meant.
+// Derived rather than asked for separately: the two say the same thing about the
+// same review, and one that could disagree with itself — request_changes beside
+// a passing check — leaves a reader no way to tell which is meant.
+//
+// What it derives from is the findings, with the decision able to escalate but
+// not to clear. A review that reported three non-blocking notes and still said
+// approve published a green check, which tells a reader the review found nothing
+// on a pull request it had three things to say about. Both readings came from the
+// same reply, so the one backed by what it actually wrote wins.
 func (v Verdict) CheckConclusion() string {
-	switch v.Decision() {
-	case "request_changes":
-		return "failure"
-	case "comment":
-		return "neutral"
-	case "approve":
-		return "success"
+	if !v.HasVerdict() {
+		return ""
 	}
-	return ""
+	if v.Decision() == "request_changes" || len(Blockers(v)) > 0 {
+		return "failure"
+	}
+	if v.Decision() == "comment" || v.hasNotes() {
+		return "neutral"
+	}
+	return "success"
+}
+
+// hasNotes reports whether the review wrote anything down at all.
+//
+// Pre-existing issues count. They are not this change's fault, which is why they
+// are kept out of the other buckets, but a check that says "nothing to see" over
+// a review naming one is still wrong about what the review said.
+func (v Verdict) hasNotes() bool {
+	return len(PlaceableFindings(v)) > 0 ||
+		len(NonBlockers(v)) > 0 ||
+		len(PreExisting(v)) > 0
 }
 
 // HasVerdict reports whether the turn produced a decision this driver can act
