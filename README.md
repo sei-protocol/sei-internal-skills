@@ -33,13 +33,13 @@ Run `make` with no args to list all targets.
 
 ## Just one piece
 
-The setup above installs the whole core. If you want one thing — the output style,
-a single skill, one agent — take it directly. No clone, no `make`, nothing else
-installed.
+The setup above installs the whole core. Give the same command a target and it
+installs one thing instead — no clone, no `make`, nothing else installed. If you
+already have the checkout, it reads that rather than downloading again.
 
 ```sh
 # see everything available, by kind
-gh api repos/sei-protocol/sei-internal-skills/contents/scripts/get.sh \
+gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh \
   -H 'Accept: application/vnd.github.raw' | bash -s -- list
 ```
 
@@ -54,7 +54,7 @@ Then name what you want:
 Written out in full, for the output style:
 
 ```sh
-gh api repos/sei-protocol/sei-internal-skills/contents/scripts/get.sh \
+gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh \
   -H 'Accept: application/vnd.github.raw' | bash -s -- output-style
 ```
 
@@ -82,12 +82,11 @@ Three environment variables, if you need them:
 |---|---|
 | `SEI_SKILLS_REF` | Fetch from a branch or tag instead of `main` |
 | `SEI_SKILLS_TARGET` | Install somewhere other than `$HOME` — a sibling repo, say |
-| `SEI_SKILLS_LOCAL` | Point at a checkout you already have; skips the download |
+| `SEI_INTERNAL_SKILLS_HOME` | Where the checkout lives. If one is there, a targeted install reads it instead of downloading |
 
 ```sh
-# put one skill into another repo, from a checkout you already have
-SEI_SKILLS_LOCAL=~/.sei-internal-skills SEI_SKILLS_TARGET=~/work/platform \
-  bash ~/.sei-internal-skills/scripts/get.sh skill harbor-dev
+# put one skill into another repo, from the checkout you already have
+SEI_SKILLS_TARGET=~/work/platform bash ~/.sei-internal-skills/scripts/install.sh skill harbor-dev
 ```
 
 ## Daily use
@@ -182,7 +181,7 @@ private snapshot rather than deleted outright.
   - `sync-skills.sh` / `sync-agents.sh` — copy skills/agents into user-scope (`~/.claude/`) or sibling repos, by domain or alias
   - `sync-output-styles.sh` — copy output styles into `~/.claude/output-styles/`; ships them, never activates them
   - `sync-experimental.sh` — opt-in installer for `experimental/`; never runs as part of update/sync-all/bootstrap
-  - `get.sh` — take one piece without cloning; the narrow door behind [Just one piece](#just-one-piece)
+  - `install.sh` — the whole toolkit, or [one piece](#just-one-piece) without cloning
   - `Makefile` — `make bootstrap` (one-shot install), plus `make sync-skills` / `make sync-agents` / `make sync-output-styles` / `make sync-experimental`
   - `update-agent-permissions.sh` — installs the canonical read-only permission set
 
@@ -244,7 +243,7 @@ despite the name — those are omnigent server bundles, not Claude Code agent pe
 | **Looking for a skill that isn't installed** | [`experimental/README.md`](experimental/README.md), then `make sync-experimental` |
 | **Auditing an existing skill** | `/audit-skill <name>` → report in the DRI's `<engineer>-designs` repo under `designs/<arc>/audits/` (Design 13) |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
-| **Wanting exactly one thing** | [Just one piece](#just-one-piece) — `get.sh` over the wire |
+| **Wanting exactly one thing** | [Just one piece](#just-one-piece) — the same installer, with a target |
 | **Wiring a sibling repo to use these** | `scripts/sync-agents.sh --target <path>` and `scripts/sync-skills.sh --target <path>` |
 
 ## Contributing & conventions

@@ -1,0 +1,23 @@
+name: Verify Installer
+
+# install.sh is published as a copy-paste one-liner that pipes it into bash, so
+# its failure mode is a stranger's terminal rather than this repo's CI. The suite
+# covers the targeted mode offline and the piped invocation specifically — $0 is
+# "bash" there, which is how usage broke once. The no-argument mode clones and
+# runs make, so it is asserted structurally rather than executed.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/install.sh'
+      - 'scripts/tests/install.test.sh'
+      - '.claude/output-styles/**'
+      - 'Makefile'
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The installer installs only what was named
+        run: make test-install

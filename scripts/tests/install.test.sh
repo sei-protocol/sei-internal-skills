@@ -1,15 +1,20 @@
 #!/usr/bin/env bash
-# Regression suite for scripts/get.sh — the targeted fetcher.
-# Run: scripts/tests/get.test.sh  (or `make test-get`).
+# Regression suite for scripts/install.sh — both modes.
+# Run: scripts/tests/install.test.sh  (or `make test-install`).
 #
-# Runs entirely offline via SEI_SKILLS_LOCAL, pointed at this checkout. The
-# network path shares every code path below it, so what is left untested here is
-# the tarball download itself.
+# The targeted mode runs offline by pointing SEI_INTERNAL_SKILLS_HOME at this
+# checkout, which is also the real short-circuit: an existing checkout is read
+# instead of re-downloading. The network path shares every code path below that,
+# so what is left untested here is the tarball download itself.
+#
+# The no-argument mode is NOT exercised — it clones into a real home directory
+# and runs make. Its behaviour is unchanged by this suite's subject, and the
+# assertions below confirm the targeted paths never reach it.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SCRIPT_DIR/../.." && pwd)"
-GET="$REPO/scripts/get.sh"
+GET="$REPO/scripts/install.sh"
 
 PASS=0
 FAIL=0
@@ -24,7 +29,7 @@ trap 'rm -rf "$scratch"' EXIT
 
 run() {  # run <target-root> <args...>
   local t="$1"; shift
-  SEI_SKILLS_LOCAL="$REPO" SEI_SKILLS_TARGET="$t" bash "$GET" "$@"
+  SEI_INTERNAL_SKILLS_HOME="$REPO" SEI_SKILLS_TARGET="$t" bash "$GET" "$@"
 }
 
 # `run` is a shell function, so it cannot be reached from inside `bash -c`.
@@ -99,28 +104,40 @@ check_fail "skill with no name"   run "$t" skill
 check_fail "agent with no name"   run "$t" agent
 check_fail "nothing was created on any failure" test -d "$t/.claude"
 
-echo "no args prints usage and exits 0"
-check "usage exits 0"     run "$scratch/u"
-grep_out "usage names the targets" "output-style" "$scratch/u"
+# No arguments means INSTALL EVERYTHING. That path clones into a real home and
+# runs make, so it is asserted structurally rather than executed — running it
+# from a test would mutate the machine.
+echo "no arguments routes to the full install, not to usage"
+if grep -qE '^\s*"") *install_everything' "$GET"; then ok "empty target routes to install_everything"; else no "empty target does not route to install_everything"; fi
+if grep -q 'make -C "\$SEI_INTERNAL_SKILLS_HOME" sync-all' "$GET"; then ok "full install still calls make sync-all"; else no "full install lost its sync-all"; fi
+if grep -q 'git -C "\$SEI_INTERNAL_SKILLS_HOME" pull --ff-only' "$GET"; then ok "full install still fast-forwards an existing checkout"; else no "full install lost its fast-forward"; fi
+
+echo "-h prints usage and exits 0"
+check "usage exits 0"     run "$scratch/u" -h
+grep_out "usage names the targets" "output-style" "$scratch/u" -h
+grep_out "usage explains the default mode" "no arguments" "$scratch/u" -h
 
 # The documented invocation pipes this script into bash, where $0 is "bash".
 # The sibling scripts print usage by grepping $0; that idiom silently reads the
 # shell binary here, which is how it broke the first time.
 echo "the PIPED invocation works — that is the documented one"
 t="$scratch/pipe"
-piped() { cat "$GET" | SEI_SKILLS_LOCAL="$REPO" SEI_SKILLS_TARGET="$t" bash -s -- "$@"; }
+piped() { cat "$GET" | SEI_INTERNAL_SKILLS_HOME="$REPO" SEI_SKILLS_TARGET="$t" bash -s -- "$@"; }
 check "piped fetch exits 0"       piped skill brevity
 check "piped fetch landed"        test -f "$t/.claude/skills/brevity/SKILL.md"
-check "piped usage exits 0"       piped
-u="$(piped 2>&1)"
+check "piped usage exits 0"       piped -h
+u="$(piped -h 2>&1)"
 if [[ "$u" == *"No such file or directory"* ]]; then no "piped usage does not grep \$0"; else ok "piped usage does not grep \$0"; fi
 if [[ "$u" == *"output-style"* ]];             then ok "piped usage names the targets"; else no "piped usage names the targets"; fi
 check_fail "piped unknown target fails"  piped bogus
 
-echo "a bad SEI_SKILLS_LOCAL is refused, not silently ignored"
-if SEI_SKILLS_LOCAL="$scratch" SEI_SKILLS_TARGET="$scratch/bad" bash "$GET" list >/dev/null 2>&1
-then no "refuses a non-checkout path"; else ok "refuses a non-checkout path"; fi
+# A path that is not a checkout must fall through to the network rather than be
+# treated as a tree — silently reading a wrong directory would install nothing
+# and claim success.
+echo "a non-checkout SEI_INTERNAL_SKILLS_HOME does not masquerade as a tree"
+o="$(SEI_INTERNAL_SKILLS_HOME="$scratch" SEI_SKILLS_TARGET="$scratch/bad" bash "$GET" list 2>&1 || true)"
+if [[ "$o" == *"reading your checkout"* ]]; then no "does not read a non-checkout as a tree"; else ok "does not read a non-checkout as a tree"; fi
 
 echo ""
-echo "get: $PASS passed, $FAIL failed"
+echo "install: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
