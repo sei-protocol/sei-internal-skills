@@ -31,6 +31,31 @@ type PriorThread struct {
 	Resolved bool `json:"resolved"`
 }
 
+// selectThreads picks which threads a prompt carries when there are more than it
+// can hold.
+//
+// Unresolved first, and newest within each group. An unaddressed finding is the
+// one a repeat annoys a reader with, and a resolved one is carried mainly so the
+// review does not raise it again — so when something has to go, the resolved ones
+// go first. Newest within each group because a session already recalls what it
+// said; it is the recent replies and resolutions it has no way to know about.
+//
+// Threads arrive oldest first, like the replies inside them.
+func selectThreads(threads []PriorThread, max int) []PriorThread {
+	if len(threads) <= max {
+		return threads
+	}
+	kept := make([]PriorThread, 0, max)
+	for _, resolved := range []bool{false, true} {
+		for i := len(threads) - 1; i >= 0 && len(kept) < max; i-- {
+			if threads[i].Resolved == resolved {
+				kept = append(kept, threads[i])
+			}
+		}
+	}
+	return kept
+}
+
 // historyStep renders what this tool said before and what came back, or nothing
 // when it has not reviewed this pull request yet.
 //
@@ -47,10 +72,7 @@ func historyStep(req Request) []string {
 		return nil
 	}
 
-	shown := req.PriorThreads
-	if len(shown) > maxPriorThreads {
-		shown = shown[:maxPriorThreads]
-	}
+	shown := selectThreads(req.PriorThreads, maxPriorThreads)
 
 	out := []string{
 		fmt.Sprintf("You have left %d finding(s) on this pull request before, %d shown.",

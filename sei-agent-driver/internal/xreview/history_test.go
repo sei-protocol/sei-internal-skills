@@ -83,3 +83,60 @@ func TestHistoryStepBoundsWhatItRenders(t *testing.T) {
 		t.Errorf("the count does not say what was withheld:\n%s", out)
 	}
 }
+
+// TestSelectThreadsDropsResolvedBeforeOpen pins what goes when something has to.
+// Taking the first N kept the oldest, which on a pull request reviewed for weeks
+// are the ones most likely already handled — so the findings still standing, and
+// the recent replies a session has no way to recall, were the ones dropped.
+func TestSelectThreadsDropsResolvedBeforeOpen(t *testing.T) {
+	t.Parallel()
+
+	// Oldest first, as they arrive: resolved ones early, open ones recent.
+	threads := []PriorThread{
+		{File: "old1.go", Resolved: true},
+		{File: "old2.go", Resolved: true},
+		{File: "open1.go"},
+		{File: "open2.go"},
+	}
+	kept := selectThreads(threads, 2)
+	if len(kept) != 2 {
+		t.Fatalf("kept %d, want 2", len(kept))
+	}
+	for _, k := range kept {
+		if k.Resolved {
+			t.Errorf("kept a resolved thread over an open one: %+v", kept)
+		}
+	}
+	if kept[0].File != "open2.go" {
+		t.Errorf("kept[0] = %s, want the newest open thread open2.go", kept[0].File)
+	}
+}
+
+// TestSelectThreadsFallsBackToResolved covers a pull request whose open findings
+// alone do not fill the budget: the rest is better spent on resolved ones than
+// left empty, since the point is not raising them again.
+func TestSelectThreadsFallsBackToResolved(t *testing.T) {
+	t.Parallel()
+
+	threads := []PriorThread{
+		{File: "r1.go", Resolved: true},
+		{File: "r2.go", Resolved: true},
+		{File: "open.go"},
+	}
+	kept := selectThreads(threads, 2)
+	if len(kept) != 2 || kept[0].File != "open.go" || !kept[1].Resolved {
+		t.Fatalf("kept = %+v, want the open one then the newest resolved", kept)
+	}
+}
+
+// TestSelectThreadsKeepsEverythingItCan leaves a short history in the order it
+// arrived, so the common case reads chronologically.
+func TestSelectThreadsKeepsEverythingItCan(t *testing.T) {
+	t.Parallel()
+
+	threads := []PriorThread{{File: "a.go"}, {File: "b.go", Resolved: true}}
+	kept := selectThreads(threads, 20)
+	if len(kept) != 2 || kept[0].File != "a.go" || kept[1].File != "b.go" {
+		t.Fatalf("kept = %+v, want both in arrival order", kept)
+	}
+}
