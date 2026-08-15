@@ -2,6 +2,9 @@ name: Releaser
 
 on:
   push:
+    # main only. Every other push-triggered workflow here pins it, and a release
+    # cut from a branch tags a tree nobody reviewed.
+    branches: [ main ]
     paths: [ 'version.json' ]
   workflow_dispatch:
 
