@@ -35,9 +35,11 @@ jobs:
           python-version: '3.12'
 
       - name: Install the parser
-        # Pinned to the minor the deployed server runs, so the gate and production
-        # agree on what a valid bundle is.
-        run: pip install --disable-pip-version-check 'omnigent==0.10.0.dev0'
+        # The newest published release. The deployed server runs a fork build,
+        # 0.10.0.dev0, which is not on PyPI — so the closest a PyPI-only gate can
+        # get is the latest release, and the in-image gate in ecr-server.yml is
+        # what parses with the version production actually runs.
+        run: pip install --disable-pip-version-check 'omnigent==0.9.0'
 
       - name: Parse every bundle and assert its contract
         run: |
