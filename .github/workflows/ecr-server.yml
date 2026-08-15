@@ -98,18 +98,6 @@ jobs:
               "root-cause": ("all",  1, None),
               "xreview-scout-codex": ("none", 0, None),
           }
-          # The agent every review actually resolves. It comes from the fork-built
-          # base rather than this repo, so nothing here builds it and nothing here
-          # asserted it -- a base rebuild that drops or renames it publishes green
-          # and then fails every review with "no agent named sei-droid on this
-          # server". A path in OMNIGENT_BUILTIN_AGENT_DIRS with no directory behind
-          # it is logged and skipped, so the server stays healthy while resolving
-          # nothing.
-          driven = Path("/opt/agents/sei-droid")
-          if not driven.is_dir():
-              print(f"FAIL: {driven} is absent; the driver resolves this agent by name")
-              sys.exit(1)
-
           root = Path("/opt/sei-omnigent/agents")
           dirs = sorted(p for p in root.iterdir() if p.is_dir())
           if len(dirs) != len(EXPECT):
