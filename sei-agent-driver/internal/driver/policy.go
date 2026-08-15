@@ -36,8 +36,9 @@ type Elicitation struct {
 	// Phase is the policy phase that fired, e.g. a tool-call phase. Attested.
 	Phase string
 
-	// PolicyName is the policy that parked the turn. Attested, and the only
-	// field this package classifies on — see [Policy].
+	// PolicyName is the policy that parked the turn. Attested, and one of the two
+	// fields this package classifies on — see [Policy.AllowTools] for why
+	// tool_name is the one to prefer.
 	PolicyName string
 
 	// Mode is the prompt's rendering mode, "url" or "form".

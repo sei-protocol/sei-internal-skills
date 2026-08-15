@@ -359,11 +359,6 @@ func report(outPath, findingsPath, checkPath string, result driver.Result) error
 	return writeCheckRun(checkPath, verdict)
 }
 
-// writeCheckRun renders the check run the caller publishes.
-//
-// Written whenever there is a verdict, unlike the findings: a review that found
-// nothing still concludes, and a checks list with no xreview entry reads as a
-// review that did not run rather than one that passed.
 // readPriorThreads loads what this tool said on this pull request before.
 //
 // An absent file is not an error: a pull request reviewed for the first time has
@@ -386,6 +381,11 @@ func readPriorThreads(path string) ([]xreview.PriorThread, error) {
 	return threads, nil
 }
 
+// writeCheckRun renders the check run the caller publishes.
+//
+// Written whenever there is a verdict, unlike the findings: a review that found
+// nothing still concludes, and a checks list with no xreview entry reads as a
+// review that did not run rather than one that passed.
 func writeCheckRun(path string, verdict xreview.Verdict) error {
 	if path == "" {
 		return nil
