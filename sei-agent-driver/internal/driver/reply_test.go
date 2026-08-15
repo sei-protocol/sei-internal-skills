@@ -359,3 +359,36 @@ func TestGroupIsAfterAnchorRefusesAnEarlierReply(t *testing.T) {
 		}
 	}
 }
+
+// TestCrossBoundaryResolvesAPendingAnchorToItsItem covers the cold-start path:
+// a prompt parked before the runtime is up is echoed by the pending id it drains,
+// and that id names no conversation item. Comparing a reply's position against it
+// would refuse every recovery on that path — discarding a finished review whose
+// stream happened to drop.
+func TestCrossBoundaryResolvesAPendingAnchorToItsItem(t *testing.T) {
+	t.Parallel()
+
+	pending := "pending_7"
+	tn := &turn{anchor: pending}
+	tn.crossBoundary(omnigent.SessionInputConsumedEvent{
+		Data: omnigent.SessionInputConsumedPayload{
+			ItemID:           "item_9",
+			ClearedPendingID: &pending,
+		},
+	})
+	if !tn.crossed {
+		t.Fatal("the boundary was not recognised for a pending anchor")
+	}
+	if tn.anchorItem != "item_9" {
+		t.Errorf("anchorItem = %q, want the item the pending input drained into", tn.anchorItem)
+	}
+
+	// And the ordinary path still resolves to itself.
+	direct := &turn{anchor: "item_1"}
+	direct.crossBoundary(omnigent.SessionInputConsumedEvent{
+		Data: omnigent.SessionInputConsumedPayload{ItemID: "item_1"},
+	})
+	if direct.anchorItem != "item_1" {
+		t.Errorf("anchorItem = %q, want item_1", direct.anchorItem)
+	}
+}

@@ -561,6 +561,15 @@ type turn struct {
 	// before anything can be attributed, and needs no synchronisation.
 	anchor string
 
+	// anchorItem is the conversation item the boundary resolved to, taken from the
+	// consume event rather than from the send.
+	//
+	// [turn.anchor] is whichever identifier the send returned, and for a prompt
+	// parked before the runtime is up that is a pending id — an id no conversation
+	// item ever carries. Position can only be compared against an item that exists,
+	// so recovery reads this one.
+	anchorItem string
+
 	// crossed reports that the server echoed the anchor back.
 	//
 	// Until it does, everything on the stream is history or another actor's work.
@@ -695,10 +704,14 @@ func (t *turn) crossBoundary(e omnigent.SessionInputConsumedEvent) {
 	// pending anchor is not matched by another message's item.
 	if e.Data.ItemID == t.anchor {
 		t.crossed = true
+		t.anchorItem = e.Data.ItemID
 		return
 	}
 	if e.Data.ClearedPendingID != nil && *e.Data.ClearedPendingID == t.anchor {
 		t.crossed = true
+		// The item the pending input drained into. Always populated, and the only
+		// one of the two identifiers that names a conversation item.
+		t.anchorItem = e.Data.ItemID
 	}
 }
 
@@ -1402,9 +1415,9 @@ func (d *Driver) recoverFromStreamLoss(
 	// which response ids are new, which is the negative filter doc.go records as
 	// having published another invocation's verdict. Requiring the reply to sit
 	// after this turn's own prompt item is the invariant that filter cannot carry.
-	if !GroupIsAfterAnchor(session.Items, t.anchor, groups[0]) {
+	if !GroupIsAfterAnchor(session.Items, t.anchorItem, groups[0]) {
 		d.log.Warn("stream died and the new reply does not sit after this turn's prompt",
-			"session_id", sessionID, "anchor_item_id", t.anchor,
+			"session_id", sessionID, "anchor_item_id", t.anchorItem,
 			"response_id", groups[0], "error", cause)
 		return Reply{}, cause
 	}
