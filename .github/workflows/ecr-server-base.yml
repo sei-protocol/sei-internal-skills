@@ -149,6 +149,12 @@ jobs:
       - name: Report the digest to pin in server-base.txt
         env:
           REF: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
+          # Through the environment, not interpolated into the script. A dispatch
+          # input reaching a shell as text is an injection, and this step runs after
+          # the AWS credentials are configured. The two sibling workflows state the
+          # same rule; this is the one that did not follow it.
+          TAG: ${{ steps.vars.outputs.tag }}
+          SOURCE_REF: ${{ inputs.ref }}
         run: |
           set -euo pipefail
           digest="$(docker buildx imagetools inspect "$REF" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
@@ -162,5 +168,5 @@ jobs:
             echo "189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@${digest}"
             echo '```'
             echo
-            echo "Tag: \`${{ steps.vars.outputs.tag }}\` — built from \`${{ inputs.ref }}\`."
+            echo "Tag: \`$TAG\` — built from \`$SOURCE_REF\`."
           } >> "$GITHUB_STEP_SUMMARY"
