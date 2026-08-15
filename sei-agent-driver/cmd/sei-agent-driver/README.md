@@ -21,14 +21,15 @@ invocation met the diff with no memory of the previous one.
 The session is destroyed when the pull request closes or merges (`--close`). That
 is also the only thing that reclaims the sandbox: the Kubernetes launcher reports
 `resume_stopped=false`, so a stopped host cannot be woken in place and the host
-stays up while the session exists. A close event that never arrives leaves one
-running until a server-side TTL or a sweep catches it.
+stays up while the session exists. Nothing else reclaims it: the Kubernetes
+launcher sets no lifetime cap and the server runs no sweep, so a close event that
+never arrives leaves a pod holding its cpu and memory indefinitely.
 
-It is normally invoked by a workflow rather than run by hand — today
-[`.github/workflows/omni-xreview.yml`](../../../.github/workflows/omni-xreview.yml),
-which is `workflow_dispatch` only — but every
-input below is a plain environment variable or CLI flag, so it runs the same
-way in a terminal.
+It is normally invoked by a workflow rather than run by hand. That caller lives in
+the repository being reviewed: `sei-protocol/sandbox`'s `xreview.yml` dispatches
+`seidroid-xreview.yml` on a `seidroid xreview` comment, and on a pull request
+closing. Every input below is a plain environment variable or CLI flag, so it also
+runs the same way in a terminal.
 
 ## Usage
 
@@ -46,8 +47,10 @@ sei-agent-driver xreview <owner/name> <pr-number> [--out FILE] [--trigger-id ID]
   good review's output used to be. (This CLI never writes it as a
   placeholder — the caller-side rule is simply: don't create one and don't
   upsert on absence.)
-- `--close` — delete this pull request's session instead of reviewing. Wired to
-  `pull_request: [closed]`, and the only thing that reclaims the sandbox.
+- `--close` — delete this pull request's session instead of reviewing, and the
+  scouts' sessions with it. The only thing that reclaims a sandbox. Wired in the
+  reviewed repository's caller, on `pull_request: [closed]`; nothing in this
+  repository invokes it.
 - `--trigger-id ID` — identifies this dispatch in the logs, e.g. the GitHub
   comment id that fired the run. **Not** part of the session key any more — the
   session is keyed on the pull request. Defaults to
@@ -142,7 +145,7 @@ same way.
 |---|---|---|
 | `0` | `ExitOK` | A completed turn that produced a verdict. A duplicate trigger is not a separate outcome: it adopts the existing session and drives it to a verdict like any other run. |
 | `2` | `ExitConfig` | The run was rejected before it reached the review API: bad arguments, a missing or rejected credential, a base URL the client refuses, or a failed token exchange. Note that a token exchange failing on the *network* also lands here, so a flapping `2` can mean "retry" rather than "fix the secret" — the logged error distinguishes them. |
-| `3` | `ExitTimeout` | The run deadline (`XREVIEW_RUN_DEADLINE_S`) expired. The turn was stopped; the conversation is kept. |
+| `3` | `ExitTimeout` | The run deadline (`XREVIEW_RUN_DEADLINE_S`) expired. The turn is abandoned rather than stopped — it keeps running server-side, and the next invocation's prompt queues behind it. The conversation is kept. |
 | `4` | `ExitTurnFailed` | The session reported failure — the agent's outcome, not the driver's. |
 | `5` | `ExitNoVerdict` | The turn ended without a verdict this driver could attribute and parse. The turn may have succeeded and simply not produced the closing block the caller needs. Also reported when more than one turn replied into the session while ours ran, when no reply carries this turn's response id, and when a reply looks like it carries a credential — the log's `reason` distinguishes them, and every one of those refuses rather than posting text it cannot attribute. |
 | `6` | `ExitTransport` | The stream or a request failed in a way retrying inside one run can't fix. |
@@ -193,8 +196,10 @@ read the diff, which is what the prompt tells it to do rather than review from
 the title. A read *inside* the agent's working directory raises no prompt, which
 is why the diff stages there — a recorded run staged it in `/tmp`, had the read
 refused, and spent three tool calls copying the file somewhere it could read.
-`seidroid-xreview.yml` therefore passes `Bash,Read`, and the access control on a review is the trigger gate: only someone
-who can comment on the repository can start one.
+`seidroid-xreview.yml` therefore passes `Bash,Read`. The access control on a review
+is its trigger gate: the comment must come from a non-bot account whose association
+is `OWNER`, `MEMBER` or `COLLABORATOR`, and where `allowed-team` is set, from an
+active member of that team.
 
 To find out what else to allow: run once, watch the structured logs for
 `"deciding a permission prompt"` records, and read off the **`tool_name`**
