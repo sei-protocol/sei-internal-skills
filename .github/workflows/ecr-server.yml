@@ -95,7 +95,6 @@ jobs:
           # breaking the Spec Kit contract, so both gates assert the same thing.
           EXPECT = {
               "sei-spec":   ("none", 8, "speckit-"),
-              "xreview":    ("all",  1, None),
               "root-cause": ("all",  1, None),
               "xreview-scout-codex": ("none", 0, None),
           }
@@ -152,7 +151,7 @@ jobs:
             echo '```'
             echo "\`clusters/dev/seigent/configmap-patch.yaml\` OMNIGENT_BUILTIN_AGENT_DIRS:"
             echo '```'
-            echo "/opt/sei-omnigent/agents/xreview:/opt/sei-omnigent/agents/root-cause:/opt/sei-omnigent/agents/sei-spec:/opt/agents/sei-droid"
+            echo "/opt/sei-omnigent/agents/xreview-scout-codex:/opt/sei-omnigent/agents/root-cause:/opt/sei-omnigent/agents/sei-spec:/opt/agents/sei-droid"
             echo '```'
             echo "Registration runs only at lifespan startup, so bump \`sei.io/config-revision\` in the same commit."
           } >> "$GITHUB_STEP_SUMMARY"

@@ -35,9 +35,9 @@ jobs:
           python-version: '3.12'
 
       - name: Install the parser
-        # Pinned to the minor the deployed server runs, so the gate and production
-        # agree on what a valid bundle is.
-        run: pip install --disable-pip-version-check 'omnigent==0.7.0'
+        # No PyPI release matches the fork build the server runs, so this gate
+        # approximates it. ecr-server.yml parses with what production has.
+        run: pip install --disable-pip-version-check 'omnigent==0.9.0'
 
       - name: Parse every bundle and assert its contract
         run: |
@@ -51,7 +51,6 @@ jobs:
           # carries its method as vendored bodies rather than relying on the host.
           EXPECT = {
               'sei-spec':   {'filter': 'none', 'skills': 8, 'prefix': 'speckit-'},
-              'xreview':    {'filter': 'all',  'skills': 1},
               'root-cause': {'filter': 'all',  'skills': 1},
               # A scout carries no method and takes none from the host: the driver's
               # per-run prompt is its whole instruction, so a discovered skill would
