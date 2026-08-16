@@ -276,9 +276,8 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 
 	if err := report(cmd.String("out"), cmd.String("findings-out"),
 		cmd.String("check-out"), result); err != nil {
-		// The run's own outcome wins. Reporting ExitConfig here relabelled a review
-		// that timed out as one rejected before it reached the API, which is the
-		// opposite of what the exit code contract tells an operator to do next.
+		// The run's own outcome wins: ExitConfig here would relabel a review that
+		// timed out as one rejected before it started.
 		code := result.ExitCode
 		if code == driver.ExitOK {
 			code = driver.ExitConfig
@@ -337,20 +336,17 @@ func report(outPath, findingsPath, checkPath string, result driver.Result) error
 	}
 	fmt.Println(string(blob))
 
-	// Cleared before anything is written, on every path. A workspace can be reused
-	// — a self-hosted runner, a second invocation in one job, the terminal use the
-	// README invites — and a caller posts on the file being present, so a previous
-	// run's verdict left on disk is published as this one's.
+	// Before anything is written, on every path: a workspace can be reused, and a
+	// caller posts on presence.
 	clearOutputs(outPath, findingsPath, checkPath)
 
 	if !verdict.HasVerdict() {
 		return nil
 	}
 
-	// Each output answers to its own flag. Gating the findings and the check run
-	// on --out meant a caller asking only for the check got nothing and exit 0 —
-	// and an absent check reads as a review that did not run rather than one that
-	// passed, so the fail-closed signal was the one failing open.
+	// Each output answers to its own flag. An absent check run reads as a review
+	// that did not run rather than one that passed, so gating it on --out made the
+	// fail-closed signal the one that failed open.
 	if outPath != "" {
 		body := xreview.RenderComment(verdict, result.SessionID)
 		if err := os.WriteFile(outPath, []byte(body), 0o644); err != nil {
@@ -420,9 +416,8 @@ func firstNonEmpty(vals ...string) string {
 
 // clearOutputs removes any output left by an earlier run.
 //
-// A missing file is the caller's signal that there is nothing to publish, so a
-// stale one is not merely untidy: it is a previous review published under this
-// run's name. Absent files are not an error — there is usually nothing there.
+// The caller publishes on a file being present, so a stale one is a previous
+// review published under this run's name. An absent file is not an error.
 func clearOutputs(paths ...string) {
 	for _, p := range paths {
 		if p == "" {
