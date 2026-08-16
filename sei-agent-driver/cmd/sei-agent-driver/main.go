@@ -437,12 +437,9 @@ func parseTarget(args []string) (string, int, error) {
 		return "", 0, fmt.Errorf("%w: repository must be \"owner/name\", got %q",
 			driver.ErrConfig, repo)
 	}
-	// Checked for what it contains, not only for its shape. This value is written
-	// into the shell commands the prompt tells the agent to run — the diff fetch,
-	// the clone, the standards read, the intent read — so a name carrying a quote
-	// or a substitution would end the argument and start something else. The
-	// standards filename is checked for exactly this reason; the repository is the
-	// same kind of input and reaches more commands.
+	// Checked for what it contains, not only its shape: this is written into the
+	// shell commands the prompt hands the agent, so a quote or a substitution in it
+	// would end the argument and start something else.
 	if !isPlainRepoName(repo) {
 		return "", 0, fmt.Errorf(
 			"%w: repository has characters GitHub does not allow in an owner or name: %q",
@@ -483,9 +480,8 @@ type scoutSpec struct {
 
 // isPlainRepoName reports whether s is an owner/name pair and nothing more.
 //
-// GitHub allows letters, digits, hyphen, underscore and dot in an owner or a
-// repository name, and nothing else. Anything outside that set cannot name a real
-// repository, so refusing it costs no caller a working target.
+// GitHub allows only letters, digits, hyphen, underscore and dot in an owner or a
+// name, so anything else cannot be a repository this could review.
 func isPlainRepoName(s string) bool {
 	for _, r := range s {
 		switch {

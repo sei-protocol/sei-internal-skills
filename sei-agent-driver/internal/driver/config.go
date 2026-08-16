@@ -190,12 +190,9 @@ func (c Config) MintsOwnToken() bool {
 
 // machineCredential reads one half of the machine client, under either spelling.
 //
-// The deployment names these OMNIGENT_MACHINE_CLIENT_*, which is what its own
-// secret holds — OMNIGENT_MACHINE_CLIENT_SECRET_HASH. An older vocabulary spelled
-// the same values OMNIGENT_M2M_CLIENT_*, and callers still set both to straddle
-// the two. Reading the documented name first, and the older one only when it is
-// unset, means an operator who follows the documentation is not met with a silent
-// auth miss, and one who has not migrated yet keeps working.
+// The deployment renamed these from OMNIGENT_M2M_* to OMNIGENT_MACHINE_*, and
+// callers set both while that lands. The documented name wins, so an operator
+// following the documentation is not met with a silent auth miss.
 func machineCredential(suffix string) string {
 	if v := strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_" + suffix)); v != "" {
 		return v
