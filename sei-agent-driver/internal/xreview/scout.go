@@ -235,10 +235,9 @@ func ScoutPrompt(req Request) string {
 
 // scoutSchema is the block a scout closes with.
 //
-// Rendered into both prompts rather than referred back to. An adopted session
-// replays only its first prompt, so "the same schema as before" names something
-// the scout may not be able to re-read — and if this contract changes between
-// driver versions, the back-reference points at the schema it used to have.
+// In both prompts rather than referred back to: an adopted session replays only
+// its first prompt, so a schema the scout is told to recall is one it may not be
+// able to re-read.
 func scoutSchema() string {
 	return strings.Join([]string{
 		"read is the line count the command above printed, and 0 if you never got the",
