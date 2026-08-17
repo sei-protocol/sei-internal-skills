@@ -7,6 +7,26 @@ import (
 
 // TestScanSecretsNamesTheShapeWithoutQuotingIt covers each pattern and the
 // process's own credentials, and checks the diagnostic never carries the match.
+func TestScanSecretsCoversTheShapesThisFleetCanProduce(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct{ name, text, want string }{
+		{"sts temporary key", "ASIA" + strings.Repeat("Q", 16), "aws access key id"},
+		{"long-lived iam key", "AKIA" + strings.Repeat("Q", 16), "aws access key id"},
+		{"anthropic key", "sk-ant-" + strings.Repeat("x", 24), "anthropic api key"},
+		{"age secret key", "AGE-SECRET-KEY-1" + strings.Repeat("Q", 24), "age secret key"},
+		{"slack token", "xoxb-" + strings.Repeat("1", 20), "slack token"},
+		{"ordinary review prose", "The diff looks fine to me.", ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ScanSecrets(c.text); got != c.want {
+				t.Errorf("ScanSecrets = %q, want %q", got, c.want)
+			}
+		})
+	}
+}
+
 func TestScanSecretsNamesTheShapeWithoutQuotingIt(t *testing.T) {
 	t.Parallel()
 

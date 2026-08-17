@@ -614,10 +614,20 @@ func (c *conversation) answer(
 		return nil
 	}
 	action, reason := c.host.policy.Decide(e)
+
+	// The preview is the gated request's own payload -- for a shell prompt, the
+	// command line, which is exactly where a credential appears. Scanned before it
+	// is logged, on the same rule the reply path uses, because a workflow log on a
+	// public repository is public.
+	preview := clip(e.ContentPreview, elicitationPreviewChars)
+	if shape := driver.ScanSecrets(preview, c.host.cfg.Token, c.host.cfg.MachineClientSecret); shape != "" {
+		preview = "withheld: the preview carries something shaped like a credential (" + shape + ")"
+	}
 	c.host.log.Info("deciding a permission prompt",
 		"session_id", c.sessionID, "elicitation_id", e.ID,
 		"policy_name", e.PolicyName, "phase", e.Phase, "tool_name", e.ToolName,
-		"action", action, "reason", reason, "preview", clip(e.ContentPreview, 200))
+		"target_session_id", e.ResolveSession(c.sessionID),
+		"action", action, "reason", reason, "preview", preview)
 
 	target := e.ResolveSession(c.sessionID)
 	if _, err := c.client.ResolveElicitation(ctx, target, e.ID,
@@ -630,6 +640,11 @@ func (c *conversation) answer(
 	answered[e.ID] = true
 	return nil
 }
+
+// elicitationPreviewChars bounds how much of a gated request reaches a log line.
+// Short, because the decision never reads it -- it is there so an operator can see
+// what was approved, not so they can audit its contents.
+const elicitationPreviewChars = 200
 
 // replyPreviewChars bounds how much of a reply reaches a log line. Long enough to
 // tell a truncated answer from a refusal and to carry the first finding, short

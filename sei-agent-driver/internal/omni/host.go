@@ -131,12 +131,18 @@ func (h *Host) resolveAgent(
 }
 
 // findByRunKey walks the agent's sessions for one carrying this run key.
+//
+// Paged at the server's maximum rather than its default of 20. The server has no
+// label filter, so this walk is linear in the agent's session count, and it runs on
+// every open and every close -- including the close on a runner that is already
+// being terminated. Sessions accumulate for as long as anything fails to reclaim
+// one, so the cheap default is the expensive one over time.
 func (h *Host) findByRunKey(
 	ctx context.Context,
 	client *omnigent.Client,
 	agentID, runKey string,
 ) (*omnigent.SessionResponse, error) {
-	opts := omnigent.ListSessionsOptions{AgentID: agentID}
+	opts := omnigent.ListSessionsOptions{AgentID: agentID, Limit: 1000}
 	for {
 		page, err := client.ListSessions(ctx, opts)
 		if err != nil {

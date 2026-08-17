@@ -26,6 +26,13 @@ const (
 	// defaultResponseHeaderTimeout bounds the wait for response headers. Long
 	// enough for a create that provisions a sandbox, short enough that a stream
 	// open which will never answer is retried rather than waited out.
+	//
+	// A constant, and deliberately not derived from the configured unary timeout:
+	// this is what a dead stream open costs, and the re-subscribe loop pays it once
+	// per attempt. Raising it with that knob would make every reconnect on a wedged
+	// server more expensive, which is the opposite of what raising a request budget
+	// is meant to buy. Config's XREVIEW_UNARY_TIMEOUT_S prices the SDK's own unary
+	// calls; it does not move this wall.
 	defaultResponseHeaderTimeout = 60 * time.Second
 )
 

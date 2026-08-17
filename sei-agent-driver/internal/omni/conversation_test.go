@@ -1915,3 +1915,49 @@ func TestTerminalBacked(t *testing.T) {
 		}
 	}
 }
+
+// TestAReplyCarryingACredentialIsNeverPublished is the wiring test for the scan.
+//
+// driver.ScanSecrets is unit-tested in its own package, but nothing asserted it was
+// still called on the path a reply actually takes. That is the failure that matters:
+// the scan can be dropped from fetchReply and every existing test stays green, while
+// a credential the agent quoted reaches a public pull request.
+func TestAReplyCarryingACredentialIsNeverPublished(t *testing.T) {
+	t.Parallel()
+
+	// A shape the patterns catch, embedded in an otherwise complete answer, so the
+	// only thing standing between it and the caller is the scan.
+	leaked := "Here is the token I found: ghp_" + strings.Repeat("A", 36) +
+		"\n```json\n{\"decision\": \"approve\"}\n```"
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		CreateResp: driverSessionResp("conv_1", "ag_1"),
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame(driverAnchorItemID),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			driverSessionWithItems("conv_1", "ag_1",
+				driverPromptItem(driverAnchorItemID),
+				driverReplyItem("item_reply", "resp_claude_a", leaked)),
+		},
+	})
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 77})
+
+	if result.Reply != nil && strings.Contains(result.Reply.Text, "ghp_") {
+		t.Fatal("the reply reached the caller with a credential in it: the scan is " +
+			"no longer on the path a reply takes")
+	}
+	if result.ExitCode != driver.ExitNoVerdict {
+		t.Errorf("ExitCode = %d, want ExitNoVerdict (%d): a refused reply is not an answer",
+			result.ExitCode, driver.ExitNoVerdict)
+	}
+	if result.Reply == nil || !strings.Contains(result.Reply.Reason, "credential") {
+		t.Errorf("Reason = %+v, want it to name why nothing was published", result.Reply)
+	}
+}

@@ -423,3 +423,73 @@ func TestRequireAuthNamesTheDocumentedVariable(t *testing.T) {
 		t.Errorf("the diagnostic does not name the documented variable: %v", err)
 	}
 }
+
+// TestMintRefusesToFollowARedirect pins the policy that keeps the client secret on
+// the host the operator named.
+//
+// Go re-sends a request body verbatim on a 307 or 308, to whatever host and scheme
+// the Location names. The cleartext refusal only ever inspects the first hop, so
+// without this a single redirect hands the durable credential to another origin in
+// the clear.
+func TestMintRefusesToFollowARedirect(t *testing.T) {
+	t.Parallel()
+
+	var secretSeenElsewhere string
+	elsewhere := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		form, _ := url.ParseQuery(string(body))
+		secretSeenElsewhere = form.Get("client_secret")
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"tok","expires_in":60}`))
+	}))
+	defer elsewhere.Close()
+
+	redirector := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, elsewhere.URL+"/oauth/token", http.StatusTemporaryRedirect)
+	}))
+	defer redirector.Close()
+
+	token, _, err := MintToken(t.Context(), redirector.Client(),
+		redirector.URL, "client-id", "SUPER_SECRET_VALUE")
+
+	if secretSeenElsewhere != "" {
+		t.Errorf("the client secret reached a second origin: a redirect off the token "+
+			"endpoint must not carry the body (%q)", secretSeenElsewhere)
+	}
+	if err == nil || token != "" {
+		t.Errorf("got (%q, %v), want the 3xx treated as the response and the exchange failed",
+			token, err)
+	}
+}
+
+// TestLoopbackIsDecidedByAddressNotByPrefix pins that the cleartext exemption reads
+// the host as an address. "127.attacker.com" is a routable DNS name that a string
+// prefix reads as loopback.
+func TestLoopbackIsDecidedByAddressNotByPrefix(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		url    string
+		exempt bool
+	}{
+		{"http://127.0.0.1:6767", true},
+		{"http://[::1]:6767", true},
+		{"http://localhost:6767", true},
+		{"http://127.attacker.com/", false},
+		{"http://localhost.attacker.com/", false},
+		{"http://omnigent.example.com/", false},
+		{"https://omnigent.example.com/", true},
+	} {
+		t.Run(c.url, func(t *testing.T) {
+			t.Parallel()
+			err := requireEncryptedOrLocal(c.url)
+			if c.exempt && err != nil {
+				t.Errorf("requireEncryptedOrLocal(%q) = %v, want it allowed", c.url, err)
+			}
+			if !c.exempt && err == nil {
+				t.Errorf("requireEncryptedOrLocal(%q) = nil, want the client secret refused "+
+					"a cleartext hop to a non-loopback host", c.url)
+			}
+		})
+	}
+}

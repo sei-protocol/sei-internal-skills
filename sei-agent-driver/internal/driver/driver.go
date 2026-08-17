@@ -138,7 +138,12 @@ func (d *Driver) Close(ctx context.Context, w Workload) Result {
 	case err != nil:
 		return d.classify(ctx, Result{ExitCode: ExitOK}, err)
 	case sessionID == "":
-		d.log.Info("no session for this work; nothing to close", "run_key", work.RunKey)
+		// Warn, not Info. "There was nothing to reclaim" and "I looked in the wrong
+		// place" are the same observation from here: the search is scoped to one
+		// agent, so a close dispatched with a different agent name than the run used
+		// finds nothing and reports success while the sandbox is still held.
+		d.log.Warn("no session carried this run key; nothing was reclaimed",
+			"run_key", work.RunKey, "agent", work.Agent)
 		return Result{ExitCode: ExitOK, TeardownOK: true}
 	default:
 		d.log.Info("session deleted", "session_id", sessionID)

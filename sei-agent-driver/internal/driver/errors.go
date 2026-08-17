@@ -14,8 +14,9 @@ const (
 	// ExitConfig is a configuration or credential problem. Nothing was sent.
 	ExitConfig = 2
 
-	// ExitTimeout is the run deadline expiring. The turn is stopped and the
-	// conversation kept, like every other exit — only [Driver.Close] destroys a
+	// ExitTimeout is the run deadline expiring. Nothing is stopped: the turn goes
+	// on server-side and the next invocation's prompt queues behind it, and the
+	// conversation is kept like every other exit — only [Driver.Close] destroys a
 	// session, and it runs when the unit of work ends.
 	ExitTimeout = 3
 

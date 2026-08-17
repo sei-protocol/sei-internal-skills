@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -21,18 +22,25 @@ import (
 // https: the secret travels in the request body, it is the durable credential
 // rather than the short-lived token it buys, and the pod network it would cross
 // is not guaranteed to be encrypted or segmented.
+//
+// Loopback is decided by parsing the host as an address rather than by matching its
+// text. "127.attacker.com" is a routable DNS name that a prefix test reads as
+// loopback, and reading it that way sends the secret to it in the clear.
+//
+// The offending URL is not quoted back. A base URL is a place a password can hide,
+// and an error message is the least controlled place a credential can end up.
 func requireEncryptedOrLocal(baseURL string) error {
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		return fmt.Errorf("%w: base URL %q does not parse", driver.ErrMint, baseURL)
+		return fmt.Errorf("%w: the base URL does not parse", driver.ErrMint)
 	}
 	host := u.Hostname()
-	local := host == "localhost" || strings.HasSuffix(host, ".localhost") ||
-		host == "::1" || strings.HasPrefix(host, "127.")
+	ip := net.ParseIP(host)
+	local := host == "localhost" || (ip != nil && ip.IsLoopback())
 	if u.Scheme != "https" && !local {
 		return fmt.Errorf(
-			"%w: refusing to send the client secret to %q, which is plain http to a "+
-				"non-loopback host; use https", driver.ErrMint, u.Scheme+"://"+u.Host)
+			"%w: refusing to send the client secret to %s, which is plain http to a "+
+				"non-loopback host; use https", driver.ErrMint, u.Host)
 	}
 	return nil
 }
@@ -111,6 +119,21 @@ func MintToken(
 		return "", 0, err
 	}
 
+	// Redirects are not followed. Go re-sends a request body verbatim on a 307 or
+	// 308, to whatever host the Location names and whatever scheme it names, so a
+	// single redirect off the token endpoint hands the client secret to another
+	// origin in the clear -- past the cleartext refusal above, which only ever saw
+	// the first hop. A token endpoint has no legitimate redirect, so the 3xx is
+	// treated as the response and fails the exchange.
+	//
+	// The caller's client is copied rather than mutated: the policy belongs to this
+	// exchange, and the transport it shares is unaffected.
+	noRedirect := *client
+	noRedirect.CheckRedirect = func(*http.Request, []*http.Request) error {
+		return http.ErrUseLastResponse
+	}
+	client = &noRedirect
+
 	for attempt := 1; ; attempt++ {
 		token, ttl, err := mintOnce(ctx, client, baseURL, clientID, clientSecret)
 		if err == nil || attempt == mintAttempts || !errors.Is(err, errUnreached) {
@@ -175,8 +198,8 @@ func mintOnce(
 		// unsupported_grant_type means the grant is not enabled on this server.
 		// The rest of the body is withheld: a non-2xx here need not have come
 		// from this API at all.
-		return "", 0, fmt.Errorf("%w: %s returned %d (%s)",
-			driver.ErrMint, endpoint, resp.StatusCode, oauthErrorCode(body))
+		return "", 0, fmt.Errorf("%w: the token endpoint returned %d (%s)",
+			driver.ErrMint, resp.StatusCode, oauthErrorCode(body))
 	}
 
 	var payload struct {
