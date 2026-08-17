@@ -355,6 +355,14 @@ func TestMintStopsAfterItsAttempts(t *testing.T) {
 // is not transient, and asking again turns one clear failure into three — on this
 // endpoint a bad credential has also been seen to answer 503, so retrying by
 // status rather than by reachability would retry it too.
+// TestMintDoesNotRetryARefusal covers the case that reads backwards.
+//
+// A 503 is normally a server declining to answer, and both a general reading of the
+// code and an outside reviewer will propose retrying it. This endpoint was measured
+// answering 503 to a malformed credential -- a token carrying a trailing newline
+// among them -- so retrying on status retries the one case that cannot succeed, and
+// reports a bad secret as a deployment that is down. Reachability decides a retry
+// here, never status.
 func TestMintDoesNotRetryARefusal(t *testing.T) {
 	t.Parallel()
 
@@ -489,48 +497,6 @@ func TestLoopbackIsDecidedByAddressNotByPrefix(t *testing.T) {
 			if !c.exempt && err == nil {
 				t.Errorf("requireEncryptedOrLocal(%q) = nil, want the client secret refused "+
 					"a cleartext hop to a non-loopback host", c.url)
-			}
-		})
-	}
-}
-
-// TestMintTreatsATransientStatusAsTransport pins the distinction an operator acts
-// on. A rate limit or a 5xx is the server declining to answer now; only a 4xx says
-// the credential is wrong. Classifying the first as configuration sends someone to
-// check a secret while the deployment is down.
-func TestMintTreatsATransientStatusAsTransport(t *testing.T) {
-	t.Parallel()
-
-	for _, c := range []struct {
-		name     string
-		status   int
-		wantMint bool
-		wantTry  int
-	}{
-		{"service unavailable retries as transport", http.StatusServiceUnavailable, false, mintAttempts},
-		{"rate limited retries as transport", http.StatusTooManyRequests, false, mintAttempts},
-		{"invalid client is a credential fault", http.StatusUnauthorized, true, 1},
-		{"bad request is a credential fault", http.StatusBadRequest, true, 1},
-	} {
-		t.Run(c.name, func(t *testing.T) {
-			t.Parallel()
-			var attempts int
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				attempts++
-				w.WriteHeader(c.status)
-				_, _ = w.Write([]byte(`{"error":"invalid_client"}`))
-			}))
-			defer srv.Close()
-
-			_, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "id", "secret")
-			if err == nil {
-				t.Fatal("want an error")
-			}
-			if got := errors.Is(err, driver.ErrMint); got != c.wantMint {
-				t.Errorf("errors.Is(err, driver.ErrMint) = %t, want %t: %v", got, c.wantMint, err)
-			}
-			if attempts != c.wantTry {
-				t.Errorf("attempts = %d, want %d", attempts, c.wantTry)
 			}
 		})
 	}

@@ -199,15 +199,13 @@ func mintOnce(
 		// The rest of the body is withheld: a non-2xx here need not have come
 		// from this API at all.
 		//
-		// A rate limit or a 5xx is the server declining to answer right now, not a
-		// credential to go and fix. Classified as unreached so the ladder above
-		// retries it and so the exit code sends an operator to the deployment rather
-		// than to the secret -- the same distinction this function already draws for
-		// a connection that never landed.
-		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
-			return "", 0, unreached{fmt.Errorf("the token endpoint returned %d (%s)",
-				resp.StatusCode, oauthErrorCode(body))}
-		}
+		// Every status is a refusal here, including a 5xx, and none of them is
+		// retried. That reads backwards -- a 503 is usually a server declining to
+		// answer right now -- but this endpoint was measured answering 503 to a
+		// malformed credential, a token with a trailing newline among them. Retrying
+		// on status would retry the one case that cannot succeed, and would report a
+		// bad secret as a deployment that is down. Reachability is what decides a
+		// retry here, and it is decided in the transport error above.
 		return "", 0, fmt.Errorf("%w: the token endpoint returned %d (%s)",
 			driver.ErrMint, resp.StatusCode, oauthErrorCode(body))
 	}
