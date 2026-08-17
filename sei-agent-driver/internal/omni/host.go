@@ -232,9 +232,14 @@ type adoption struct {
 	// may be holding prompts parked before this stream existed.
 	continued bool
 
-	// live reports that a runner is registered right now, which decides whether
-	// the prompt goes in on subscribe or waits for the launch pipeline.
+	// live reports that a runner is registered right now.
 	live bool
+
+	// revivable reports a session whose host is dormant but can be woken. It takes
+	// the prompt on subscribe like a live one, because sending is what wakes it --
+	// waiting for a launch that only a send would trigger is a run that never asks
+	// its question and spends its whole budget not asking.
+	revivable bool
 }
 
 // createOrAdopt finds this work's session or opens one, and refuses to hand back a
@@ -266,8 +271,9 @@ func (h *Host) createOrAdopt(
 	if existing != nil {
 		if live, revivable := reachability(existing); live || revivable {
 			h.log.Info("adopting the session an earlier dispatch created",
-				"run_key", w.RunKey, "session_id", existing.ID, "live", live)
-			return existing, adoption{continued: true, live: live}, nil
+				"run_key", w.RunKey, "session_id", existing.ID,
+				"live", live, "revivable", revivable)
+			return existing, adoption{continued: true, live: live, revivable: revivable}, nil
 		}
 		h.log.Warn("the session for this work cannot run a turn; replacing it",
 			"run_key", w.RunKey, "session_id", existing.ID)
