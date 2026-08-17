@@ -84,13 +84,22 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 		}
 	}
 
-	// Liveness, not continuation, decides when the prompt goes in. A live session
-	// takes it as soon as the stream is up; one whose sandbox is still launching
-	// would accept it without queueing it, leaving no anchor, so it waits. See
-	// [conversation.sendOnSubscribe] and [conversation.sendWhenLaunched], the two
-	// arms of this.
+	// Whether the session can take a prompt now decides when it goes in, and only a
+	// session this run created cannot. One still launching would accept the prompt
+	// without queueing it, leaving no anchor, so it waits for the ready edge. A live
+	// session takes it as soon as the stream is up, and so does a dormant one that
+	// can be woken -- sending is what wakes it, and its launch pipeline does not
+	// re-fire for a host that is already provisioned, so waiting there waits for
+	// something only a send would cause. See [conversation.sendOnSubscribe] and
+	// [conversation.sendWhenLaunched], the two arms of this.
+	//
+	// The revivable half is reasoned from the documented wake behaviour and is not
+	// covered by a test: the fake server answers liveness from a queue, so a fixture
+	// cannot hold a host dormant across the reads this path makes, and every attempt
+	// passed with the condition removed. Treat it as unproven until a dormant
+	// adoption is observed against a real deployment.
 	opts := omnigent.StreamOptions{}
-	if c.from.live {
+	if c.from.live || c.from.revivable {
 		opts.OnSubscribed = c.sendOnSubscribe(prompt, t)
 	}
 
@@ -128,11 +137,17 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 				// session is now answering something. Sending again would put a second
 				// prompt to a runtime already working on the first, which costs the
 				// agent budget twice and leaves two replies nothing can tell apart.
-				// SendInput carries no idempotency key, so the only safe move is not
-				// to repeat it.
-				opts.OnSubscribed = nil
-				c.host.log.Warn("the prompt's fate is unknown and the session is busy; not resending",
-					"session_id", c.sessionID, "opens", opens)
+				// SendInput carries no idempotency key, so it must not be repeated.
+				//
+				// Fatal rather than deferred. Waiting for that turn to finish and then
+				// resending is the same double-send one reconnect later, and this run
+				// has no anchor, so it could not attribute the reply even if it waited.
+				// Reporting it now costs the run and nothing else.
+				t.fail(fmt.Errorf(
+					"%w: the prompt was sent without a usable acknowledgement and the "+
+						"session is already answering, so it cannot be sent again or "+
+						"attributed", driver.ErrTurnFailed))
+				return reply, err
 			case live:
 				opts.OnSubscribed = c.sendOnSubscribe(prompt, t)
 			}
@@ -638,8 +653,11 @@ func (c *conversation) answer(
 	// command line, which is exactly where a credential appears. Scanned before it
 	// is logged, on the same rule the reply path uses, because a workflow log on a
 	// public repository is public.
+	// Scanned whole and clipped after. Clipping first truncates a credential that
+	// starts near the boundary to below the length its pattern requires, so the scan
+	// misses it and the fragment is logged anyway.
 	preview := clip(e.ContentPreview, elicitationPreviewChars)
-	if shape := driver.ScanSecrets(preview, c.host.cfg.Token, c.host.cfg.MachineClientSecret); shape != "" {
+	if shape := driver.ScanSecrets(e.ContentPreview, c.host.cfg.Token, c.host.cfg.MachineClientSecret); shape != "" {
 		preview = "withheld: the preview carries something shaped like a credential (" + shape + ")"
 	}
 	c.host.log.Info("deciding a permission prompt",
