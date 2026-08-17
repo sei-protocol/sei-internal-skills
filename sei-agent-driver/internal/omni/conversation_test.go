@@ -98,6 +98,11 @@ type driverFakeServerConfig struct {
 	// route, so a test that needs them to differ configures both.
 	SessionResps []string
 
+	// EventStatus is the status the events route answers a prompt post with. Zero
+	// answers normally. Non-zero models the ambiguous send: the server may or may
+	// not have taken the prompt, and the caller cannot tell.
+	EventStatus int
+
 	// ApprovalStatus is the status POST .../events answers with for an approval
 	// input. Zero means 200. Lets a test fail answering a permission prompt
 	// without touching the prompt path.
@@ -118,6 +123,7 @@ type driverFakeServerConfig struct {
 // between them.
 type driverFakeServer struct {
 	approvalStatus int
+	eventStatus    int
 	sessionList    string
 	sessionLists   []string
 	itemsResp      string
@@ -176,6 +182,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		itemsResp:         cfg.ItemsResp,
 		sessionResps:      cfg.SessionResps,
 		approvalStatus:    cfg.ApprovalStatus,
+		eventStatus:       cfg.EventStatus,
 		eventResp:         cfg.EventResp,
 		eventResps:        cfg.EventResps,
 		deleteStatus:      cfg.DeleteStatus,
@@ -341,6 +348,10 @@ func (fs *driverFakeServer) handleEvents(w http.ResponseWriter, r *http.Request)
 
 	if req.Type == "approval" && fs.approvalStatus != 0 {
 		w.WriteHeader(fs.approvalStatus)
+		return
+	}
+	if req.Type != "approval" && fs.eventStatus != 0 {
+		w.WriteHeader(fs.eventStatus)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -1959,5 +1970,47 @@ func TestAReplyCarryingACredentialIsNeverPublished(t *testing.T) {
 	}
 	if result.Reply == nil || !strings.Contains(result.Reply.Reason, "credential") {
 		t.Errorf("Reason = %+v, want it to name why nothing was published", result.Reply)
+	}
+}
+
+// TestAnAmbiguousSendReportsTheTurnNotTheTransport covers what the caller is told
+// when a prompt's fate cannot be established.
+//
+// The server queues the prompt but names neither an item nor a pending input, so
+// this run has no anchor and cannot attribute a reply. If the session is meanwhile
+// answering something, the prompt must not be sent again -- and the outcome the
+// caller branches on has to be the turn's failure, not the stream error that
+// exposed it, or a workflow reads a transport fault and the diagnostic is dropped.
+func TestAnAmbiguousSendReportsTheTurnNotTheTransport(t *testing.T) {
+	t.Parallel()
+
+	runKey := testRunKey("sei-protocol/sandbox", 22)
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		SessionListResp: `{"data":[{"id":"conv_1","labels":` +
+			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
+		SessionResps: []string{
+			// Adopted live, then answering: the send landed after all.
+			driverSessionResp("conv_1", "ag_1"),
+			driverRunningSessionResp("conv_1", "ag_1", "resp_claude_a"),
+		},
+		// The send fails as transport: the server may have taken the prompt and lost
+		// the answer, which is the case a caller cannot tell apart and must not
+		// repeat.
+		EventStatus:  http.StatusBadGateway,
+		StreamFrames: []string{driverAckFrame(), driverDoneFrame()},
+	})
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+
+	if got := driverPrompts(fs.EventReqs()); len(got) != 1 {
+		t.Errorf("prompt posts = %d, want 1: a prompt whose fate is unknown must not "+
+			"be repeated to a session already answering", len(got))
+	}
+	if result.ExitCode != driver.ExitTurnFailed {
+		t.Errorf("ExitCode = %d, want ExitTurnFailed (%d): the turn's own failure is "+
+			"what the caller branches on, not the stream error that surfaced it",
+			result.ExitCode, driver.ExitTurnFailed)
 	}
 }

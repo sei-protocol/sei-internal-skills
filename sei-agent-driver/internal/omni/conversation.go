@@ -147,7 +147,10 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 					"%w: the prompt was sent without a usable acknowledgement and the "+
 						"session is already answering, so it cannot be sent again or "+
 						"attributed", driver.ErrTurnFailed))
-				return reply, err
+				// The turn's own failure, not the stream error that exposed it. The
+				// caller classifies on what it is handed, so returning err here would
+				// report a transport fault and drop the diagnostic just recorded.
+				return reply, t.failure
 			case live:
 				opts.OnSubscribed = c.sendOnSubscribe(prompt, t)
 			}
