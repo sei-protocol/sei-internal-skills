@@ -1,6 +1,7 @@
 package omni
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -555,4 +556,39 @@ func TestDriverResolvesTheAgentTheWorkNames(t *testing.T) {
 			t.Error("a session was created for an agent the server does not know")
 		}
 	})
+}
+
+// TestCloseSurvivesACancelledRunEndToEnd is the regression test for a teardown that
+// aborted before it reached the call it was protecting.
+//
+// A terminate signal cancels the run context precisely so that teardown can happen.
+// The previous shape detached only the DELETE, leaving the three calls in front of
+// it — building the client, resolving the agent, finding the session — on the
+// cancelled context, so a signalled run failed at the agent listing and reported
+// ExitCancelled with the sandbox still held. The detach now sits above all four, on
+// the one path every close takes.
+func TestCloseSurvivesACancelledRunEndToEnd(t *testing.T) {
+	t.Parallel()
+
+	runKey := testRunKey("sei-protocol/sandbox", 22)
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		SessionListResp: `{"data":[{"id":"conv_1","labels":` +
+			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
+		SessionResps: []string{driverSessionResp("conv_1", "ag_1")},
+	})
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Close(ctx, testWork{Repo: "sei-protocol/sandbox", PR: 22})
+
+	if !result.TeardownOK {
+		t.Errorf("TeardownOK = false (exit %d): a signalled run must still delete its "+
+			"session, since nothing else reclaims the sandbox", result.ExitCode)
+	}
+	if result.SessionID != "conv_1" {
+		t.Errorf("SessionID = %q, want conv_1", result.SessionID)
+	}
 }
