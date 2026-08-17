@@ -167,6 +167,12 @@ func (e *exitError) Error() string { return e.err.Error() }
 func (e *exitError) Unwrap() error { return e.err }
 
 func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
+	// First, before anything can return. A caller publishes on a file being present,
+	// so an output left by an earlier run on a reused workspace is that run's verdict
+	// posted under this one's name. Clearing inside report is too late: a bad target,
+	// a missing credential and a malformed scout list all exit ahead of it.
+	clearOutputs(cmd.String("out"), cmd.String("findings-out"), cmd.String("check-out"))
+
 	repo, pr, err := parseTarget(cmd.Args().Slice())
 	if err != nil {
 		return err
@@ -180,10 +186,11 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 		return &exitError{code: driver.ExitConfig, err: err}
 	}
 
-	// A terminate signal cancels the context rather than killing the process, so
-	// the driver's teardown still runs and the sandbox is deleted. A second
-	// signal is not caught, which is the operator's override when teardown itself
-	// is what is hanging.
+	// A terminate signal cancels the context rather than killing the process, so the
+	// run unwinds and reports instead of dying mid-write. It reclaims nothing: a
+	// review deletes no session by design, and only --close does. A second signal is
+	// not caught, which is the operator's override when the unwind is what is
+	// hanging.
 	ctx, stop := signal.NotifyContext(ctx, syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -193,7 +200,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	)
 	if len(policy.AllowPolicies) == 0 && len(policy.AllowTools) == 0 {
 		log.Warn("no permission allowlist configured; every prompt will be declined",
-			"hint", "set XREVIEW_ALLOW_POLICIES to the policy_name values this run logs")
+			"hint", "set XREVIEW_ALLOW_TOOLS to the tool_name values this run logs")
 	}
 
 	req := xreview.Request{

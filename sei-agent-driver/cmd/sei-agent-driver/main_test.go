@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"testing"
 
@@ -145,5 +146,34 @@ func TestReportClearsAnEarlierRunsOutputs(t *testing.T) {
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
 		body, _ := os.ReadFile(out)
 		t.Errorf("the earlier run's verdict survived and would be published: %q", body)
+	}
+}
+
+// TestOutputsAreClearedBeforeAnEarlyExit covers a stale verdict outliving its run.
+//
+// A caller publishes on the file being present, so an output an earlier run left on
+// a reused workspace is that run's verdict posted under this one's name. Clearing
+// inside report is too late: every path that exits before it -- a missing
+// credential, a malformed scout list -- leaves the file where it was.
+func TestOutputsAreClearedBeforeAnEarlyExit(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "verdict.md")
+	if err := os.WriteFile(out, []byte("a previous run's verdict"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	bin := filepath.Join(dir, "sei-agent-driver")
+	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+	cmd := exec.Command(bin, "xreview", "--out", out, "sei-protocol/sandbox", "22")
+	// No credential, so this exits before it reaches the review.
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir}
+	_ = cmd.Run()
+
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		body, _ := os.ReadFile(out)
+		t.Errorf("the earlier run's output survived a failed run (%q); a caller that "+
+			"publishes on file presence would post it as this run's verdict", body)
 	}
 }
