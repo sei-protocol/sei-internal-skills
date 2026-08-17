@@ -57,7 +57,7 @@ type Config struct {
 	Token string
 
 	// MachineClientID is the confidential client's identifier, matching the
-	// server's OMNIGENT_M2M_CLIENT_ID.
+	// server's OMNIGENT_MACHINE_CLIENT_ID.
 	//
 	// The grant is mounted only in the server's cookie-based auth modes, oidc and
 	// accounts, because it signs with the same cookie secret those configure. A
@@ -72,7 +72,7 @@ type Config struct {
 
 	// MachineClientSecret is that client's secret in plaintext.
 	//
-	// The server keeps only its digest, in OMNIGENT_M2M_CLIENT_SECRET_HASH, hashed
+	// The server keeps only its digest, in OMNIGENT_MACHINE_CLIENT_SECRET_HASH, hashed
 	// under the cookie secret. The _HASH suffix is the whole distinction between
 	// what the server holds and what this sends, so do not cross-wire the two.
 	// Never logged.
@@ -127,10 +127,8 @@ func LoadConfig() (Config, error) {
 		Agent:   envOr("SEIDROID_AGENT_ID", DefaultAgent),
 		Token:   resolveToken(),
 
-		// M2M, matching what the server names its own registry entry, so an
-		// operator configures one vocabulary rather than translating between two.
-		MachineClientID:     strings.TrimSpace(os.Getenv("OMNIGENT_M2M_CLIENT_ID")),
-		MachineClientSecret: strings.TrimSpace(os.Getenv("OMNIGENT_M2M_CLIENT_SECRET")),
+		MachineClientID:     machineCredential("CLIENT_ID"),
+		MachineClientSecret: machineCredential("CLIENT_SECRET"),
 	}
 
 	// Seconds, because that is what an operator's existing values mean.
@@ -170,15 +168,15 @@ func (c Config) RequireAuth() error {
 	case id != "" && secret != "":
 		return nil
 	case id != "" || secret != "":
-		missing := "OMNIGENT_M2M_CLIENT_SECRET"
+		missing := "OMNIGENT_MACHINE_CLIENT_SECRET"
 		if id == "" {
-			missing = "OMNIGENT_M2M_CLIENT_ID"
+			missing = "OMNIGENT_MACHINE_CLIENT_ID"
 		}
 		return fmt.Errorf("%w: machine client is half-configured; %s is not set",
 			ErrConfig, missing)
 	default:
-		return fmt.Errorf("%w: no API credential; set OMNIGENT_M2M_CLIENT_ID with "+
-			"OMNIGENT_M2M_CLIENT_SECRET, or OMNIGENT_API_TOKEN or "+
+		return fmt.Errorf("%w: no API credential; set OMNIGENT_MACHINE_CLIENT_ID with "+
+			"OMNIGENT_MACHINE_CLIENT_SECRET, or OMNIGENT_API_TOKEN or "+
 			"OMNIGENT_API_TOKEN_FILE", ErrConfig)
 	}
 }
@@ -188,6 +186,18 @@ func (c Config) RequireAuth() error {
 // caller can override the exchange without unsetting the client.
 func (c Config) MintsOwnToken() bool {
 	return c.Token == "" && c.MachineClientID != "" && c.MachineClientSecret != ""
+}
+
+// machineCredential reads one half of the machine client, under either spelling.
+//
+// The deployment renamed these from OMNIGENT_M2M_* to OMNIGENT_MACHINE_*, and
+// callers set both while that lands. The documented name wins, so an operator
+// following the documentation is not met with a silent auth miss.
+func machineCredential(suffix string) string {
+	if v := strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_" + suffix)); v != "" {
+		return v
+	}
+	return strings.TrimSpace(os.Getenv("OMNIGENT_M2M_" + suffix))
 }
 
 // resolveToken prefers a mounted file over an inline variable, re-read each run

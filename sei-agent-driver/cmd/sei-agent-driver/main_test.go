@@ -59,3 +59,45 @@ func TestParseScouts(t *testing.T) {
 		}
 	}
 }
+
+// TestParseTargetRefusesAnythingShellShaped pins the entry point against the
+// same class the guidelines filename is already checked for. The repository name
+// is written into the diff fetch, the clone, the standards read and the intent
+// read — four commands the prompt tells the agent to run — so a name carrying a
+// substitution would end the argument and start something else.
+func TestParseTargetRefusesAnythingShellShaped(t *testing.T) {
+	t.Parallel()
+
+	for _, repo := range []string{
+		"o/r$(env|base64)",
+		"o/r;id",
+		"o/r`id`",
+		"o/r&&whoami",
+		"o/r|tee /tmp/x",
+		"o/r\nname",
+		"o/r ",
+		`o/r"`,
+	} {
+		if _, _, err := parseTarget([]string{repo, "1"}); err == nil {
+			t.Errorf("parseTarget accepted %q", repo)
+		}
+	}
+}
+
+// TestParseTargetKeepsEveryNameGitHubAllows guards the other direction: the
+// check must not refuse a repository someone actually has.
+func TestParseTargetKeepsEveryNameGitHubAllows(t *testing.T) {
+	t.Parallel()
+
+	for _, repo := range []string{
+		"sei-protocol/sei-chain",
+		"sei-protocol/sei-internal-skills",
+		"o/r.with.dots",
+		"o/r_with_underscores",
+		"Owner123/Repo456",
+	} {
+		if _, _, err := parseTarget([]string{repo, "1"}); err != nil {
+			t.Errorf("parseTarget refused %q: %v", repo, err)
+		}
+	}
+}
