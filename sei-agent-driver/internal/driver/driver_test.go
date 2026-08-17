@@ -710,7 +710,7 @@ func TestDriverRunHappyPath(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 42, Trigger: "trigger-happy"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -817,7 +817,7 @@ func TestDriverIgnoresTheInjectionAcknowledgement(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 8, Trigger: "trigger-ack"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -863,7 +863,7 @@ func TestDriverIgnoresBareIdleEdges(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 9, Trigger: "trigger-idle"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -910,7 +910,7 @@ func TestDriverIgnoresATurnThatEndedBeforeItsOwnPrompt(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 10, Trigger: "trigger-boundary"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -963,7 +963,7 @@ func TestDriverAttributesByTurnIDRatherThanRecency(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 11, Trigger: "trigger-recency"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1009,7 +1009,7 @@ func TestDriverRefusesWhenTwoTurnsRepliedIntoTheSession(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 12, Trigger: "trigger-two"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1052,7 +1052,7 @@ func TestDriverFailsWhenAPermissionPromptCannotBeAnswered(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 13, Trigger: "trigger-stuck"}
 	driver := NewDriver(cfg, NewPolicy("approve_shell", ""), driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1089,7 +1089,7 @@ func TestDriverTurnFailedLeavesTheSessionRunning(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 7, Trigger: "trigger-fail"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1138,7 +1138,7 @@ func TestDriverAnswersElicitationsOncePerIDAndPostsTheApprovalShape(t *testing.T
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 14, Trigger: "trigger-elicit"}
 	driver := NewDriver(cfg, NewPolicy("approve_shell", ""), driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1193,7 +1193,7 @@ func TestDriverTeardownReusesTheMintedTokenInsteadOfMintingAgain(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 16, Trigger: "trigger-mint"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1233,13 +1233,13 @@ func TestReplyForReadsAFinishedTurnEvenAfterTheClockExpires(t *testing.T) {
 	})
 
 	driver := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger())
-	client, err := driver.newClient(context.Background())
+	client, err := driver.newClient(t.Context())
 	if err != nil {
 		t.Fatalf("newClient: %v", err)
 	}
 
 	// Already done, standing in for the deadline or the signal landing here.
-	ctx, cancel := context.WithCancel(context.Background())
+	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
 
 	verdict, err := driver.replyFor(ctx, client, "conv_1",
@@ -1311,7 +1311,7 @@ func TestDriverSalvagesAVerdictFromAFailedTurn(t *testing.T) {
 			})
 
 			result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-				Run(context.Background(), testWork{
+				Run(t.Context(), testWork{
 					Repo: "sei-protocol/sandbox", PR: 20, Trigger: "trigger-salvage"})
 			if err != nil {
 				t.Fatalf("Run: %v", err)
@@ -1367,7 +1367,7 @@ func TestDriverRejectsATurnIDThatPredatesItsOwn(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), testWork{
+		Run(t.Context(), testWork{
 			Repo: "sei-protocol/sandbox", PR: 30, Trigger: "trigger-stale"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -1453,7 +1453,7 @@ func TestDriverRecoversAReviewWhoseStreamDied(t *testing.T) {
 
 			log, sink := driverCapturingLogger()
 			result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, log).
-				Run(context.Background(), testWork{
+				Run(t.Context(), testWork{
 					Repo: "sei-protocol/sandbox", PR: 31, Trigger: "trigger-drop"})
 			if err != nil {
 				t.Fatalf("Run: %v", err)
@@ -1502,7 +1502,7 @@ func TestDriverWaitsForTheSandboxBeforeSendingItsPrompt(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 11, Trigger: "trigger-wait"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
-	if _, err := driver.Run(context.Background(), req); err != nil {
+	if _, err := driver.Run(t.Context(), req); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if got := driverPrompts(fs.EventReqs()); len(got) != 0 {
@@ -1532,7 +1532,7 @@ func TestDriverReportsASandboxThatNeverLaunched(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 12, Trigger: "trigger-failed"}
 	driver := NewDriver(cfg, Policy{}, driverTestLogger())
 
-	result, err := driver.Run(context.Background(), req)
+	result, err := driver.Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1565,7 +1565,7 @@ func TestDriverResubscribesWhileThePromptIsStillWaiting(t *testing.T) {
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 31, Trigger: "trigger-cold"}
 
 	if _, err := NewDriver(cfg, Policy{}, driverTestLogger()).
-		Run(context.Background(), req); err != nil {
+		Run(t.Context(), req); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -1607,7 +1607,7 @@ func TestDriverAnchorsOnAPendingInput(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 41, Trigger: "t-pending"})
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 41, Trigger: "t-pending"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1674,7 +1674,7 @@ func TestDriverRejoinsAnIdleSessionWhoseReplyIsNotAReview(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 52, Trigger: "t-idle"})
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 52, Trigger: "t-idle"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1728,7 +1728,7 @@ func TestDriverFollowsATurnAcrossStreams(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 51, Trigger: "t-long"})
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 51, Trigger: "t-long"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -1776,7 +1776,7 @@ func TestCloseReportsAnUnreachableServerAsTransport(t *testing.T) {
 	cfg.MachineClientSecret = "secret"
 
 	result, err := NewDriver(cfg, Policy{}, driverTestLogger()).
-		DeleteSession(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+		DeleteSession(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
 	if err == nil {
 		t.Fatal("DeleteSession: want an error when the server cannot be reached")
 	}
@@ -1805,7 +1805,7 @@ func TestClassifyTellsARequestTimeoutFromTheRunDeadline(t *testing.T) {
 		// context.DeadlineExceeded while the caller's own context is still good.
 		err := fmt.Errorf("Post %q: %w (Client.Timeout exceeded while awaiting headers)",
 			"https://example.invalid/v1/sessions", context.DeadlineExceeded)
-		got := d.classify(context.Background(), Result{ExitCode: ExitOK}, err)
+		got := d.classify(t.Context(), Result{ExitCode: ExitOK}, err)
 		if got.ExitCode != ExitTransport {
 			t.Errorf("ExitCode = %d, want ExitTransport (%d): the run had budget left, one call did not",
 				got.ExitCode, ExitTransport)
@@ -1814,7 +1814,7 @@ func TestClassifyTellsARequestTimeoutFromTheRunDeadline(t *testing.T) {
 
 	t.Run("the run deadline expiring is a timeout", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancel := context.WithTimeout(context.Background(), time.Nanosecond)
+		ctx, cancel := context.WithTimeout(t.Context(), time.Nanosecond)
 		defer cancel()
 		<-ctx.Done()
 		got := d.classify(ctx, Result{ExitCode: ExitOK}, context.DeadlineExceeded)
@@ -1915,7 +1915,7 @@ func TestDriverInProcessTurnEndsOnResponseCompleted(t *testing.T) {
 	})
 
 	driver := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger())
-	result, err := driver.Run(context.Background(),
+	result, err := driver.Run(t.Context(),
 		testWork{Repo: "sei-protocol/sandbox", PR: 42, Trigger: "in-process"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -1970,7 +1970,7 @@ func TestDriverTerminalBackedIgnoresResponseCompleted(t *testing.T) {
 	})
 
 	driver := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger())
-	result, err := driver.Run(context.Background(),
+	result, err := driver.Run(t.Context(),
 		testWork{Repo: "sei-protocol/sandbox", PR: 42, Trigger: "terminal-backed"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)

@@ -1,7 +1,6 @@
 package driver
 
 import (
-	"context"
 	"net/http"
 	"strings"
 	"testing"
@@ -46,7 +45,7 @@ func TestDriverAdoptsAnExistingSessionForTheSameRunKey(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), req)
+		Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -91,7 +90,7 @@ func TestDriverCreatesWhenNoSessionCarriesTheRunKey(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), testWork{
+		Run(t.Context(), testWork{
 			Repo: "sei-protocol/sandbox", PR: 13, Trigger: "fresh"})
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -134,7 +133,7 @@ func TestDriverAdoptsRatherThanCreatingWhenTheLabelIsOnALaterPage(t *testing.T) 
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), req)
+		Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -164,7 +163,7 @@ func TestDeleteSessionReportsAFailedDelete(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		DeleteSession(context.Background(), req)
+		DeleteSession(t.Context(), req)
 	if err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
@@ -197,7 +196,7 @@ func TestDeleteSessionDestroysTheSession(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		DeleteSession(context.Background(), req)
+		DeleteSession(t.Context(), req)
 	if err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
@@ -220,7 +219,7 @@ func TestDeleteSessionIsQuietWhenThereIsNoSession(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		DeleteSession(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+		DeleteSession(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
 	if err != nil {
 		t.Fatalf("DeleteSession: %v", err)
 	}
@@ -266,7 +265,7 @@ func TestTwoDifferentTriggersShareOneSession(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), second)
+		Run(t.Context(), second)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -317,7 +316,7 @@ func TestDriverReplacesASessionThatCannotRunATurn(t *testing.T) {
 	})
 
 	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), req)
+		Run(t.Context(), req)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -367,7 +366,7 @@ func TestDriverKeepsASessionWhoseHostCanBeWoken(t *testing.T) {
 	})
 
 	if _, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(context.Background(), req); err != nil {
+		Run(t.Context(), req); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if created := fs.CreateReqs(); len(created) != 0 {
@@ -485,7 +484,7 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 			fs := newDriverFakeServer(t, tc.cfg)
 
 			if _, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-				Run(context.Background(), req); err != nil {
+				Run(t.Context(), req); err != nil {
 				t.Fatalf("Run: %v", err)
 			}
 
@@ -543,7 +542,7 @@ func TestDriverSendsAWorkspaceOnlyWhenTheWorkDeclaresOne(t *testing.T) {
 		t.Parallel()
 		fs := newFake(t)
 		_, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-			Run(context.Background(), testWork{Repo: "sei-protocol/sandbox", PR: 31})
+			Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 31})
 		if err != nil {
 			t.Fatalf("Run: %v", err)
 		}
@@ -566,7 +565,7 @@ func TestDriverSendsAWorkspaceOnlyWhenTheWorkDeclaresOne(t *testing.T) {
 			workspace: secret,
 		}
 		if _, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, log).
-			Run(context.Background(), work); err != nil {
+			Run(t.Context(), work); err != nil {
 			t.Fatalf("Run: %v", err)
 		}
 		creates := fs.CreateReqs()
@@ -636,7 +635,7 @@ func TestDriverResolvesTheAgentTheWorkNames(t *testing.T) {
 			t.Parallel()
 			fs := newFake(t)
 			if _, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-				Run(context.Background(), c.work); err != nil {
+				Run(t.Context(), c.work); err != nil {
 				t.Fatalf("Run: %v", err)
 			}
 			creates := fs.CreateReqs()
@@ -657,7 +656,7 @@ func TestDriverResolvesTheAgentTheWorkNames(t *testing.T) {
 		// the exit code is the contract a caller has to read. A caller that only
 		// checked err would treat this as a completed reading.
 		result, _ := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-			Run(context.Background(), namingWork{testWork{Repo: "r/n", PR: 1}, "sei-droid-absent"})
+			Run(t.Context(), namingWork{testWork{Repo: "r/n", PR: 1}, "sei-droid-absent"})
 		if result.ExitCode != ExitConfig {
 			t.Fatalf("ExitCode = %d, want ExitConfig (%d): falling back to the default would "+
 				"answer on the review's own harness and read like a second opinion",

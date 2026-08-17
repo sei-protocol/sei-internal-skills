@@ -47,7 +47,7 @@ func TestMintSurvivesSecretsThatBasicAuthWouldCorrupt(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			token, _, err := MintToken(context.Background(), srv.Client(), srv.URL, "sei-droid", secret)
+			token, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "sei-droid", secret)
 			if err != nil {
 				t.Fatalf("MintToken: %v", err)
 			}
@@ -88,7 +88,7 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 			t.Error("a request was sent despite absent credentials")
 		}))
 		defer srv.Close()
-		if _, _, err := MintToken(context.Background(), srv.Client(), srv.URL, "", ""); !errors.Is(err, ErrMint) {
+		if _, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "", ""); !errors.Is(err, ErrMint) {
 			t.Fatalf("error = %v, want ErrMint", err)
 		}
 	})
@@ -103,7 +103,7 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		_, _, err := MintToken(context.Background(), srv.Client(), srv.URL, "id", "sec")
+		_, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "id", "sec")
 		if !errors.Is(err, ErrMint) {
 			t.Fatalf("error = %v, want ErrMint", err)
 		}
@@ -123,7 +123,7 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		token, _, err := MintToken(context.Background(), srv.Client(), srv.URL, "id", "sec")
+		token, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "id", "sec")
 		if !errors.Is(err, ErrMint) || token != "" {
 			t.Fatalf("got (%q, %v), want (\"\", ErrMint)", token, err)
 		}
@@ -227,7 +227,7 @@ func TestMintRefusesToSendTheSecretInClear(t *testing.T) {
 			t.Parallel()
 
 			probe := &mintProbeTransport{}
-			_, _, err := MintToken(context.Background(), &http.Client{Transport: probe},
+			_, _, err := MintToken(t.Context(), &http.Client{Transport: probe},
 				tc.baseURL, "id", "s3cret-value")
 
 			// Every case errors: a rejected URL by the guard, an accepted one because
@@ -277,7 +277,7 @@ func TestMintReportsTheLifetimeTheServerGave(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	token, ttl, err := MintToken(context.Background(), srv.Client(), srv.URL, "sei-droid", "sec")
+	token, ttl, err := MintToken(t.Context(), srv.Client(), srv.URL, "sei-droid", "sec")
 	if err != nil {
 		t.Fatalf("MintToken: %v", err)
 	}
