@@ -1,6 +1,12 @@
 package main
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
+)
 
 // TestParseScouts guards the two ways a scout list goes wrong quietly.
 //
@@ -99,5 +105,45 @@ func TestParseTargetKeepsEveryNameGitHubAllows(t *testing.T) {
 		if _, _, err := parseTarget([]string{repo, "1"}); err != nil {
 			t.Errorf("parseTarget refused %q: %v", repo, err)
 		}
+	}
+}
+
+// TestReportWritesEachOutputOnItsOwnFlag pins that the check run and the findings
+// no longer depend on --out. A checks list with no xreview entry reads as a
+// review that did not run rather than one that passed, so gating the fail-closed
+// signal on an unrelated flag made it fail open.
+func TestReportWritesEachOutputOnItsOwnFlag(t *testing.T) {
+	dir := t.TempDir()
+	check := filepath.Join(dir, "check.json")
+
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text:   "A review.\n\n```json\n{\"decision\":\"comment\",\"summary\":\"s\"}\n```",
+		TurnID: "t1", ItemID: "i1",
+	}}
+	if err := report("", "", check, result); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	if _, err := os.Stat(check); err != nil {
+		t.Errorf("the check run was not written without --out: %v", err)
+	}
+}
+
+// TestReportClearsAnEarlierRunsOutputs covers a reused workspace. The caller
+// publishes on the file being present, so a previous run's verdict left on disk
+// is published as this one's.
+func TestReportClearsAnEarlierRunsOutputs(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "verdict.md")
+	if err := os.WriteFile(out, []byte("a previous review"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// A run that reached no verdict: nothing to publish.
+	if err := report(out, "", "", driver.Result{SessionID: "s2"}); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+	if _, err := os.Stat(out); !os.IsNotExist(err) {
+		body, _ := os.ReadFile(out)
+		t.Errorf("the earlier run's verdict survived and would be published: %q", body)
 	}
 }

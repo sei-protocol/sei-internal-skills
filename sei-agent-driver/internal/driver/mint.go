@@ -62,16 +62,17 @@ func (u unreached) Error() string {
 func (u unreached) Unwrap() error        { return u.err }
 func (u unreached) Is(target error) bool { return target == errUnreached }
 
-// mintAttempts bounds how many times a mint that never reached a server is
-// tried. Three, because the failure this absorbs is a single reset rather than
-// an outage: a server that is actually down fails all three quickly, and one
-// blip costs the run a second instead of the whole review.
-const mintAttempts = 3
-
 // mintBackoff is the wait before each retry, indexed by the attempt just failed.
 // Short, because a reset is returned immediately and the run is holding a
 // sandbox while this sleeps.
-var mintBackoff = []time.Duration{500 * time.Millisecond, 2 * time.Second}
+var mintBackoff = [...]time.Duration{500 * time.Millisecond, 2 * time.Second}
+
+// mintAttempts bounds how many times a mint that never reached a server is
+// tried. Derived from the backoff table rather than written beside it: the two
+// have to agree, and a hand-written 3 makes raising one an index panic in the
+// other. Three today, because the failure this absorbs is a single reset rather
+// than an outage.
+const mintAttempts = len(mintBackoff) + 1
 
 // MintToken exchanges the machine client's credentials for a short-lived access
 // token at POST /oauth/token.

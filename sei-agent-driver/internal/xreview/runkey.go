@@ -22,8 +22,8 @@ const runKeyLength = 24
 //
 // Deliberately NOT keyed on the trigger. One session per pull request is the
 // point — the agent keeps the conversation from its previous review and can say
-// what changed since, rather than meeting the diff fresh every time. Keying on
-// the trigger gave a new session per comment and threw that context away.
+// what changed since, rather than meeting the diff fresh every time. A key that
+// varied with the trigger would open a session per comment and throw that away.
 //
 // The cost of this choice is that the agent remembers a tree that has since
 // moved, so the prompt for an adopted session has to say so explicitly rather
@@ -41,8 +41,8 @@ func RunKey(repo string, pr int) string {
 //
 // The explicit value is what a caller passes for a comment-triggered review: the
 // comment id. Absent that, GitHub's run id and attempt number distinguish one
-// dispatch from the next, including a re-run of the same workflow — a re-run is a
-// deliberate "do it again", so it must not adopt the previous attempt's session.
+// dispatch from the next. That distinction is a log label: [RunKey] is the pull
+// request, so every dispatch adopts the same session whatever the trigger was.
 //
 // The final fallback is marked manual and is deterministic. That is only a log
 // label now: nothing is skipped as a duplicate, because [RunKey] is the pull

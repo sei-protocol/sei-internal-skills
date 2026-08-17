@@ -225,7 +225,7 @@ func TestBothPromptsCarryTheRepoContext(t *testing.T) {
 			"--json baseRefName",
 			"REVIEW.md?ref=$base",
 			"never from pr-42-tree",
-			"outrank the checklist",
+			"outrank the review checklist",
 			// Each command on its own indented line. Run together with the prose, an
 			// agent copying it literally asked gh for a field called "body." and got
 			// no intent at all.

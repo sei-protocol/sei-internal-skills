@@ -533,8 +533,22 @@ func driverReplyItem(itemID, responseID, text string) string {
 // driverSessionWithItems renders a snapshot carrying the given items, in order,
 // oldest first.
 func driverSessionWithItems(id, agentID string, items ...string) string {
+	// The prompt item leads: recovery proves a reply sits after it, so a fixture
+	// without it models a session that cannot exist.
+	all := append([]string{driverPromptItem(driverAnchorItemID)}, items...)
 	return fmt.Sprintf(`{"id":%q,"agent_id":%q,"created_at":1,"status":"idle","items":[%s]}`,
-		id, agentID, strings.Join(items, ","))
+		id, agentID, strings.Join(all, ","))
+}
+
+// driverAnchorItemID is the item id the fake SendInput echoes back, and so the
+// anchor every turn in these tests is bounded by.
+const driverAnchorItemID = "item_1"
+
+// driverPromptItem is the turn's own prompt, carrying no response id: it is input,
+// not a reply.
+func driverPromptItem(itemID string) string {
+	return fmt.Sprintf(`{"id":%q,"type":"message","role":"user",`+
+		`"content":[{"type":"input_text","text":"prompt"}]}`, itemID)
 }
 
 // driverVerdict is a reply body carrying the closing block the prompts ask for.

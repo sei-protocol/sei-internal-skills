@@ -330,3 +330,65 @@ func verdictFunctionCallItem(t *testing.T, id, responseID string) omnigent.Conve
 		ID: id, ResponseID: responseID, Type: "function_call", Status: "completed", Data: data,
 	}
 }
+
+// TestGroupIsAfterAnchorRefusesAnEarlierReply pins the invariant doc.go states
+// and this package once broke: a stream opens by replaying earlier work, so a
+// completed reply from a previous invocation looks exactly like this turn's under
+// a newest-not-seen-before filter.
+func TestGroupIsAfterAnchorRefusesAnEarlierReply(t *testing.T) {
+	t.Parallel()
+
+	items := []omnigent.ConversationItem{
+		{ID: "i1", ResponseID: "resp_earlier", Type: "message"},
+		{ID: "i2", ResponseID: "", Type: "message"}, // this turn's prompt
+		{ID: "i3", ResponseID: "resp_mine", Type: "message"},
+	}
+	for _, tc := range []struct {
+		name             string
+		anchor, response string
+		want             bool
+	}{
+		{"this turn's reply, after the prompt", "i2", "resp_mine", true},
+		{"an earlier invocation's reply", "i2", "resp_earlier", false},
+		{"the anchor is not in the session", "gone", "resp_mine", false},
+		{"no anchor at all", "", "resp_mine", false},
+		{"a response the session does not carry", "i2", "resp_absent", false},
+	} {
+		if got := GroupIsAfterAnchor(items, tc.anchor, tc.response); got != tc.want {
+			t.Errorf("%s: GroupIsAfterAnchor = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+// TestCrossBoundaryResolvesAPendingAnchorToItsItem covers the cold-start path:
+// a prompt parked before the runtime is up is echoed by the pending id it drains,
+// and that id names no conversation item. Comparing a reply's position against it
+// would refuse every recovery on that path — discarding a finished review whose
+// stream happened to drop.
+func TestCrossBoundaryResolvesAPendingAnchorToItsItem(t *testing.T) {
+	t.Parallel()
+
+	pending := "pending_7"
+	tn := &turn{anchor: pending}
+	tn.crossBoundary(omnigent.SessionInputConsumedEvent{
+		Data: omnigent.SessionInputConsumedPayload{
+			ItemID:           "item_9",
+			ClearedPendingID: &pending,
+		},
+	})
+	if !tn.crossed {
+		t.Fatal("the boundary was not recognised for a pending anchor")
+	}
+	if tn.anchorItem != "item_9" {
+		t.Errorf("anchorItem = %q, want the item the pending input drained into", tn.anchorItem)
+	}
+
+	// And the ordinary path still resolves to itself.
+	direct := &turn{anchor: "item_1"}
+	direct.crossBoundary(omnigent.SessionInputConsumedEvent{
+		Data: omnigent.SessionInputConsumedPayload{ItemID: "item_1"},
+	})
+	if direct.anchorItem != "item_1" {
+		t.Errorf("anchorItem = %q, want item_1", direct.anchorItem)
+	}
+}
