@@ -80,13 +80,13 @@ func TestScoutAndVerdictContractsStayApart(t *testing.T) {
 		"{\"file\": \"a.go\", \"line\": 4, \"severity\": \"high\", \"detail\": \"boom\"}]}\n```"
 	verdictReply := "reviewed\n```json\n{\"decision\": \"comment\", \"summary\": \"ok\", \"findings\": []}\n```"
 
-	if ParseVerdict(scoutReply).HasVerdict() {
+	if ParseVerdict(scoutReply, "").HasVerdict() {
 		t.Error("ParseVerdict accepts a scout report, so a scout's reading could be published as a decision")
 	}
-	if !ParseScoutReport(scoutReply).HasReport() {
+	if !ParseScoutReport(scoutReply, "").HasReport() {
 		t.Error("ParseScoutReport rejects a well-formed scout report")
 	}
-	if !ParseVerdict(verdictReply).HasVerdict() {
+	if !ParseVerdict(verdictReply, "").HasVerdict() {
 		t.Error("ParseVerdict rejects a well-formed verdict")
 	}
 }
@@ -148,8 +148,8 @@ func TestScoutNamesItsOwnAgent(t *testing.T) {
 func TestScoutReportSeparatesAFailedReadFromACleanOne(t *testing.T) {
 	t.Parallel()
 
-	failed := ParseScoutReport("could not fetch\n```json\n{\"read\": 0, \"findings\": []}\n```")
-	clean := ParseScoutReport("nothing found\n```json\n{\"read\": 812, \"findings\": []}\n```")
+	failed := ParseScoutReport("could not fetch\n```json\n{\"read\": 0, \"findings\": []}\n```", "")
+	clean := ParseScoutReport("nothing found\n```json\n{\"read\": 812, \"findings\": []}\n```", "")
 
 	if !failed.HasReport() || !clean.HasReport() {
 		t.Fatal("both are answers; neither should hang the turn")
@@ -179,7 +179,7 @@ func TestParseScoutReportSaysWhyItRefused(t *testing.T) {
 		"no list\n```json\n{\"read\": 9}\n```",
 		"no count\n```json\n{\"findings\": []}\n```",
 	} {
-		r := ParseScoutReport(text)
+		r := ParseScoutReport(text, "")
 		if r.HasReport() {
 			t.Errorf("%q was accepted as a report", text)
 			continue

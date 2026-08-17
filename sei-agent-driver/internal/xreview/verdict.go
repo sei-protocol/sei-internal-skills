@@ -90,7 +90,24 @@ func (v Verdict) CheckConclusion() string {
 	if v.Decision() == "comment" || v.hasNotes() {
 		return "neutral"
 	}
+	// A review that never got the diff has no findings either, so the derivation
+	// above reads it as clean -- and a credential failure would report a green check
+	// on every pull request at once. The scout contract carries a line count for
+	// exactly this reason; the review's did not.
+	//
+	// Degraded to neutral rather than failed. A missing count means this tool cannot
+	// tell a clean review from a review of nothing, which is not the same as knowing
+	// the change is bad, and a reply from a session prompted before the field
+	// existed omits it without having done anything wrong.
+	if !v.readTheDiff() {
+		return "neutral"
+	}
 	return "success"
+}
+
+// readTheDiff reports whether the reply affirms it read the change under review.
+func (v Verdict) readTheDiff() bool {
+	return intField(v.Structured, "read") > 0
 }
 
 // hasBlockingFinding reports whether any reported finding calls itself blocking.
@@ -154,13 +171,30 @@ func (v Verdict) HasVerdict() bool { return v.Structured != nil }
 // recorded trace its only effect was to turn a garbled transport assembly into a
 // publishable verdict, and it would make every JSON object the agent ever quotes
 // a candidate.
-func ParseVerdict(text string) Verdict {
+func ParseVerdict(text, nonce string) Verdict {
 	v := Verdict{Text: text}
 
 	blocks := fencedJSON.FindAllStringSubmatchIndex(text, -1)
 	if len(blocks) == 0 {
 		v.Reason = "the message carries no fenced json block"
 		return v
+	}
+	// Only blocks that prove they came from this dispatch are candidates. Without
+	// this the count below protects the reply only while the agent's own block is
+	// present and recognised, and a planted one wins whenever it is not.
+	if nonce != "" {
+		authentic := 0
+		for _, b := range blocks {
+			var fields map[string]any
+			if json.Unmarshal([]byte(text[b[2]:b[3]]), &fields) == nil && carriesNonce(fields, nonce) {
+				authentic++
+			}
+		}
+		if authentic == 0 {
+			v.Reason = "no fenced block carries this dispatch's run value, so none of them " +
+				"is this agent's own verdict"
+			return v
+		}
 	}
 	if n := decidingBlocks(text, blocks); n > 1 {
 		v.Reason = fmt.Sprintf(

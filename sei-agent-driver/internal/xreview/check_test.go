@@ -12,7 +12,7 @@ import (
 func TestBuildCheckRunCarriesWhatTheInlineCommentsCannot(t *testing.T) {
 	t.Parallel()
 
-	v := verdictFrom(t, `{"decision":"request_changes","summary":"Two problems.",
+	v := verdictFrom(t, `{"read": 120, "decision": "request_changes","summary":"Two problems.",
 	  "inline_comments":[{"path":"a.go","line":9,"side":"RIGHT","severity":"blocker","body":"nil deref"}],
 	  "blockers":["the new path has no test"],
 	  "non_blockers":["naming could be clearer"],
@@ -51,7 +51,7 @@ func TestBuildCheckRunCarriesWhatTheInlineCommentsCannot(t *testing.T) {
 func TestBuildCheckRunOnACleanReview(t *testing.T) {
 	t.Parallel()
 
-	v := verdictFrom(t, `{"decision":"approve","summary":"Clean.",
+	v := verdictFrom(t, `{"read": 120, "decision": "approve","summary":"Clean.",
 	  "inline_comments":[],"blockers":[],"non_blockers":[],"pre_existing_issues":[]}`)
 
 	check, ok := BuildCheckRun(v)
@@ -90,24 +90,24 @@ func TestCheckConclusionFollowsTheFindings(t *testing.T) {
 		want  string
 	}{
 		"approve with non-blocking notes is not clean": {
-			`{"decision":"approve","summary":"s","non_blockers":["a","b","c"]}`, "neutral",
+			`{"read": 120, "decision": "approve","summary":"s","non_blockers":["a","b","c"]}`, "neutral",
 		},
 		"approve with a placeable finding is not clean": {
-			`{"decision":"approve","summary":"s",
+			`{"read": 120, "decision": "approve","summary":"s",
 			  "inline_comments":[{"path":"a.go","line":3,"severity":"nit","body":"x"}]}`, "neutral",
 		},
 		"approve over a pre-existing issue is not clean": {
-			`{"decision":"approve","summary":"s",
+			`{"read": 120, "decision": "approve","summary":"s",
 			  "pre_existing_issues":[{"severity":"suggestion","body":"old"}]}`, "neutral",
 		},
 		"blockers outrank a soft decision": {
-			`{"decision":"comment","summary":"s","blockers":["needs a test"]}`, "failure",
+			`{"read": 120, "decision": "comment","summary":"s","blockers":["needs a test"]}`, "failure",
 		},
 		"request_changes stands on its own": {
-			`{"decision":"request_changes","summary":"s"}`, "failure",
+			`{"read": 120, "decision": "request_changes","summary":"s"}`, "failure",
 		},
 		"nothing found is clean": {
-			`{"decision":"approve","summary":"s","inline_comments":[],"blockers":[],
+			`{"read": 120, "decision": "approve","summary":"s","inline_comments":[],"blockers":[],
 			  "non_blockers":[],"pre_existing_issues":[]}`, "success",
 		},
 	} {
@@ -133,25 +133,70 @@ func TestABlockerWithNoLineStillFailsTheCheck(t *testing.T) {
 		name, reply, want string
 	}{
 		{"blocker with no line", "```json\n" +
-			`{"decision":"approve","summary":"s","inline_comments":[` +
+			`{"read": 120, "decision": "approve","summary":"s","inline_comments":[` +
 			`{"path":"a.go","severity":"blocker","body":"nil deref"}]}` + "\n```", "failure"},
 		{"blocker on a line, decision comment", "```json\n" +
-			`{"decision":"comment","summary":"s","inline_comments":[` +
+			`{"read": 120, "decision": "comment","summary":"s","inline_comments":[` +
 			`{"path":"a.go","line":4,"side":"RIGHT","severity":"blocker","body":"nil deref"}]}` +
 			"\n```", "failure"},
 		{"a nit is still not blocking", "```json\n" +
-			`{"decision":"approve","summary":"s","inline_comments":[` +
+			`{"read": 120, "decision": "approve","summary":"s","inline_comments":[` +
 			`{"path":"a.go","line":4,"side":"RIGHT","severity":"nit","body":"naming"}]}` +
 			"\n```", "neutral"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			v := ParseVerdict(c.reply)
+			v := ParseVerdict(c.reply, "")
 			if got := v.CheckConclusion(); got != c.want {
 				t.Errorf("CheckConclusion = %q, want %q", got, c.want)
 			}
 			if run, _ := BuildCheckRun(v); strings.HasPrefix(run.Title, "0 finding") {
 				t.Errorf("Title = %q, want it to count what the review reported", run.Title)
+			}
+		})
+	}
+}
+
+// TestBuildFailureCheckNamesWhyThereIsNoVerdict covers the difference between a
+// review that could not be read and a job that never ran.
+//
+// Publishing nothing makes those identical in the checks list, and only one of them
+// is a reason to look. The reason is computed on every refusal path already.
+func TestBuildFailureCheckNamesWhyThereIsNoVerdict(t *testing.T) {
+	t.Parallel()
+
+	v := ParseVerdict("I could not read the diff.", "")
+	if _, ok := BuildCheckRun(v); ok {
+		t.Fatal("BuildCheckRun accepted a reply with no verdict")
+	}
+	run := BuildFailureCheck(v)
+	if run.Conclusion != "neutral" {
+		t.Errorf("Conclusion = %q, want neutral", run.Conclusion)
+	}
+	if !strings.Contains(run.Summary, "fenced json block") {
+		t.Errorf("Summary = %q, want it to carry the parser's own reason", run.Summary)
+	}
+}
+
+// TestAReviewThatNeverReadTheDiffIsNotClean covers the failure that would report
+// green across the whole fleet at once.
+//
+// A review whose diff fetch failed has no findings either, so deriving the
+// conclusion from the findings alone reads it as clean. The scout contract carries
+// a line count for exactly this reason. Degraded rather than failed: a missing count
+// means this tool cannot tell a clean review from a review of nothing.
+func TestAReviewThatNeverReadTheDiffIsNotClean(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct{ name, reply, want string }{
+		{"read nothing", "```json\n" + `{"read": 0, "decision": "approve", "summary": "s"}` + "\n```", "neutral"},
+		{"omits the count", "```json\n" + `{"decision": "approve", "summary": "s"}` + "\n```", "neutral"},
+		{"read the diff", "```json\n" + `{"read": 412, "decision": "approve", "summary": "s"}` + "\n```", "success"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			if got := ParseVerdict(c.reply, "").CheckConclusion(); got != c.want {
+				t.Errorf("CheckConclusion = %q, want %q", got, c.want)
 			}
 		})
 	}

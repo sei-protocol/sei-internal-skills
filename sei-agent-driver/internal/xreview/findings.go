@@ -91,6 +91,13 @@ func normalizeSide(raw string) string {
 // there is nowhere sensible to put one that has neither. What is dropped here is
 // still in the prose the summary comment carries, so nothing is lost from the
 // review — only from the inline placement.
+// maxPlaceableFindings bounds how many inline comments one reply can produce.
+//
+// A caller posts one comment per entry under the bot's identity. The scout path is
+// bounded at 25 for the same reason; this one was not, so a reply that looped could
+// have the bot write thousands of comments on one pull request.
+const maxPlaceableFindings = 50
+
 func PlaceableFindings(v Verdict) []Finding {
 	seen := make(map[string]bool)
 	out := make([]Finding, 0)
@@ -105,6 +112,9 @@ func PlaceableFindings(v Verdict) []Finding {
 		}
 		seen[f.dedupeKey()] = true
 		out = append(out, f)
+		if len(out) >= maxPlaceableFindings {
+			break
+		}
 	}
 	return out
 }
@@ -136,7 +146,10 @@ func findingFrom(fields map[string]any) Finding {
 
 // placeable reports whether this finding can be posted against a line.
 func (f Finding) placeable() bool {
-	return f.File != "" && f.Line > 0 && f.Detail != ""
+	// The path is checked, not merely non-empty. A caller posts these against a
+	// pull request, and the value arrives from a model reading a diff someone else
+	// wrote -- the same provenance the scout paths already validate.
+	return f.File != "" && isPlainRepoPath(f.File) && f.Line > 0 && f.Detail != ""
 }
 
 // dedupeKey identifies a finding by what it says and where. A reply that wrote

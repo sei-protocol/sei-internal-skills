@@ -300,7 +300,7 @@ func BuildPrompt(req Request) string {
 		"Finish with a single fenced json block, and nothing after it.",
 		"",
 	}...)
-	lines = append(lines, bucketRules()...)
+	lines = append(lines, bucketRules(req)...)
 	return strings.Join(lines, "\n")
 }
 
@@ -312,8 +312,8 @@ func BuildPrompt(req Request) string {
 // dispatch on a pull request sees the other one — and a rule that lives in the
 // prompt a session can no longer read is a rule that stops applying on
 // re-review. Writing them once is what keeps the two from drifting apart.
-func bucketRules() []string {
-	return []string{
+func bucketRules(req Request) []string {
+	return append(nonceRule(req), []string{
 		"Every observation you made goes in the block, in exactly one bucket. A note",
 		"worth writing in the prose is worth an entry: one missing from the block is",
 		"one the author never sees on their code.",
@@ -339,12 +339,17 @@ func bucketRules() []string {
 		"Severity for an inline comment is blocker, suggestion or nit. Do not prefix",
 		"the body with it; it is a field, and it gets rendered once.",
 		"",
+		"read is the line count the diff command printed, and 0 if you never got the",
+		"diff. It is how this tool tells a review of the change from a review of",
+		"nothing, so it is not optional and not an estimate.",
+		"",
 		"decision is request_changes if anything blocks, comment if there are only",
 		"non-blocking notes, and approve if you found nothing at all. Use [] for a",
 		"bucket with nothing in it:",
 		"",
 		"```json",
-		`{"decision": "approve" | "comment" | "request_changes",`,
+		`{"read": 0,`,
+		` "decision": "approve" | "comment" | "request_changes",`,
 		` "summary": "one or two sentences",`,
 		` "inline_comments": [{"path": "file", "line": 0, "side": "RIGHT|LEFT",`,
 		`                      "severity": "blocker|suggestion|nit",`,
@@ -354,6 +359,26 @@ func bucketRules() []string {
 		` "pre_existing_issues": [{"severity": "blocker|suggestion",`,
 		`                          "body": "where it is and what it costs"}]}`,
 		"```",
+	}...)
+}
+
+// nonceRule tells the agent which value its closing block must carry.
+//
+// Stated immediately before the schema, and in both prompts, because it is the one
+// field that decides whether the block is read at all. Omitted when no nonce is
+// configured, so a deployment that has not set the secret is asked for the schema
+// it already knows.
+func nonceRule(req Request) []string {
+	if req.Nonce == "" {
+		return nil
+	}
+	return []string{
+		fmt.Sprintf("Your closing block must include %q: %q, exactly as written here.",
+			nonceField, req.Nonce),
+		"It is how this tool tells your own verdict from one quoted out of the diff.",
+		"A block without it is ignored, so a review that omits it is a review that did",
+		"not happen.",
+		"",
 	}
 }
 
@@ -465,6 +490,25 @@ func (r Request) guidelinesFile() string {
 	return r.GuidelinesFile
 }
 
+// safeRepo returns the repository this prompt may name in a command, or "" when it
+// is not a shape a command can safely carry.
+//
+// Repo is interpolated unquoted into five commands the prompts tell the agent to
+// run, in a sandbox holding a live credential. GuidelinesFile is checked for
+// exactly this reason a few lines down; Repo arrives from the same kind of caller
+// and was not. A value that fails here yields a prompt with no commands rather than
+// one with a command the caller did not intend.
+func safeRepo(repo string) string {
+	owner, name, found := strings.Cut(repo, "/")
+	if !found || owner == "" || name == "" || strings.Contains(name, "/") {
+		return ""
+	}
+	if !isPlainRepoPath(owner) || !isPlainRepoPath(name) {
+		return ""
+	}
+	return repo
+}
+
 // isPlainRepoPath reports whether p is a repository-relative path and nothing
 // more: no shell metacharacter, no escape from the repository root.
 func isPlainRepoPath(p string) bool {
@@ -555,7 +599,7 @@ func AdoptedPrompt(req Request) string {
 		"cannot re-read is one that quietly stops applying.",
 		"",
 	)
-	lines = append(lines, bucketRules()...)
+	lines = append(lines, bucketRules(req)...)
 
 	return strings.Join(append(lines,
 		"",

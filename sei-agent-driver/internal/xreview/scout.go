@@ -68,7 +68,9 @@ func (s Scout) Prompt(answered bool) string {
 // A scout that found nothing still closes with the block and an empty list —
 // "nothing here" is an answer, and it has to be distinguishable from a scout that
 // stopped talking.
-func (s Scout) Complete(text string) bool { return ParseScoutReport(text).HasReport() }
+func (s Scout) Complete(text string) bool {
+	return ParseScoutReport(text, s.req.Nonce).HasReport()
+}
 
 // ScoutRunKey derives the key for one scout's work on one pull request.
 //
@@ -119,7 +121,7 @@ func (r ScoutReport) HasReport() bool { return r.reported }
 // two contracts apart: [ParseVerdict] recognises a block only when it carries a
 // decision, so a scout's report can never be mistaken for a verdict, and a review
 // that quotes a scout cannot be read as having decided twice.
-func ParseScoutReport(text string) ScoutReport {
+func ParseScoutReport(text, nonce string) ScoutReport {
 	r := ScoutReport{Text: text}
 
 	blocks := fencedJSON.FindAllStringSubmatchIndex(text, -1)
@@ -127,7 +129,29 @@ func ParseScoutReport(text string) ScoutReport {
 		r.Reason = "the reply carries no fenced json block"
 		return r
 	}
+	// The same two rules the verdict parser applies, for the same reason: a scout
+	// reads the same attacker-written diff, and its read count is the signal a
+	// failed reading is told from a clean one by.
+	if nonce != "" {
+		authentic := 0
+		for _, b := range blocks {
+			var fields map[string]any
+			if json.Unmarshal([]byte(text[b[2]:b[3]]), &fields) == nil && carriesNonce(fields, nonce) {
+				authentic++
+			}
+		}
+		if authentic == 0 {
+			r.Reason = "no fenced block carries this dispatch's run value"
+			return r
+		}
+	}
+
 	last := blocks[len(blocks)-1]
+	if trailing := strings.TrimSpace(text[last[1]:]); trailing != "" {
+		r.Reason = fmt.Sprintf("%d bytes follow the closing block, which must be last",
+			len(trailing))
+		return r
+	}
 
 	var out map[string]any
 	if err := json.Unmarshal([]byte(text[last[2]:last[3]]), &out); err != nil {
@@ -230,7 +254,7 @@ func ScoutPrompt(req Request) string {
 		"is high, medium or low. Report no decision — merging these into a verdict is",
 		"not your job:",
 		"",
-	}, "\n") + "\n" + scoutSchema()
+	}, "\n") + "\n" + scoutSchema(req)
 }
 
 // scoutSchema is the block a scout closes with.
@@ -238,8 +262,8 @@ func ScoutPrompt(req Request) string {
 // In both prompts rather than referred back to: an adopted session replays only
 // its first prompt, so a schema the scout is told to recall is one it may not be
 // able to re-read.
-func scoutSchema() string {
-	return strings.Join([]string{
+func scoutSchema(req Request) string {
+	return strings.Join(append(nonceRule(req), []string{
 		"read is the line count the command above printed, and 0 if you never got the",
 		"diff. It is how the reader after you tells a clean reading from a failed one,",
 		"so it is not optional and not an estimate.",
@@ -249,7 +273,7 @@ func scoutSchema() string {
 		` "findings": [{"file": "path", "line": 0, "severity": "high|medium|low",`,
 		`               "detail": "what is wrong and why it matters"}]}`,
 		"```",
-	}, "\n")
+	}...), "\n")
 }
 
 // AdoptedScoutPrompt renders the instruction for a scout that has read this pull
@@ -275,5 +299,5 @@ func AdoptedScoutPrompt(req Request) string {
 		"Finish with a single fenced json block and nothing after it. The schema is",
 		"restated rather than pointed at: this is the path almost every re-reading",
 		"takes, and a contract you cannot re-read is one that quietly stops applying.",
-	}, "\n") + "\n" + scoutSchema()
+	}, "\n") + "\n" + scoutSchema(req)
 }

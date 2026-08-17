@@ -60,6 +60,22 @@ func checkTitle(v Verdict) string {
 // The line-tied ones are deliberately absent: they are posted against the code
 // they are about, and repeating them here would have an author read each twice.
 // What would otherwise be lost is exactly what this carries.
+// maxCheckSummary bounds the check run's summary.
+//
+// GitHub rejects a check run whose summary exceeds 65,536 characters, and every
+// input here is model output: the summary itself, and every blocker, non-blocker
+// and pre-existing entry. A rejected check run is no check run, which reads as a
+// review that did not run rather than one that passed -- so this truncates for the
+// same reason [RenderComment] does, and says when it did.
+const maxCheckSummary = 60_000
+
+// maxCheckBullet bounds one entry, so a single long one cannot crowd out the rest.
+const maxCheckBullet = 2_000
+
+// checkTruncated says the summary was cut, so a reader does not take a truncated
+// list for the whole one.
+const checkTruncated = "\n\n_This summary was truncated. The published comment carries the full review._"
+
 func checkSummary(v Verdict) string {
 	sections := []string{v.Summary()}
 	sections = append(sections, bulletSection("Blocking", Blockers(v)))
@@ -72,7 +88,13 @@ func checkSummary(v Verdict) string {
 			out = append(out, s)
 		}
 	}
-	return strings.Join(out, "\n\n")
+	// Bounded last, over the assembled whole. Bounding each part would still let
+	// enough parts exceed what the API accepts.
+	summary := strings.Join(out, "\n\n")
+	if len(summary) > maxCheckSummary {
+		summary = truncateBytes(summary, maxCheckSummary-len(checkTruncated)) + checkTruncated
+	}
+	return summary
 }
 
 func bulletSection(heading string, items []string) string {
@@ -82,7 +104,10 @@ func bulletSection(heading string, items []string) string {
 	lines := make([]string, 0, len(items)+1)
 	lines = append(lines, "### "+heading)
 	for _, item := range items {
-		lines = append(lines, "- "+item)
+		// One-lined as well as clipped: an entry carrying newlines can otherwise
+		// render its own "### Blocking" heading, which is indistinguishable from
+		// this package's framing to whoever reads the check.
+		lines = append(lines, "- "+clip(oneLine(item), maxCheckBullet))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -105,4 +130,29 @@ func plural(n int, noun string) string {
 		return fmt.Sprintf("1 %s", noun)
 	}
 	return fmt.Sprintf("%d %ss", n, noun)
+}
+
+// BuildFailureCheck is the check run for a review that produced no verdict.
+//
+// [BuildCheckRun] reports false there, and a caller that publishes nothing leaves
+// the checks list with no xreview entry -- which reads as a review that did not
+// run, not one that could not be read. Those are different things, and only one of
+// them means an operator should look.
+//
+// neutral rather than failure: this says the tool could not read a review, not that
+// the change is bad, and a repository that wants the distinction to block can
+// require the check. The reason is the one [Verdict] already computed on every
+// refusal path and that nothing published.
+func BuildFailureCheck(v Verdict) CheckRun {
+	reason := v.Reason
+	if reason == "" {
+		reason = "the turn produced no reply this driver could read"
+	}
+	return CheckRun{
+		Title:      "no verdict",
+		Conclusion: "neutral",
+		Summary: "This review produced no decision that could be read mechanically.\n\n" +
+			clip(oneLine(reason), maxCheckBullet) +
+			"\n\nThe agent's own words, if it wrote any, are in the published comment.",
+	}
 }

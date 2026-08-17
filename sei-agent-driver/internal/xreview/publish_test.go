@@ -10,7 +10,7 @@ import (
 func TestRenderCommentPassesAShortReviewThrough(t *testing.T) {
 	t.Parallel()
 
-	v := ParseVerdict("Two findings, both minor.\n\n```json\n{\"decision\": \"comment\"}\n```")
+	v := ParseVerdict("Two findings, both minor.\n\n```json\n{\"decision\": \"comment\"}\n```", "")
 	v.TurnID = "resp_claude_a"
 	v.ItemID = "item_reply"
 
@@ -43,7 +43,7 @@ func TestRenderCommentTruncatesRatherThanRefusing(t *testing.T) {
 	// Opens a fence and never closes it, so the cut necessarily lands inside a
 	// code block.
 	prose := "```text\n" + strings.Repeat("a very long finding line\n", 4000)
-	v := ParseVerdict(prose + "\n```json\n{\"decision\": \"request_changes\"}\n```")
+	v := ParseVerdict(prose+"\n```json\n{\"decision\": \"request_changes\"}\n```", "")
 	v.TurnID = "resp_claude_a"
 	v.ItemID = "item_reply"
 
@@ -80,7 +80,7 @@ func TestRenderCommentHandlesABlockLargerThanTheBudget(t *testing.T) {
 	t.Parallel()
 
 	huge := strings.Repeat("x", MaxBodyBytes*2)
-	v := ParseVerdict("prose\n```json\n{\"decision\": \"approve\", \"summary\": \"" + huge + "\"}\n```")
+	v := ParseVerdict("prose\n```json\n{\"decision\": \"approve\", \"summary\": \""+huge+"\"}\n```", "")
 	if !v.HasVerdict() {
 		t.Fatalf("fixture did not parse: %s", v.Reason)
 	}
