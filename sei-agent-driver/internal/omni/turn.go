@@ -49,6 +49,8 @@ type turn struct {
 	// its edge looks.
 	prior map[string]bool
 
+	// answered is the permission prompts already decided, keyed by elicitation id,
+	// so a prompt replayed on a reconnect is not answered twice.
 	answered map[string]bool
 
 	// complete is the workload's test for a finished answer. Held here because
@@ -88,7 +90,7 @@ type turn struct {
 
 	// failedTurnID is the response id a failed edge named, when it named one.
 	// Deliberately not id: a failed turn did not end, and only
-	// [Driver.salvageFailedTurn] may read a reply against this.
+	// [conversation.salvageFailedTurn] may read a reply against this.
 	failedTurnID string
 }
 
