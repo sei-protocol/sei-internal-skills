@@ -1,4 +1,4 @@
-package driver
+package omni
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
 )
 
 // requireEncryptedOrLocal rejects a base URL that would put the client secret on
@@ -22,7 +24,7 @@ import (
 func requireEncryptedOrLocal(baseURL string) error {
 	u, err := url.Parse(baseURL)
 	if err != nil {
-		return fmt.Errorf("%w: base URL %q does not parse", ErrMint, baseURL)
+		return fmt.Errorf("%w: base URL %q does not parse", driver.ErrMint, baseURL)
 	}
 	host := u.Hostname()
 	local := host == "localhost" || strings.HasSuffix(host, ".localhost") ||
@@ -30,7 +32,7 @@ func requireEncryptedOrLocal(baseURL string) error {
 	if u.Scheme != "https" && !local {
 		return fmt.Errorf(
 			"%w: refusing to send the client secret to %q, which is plain http to a "+
-				"non-loopback host; use https", ErrMint, u.Scheme+"://"+u.Host)
+				"non-loopback host; use https", driver.ErrMint, u.Scheme+"://"+u.Host)
 	}
 	return nil
 }
@@ -40,12 +42,10 @@ func requireEncryptedOrLocal(baseURL string) error {
 // unbounded would let whatever answered decide this process's memory use.
 const maxTokenBody = 64 << 10
 
-// ErrMint is a failure to exchange machine credentials for an access token.
-var ErrMint = errors.New("token exchange")
-
 // errUnreached marks a mint that never got an answer: the connection was reset,
-// refused, or timed out. Distinct from [ErrMint], which is the server answering
-// that it will not mint — one is worth another attempt and the other is not.
+// refused, or timed out. Distinct from [driver.ErrMint], which is the server
+// answering that it will not mint — one is worth another attempt and the other is
+// not.
 //
 // Matched with errors.Is and never rendered: unreached carries a message that
 // already says what happened, and a sentinel wrapped in front of it would put a
@@ -105,7 +105,7 @@ func MintToken(
 	baseURL, clientID, clientSecret string,
 ) (string, time.Duration, error) {
 	if clientID == "" || clientSecret == "" {
-		return "", 0, fmt.Errorf("%w: client id and secret are both required", ErrMint)
+		return "", 0, fmt.Errorf("%w: client id and secret are both required", driver.ErrMint)
 	}
 	if err := requireEncryptedOrLocal(baseURL); err != nil {
 		return "", 0, err
@@ -144,14 +144,14 @@ func mintOnce(
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint,
 		strings.NewReader(form.Encode()))
 	if err != nil {
-		return "", 0, fmt.Errorf("%w: %w", ErrMint, err)
+		return "", 0, fmt.Errorf("%w: %w", driver.ErrMint, err)
 	}
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := client.Do(req)
 	if err != nil {
-		// Deliberately not wrapped in ErrMint, which classifies as a configuration
+		// Deliberately not wrapped in driver.ErrMint, which classifies as a configuration
 		// fault. Reaching the endpoint and failing is a transport problem an
 		// operator should retry, not a secret they should go and fix.
 		//
@@ -166,7 +166,7 @@ func mintOnce(
 
 	body, err := io.ReadAll(io.LimitReader(resp.Body, maxTokenBody))
 	if err != nil {
-		return "", 0, fmt.Errorf("%w: reading response: %w", ErrMint, err)
+		return "", 0, fmt.Errorf("%w: reading response: %w", driver.ErrMint, err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -176,7 +176,7 @@ func mintOnce(
 		// The rest of the body is withheld: a non-2xx here need not have come
 		// from this API at all.
 		return "", 0, fmt.Errorf("%w: %s returned %d (%s)",
-			ErrMint, endpoint, resp.StatusCode, oauthErrorCode(body))
+			driver.ErrMint, endpoint, resp.StatusCode, oauthErrorCode(body))
 	}
 
 	var payload struct {
@@ -185,10 +185,10 @@ func mintOnce(
 		ExpiresIn   int    `json:"expires_in"`
 	}
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return "", 0, fmt.Errorf("%w: response was not JSON: %w", ErrMint, err)
+		return "", 0, fmt.Errorf("%w: response was not JSON: %w", driver.ErrMint, err)
 	}
 	if payload.AccessToken == "" {
-		return "", 0, fmt.Errorf("%w: response carried no access_token", ErrMint)
+		return "", 0, fmt.Errorf("%w: response carried no access_token", driver.ErrMint)
 	}
 	return payload.AccessToken, time.Duration(payload.ExpiresIn) * time.Second, nil
 }

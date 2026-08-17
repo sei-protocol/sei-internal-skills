@@ -1,8 +1,10 @@
-package driver
+package omni
 
 import (
 	"net/http"
 	"testing"
+
+	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
 )
 
 // TestDriverAdoptsAnExistingSessionForTheSameRunKey is the idempotency guarantee,
@@ -43,11 +45,8 @@ func TestDriverAdoptsAnExistingSessionForTheSameRunKey(t *testing.T) {
 		},
 	})
 
-	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
 		Run(t.Context(), req)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
 
 	// The whole point: no second session was made.
 	if created := fs.CreateReqs(); len(created) != 0 {
@@ -88,17 +87,14 @@ func TestDriverCreatesWhenNoSessionCarriesTheRunKey(t *testing.T) {
 		},
 	})
 
-	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
 		Run(t.Context(), testWork{
 			Repo: "sei-protocol/sandbox", PR: 13, Trigger: "fresh"})
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
 	if created := fs.CreateReqs(); len(created) != 1 {
 		t.Fatalf("created %d sessions, want exactly 1", len(created))
 	}
-	if result.ExitCode != ExitOK {
-		t.Errorf("ExitCode = %d, want ExitOK", result.ExitCode)
+	if result.ExitCode != driver.ExitOK {
+		t.Errorf("ExitCode = %d, want driver.ExitOK", result.ExitCode)
 	}
 }
 
@@ -131,11 +127,8 @@ func TestDriverAdoptsRatherThanCreatingWhenTheLabelIsOnALaterPage(t *testing.T) 
 		},
 	})
 
-	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
 		Run(t.Context(), req)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
 	if len(fs.CreateReqs()) != 0 {
 		t.Error("created a session despite a matching label further down the page")
 	}
@@ -144,11 +137,11 @@ func TestDriverAdoptsRatherThanCreatingWhenTheLabelIsOnALaterPage(t *testing.T) 
 	}
 }
 
-// TestDeleteSessionReportsAFailedDelete is the only path that still produces
-// ExitTeardownLeak. A refused delete has to reach the exit code rather than the
+// TestCloseReportsAFailedDelete is the only path that still produces
+// driver.ExitTeardownLeak. A refused delete has to reach the exit code rather than the
 // logs, because the run reads as successful otherwise and nothing reclaims the
 // sandbox afterwards.
-func TestDeleteSessionReportsAFailedDelete(t *testing.T) {
+func TestCloseReportsAFailedDelete(t *testing.T) {
 	t.Parallel()
 
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 23}
@@ -161,14 +154,11 @@ func TestDeleteSessionReportsAFailedDelete(t *testing.T) {
 		DeleteStatus: http.StatusInternalServerError,
 	})
 
-	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		DeleteSession(t.Context(), req)
-	if err != nil {
-		t.Fatalf("DeleteSession: %v", err)
-	}
-	if result.ExitCode != ExitTeardownLeak {
-		t.Errorf("ExitCode = %d, want ExitTeardownLeak (%d): a refused delete has to be "+
-			"reported, not swallowed", result.ExitCode, ExitTeardownLeak)
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Close(t.Context(), req)
+	if result.ExitCode != driver.ExitTeardownLeak {
+		t.Errorf("ExitCode = %d, want driver.ExitTeardownLeak (%d): a refused delete has to be "+
+			"reported, not swallowed", result.ExitCode, driver.ExitTeardownLeak)
 	}
 	if result.TeardownOK {
 		t.Error("TeardownOK = true, want false: the server refused the delete")
@@ -179,10 +169,10 @@ func TestDeleteSessionReportsAFailedDelete(t *testing.T) {
 	}
 }
 
-// TestDeleteSessionDestroysTheSession covers the close path, which is the
+// TestCloseDestroysTheSession covers the close path, which is the
 // only thing that reclaims a sandbox: a review deletes nothing, so the pod runs
 // from the first review until this does.
-func TestDeleteSessionDestroysTheSession(t *testing.T) {
+func TestCloseDestroysTheSession(t *testing.T) {
 	t.Parallel()
 
 	req := testWork{Repo: "sei-protocol/sandbox", PR: 21}
@@ -194,22 +184,19 @@ func TestDeleteSessionDestroysTheSession(t *testing.T) {
 			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
 	})
 
-	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		DeleteSession(t.Context(), req)
-	if err != nil {
-		t.Fatalf("DeleteSession: %v", err)
-	}
-	if result.ExitCode != ExitOK {
-		t.Errorf("ExitCode = %d, want ExitOK", result.ExitCode)
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Close(t.Context(), req)
+	if result.ExitCode != driver.ExitOK {
+		t.Errorf("ExitCode = %d, want driver.ExitOK", result.ExitCode)
 	}
 	if got := fs.DeletedIDs(); len(got) != 1 || got[0] != "conv_close" {
 		t.Errorf("deleted = %v, want [conv_close]", got)
 	}
 }
 
-// TestDeleteSessionIsQuietWhenThereIsNoSession keeps a pull request that was
+// TestCloseIsQuietWhenThereIsNoSession keeps a pull request that was
 // closed without ever being reviewed from reading as a failure.
-func TestDeleteSessionIsQuietWhenThereIsNoSession(t *testing.T) {
+func TestCloseIsQuietWhenThereIsNoSession(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
@@ -217,13 +204,10 @@ func TestDeleteSessionIsQuietWhenThereIsNoSession(t *testing.T) {
 		SessionListResp: `{"data":[],"has_more":false}`,
 	})
 
-	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		DeleteSession(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
-	if err != nil {
-		t.Fatalf("DeleteSession: %v", err)
-	}
-	if result.ExitCode != ExitOK {
-		t.Errorf("ExitCode = %d, want ExitOK for a PR with no session", result.ExitCode)
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Close(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+	if result.ExitCode != driver.ExitOK {
+		t.Errorf("ExitCode = %d, want driver.ExitOK for a PR with no session", result.ExitCode)
 	}
 	if got := fs.DeleteHits(); got != 0 {
 		t.Errorf("DELETE calls = %d, want 0", got)
@@ -263,11 +247,8 @@ func TestTwoDifferentTriggersShareOneSession(t *testing.T) {
 		},
 	})
 
-	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
 		Run(t.Context(), second)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
 	if result.SessionID != "conv_first" {
 		t.Errorf("SessionID = %q, want conv_first — the second trigger must reuse the first's session",
 			result.SessionID)
@@ -314,11 +295,8 @@ func TestDriverReplacesASessionThatCannotRunATurn(t *testing.T) {
 		},
 	})
 
-	result, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
 		Run(t.Context(), req)
-	if err != nil {
-		t.Fatalf("Run: %v", err)
-	}
 
 	if created := fs.CreateReqs(); len(created) != 1 {
 		t.Fatalf("created %d sessions, want 1: a session that cannot run a turn must be "+
@@ -364,10 +342,8 @@ func TestDriverKeepsASessionWhoseHostCanBeWoken(t *testing.T) {
 		},
 	})
 
-	if _, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-		Run(t.Context(), req); err != nil {
-		t.Fatalf("Run: %v", err)
-	}
+	newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), req)
 	if created := fs.CreateReqs(); len(created) != 0 {
 		t.Errorf("created %d sessions, want 0: a resumable host is woken, not replaced", len(created))
 	}
@@ -482,10 +458,8 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 			}
 			fs := newDriverFakeServer(t, tc.cfg)
 
-			if _, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-				Run(t.Context(), req); err != nil {
-				t.Fatalf("Run: %v", err)
-			}
+			newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+				Run(t.Context(), req)
 
 			events := driverPrompts(fs.EventReqs())
 			if len(events) != 1 {
@@ -498,7 +472,7 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 	}
 }
 
-// namingWork is work that runs on an agent of its own, for [AgentNamer].
+// namingWork is work that runs on an agent of its own, for [driver.AgentNamer].
 type namingWork struct {
 	testWork
 	agent string
@@ -539,7 +513,7 @@ func TestDriverResolvesTheAgentTheWorkNames(t *testing.T) {
 
 	for _, c := range []struct {
 		name string
-		work Workload
+		work driver.Workload
 		want string
 	}{
 		{"work naming no agent takes the run's default", testWork{Repo: "r/n", PR: 1}, "ag_1"},
@@ -551,10 +525,8 @@ func TestDriverResolvesTheAgentTheWorkNames(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 			fs := newFake(t)
-			if _, err := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
-				Run(t.Context(), c.work); err != nil {
-				t.Fatalf("Run: %v", err)
-			}
+			newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+				Run(t.Context(), c.work)
 			creates := fs.CreateReqs()
 			if len(creates) != 1 {
 				t.Fatalf("creates = %d, want 1", len(creates))
@@ -569,15 +541,15 @@ func TestDriverResolvesTheAgentTheWorkNames(t *testing.T) {
 	t.Run("an agent the server does not know fails the run", func(t *testing.T) {
 		t.Parallel()
 		fs := newFake(t)
-		// Run reports a classified fault in the Result rather than as an error, so
+		// Run reports a classified fault in the driver.Result rather than as an error, so
 		// the exit code is the contract a caller has to read. A caller that only
 		// checked err would treat this as a completed reading.
-		result, _ := NewDriver(driverTestConfig(t, fs.URL), Policy{}, driverTestLogger()).
+		result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
 			Run(t.Context(), namingWork{testWork{Repo: "r/n", PR: 1}, "sei-droid-absent"})
-		if result.ExitCode != ExitConfig {
-			t.Fatalf("ExitCode = %d, want ExitConfig (%d): falling back to the default would "+
+		if result.ExitCode != driver.ExitConfig {
+			t.Fatalf("ExitCode = %d, want driver.ExitConfig (%d): falling back to the default would "+
 				"answer on the review's own harness and read like a second opinion",
-				result.ExitCode, ExitConfig)
+				result.ExitCode, driver.ExitConfig)
 		}
 		if len(fs.CreateReqs()) != 0 {
 			t.Error("a session was created for an agent the server does not know")

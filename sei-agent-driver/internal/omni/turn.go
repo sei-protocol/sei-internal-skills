@@ -1,23 +1,18 @@
-package driver
+package omni
 
 import (
 	"fmt"
 	"strings"
 
 	omnigent "github.com/sei-protocol/omnigent-go-sdk"
+
+	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
 )
 
 // A turn is one prompt and the answer to it. This file holds when that exchange
 // is over and how the driver knows: the state a turn carries, the events that
 // move it, and the two rules for reading an end out of a stream that reports one
 // differently depending on the harness underneath.
-//
-// Nothing here calls the server. It reads events and decides what they mean, so
-// the rules can be read and tested without a session.
-// turn is the state of one prompt-and-answer exchange.
-//
-// One value, constructed once and never field-reset. A run drives exactly one
-// turn, so there is no reset path for an implementer to forget to advance.
 type turn struct {
 	// anchor is our own prompt's item id, as the server assigned it.
 	//
@@ -188,7 +183,7 @@ func (t *turn) observeStatus(e omnigent.SessionStatusEvent) {
 		if t.crossed && e.ResponseID != nil {
 			t.failedTurnID = *e.ResponseID
 		}
-		t.fail(fmt.Errorf("%w: %s", ErrTurnFailed, statusDetail(e)))
+		t.fail(fmt.Errorf("%w: %s", driver.ErrTurnFailed, statusDetail(e)))
 		return
 	}
 	if e.Status != omnigent.SessionStatusEventStatusIdle || !t.crossed {
@@ -237,7 +232,7 @@ func (t *turn) observeResponseTerminal(id, kind string, detail error) {
 // the redirect.
 func (t *turn) observeSuperseded(e omnigent.SessionSupersededEvent) {
 	t.fail(fmt.Errorf("%w: the session was superseded; its conversation is now %s",
-		ErrTurnFailed, e.TargetConversationID))
+		driver.ErrTurnFailed, e.TargetConversationID))
 }
 
 // statusDetail renders a failed edge's error, which is the reason to watch this
@@ -247,19 +242,6 @@ func statusDetail(e omnigent.SessionStatusEvent) string {
 		return "the session reported failure, with no detail"
 	}
 	return fmt.Sprintf("the session reported failure: %s (%s)", e.Error.Message, e.Error.Code)
-}
-
-// logTurnObserved records what the turn machine saw.
-//
-// Deferred by its caller so it survives the early returns: the stream-error paths
-// are the timeout and transport-drop cases, where the workflow log is all an
-// operator has.
-func (d *Driver) logTurnObserved(sessionID string, t *turn) {
-	d.log.Info("turn observed", "session_id", sessionID, "turn_id", t.id,
-		"crossed_boundary", t.crossed, "bare_idle_edges", t.bareIdles,
-		"stale_idle_edges", t.staleIdles, "failed_turn_id", t.failedTurnID,
-		"delta_chars", t.deltaChars, "answered", len(t.answered),
-		"event_types", t.seen)
 }
 
 // eventKey names an event by its wire type where the SDK does not model it, so a

@@ -1,10 +1,6 @@
 package driver
 
-import (
-	"strings"
-
-	omnigent "github.com/sei-protocol/omnigent-go-sdk"
-)
+import "strings"
 
 // Action is a verdict on one permission prompt.
 type Action string
@@ -76,57 +72,6 @@ func (e Elicitation) ResolveSession(streamSession string) string {
 		return e.TargetSessionID
 	}
 	return streamSession
-}
-
-// ElicitationFromEvent reduces a streamed request event to an [Elicitation].
-func ElicitationFromEvent(ev omnigent.ElicitationRequestEvent) Elicitation {
-	p := ev.Params
-	return Elicitation{
-		ID:              ev.ElicitationID,
-		Phase:           deref(p.Phase),
-		PolicyName:      deref(p.PolicyName),
-		Mode:            modeString(p.Mode),
-		ToolName:        stringAt(p.AdditionalProperties, "tool_name"),
-		Message:         p.Message,
-		ContentPreview:  deref(p.ContentPreview),
-		TargetSessionID: deref(p.TargetSessionID),
-	}
-}
-
-// ElicitationFromSnapshot reduces one entry of
-// [omnigent.SessionResponse.PendingElicitations] to an [Elicitation].
-//
-// The snapshot carries prompts raised while nobody was subscribed, which the
-// stream does not replay, so a run that adopts an existing session has to read
-// them from here. They are the original event dicts and arrive untyped, and
-// older ones flatten the params rather than nesting them — so each field is
-// looked up in params first and then at the top level, and either shape yields
-// the same value.
-func ElicitationFromSnapshot(raw map[string]any) Elicitation {
-	params, _ := raw["params"].(map[string]any)
-	pick := func(key string) string {
-		if v := stringAt(params, key); v != "" {
-			return v
-		}
-		return stringAt(raw, key)
-	}
-	id := stringAt(raw, "elicitation_id")
-	if id == "" {
-		id = stringAt(raw, "id")
-	}
-	if id == "" {
-		id = pick("elicitation_id")
-	}
-	return Elicitation{
-		ID:              id,
-		Phase:           pick("phase"),
-		PolicyName:      pick("policy_name"),
-		Mode:            pick("mode"),
-		ToolName:        pick("tool_name"),
-		Message:         pick("message"),
-		ContentPreview:  pick("content_preview"),
-		TargetSessionID: pick("target_session_id"),
-	}
 }
 
 // Policy decides each permission prompt.
@@ -207,30 +152,4 @@ func parseSet(csv string) map[string]bool {
 		}
 	}
 	return out
-}
-
-func deref(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-func modeString(m *omnigent.ElicitationRequestParamsMode) string {
-	if m == nil {
-		return ""
-	}
-	return string(*m)
-}
-
-// stringAt reads a string out of an untyped map, returning "" for a missing key
-// or a value of any other type. A non-string where a string belongs is treated
-// as absent rather than coerced, so a number or object in a classification field
-// declines instead of stringifying into something that might match.
-func stringAt(m map[string]any, key string) string {
-	if m == nil {
-		return ""
-	}
-	s, _ := m[key].(string)
-	return s
 }

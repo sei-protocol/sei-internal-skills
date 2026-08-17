@@ -15,8 +15,8 @@ const (
 	ExitConfig = 2
 
 	// ExitTimeout is the run deadline expiring. The turn is stopped and the
-	// conversation kept, like every other exit — only DeleteSession destroys a
-	// session, and it runs when the pull request closes.
+	// conversation kept, like every other exit — only [Driver.Close] destroys a
+	// session, and it runs when the unit of work ends.
 	ExitTimeout = 3
 
 	// ExitTurnFailed is the session reporting failure, which is the agent's
@@ -51,10 +51,23 @@ const (
 
 // Sentinels, matchable with [errors.Is] by a caller that wants to branch on the
 // class rather than the exit code.
+//
+// They live here rather than beside the code that produces them because they are
+// the input to [Driver.classify], which is what turns an error into one of the
+// exit codes above. A [Host] reaching a server states its failures in these terms
+// so the exit-code contract does not depend on that server's own error taxonomy.
 var (
 	// ErrConfig is a configuration or credential defect.
 	ErrConfig = errors.New("configuration")
 
 	// ErrTurnFailed is the session reporting a failed turn.
 	ErrTurnFailed = errors.New("turn failed")
+
+	// ErrMint is a failure to exchange machine credentials for an access token.
+	ErrMint = errors.New("token exchange")
+
+	// ErrLeaked is a session found and not deleted, so its sandbox is held. It is
+	// what separates the two ways [Driver.Close] fails: this one held a session and
+	// could not free it, and anything else could not find out whether there was one.
+	ErrLeaked = errors.New("session not deleted")
 )

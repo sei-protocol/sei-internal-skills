@@ -1,4 +1,4 @@
-package driver
+package omni
 
 import (
 	"crypto/rand"

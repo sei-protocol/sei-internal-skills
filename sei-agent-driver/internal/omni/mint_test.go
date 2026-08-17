@@ -1,4 +1,4 @@
-package driver
+package omni
 
 import (
 	"context"
@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+
+	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
 	"time"
 )
 
@@ -88,8 +90,8 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 			t.Error("a request was sent despite absent credentials")
 		}))
 		defer srv.Close()
-		if _, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "", ""); !errors.Is(err, ErrMint) {
-			t.Fatalf("error = %v, want ErrMint", err)
+		if _, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "", ""); !errors.Is(err, driver.ErrMint) {
+			t.Fatalf("error = %v, want driver.ErrMint", err)
 		}
 	})
 
@@ -104,8 +106,8 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 		defer srv.Close()
 
 		_, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "id", "sec")
-		if !errors.Is(err, ErrMint) {
-			t.Fatalf("error = %v, want ErrMint", err)
+		if !errors.Is(err, driver.ErrMint) {
+			t.Fatalf("error = %v, want driver.ErrMint", err)
 		}
 		if !strings.Contains(err.Error(), "invalid_client") {
 			t.Errorf("error = %q, want it to name the OAuth code", err)
@@ -124,8 +126,8 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 		defer srv.Close()
 
 		token, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "id", "sec")
-		if !errors.Is(err, ErrMint) || token != "" {
-			t.Fatalf("got (%q, %v), want (\"\", ErrMint)", token, err)
+		if !errors.Is(err, driver.ErrMint) || token != "" {
+			t.Fatalf("got (%q, %v), want (\"\", driver.ErrMint)", token, err)
 		}
 	})
 }
@@ -135,31 +137,31 @@ func TestRequireAuthAcceptsEitherCredentialForm(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		cfg    Config
+		cfg    driver.Config
 		wantIn string
 		mints  bool
 	}{
-		{name: "explicit token", cfg: Config{Token: "tok"}},
+		{name: "explicit token", cfg: driver.Config{Token: "tok"}},
 		{
 			name:  "machine client",
-			cfg:   Config{MachineClientID: "id", MachineClientSecret: "sec"},
+			cfg:   driver.Config{MachineClientID: "id", MachineClientSecret: "sec"},
 			mints: true,
 		},
 		{
 			name: "token wins over machine client",
-			cfg:  Config{Token: "tok", MachineClientID: "id", MachineClientSecret: "sec"},
+			cfg:  driver.Config{Token: "tok", MachineClientID: "id", MachineClientSecret: "sec"},
 		},
 		{
 			name:   "half-configured: no secret",
-			cfg:    Config{MachineClientID: "id"},
+			cfg:    driver.Config{MachineClientID: "id"},
 			wantIn: "OMNIGENT_MACHINE_CLIENT_SECRET is not set",
 		},
 		{
 			name:   "half-configured: no id",
-			cfg:    Config{MachineClientSecret: "sec"},
+			cfg:    driver.Config{MachineClientSecret: "sec"},
 			wantIn: "OMNIGENT_MACHINE_CLIENT_ID is not set",
 		},
-		{name: "nothing at all", cfg: Config{}, wantIn: "no API credential"},
+		{name: "nothing at all", cfg: driver.Config{}, wantIn: "no API credential"},
 	}
 
 	for _, tc := range tests {
@@ -171,12 +173,12 @@ func TestRequireAuthAcceptsEitherCredentialForm(t *testing.T) {
 					t.Fatalf("RequireAuth: %v, want nil", err)
 				}
 				if got := tc.cfg.MintsOwnToken(); got != tc.mints {
-					t.Errorf("MintsOwnToken = %v, want %v", got, tc.mints)
+					t.Errorf("driver.MintsOwnToken = %v, want %v", got, tc.mints)
 				}
 				return
 			}
-			if !errors.Is(err, ErrConfig) {
-				t.Fatalf("error = %v, want ErrConfig", err)
+			if !errors.Is(err, driver.ErrConfig) {
+				t.Fatalf("error = %v, want driver.ErrConfig", err)
 			}
 			if !strings.Contains(err.Error(), tc.wantIn) {
 				t.Errorf("error = %q, want it to mention %q", err, tc.wantIn)
@@ -243,14 +245,14 @@ func TestMintRefusesToSendTheSecretInClear(t *testing.T) {
 					t.Error("the client secret was handed to the transport before the URL was rejected")
 				}
 			}
-			// Only the guard's own refusal carries ErrMint, which classify maps to a
+			// Only the guard's own refusal carries driver.ErrMint, which classify maps to a
 			// configuration fault. A request that went out and failed is a transport
 			// problem and is deliberately left unwrapped.
-			if !tc.wantSnd && !errors.Is(err, ErrMint) {
-				t.Errorf("err = %v, want the refusal to wrap ErrMint so classify routes it", err)
+			if !tc.wantSnd && !errors.Is(err, driver.ErrMint) {
+				t.Errorf("err = %v, want the refusal to wrap driver.ErrMint so classify routes it", err)
 			}
-			if tc.wantSnd && errors.Is(err, ErrMint) {
-				t.Errorf("err = %v, want a transport failure NOT wrapped in ErrMint: an "+
+			if tc.wantSnd && errors.Is(err, driver.ErrMint) {
+				t.Errorf("err = %v, want a transport failure NOT wrapped in driver.ErrMint: an "+
 					"operator told to fix a secret will not retry a network fault", err)
 			}
 			if strings.Contains(err.Error(), "s3cret-value") {
@@ -373,7 +375,7 @@ func TestMintDoesNotRetryARefusal(t *testing.T) {
 		if calls != 1 {
 			t.Errorf("%d was asked %d times, want 1", status, calls)
 		}
-		if !errors.Is(err, ErrMint) {
+		if !errors.Is(err, driver.ErrMint) {
 			t.Errorf("%d did not classify as a mint failure: %v", status, err)
 		}
 	}
@@ -409,9 +411,9 @@ func TestRequireAuthNamesTheDocumentedVariable(t *testing.T) {
 	t.Setenv("OMNIGENT_MACHINE_CLIENT_ID", "")
 	t.Setenv("OMNIGENT_MACHINE_CLIENT_SECRET", "")
 
-	cfg, err := LoadConfig()
+	cfg, err := driver.LoadConfig()
 	if err != nil {
-		t.Fatalf("LoadConfig: %v", err)
+		t.Fatalf("driver.LoadConfig: %v", err)
 	}
 	err = cfg.RequireAuth()
 	if err == nil {
