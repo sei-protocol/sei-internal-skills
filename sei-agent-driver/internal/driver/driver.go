@@ -400,13 +400,6 @@ func (d *Driver) createOrAdopt(
 		Labels:   map[string]string{RunKeyLabel: runKey},
 	}
 
-	// Set only when the work declares one, so a workload with no tree sends no
-	// field rather than an empty string. Never logged: a private clone carries its
-	// credential in this URL and the server keeps it as a cleartext session label.
-	if c, ok := w.(Cloner); ok {
-		create.Workspace = c.Workspace()
-	}
-
 	session, err := client.CreateSession(ctx, create)
 	if err == nil {
 		return session, adoption{}, nil

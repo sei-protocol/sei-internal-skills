@@ -50,18 +50,3 @@ type Workload interface {
 type AgentNamer interface {
 	AgentName() string
 }
-
-// Cloner is an optional [Workload] capability: work whose agent needs a
-// repository cloned into its sandbox before it can read anything.
-//
-// Optional because most work does not need one. An investigation reads its
-// signals over an API and has no tree, so making every workload declare a
-// workspace would have each of them return an empty string to say "none".
-//
-// The returned value is secret-bearing. A private clone carries its credential
-// in the URL, and the server persists the workspace as a session label in
-// cleartext, so the value is never logged here and the caller is responsible for
-// bounding the credential's life once the clone is done.
-type Cloner interface {
-	Workspace() string
-}

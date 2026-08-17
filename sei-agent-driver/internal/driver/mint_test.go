@@ -263,7 +263,7 @@ func TestMintRefusesToSendTheSecretInClear(t *testing.T) {
 // TestMintReportsTheLifetimeTheServerGave covers the guard against a run that
 // outlives its own credential.
 //
-// The deployment sets OMNIGENT_M2M_TOKEN_TTL to 1800 and the default run deadline
+// The deployment sets OMNIGENT_MACHINE_TOKEN_TTL to 1800 and the default run deadline
 // is 1200, so the shipped pair is safe. Nothing enforces that, and the driver mints
 // once with no re-mint, so raising the deadline past the token's life spends the
 // tail of a review on rejected calls with nothing naming the token.
@@ -401,40 +401,13 @@ func TestMintStopsWhenTheCallerDoes(t *testing.T) {
 	}
 }
 
-// TestMachineCredentialPrefersTheDocumentedSpelling covers an operator who
-// follows the documentation. The deployment names these OMNIGENT_MACHINE_*, and
-// reading only the older OMNIGENT_M2M_* spelling met them with no token and a
-// config failure that named a variable they had already set.
-func TestMachineCredentialPrefersTheDocumentedSpelling(t *testing.T) {
-	for _, tc := range []struct {
-		name         string
-		machine, m2m string
-		want         string
-	}{
-		{"documented spelling only", "machine", "", "machine"},
-		{"older spelling only", "", "m2m", "m2m"},
-		{"both set, as callers straddling the rename do", "machine", "m2m", "machine"},
-		{"neither", "", "", ""},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv("OMNIGENT_MACHINE_CLIENT_ID", tc.machine)
-			t.Setenv("OMNIGENT_M2M_CLIENT_ID", tc.m2m)
-			if got := machineCredential("CLIENT_ID"); got != tc.want {
-				t.Errorf("machineCredential = %q, want %q", got, tc.want)
-			}
-		})
-	}
-}
-
 // TestRequireAuthNamesTheDocumentedVariable keeps the diagnostic pointing at the
 // name an operator will find in the documentation.
 func TestRequireAuthNamesTheDocumentedVariable(t *testing.T) {
 	t.Setenv("OMNIGENT_API_TOKEN", "")
 	t.Setenv("OMNIGENT_API_TOKEN_FILE", "")
 	t.Setenv("OMNIGENT_MACHINE_CLIENT_ID", "")
-	t.Setenv("OMNIGENT_M2M_CLIENT_ID", "")
 	t.Setenv("OMNIGENT_MACHINE_CLIENT_SECRET", "")
-	t.Setenv("OMNIGENT_M2M_CLIENT_SECRET", "")
 
 	cfg, err := LoadConfig()
 	if err != nil {

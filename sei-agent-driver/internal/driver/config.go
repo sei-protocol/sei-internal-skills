@@ -127,8 +127,8 @@ func LoadConfig() (Config, error) {
 		Agent:   envOr("SEIDROID_AGENT_ID", DefaultAgent),
 		Token:   resolveToken(),
 
-		MachineClientID:     machineCredential("CLIENT_ID"),
-		MachineClientSecret: machineCredential("CLIENT_SECRET"),
+		MachineClientID:     strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_ID")),
+		MachineClientSecret: strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_SECRET")),
 	}
 
 	// Seconds, because that is what an operator's existing values mean.
@@ -186,18 +186,6 @@ func (c Config) RequireAuth() error {
 // caller can override the exchange without unsetting the client.
 func (c Config) MintsOwnToken() bool {
 	return c.Token == "" && c.MachineClientID != "" && c.MachineClientSecret != ""
-}
-
-// machineCredential reads one half of the machine client, under either spelling.
-//
-// The deployment renamed these from OMNIGENT_M2M_* to OMNIGENT_MACHINE_*, and
-// callers set both while that lands. The documented name wins, so an operator
-// following the documentation is not met with a silent auth miss.
-func machineCredential(suffix string) string {
-	if v := strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_" + suffix)); v != "" {
-		return v
-	}
-	return strings.TrimSpace(os.Getenv("OMNIGENT_M2M_" + suffix))
 }
 
 // resolveToken prefers a mounted file over an inline variable, re-read each run
