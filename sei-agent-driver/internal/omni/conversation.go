@@ -121,7 +121,19 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 		// down, in which case the ready edge has already passed and waiting for it
 		// again would hang.
 		if t.anchor == "" {
-			if c.host.sessionIsLive(ctx, c.client, c.sessionID) {
+			live, busy := c.host.sessionState(ctx, c.client, c.sessionID)
+			switch {
+			case busy:
+				// The send failed without saying whether the server took it, and the
+				// session is now answering something. Sending again would put a second
+				// prompt to a runtime already working on the first, which costs the
+				// agent budget twice and leaves two replies nothing can tell apart.
+				// SendInput carries no idempotency key, so the only safe move is not
+				// to repeat it.
+				opts.OnSubscribed = nil
+				c.host.log.Warn("the prompt's fate is unknown and the session is busy; not resending",
+					"session_id", c.sessionID, "opens", opens)
+			case live:
 				opts.OnSubscribed = c.sendOnSubscribe(prompt, t)
 			}
 			continue
@@ -155,6 +167,13 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 
 		// Only an open that carried nothing waits. One that carried frames and then
 		// died is the ordinary connection cap, and pausing there spends the deadline.
+		//
+		// This does not pace a server that accepts the subscription and immediately
+		// ends it: its opening frame counts, so carriedNothing is false on exactly
+		// the failure a pause would help with. Measured at forty opens in ten
+		// milliseconds. Fixing it means sizing the pause against the open limit and
+		// the run deadline together, which is a change to how long a run persists
+		// against a wedged server rather than a local correction.
 		if carriedNothing {
 			c.backoff(ctx, opens)
 		}

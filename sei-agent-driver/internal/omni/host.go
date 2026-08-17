@@ -268,8 +268,10 @@ func reachability(s *omnigent.SessionResponse) (live, revivable bool) {
 	return false, s.HostResumable != nil && *s.HostResumable
 }
 
-// sessionIsLive reports whether a runner is registered for this session right
-// now, and demands an explicit yes.
+// sessionState reports whether a runner is registered for this session right now,
+// and whether the session is already working on a response.
+//
+// live demands an explicit yes.
 //
 // Stricter than the reachability adoption uses, deliberately, because the two
 // decisions fail in opposite directions. Adoption reads an unknown liveness as
@@ -277,11 +279,14 @@ func reachability(s *omnigent.SessionResponse) (live, revivable bool) {
 // not-live so it never puts a prompt into a sandbox that does not exist, which is
 // the failure this whole path is here to prevent. A read that errors answers no
 // for the same reason.
-func (h *Host) sessionIsLive(
+// busy is the other half, and it is what a caller whose send failed ambiguously
+// needs: an active response means the server took a prompt, so sending again would
+// put a second one to a runtime already answering the first.
+func (h *Host) sessionState(
 	ctx context.Context,
 	client *omnigent.Client,
 	sessionID string,
-) bool {
+) (live, busy bool) {
 	readCtx, cancel := context.WithTimeout(ctx, h.cfg.RequestTimeout)
 	defer cancel()
 
@@ -293,9 +298,10 @@ func (h *Host) sessionIsLive(
 		// is getting through. Returning a bare false discards the difference.
 		h.log.Warn("could not read the session while deciding whether it is live",
 			"session_id", sessionID, "error", err)
-		return false
+		return false, false
 	}
-	return session.RunnerOnline != nil && *session.RunnerOnline
+	return session.RunnerOnline != nil && *session.RunnerOnline,
+		session.ActiveResponseID != nil
 }
 
 // priorResponseIDs is every response id already on the session before this run's

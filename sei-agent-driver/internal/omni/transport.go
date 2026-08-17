@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptrace"
+	"sync/atomic"
 	"time"
 )
 
@@ -33,16 +34,21 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	req = req.Clone(req.Context())
 	req.Header.Set(requestIDHeader, id)
 
+	// Atomic because httptrace states its hooks may run on other goroutines, and on
+	// HTTP/2 they do: the header write happens on the goroutine x/net/http2 spawns
+	// per request, while RoundTrip returns on the one that receives the response
+	// headers. As plain locals these raced, and the read below is what builds the
+	// log line -- so the failure was a stale wrote_headers=false on exactly the
+	// request whose failure this line exists to place.
 	var (
-		conn         httptrace.GotConnInfo
-		gotConn      bool
-		wroteHeaders bool
-		firstByte    bool
+		conn         atomic.Pointer[httptrace.GotConnInfo]
+		wroteHeaders atomic.Bool
+		firstByte    atomic.Bool
 	)
 	trace := &httptrace.ClientTrace{
-		GotConn:              func(i httptrace.GotConnInfo) { conn, gotConn = i, true },
-		WroteHeaders:         func() { wroteHeaders = true },
-		GotFirstResponseByte: func() { firstByte = true },
+		GotConn:              func(i httptrace.GotConnInfo) { conn.Store(&i) },
+		WroteHeaders:         func() { wroteHeaders.Store(true) },
+		GotFirstResponseByte: func() { firstByte.Store(true) },
 	}
 	req = req.WithContext(httptrace.WithClientTrace(req.Context(), trace))
 
@@ -50,6 +56,7 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	resp, err := t.base.RoundTrip(req)
 	elapsed := time.Since(start)
 
+	got := conn.Load()
 	attrs := []any{
 		"request_id", id,
 		"method", req.Method,
@@ -59,13 +66,13 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 		// not be reached; headers written with no first byte is a peer that took the
 		// request and said nothing; a reused connection that does neither is the one
 		// worth suspecting, since a fresh one cannot have gone stale.
-		"conn_reused", gotConn && conn.Reused,
-		"conn_was_idle", gotConn && conn.WasIdle,
-		"wrote_headers", wroteHeaders,
-		"got_first_byte", firstByte,
+		"conn_reused", got != nil && got.Reused,
+		"conn_was_idle", got != nil && got.WasIdle,
+		"wrote_headers", wroteHeaders.Load(),
+		"got_first_byte", firstByte.Load(),
 	}
-	if gotConn && conn.WasIdle {
-		attrs = append(attrs, "conn_idle_for", conn.IdleTime)
+	if got != nil && got.WasIdle {
+		attrs = append(attrs, "conn_idle_for", got.IdleTime)
 	}
 
 	if err != nil {
