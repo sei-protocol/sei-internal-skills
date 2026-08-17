@@ -1,7 +1,14 @@
-# internal/omni
+# Omnigent Meta-Harness
 
-The Omnigent implementation of `driver.Host`. Everything in this package exists
-because of one absence.
+`internal/omni` — the Omnigent implementation of `driver.Host`.
+
+A harness is what actually runs the agent: a real terminal driving Claude Code, or
+an in-process SDK loop. Each reports the end of a turn differently, and neither
+signal exists on the other. This package is the layer above them — it absorbs those
+differences and presents one `Conversation` to the driver, which is why nothing
+upstream of here has to know which harness answered.
+
+Everything in it exists because of one absence.
 
 ## The absence
 
