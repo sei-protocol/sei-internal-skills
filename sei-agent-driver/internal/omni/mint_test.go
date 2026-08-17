@@ -493,3 +493,45 @@ func TestLoopbackIsDecidedByAddressNotByPrefix(t *testing.T) {
 		})
 	}
 }
+
+// TestMintTreatsATransientStatusAsTransport pins the distinction an operator acts
+// on. A rate limit or a 5xx is the server declining to answer now; only a 4xx says
+// the credential is wrong. Classifying the first as configuration sends someone to
+// check a secret while the deployment is down.
+func TestMintTreatsATransientStatusAsTransport(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name     string
+		status   int
+		wantMint bool
+		wantTry  int
+	}{
+		{"service unavailable retries as transport", http.StatusServiceUnavailable, false, mintAttempts},
+		{"rate limited retries as transport", http.StatusTooManyRequests, false, mintAttempts},
+		{"invalid client is a credential fault", http.StatusUnauthorized, true, 1},
+		{"bad request is a credential fault", http.StatusBadRequest, true, 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			var attempts int
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				attempts++
+				w.WriteHeader(c.status)
+				_, _ = w.Write([]byte(`{"error":"invalid_client"}`))
+			}))
+			defer srv.Close()
+
+			_, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "id", "secret")
+			if err == nil {
+				t.Fatal("want an error")
+			}
+			if got := errors.Is(err, driver.ErrMint); got != c.wantMint {
+				t.Errorf("errors.Is(err, driver.ErrMint) = %t, want %t: %v", got, c.wantMint, err)
+			}
+			if attempts != c.wantTry {
+				t.Errorf("attempts = %d, want %d", attempts, c.wantTry)
+			}
+		})
+	}
+}

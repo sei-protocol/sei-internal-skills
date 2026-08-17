@@ -198,6 +198,16 @@ func mintOnce(
 		// unsupported_grant_type means the grant is not enabled on this server.
 		// The rest of the body is withheld: a non-2xx here need not have come
 		// from this API at all.
+		//
+		// A rate limit or a 5xx is the server declining to answer right now, not a
+		// credential to go and fix. Classified as unreached so the ladder above
+		// retries it and so the exit code sends an operator to the deployment rather
+		// than to the secret -- the same distinction this function already draws for
+		// a connection that never landed.
+		if resp.StatusCode == http.StatusTooManyRequests || resp.StatusCode >= 500 {
+			return "", 0, unreached{fmt.Errorf("the token endpoint returned %d (%s)",
+				resp.StatusCode, oauthErrorCode(body))}
+		}
 		return "", 0, fmt.Errorf("%w: the token endpoint returned %d (%s)",
 			driver.ErrMint, resp.StatusCode, oauthErrorCode(body))
 	}

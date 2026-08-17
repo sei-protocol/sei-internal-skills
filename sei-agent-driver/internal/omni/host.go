@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/http"
+	"strings"
 
 	omnigent "github.com/sei-protocol/omnigent-go-sdk"
 
@@ -81,6 +83,11 @@ func (h *Host) Open(ctx context.Context, w driver.Work) (driver.Conversation, er
 }
 
 // Close implements [driver.Host].
+//
+// Every session carrying the run key is deleted, not the first one found. Opening
+// searches and then creates, which is not a lock: two dispatches that overlap can
+// both find nothing and both create, and a close that stops at the first match
+// leaves the other holding a sandbox that nothing will ever look for again.
 func (h *Host) Close(ctx context.Context, w driver.Work) (string, error) {
 	client, err := h.newClient(ctx)
 	if err != nil {
@@ -90,17 +97,71 @@ func (h *Host) Close(ctx context.Context, w driver.Work) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	session, err := h.findByRunKey(ctx, client, agent.ID, w.RunKey)
+	ids, err := h.findAllByRunKey(ctx, client, agent.ID, w.RunKey)
 	if err != nil {
 		return "", err
 	}
-	if session == nil {
+	if len(ids) == 0 {
 		return "", nil
 	}
-	if _, err := client.DeleteSession(ctx, session.ID, omnigent.DeleteSessionOptions{}); err != nil {
-		return session.ID, fmt.Errorf("%w: %s: %w", driver.ErrLeaked, session.ID, err)
+	if len(ids) > 1 {
+		h.log.Warn("more than one session carries this run key; deleting all of them",
+			"run_key", w.RunKey, "session_ids", ids)
 	}
-	return session.ID, nil
+
+	var held []string
+	var cause error
+	for _, id := range ids {
+		_, err := client.DeleteSession(ctx, id, omnigent.DeleteSessionOptions{})
+		switch {
+		case err == nil, alreadyGone(err):
+			// Already gone counts as reclaimed. Two closes racing, or a reopened and
+			// re-closed unit of work, would otherwise report a leak that is not one --
+			// and a false leak trains an operator to ignore the only signal there is.
+		default:
+			held = append(held, id)
+			cause = err
+		}
+	}
+	if len(held) > 0 {
+		return held[0], fmt.Errorf("%w: %s: %w", driver.ErrLeaked, strings.Join(held, ", "), cause)
+	}
+	return ids[0], nil
+}
+
+// alreadyGone reports a delete that failed because there was nothing to delete.
+func alreadyGone(err error) bool {
+	var apiErr *omnigent.APIError
+	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
+}
+
+// findAllByRunKey collects every session carrying this run key.
+//
+// [Host.findByRunKey] stops at the first, which is what opening wants: it needs the
+// session's items, and one is enough to adopt. Closing wants all of them, because
+// what it is reclaiming is compute rather than a conversation.
+func (h *Host) findAllByRunKey(
+	ctx context.Context,
+	client *omnigent.Client,
+	agentID, runKey string,
+) ([]string, error) {
+	var ids []string
+	opts := omnigent.ListSessionsOptions{AgentID: agentID, Limit: 1000}
+	for {
+		page, err := client.ListSessions(ctx, opts)
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range page.Data {
+			if item.Labels[RunKeyLabel] == runKey {
+				ids = append(ids, item.ID)
+			}
+		}
+		if !page.HasMore || len(page.Data) == 0 {
+			return ids, nil
+		}
+		opts.After = page.LastID
+	}
 }
 
 // resolveAgent finds the agent the server knows by this name, paging the listing

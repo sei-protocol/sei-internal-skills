@@ -4,7 +4,13 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"time"
 )
+
+// minTeardownBudget is the least time a close gets, whatever the configured
+// request timeout. Enough for the handful of requests teardown makes, and short
+// enough not to hold a terminating runner past the seconds it actually grants.
+const minTeardownBudget = 15 * time.Second
 
 // Result is the outcome of a run.
 type Result struct {
@@ -123,10 +129,20 @@ func (d *Driver) Close(ctx context.Context, w Workload) Result {
 	work := d.workFor(w)
 	d.log.Info("closing out the session", "run_key", work.RunKey, "title", work.Title)
 
-	// Detached, with its own budget. A terminate signal cancels ctx so that
+	// Detached, with a budget of its own. A terminate signal cancels ctx so that
 	// teardown can run, so inheriting that ctx here would abort the delete this
 	// method exists to perform. One guard, on the path every close takes.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.cfg.RunDeadline)
+	//
+	// The budget is a small multiple of one request rather than the run's, because
+	// this is a handful of requests and it usually runs on a process that is already
+	// terminating. A runner grants seconds before it sends SIGKILL, so a twenty
+	// minute budget does not buy twenty minutes -- it only means the process is
+	// killed part-way through with the delete never issued, and the sandbox held.
+	// Floored, so a Config that never went through LoadConfig cannot hand teardown
+	// no budget at all -- which would silently skip the only thing that frees a
+	// sandbox, the exact failure this method exists to prevent.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx),
+		max(3*d.cfg.RequestTimeout, minTeardownBudget))
 	defer cancel()
 
 	sessionID, err := d.host.Close(ctx, work)

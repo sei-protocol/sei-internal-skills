@@ -3,6 +3,7 @@ package omni
 import (
 	"context"
 	"net/http"
+	"slices"
 	"testing"
 
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
@@ -590,5 +591,47 @@ func TestCloseSurvivesACancelledRunEndToEnd(t *testing.T) {
 	}
 	if result.SessionID != "conv_1" {
 		t.Errorf("SessionID = %q, want conv_1", result.SessionID)
+	}
+}
+
+// TestCloseDeletesEverySessionUnderTheRunKey covers the duplicate an overlapping
+// dispatch leaves behind.
+//
+// Opening searches and then creates, which is not a lock: two dispatches that
+// overlap can both find nothing and both create. A close that stopped at the first
+// match reported success while the second sandbox was still held, and nothing would
+// ever look for it again.
+func TestCloseDeletesEverySessionUnderTheRunKey(t *testing.T) {
+	t.Parallel()
+
+	runKey := testRunKey("sei-protocol/sandbox", 22)
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		SessionListResp: `{"data":[` +
+			`{"id":"conv_a","labels":{"` + RunKeyLabel + `":"` + runKey + `"}},` +
+			`{"id":"conv_b","labels":{"` + RunKeyLabel + `":"` + runKey + `"}},` +
+			`{"id":"conv_other","labels":{"` + RunKeyLabel + `":"someone-else"}}` +
+			`],"has_more":false}`,
+		SessionResps: []string{driverSessionResp("conv_a", "ag_1")},
+	})
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Close(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+
+	deleted := fs.DeletedIDs()
+	if len(deleted) != 2 {
+		t.Fatalf("deleted %v, want both conv_a and conv_b: a duplicate left behind is a "+
+			"sandbox nothing will look for again", deleted)
+	}
+	for _, want := range []string{"conv_a", "conv_b"} {
+		if !slices.Contains(deleted, want) {
+			t.Errorf("deleted %v, missing %s", deleted, want)
+		}
+	}
+	if slices.Contains(deleted, "conv_other") {
+		t.Errorf("deleted %v: another unit of work's session was reclaimed", deleted)
+	}
+	if !result.TeardownOK {
+		t.Errorf("TeardownOK = false (exit %d), want true", result.ExitCode)
 	}
 }
