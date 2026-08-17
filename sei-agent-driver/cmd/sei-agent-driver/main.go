@@ -147,8 +147,9 @@ func xreviewCommand(log *slog.Logger) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name: "trigger-id",
-				Usage: "idempotency key for this dispatch, e.g. the triggering " +
-					"comment id; defaults to the workflow run and attempt",
+				Usage: "identifies this dispatch in the logs, e.g. the triggering " +
+					"comment id; defaults to the workflow run and attempt. Not part " +
+					"of the session key -- that is the pull request",
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -213,6 +214,12 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 			repo, pr,
 		),
 	}
+
+	// Logged, which is the whole of what a trigger id is for. It is deliberately not
+	// part of the session key -- every dispatch for a pull request adopts that pull
+	// request's one session -- so the only way it earns its place is by being here
+	// when someone reads back why a particular run happened.
+	log.Info("dispatch", "repo", repo, "pr", pr, "trigger_id", req.Trigger)
 
 	req.GuidelinesFile = cmd.String("guidelines-file")
 	req.ExtraInstructions = cmd.String("extra-instructions")
