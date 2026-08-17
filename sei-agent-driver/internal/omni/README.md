@@ -10,9 +10,9 @@ give you a statement that a turn is finished, and it publishes **no link between
 the prompt you sent and the message that answers it**.
 
 So a turn's end has to be inferred from edges that mean different things on
-different harnesses, and a reply has to be attributed by position and identity
-rather than read off a field. Every rule in this package is a consequence. If the
-server ever links an input item to its response, most of this collapses.
+different harnesses, and a reply has to be attributed by identity and position
+rather than read off a field. Every mechanism below is a consequence. If the server
+ever links an input item to its response, most of this collapses.
 
 ## Where things are written down
 
@@ -20,7 +20,7 @@ Three places, on purpose. Keep them apart or they drift.
 
 | here | what belongs in it |
 |---|---|
-| `README.md` (this file) | why the code is shaped this way, what to read first, which decisions read as wrong and are not, what is still unsettled |
+| `README.md` (this file) | how the package models the problem, what to read first, what is still unsettled |
 | `doc.go` | the rules themselves — the id namespaces, how a turn is bounded, what may be published. Read with `go doc`, so it travels with the API |
 | code comments | why one statement is where it is, at the statement |
 
@@ -41,51 +41,90 @@ directly.
 | `client.go`, `mint.go`, `transport.go` | build a client that notices a dead connection | requests |
 | `elicitation.go` | reduce a permission prompt to what a decision may rest on | no |
 
-## Decisions that read as wrong and are not
+## How the package models it
 
-Each of these has an obvious alternative that is worse. The pattern throughout is
-that the two mistakes cost different amounts, so the code takes the direction whose
-failure is louder.
+Six pieces carry it. Each is small; together they are the shape of the package.
 
-| the code | the obvious alternative | why not |
-|---|---|---|
-| A bare `idle` edge ends nothing; only one carrying a response id does | treat the first `idle` as the end | Two producers emit `idle` and a session goes idle *between tool calls*. Ending there publishes the agent's opening sentence as a finished answer. |
-| `inProcessHarnesses` is an enumerated list, so an unknown harness is treated as terminal-backed | test for `"native"` in the name | An unknown harness then ends on the response lifecycle, which on harnesses that ack their injection arrives *before the answer exists*. Guessing strict costs a turn that waits out its deadline — a failure that announces itself. |
-| Recovery compares against `turn.anchorItem`, not `turn.anchor` | use the id the send returned | A prompt parked before the runtime is up returns a **pending id**, which names no conversation item. A position check against it fails on every cold start. |
-| `turn.prior` excludes response ids already on the session | accept any id-bearing edge after the boundary | A superseded run whose stop lost the race ends its turn inside our window, and its edge is otherwise identical to ours. This is how another invocation's verdict gets published as this one's. |
-| `turnSettled` is set from what the turn committed | set it when the session names no active response | A session reads idle mid-turn. An idle snapshot with only an opening sentence behind it is a turn still being written. |
-| Attribution requires the item to carry *this turn's* response id | take the newest assistant message not seen before the turn | That fails **open** — anything the pre-turn snapshot missed is accepted as our reply. This package has published another invocation's verdict that way. |
-| `assistantMessage` checks `item.Type` **before** decoding `Data` | decode first, then inspect | `AsMessageData` is a bare `json.Unmarshal` with no discriminator consult. It decodes a `function_call_output` into a zero-valued message and reports no error. Tool output on that path carries whole diffs and `gh` responses. |
-| `CreatedBy` is used only to reject | treat `nil` as "the model wrote this" | The server documents `nil` for agent, tool and system items *and* for single-user mode. Only non-`nil` attests anything, and what it attests is that a client wrote it. |
-| `reachability` reads unknown liveness as **live**; `sessionIsLive` reads it as **not live** | one helper, one default | Same field, opposite costly mistakes: one would delete a live conversation on missing information, the other would send a prompt into a sandbox that does not exist. |
-| `priorResponseIDs` pages the item list | read the ids off the create-or-adopt snapshot | That snapshot returns the newest 100 items with nothing marking the truncation, and one session per unit of work is the shape that outgrows it. An id that falls out of view is one the turn machine accepts as its own. |
-| `replyFor`'s arms are ordered: ended turn, then recorded fault, then the clock | check the clock first | An ended turn's reply is already committed and `fetchReply` reads on a detached context, so a deadline landing between the end and the read would discard a paid-for answer. A recorded fault outranks the clock for the mirror reason: the expired clock is usually the fault's consequence. |
-| `holdsAnswer` asks the caller's own predicate, not whether a message exists | treat a found session as answered | A session this run created and then reconciled after a lost create response is found by the run key with the agent having never spoken in it. So is one from a run that died mid-answer. The second-pass prompt tells the agent it already answered, so sending it into an empty conversation asks a follow-up to an agent that was never asked the first question. |
+**The anchor — where our work begins.** `SendInput` returns an id for the prompt,
+and the stream echoes it back as `session.input.consumed`. That echo is the
+boundary: nothing at or before it can be ours, because a stream opens by replaying
+earlier work. Two identifiers are involved, because a prompt reaching a live
+runtime persists as an item immediately, while one parked before the sandbox is up
+returns a pending id that names no item yet. `turn.anchor` holds whichever came
+back, and `turn.anchorItem` holds the item the boundary resolved to — position
+comparisons use that one.
 
-## A dropped stream is not a failed turn
+**The prior set — identity is exclusive.** Before the turn, the run records every
+response id already on the session. An id in that set cannot belong to the turn
+answering our prompt, however well-timed its edge looks. This is what makes
+overlapping runs safe: a superseded run whose stop lost the race ends its turn
+inside our window, and its edge is otherwise identical to ours.
 
-A connection lives roughly three minutes and a turn runs longer, so several
-reconnects per turn are ordinary success. `conversation.Turn` follows one turn
-across as many streams as it takes, and the reopen budget is sized for that rather
-than as an error bound — see `connectionOpenLimit`.
+**Positive attribution — the publish gate.** Text reaches a caller only as the
+content of an item that carries this turn's response id, is a completed assistant
+message, was not authored by a client, and is neither injected context nor an
+interrupted partial. Positive throughout, because the negative form — newest
+message not seen before the turn — fails open and admits anything the pre-turn
+snapshot missed. `items.go` also checks an item's type before decoding its payload,
+since the decoder consults no discriminator and turns a tool output into an empty
+message without complaint.
 
-The consequence is that a turn can be resolved from three different starting
-points: an end edge, a recorded fault, or a stream that simply died. The third is
-the awkward one, because nothing is replayed on reconnect — rejoining means asking
-a snapshot what happened, and what counts as *this run's* reply is this package's
-rule, not the protocol's.
+**The caller's predicate — what "finished" means is not ours.** `driver.Ask` carries
+`Done`, and this package asks it rather than asking the server. A terminal-backed
+session goes idle between tool calls, so both of the server's own signals read
+"finished" mid-answer. The predicate travels down to the salvage paths for the same
+reason.
+
+**Snapshot reconciliation — the stream has no replay.** A connection lives roughly
+three minutes and a turn runs longer, so several reconnects per turn are ordinary
+success rather than failure, and `conversation.Turn` follows one turn across as many
+streams as it takes. Nothing is replayed on rejoin, so a turn that ended while we
+were disconnected sent its last edge to nobody — rejoining means asking the session
+what happened, and what counts as *this run's* reply is this package's rule rather
+than the protocol's. `turnSettled` records when waiting can no longer change the
+outcome, so a reconnect does not watch for edges that will never come.
+
+**Asymmetric liveness — one field, read two ways.** `runner_online` is the server's
+only reachability signal. Adoption reads an unknown value as live, so it never
+deletes a conversation on missing information; sending reads it as not-live, so it
+never puts a prompt into a sandbox that does not exist. The defaults differ because
+the costly mistake differs.
+
+## Harness differences
+
+The end of a turn is the one thing the server reports differently per harness, and
+neither signal is available on the other.
+
+**Terminal-backed** — the `*-native` harnesses, which drive a real terminal. The end
+is a `session.status` edge reporting idle *and* carrying a response id, arriving
+after the boundary. This is the server's intended contract rather than a workaround:
+the forwarder derives that edge from Claude Code's `Stop` hook, which fires once per
+finished turn, and attaches a response id for exactly this purpose. A bare idle edge
+is terminal churn and ends nothing.
+
+**In-process** — codex, claude-sdk, the agents SDKs. That edge never arrives:
+`response_id` is documented as `None for ordinary in-process runtime edges`, and only
+the route a native forwarder posts to attaches one. The end there is the response
+lifecycle, which the executor yields only on a final answer, and the relay commits
+the assistant message before publishing it.
+
+`terminalBacked` picks between them from an enumerated list of in-process harnesses,
+so a harness this package does not recognise takes the terminal-backed rule. That
+direction is deliberate: waiting for an edge that never comes ends in a deadline,
+which announces itself, while ending on a lifecycle event too early publishes a
+half-written answer as a verdict.
 
 ## Unsettled
 
-**Whether the in-process end reconciles across id namespaces.** `doc.go` states
-that a lifecycle event's `resp_<24 hex>` can never equal an item's response id. The
+**Whether the in-process end reconciles across id namespaces.** `doc.go` states that
+a lifecycle event's `resp_<24 hex>` can never equal an item's response id. The
 in-process path does exactly that comparison: `observeResponseTerminal` takes the
-lifecycle id as the turn id, and `fetchReply` then looks up items by it. If the
-claim holds universally that lookup always misses, and it misses *quietly* — the
-run reports no verdict rather than failing.
+lifecycle id as the turn id, and `fetchReply` then looks up items by it. If the claim
+holds universally that lookup always misses, and it misses *quietly* — the run
+reports no verdict rather than failing.
 
-The test cannot settle it, because we author both sides of the fixture and it uses
-one id for the lifecycle event and the item. The likely truth is that `doc.go`'s
+The test cannot adjudicate it, because we author both sides of the fixture and it
+uses one id for the lifecycle event and the item. The likely truth is that `doc.go`'s
 claim was derived from claude-native traces and is over-general. Settling it takes
 one live run on an in-process harness that produces an attributed reply, or reading
 the forwarder. Narrow the wording in `doc.go` either way.
