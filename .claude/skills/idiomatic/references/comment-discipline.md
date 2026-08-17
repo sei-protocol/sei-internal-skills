@@ -1,6 +1,6 @@
 # In-source comment discipline
 
-`idiomatic-reviewer` is the **champion-of-record** for the in-source comment axis — code comments and config-file (e.g. YAML) annotations. This file defines the standard, is the tie-break when it's in question, and the reviewer enforces it on every xreview cycle. The adjacent doc/prose axis — design docs, READMEs, and file/package **header docs** as narrative — is owned by `prose-steward` via `/language`; see "Boundary" below.
+`idiomatic-reviewer` is the **champion-of-record** for the in-source comment axis — code comments and config-file (e.g. YAML) annotations. This file defines the standard, is the tie-break when it's in question, and the reviewer enforces it on every xreview cycle. The adjacent doc/prose axis — design docs, READMEs, and file/package **header docs** as narrative — is owned by `prose-steward`; see "Boundary" below.
 
 ## The standard
 
@@ -41,4 +41,13 @@ History-in-source and regression-guard-as-comment **mislead an agent reading lin
 
 ## Boundary — in-source comments vs. doc artifacts
 
-This axis owns **whether an in-source comment should exist and where it sits** — including the placement/existence of a top-of-file package/type doc and config-field annotations. The **narrative prose quality** of a header doc, README, guide, or design doc is `prose-steward`'s via `/language`. The **canonical boundary table** — full axis/owner/surface split, the header-doc aspect rule, and dispute resolution — lives in `/language` `references/audience-model.md`; this section points there rather than restating it.
+This axis owns **whether an in-source comment should exist and where it sits** — including the placement/existence of a top-of-file package/type doc and config-field annotations. The **narrative prose quality** of a header doc, README, guide, or design doc is `prose-steward`'s. ### Boundary — doc artifacts vs. in-source comments
+
+This table is the **canonical home** for the cross-champion boundary. It moved here when `/language` was retired; `prose-steward` carries the prose doctrine itself now.
+
+| Axis | Owner | Surface |
+|---|---|---|
+| Documentation artifacts + prose | `prose-steward` | design docs, READMEs, runbooks; the **narrative prose** of a file/package/module header doc |
+| In-source comments + config annotations | `idiomatic-reviewer` (`/idiomatic`) | comments **interleaved with code**, inline/config-field annotations; **whether a header-doc comment should exist and where it sits** |
+
+The dividing line is **the unit being described, not the file extension** — *and, for a header doc, the aspect*. Whether a top-of-file package/type doc should exist and where it sits is `idiomatic-reviewer`'s call (placement/existence); the quality of its narrative wording is `prose-steward`'s (prose). A comment three lines into a function is wholly `idiomatic-reviewer`. When one artifact carries both (an LLD with embedded code), the two review separately with no shared findings; disputes on existence/placement resolve to `idiomatic-reviewer`, disputes on narrative wording to `prose-steward`. The shared PLT-626 philosophy means rulings converge rather than conflict.
