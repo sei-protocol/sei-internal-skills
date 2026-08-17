@@ -533,10 +533,8 @@ func driverReplyItem(itemID, responseID, text string) string {
 // driverSessionWithItems renders a snapshot carrying the given items, in order,
 // oldest first.
 func driverSessionWithItems(id, agentID string, items ...string) string {
-	// The prompt item leads, because a session's item list is the conversation and
-	// the anchor names an item in it. Recovery proves a reply sits after this one,
-	// so a fixture without it models a session that cannot exist and would let an
-	// attribution bug pass.
+	// The prompt item leads: recovery proves a reply sits after it, so a fixture
+	// without it models a session that cannot exist.
 	all := append([]string{driverPromptItem(driverAnchorItemID)}, items...)
 	return fmt.Sprintf(`{"id":%q,"agent_id":%q,"created_at":1,"status":"idle","items":[%s]}`,
 		id, agentID, strings.Join(all, ","))
