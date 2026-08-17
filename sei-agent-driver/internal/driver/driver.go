@@ -8,9 +8,14 @@ import (
 )
 
 // minTeardownBudget is the least time a close gets, whatever the configured
-// request timeout. Enough for the handful of requests teardown makes, and short
-// enough not to hold a terminating runner past the seconds it actually grants.
-const minTeardownBudget = 15 * time.Second
+// request timeout.
+//
+// Sized for what a close actually does rather than for the delete alone: a close
+// runs in its own process, so it mints a token first, and that mint may spend three
+// attempts and its own backoff before a single session has been listed. A budget
+// covering only the delete would be exhausted by the credential exchange in front
+// of it and reclaim nothing.
+const minTeardownBudget = 30 * time.Second
 
 // Result is the outcome of a run.
 type Result struct {
@@ -142,7 +147,7 @@ func (d *Driver) Close(ctx context.Context, w Workload) Result {
 	// no budget at all -- which would silently skip the only thing that frees a
 	// sandbox, the exact failure this method exists to prevent.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx),
-		max(3*d.cfg.RequestTimeout, minTeardownBudget))
+		max(4*d.cfg.RequestTimeout, minTeardownBudget))
 	defer cancel()
 
 	sessionID, err := d.host.Close(ctx, work)
