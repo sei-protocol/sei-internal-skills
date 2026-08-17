@@ -41,8 +41,12 @@ func BuildCheckRun(v Verdict) (CheckRun, bool) {
 // checkTitle counts what the review found, because the count is what a reader
 // scanning the checks list is deciding on.
 func checkTitle(v Verdict) string {
+	// Every finding the reply reported, not only the placeable ones. A finding
+	// dropped for naming no line is still something the review said, and a title
+	// that counts only what could be pinned to a line reads as "found nothing" over
+	// a review that found something.
 	counts := []string{
-		plural(len(PlaceableFindings(v))+len(Blockers(v))+len(NonBlockers(v)), "finding"),
+		plural(len(reportedFindings(v))+len(Blockers(v))+len(NonBlockers(v)), "finding"),
 	}
 	if n := len(PreExisting(v)); n > 0 {
 		counts = append(counts, plural(n, "pre-existing issue"))

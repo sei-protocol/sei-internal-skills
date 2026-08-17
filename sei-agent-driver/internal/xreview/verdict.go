@@ -84,13 +84,36 @@ func (v Verdict) CheckConclusion() string {
 	if !v.HasVerdict() {
 		return ""
 	}
-	if v.Decision() == "request_changes" || len(Blockers(v)) > 0 {
+	if v.Decision() == "request_changes" || len(Blockers(v)) > 0 || v.hasBlockingFinding() {
 		return "failure"
 	}
 	if v.Decision() == "comment" || v.hasNotes() {
 		return "neutral"
 	}
 	return "success"
+}
+
+// hasBlockingFinding reports whether any reported finding calls itself blocking.
+//
+// Read from every finding the reply offered, not only the ones that can be placed
+// on a line. A finding is dropped from the inline comments when it names no line,
+// which is a routine thing for a model to omit -- so without this, a nil
+// dereference reported as a blocker with no line passes the gate and titles the
+// check "0 findings", and the only trace left is prose in the comment body.
+//
+// The blockers array is checked separately by the caller: it holds what is
+// blocking and tied to no line, which is a different bucket, not a fallback.
+func (v Verdict) hasBlockingFinding() bool {
+	for _, entry := range reportedFindings(v) {
+		fields, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if findingFrom(fields).Severity == "blocker" {
+			return true
+		}
+	}
+	return false
 }
 
 // hasNotes reports whether the review wrote anything down at all.

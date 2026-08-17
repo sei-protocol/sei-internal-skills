@@ -117,3 +117,42 @@ func TestCheckConclusionFollowsTheFindings(t *testing.T) {
 		}
 	}
 }
+
+// TestABlockerWithNoLineStillFailsTheCheck covers the gap between what a review
+// reported and what can be posted on a line.
+//
+// A finding with no line is dropped from the inline comments, which is the right
+// call — the prompt tells the agent not to guess one. Counting only what survived
+// that drop let a reply naming a blocker publish a green check titled "0 findings",
+// with the finding surviving in prose alone. The check gates a merge, so it follows
+// everything the review reported.
+func TestABlockerWithNoLineStillFailsTheCheck(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name, reply, want string
+	}{
+		{"blocker with no line", "```json\n" +
+			`{"decision":"approve","summary":"s","inline_comments":[` +
+			`{"path":"a.go","severity":"blocker","body":"nil deref"}]}` + "\n```", "failure"},
+		{"blocker on a line, decision comment", "```json\n" +
+			`{"decision":"comment","summary":"s","inline_comments":[` +
+			`{"path":"a.go","line":4,"side":"RIGHT","severity":"blocker","body":"nil deref"}]}` +
+			"\n```", "failure"},
+		{"a nit is still not blocking", "```json\n" +
+			`{"decision":"approve","summary":"s","inline_comments":[` +
+			`{"path":"a.go","line":4,"side":"RIGHT","severity":"nit","body":"naming"}]}` +
+			"\n```", "neutral"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			v := ParseVerdict(c.reply)
+			if got := v.CheckConclusion(); got != c.want {
+				t.Errorf("CheckConclusion = %q, want %q", got, c.want)
+			}
+			if run, _ := BuildCheckRun(v); strings.HasPrefix(run.Title, "0 finding") {
+				t.Errorf("Title = %q, want it to count what the review reported", run.Title)
+			}
+		})
+	}
+}

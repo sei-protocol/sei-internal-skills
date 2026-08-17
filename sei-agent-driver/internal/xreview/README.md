@@ -24,7 +24,7 @@ its own behalf. Every rule below is a consequence.
 | here | what belongs in it |
 |---|---|
 | `README.md` (this file) | what the package is for, what to read first, the shape of the rules |
-| `doc.go` | the contract itself — the five buckets, what a verdict is, what a check conclusion means |
+| the package doc in `xreview.go` | what the package is and where its boundary sits |
 | code comments | why one statement is where it is, at the statement |
 
 ## Reading order
@@ -62,7 +62,8 @@ itself to someone else.
 
 **The conclusion follows the findings.** A check's pass or fail is derived from what
 the review listed, not from the word the agent used about itself, so a reply that
-says `approve` while listing blockers still fails.
+says `approve` while listing a blocker still fails — including a blocker that names
+no line and so cannot be posted as an inline comment.
 
 **A scout's name is its dispatch identity**, fixed when it was sent, never a value
 the scout returned. And a reading that failed is named as failed — a credential
