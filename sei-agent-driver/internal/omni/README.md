@@ -121,31 +121,11 @@ direction is deliberate: waiting for an edge that never comes ends in a deadline
 which announces itself, while ending on a lifecycle event too early publishes a
 half-written answer as a verdict.
 
-## Unsettled
-
-**Whether the in-process end reconciles across id namespaces.** `doc.go` states that
-a lifecycle event's `resp_<24 hex>` can never equal an item's response id. The
-in-process path does exactly that comparison: `observeResponseTerminal` takes the
-lifecycle id as the turn id, and `fetchReply` then looks up items by it. If the claim
-holds universally that lookup always misses, and it misses *quietly* — the run
-reports no verdict rather than failing.
-
-The test cannot adjudicate it, because we author both sides of the fixture and it
-uses one id for the lifecycle event and the item. The likely truth is that `doc.go`'s
-claim was derived from claude-native traces and is over-general. Settling it takes
-one live run on an in-process harness that produces an attributed reply, or reading
-the forwarder. Narrow the wording in `doc.go` either way.
-
-## Changing this safely
-
-The driver must not gain a dependency on the client library. That is the boundary
-this package exists to hold, and it is checkable:
-
-```sh
-go list -deps ./internal/driver | grep omnigent-go-sdk   # must print nothing
-```
-
-Failures here cross into `driver`'s sentinels — `ErrConfig`, `ErrTurnFailed`,
-`ErrMint`, `ErrLeaked` — because those are what the exit codes are derived from.
-Returning this server's own error taxonomy would make the contract with a calling
-workflow depend on a library's choices.
+**Response ids follow the same split**, which is why the end signal and the
+attribution have to agree. A terminal-backed harness derives `resp_claude_<32 hex>`
+from the Claude source key and stamps it on items and on the status edges describing
+them; it emits no response lifecycle events at all. An in-process harness mints one
+`resp_<24 hex>` per turn, carries it on every lifecycle event for that turn, and the
+relay stamps the items it persists with the same id so that a turn's items and its
+lifecycle share one identifier. So a lifecycle id is a valid thing to attribute
+against — on the harness whose items are stamped from it, and only there.

@@ -11,19 +11,24 @@
 // answer. The driver states what it needs in [driver.Host] and [driver.Conversation]
 // and depends on no client library; this package is what makes those true.
 //
-// # Two response-id namespaces
+// # Response ids belong to a harness, not to the server
 //
-// The server uses two disjoint id namespaces and only one of them can be
-// compared to a conversation item:
+// Which id an item carries depends on the harness that produced it, so a turn id
+// is only ever compared against items from the same harness:
 //
-//   - resp_claude_<32 hex> is stamped on every item a turn commits, and on the
-//     session status edges that describe that turn. This is the one to attribute
-//     on.
-//   - resp_<24 hex> appears only on response lifecycle events. It is synthesised
-//     per event and can never equal an item's response id.
+//   - A terminal-backed harness stamps resp_claude_<32 hex>, derived
+//     deterministically from the Claude source key. Its items and the session
+//     status edges describing them share it. Its response lifecycle events do not,
+//     which is one reason a turn never ends on one there.
+//   - An in-process harness mints one resp_<24 hex> per turn, carries it on every
+//     response lifecycle event for that turn, and the relay stamps the items it
+//     persists with that same id -- deliberately, so a turn's items and its
+//     lifecycle share one identifier.
 //
-// Comparing across them silently discards every reply, so this package converts
-// nothing between the two and reads the turn id only from a status edge.
+// So the rule is not "a lifecycle id never matches an item" but "read the turn id
+// from the signal this harness's items are stamped from". Reading the wrong one
+// discards every reply silently: attribution finds no item, and the run reports no
+// answer rather than failing.
 //
 // # How a turn is bounded
 //
