@@ -223,24 +223,6 @@ func TestReplyGroupsSince(t *testing.T) {
 	})
 }
 
-// TestResponseIDs checks the pre-turn snapshot builder collects every response id
-// present, whatever the item type, since any of them could reappear later.
-func TestResponseIDs(t *testing.T) {
-	t.Parallel()
-
-	items := []omnigent.ConversationItem{
-		verdictItem(t, "msg_a", "resp_a", "assistant", "text"),
-		verdictFunctionCallItem(t, "call_1", "resp_a"),
-		verdictFunctionCallItem(t, "call_2", "resp_b"),
-		verdictItem(t, "msg_c", "", "assistant", "unstamped"),
-	}
-	got := ResponseIDs(items)
-	want := map[string]bool{"resp_a": true, "resp_b": true}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("ResponseIDs = %#v, want %#v", got, want)
-	}
-}
-
 // TestGroupIsAfterAnchorRefusesAnEarlierReply pins the invariant doc.go states
 // and this package once broke: a stream opens by replaying earlier work, so a
 // completed reply from a previous invocation looks exactly like this turn's under

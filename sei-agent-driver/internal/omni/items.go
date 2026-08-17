@@ -52,19 +52,6 @@ func TurnReply(items []omnigent.ConversationItem, turnID string) (driver.Reply, 
 	return driver.Reply{}, false
 }
 
-// ResponseIDs is the set of response ids present in a snapshot, captured before
-// the turn so [ReplyGroupsSince] can tell this turn's work from the session's
-// history.
-func ResponseIDs(items []omnigent.ConversationItem) map[string]bool {
-	ids := map[string]bool{}
-	for _, item := range items {
-		if item.ResponseID != "" {
-			ids[item.ResponseID] = true
-		}
-	}
-	return ids
-}
-
 // ReplyGroupsSince lists the response ids that gained a publishable assistant
 // message since prior, sorted so a log line is stable.
 //

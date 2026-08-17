@@ -212,7 +212,6 @@ func (c *conversation) consumeTurn(
 		if err != nil {
 			return c.recoverFromStreamLoss(ctx, t, err)
 		}
-		t.seen[eventKey(ev)]++
 		t.frames++
 
 		switch e := ev.(type) {
@@ -228,9 +227,6 @@ func (c *conversation) consumeTurn(
 			if err := c.answer(ctx, ElicitationFromEvent(e), t.answered); err != nil {
 				t.fail(err)
 			}
-
-		case omnigent.OutputTextDeltaEvent:
-			t.deltaChars += len(e.Delta)
 
 		case omnigent.SessionStatusEvent:
 			t.observeStatus(e)

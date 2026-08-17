@@ -44,24 +44,10 @@ type turn struct {
 	// was last active, which is a stale id from before the boundary.
 	id string
 
-	// bareIdles counts idle edges that carried no response id. Logged, because it
-	// is the one number that shows the next reader why "the first idle edge ends
-	// the turn" is wrong: a session emits several, and one of them lands mid-work.
-	bareIdles int
-
-	// deltaChars counts streamed text. Logged, never published: the chunks arrive
-	// out of index order and can land short of the committed message, so
-	// reassembling them cannot produce a reply.
-	deltaChars int
-
 	// prior is every response id already on the session when this run started. An
 	// id in it cannot belong to the turn answering our prompt, however well-timed
 	// its edge looks.
 	prior map[string]bool
-
-	// staleIdles counts id-bearing idle edges rejected on that basis. A non-zero
-	// count means another run ended a turn inside our window.
-	staleIdles int
 
 	answered map[string]bool
 
@@ -69,7 +55,6 @@ type turn struct {
 	// the salvage paths need it and they are four frames from the caller that
 	// knows the workload.
 	complete func(text string) bool
-	seen     map[string]int
 
 	// frames counts everything this turn has read off any stream, so a
 	// reconnect can tell an open that carried something from one that did not.
@@ -112,7 +97,6 @@ func newTurn(prior map[string]bool, complete func(string) bool, terminalBacked b
 		prior:          prior,
 		complete:       complete,
 		answered:       map[string]bool{},
-		seen:           map[string]int{},
 		terminalBacked: terminalBacked,
 	}
 }
@@ -188,7 +172,6 @@ func (t *turn) observeStatus(e omnigent.SessionStatusEvent) {
 		return
 	}
 	if e.ResponseID == nil || *e.ResponseID == "" {
-		t.bareIdles++
 		return
 	}
 	if t.prior[*e.ResponseID] {
@@ -196,7 +179,6 @@ func (t *turn) observeStatus(e omnigent.SessionStatusEvent) {
 		// turn that answers it. This is the reachable half of the overlapping-run
 		// hazard: a superseded run whose stop lost the race ends its turn inside
 		// our window, and its edge is otherwise indistinguishable from ours.
-		t.staleIdles++
 		return
 	}
 	t.id = *e.ResponseID
@@ -240,13 +222,4 @@ func statusDetail(e omnigent.SessionStatusEvent) string {
 		return "the session reported failure, with no detail"
 	}
 	return fmt.Sprintf("the session reported failure: %s (%s)", e.Error.Message, e.Error.Code)
-}
-
-// eventKey names an event by its wire type where the SDK does not model it, so a
-// shape this build does not know cannot hide behind one Go type in the census.
-func eventKey(ev omnigent.Event) string {
-	if unknown, ok := ev.(omnigent.UnknownEvent); ok {
-		return "unknown:" + unknown.Type
-	}
-	return fmt.Sprintf("%T", ev)
 }
