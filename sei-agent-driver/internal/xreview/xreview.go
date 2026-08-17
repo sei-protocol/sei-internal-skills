@@ -124,7 +124,7 @@ func (r Review) Prompt(answered bool) string {
 // answer publishes an opening sentence as a review.
 func (r Review) Complete(text string) bool { return ParseVerdict(text).HasVerdict() }
 
-// clip bounds a value taken from model output before it reaches a log line,
+// clip bounds a value taken from model output before it reaches a rendered prompt,
 // cutting on a rune boundary so the line stays valid UTF-8.
 func clip(s string, max int) string {
 	if len(s) <= max {

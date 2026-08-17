@@ -140,7 +140,7 @@ func LoadConfig() (Config, error) {
 		{"XREVIEW_RUN_DEADLINE_S", 1200, &cfg.RunDeadline},
 		{"XREVIEW_REQUEST_TIMEOUT_S", 30, &cfg.RequestTimeout},
 		{"XREVIEW_UNARY_TIMEOUT_S", 150, &cfg.UnaryTimeout},
-		{"XREVIEW_STREAM_IDLE_TIMEOUT_S", 60, &cfg.StreamIdleTimeout},
+		{"XREVIEW_STREAM_IDLE_TIMEOUT_S", 300, &cfg.StreamIdleTimeout},
 	} {
 		secs, err := secondsOr(d.name, d.secs)
 		if err != nil {

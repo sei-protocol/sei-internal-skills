@@ -229,3 +229,26 @@ func TestReconcileStepWillNotPointTheReviewOutOfTheTree(t *testing.T) {
 		t.Error("an in-tree path is not rendered as a location")
 	}
 }
+
+// TestBothScoutPromptsCarryTheSchema pins the reason the review's own rules are
+// restated on the adopted path: a session replays only its first prompt, so a
+// contract the scout is told to recall is one it may not be able to re-read — and
+// a back-reference points at the old schema if this contract ever changes.
+func TestBothScoutPromptsCarryTheSchema(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "o/r", PR: 1}
+	for name, got := range map[string]string{
+		"ScoutPrompt":        ScoutPrompt(req),
+		"AdoptedScoutPrompt": AdoptedScoutPrompt(req),
+	} {
+		for _, want := range []string{`"read": 0`, `"severity": "high|medium|low"`, "```json"} {
+			if !strings.Contains(got, want) {
+				t.Errorf("%s does not carry %q", name, want)
+			}
+		}
+		if strings.Contains(got, "same schema as before") {
+			t.Errorf("%s points back at a schema instead of restating it", name)
+		}
+	}
+}

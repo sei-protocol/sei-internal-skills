@@ -276,7 +276,13 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 
 	if err := report(cmd.String("out"), cmd.String("findings-out"),
 		cmd.String("check-out"), result); err != nil {
-		return &exitError{code: driver.ExitConfig, err: err}
+		// The run's own outcome wins: ExitConfig here would relabel a review that
+		// timed out as one rejected before it started.
+		code := result.ExitCode
+		if code == driver.ExitOK {
+			code = driver.ExitConfig
+		}
+		return &exitError{code: code, err: err}
 	}
 	if result.ExitCode != driver.ExitOK {
 		return &exitError{
@@ -330,12 +336,22 @@ func report(outPath, findingsPath, checkPath string, result driver.Result) error
 	}
 	fmt.Println(string(blob))
 
-	if outPath == "" || !verdict.HasVerdict() {
+	// Before anything is written, on every path: a workspace can be reused, and a
+	// caller posts on presence.
+	clearOutputs(outPath, findingsPath, checkPath)
+
+	if !verdict.HasVerdict() {
 		return nil
 	}
-	body := xreview.RenderComment(verdict, result.SessionID)
-	if err := os.WriteFile(outPath, []byte(body), 0o644); err != nil {
-		return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
+
+	// Each output answers to its own flag. An absent check run reads as a review
+	// that did not run rather than one that passed, so gating it on --out made the
+	// fail-closed signal the one that failed open.
+	if outPath != "" {
+		body := xreview.RenderComment(verdict, result.SessionID)
+		if err := os.WriteFile(outPath, []byte(body), 0o644); err != nil {
+			return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
+		}
 	}
 	if err := writeFindings(findingsPath, verdict); err != nil {
 		return err
@@ -343,11 +359,6 @@ func report(outPath, findingsPath, checkPath string, result driver.Result) error
 	return writeCheckRun(checkPath, verdict)
 }
 
-// writeCheckRun renders the check run the caller publishes.
-//
-// Written whenever there is a verdict, unlike the findings: a review that found
-// nothing still concludes, and a checks list with no xreview entry reads as a
-// review that did not run rather than one that passed.
 // readPriorThreads loads what this tool said on this pull request before.
 //
 // An absent file is not an error: a pull request reviewed for the first time has
@@ -370,6 +381,11 @@ func readPriorThreads(path string) ([]xreview.PriorThread, error) {
 	return threads, nil
 }
 
+// writeCheckRun renders the check run the caller publishes.
+//
+// Written whenever there is a verdict, unlike the findings: a review that found
+// nothing still concludes, and a checks list with no xreview entry reads as a
+// review that did not run rather than one that passed.
 func writeCheckRun(path string, verdict xreview.Verdict) error {
 	if path == "" {
 		return nil
@@ -396,6 +412,19 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// clearOutputs removes any output left by an earlier run.
+//
+// The caller publishes on a file being present, so a stale one is a previous
+// review published under this run's name. An absent file is not an error.
+func clearOutputs(paths ...string) {
+	for _, p := range paths {
+		if p == "" {
+			continue
+		}
+		_ = os.Remove(p)
+	}
 }
 
 // writeFindings hands the caller the observations it can post against a line.

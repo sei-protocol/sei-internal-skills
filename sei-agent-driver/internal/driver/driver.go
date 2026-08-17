@@ -34,9 +34,9 @@ const (
 // shared surface.
 //
 // The value still says xreview because it is written on live sessions: changing
-// it orphans every session a running deployment would otherwise adopt. One
-// workload shares this key today. A second one needs a workload discriminator
-// beside it, or their run keys collide in one namespace.
+// it orphans every session a running deployment would otherwise adopt. Two
+// workloads write it — a review and each scout — and they do not collide because
+// [xreview.ScoutRunKey] carries the scout's name into the key.
 const RunKeyLabel = "xreview.seinetwork.io/run-key"
 
 // Result is the outcome of a run.
@@ -87,10 +87,10 @@ func (d *Driver) Run(ctx context.Context, w Workload) (Result, error) {
 
 	client, err := d.newClient(ctx)
 	if err != nil {
-		// Through classify like every other failure. Hardcoding ExitConfig here
-		// mislabelled a token exchange that failed on the network as a
-		// configuration fault, and the exit code is the caller's contract: it
-		// decides whether to tell an operator to fix a secret or to retry.
+		// Through classify like every other failure. The exit code is the caller's
+		// contract — it decides whether to tell an operator to fix a secret or to
+		// retry — and only classify can tell a token exchange that failed on the
+		// network from a configuration fault.
 		return d.classify(ctx, Result{ExitCode: ExitOK, TeardownOK: true}, err), err
 	}
 
@@ -341,9 +341,9 @@ func (d *Driver) resolveAgent(
 // duplicate.
 
 // adoption is where a run's session came from, split into the two questions the
-// rest of the run actually asks. They were one boolean until a session turned up
-// that was continued but not live, and answering both from that one bit sent the
-// prompt into a sandbox that did not exist.
+// rest of the run actually asks. They are separate because a session can be
+// continued and not live, and answering both from one bit sends the prompt into a
+// sandbox that does not exist.
 type adoption struct {
 	// continued reports that this session was found rather than opened here, so it
 	// may be holding prompts parked before this stream existed.
@@ -534,7 +534,11 @@ func (d *Driver) DeleteSession(ctx context.Context, w Workload) (Result, error) 
 		d.log.Info("no session for this pull request; nothing to close", "run_key", runKey)
 		return Result{ExitCode: ExitOK, TeardownOK: true}, nil
 	}
-	if _, err := client.DeleteSession(ctx, session.ID, omnigent.DeleteSessionOptions{}); err != nil {
+	// Detached, with its own budget: a terminate signal cancels ctx so teardown can
+	// run, so passing that ctx here would abort the delete it exists to allow.
+	del, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.cfg.RequestTimeout)
+	defer cancel()
+	if _, err := client.DeleteSession(del, session.ID, omnigent.DeleteSessionOptions{}); err != nil {
 		d.log.Error("could not delete the session; the sandbox will leak until reclaimed",
 			"session_id", session.ID, "error", err)
 		return Result{ExitCode: ExitTeardownLeak, SessionID: session.ID}, nil
@@ -554,6 +558,13 @@ type turn struct {
 	// caller's goroutine before the first event reaches it. So it is in place
 	// before anything can be attributed, and needs no synchronisation.
 	anchor string
+
+	// anchorItem is the conversation item the boundary resolved to.
+	//
+	// [turn.anchor] is whichever identifier the send returned, and a prompt parked
+	// before the runtime is up returns a pending id, which names no item. Recovery
+	// compares positions, so it reads this one.
+	anchorItem string
 
 	// crossed reports that the server echoed the anchor back.
 	//
@@ -689,10 +700,14 @@ func (t *turn) crossBoundary(e omnigent.SessionInputConsumedEvent) {
 	// pending anchor is not matched by another message's item.
 	if e.Data.ItemID == t.anchor {
 		t.crossed = true
+		t.anchorItem = e.Data.ItemID
 		return
 	}
 	if e.Data.ClearedPendingID != nil && *e.Data.ClearedPendingID == t.anchor {
 		t.crossed = true
+		// The item the pending input drained into. Always populated, and the only
+		// one of the two identifiers that names a conversation item.
+		t.anchorItem = e.Data.ItemID
 	}
 }
 
@@ -1244,8 +1259,8 @@ func (d *Driver) fetchReply(
 
 	if groups := ReplyGroupsSince(session.Items, prior); len(groups) > 1 {
 		// Two turns replied into this session while ours ran. Nothing on the wire
-		// says which is ours, so this refuses: choosing the newest is exactly how
-		// another invocation's review once got posted as this one's.
+		// says which is ours, so this refuses rather than choosing the newest —
+		// which publishes another invocation's review as this one's.
 		d.log.Error("more than one turn replied into this session",
 			"session_id", sessionID, "turn_id", turnID, "reply_groups", groups)
 		return Reply{Reason: "another turn replied into this session while ours ran"}, nil
@@ -1392,6 +1407,16 @@ func (d *Driver) recoverFromStreamLoss(
 		return Reply{}, cause
 	}
 
+	// The group above was found by asking which ids are new, which is the negative
+	// filter doc.go forbids. Requiring the reply to sit after this turn's prompt is
+	// the positive half that filter cannot carry.
+	if !GroupIsAfterAnchor(session.Items, t.anchorItem, groups[0]) {
+		d.log.Warn("stream died and the new reply does not sit after this turn's prompt",
+			"session_id", sessionID, "anchor_item_id", t.anchorItem,
+			"response_id", groups[0], "error", cause)
+		return Reply{}, cause
+	}
+
 	reply, err := d.fetchReply(ctx, client, sessionID, groups[0], t.prior)
 	if err != nil {
 		return Reply{}, cause
@@ -1421,7 +1446,8 @@ func (d *Driver) recoverFromStreamLoss(
 // agent synchronously while it waits, so a prompt this driver fails to answer
 // stalls the review for the rest of the run: one recorded trace sat on an
 // unanswered prompt for 9 minutes 39 seconds while the transport stayed perfectly
-// healthy. The previous version logged the failure and carried on.
+// healthy. So a prompt this driver cannot answer is fatal, here and in
+// [Driver.answer], rather than logged and carried past.
 func (d *Driver) answerPending(
 	ctx context.Context,
 	client *omnigent.Client,
