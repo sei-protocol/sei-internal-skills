@@ -39,9 +39,8 @@ func treePath(req Request) string { return fmt.Sprintf("pr-%d-tree", req.PR) }
 //
 // The agent clones with the credential already mounted in its sandbox. A workspace
 // this driver supplied would carry a token in its URL, and the server keeps that
-// URL as a cleartext session label — so the credential would outlive the clone in
-// a database, to do a job the sandbox can already do. See [driver.Cloner], which
-// this workload declines for that reason.
+// URL as a cleartext session label, so the credential would outlive the clone in a
+// database to do a job the sandbox can already do.
 //
 // The ref is the pull request's merge, not its head: that is the tree that would
 // result from merging, which is what a reviewer is deciding about, and it matches
