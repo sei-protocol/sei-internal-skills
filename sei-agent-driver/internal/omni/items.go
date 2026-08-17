@@ -151,13 +151,13 @@ func assistantMessage(item omnigent.ConversationItem) (omnigent.MessageData, boo
 		return omnigent.MessageData{}, false
 	case msg.IsMeta != nil && *msg.IsMeta:
 		// Durable context replayed to the agent but hidden from transcripts, such
-		// as injected skill instructions. Null on every message claude-native has
-		// produced in the recorded traces, so this does nothing today; it is here
-		// because the contract permits it and such a message is a message item.
+		// as injected skill instructions. Null on every message this harness produces
+		// today, so this rejects nothing; it is here because the contract permits it
+		// and such a message is a message item.
 		return omnigent.MessageData{}, false
 	case msg.Interrupted != nil && *msg.Interrupted:
-		// A durable partial response from an interrupted turn. Also null
-		// throughout the traces, and also permitted by the contract.
+		// A durable partial response from an interrupted turn. Also null today, and
+		// also permitted by the contract.
 		return omnigent.MessageData{}, false
 	}
 	return msg, true

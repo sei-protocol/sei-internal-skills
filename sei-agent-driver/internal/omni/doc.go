@@ -41,7 +41,7 @@
 // the end is a session.status edge reporting idle and carrying a response id,
 // arriving after the boundary. That edge's response id is the turn id. A bare idle
 // edge is terminal churn and ends nothing: two producers emit idle and only one of
-// them means a turn ended, and one recorded trace carries five, one squarely
+// them means a turn ended, so several arrive per session and one of them lands
 // mid-work. No response lifecycle event ends a turn there either — the completed
 // one acknowledges that the prompt reached the terminal, so it arrives before the
 // answer exists, and ending on it publishes a review the agent has not written.
@@ -56,8 +56,8 @@
 // to attaches one. So the end there is the response lifecycle: the executor yields
 // it only on a final answer, and the relay commits the assistant message before
 // publishing it. Requiring the id-bearing edge on that harness made the predicate
-// unsatisfiable by specification — a codex scout produced a complete report, and
-// the run waited out its whole budget and discarded it.
+// unsatisfiable by specification: a scout on that harness produces a complete
+// report, and the run waits out its whole budget and discards it.
 //
 // An unrecognised harness takes the terminal-backed rule. Waiting too long is a
 // failure that announces itself; publishing half a review is not.
@@ -82,8 +82,8 @@
 // invocation's verdict that way.
 //
 // The streamed text deltas are a progress signal and never a source. They arrive
-// out of index order and, on the one complete review recorded, one chunk short of
-// the committed message, so reassembling them cannot even produce a verdict.
+// out of index order and can land short of the committed message, so reassembling
+// them cannot even produce a verdict.
 //
 // # Errors cross the boundary in the driver's terms
 //

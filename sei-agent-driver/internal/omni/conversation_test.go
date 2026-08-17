@@ -785,7 +785,7 @@ func TestDriverRunHappyPath(t *testing.T) {
 //
 // On this harness the response lifecycle's completed event is an acknowledgement
 // that the prompt was injected into the terminal, not a report that the turn
-// finished. It arrives before the prompt has even been persisted — measured at
+// finished. It arrives before the prompt has even been persisted —
 // 1.7, 3.1 and 6.0 seconds against boundaries at 7.2, 6.9 and 8.3 — so a driver
 // that treats it as a turn end reads no reply and reports no verdict on a review
 // that was about to succeed. Both a completed and a failed lifecycle event sit
@@ -829,7 +829,7 @@ func TestDriverIgnoresTheInjectionAcknowledgement(t *testing.T) {
 // TestDriverIgnoresBareIdleEdges checks that an idle edge carrying no response id
 // does not end a turn.
 //
-// Those edges are terminal churn rather than progress. One recorded trace carries
+// Those edges are terminal churn rather than progress. A session carries
 // five of them, one arriving 24 seconds into work that ran for 38, so "the first
 // idle edge ends the turn" would cut that review off mid-tool-call.
 func TestDriverIgnoresBareIdleEdges(t *testing.T) {
@@ -870,8 +870,8 @@ func TestDriverIgnoresBareIdleEdges(t *testing.T) {
 //
 // The stream opens with a prologue replaying earlier work, so an id-bearing idle
 // edge can arrive before the server has confirmed our own prompt. Taking it would
-// attribute the reply of a previous invocation — on a recorded trace, one that
-// arrived 31 milliseconds before our prompt was persisted.
+// attribute the reply of a previous invocation, which the prologue replays ahead of
+// our prompt being persisted.
 func TestDriverIgnoresATurnThatEndedBeforeItsOwnPrompt(t *testing.T) {
 	t.Parallel()
 
@@ -1009,11 +1009,11 @@ func TestDriverRefusesWhenTwoTurnsRepliedIntoTheSession(t *testing.T) {
 }
 
 // TestDriverFailsWhenAPermissionPromptCannotBeAnswered is the regression test for
-// the most expensive fault this driver has produced.
+// the most expensive fault this driver can produce.
 //
 // The permission hook blocks the agent synchronously while it waits for an answer,
 // so a prompt the driver fails to resolve stalls the review for the rest of the
-// run: one recorded trace sat on an unanswered prompt for 9 minutes 39 seconds
+// run: an unanswered prompt holds the agent for the rest of the budget
 // while the transport stayed healthy the whole time. The previous version logged
 // the failure and carried on reading a stream that would never produce anything.
 func TestDriverFailsWhenAPermissionPromptCannotBeAnswered(t *testing.T) {
@@ -1578,7 +1578,7 @@ func TestDriverAnchorsOnAPendingInput(t *testing.T) {
 // TestDriverFollowsATurnAcrossStreams covers a connection that expires while the
 // agent is still working.
 //
-// The connection has a lifetime of its own, measured at around three minutes,
+// The connection has a lifetime of its own, around three minutes,
 // and a review runs longer than that. So a stream ending mid-turn is the expected
 // way a long turn's connection dies, not evidence the work stopped. Salvaging
 // whatever is committed at that instant takes the agent's opening narration

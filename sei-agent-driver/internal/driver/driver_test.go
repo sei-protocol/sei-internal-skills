@@ -114,14 +114,14 @@ func TestRunMapsEveryFailureOntoItsExitCode(t *testing.T) {
 	}
 }
 
-// TestClassifyTellsARequestTimeoutFromTheRunDeadline pins the distinction a live
-// run got wrong.
+// TestClassifyTellsARequestTimeoutFromTheRunDeadline pins which deadline an
+// expired one was.
 //
-// A review against a real deployment spent 90 seconds in a create that never
-// returned headers, another 90 in the reconcile that followed, and reported "run
-// deadline exceeded" on a run whose deadline was twenty minutes. The SDK's unary
-// timeout produces an error satisfying errors.Is(err, context.DeadlineExceeded), so
-// the run context is the only thing that says which deadline expired.
+// A create that never returns headers, and the reconcile behind it, exhaust the
+// SDK's unary timeout rather than the run's budget. That error satisfies
+// errors.Is(err, context.DeadlineExceeded) either way, so the run context is the
+// only thing that says which deadline expired — and reading the error alone
+// reported "run deadline exceeded" on a run with most of its twenty minutes left.
 func TestClassifyTellsARequestTimeoutFromTheRunDeadline(t *testing.T) {
 	t.Parallel()
 

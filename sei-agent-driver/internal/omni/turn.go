@@ -31,29 +31,27 @@ type turn struct {
 	// crossed reports that the server echoed the anchor back.
 	//
 	// Until it does, everything on the stream is history or another actor's work.
-	// The stream opens with a prologue that replays earlier items, and on a
-	// recorded trace that prologue carried a previous invocation's completed
-	// assistant message 31 milliseconds before our own prompt was persisted. No
-	// check on an item's content distinguishes that message from a real reply;
-	// only its position does.
+	// The stream opens with a prologue that replays earlier items, and that prologue
+	// can carry a previous invocation's completed assistant message, arriving before
+	// our own prompt is persisted. No check on an item's content distinguishes that
+	// message from a real reply; only its position does.
 	crossed bool
 
 	// id is the turn's response id, taken from the edge that ended the turn.
 	//
 	// It is deliberately not learned earlier or from anywhere else. In particular
 	// it is not read off our own prompt item: that item carries whichever response
-	// was last active, which is measurably a stale id from before the boundary.
+	// was last active, which is a stale id from before the boundary.
 	id string
 
 	// bareIdles counts idle edges that carried no response id. Logged, because it
 	// is the one number that shows the next reader why "the first idle edge ends
-	// the turn" is wrong — a recorded trace has five, one of them squarely
-	// mid-work.
+	// the turn" is wrong: a session emits several, and one of them lands mid-work.
 	bareIdles int
 
-	// deltaChars counts streamed text. Logged, never published: on a recorded
-	// trace the chunks arrive out of index order and land one chunk short of the
-	// committed message, so reassembling them cannot produce a reply.
+	// deltaChars counts streamed text. Logged, never published: the chunks arrive
+	// out of index order and can land short of the committed message, so
+	// reassembling them cannot produce a reply.
 	deltaChars int
 
 	// prior is every response id already on the session when this run started. An

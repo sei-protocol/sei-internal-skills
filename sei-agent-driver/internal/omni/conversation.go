@@ -56,8 +56,8 @@ const connectionOpenLimit = 40
 //
 // The end depends on the harness. On a terminal-backed one it is a session.status
 // edge reporting idle and carrying a response id, which the forwarder derives from
-// Claude Code's Stop hook. A bare idle is not usable — one recorded trace carries
-// five, one of them squarely mid-work. On an in-process harness that id-bearing
+// Claude Code's Stop hook. A bare idle is not usable: a session emits several, and
+// one of them lands mid-work. On an in-process harness that id-bearing
 // edge never comes: the server documents response_id as "None for ordinary
 // in-process runtime edges", so the response lifecycle is the end there. Waiting
 // for the edge on that harness made the predicate unsatisfiable by specification —
@@ -519,11 +519,10 @@ func (c *conversation) recoverFromStreamLoss(
 
 // fetchReply reads the turn's reply off the session.
 //
-// One read, and no poll. The reply commits before the edge that ends the turn —
-// 4.4 and 4.5 seconds ahead of it on the two recorded traces that completed — so
-// by the time this runs the item is already stored. An absent reply is reported
-// rather than retried against, because retrying would only be guessing at an
-// ordering the traces contradict.
+// One read, and no poll. The reply commits well before the edge that ends the
+// turn, so by the time this runs the item is already stored. An absent reply is
+// reported rather than retried against, because retrying would be guessing at an
+// ordering that does not hold.
 //
 // Its own bounded context, because the run's may be the thing that expired and
 // this is the last chance to recover an answer the agent did produce.
@@ -587,12 +586,10 @@ func (c *conversation) fetchReply(
 
 // answerPending decides the prompts already parked on a session.
 //
-// Fatal on failure, both here and in [conversation.answer], and that is the fix for
-// the most expensive fault this driver has produced. The permission hook blocks the
-// agent synchronously while it waits, so a prompt this driver fails to answer
-// stalls the run for the rest of its budget: one recorded trace sat on an
-// unanswered prompt for 9 minutes 39 seconds while the transport stayed perfectly
-// healthy.
+// Fatal on failure, both here and in [conversation.answer]. The permission hook
+// blocks the agent synchronously while it waits, so a prompt this driver fails to
+// answer stalls the run for the rest of its budget while the transport stays
+// perfectly healthy — which is why it must not be logged and carried past.
 func (c *conversation) answerPending(ctx context.Context, answered map[string]bool) error {
 	session, err := c.client.GetSession(ctx, c.sessionID, omnigent.GetSessionOptions{})
 	if err != nil {

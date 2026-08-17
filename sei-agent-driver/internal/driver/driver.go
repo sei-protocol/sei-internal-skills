@@ -150,8 +150,8 @@ func (d *Driver) Close(ctx context.Context, w Workload) Result {
 //
 // The run context decides what a deadline error means. An expired unary timeout
 // also satisfies errors.Is(err, context.DeadlineExceeded), so without consulting
-// the run context a single slow request is reported as the whole run running out
-// of budget -- which it was, for a run that had spent three of twenty minutes.
+// the run context a single slow request is reported as the whole run running out of
+// budget, on a run with most of its budget left.
 func (d *Driver) classify(ctx context.Context, result Result, err error) Result {
 	switch {
 	case errors.Is(err, context.DeadlineExceeded) && ctx.Err() != nil:

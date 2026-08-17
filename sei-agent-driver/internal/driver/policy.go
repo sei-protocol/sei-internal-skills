@@ -42,7 +42,7 @@ type Elicitation struct {
 
 	// ToolName is the gated tool's registered name, when a harness supplies one.
 	//
-	// This deployment does send it — measured, e.g. "Bash" on a shell prompt. The
+	// This deployment does send it, e.g. "Bash" on a shell prompt. The
 	// SDK does not model the field, so it is read out of the elicitation params'
 	// passthrough extras rather than a named struct member, and stays empty on a
 	// harness that omits it.
