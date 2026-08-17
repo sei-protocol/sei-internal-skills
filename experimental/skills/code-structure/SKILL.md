@@ -1,6 +1,6 @@
 ---
 name: code-structure
-description: "Use when restructuring code for readability — 'make this method easier to follow', 'this is hard to read', 'refactor this for readability', 'the comments are doing too much work here', 'clean up this method', 'make this digestible for a new engineer', '/code-structure'. Especially for a long orchestration method — a controller reconcile, a request handler, a plan builder, a migration runner — whose sequence is buried under inline prose. Anti-triggers: NOT language, framework or package idiom (use /idiomatic — this skill sits on top of it and never overrides an idiom call); NOT correctness or logic bugs (use /code-review); NOT reliability, performance or observability (use /systems); NOT cross-component boundary review (use /xreview); NOT prose or documentation (use /language). It changes structure and where the 'why' lives; it never changes behavior, and it proposes rather than rewrites."
+description: "Use when restructuring code for readability — 'make this method easier to follow', 'this is hard to read', 'refactor this for readability', 'the comments are doing too much work here', 'clean up this method', 'make this digestible for a new engineer', '/code-structure'. Especially for a long orchestration method — a controller reconcile, a request handler, a plan builder, a migration runner — whose sequence is buried under inline prose. Anti-triggers: NOT language, framework or package idiom (use /idiomatic — this skill sits on top of it and never overrides an idiom call); NOT correctness or logic bugs (use /code-review); NOT reliability, performance or observability (use /systems); NOT cross-component boundary review (use /xreview); NOT prose or documentation (use prose-steward). It changes structure and where the 'why' lives; it never changes behavior, and it proposes rather than rewrites."
 category: code-quality
 ---
 
@@ -182,7 +182,7 @@ the job well.
 - **Correctness.** `/code-review`.
 - **Reliability, performance, observability, API durability.** `/systems`.
 - **Cross-component boundaries.** `/xreview`.
-- **Prose and documentation.** `/language`.
+- **Prose and documentation.** `prose-steward`.
 - **Apply anything.** It proposes. The author approves and merges.
 
 ## Output

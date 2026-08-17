@@ -32,10 +32,10 @@ make sync-experimental          # into ~/.claude
 | **Project authoring** | `project-brief` |
 | **Code quality** | `code-structure` |
 
-`language` and `prose-steward` are **not** here. `/xreview` pins `prose-steward`
-unconditionally on any `skill-package` change and halts when a pinned steward is
-missing from its registry, and `prose-steward`'s operating manual *is* `/language` —
-so both are load-bearing for a core skill and stay in the core.
+`prose-steward` is **not** here. `/xreview` pins it unconditionally on any
+`skill-package` change and halts when a pinned steward is missing from its registry,
+so it is load-bearing for a core skill and stays in the core. It carries its own
+doctrine now; the skill that used to hold it was retired.
 
 ## Getting rid of one you already have
 

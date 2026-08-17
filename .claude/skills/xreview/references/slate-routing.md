@@ -80,7 +80,7 @@ change can pull a steward without that steward owning a boundary):
 
 | Steward | Auto-included when the change touches… | Axis it owns |
 |---|---|---|
-| `prose-steward` | any prose artifact — a design doc, a skill body, a README, a runbook | reads-native-for-its-audience (the `/language` doctrine) |
+| `prose-steward` | any prose artifact — a design doc, a skill body, a README, a runbook | reads-native-for-its-reader (the prose-steward doctrine) |
 | `idiomatic-reviewer` | any code diff / implementation | reads-native to language/framework/package patterns |
 | `audit-skill` | a `.claude/` **skill** body or its references | does the skill hold its discipline under pressure (RED) |
 | `author-skill` | a `.claude/` **skill** body (RED/GREEN authoring) | is the skill authored correctly — triggers, anti-triggers, guardrails, evals |
@@ -101,7 +101,7 @@ the right registry per steward:
 
 | Steward | Kind | Registry | How it's dispatched |
 |---|---|---|---|
-| `prose-steward` | **agent** (backed by `/language`) | `.claude/agents/` | dispatched as a subagent |
+| `prose-steward` | **agent** (self-contained) | `.claude/agents/` | dispatched as a subagent |
 | `idiomatic-reviewer` | **agent** (backed by `/idiomatic`) | `.claude/agents/` | dispatched as a subagent |
 | `audit-skill` | **skill** | `.claude/skills/` | a dispatched reviewer **loads the skill as its review rubric** |
 | `author-skill` | **skill** | `.claude/skills/` | a dispatched reviewer **loads the skill as its review rubric** |
