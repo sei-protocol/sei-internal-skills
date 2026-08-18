@@ -148,7 +148,16 @@ func checkBullet(s string) string { return "- " + clip(oneLine(s), maxCheckBulle
 // alone on a line under a paragraph. A backslash before the first character is what
 // markdown honours, so a legitimate --- separator renders as literal --- text. That is
 // the cost, and it falls on a rule nobody writing a summary needs.
+//
+// Line endings are normalised first, because markdown recognises three and Go splits
+// on one. A summary written with \r\n leaves a trailing \r that stops a run of - from
+// reading as an underline here while a parser still reads it as one, and a lone \r is
+// a line ending to the parser that Split does not break on at all -- so every heading
+// after one would arrive live. Those three are the whole set: CommonMark defines a
+// line ending as \n, \r, or \r\n, and nothing else.
 func defuseHeadings(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
 		indent := len(line) - len(strings.TrimLeft(line, " \t"))

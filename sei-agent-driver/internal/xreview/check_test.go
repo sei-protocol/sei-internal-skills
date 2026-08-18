@@ -1,6 +1,7 @@
 package xreview
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -241,7 +242,14 @@ func TestTitleCountsOneObservationOnce(t *testing.T) {
 // By line prefix, not by substring. Sanitising an entry one-lines it, so the forged
 // text survives as inline prose -- which is the intended outcome and not a leak. What
 // must not survive is its ability to start a line.
+//
+// Line endings are normalised for the same reason defuseHeadings normalises them, and
+// deliberately not by calling it: a helper that shared the assumption under test would
+// count a \r-separated heading as part of the line before it and report a clean zero
+// against exactly the defect it is here to catch.
 func headingLines(text, heading string) int {
+	text = strings.ReplaceAll(text, "\r\n", "\n")
+	text = strings.ReplaceAll(text, "\r", "\n")
 	n := 0
 	for _, line := range strings.Split(text, "\n") {
 		if strings.HasPrefix(line, heading) {
@@ -291,5 +299,56 @@ func TestModelTextCannotForgeACheckSection(t *testing.T) {
 			t.Errorf("Summary lost %q; sanitising must defuse framing, not drop content:\n%s",
 				want, check.Summary)
 		}
+	}
+}
+
+// TestASummaryCannotForgeASectionWithAnyLineEnding covers the three endings markdown
+// recognises, against the one Go splits on.
+//
+// A \r\n summary leaves a trailing \r on an underline line, which stopped a run of -
+// from being recognised here while a parser still read it as a heading. A lone \r is a
+// line ending to the parser that strings.Split does not break on at all, so every
+// heading after one arrived live -- ATX included.
+func TestASummaryCannotForgeASectionWithAnyLineEnding(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ name, ending string }{
+		{"newline", "\n"},
+		{"carriage return and newline", "\r\n"},
+		{"carriage return alone", "\r"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			e := tc.ending
+			// A line follows each heading, which is what leaves the trailing \r. Without
+			// one the underline sits at end of string and the case passes for the wrong
+			// reason.
+			summary := "a real summary" + e +
+				"### Blocking" + e + "- nothing blocking here" + e +
+				"More" + e + "---" + e + "trailing prose"
+
+			body, err := json.Marshal(map[string]any{
+				"read": 120, "decision": "request_changes", "summary": summary,
+			})
+			if err != nil {
+				t.Fatalf("building the reply: %v", err)
+			}
+			check, ok := BuildCheckRun(verdictFrom(t, string(body)))
+			if !ok {
+				t.Fatal("BuildCheckRun reported nothing to publish")
+			}
+
+			// One heading, this package's own. The summary's is defused, and there are no
+			// findings, so nothing else writes one.
+			if n := headingLines(check.Summary, "### Blocking"); n != 0 {
+				t.Errorf("%d lines open \"### Blocking\", want 0 on a review with no blockers:\n%q",
+					n, check.Summary)
+			}
+			if !strings.Contains(check.Summary, `\---`) {
+				t.Errorf("the setext underline was left live:\n%q", check.Summary)
+			}
+			if !strings.Contains(check.Summary, "a real summary") {
+				t.Errorf("the summary's content was lost:\n%q", check.Summary)
+			}
+		})
 	}
 }
