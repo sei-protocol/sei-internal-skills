@@ -46,7 +46,7 @@ func checkTitle(v Verdict) string {
 	// that counts only what could be pinned to a line reads as "found nothing" over
 	// a review that found something.
 	counts := []string{
-		plural(len(reportedFindings(v))+len(Blockers(v))+len(NonBlockers(v)), "finding"),
+		plural(distinctReported(v)+len(Blockers(v))+len(NonBlockers(v)), "finding"),
 	}
 	if n := len(PreExisting(v)); n > 0 {
 		counts = append(counts, plural(n, "pre-existing issue"))

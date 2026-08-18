@@ -266,3 +266,20 @@ func intField(m map[string]any, key string) int {
 		return 0
 	}
 }
+
+// distinctReported counts the findings a reply reported, once each.
+//
+// reportedFindings concatenates both schema keys without deduping, because its
+// callers filter afterwards. An adopted session that writes one observation under
+// both vocabularies would otherwise have it counted twice in the check's title.
+func distinctReported(v Verdict) int {
+	seen := make(map[string]bool)
+	for _, entry := range reportedFindings(v) {
+		fields, ok := entry.(map[string]any)
+		if !ok {
+			continue
+		}
+		seen[findingFrom(fields).dedupeKey()] = true
+	}
+	return len(seen)
+}

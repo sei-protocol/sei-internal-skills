@@ -201,3 +201,37 @@ func TestAReviewThatNeverReadTheDiffIsNotClean(t *testing.T) {
 		})
 	}
 }
+
+// TestUnplaceableNotesStillMarkTheCheck covers the general case of the blocker gap.
+//
+// A note dropped for naming no line is still something the review wrote down.
+// Counting only what could be placed let an approve over unplaceable notes publish a
+// clean check, which is the reading the derivation exists to prevent.
+func TestUnplaceableNotesStillMarkTheCheck(t *testing.T) {
+	t.Parallel()
+
+	v := ParseVerdict("```json\n" +
+		`{"read": 9, "decision": "approve", "summary": "s", "inline_comments":[` +
+		`{"path":"a.go","severity":"suggestion","body":"worth a look"}]}` + "\n```")
+	if got := v.CheckConclusion(); got != "neutral" {
+		t.Errorf("CheckConclusion = %q, want neutral: the review wrote a note down", got)
+	}
+	if run, _ := BuildCheckRun(v); strings.HasPrefix(run.Title, "0 finding") {
+		t.Errorf("Title = %q, want it to count the note", run.Title)
+	}
+}
+
+// TestTitleCountsOneObservationOnce pins the dedupe across both schema keys. An
+// adopted session can write the same observation under either vocabulary.
+func TestTitleCountsOneObservationOnce(t *testing.T) {
+	t.Parallel()
+
+	one := `{"path":"a.go","line":4,"side":"RIGHT","severity":"nit","body":"x"}`
+	v := ParseVerdict("```json\n" +
+		`{"read": 9, "decision": "comment", "summary": "s",` +
+		`"inline_comments":[` + one + `], "findings":[` + one + `]}` + "\n```")
+	run, _ := BuildCheckRun(v)
+	if !strings.HasPrefix(run.Title, "1 finding") {
+		t.Errorf("Title = %q, want 1 finding: one observation under both keys is one finding", run.Title)
+	}
+}

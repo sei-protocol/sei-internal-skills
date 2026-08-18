@@ -28,7 +28,7 @@ func diffPath(req Request) string {
 func fetchDiffCommand(req Request) string {
 	path := diffPath(req)
 	return fmt.Sprintf("gh pr diff %d --repo %s > %s && wc -l %s",
-		req.PR, req.Repo, path, path)
+		req.PR, req.repo(), path, path)
 }
 
 // treePath is where the agent clones the repository, beside the staged diff and
@@ -69,7 +69,7 @@ func cloneCommands(req Request) []string {
 	tree := treePath(req)
 	return []string{
 		fmt.Sprintf("[ -d %s ] || git clone --depth=1 --no-tags --quiet https://github.com/%s %s",
-			tree, req.Repo, tree),
+			tree, req.repo(), tree),
 		fmt.Sprintf("{ git -C %s fetch --depth=1 --quiet origin refs/pull/%d/merge "+
 			"|| git -C %s fetch --depth=1 --quiet origin refs/pull/%d/head; } "+
 			"&& git -C %s checkout --quiet FETCH_HEAD && git -C %s log -1 --format=%%H "+
@@ -146,8 +146,14 @@ func reconcileStep(req Request) []string {
 				oneLine(s.Name), len(s.Findings), len(shown)))
 			for _, f := range shown {
 				where := fmt.Sprintf("%s:%d", clip(oneLine(f.File), maxScoutField), f.Line)
-				if !pointsSomewhereReal(f.File) {
+				switch {
+				case !pointsSomewhereReal(f.File):
 					where = "(no place in this tree)"
+				case f.Line <= 0:
+					// A zero line is not a location, and the review is told to open
+					// what each claim names. The file alone is the honest rendering,
+					// which is what historyStep already does.
+					where = clip(oneLine(f.File), maxScoutField)
 				}
 				out = append(out, fmt.Sprintf("      %s %s — %s",
 					clip(oneLine(f.Severity), maxScoutField), where,
@@ -444,7 +450,7 @@ func guidelinesCommand(req Request) string {
 		"base=$(gh pr view %d --repo %s --json baseRefName --jq .baseRefName) && "+
 			"gh api \"repos/%s/contents/%s?ref=$base\" "+
 			"-H \"Accept: application/vnd.github.raw\"",
-		req.PR, req.Repo, req.Repo, req.guidelinesFile())
+		req.PR, req.repo(), req.repo(), req.guidelinesFile())
 }
 
 // DefaultGuidelinesFile is the standards file a repository is assumed to keep.
@@ -463,6 +469,12 @@ const DefaultGuidelinesFile = "REVIEW.md"
 // start something else. Anything outside a plain repository path falls back to
 // the default, because a review that reads the standard file is a better failure
 // than one that runs an injected command.
+// repo is the repository name this prompt may write into a command.
+//
+// Every command the prompts name goes through here rather than reading req.Repo
+// directly, so the check cannot be bypassed by adding a sixth command later.
+func (req Request) repo() string { return safeRepo(req.Repo) }
+
 func (r Request) guidelinesFile() string {
 	if r.GuidelinesFile == "" || !isPlainRepoPath(r.GuidelinesFile) {
 		return DefaultGuidelinesFile
@@ -513,7 +525,7 @@ func isPlainRepoPath(p string) bool {
 // field called "body." — which fails, silently costing the intent the step exists
 // to supply.
 func intentCommand(req Request) string {
-	return fmt.Sprintf("gh pr view %d --repo %s --json title,body", req.PR, req.Repo)
+	return fmt.Sprintf("gh pr view %d --repo %s --json title,body", req.PR, req.repo())
 }
 
 // AdoptedPrompt renders the instruction for a session that has reviewed this pull

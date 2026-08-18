@@ -139,7 +139,11 @@ func (v Verdict) hasBlockingFinding() bool {
 // are kept out of the other buckets, but a check that says "nothing to see" over
 // a review naming one is still wrong about what the review said.
 func (v Verdict) hasNotes() bool {
-	return len(PlaceableFindings(v)) > 0 ||
+	// Every finding the reply reported, not only the ones that carry a usable line.
+	// A note dropped for naming no line is still something the review wrote down,
+	// and counting only the placeable ones let an approve over unplaceable notes
+	// publish a clean check.
+	return len(reportedFindings(v)) > 0 ||
 		len(NonBlockers(v)) > 0 ||
 		len(PreExisting(v)) > 0
 }
