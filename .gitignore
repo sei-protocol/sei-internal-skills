@@ -7,9 +7,6 @@ experimental/skills/*/state/**
 !experimental/skills/*/state/
 !experimental/skills/*/state/.gitkeep
 
-# JetBrains project files
-.idea/
-
 # python bytecode
 __pycache__/
 *.pyc

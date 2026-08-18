@@ -49,7 +49,7 @@ func TestMintSurvivesSecretsThatBasicAuthWouldCorrupt(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			token, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "sei-droid", secret)
+			token, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "seidroid", secret)
 			if err != nil {
 				t.Fatalf("MintToken: %v", err)
 			}
@@ -63,7 +63,7 @@ func TestMintSurvivesSecretsThatBasicAuthWouldCorrupt(t *testing.T) {
 			// The counterfactual: what the Basic path would have delivered.
 			// unquote_plus is applied to the decoded half, so any secret whose
 			// unquoted form differs is one Basic would have corrupted.
-			raw := base64.StdEncoding.EncodeToString([]byte("sei-droid:" + secret))
+			raw := base64.StdEncoding.EncodeToString([]byte("seidroid:" + secret))
 			decoded, err := base64.StdEncoding.DecodeString(raw)
 			if err != nil {
 				t.Fatalf("decode: %v", err)
@@ -279,7 +279,7 @@ func TestMintReportsTheLifetimeTheServerGave(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	token, ttl, err := MintToken(t.Context(), srv.Client(), srv.URL, "sei-droid", "sec")
+	token, ttl, err := MintToken(t.Context(), srv.Client(), srv.URL, "seidroid", "sec")
 	if err != nil {
 		t.Fatalf("MintToken: %v", err)
 	}

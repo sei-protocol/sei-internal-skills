@@ -610,7 +610,7 @@ func driverTestConfig(t *testing.T, baseURL string) driver.Config {
 	return driver.Config{
 		BaseURL:           baseURL,
 		Origin:            "test-origin",
-		Agent:             "sei-droid",
+		Agent:             "seidroid",
 		Token:             "test-token",
 		RunDeadline:       10 * time.Second,
 		RequestTimeout:    5 * time.Second,
@@ -703,7 +703,7 @@ func TestDriverRunHappyPath(t *testing.T) {
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
 		AgentPages: []string{
 			driverAgentPage("ag_other", "other-agent", "ag_other", true),
-			driverAgentPage("ag_1", "sei-droid", "ag_1", false),
+			driverAgentPage("ag_1", "seidroid", "ag_1", false),
 		},
 		CreateResp: driverSessionResp("conv_1", "ag_1"),
 		StreamFrames: []string{
@@ -806,7 +806,7 @@ func TestDriverIgnoresTheInjectionAcknowledgement(t *testing.T) {
 
 	reply := driverVerdict("Read the diff.", "comment")
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_ack", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -848,7 +848,7 @@ func TestDriverIgnoresBareIdleEdges(t *testing.T) {
 
 	reply := driverVerdict("Two findings.", "request_changes")
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_idle", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -887,7 +887,7 @@ func TestDriverIgnoresATurnThatEndedBeforeItsOwnPrompt(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionWithItems("conv_bound", "ag_1",
 			driverReplyItem("item_old", "resp_claude_old",
 				driverVerdict("An earlier invocation said this.", "request_changes"))),
@@ -941,7 +941,7 @@ func TestDriverAttributesByTurnIDRatherThanRecency(t *testing.T) {
 	foreign := driverReplyItem("item_foreign", "resp_claude_old",
 		driverVerdict("Not this turn's answer.", "request_changes"))
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		// The foreign group is already on the session before the turn, so it is
 		// history rather than a second live turn.
 		CreateResp: driverSessionWithItems("conv_recency", "ag_1", foreign),
@@ -988,7 +988,7 @@ func TestDriverRefusesWhenTwoTurnsRepliedIntoTheSession(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_two", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -1031,7 +1031,7 @@ func TestDriverFailsWhenAPermissionPromptCannotBeAnswered(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_stuck", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -1067,7 +1067,7 @@ func TestDriverTurnFailedLeavesTheSessionRunning(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_2", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -1106,7 +1106,7 @@ func TestDriverAnswersElicitationsOncePerIDAndPostsTheApprovalShape(t *testing.T
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_5", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -1157,7 +1157,7 @@ func TestDriverTeardownReusesTheMintedTokenInsteadOfMintingAgain(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_8", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -1280,7 +1280,7 @@ func TestDriverSalvagesAVerdictFromAFailedTurn(t *testing.T) {
 			t.Parallel()
 
 			fs := newDriverFakeServer(t, driverFakeServerConfig{
-				AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+				AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 				CreateResp: driverSessionResp("conv_salvage", "ag_1"),
 				StreamFrames: []string{
 					driverAckFrame(),
@@ -1325,7 +1325,7 @@ func TestDriverRejectsATurnIDThatPredatesItsOwn(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_stale", "ag_1"),
 		// The other run's group is already on the session.
 		ItemsResp: driverItemsPage("resp_claude_other"),
@@ -1417,7 +1417,7 @@ func TestDriverRecoversAReviewWhoseStreamDied(t *testing.T) {
 			t.Parallel()
 
 			fs := newDriverFakeServer(t, driverFakeServerConfig{
-				AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+				AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 				CreateResp: driverSessionResp("conv_drop", "ag_1"),
 				StreamFrames: []string{
 					driverAckFrame(),
@@ -1461,7 +1461,7 @@ func TestDriverWaitsForTheSandboxBeforeSendingItsPrompt(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_wait", "ag_1"),
 		// The pipeline stalls before ready, which is the whole point: nothing here
 		// says the sandbox can accept anything.
@@ -1492,7 +1492,7 @@ func TestDriverReportsASandboxThatNeverLaunched(t *testing.T) {
 
 	const reason = "managed sandbox launch failed: spend limit reached"
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_failed", "ag_1"),
 		SandboxFrames: []string{
 			driverSandboxFrame("provisioning", ""),
@@ -1524,7 +1524,7 @@ func TestDriverResubscribesWhileThePromptIsStillWaiting(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_cold", "ag_1"),
 		// The sandbox never gets past connecting, and the stream ends each time.
 		SandboxFrames: []string{driverSandboxFrame("connecting", "")},
@@ -1557,7 +1557,7 @@ func TestDriverAnchorsOnAPendingInput(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_pending", "ag_1"),
 		EventResp:  `{"queued":true,"pending_id":"pending_1"}`,
 		StreamFrames: []string{
@@ -1610,7 +1610,7 @@ func TestDriverRejoinsAnIdleSessionWhoseReplyIsNotAReview(t *testing.T) {
 	narration := "I have the diff (1575 lines). Let me read it in full."
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_idle", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -1663,7 +1663,7 @@ func TestDriverFollowsATurnAcrossStreams(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_long", "ag_1"),
 		// The prompt lands and the boundary is crossed, then the stream ends with
 		// the turn still running.
@@ -1814,7 +1814,7 @@ func TestDriverInProcessTurnEndsOnResponseCompleted(t *testing.T) {
 
 	reply := driverVerdict("Two findings.", "comment")
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPageWithHarness("ag_1", "sei-droid", "codex")},
+		AgentPages: []string{driverAgentPageWithHarness("ag_1", "seidroid", "codex")},
 		CreateResp: driverSessionResp("conv_1", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -1862,7 +1862,7 @@ func TestDriverTerminalBackedIgnoresResponseCompleted(t *testing.T) {
 
 	finished := driverVerdict("Two findings.", "comment")
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPageWithHarness("ag_1", "sei-droid", "claude-native")},
+		AgentPages: []string{driverAgentPageWithHarness("ag_1", "seidroid", "claude-native")},
 		CreateResp: driverSessionResp("conv_1", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -1942,7 +1942,7 @@ func TestAReplyCarryingACredentialIsNeverPublished(t *testing.T) {
 		"\n```json\n{\"decision\": \"approve\"}\n```"
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		CreateResp: driverSessionResp("conv_1", "ag_1"),
 		StreamFrames: []string{
 			driverAckFrame(),
@@ -1986,7 +1986,7 @@ func TestAnAmbiguousSendReportsTheTurnNotTheTransport(t *testing.T) {
 
 	runKey := testRunKey("sei-protocol/sandbox", 22)
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		SessionListResp: `{"data":[{"id":"conv_1","labels":` +
 			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
 		SessionResps: []string{
@@ -2012,5 +2012,79 @@ func TestAnAmbiguousSendReportsTheTurnNotTheTransport(t *testing.T) {
 		t.Errorf("ExitCode = %d, want ExitTurnFailed (%d): the turn's own failure is "+
 			"what the caller branches on, not the stream error that surfaced it",
 			result.ExitCode, driver.ExitTurnFailed)
+	}
+}
+
+// TestAPromptParkedWhileDisconnectedIsAnswered covers the stall masih named.
+//
+// The stream replays nothing, so a permission prompt raised while no stream was
+// attached is never delivered. The hook blocks the agent synchronously while it
+// waits, so one this run never answers holds the turn for the rest of its budget
+// with the transport looking perfectly healthy. A reconnect is when such a prompt is
+// sitting there, so the snapshot is swept on every one.
+func TestAPromptParkedWhileDisconnectedIsAnswered(t *testing.T) {
+	t.Parallel()
+
+	parked := `{"id":"parked_1","params":{"policy_name":"approve_shell",` +
+		`"phase":"pre_tool_use","tool_name":"Bash"}}`
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+		CreateResp: driverSessionResp("conv_1", "ag_1"),
+		SessionListResp: `{"data":[{"id":"conv_1","labels":` +
+			`{"` + RunKeyLabel + `":"` + testRunKey("sei-protocol/sandbox", 22) + `"}}],` +
+			`"has_more":false}`,
+		SessionResps: []string{
+			// Adopted, then holding a prompt raised while nothing was listening.
+			`{"id":"conv_1","agent_id":"ag_1","created_at":1,"status":"idle","items":[],` +
+				`"pending_elicitations":[` + parked + `]}`,
+		},
+		StreamFrames: []string{driverAckFrame(), driverDoneFrame()},
+	})
+
+	newTestDriver(driverTestConfig(t, fs.URL), driver.NewPolicy("approve_shell", ""),
+		driverTestLogger()).
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+
+	approvals := 0
+	for _, r := range fs.EventReqs() {
+		if r.Type == "approval" {
+			approvals++
+		}
+	}
+	if approvals == 0 {
+		t.Error("a prompt parked on the session was never answered, so the agent would " +
+			"stay blocked until the run deadline")
+	}
+}
+
+// TestAnAttemptedSendIsNeverRepeated covers what a session read cannot settle.
+//
+// A prompt queued and not yet active leaves no active response, so the session looks
+// idle while holding it — and reading the session was what a resend keyed on.
+// SendInput carries no idempotency key, so the attempt is remembered locally.
+func TestAnAttemptedSendIsNeverRepeated(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+		SessionListResp: `{"data":[{"id":"conv_1","labels":` +
+			`{"` + RunKeyLabel + `":"` + testRunKey("sei-protocol/sandbox", 22) + `"}}],` +
+			`"has_more":false}`,
+		// Idle on every read: no active response, which is what a queued prompt looks
+		// like from here.
+		SessionResps: []string{driverSessionResp("conv_1", "ag_1")},
+		EventStatus:  http.StatusBadGateway,
+		StreamFrames: []string{driverAckFrame(), driverDoneFrame()},
+	})
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+
+	if got := driverPrompts(fs.EventReqs()); len(got) != 1 {
+		t.Errorf("prompt posts = %d, want 1: a send whose answer never arrived must not "+
+			"be repeated", len(got))
+	}
+	if result.ExitCode != driver.ExitTurnFailed {
+		t.Errorf("ExitCode = %d, want ExitTurnFailed (%d)", result.ExitCode, driver.ExitTurnFailed)
 	}
 }

@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -10,13 +11,13 @@ import (
 
 // Defaults for the knobs an operator usually leaves alone.
 const (
-	// DefaultOrigin is the server's first-party non-browser sentinel Origin.
+	// defaultOrigin is the server's first-party non-browser sentinel Origin.
 	// State-changing POSTs are gated by a trusted-origin CSRF check. This driver
 	// is not a browser and sends no Origin of its own, so it announces the
 	// sentinel to pass that guard — the same value the Python client sends.
-	DefaultOrigin = "omnigent://internal"
+	defaultOrigin = "omnigent://internal"
 
-	// DefaultBaseURL is loopback rather than a deployment's address: callers pin
+	// defaultBaseURL is loopback rather than a deployment's address: callers pin
 	// this binary at a ref, so a hostname here would tie every one of them to one
 	// deployment and point a bare local run at it. OMNIGENT_BASE_URL carries the
 	// real one.
@@ -27,11 +28,11 @@ const (
 	// runs the job and which URL it dials are independent, so the runner can still
 	// be in-cluster — and what the opt-out would unlock is worse: header auth is
 	// safe only because nothing outside the mesh can set X-Forwarded-Email.
-	DefaultBaseURL = "http://127.0.0.1:6767"
+	defaultBaseURL = "http://127.0.0.1:6767"
 
-	// DefaultAgent is the agent name to resolve. A name, not an id: ids differ
+	// defaultAgent is the agent name to resolve. A name, not an id: ids differ
 	// per deployment, so the workflow that calls this cannot hardcode one.
-	DefaultAgent = "sei-droid"
+	defaultAgent = "sei-droid"
 )
 
 // Config is the driver's whole configuration. Every field comes from the
@@ -121,14 +122,28 @@ type Config struct {
 // It does not check the credential; that is [Config.RequireAuth], kept separate
 // so a caller can load and inspect a configuration without holding a secret.
 func LoadConfig() (Config, error) {
+	// Each read can refuse, so they are gathered before the struct rather than
+	// inside it: a set-but-empty value is a misconfiguration to name, not a default
+	// to fall back to.
+	var errs []error
+	str := func(name, fallback string) string {
+		v, err := envOr(name, fallback)
+		if err != nil {
+			errs = append(errs, err)
+		}
+		return v
+	}
 	cfg := Config{
-		BaseURL: strings.TrimRight(envOr("OMNIGENT_BASE_URL", DefaultBaseURL), "/"),
-		Origin:  envOr("OMNIGENT_ORIGIN", DefaultOrigin),
-		Agent:   envOr("SEIDROID_AGENT_ID", DefaultAgent),
+		BaseURL: strings.TrimRight(str("OMNIGENT_BASE_URL", defaultBaseURL), "/"),
+		Origin:  str("OMNIGENT_ORIGIN", defaultOrigin),
+		Agent:   str("SEIDROID_AGENT_ID", defaultAgent),
 		Token:   resolveToken(),
 
 		MachineClientID:     strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_ID")),
 		MachineClientSecret: strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_SECRET")),
+	}
+	if len(errs) > 0 {
+		return Config{}, errors.Join(errs...)
 	}
 
 	// Seconds, because that is what an operator's existing values mean.
@@ -203,11 +218,21 @@ func resolveToken() string {
 	return strings.TrimSpace(os.Getenv("OMNIGENT_API_TOKEN"))
 }
 
-func envOr(name, fallback string) string {
-	if v := os.Getenv(name); v != "" {
-		return v
+// envOr is the value of name, or fallback when it is not set.
+//
+// Set-but-empty is a value, not an absence, and it is refused rather than silently
+// replaced: an operator who writes NAME= in a workflow has said something, and
+// answering with a default hides a misconfiguration behind a run that looks fine.
+func envOr(name, fallback string) (string, error) {
+	v, ok := os.LookupEnv(name)
+	if !ok {
+		return fallback, nil
 	}
-	return fallback
+	if strings.TrimSpace(v) == "" {
+		return "", fmt.Errorf("%w: %s is set but empty; unset it to take the default %q",
+			ErrConfig, name, fallback)
+	}
+	return v, nil
 }
 
 // secondsOr parses a duration-in-seconds variable, rejecting a value that is not
@@ -215,9 +240,13 @@ func envOr(name, fallback string) string {
 // exists to enforce, so it is a configuration error rather than a silent
 // unbounded run.
 func secondsOr(name string, fallback float64) (float64, error) {
-	raw := os.Getenv(name)
-	if raw == "" {
+	raw, ok := os.LookupEnv(name)
+	if !ok {
 		return fallback, nil
+	}
+	if strings.TrimSpace(raw) == "" {
+		return 0, fmt.Errorf("%w: %s is set but empty; unset it to take the default",
+			ErrConfig, name)
 	}
 	secs, err := strconv.ParseFloat(raw, 64)
 	if err != nil {

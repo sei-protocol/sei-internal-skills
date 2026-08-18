@@ -21,6 +21,16 @@ type turn struct {
 	// before anything can be attributed, and needs no synchronisation.
 	anchor string
 
+	// attempted records that a send went out, whatever came back.
+	//
+	// Set before the request, not after, because the ambiguous case is exactly the
+	// one where no answer arrives: a header timeout inside the server's own budget,
+	// a dropped connection after the bytes went out, a 502. Reading the session
+	// instead cannot settle it -- a prompt queued and not yet active leaves no active
+	// response, so the session looks idle while holding the prompt, and a second send
+	// is what that reads as permission for. SendInput carries no idempotency key.
+	attempted bool
+
 	// anchorItem is the conversation item the boundary resolved to.
 	//
 	// [turn.anchor] is whichever identifier the send returned, and a prompt parked
@@ -164,6 +174,14 @@ func (t *turn) crossBoundary(e omnigent.SessionInputConsumedEvent) {
 // response id downgrades the edge to noise rather than making it a wildcard.
 func (t *turn) observeStatus(e omnigent.SessionStatusEvent) {
 	if e.Status == omnigent.SessionStatusEventStatusFailed {
+		// An id already on the session before this run cannot be this turn failing,
+		// however well-timed the edge looks. A previous dispatch's turn goes on
+		// running server-side, and its failure arrives inside our window -- taken as
+		// ours it ends the run, and salvage would then read that turn's reply and
+		// publish it as this one's.
+		if e.ResponseID != nil && t.prior[*e.ResponseID] {
+			return
+		}
 		if t.crossed && e.ResponseID != nil {
 			t.failedTurnID = *e.ResponseID
 		}

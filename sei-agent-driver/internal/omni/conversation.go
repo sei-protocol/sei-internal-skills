@@ -74,16 +74,6 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 	c.host.log.Info("turn starting", "session_id", c.sessionID,
 		"answered", answered, "harness", c.harness, "prompt_chars", len(prompt))
 
-	// Asked of any session this run did not open: a prompt parked before this
-	// stream existed is never replayed onto it, so it is read from the snapshot
-	// instead. A session an earlier run left blocked on an elicitation has no reply
-	// yet and is exactly the one that needs this.
-	if c.from.continued {
-		if err := c.answerPending(ctx, t.answered); err != nil {
-			return driver.Reply{}, err
-		}
-	}
-
 	// Whether the session can take a prompt now decides when it goes in, and only a
 	// session this run created cannot. One still launching would accept the prompt
 	// without queueing it, leaving no anchor, so it waits for the ready edge. A live
@@ -112,6 +102,22 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 	// cap is roughly three minutes and a turn runs longer, so several reconnects are
 	// success rather than failure.
 	for opens := 1; ; opens++ {
+		// Every iteration, not once before the loop. The stream replays nothing, so a
+		// prompt raised while no stream was attached is never delivered -- and the
+		// permission hook blocks the agent synchronously while it waits, so one this
+		// run never answers stalls the turn for the rest of its budget with the
+		// transport looking perfectly healthy. A reconnect is exactly when such a
+		// prompt is sitting there unanswered.
+		//
+		// On the first pass only for a session this run did not open, which is the
+		// one that may already be holding a prompt. After that on every pass, because
+		// a reconnect is precisely when one has been raised with nobody listening.
+		if c.from.continued || opens > 1 {
+			if err := c.answerPending(ctx, t.answered); err != nil {
+				return driver.Reply{}, err
+			}
+		}
+
 		framesBefore := t.frames
 		reply, err := c.consumeTurn(ctx, prompt, t, opts)
 		carriedNothing := t.frames == framesBefore
@@ -130,28 +136,18 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 		// down, in which case the ready edge has already passed and waiting for it
 		// again would hang.
 		if t.anchor == "" {
-			live, busy := c.host.sessionState(ctx, c.client, c.sessionID)
-			switch {
-			case busy:
-				// The send failed without saying whether the server took it, and the
-				// session is now answering something. Sending again would put a second
-				// prompt to a runtime already working on the first, which costs the
-				// agent budget twice and leaves two replies nothing can tell apart.
-				// SendInput carries no idempotency key, so it must not be repeated.
-				//
-				// Fatal rather than deferred. Waiting for that turn to finish and then
-				// resending is the same double-send one reconnect later, and this run
-				// has no anchor, so it could not attribute the reply even if it waited.
-				// Reporting it now costs the run and nothing else.
+			if t.attempted {
+				// A send went out and its acknowledgement never arrived, so whether the
+				// server took the prompt is unknowable from here. Sending again would
+				// put a second prompt to a runtime that may already be answering the
+				// first, and this run has no anchor, so it could not attribute either
+				// reply. Reporting it costs the run and nothing else.
 				t.fail(fmt.Errorf(
-					"%w: the prompt was sent without a usable acknowledgement and the "+
-						"session is already answering, so it cannot be sent again or "+
-						"attributed", driver.ErrTurnFailed))
-				// The turn's own failure, not the stream error that exposed it. The
-				// caller classifies on what it is handed, so returning err here would
-				// report a transport fault and drop the diagnostic just recorded.
+					"%w: the prompt was sent without a usable acknowledgement, so it can "+
+						"neither be sent again nor attributed", driver.ErrTurnFailed))
 				return reply, t.failure
-			case live:
+			}
+			if c.host.sessionIsLive(ctx, c.client, c.sessionID) {
 				opts.OnSubscribed = c.sendOnSubscribe(prompt, t)
 			}
 			continue
@@ -306,6 +302,10 @@ func (c *conversation) consumeTurn(
 // anchor, so this refuses rather than working blind — streaming on would burn the
 // run deadline before saying so.
 func (c *conversation) sendPrompt(ctx context.Context, sessionID, prompt string, t *turn) error {
+	// Before the call, so a send whose answer never arrives is still remembered as
+	// attempted. See [turn.attempted].
+	t.attempted = true
+
 	accepted, err := c.client.SendInput(ctx, sessionID, omnigent.UserMessage(prompt))
 	if err != nil {
 		return fmt.Errorf("sending the prompt: %w", err)
