@@ -11,9 +11,10 @@
 // compile-time fact rather than a convention, so a fault in how one deployment
 // reports a turn cannot reach the exit-code contract except through [Host].
 //
-// It keeps the Python driver's contract: the same environment variables, exit
-// codes, run-key idempotency, and fail-closed permission policy keyed on
-// server-attested tool identity.
+// It keeps the Python driver's contract: the same environment variables, run-key
+// idempotency, and fail-closed permission policy keyed on server-attested tool
+// identity. The exit codes are that set and one more, [ExitInternal], which a
+// caller pinned to an older ref reads as an unknown failure.
 //
 // # One session per unit of work
 //

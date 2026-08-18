@@ -4,7 +4,9 @@ import "errors"
 
 // Exit codes. The caller workflow branches on these, so the numbers are a
 // contract with it and carry over unchanged from the Python driver — a workflow
-// pinned to an older ref must keep reading them the same way.
+// pinned to an older ref must keep reading them the same way. A number may be
+// added, because an unrecognised code falls to a caller's default branch, but no
+// existing number changes meaning.
 //
 // Exported, unlike the defaults in config.go, because that contract is the reason
 // they exist: the command reads them to decide what to report, and a caller outside
@@ -16,6 +18,13 @@ const (
 	ExitOK = 0
 
 	// ExitConfig is a configuration or credential problem. Nothing was sent.
+	//
+	// It shares 2 with the Go runtime, which exits 2 on an unrecovered panic and on
+	// an unparseable flag. [ExitInternal] takes the panics this driver can recover,
+	// but one raised on another goroutine is not recoverable from here and still
+	// lands on this number. So a caller that has to tell a crash from a bad variable
+	// reads the log rather than the code: a configuration failure names the
+	// variable, and a crash carries a stack.
 	ExitConfig = 2
 
 	// ExitTimeout is the run deadline expiring. Nothing is interrupted: a turn that
@@ -56,6 +65,14 @@ const (
 	// classes, so a close that both leaked and failed some other way still reports
 	// the leak: a held sandbox outlives whatever else went wrong on the way out.
 	ExitTeardownLeak = 8
+
+	// ExitInternal is a defect in this driver: a panic it recovered rather than let
+	// the runtime report as a 2 nobody can tell from a bad configuration.
+	//
+	// The number is not from the Python driver's set. A caller pinned to an older
+	// ref has no branch for it and treats it as an unknown failure, which is the
+	// right reading of one.
+	ExitInternal = 9
 )
 
 // Sentinels, matchable with [errors.Is] by a caller that wants to branch on the

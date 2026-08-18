@@ -2,6 +2,7 @@ package driver
 
 import (
 	"fmt"
+	"log/slog"
 	"math"
 	"os"
 	"strconv"
@@ -126,6 +127,36 @@ type Config struct {
 	// re-established with the prompt still unsent.
 	StreamIdleTimeout time.Duration
 }
+
+// LogValue renders the configuration without its credentials.
+//
+// The whole struct is the natural thing to log once at startup, and two of its
+// fields are secrets. Without this, one slog.Any("config", cfg) writes a bearer
+// token into a workflow log that the author of the pull request under review can
+// read.
+//
+// The credentials are reported as set or not rather than dropped, because "which
+// credential did this run use" is the first question a 401 raises, and the answer
+// decides whether an operator looks at the token or at the machine client.
+func (c Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("base_url", c.BaseURL),
+		slog.String("origin", c.Origin),
+		slog.String("agent", c.Agent),
+		slog.Bool("token_set", c.Token != ""),
+		slog.String("machine_client_id", c.MachineClientID),
+		slog.Bool("machine_client_secret_set", c.MachineClientSecret != ""),
+		slog.Duration("run_deadline", c.RunDeadline),
+		slog.Duration("request_timeout", c.RequestTimeout),
+		slog.Duration("unary_timeout", c.UnaryTimeout),
+		slog.Duration("stream_idle_timeout", c.StreamIdleTimeout),
+	)
+}
+
+// String keeps a %v or %s of the configuration as safe as logging it, since a
+// struct reaches a message that way just as easily. Derived from [Config.LogValue]
+// so the two cannot come to disagree about which field is a secret.
+func (c Config) String() string { return c.LogValue().String() }
 
 // LoadConfig reads the configuration from the environment.
 //
