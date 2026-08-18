@@ -90,11 +90,11 @@ func TestPlaceableFindingsReadsTheCurrentContract(t *testing.T) {
 	}
 }
 
-// TestPlaceableFindingsStillReadsTheOlderContract is the one that stops a schema
-// change from going silent. A session that reviewed before this contract carries
-// its first prompt in context and cannot be told otherwise, so it keeps answering
-// in the vocabulary it learned. Reading only the new keys would place nothing on
-// every pull request already reviewed, and report success while doing it.
+// TestPlaceableFindingsStillReadsTheOlderContract is the one that stops a schema change
+// from going silent. A session that reviewed before this contract carries its first
+// prompt in context and cannot be told otherwise, so it keeps answering in the vocabulary
+// it learned. Reading only the new keys would place nothing on every pull request already
+// reviewed, and report success while doing it.
 func TestPlaceableFindingsStillReadsTheOlderContract(t *testing.T) {
 	t.Parallel()
 
@@ -145,11 +145,11 @@ func verdictFrom(t *testing.T, block string) Verdict {
 	return v
 }
 
-// TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty is the case a fallback
-// misses. A session shown the current schema on re-review knows the new key
-// exists and writes it empty, while still reporting under the vocabulary its
-// first prompt taught. Reading the old key only when the new one is ABSENT
-// places nothing here, and reports success doing it.
+// TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty is the case a fallback misses. A
+// session shown the current schema on re-review knows the new key exists and writes it
+// empty, while still reporting under the vocabulary its first prompt taught. Reading the
+// old key only when the new one is ABSENT places nothing here, and reports success doing
+// it.
 func TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -206,9 +206,9 @@ func TestBothPromptsCarryTheBucketRules(t *testing.T) {
 }
 
 // TestBothPromptsCarryTheRepoContext pins the standards and intent a review
-// reads. Adding a step to one prompt and not the other is how a rule reaches the
-// first dispatch on a pull request and no dispatch after it — and the adopted
-// path is the one almost every review takes.
+// Adding a step to one prompt and not the other is how a rule reaches the first dispatch
+// on a pull request and no dispatch after it. The adopted path is the one almost every
+// review takes.
 func TestBothPromptsCarryTheRepoContext(t *testing.T) {
 	t.Parallel()
 
@@ -218,10 +218,9 @@ func TestBothPromptsCarryTheRepoContext(t *testing.T) {
 		"AdoptedPrompt": AdoptedPrompt(req),
 	} {
 		for _, want := range []string{
-			// From the BASE branch. Read from the working tree, a change that edits
-			// the standards would be handing itself the ones it is judged against —
-			// and they outrank this prompt's checklist, which makes that a way to
-			// approve anything.
+			// From the BASE branch. Read from the working tree, a change that edits the standards
+			// would be handing itself the ones it is judged against. They outrank this prompt's
+			// checklist, which makes that a way to approve anything.
 			"--json baseRefName",
 			"REVIEW.md?ref=$base",
 			"never from pr-42-tree",

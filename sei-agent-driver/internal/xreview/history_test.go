@@ -18,10 +18,10 @@ func TestHistoryStepIsAbsentOnAFirstReview(t *testing.T) {
 	}
 }
 
-// TestBothPromptsCarryTheHistory is the wiring check. A step added to one prompt
-// and not the other reaches the first dispatch on a pull request and no dispatch
-// after it — and history only exists from the second dispatch onward, so the
-// adopted prompt is the one that always needs it.
+// TestBothPromptsCarryTheHistory is the wiring check. A step added to one prompt and not
+// the other reaches the first dispatch on a pull request and no dispatch after it.
+// History only exists from the second dispatch onward, so the adopted prompt is the one
+// that always needs it.
 func TestBothPromptsCarryTheHistory(t *testing.T) {
 	t.Parallel()
 
@@ -44,11 +44,10 @@ func TestBothPromptsCarryTheHistory(t *testing.T) {
 	}
 }
 
-// TestHistoryStepContainsWhatARepliesCanClaim covers the reason this is embedded
-// rather than fetched. A reply is written by whoever can comment on the pull
-// request, so it arrives as attacker-controlled text: it must not be able to
-// introduce a finding, end the section, or pass itself off as this tool's own
-// words.
+// TestHistoryStepContainsWhatARepliesCanClaim covers the reason this is embedded rather
+// than fetched. A reply is written by whoever can comment on the pull request, so it
+// arrives as attacker-controlled text. It must not be able to introduce a finding, end
+// the section, or pass itself off as this tool's own words.
 func TestHistoryStepContainsWhatARepliesCanClaim(t *testing.T) {
 	t.Parallel()
 
@@ -86,10 +85,10 @@ func TestHistoryStepBoundsWhatItRenders(t *testing.T) {
 	}
 }
 
-// TestSelectThreadsDropsResolvedBeforeOpen pins what goes when something has to.
-// Taking the first N kept the oldest, which on a pull request reviewed for weeks
-// are the ones most likely already handled — so the findings still standing, and
-// the recent replies a session has no way to recall, were the ones dropped.
+// TestSelectThreadsDropsResolvedBeforeOpen pins what goes when something has to. Taking
+// the first N kept the oldest, which on a pull request reviewed for weeks are the ones
+// most likely already handled. So the findings still standing, and the recent replies a
+// session has no way to recall, were the ones dropped.
 func TestSelectThreadsDropsResolvedBeforeOpen(t *testing.T) {
 	t.Parallel()
 
@@ -114,9 +113,9 @@ func TestSelectThreadsDropsResolvedBeforeOpen(t *testing.T) {
 	}
 }
 
-// TestSelectThreadsFallsBackToResolved covers a pull request whose open findings
-// alone do not fill the budget: the rest is better spent on resolved ones than
-// left empty, since the point is not raising them again.
+// TestSelectThreadsFallsBackToResolved covers a pull request whose open findings alone do
+// not fill the budget. The rest is better spent on resolved ones than left empty, since
+// the point is not raising them again.
 func TestSelectThreadsFallsBackToResolved(t *testing.T) {
 	t.Parallel()
 
@@ -143,9 +142,9 @@ func TestSelectThreadsKeepsEverythingItCan(t *testing.T) {
 	}
 }
 
-// TestHistoryStepNamesAFileWithoutALine covers a thread GitHub holds against a
-// whole file: the publisher falls back to a file-level comment when a finding
-// cites a line outside the diff, and such a thread comes back carrying no line.
+// TestHistoryStepNamesAFileWithoutALine covers a thread GitHub holds against a whole
+// file. The publisher falls back to a file-level comment when a finding cites a line
+// outside the diff, and such a thread comes back carrying no line.
 func TestHistoryStepNamesAFileWithoutALine(t *testing.T) {
 	t.Parallel()
 
@@ -160,9 +159,9 @@ func TestHistoryStepNamesAFileWithoutALine(t *testing.T) {
 	}
 }
 
-// TestCollapseRepeatsMergesIdenticalFindings pins what a live pull request
-// showed: repeated runs left the same finding on the same line several times, and
-// carrying each copy spends the budget restating one point.
+// TestCollapseRepeatsMergesIdenticalFindings pins what a live pull request showed.
+// Repeated runs left the same finding on the same line several times, and carrying each
+// copy spends the budget restating one point.
 func TestCollapseRepeatsMergesIdenticalFindings(t *testing.T) {
 	t.Parallel()
 
@@ -231,10 +230,10 @@ func TestCollapseRepeatsKeepsDistinctFindingsApart(t *testing.T) {
 }
 
 // TestCollapsedFindingSurvivesOnItsLatestMention covers the interaction between
-// collapsing and bounding: a finding first raised long ago and restated in the
-// most recent run is a recent finding, and the replies it carries were merged
-// from those recent copies. Ordering the survivor by its first appearance instead
-// would drop exactly that finding as old.
+// collapsing and bounding. A finding first raised long ago and restated in the most
+// recent run is a recent finding, and the replies it carries were merged from those
+// recent copies. Ordering the survivor by its first appearance instead would drop exactly
+// that finding as old.
 func TestCollapsedFindingSurvivesOnItsLatestMention(t *testing.T) {
 	t.Parallel()
 

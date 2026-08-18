@@ -16,14 +16,14 @@
 //
 // # The input is hostile
 //
-// The diff, the pull request body, the file the change adds, the comments a previous
-// review drew, the report a scout returned — all of it is written by whoever opened
-// the pull request, and all of it goes into a prompt whose answer gets published
-// under the bot's identity.
+// Everything reaching a prompt here comes from the pull request: the diff, the body,
+// the file the change adds, the comments a previous review drew, the report a scout
+// returned. Whoever opened the pull request wrote all of it. The answer to that prompt
+// gets published under the bot's identity.
 //
 // So the material under review is data describing what someone wants reviewed, never
-// instructions, and nothing it contains may become a claim the output makes on its
-// own behalf. Every rule below is a consequence.
+// instructions. Nothing it contains may become a claim the output makes on its own
+// behalf. Every rule below is a consequence.
 //
 // # Reading order
 //
@@ -39,19 +39,19 @@
 //
 // # How the package models it
 //
-// Embedded, not fetched. The diff, the standards, the intent and the prior findings
-// are written into the prompt rather than left as steps the agent performs. A step
-// the agent must perform is a step it can skip; prose the author controls should not
-// travel through a shell to arrive; and attribution comes from this side rather than
-// from whatever the fetched text claims about itself.
+// Embedded, not fetched. The diff, the standards, the intent and the prior findings are
+// written into the prompt rather than left as steps the agent performs. Three reasons.
+// A step the agent must perform is a step it can skip. Prose the author controls should
+// not travel through a shell to arrive. And attribution comes from this side, not from
+// whatever the fetched text claims about itself.
 //
 // Standards from the base branch. A change that edits REVIEW.md must not hand itself
 // the standards it is judged against.
 //
-// One deciding block. A reply closes with a single fenced json block and nothing
-// after it. A decision quoted inside the diff makes the parse refuse rather than
-// forge, because two blocks are ambiguous and ambiguity resolved by picking one is
-// how a pull request writes its own verdict.
+// One deciding block. A reply closes with a single fenced json block and nothing after
+// it. A decision quoted inside the diff makes the parse refuse rather than forge. Two
+// blocks are ambiguous, and ambiguity resolved by picking one is how a pull request
+// writes its own verdict.
 //
 // Every prompt-bound string is one-lined and clipped. A finding, a scout note or a
 // filename that carried a newline could otherwise open a heading and attribute
@@ -68,10 +68,10 @@
 // while it lists a blocker still fails. That holds for a blocker which names no line
 // and so cannot become an inline comment.
 //
-// A scout's name is its dispatch identity. This side fixes it when the scout goes
-// out, and never takes it from what the scout returned. A reading that failed is
-// reported as failed: a credential outage that read as a clean review would read that
-// way on every pull request at once.
+// A scout's name is its dispatch identity. This side fixes it when the scout goes out,
+// and never takes it from what the scout returned. A reading that failed is reported as
+// failed. A credential outage that read as a clean review would read that way on every
+// pull request at once.
 //
 // # Two prompts, not one
 //
@@ -85,7 +85,7 @@
 // bucketRules for that reason. It is written once, so the two cannot drift.
 //
 // Shared text carries no positional reference for the same reason. Step numbers exist
-// only in the first prompt, so a "Step 3" written into text both of them render points
+// only in the first prompt. So a "Step 3" written into text both of them render points
 // at nothing on the path almost every review takes.
 //
 // The scout prompts follow the same split for the same reason.

@@ -6,10 +6,10 @@ import (
 	"testing"
 )
 
-// TestBuildCheckRunCarriesWhatTheInlineCommentsCannot is the point of the check
-// run: a blocker tied to no line reaches a reader nowhere else, and a review
-// whose most important objection is "this needs a test" would otherwise land as
-// a clean set of inline comments.
+// TestBuildCheckRunCarriesWhatTheInlineCommentsCannot is the point of the check run. A
+// blocker tied to no line reaches a reader nowhere else. A review whose most important
+// objection is "this needs a test" would otherwise land as a clean set of inline
+// comments.
 func TestBuildCheckRunCarriesWhatTheInlineCommentsCannot(t *testing.T) {
 	t.Parallel()
 
@@ -122,11 +122,11 @@ func TestCheckConclusionFollowsTheFindings(t *testing.T) {
 // TestABlockerWithNoLineStillFailsTheCheck covers the gap between what a review
 // reported and what can be posted on a line.
 //
-// A finding with no line is dropped from the inline comments, which is the right
-// call — the prompt tells the agent not to guess one. Counting only what survived
-// that drop let a reply naming a blocker publish a green check titled "0 findings",
-// with the finding surviving in prose alone. The check gates a merge, so it follows
-// everything the review reported.
+// A finding with no line is dropped from the inline comments, which is the right call:
+// the prompt tells the agent not to guess one. But counting only what survived that drop
+// let a reply naming a blocker publish a green check titled "0 findings", with the
+// finding surviving in prose alone. The check gates a merge, so it follows everything the
+// review reported.
 func TestABlockerWithNoLineStillFailsTheCheck(t *testing.T) {
 	t.Parallel()
 
@@ -244,8 +244,8 @@ func TestTitleCountsOneObservationOnce(t *testing.T) {
 // must not survive is its ability to start a line.
 //
 // Line endings are normalised for the same reason defuseHeadings normalises them, and
-// deliberately not by calling it: a helper that shared the assumption under test would
-// count a \r-separated heading as part of the line before it and report a clean zero
+// deliberately not by calling it. A helper that shared the assumption under test would
+// count a \r-separated heading as part of the line before it, and report a clean zero
 // against exactly the defect it is here to catch.
 func headingLines(text, heading string) int {
 	text = strings.ReplaceAll(text, "\r\n", "\n")
@@ -262,10 +262,10 @@ func headingLines(text, heading string) int {
 // TestModelTextCannotForgeACheckSection covers every field the check summary is
 // assembled from.
 //
-// The summary carries this package's own "### Blocking" and "### Pre-existing"
-// headings, so a reader has no way to tell framing from content. Any field reaching it
-// could otherwise open a section of its own and attribute a finding -- or a clean bill
-// of health -- to the review.
+// The summary carries this package's own "### Blocking" and "### Pre-existing" headings,
+// so a reader has no way to tell framing from content. Any field reaching it could
+// otherwise open a section of its own, and attribute a finding to the review -- or a
+// clean bill of health.
 func TestModelTextCannotForgeACheckSection(t *testing.T) {
 	t.Parallel()
 
@@ -305,10 +305,10 @@ func TestModelTextCannotForgeACheckSection(t *testing.T) {
 // TestASummaryCannotForgeASectionWithAnyLineEnding covers the three endings markdown
 // recognises, against the one Go splits on.
 //
-// A \r\n summary leaves a trailing \r on an underline line, which stopped a run of -
-// from being recognised here while a parser still read it as a heading. A lone \r is a
-// line ending to the parser that strings.Split does not break on at all, so every
-// heading after one arrived live -- ATX included.
+// A \r\n summary leaves a trailing \r on an underline line. The run of - stopped being
+// recognised here, while a parser still read it as a heading. A lone \r is a line ending
+// to the parser that strings.Split does not break on at all, so every heading after one
+// arrived live, ATX included.
 func TestASummaryCannotForgeASectionWithAnyLineEnding(t *testing.T) {
 	t.Parallel()
 

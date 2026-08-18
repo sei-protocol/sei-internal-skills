@@ -5,9 +5,9 @@ import (
 	"slices"
 )
 
-// Bounds on the history a prompt carries. A pull request reviewed many times
-// accumulates threads without limit, and a prompt that grows with them crowds out
-// the diff it is supposed to be about.
+// Bounds on the history a prompt carries. A pull request reviewed many times accumulates
+// threads without limit, and a prompt that grows with them crowds out the diff it is
+// supposed to be about.
 const (
 	maxPriorThreads = 20
 	maxPriorReplies = 3
@@ -25,9 +25,9 @@ type PriorThread struct {
 	// Body is what this tool said, as it was posted.
 	Body string `json:"body"`
 
-	// Replies are what came back, oldest first. The author's words, so untrusted
-	// like anything else on the pull request — and the reason this step exists: a
-	// session remembers what it said and has no way to know what was said back.
+	// Replies are what came back, oldest first. The author's words, so untrusted like
+	// anything else on the pull request. That is also the reason this step exists: a session
+	// remembers what it said and has no way to know what was said back.
 	Replies []string `json:"replies"`
 
 	// Resolved reports that the thread is marked resolved on GitHub.
@@ -36,15 +36,15 @@ type PriorThread struct {
 
 // collapseRepeats merges prior threads saying the same thing in the same place.
 //
-// Runs before a review could see its own history left the same finding on a line
-// several times over. On one live pull request 5 of 13 threads were byte-identical
-// repeats of two findings — more than a third of what a prompt can carry, spent
-// restating two points, and teaching a review that repeating itself is normal.
-// Stopping that is what this history is for.
+// Runs before a review could see its own history left the same finding on a line several
+// times over. On one live pull request, 5 of 13 threads were byte-identical repeats of
+// two findings. That is more than a third of what a prompt can carry, spent restating two
+// points, and it teaches a review that repeating itself is normal. Stopping that is what
+// this history is for.
 //
-// The survivor keeps every reply anyone left on any copy, stays open if any copy
-// is open — an author who resolved three of four identical threads has not
-// resolved the finding — and sits where the finding was last stated.
+// The survivor keeps every reply anyone left on any copy, and sits where the finding was
+// last stated. It stays open if any copy is open: an author who resolved three of four
+// identical threads has not resolved the finding.
 func collapseRepeats(threads []PriorThread) []PriorThread {
 	type finding struct {
 		thread PriorThread
@@ -68,11 +68,10 @@ func collapseRepeats(threads []PriorThread) []PriorThread {
 		f.last = i
 	}
 
-	// Ordered by where each finding was last stated, not where it was first.
-	// [selectThreads] drops the oldest when the history will not fit, and a
-	// finding restated a moment ago is not old — leaving the survivor at its first
-	// appearance would drop it, together with the replies merged from the copies
-	// that made it recent.
+	// Ordered by where each finding was last stated, not where it was first. [selectThreads]
+	// drops the oldest when the history will not fit, and a finding restated a moment ago is
+	// not old. Leaving the survivor at its first appearance would drop it, together with the
+	// replies merged from the copies that made it recent.
 	slices.SortStableFunc(found, func(a, b *finding) int { return a.last - b.last })
 
 	out := make([]PriorThread, len(found))
@@ -95,11 +94,11 @@ func withNewReplies(into, more []string) []string {
 // selectThreads picks which threads a prompt carries when there are more than it
 // can hold.
 //
-// Unresolved first, and newest within each group. An unaddressed finding is the
-// one a repeat annoys a reader with, and a resolved one is carried mainly so the
-// review does not raise it again — so when something has to go, the resolved ones
-// go first. Newest within each group because a session already recalls what it
-// said; it is the recent replies and resolutions it has no way to know about.
+// Unresolved first, and newest within each group. An unaddressed finding is the one a
+// repeat annoys a reader with, and a resolved one is carried mainly so the review does
+// not raise it again. So when something has to go, the resolved ones go first. Newest
+// within each group because a session already recalls what it said: it is the recent
+// replies and resolutions it has no way to know about.
 //
 // Threads arrive oldest first, like the replies inside them.
 func selectThreads(threads []PriorThread, max int) []PriorThread {
@@ -151,8 +150,8 @@ func historyStep(req Request) []string {
 			state = "resolved"
 		}
 		where := clip(oneLine(t.File), maxScoutField)
-		// A thread GitHub holds against a whole file carries no line, and printing
-		// the zero would name line 0 as the place the finding is about.
+		// A thread GitHub holds against a whole file carries no line. Printing the zero would
+		// name line 0 as the place the finding is about.
 		if t.Line > 0 {
 			where = fmt.Sprintf("%s:%d", where, t.Line)
 		}

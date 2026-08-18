@@ -19,10 +19,9 @@ type Finding struct {
 	// placeable only at the top of the file, so such a finding is dropped too.
 	Line int `json:"line"`
 
-	// Side is which side of the diff Line counts against: RIGHT for the new file,
-	// LEFT for the old one. It is what makes a finding about a removed line
-	// placeable at all — without it such a finding lands on an unrelated new line
-	// or is dropped.
+	// Side is which side of the diff Line counts against: RIGHT for the new file, LEFT for
+	// the old one. It is what makes a finding about a removed line placeable at all. Without
+	// it, such a finding lands on an unrelated new line or is dropped.
 	//
 	// Empty means RIGHT, which is what a finding naming no side means and what
 	// nearly every finding is.
@@ -39,14 +38,13 @@ type Finding struct {
 
 // PreExistingIssue is a problem the change did not introduce.
 //
-// Kept apart from [Finding] because the two answer different questions. A
-// finding is about this pull request; a pre-existing issue is about the code it
-// landed in, and presenting one as the other tells an author they broke
-// something they did not touch.
+// Kept apart from [Finding] because the two answer different questions. A finding is
+// about this pull request. A pre-existing issue is about the code it landed in, and
+// presenting one as the other tells an author they broke something they did not touch.
 type PreExistingIssue struct {
-	// Severity is blocker or suggestion. Blocker is reserved for something
-	// critical on its own — an exploitable hole, data loss, a likely outage —
-	// rather than for anything the change happened to sit near.
+	// Severity is blocker or suggestion. Blocker is reserved for something critical on its
+	// own: an exploitable hole, data loss, a likely outage. It is not for anything the
+	// change happened to sit near.
 	Severity string `json:"severity"`
 
 	// Body identifies the location and the impact in one line.
@@ -85,19 +83,19 @@ func normalizeSide(raw string) string {
 	return "RIGHT"
 }
 
-// PlaceableFindings returns the findings a caller can post against a line.
-//
-// Only the placeable ones, because a review comment needs a path and a line and
-// there is nowhere sensible to put one that has neither. What is dropped here is
-// still in the prose the summary comment carries, so nothing is lost from the
-// review — only from the inline placement.
 // maxPlaceableFindings bounds how many inline comments one reply can produce.
 //
 // A caller posts one comment per entry under the bot's identity. The scout path is
-// bounded at 25 for the same reason; this one was not, so a reply that looped could
-// have the bot write thousands of comments on one pull request.
+// bounded for the same reason. This one was not, so a reply that looped could have the
+// bot write thousands of comments on one pull request.
 const maxPlaceableFindings = 50
 
+// PlaceableFindings returns the findings a caller can post against a line.
+//
+// Only the placeable ones, because a review comment needs a path and a line, and there
+// is nowhere sensible to put one that has neither. What is dropped here is still in the
+// prose the summary comment carries. Nothing is lost from the review, only from the
+// inline placement.
 func PlaceableFindings(v Verdict) []Finding {
 	seen := make(map[string]bool)
 	out := make([]Finding, 0)
@@ -122,12 +120,11 @@ func PlaceableFindings(v Verdict) []Finding {
 // reportedFindings returns the raw entries a reply offered as line-tied
 // findings, under either key it may have used.
 //
-// Both keys are read, always, rather than one falling back to the other. A
-// session answers in the vocabulary its first prompt taught and cannot be told
-// otherwise, so a re-review shown the current schema can write an empty
-// inline_comments beside a filled findings. A fallback that fires only when the
-// key is absent does not fire there, and the result is a run that places nothing
-// and reports success.
+// Both keys are read, always, rather than one falling back to the other. A session
+// answers in the vocabulary its first prompt taught, and cannot be told otherwise. So a
+// re-review shown the current schema can write an empty inline_comments beside a filled
+// findings. A fallback that fires only when the key is absent does not fire there, and
+// the run then places nothing and reports success.
 func reportedFindings(v Verdict) []any {
 	return append(listField(v.Structured, "inline_comments"),
 		listField(v.Structured, "findings")...)
@@ -146,9 +143,9 @@ func findingFrom(fields map[string]any) Finding {
 
 // placeable reports whether this finding can be posted against a line.
 func (f Finding) placeable() bool {
-	// The path is checked, not merely non-empty. A caller posts these against a
-	// pull request, and the value arrives from a model reading a diff someone else
-	// wrote -- the same provenance the scout paths already validate.
+	// The path is checked, not merely non-empty. A caller posts these against a pull
+	// request, and the value arrives from a model reading a diff someone else wrote. That is
+	// the same provenance the scout paths already validate.
 	return f.File != "" && isPlainRepoPath(f.File) && f.Line > 0 && f.Detail != ""
 }
 
@@ -171,10 +168,10 @@ func firstNonEmpty(fields map[string]any, keys ...string) string {
 
 // Blockers returns the must-fix findings that name no single line.
 //
-// They exist because the alternative is losing them. A review that says the change
-// needs a test, or that two functions now disagree, has no line to put that against.
-// A contract with only line-tied findings drops it silently: the author reads a clean
-// set of inline comments and never learns the review's most important objection.
+// They exist because the alternative is losing them. A review that says the change needs
+// a test, or that two functions now disagree, has no line to put that against. A contract
+// with only line-tied findings drops it silently. The author reads a clean set of inline
+// comments and never learns the review's most important objection.
 func Blockers(v Verdict) []string { return bulletList(v.Structured, "blockers") }
 
 // NonBlockers returns the same for observations that do not block.
@@ -243,9 +240,8 @@ func stringField(m map[string]any, key string) string {
 	return s
 }
 
-// intField reads a number that JSON decoding may have made a float64, and takes
-// a string too because an agent writing JSON by hand quotes numbers often enough
-// to matter.
+// intField reads a number that JSON decoding may have made a float64. It takes a string
+// too, because an agent writing JSON by hand quotes numbers often enough to matter.
 func intField(m map[string]any, key string) int {
 	switch v := m[key].(type) {
 	case float64:

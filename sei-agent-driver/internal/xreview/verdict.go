@@ -15,10 +15,9 @@ var fencedJSON = regexp.MustCompile("(?s)```(?:json)?\\s*(\\{.*?\\})\\s*```")
 // decisions is the closed set of decisions this driver accepts.
 //
 // Closed rather than open because the decision is on its way to being acted on
-// mechanically — an approving review event, a status check — and a parser that
-// accepts any string becomes a privilege defect on the day that lands. An
-// unrecognised value is reported as no verdict, with what the agent actually said
-// carried into the log.
+// mechanically: an approving review event, a status check. A parser that accepts any
+// string becomes a privilege defect on the day that lands. An unrecognised value is
+// reported as no verdict, with what the agent actually said carried into the log.
 var decisions = map[string]bool{
 	"approve":         true,
 	"comment":         true,
@@ -36,9 +35,8 @@ type Verdict struct {
 	// in prose, and the caller decides whether that counts.
 	Structured map[string]any
 
-	// Block is the closing block's bytes as the agent wrote them, kept so a
-	// truncated comment can carry the decision verbatim rather than a
-	// re-rendering of it.
+	// Block is the closing block's bytes as the agent wrote them. Kept so a truncated
+	// comment can carry the decision verbatim, rather than a re-rendering of it.
 	Block string
 
 	// TurnID and ItemID are where this text came from, carried so a published
@@ -71,15 +69,15 @@ func (v Verdict) Summary() string {
 
 // CheckConclusion renders a GitHub check-run conclusion for this review.
 //
-// Derived rather than asked for separately: the two say the same thing about the
-// same review, and one that could disagree with itself — request_changes beside
-// a passing check — leaves a reader no way to tell which is meant.
+// Derived rather than asked for separately. The two say the same thing about the same
+// review, and one that could disagree with itself -- request_changes beside a passing
+// check -- leaves a reader no way to tell which is meant.
 //
-// What it derives from is the findings, with the decision able to escalate but
-// not to clear. A review that reported three non-blocking notes and still said
-// approve published a green check, which tells a reader the review found nothing
-// on a pull request it had three things to say about. Both readings came from the
-// same reply, so the one backed by what it actually wrote wins.
+// What it derives from is the findings, with the decision able to escalate but not to
+// clear. A review that reported three non-blocking notes and still said approve published
+// a green check. That tells a reader the review found nothing, on a pull request it had
+// three things to say about. Both readings came from the same reply, so the one backed by
+// what it actually wrote wins.
 func (v Verdict) CheckConclusion() string {
 	if !v.HasVerdict() {
 		return ""
@@ -90,15 +88,15 @@ func (v Verdict) CheckConclusion() string {
 	if v.Decision() == "comment" || v.hasNotes() {
 		return "neutral"
 	}
-	// A review that never got the diff has no findings either, so the derivation
-	// above reads it as clean -- and a credential failure would report a green check
-	// on every pull request at once. The scout contract carries a line count for
-	// exactly this reason; the review's did not.
+	// A review that never got the diff has no findings either, so the derivation above reads
+	// it as clean. A credential failure would then report a green check on every pull request
+	// at once. The scout contract carries a line count for exactly this reason; the review's
+	// did not.
 	//
-	// Degraded to neutral rather than failed. A missing count means this tool cannot
-	// tell a clean review from a review of nothing, which is not the same as knowing the
-	// change is bad. And a reply from a session prompted before the field existed omits
-	// it without having done anything wrong.
+	// Degraded to neutral rather than failed. A missing count means this tool cannot tell a
+	// clean review from a review of nothing, which is not the same as knowing the change is
+	// bad. And a reply from a session prompted before the field existed omits it without
+	// having done anything wrong.
 	if !v.readTheDiff() {
 		return "neutral"
 	}
@@ -120,8 +118,8 @@ func (v Verdict) readTheDiff() bool {
 // The check then reads "0 findings", and the only trace left is prose in the comment
 // body.
 //
-// The blockers array is checked separately by the caller: it holds what is
-// blocking and tied to no line, which is a different bucket, not a fallback.
+// The blockers array is checked separately by the caller. It holds what is blocking and
+// tied to no line, which is a different bucket rather than a fallback.
 func (v Verdict) hasBlockingFinding() bool {
 	for _, entry := range reportedFindings(v) {
 		fields, ok := entry.(map[string]any)
@@ -137,14 +135,13 @@ func (v Verdict) hasBlockingFinding() bool {
 
 // hasNotes reports whether the review wrote anything down at all.
 //
-// Pre-existing issues count. They are not this change's fault, which is why they
-// are kept out of the other buckets, but a check that says "nothing to see" over
-// a review naming one is still wrong about what the review said.
+// Pre-existing issues count. They are not this change's fault, which is why they are kept
+// out of the other buckets. But a check that says "nothing to see" over a review naming
+// one is still wrong about what the review said.
 func (v Verdict) hasNotes() bool {
-	// Every finding the reply reported, not only the ones that carry a usable line.
-	// A note dropped for naming no line is still something the review wrote down,
-	// and counting only the placeable ones let an approve over unplaceable notes
-	// publish a clean check.
+	// Every finding the reply reported, not only the ones that carry a usable line. A note
+	// dropped for naming no line is still something the review wrote down. Counting only the
+	// placeable ones let an approve over unplaceable notes publish a clean check.
 	return len(reportedFindings(v)) > 0 ||
 		len(NonBlockers(v)) > 0 ||
 		len(PreExisting(v)) > 0
@@ -157,26 +154,25 @@ func (v Verdict) HasVerdict() bool { return v.Structured != nil }
 
 // ParseVerdict reads the closing block out of the agent's final message.
 //
-// A message must carry exactly one fenced block that decides, that block must be
-// last, and nothing but whitespace may follow it. All three are required, and the
-// first is the one that matters most: the agent reviews a pull request whose diff
-// is written by someone else, so a file it quotes can itself contain a fenced
-// block naming a decision. Position cannot tell the agent's own verdict from a
-// verdict it is quoting — if the quoted block is physically last it wins on
-// position alone. Counting them can: two decisions in one message means the
-// message does not say what the agent decided, so this refuses rather than
-// picking one.
+// A message must carry exactly one fenced block that decides, that block must be last,
+// and nothing but whitespace may follow it. All three are required, and the first matters
+// most. The agent reviews a pull request whose diff is written by someone else, so a file
+// it quotes can itself contain a fenced block naming a decision.
 //
-// Refusing costs a review. Guessing costs the integrity of a comment a human
-// reads as the reviewer's own words, and once anything acts on the decision it
-// costs more than that. An outside contributor can therefore suppress a review by
-// planting a decision block in their diff, which is a denial they can already
-// achieve by other means and is the direction this should fail in.
+// Position cannot tell the agent's own verdict from a verdict it is quoting: if the
+// quoted block is physically last, it wins on position alone. Counting them can. Two
+// decisions in one message means the message does not say what the agent decided, so this
+// refuses rather than picking one.
 //
-// There is deliberately no fallback to the outermost braces in the message. On a
-// recorded trace its only effect was to turn a garbled transport assembly into a
-// publishable verdict, and it would make every JSON object the agent ever quotes
-// a candidate.
+// Refusing costs a review. Guessing costs the integrity of a comment a human reads as
+// the reviewer's own words, and once anything acts on the decision it costs more than
+// that. An outside contributor can therefore suppress a review by planting a decision
+// block in their diff. That is a denial they can already achieve by other means, and it
+// is the direction this should fail in.
+//
+// There is deliberately no fallback to the outermost braces in the message. On a recorded
+// trace its only effect was to turn a garbled transport assembly into a publishable
+// verdict. It would also make every JSON object the agent ever quotes a candidate.
 func ParseVerdict(text string) Verdict {
 	v := Verdict{Text: text}
 
@@ -217,8 +213,8 @@ func ParseVerdict(text string) Verdict {
 // decidingBlocks counts how many of a message's fenced blocks parse to a JSON
 // object carrying a recognised decision.
 //
-// Separate from picking the verdict because the count is a precondition, not a
-// candidate search: more than one and there is no verdict to pick.
+// Separate from picking the verdict, because the count is a precondition rather than a
+// candidate search: more than one, and there is no verdict to pick.
 func decidingBlocks(text string, blocks [][]int) int {
 	n := 0
 	for _, b := range blocks {

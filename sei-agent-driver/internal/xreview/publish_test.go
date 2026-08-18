@@ -33,10 +33,11 @@ func TestRenderCommentPassesAShortReviewThrough(t *testing.T) {
 // TestRenderCommentTruncatesRatherThanRefusing covers the oversize path.
 //
 // A review that ran, cost model spend and held a sandbox for minutes must not be
-// discarded over a formatting limit, so this truncates and publishes. What it must
-// still guarantee: the body fits GitHub's cap, the elision is declared, the closing
-// block survives so the decision stays machine-readable, and the fences balance so
-// the notice cannot be swallowed into a code block.
+// discarded over a formatting limit. So this truncates and publishes.
+//
+// What it must still guarantee: the body fits GitHub's cap, the elision is declared, the
+// closing block survives so the decision stays machine-readable, and the fences balance
+// so the notice cannot be swallowed into a code block.
 func TestRenderCommentTruncatesRatherThanRefusing(t *testing.T) {
 	t.Parallel()
 

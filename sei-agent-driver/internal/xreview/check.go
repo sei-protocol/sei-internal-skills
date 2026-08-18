@@ -7,15 +7,14 @@ import (
 
 // CheckRun is what a caller needs to publish a review as a GitHub check run.
 //
-// A check run is the half of a review a reader sees without opening it: the
-// conclusion lands in the pull request's checks list, so it is what says at a
-// glance whether the review objected. The buckets a review sorts its
-// observations into are what fills it — the ones tied to no line especially,
-// since those reach a reader nowhere else.
+// A check run is the half of a review a reader sees without opening it. The conclusion
+// lands in the pull request's checks list, so it says at a glance whether the review
+// objected. What fills it is the buckets a review sorts its observations into, and above
+// all the ones tied to no line: those reach a reader nowhere else.
 type CheckRun struct {
-	// Conclusion is failure, neutral or success. Empty when the turn produced no
-	// verdict, which is not a check run at all: a review that could not be
-	// decided has nothing to conclude.
+	// Conclusion is failure, neutral or success. Empty when the turn produced no verdict,
+	// which is not a check run at all: a review that could not be decided has nothing to
+	// conclude.
 	Conclusion string `json:"conclusion"`
 
 	// Title is the one-line reading in the checks list.
@@ -41,10 +40,9 @@ func BuildCheckRun(v Verdict) (CheckRun, bool) {
 // checkTitle counts what the review found, because the count is what a reader
 // scanning the checks list is deciding on.
 func checkTitle(v Verdict) string {
-	// Every finding the reply reported, not only the placeable ones. A finding
-	// dropped for naming no line is still something the review said, and a title
-	// that counts only what could be pinned to a line reads as "found nothing" over
-	// a review that found something.
+	// Every finding the reply reported, not only the placeable ones. A finding dropped for
+	// naming no line is still something the review said. A title that counts only what could
+	// be pinned to a line reads as "found nothing" over a review that found something.
 	counts := []string{
 		plural(distinctReported(v)+len(Blockers(v))+len(NonBlockers(v)), "finding"),
 	}
@@ -56,11 +54,11 @@ func checkTitle(v Verdict) string {
 
 // maxCheckSummary bounds the check run's summary.
 //
-// GitHub rejects a check run whose summary exceeds 65,536 characters, and every
-// input here is model output: the summary itself, and every blocker, non-blocker
-// and pre-existing entry. A rejected check run is no check run, which reads as a
-// review that did not run rather than one that passed -- so this truncates for the
-// same reason [RenderComment] does, and says when it did.
+// GitHub rejects a check run whose summary exceeds 65,536 characters. Every input here
+// is model output: the summary itself, and every blocker, non-blocker and pre-existing
+// entry. A rejected check run is no check run, which reads as a review that did not run
+// rather than one that passed. So this truncates for the same reason [RenderComment]
+// does, and says when it did.
 const maxCheckSummary = 60_000
 
 // maxCheckBullet bounds one entry, so a single long one cannot crowd out the rest.
@@ -73,13 +71,13 @@ const checkTruncated = "\n\n_This summary was truncated. The published comment c
 // checkSummary renders the review's own summary and every observation that names no
 // line.
 //
-// The line-tied ones are deliberately absent: they are posted against the code they
-// are about, and repeating them here would have an author read each twice. What would
+// The line-tied ones are deliberately absent. They are posted against the code they are
+// about, and repeating them here would have an author read each twice. What would
 // otherwise be lost is exactly what this carries.
 //
-// Every part of it is model text assembled under headings of this package's, which is
+// Every part of it is model text, assembled under headings of this package's. That is
 // what makes the sanitising load-bearing here and not in the published comment. There
-// the agent's prose stands alone as the agent's prose; here it sits beside framing it
+// the agent's prose stands alone as the agent's prose. Here it sits beside framing it
 // must not be able to imitate.
 func checkSummary(v Verdict) string {
 	sections := []string{defuseHeadings(v.Summary())}
@@ -132,9 +130,9 @@ func preExistingSection(issues []PreExistingIssue) string {
 
 // checkBullet renders one piece of model text as a list item.
 //
-// One-lined as well as clipped: an entry carrying newlines can otherwise render its
-// own "### Blocking" heading, which is indistinguishable from this package's framing
-// to whoever reads the check.
+// One-lined as well as clipped. An entry carrying newlines can otherwise render its own
+// "### Blocking" heading, which is indistinguishable from this package's framing to
+// whoever reads the check.
 func checkBullet(s string) string { return "- " + clip(oneLine(s), maxCheckBullet) }
 
 // defuseHeadings makes a line-leading markdown heading marker inert.
@@ -144,16 +142,17 @@ func checkBullet(s string) string { return "- " + clip(oneLine(s), maxCheckBulle
 // the ability to open a section: a "### Blocking" of its own reads as this package's
 // framing.
 //
-// Both spellings, since either makes a heading -- a leading # and a run of = or -
-// alone on a line under a paragraph. A backslash before the first character is what
-// markdown honours, so a legitimate --- separator renders as literal --- text. That is
-// the cost, and it falls on a rule nobody writing a summary needs.
+// Both spellings, since either makes a heading: a leading # and a run of = or - alone on
+// a line under a paragraph. A backslash before the first character is what markdown
+// honours. So a legitimate --- separator renders as literal --- text. That is the cost,
+// and it falls on a rule nobody writing a summary needs.
 //
 // Line endings are normalised first, because markdown recognises three and Go splits
-// on one. With \r\n, a trailing \r stays on the underline line: the run of - stops
-// matching here, and a parser still reads it as a heading. A lone \r is worse. It ends
-// a line for the parser, and Split does not break on it at all, so every heading after
-// the first one arrives live.
+// Line endings are normalised first, because markdown recognises three and Go splits on
+// one. With \r\n, a trailing \r stays on the underline line. The run of - stops matching
+// here, and a parser still reads it as a heading. A lone \r is worse. It ends a line for
+// the parser, and Split does not break on it at all, so every heading after the first one
+// arrives live.
 //
 // Those three are the whole set. CommonMark defines a line ending as \n, \r, or \r\n,
 // and nothing else.
@@ -172,7 +171,7 @@ func defuseHeadings(s string) string {
 }
 
 // setextUnderline reports whether a line would turn the paragraph above it into a
-// heading: a run of = or of - with nothing else on the line.
+// heading. That is a run of = or of -, with nothing else on the line.
 func setextUnderline(s string) bool {
 	t := strings.TrimRight(s, " \t")
 	if t == "" {
@@ -190,10 +189,10 @@ func plural(n int, noun string) string {
 
 // BuildFailureCheck is the check run for a review that produced no verdict.
 //
-// [BuildCheckRun] reports false there. A caller that publishes nothing leaves the
-// checks list with no xreview entry, which reads as a review that did not run rather
-// than one that could not be read. Those are different things, and only one of them
-// means an operator should look.
+// [BuildCheckRun] reports false there. A caller that publishes nothing leaves the checks
+// list with no xreview entry, which reads as a review that did not run rather than one
+// that could not be read. Those are different things, and only one of them means an
+// operator should look.
 //
 // The conclusion is neutral rather than failure. It says this tool could not read a
 // review, not that the change is bad. A repository that wants that distinction to

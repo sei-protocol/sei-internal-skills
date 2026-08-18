@@ -23,7 +23,7 @@ func diffPath(req Request) string {
 // large output, and a 39-file diff is comfortably large enough to hit that. A review
 // of the first third of a diff reads exactly like a review of all of it. Staging to a
 // file hands the reading to a tool that pages properly.
-// line count is part of the command so the agent knows how much there is to read
+// The line count is part of the command, so the agent knows how much there is to read
 // rather than inferring it from where its own reading stopped.
 func fetchDiffCommand(req Request) string {
 	path := diffPath(req)
@@ -37,34 +37,36 @@ func treePath(req Request) string { return fmt.Sprintf("pr-%d-tree", req.PR) }
 
 // cloneCommands are the commands the prompts name for getting a working tree.
 //
-// The agent clones with the credential already mounted in its sandbox. A workspace
-// this driver supplied would carry a token in its URL, and the server keeps that
-// URL as a cleartext session label, so the credential would outlive the clone in a
-// database to do a job the sandbox can already do.
+// The agent clones with the credential already mounted in its sandbox. A workspace this
+// driver supplied would carry a token in its URL, and the server keeps that URL as a
+// cleartext session label. The credential would then outlive the clone in a database, to
+// do a job the sandbox can already do.
 //
-// The ref is the pull request's merge, not its head: that is the tree that would
-// result from merging, which is what a reviewer is deciding about, and it matches
-// the checkout the repository's other review tooling uses. Depth 1 for the same
-// reason — this reads the tree, never its history.
+// The ref is the pull request's merge, not its head. That is the tree that would result
+// from merging, which is what a reviewer is deciding about, and it matches the checkout
+// the repository's other review tooling uses. Depth 1 for the same reason: this reads the
+// tree, never its history.
 //
-// The merge ref does not always exist. GitHub computes it lazily, and a pull
-// request with conflicts has none at all — so the fetch falls back to the head.
-// Both fetches failing must not reach a checkout: FETCH_HEAD would still hold
-// whatever the last dispatch left. The tree is then removed rather than left
-// behind, which is what makes the failure nameable. Asking the agent to check the
-// commit instead does not work — when both fetches fail nothing is printed to
-// check, and a tree still at an earlier dispatch's merge of this same pull request
-// truthfully answers "yes, that is this pull request's". Deleted, the tree is
-// either current or absent, and absent is the one case both prompts already
-// cover.
+// The merge ref does not always exist. GitHub computes it lazily, and a pull request with
+// conflicts has none at all, so the fetch falls back to the head.
 //
-// The clone is guarded because these run on a session that outlives its run. A
-// second dispatch finds the tree already there, and an unguarded clone fails on
-// the existing directory — which the prompt reads as "no tree", so every review
-// after the first would silently drop back to the diff alone. Fetch and checkout
-// are unguarded on purpose: the merge ref moves as the pull request changes, so
-// they are what brings an existing tree up to date, and they are correct on one
-// just cloned.
+// Both fetches failing must not reach a checkout: FETCH_HEAD would still hold whatever
+// the last dispatch left. The tree is then removed rather than left behind, which is what
+// makes the failure nameable.
+//
+// Asking the agent to check the commit instead does not work. When both fetches fail,
+// nothing is printed to check, and a tree still at an earlier dispatch's merge of this
+// same pull request truthfully answers "yes, that is this pull request's". Deleted, the
+// tree is either current or absent, and absent is the one case both prompts already cover.
+//
+// The clone is guarded because these run on a session that outlives its run. A second
+// dispatch finds the tree already there, and an unguarded clone fails on the existing
+// directory. The prompt reads that as "no tree", so every review after the first would
+// silently drop back to the diff alone.
+//
+// Fetch and checkout are unguarded on purpose. The merge ref moves as the pull request
+// changes, so they are what brings an existing tree up to date, and they are correct on
+// one just cloned.
 func cloneCommands(req Request) []string {
 	tree := treePath(req)
 	return []string{
@@ -81,11 +83,11 @@ func cloneCommands(req Request) []string {
 // pointsSomewhereReal reports whether a scout's file is a path inside the tree
 // under review.
 //
-// A scout's file field is model output, and the review is told to check each
-// claim against the diff — which means opening what the claim names. An absolute
-// path, a parent traversal or a home reference names something that is not the
-// pull request, in a sandbox holding a live credential. Such a claim still
-// reaches the review, as text rather than as a location.
+// A scout's file field is model output, and the review is told to check each claim
+// against the diff, which means opening what the claim names. An absolute path, a parent
+// traversal or a home reference names something that is not the pull request, in a sandbox
+// holding a live credential. Such a claim still reaches the review, as text rather than as
+// a location.
 func pointsSomewhereReal(file string) bool {
 	if file == "" || strings.HasPrefix(file, "/") || strings.HasPrefix(file, "~") {
 		return false
@@ -101,17 +103,17 @@ func pointsSomewhereReal(file string) bool {
 // reconcileStep renders the scouts' readings and what to do with them, or nothing
 // at all when no scout ran.
 //
-// The readings are embedded rather than fetched. A step that told the agent to go
-// and get them would be a step it could skip, would put attacker-influenced prose
-// through a shell, and would leave attribution to whatever the fetched text
-// claimed. Handing over material the orchestrator already holds removes all three:
-// the agent cannot not have received it, and the name against each reading is the
-// one the scout was dispatched under.
+// The readings are embedded rather than fetched. A step that told the agent to go and get
+// them would be a step it could skip, would put attacker-influenced prose through a shell,
+// and would leave attribution to whatever the fetched text claimed.
 //
-// A scout that failed is named as having failed. Rendering it as "no findings"
-// would make a credential outage read as a clean review on every pull request at
-// once — the same reading, and the same silence, as a scout that genuinely found
-// nothing.
+// Handing over material the orchestrator already holds removes all three. The agent cannot
+// not have received it, and the name against each reading is the one the scout was
+// dispatched under.
+//
+// A scout that failed is named as having failed. Rendering it as "no findings" would make
+// a credential outage read as a clean review on every pull request at once: the same
+// reading, and the same silence, as a scout that genuinely found nothing.
 func reconcileStep(req Request) []string {
 	if len(req.Scouts) == 0 {
 		return nil
@@ -183,32 +185,31 @@ func reconcileStep(req Request) []string {
 
 // oneLine flattens a value taken from a scout's reply so it cannot span lines.
 //
-// A finding's detail is one model's prose about input anyone can write on a pull
-// request, and [reconcileStep] gives each reading a line of its own. A newline
-// inside a detail would start a line indistinguishable from the attribution
-// headings, one reading forging as many more as it likes under any name.
-// Collapsing the whitespace is what keeps that structure this package's to state.
+// A finding's detail is one model's prose about input anyone can write on a pull request,
+// and [reconcileStep] gives each reading a line of its own. A newline inside a detail
+// would start a line indistinguishable from the attribution headings. One reading could
+// forge as many more as it likes, under any name. Collapsing the whitespace is what keeps
+// that structure this package's to state.
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 // BuildPrompt renders the review instruction sent to the agent.
 //
-// It names one command to read the diff rather than granting the capability to
-// go and find it. Both forms are satisfiable, but only the second is satisfiable
-// without reading the code: an agent told to "inspect the diff" can run
-// `gh pr view`, get a title and a description, and write a fluent review of the
-// pull request's summary. Naming the command costs the agent nothing to comply
-// with and makes skipping the read visible.
+// It names one command to read the diff rather than granting the capability to go and find
+// it. Both forms are satisfiable, but only the second is satisfiable without reading the
+// code. An agent told to "inspect the diff" can run `gh pr view`, get a title and a
+// description, and write a fluent review of the pull request's summary. Naming the command
+// costs the agent nothing to comply with, and makes skipping the read visible.
 //
-// The required sections do the same job from the other side. A schema whose
-// findings array may be empty and whose summary can be written from the title is
-// satisfiable with no evidence at all, so the report asks for sections that
-// cannot be filled honestly without having read the changed lines. They ride in
-// the reply text, which [RenderComment] publishes verbatim.
+// The required sections do the same job from the other side. A schema whose findings array
+// may be empty, and whose summary can be written from the title, is satisfiable with no
+// evidence at all. So the report asks for sections that cannot be filled honestly without
+// having read the changed lines. They ride in the reply text, which [RenderComment]
+// publishes verbatim.
 //
-// The untrusted-content instruction is load-bearing rather than decorative: the
-// diff is attacker-influenced input in the general case, and one of the three
-// controls the read-only posture rests on is the agent being told so. The other
-// two — the trigger gate and a server-side shell gate — live outside this driver.
+// The untrusted-content instruction is load-bearing rather than decorative. The diff is
+// attacker-influenced input in the general case, and one of the three controls the
+// read-only posture rests on is the agent being told so. The other two, the trigger gate
+// and a server-side shell gate, live outside this driver.
 func BuildPrompt(req Request) string {
 	lines := []string{
 		fmt.Sprintf("Review pull request %s#%d as the sei-droid xreview bot.", req.Repo, req.PR),
@@ -309,11 +310,11 @@ func BuildPrompt(req Request) string {
 // bucketRules renders how a review sorts its observations, and the block it
 // closes with.
 //
-// Shared by both prompts rather than written twice. The adopted prompt is the path
-// almost every review takes: sessions outlive runs, so only the first dispatch on a
-// pull request sees the other one. A rule that lives in a prompt the session can no
-// longer read is a rule that stops applying on re-review.
-// re-review. Writing them once is what keeps the two from drifting apart.
+// Shared by both prompts rather than written twice. The adopted prompt is the path almost
+// every review takes: sessions outlive runs, so only the first dispatch on a pull request
+// sees the other one. A rule that lives in a prompt the session can no longer read is a
+// rule that stops applying on re-review.
+// Writing them once is what keeps the two from drifting apart.
 func bucketRules() []string {
 	return []string{
 		"Every observation you made goes in the block, in exactly one bucket. A note",
@@ -366,10 +367,10 @@ func bucketRules() []string {
 
 // repoContextStep names the two things a review reads for standards and intent.
 //
-// ai-review hands its models a standards file and a pr-context.md that its
-// workflow wrote. Our agent runs in a sandbox pod, where a file the runner wrote
-// is not visible — but it has the tree and it has gh, so it fetches both itself.
-// Same inputs to the model, different plumbing to get them there.
+// ai-review hands its models a standards file and a pr-context.md that its workflow wrote.
+// Our agent runs in a sandbox pod, where a file the runner wrote is not visible. But it
+// has the tree and it has gh, so it fetches both itself. Same inputs to the model,
+// different plumbing to get them there.
 //
 // In the adopted prompt as well as the first. The tree is re-cloned there, and a
 // standard read once against a tree that no longer exists is a standard no longer
@@ -404,15 +405,14 @@ func repoContextStep(req Request) []string {
 
 // extraInstructionsStep carries guidance the calling repository added.
 //
-// Set in the caller's workflow, so it is the repository's own instruction rather
-// than anything the pull request can reach — the one input here that is not
-// treated as data.
+// Set in the caller's workflow, so it is the repository's own instruction rather than
+// anything the pull request can reach. It is the one input here that is not treated as
+// data.
 //
-// Beside the standards read from the base branch, because that is what it is: a
-// rule the repository sets, outranking the checklist. Not at the end. The end of
-// both prompts is the output contract, and guidance sitting after "finish with a
-// single fenced json block" reads as part of that contract rather than as
-// something to review by.
+// Beside the standards read from the base branch, because that is what it is: a rule the
+// repository sets, outranking the checklist. Not at the end. The end of both prompts is
+// the output contract, and guidance sitting after "finish with a single fenced json
+// block" reads as part of that contract rather than as something to review by.
 func extraInstructionsStep(req Request) []string {
 	text := strings.TrimSpace(req.ExtraInstructions)
 	if text == "" {
@@ -435,12 +435,11 @@ const maxExtraInstructions = 4000
 
 // guidelinesCommand reads the repository's review standards from the base branch.
 //
-// From the base, not from the working tree. The tree is this pull request's
-// merge, so a change that adds or edits that file would be handing
-// itself the standards it is reviewed against — and these outrank the prompt's
-// own checklist, which makes that a way to approve anything. Read from the pull
-// request's base ref, which is a branch that exists rather than one this change
-// writes.
+// From the base, not from the working tree. The tree is this pull request's merge, so a
+// change that adds or edits that file would be handing itself the standards it is reviewed
+// against. These outrank the prompt's own checklist, which makes that a way to approve
+// anything. Read from the pull request's base ref, which is a branch that exists rather
+// than one this change writes.
 func guidelinesCommand(req Request) string {
 	return fmt.Sprintf(
 		"base=$(gh pr view %d --repo %s --json baseRefName --jq .baseRefName) && "+
@@ -451,26 +450,26 @@ func guidelinesCommand(req Request) string {
 
 // DefaultGuidelinesFile is the standards file a repository is assumed to keep.
 //
-// REVIEW.md, which is what ai-review reads and what sei-chain has. Naming a file
-// no repository keeps costs the review its standards silently: the fetch 404s,
-// the prompt says a 404 means the repository has none, and the review proceeds
-// against the checklist alone.
+// REVIEW.md, which is what ai-review reads and what sei-chain has. Naming a file no
+// repository keeps costs the review its standards silently: the fetch 404s, the prompt
+// says a 404 means the repository has none, and the review proceeds against the checklist
+// alone.
 const DefaultGuidelinesFile = "REVIEW.md"
 
-// guidelinesFile is the standards file to read, and it is a path this process
-// writes into a command the agent runs.
-//
-// So it is checked rather than trusted. A caller sets it through a workflow
-// input, and a name carrying a quote or a substitution would end the argument and
-// start something else. Anything outside a plain repository path falls back to
-// the default, because a review that reads the standard file is a better failure
-// than one that runs an injected command.
 // repo is the repository name this prompt may write into a command.
 //
 // Every command the prompts name goes through here rather than reading req.Repo
 // directly, so the check cannot be bypassed by adding a sixth command later.
 func (req Request) repo() string { return safeRepo(req.Repo) }
 
+// guidelinesFile is the standards file to read, and it is a path this process writes
+// into a command the agent runs.
+//
+// So it is checked rather than trusted. A caller sets it through a workflow input, and
+// a name carrying a quote or a substitution would end the argument and start something
+// else. Anything outside a plain repository path falls back to the default. A review
+// that reads the standard file is a better failure than one that runs an injected
+// command.
 func (r Request) guidelinesFile() string {
 	if r.GuidelinesFile == "" || !isPlainRepoPath(r.GuidelinesFile) {
 		return DefaultGuidelinesFile
@@ -481,11 +480,11 @@ func (r Request) guidelinesFile() string {
 // safeRepo returns the repository this prompt may name in a command, or "" when it
 // is not a shape a command can safely carry.
 //
-// Repo is interpolated unquoted into five commands the prompts tell the agent to
-// run, in a sandbox holding a live credential. GuidelinesFile is checked for
-// exactly this reason a few lines down; Repo arrives from the same kind of caller
-// and was not. A value that fails here yields a prompt with no commands rather than
-// one with a command the caller did not intend.
+// Repo is interpolated unquoted into five commands the prompts tell the agent to run, in a
+// sandbox holding a live credential. GuidelinesFile is checked for exactly this reason a
+// few lines down; Repo arrives from the same kind of caller and was not. A value that
+// fails here yields a prompt with no commands, rather than one with a command the caller
+// did not intend.
 func safeRepo(repo string) string {
 	owner, name, found := strings.Cut(repo, "/")
 	if !found || owner == "" || name == "" || strings.Contains(name, "/") {
@@ -516,10 +515,9 @@ func isPlainRepoPath(p string) bool {
 
 // intentCommand reads the pull request's title and body.
 //
-// On its own line like every other command the prompts name. Inline in a sentence
-// it runs together with the prose, and an agent copying it literally asks gh for a
-// field called "body." — which fails, silently costing the intent the step exists
-// to supply.
+// On its own line like every other command the prompts name. Inline in a sentence it runs
+// together with the prose, and an agent copying it literally asks gh for a field called
+// "body." That fails, and silently costs the intent this step exists to supply.
 func intentCommand(req Request) string {
 	return fmt.Sprintf("gh pr view %d --repo %s --json title,body", req.PR, req.repo())
 }
@@ -527,16 +525,16 @@ func intentCommand(req Request) string {
 // AdoptedPrompt renders the instruction for a session that has reviewed this pull
 // request before.
 //
-// It has to be explicit that the tree has moved. The agent's memory is of the
-// diff as it stood at its last review, and nothing about a new message tells it
-// otherwise — so left to infer, it can reason about the version it remembers.
-// Asking for what changed since is also the thing a reused session can do that a
-// fresh one cannot, which is the reason the session is kept at all.
+// It has to be explicit that the tree has moved. The agent's memory is of the diff as it
+// stood at its last review, and nothing about a new message tells it otherwise, so left to
+// infer it can reason about the version it remembers. Asking what changed since is also
+// the thing a reused session can do that a fresh one cannot, which is why the session is
+// kept at all.
 //
-// The review checklist is referenced rather than restated: this message only ever
-// reaches a session [BuildPrompt] already opened, so it is in the conversation the
-// agent is answering in. The output rules are restated — see [bucketRules] — because
-// a session cannot re-read them and a rule it cannot re-read stops applying.
+// The review checklist is referenced rather than restated. This message only ever reaches
+// a session [BuildPrompt] already opened, so the checklist is in the conversation the
+// agent is answering in. The output rules are restated, see [bucketRules], because a
+// session cannot re-read them and a rule it cannot re-read stops applying.
 func AdoptedPrompt(req Request) string {
 	lines := []string{
 		fmt.Sprintf("You have reviewed %s#%d before in this session.", req.Repo, req.PR),
@@ -567,10 +565,9 @@ func AdoptedPrompt(req Request) string {
 		"",
 	}...)
 
-	// Rendered here as well as in [BuildPrompt]. The session is keyed on the pull
-	// request and outlives the run, so this is the path every dispatch after the
-	// first takes — leaving it out would spend the gather on every push and show
-	// the review none of it.
+	// Rendered here as well as in [BuildPrompt]. The session is keyed on the pull request and
+	// outlives the run, so this is the path every dispatch after the first takes. Leaving it
+	// out would spend the gather on every push and show the review none of it.
 	lines = append(lines, reconcileStep(req)...)
 
 	lines = append(lines,
