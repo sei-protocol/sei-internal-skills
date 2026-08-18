@@ -6,7 +6,9 @@ import "errors"
 // contract with it and carry over unchanged from the Python driver — a workflow
 // pinned to an older ref must keep reading them the same way. A number may be
 // added, because an unrecognised code falls to a caller's default branch, but no
-// existing number changes meaning.
+// existing number moves to a different meaning. A number's meaning may widen to
+// cover more states, which is why a caller branches on it and then reads the log
+// for the detail rather than inferring one from the number.
 //
 // Exported, unlike the defaults in config.go, because that contract is the reason
 // they exist: the command reads them to decide what to report, and a caller outside
@@ -54,9 +56,11 @@ const (
 	// attempted on the way out.
 	ExitCancelled = 7
 
-	// ExitTeardownLeak is a --close whose session could not be deleted. A review
-	// never reports it: it deletes nothing, because the session is meant to
-	// outlive the run.
+	// ExitTeardownLeak is a --close that did not establish the session was gone:
+	// one found and refused, or one whose budget ran out before it could look. The
+	// log separates them, and only the first carries a session id. A review never
+	// reports it: it deletes nothing, because the session is meant to outlive the
+	// run.
 	//
 	// Surfaced rather than swallowed because nothing reclaims the sandbox on a
 	// schedule. The Kubernetes launcher sets no lifetime cap and the

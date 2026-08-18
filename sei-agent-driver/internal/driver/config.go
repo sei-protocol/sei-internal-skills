@@ -61,7 +61,7 @@ type Config struct {
 	// Leave it empty and set MachineClientID and MachineClientSecret to have the
 	// driver mint its own, which is preferable: a token minted in-process never
 	// transits a workflow step output.
-	Token string
+	Token string `json:"-"`
 
 	// MachineClientID is the confidential client's identifier, matching the
 	// server's OMNIGENT_MACHINE_CLIENT_ID.
@@ -156,6 +156,10 @@ func (c Config) LogValue() slog.Value {
 // String keeps a %v or %s of the configuration as safe as logging it, since a
 // struct reaches a message that way just as easily. Derived from [Config.LogValue]
 // so the two cannot come to disagree about which field is a secret.
+//
+// %#v is not covered by either, and no tag reaches it. Nothing renders a Config
+// that way today; the json tags above are what stop the encoder that a debug dump
+// would reach for first.
 func (c Config) String() string { return c.LogValue().String() }
 
 // LoadConfig reads the configuration from the environment.
@@ -273,14 +277,14 @@ func envOr(name, fallback string) string {
 	return fallback
 }
 
-// secondsOr parses a duration-in-seconds variable, rejecting a value that is not
-// a positive number. A zero or negative deadline would disable the bound it
-// exists to enforce, so it is a configuration error rather than a silent
-// unbounded run.
 // maxSeconds bounds every duration read from the environment. Well above any real
 // budget, and far below where a float64 stops converting to a Duration.
 const maxSeconds float64 = 86_400
 
+// secondsOr parses a duration-in-seconds variable, rejecting a value that is not
+// a positive number. A zero or negative deadline would disable the bound it
+// exists to enforce, so it is a configuration error rather than a silent
+// unbounded run.
 func secondsOr(name string, fallback float64) (float64, error) {
 	raw, ok := os.LookupEnv(name)
 	if !ok {

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -59,7 +60,7 @@ func TestEnvOrTreatsAnEmptyVariableAsAbsent(t *testing.T) {
 	// entry from inside the workflow that wrote it. Refusing it would fail every run
 	// in the most idiomatic setup there is.
 	for _, raw := range []string{"", " ", "\n", "\t\n "} {
-		t.Run("empty or blank takes the fallback", func(t *testing.T) {
+		t.Run("blank "+strconv.Quote(raw)+" takes the fallback", func(t *testing.T) {
 			t.Setenv(name, raw)
 			if got := envOr(name, "fallback"); got != "fallback" {
 				t.Errorf("envOr(%q) = %q, want the fallback", raw, got)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"testing"
 	"time"
 )
@@ -46,9 +47,6 @@ func TestAPanicIsReportedApartFromAConfigurationFailure(t *testing.T) {
 			if result.ExitCode != ExitInternal {
 				t.Errorf("ExitCode = %d, want ExitInternal (%d)", result.ExitCode, ExitInternal)
 			}
-			if result.ExitCode == ExitConfig {
-				t.Error("a crash is reporting itself as a configuration failure")
-			}
 		})
 	}
 }
@@ -63,16 +61,20 @@ func TestAPanicIsReportedApartFromAConfigurationFailure(t *testing.T) {
 // the ambiguity resolves toward the leak.
 func TestCloseReportsAnUnfinishedDeleteAsAPossibleLeak(t *testing.T) {
 	for _, tc := range []struct {
-		name string
-		err  error
+		name      string
+		sessionID string
+		err       error
 	}{
-		{"the budget expired", context.DeadlineExceeded},
-		{"the budget expired mid-request", fmt.Errorf("deleting conv_1: %w", context.DeadlineExceeded)},
-		{"the close was cancelled", context.Canceled},
-		{"cancelled mid-request", fmt.Errorf("listing sessions: %w", context.Canceled)},
+		// The first two are the production shapes: omni's host reports no session id on
+		// any error path except a refused delete, so this arm nearly always runs blind.
+		{"the budget expired before anything was listed", "", context.DeadlineExceeded},
+		{"cancelled before anything was listed", "", fmt.Errorf("listing sessions: %w", context.Canceled)},
+		{"the budget expired with a session in hand", "conv_1", context.DeadlineExceeded},
+		{"expired mid-delete", "conv_1", fmt.Errorf("deleting conv_1: %w", context.DeadlineExceeded)},
+		{"cancelled with a session in hand", "conv_1", context.Canceled},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			host := &fakeHost{closeID: "conv_1", closeErr: tc.err}
+			host := &fakeHost{closeID: tc.sessionID, closeErr: tc.err}
 			d := New(Config{RunDeadline: time.Minute, RequestTimeout: time.Second},
 				host, quietLogger())
 
@@ -89,11 +91,11 @@ func TestCloseReportsAnUnfinishedDeleteAsAPossibleLeak(t *testing.T) {
 			if result.TeardownOK {
 				t.Error("TeardownOK is true on a close that never confirmed the delete")
 			}
-			// The session id still travels, because it is the only thing that makes the
-			// exit code actionable by hand.
-			if result.SessionID != "conv_1" {
-				t.Errorf("SessionID = %q, want the session an operator has to chase",
-					result.SessionID)
+			// Whatever the host knew travels, which on this path is usually nothing: a
+			// close that timed out before it listed anything has no session to name. The
+			// run key is what an operator searches on, and it is on the log record.
+			if result.SessionID != tc.sessionID {
+				t.Errorf("SessionID = %q, want %q", result.SessionID, tc.sessionID)
 			}
 		})
 	}
@@ -121,5 +123,77 @@ func TestCloseStillTellsAConfigFailureFromALeak(t *testing.T) {
 				t.Errorf("ExitCode = %d, want %d", got.ExitCode, tc.want)
 			}
 		})
+	}
+}
+
+// TestCloseKeepsACredentialFailureApartFromAPossibleLeak pins the ordering of the
+// two arms above.
+//
+// An error can satisfy both. http.Client wraps a body read that outran its timeout
+// in an error that reports itself as a deadline -- verified against a real server --
+// so a stalled token endpoint reaches Close as a mint failure that is also a
+// deadline. Read as the deadline it becomes ExitTeardownLeak, and the operator is
+// sent to delete a sandbox by hand when the actionable fact is a credential: fix it,
+// re-run the close, and the reclaim happens on its own.
+func TestCloseKeepsACredentialFailureApartFromAPossibleLeak(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		err  error
+	}{
+		{"a mint that stalled mid-body", fmt.Errorf("%w: reading response: %w", ErrMint, context.DeadlineExceeded)},
+		{"a bad address that timed out", fmt.Errorf("%w: %w", ErrConfig, context.DeadlineExceeded)},
+		{"a mint cancelled in flight", fmt.Errorf("%w: %w", ErrMint, context.Canceled)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			host := &fakeHost{closeErr: tc.err}
+			d := New(Config{RunDeadline: time.Minute, RequestTimeout: time.Second},
+				host, quietLogger())
+
+			result := d.Close(context.Background(), testWork{})
+
+			if result.ExitCode != ExitConfig {
+				t.Errorf("ExitCode = %d, want ExitConfig (%d): the credential is the "+
+					"actionable half, and repairing it reclaims the sandbox on the retry",
+					result.ExitCode, ExitConfig)
+			}
+			// Still not established as freed. This never reached the delete, so a
+			// session may be held -- the reclaim is deferred, not done.
+			if result.TeardownOK {
+				t.Error("TeardownOK is true on a close that never reached the delete")
+			}
+		})
+	}
+}
+
+// panickingHandler fails on the record whose message matches, standing in for a
+// panic raised after the turn already produced its answer.
+type panickingHandler struct{ on string }
+
+func (h *panickingHandler) Enabled(context.Context, slog.Level) bool { return true }
+func (h *panickingHandler) WithAttrs([]slog.Attr) slog.Handler       { return h }
+func (h *panickingHandler) WithGroup(string) slog.Handler            { return h }
+
+func (h *panickingHandler) Handle(_ context.Context, r slog.Record) error {
+	if r.Message == h.on {
+		panic("a handler that panicked on the last record")
+	}
+	return nil
+}
+
+// TestARecoveredPanicKeepsTheSessionItKnewAbout covers the one handle a crash can
+// still offer. A panic raised after a session was opened leaves that session
+// running, and the id is the only way to reach it.
+func TestARecoveredPanicKeepsTheSessionItKnewAbout(t *testing.T) {
+	host := &fakeHost{conv: &fakeConversation{sessionID: "conv_42", reply: finishedReply}}
+	log := slog.New(&panickingHandler{on: "run finished"})
+	d := New(Config{RunDeadline: time.Minute, RequestTimeout: time.Second}, host, log)
+
+	result := d.Run(context.Background(), testWork{})
+
+	if result.ExitCode != ExitInternal {
+		t.Errorf("ExitCode = %d, want ExitInternal (%d)", result.ExitCode, ExitInternal)
+	}
+	if result.SessionID != "conv_42" {
+		t.Errorf("SessionID = %q, want the session the run had already opened", result.SessionID)
 	}
 }
