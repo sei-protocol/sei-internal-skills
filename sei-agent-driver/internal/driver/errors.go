@@ -52,9 +52,9 @@ const (
 	// Surfaced rather than swallowed because nothing reclaims the sandbox on a
 	// schedule. The Kubernetes launcher sets no lifetime cap and the
 	// server runs no sweep, so nothing else will: the pod holds its reserved cpu
-	// and memory until it is removed by hand. Only promoted over ExitOK, so a
-	// leak beside another non-zero outcome shows up in the logs rather than in
-	// the exit code.
+	// and memory until it is removed by hand. Checked before the other error
+	// classes, so a close that both leaked and failed some other way still reports
+	// the leak: a held sandbox outlives whatever else went wrong on the way out.
 	ExitTeardownLeak = 8
 )
 

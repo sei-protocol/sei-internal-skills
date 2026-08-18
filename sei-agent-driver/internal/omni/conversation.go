@@ -213,8 +213,8 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 // direction: the worst case is answering in full twice, against putting a follow-up
 // question to an agent that never answered the first one.
 func holdsAnswer(items []omnigent.ConversationItem, done func(string) bool) bool {
-	for _, id := range ReplyGroupsSince(items, nil) {
-		if reply, ok := TurnReply(items, id); ok && done(reply.Text) {
+	for _, id := range replyGroupsSince(items, nil) {
+		if reply, ok := turnReply(items, id); ok && done(reply.Text) {
 			return true
 		}
 	}
@@ -257,7 +257,7 @@ func (c *conversation) consumeTurn(
 			t.crossBoundary(e)
 
 		case omnigent.ElicitationRequestEvent:
-			if err := c.answer(ctx, ElicitationFromEvent(e), t.answered); err != nil {
+			if err := c.answer(ctx, elicitationFromEvent(e), t.answered); err != nil {
 				t.fail(err)
 			}
 
@@ -509,7 +509,7 @@ func (c *conversation) recoverFromStreamLoss(
 		return driver.Reply{}, cause
 	}
 
-	groups := ReplyGroupsSince(session.Items, t.prior)
+	groups := replyGroupsSince(session.Items, t.prior)
 	if len(groups) != 1 {
 		// Two replies cannot be told apart, and waiting will not separate them.
 		// None means the turn has committed nothing yet, which waiting still can.
@@ -522,7 +522,7 @@ func (c *conversation) recoverFromStreamLoss(
 	// The group above was found by asking which ids are new, which is the negative
 	// filter the package doc forbids. Requiring the reply to sit after this turn's
 	// prompt is the positive half that filter cannot carry.
-	if !GroupIsAfterAnchor(session.Items, t.anchorItem, groups[0]) {
+	if !groupIsAfterAnchor(session.Items, t.anchorItem, groups[0]) {
 		c.host.log.Warn("stream died and the new reply does not sit after this turn's prompt",
 			"session_id", c.sessionID, "anchor_item_id", t.anchorItem,
 			"response_id", groups[0], "error", cause)
@@ -575,7 +575,7 @@ func (c *conversation) fetchReply(
 		return driver.Reply{}, fmt.Errorf("reading the session for a reply: %w", err)
 	}
 
-	if groups := ReplyGroupsSince(session.Items, prior); len(groups) > 1 {
+	if groups := replyGroupsSince(session.Items, prior); len(groups) > 1 {
 		// Two turns replied into this session while ours ran. Nothing on the wire
 		// says which is ours, so this refuses rather than choosing the newest —
 		// which publishes another invocation's answer as this one's.
@@ -584,7 +584,7 @@ func (c *conversation) fetchReply(
 		return driver.Reply{Reason: "another turn replied into this session while ours ran"}, nil
 	}
 
-	reply, ok := TurnReply(session.Items, turnID)
+	reply, ok := turnReply(session.Items, turnID)
 	if !ok {
 		c.host.log.Warn("no reply carries this turn's response id",
 			"session_id", c.sessionID, "turn_id", turnID, "items", len(session.Items))
@@ -630,7 +630,7 @@ func (c *conversation) answerPending(ctx context.Context, answered map[string]bo
 		return fmt.Errorf("reading this session's parked prompts: %w", err)
 	}
 	for _, raw := range session.PendingElicitations {
-		if err := c.answer(ctx, ElicitationFromSnapshot(raw), answered); err != nil {
+		if err := c.answer(ctx, elicitationFromSnapshot(raw), answered); err != nil {
 			return err
 		}
 	}

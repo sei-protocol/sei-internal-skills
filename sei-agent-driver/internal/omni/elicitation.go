@@ -13,8 +13,8 @@ import (
 // subscribed is readable only from the session snapshot, and a run that adopts an
 // existing session is exactly the one that finds prompts waiting there.
 
-// ElicitationFromEvent reduces a streamed request event to a [driver.Elicitation].
-func ElicitationFromEvent(ev omnigent.ElicitationRequestEvent) driver.Elicitation {
+// elicitationFromEvent reduces a streamed request event to a [driver.Elicitation].
+func elicitationFromEvent(ev omnigent.ElicitationRequestEvent) driver.Elicitation {
 	p := ev.Params
 	return driver.Elicitation{
 		ID:              ev.ElicitationID,
@@ -28,7 +28,7 @@ func ElicitationFromEvent(ev omnigent.ElicitationRequestEvent) driver.Elicitatio
 	}
 }
 
-// ElicitationFromSnapshot reduces one entry of
+// elicitationFromSnapshot reduces one entry of
 // [omnigent.SessionResponse.PendingElicitations] to a [driver.Elicitation].
 //
 // The snapshot carries prompts raised while nobody was subscribed, which the
@@ -37,7 +37,7 @@ func ElicitationFromEvent(ev omnigent.ElicitationRequestEvent) driver.Elicitatio
 // older ones flatten the params rather than nesting them — so each field is
 // looked up in params first and then at the top level, and either shape yields
 // the same value.
-func ElicitationFromSnapshot(raw map[string]any) driver.Elicitation {
+func elicitationFromSnapshot(raw map[string]any) driver.Elicitation {
 	params, _ := raw["params"].(map[string]any)
 	pick := func(key string) string {
 		if v := stringAt(params, key); v != "" {

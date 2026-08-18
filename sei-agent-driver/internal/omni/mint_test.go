@@ -49,9 +49,9 @@ func TestMintSurvivesSecretsThatBasicAuthWouldCorrupt(t *testing.T) {
 			}))
 			defer srv.Close()
 
-			token, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "seidroid", secret)
+			token, _, err := mintToken(t.Context(), srv.Client(), srv.URL, "seidroid", secret)
 			if err != nil {
-				t.Fatalf("MintToken: %v", err)
+				t.Fatalf("mintToken: %v", err)
 			}
 			if token != "tok" {
 				t.Errorf("token = %q, want tok", token)
@@ -90,7 +90,7 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 			t.Error("a request was sent despite absent credentials")
 		}))
 		defer srv.Close()
-		if _, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "", ""); !errors.Is(err, driver.ErrMint) {
+		if _, _, err := mintToken(t.Context(), srv.Client(), srv.URL, "", ""); !errors.Is(err, driver.ErrMint) {
 			t.Fatalf("error = %v, want driver.ErrMint", err)
 		}
 	})
@@ -105,7 +105,7 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		_, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "id", "sec")
+		_, _, err := mintToken(t.Context(), srv.Client(), srv.URL, "id", "sec")
 		if !errors.Is(err, driver.ErrMint) {
 			t.Fatalf("error = %v, want driver.ErrMint", err)
 		}
@@ -125,7 +125,7 @@ func TestMintRejectsAndReportsUsefully(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		token, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "id", "sec")
+		token, _, err := mintToken(t.Context(), srv.Client(), srv.URL, "id", "sec")
 		if !errors.Is(err, driver.ErrMint) || token != "" {
 			t.Fatalf("got (%q, %v), want (\"\", driver.ErrMint)", token, err)
 		}
@@ -229,14 +229,14 @@ func TestMintRefusesToSendTheSecretInClear(t *testing.T) {
 			t.Parallel()
 
 			probe := &mintProbeTransport{}
-			_, _, err := MintToken(t.Context(), &http.Client{Transport: probe},
+			_, _, err := mintToken(t.Context(), &http.Client{Transport: probe},
 				tc.baseURL, "id", "s3cret-value")
 
 			// Every case errors: a rejected URL by the guard, an accepted one because
 			// the probe transport refuses to answer. What separates them is whether
 			// the request reached the transport at all.
 			if err == nil {
-				t.Fatal("MintToken returned no error; the probe transport always fails")
+				t.Fatal("mintToken returned no error; the probe transport always fails")
 			}
 			if probe.used != tc.wantSnd {
 				if tc.wantSnd {
@@ -279,9 +279,9 @@ func TestMintReportsTheLifetimeTheServerGave(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	token, ttl, err := MintToken(t.Context(), srv.Client(), srv.URL, "seidroid", "sec")
+	token, ttl, err := mintToken(t.Context(), srv.Client(), srv.URL, "seidroid", "sec")
 	if err != nil {
-		t.Fatalf("MintToken: %v", err)
+		t.Fatalf("mintToken: %v", err)
 	}
 	if token != "tok" {
 		t.Errorf("token = %q, want tok", token)
@@ -319,7 +319,7 @@ func TestMintRidesOutAReset(t *testing.T) {
 	defer srv.Close()
 
 	flaky := &flakyTransport{failures: 2, real: srv.Client().Transport}
-	token, ttl, err := MintToken(t.Context(), &http.Client{Transport: flaky},
+	token, ttl, err := mintToken(t.Context(), &http.Client{Transport: flaky},
 		srv.URL, "id", "secret")
 	if err != nil {
 		t.Fatalf("a mint that succeeds on the third attempt still failed: %v", err)
@@ -338,7 +338,7 @@ func TestMintStopsAfterItsAttempts(t *testing.T) {
 	t.Parallel()
 
 	flaky := &flakyTransport{failures: 99}
-	_, _, err := MintToken(t.Context(), &http.Client{Transport: flaky},
+	_, _, err := mintToken(t.Context(), &http.Client{Transport: flaky},
 		"https://gone.example", "id", "secret")
 	if err == nil {
 		t.Fatal("a mint that never reached a server reported success")
@@ -374,7 +374,7 @@ func TestMintDoesNotRetryARefusal(t *testing.T) {
 			w.WriteHeader(status)
 			_, _ = w.Write([]byte(`{"error":"invalid_client"}`))
 		}))
-		_, _, err := MintToken(t.Context(), srv.Client(), srv.URL, "id", "secret")
+		_, _, err := mintToken(t.Context(), srv.Client(), srv.URL, "id", "secret")
 		srv.Close()
 
 		if err == nil {
@@ -399,7 +399,7 @@ func TestMintStopsWhenTheCallerDoes(t *testing.T) {
 	go func() { time.Sleep(50 * time.Millisecond); cancel() }()
 
 	start := time.Now()
-	if _, _, err := MintToken(ctx, &http.Client{Transport: flaky},
+	if _, _, err := mintToken(ctx, &http.Client{Transport: flaky},
 		"https://gone.example", "id", "secret"); err == nil {
 		t.Fatal("a cancelled mint reported success")
 	}
@@ -457,7 +457,7 @@ func TestMintRefusesToFollowARedirect(t *testing.T) {
 	}))
 	defer redirector.Close()
 
-	token, _, err := MintToken(t.Context(), redirector.Client(),
+	token, _, err := mintToken(t.Context(), redirector.Client(),
 		redirector.URL, "client-id", "SUPER_SECRET_VALUE")
 
 	if secretSeenElsewhere != "" {

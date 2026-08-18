@@ -2015,7 +2015,7 @@ func TestAnAmbiguousSendReportsTheTurnNotTheTransport(t *testing.T) {
 	}
 }
 
-// TestAPromptParkedWhileDisconnectedIsAnswered covers the stall masih named.
+// TestAPromptParkedWhileDisconnectedIsAnswered covers a prompt raised off-stream.
 //
 // The stream replays nothing, so a permission prompt raised while no stream was
 // attached is never delivered. The hook blocks the agent synchronously while it
