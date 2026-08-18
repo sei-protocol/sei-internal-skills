@@ -2,6 +2,7 @@ package driver
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -247,14 +248,31 @@ func TestConfigNeverRendersACredential(t *testing.T) {
 	var buf bytes.Buffer
 	slog.New(slog.NewTextHandler(&buf, nil)).Info("starting", "config", cfg)
 
+	asJSON, err := json.Marshal(cfg)
+	if err != nil {
+		t.Fatalf("marshalling the config: %v", err)
+	}
+	// Nested as well as bare. encoding/json consults MarshalJSON either way, and a
+	// debug dump is more likely to hold a Config inside something else.
+	nested, err := json.Marshal(struct{ Config Config }{cfg})
+	if err != nil {
+		t.Fatalf("marshalling a struct holding the config: %v", err)
+	}
+
+	// tokenSet and secretSet are spelled per renderer, because asserting on the key
+	// alone would let a renderer reporting token_set=false pass.
 	for _, rendered := range []struct {
-		how  string
-		text string
+		how       string
+		text      string
+		tokenSet  string
+		secretSet string
 	}{
-		{"slog", buf.String()},
-		{"String", cfg.String()},
-		{"%v", fmt.Sprintf("%v", cfg)},
-		{"%s", fmt.Sprintf("%s", cfg)},
+		{"slog", buf.String(), "token_set=true", "machine_client_secret_set=true"},
+		{"String", cfg.String(), "token_set=true", "machine_client_secret_set=true"},
+		{"%v", fmt.Sprintf("%v", cfg), "token_set=true", "machine_client_secret_set=true"},
+		{"%s", fmt.Sprintf("%s", cfg), "token_set=true", "machine_client_secret_set=true"},
+		{"json.Marshal", string(asJSON), `"token_set":true`, `"machine_client_secret_set":true`},
+		{"json.Marshal of a struct holding one", string(nested), `"token_set":true`, `"machine_client_secret_set":true`},
 	} {
 		if strings.Contains(rendered.text, token) {
 			t.Errorf("%s rendered the bearer token", rendered.how)
@@ -264,10 +282,10 @@ func TestConfigNeverRendersACredential(t *testing.T) {
 		}
 		// Reported as set rather than dropped, because which credential a run used is
 		// the first question a 401 raises.
-		if !strings.Contains(rendered.text, "token_set=true") {
+		if !strings.Contains(rendered.text, rendered.tokenSet) {
 			t.Errorf("%s does not report that a token was set: %s", rendered.how, rendered.text)
 		}
-		if !strings.Contains(rendered.text, "machine_client_secret_set=true") {
+		if !strings.Contains(rendered.text, rendered.secretSet) {
 			t.Errorf("%s does not report that a secret was set", rendered.how)
 		}
 		// The non-secret fields still have to arrive, or redaction has cost the log

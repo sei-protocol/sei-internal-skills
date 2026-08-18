@@ -1,6 +1,7 @@
 package driver
 
 import (
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"math"
@@ -61,7 +62,7 @@ type Config struct {
 	// Leave it empty and set MachineClientID and MachineClientSecret to have the
 	// driver mint its own, which is preferable: a token minted in-process never
 	// transits a workflow step output.
-	Token string `json:"-"`
+	Token string
 
 	// MachineClientID is the confidential client's identifier, matching the
 	// server's OMNIGENT_MACHINE_CLIENT_ID.
@@ -157,10 +158,25 @@ func (c Config) LogValue() slog.Value {
 // struct reaches a message that way just as easily. Derived from [Config.LogValue]
 // so the two cannot come to disagree about which field is a secret.
 //
-// %#v is not covered by either, and no tag reaches it. Nothing renders a Config
-// that way today; the json tags above are what stop the encoder that a debug dump
-// would reach for first.
+// %#v is covered by neither, and nothing reaches it. Nothing renders a Config that
+// way today.
 func (c Config) String() string { return c.LogValue().String() }
+
+// MarshalJSON renders the configuration without its credentials, so an encoder a
+// debug dump reaches for cannot leak one either.
+//
+// Derived from [Config.LogValue], like [Config.String], and that is what makes a
+// field added later safe: this reports the fields the redacted view names, so a new
+// one is absent until somebody puts it there. Per-field json:"-" tags run the other
+// way round -- every secret is exposed until tagged -- and a tag on the field that
+// needs it most is exactly the one that gets forgotten.
+func (c Config) MarshalJSON() ([]byte, error) {
+	fields := make(map[string]any)
+	for _, attr := range c.LogValue().Group() {
+		fields[attr.Key] = attr.Value.Any()
+	}
+	return json.Marshal(fields)
+}
 
 // LoadConfig reads the configuration from the environment.
 //
