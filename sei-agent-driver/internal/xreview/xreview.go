@@ -1,10 +1,3 @@
-// Package xreview is the pull-request review workload: what the agent is asked,
-// how to tell it has answered, and what to publish.
-//
-// Everything about running the session — resolving the agent, adopting one an
-// earlier dispatch created, following a turn across the streams it outlives,
-// answering permission prompts — belongs to the driver package and is the same
-// whatever the agent is asked for.
 package xreview
 
 import (
