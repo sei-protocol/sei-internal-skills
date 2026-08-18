@@ -137,20 +137,22 @@ producing an unbounded run.
 ## Exit codes
 
 The calling workflow branches on these, so the numbers are a contract with
-it — carried over unchanged from the Python driver this repository
-replaces, and any workflow pinned to an older ref must keep reading them the
-same way.
+it — carried over from the Python driver this repository replaces, and any
+workflow pinned to an older ref must keep reading them the same way. A number
+may be added, and a number's meaning may widen to cover more states; none moves
+to a different meaning. So branch on the code and read the log for the detail.
 
 | Code | Constant | Meaning |
 |---|---|---|
 | `0` | `ExitOK` | A completed turn that produced a verdict. A duplicate trigger is not a separate outcome: it adopts the existing session and drives it to a verdict like any other run. |
-| `2` | `ExitConfig` | The run was rejected before it reached the review API: bad arguments, a missing or rejected credential, a base URL the client refuses, or a failed token exchange. Note that a token exchange failing on the *network* also lands here, so a flapping `2` can mean "retry" rather than "fix the secret" — the logged error distinguishes them. |
+| `2` | `ExitConfig` | The run was rejected before it reached the review API: bad arguments, a missing or rejected credential, a base URL the client refuses, or a failed token exchange. Two things also land here. A token exchange failing on the *network* does, so a flapping `2` can mean "retry" rather than "fix the secret". And the Go runtime exits `2` itself on an unparseable flag, and on a panic raised on a goroutine the driver cannot recover — `9` takes the ones it can. The logged error distinguishes all of them: a configuration failure names the variable, and a crash carries a stack. |
 | `3` | `ExitTimeout` | The run deadline (`XREVIEW_RUN_DEADLINE_S`) expired. The turn is abandoned rather than stopped — it keeps running server-side, and the next invocation's prompt queues behind it. The conversation is kept. |
 | `4` | `ExitTurnFailed` | The session reported failure — the agent's outcome, not the driver's. |
 | `5` | `ExitNoVerdict` | The turn ended without a verdict this driver could attribute and parse. The turn may have succeeded and simply not produced the closing block the caller needs. Also reported when more than one turn replied into the session while ours ran, when no reply carries this turn's response id, and when a reply looks like it carries a credential — the log's `reason` distinguishes them, and every one of those refuses rather than posting text it cannot attribute. |
 | `6` | `ExitTransport` | The stream or a request failed in a way retrying inside one run can't fix. |
 | `7` | `ExitCancelled` | A terminate signal (SIGINT/SIGTERM) unwound the run. Teardown is attempted on the way out. |
-| `8` | `ExitTeardownLeak` | A `--close` whose session could not be deleted. A review never reports it: it deletes nothing, because the session is meant to outlive the run. The delete is the only thing that reclaims the sandbox — the Kubernetes launcher sets no lifetime cap and the server runs no sweep — so this means a pod is holding its reserved cpu and memory with nothing left to use it. |
+| `8` | `ExitTeardownLeak` | A `--close` that did not establish the session was gone: one found and refused to delete, or one whose budget ran out before it could look. Only the first carries a session id, so the log is what separates them and the run key is what to search on. A review never reports it: it deletes nothing, because the session is meant to outlive the run. The delete is the only thing that reclaims the sandbox — the Kubernetes launcher sets no lifetime cap and the server runs no sweep — so this means a pod may be holding its reserved cpu and memory with nothing left to use it. |
+| `9` | `ExitInternal` | A defect in the driver: a panic it recovered rather than let the runtime report as a `2` nobody can tell from a bad configuration. Not from the Python driver's set, so a workflow pinned to an older ref reads it as an unknown failure, which is the right reading of one. The log carries the panic and its stack. |
 
 `1` is not used by this program; nothing here relies on it meaning anything
 in particular.
