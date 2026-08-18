@@ -96,9 +96,9 @@ func (v Verdict) CheckConclusion() string {
 	// exactly this reason; the review's did not.
 	//
 	// Degraded to neutral rather than failed. A missing count means this tool cannot
-	// tell a clean review from a review of nothing, which is not the same as knowing
-	// the change is bad, and a reply from a session prompted before the field
-	// existed omits it without having done anything wrong.
+	// tell a clean review from a review of nothing, which is not the same as knowing the
+	// change is bad. And a reply from a session prompted before the field existed omits
+	// it without having done anything wrong.
 	if !v.readTheDiff() {
 		return "neutral"
 	}
@@ -112,11 +112,13 @@ func (v Verdict) readTheDiff() bool {
 
 // hasBlockingFinding reports whether any reported finding calls itself blocking.
 //
-// Read from every finding the reply offered, not only the ones that can be placed
-// on a line. A finding is dropped from the inline comments when it names no line,
-// which is a routine thing for a model to omit -- so without this, a nil
-// dereference reported as a blocker with no line passes the gate and titles the
-// check "0 findings", and the only trace left is prose in the comment body.
+// Read from every finding the reply offered, not only the ones that can be placed on
+// a line. A finding that names no line is dropped from the inline comments, and a
+// model omits a line routinely.
+//
+// Without this, a nil dereference reported as a blocker with no line passes the gate.
+// The check then reads "0 findings", and the only trace left is prose in the comment
+// body.
 //
 // The blockers array is checked separately by the caller: it holds what is
 // blocking and tied to no line, which is a different bucket, not a fallback.

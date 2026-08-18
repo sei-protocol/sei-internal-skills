@@ -139,10 +139,10 @@ func checkBullet(s string) string { return "- " + clip(oneLine(s), maxCheckBulle
 
 // defuseHeadings makes a line-leading markdown heading marker inert.
 //
-// For the summary, which is the one piece of model text published here as prose. It
-// keeps its paragraphs, so it cannot be one-lined the way an entry is, and what it
-// must not keep is the ability to open a section: a "### Blocking" of its own reads as
-// this package's own framing.
+// For the summary, the one piece of model text published here as prose. It keeps its
+// paragraphs, so it cannot be one-lined the way an entry is. What it must not keep is
+// the ability to open a section: a "### Blocking" of its own reads as this package's
+// framing.
 //
 // Both spellings, since either makes a heading -- a leading # and a run of = or -
 // alone on a line under a paragraph. A backslash before the first character is what
@@ -150,11 +150,13 @@ func checkBullet(s string) string { return "- " + clip(oneLine(s), maxCheckBulle
 // the cost, and it falls on a rule nobody writing a summary needs.
 //
 // Line endings are normalised first, because markdown recognises three and Go splits
-// on one. A summary written with \r\n leaves a trailing \r that stops a run of - from
-// reading as an underline here while a parser still reads it as one, and a lone \r is
-// a line ending to the parser that Split does not break on at all -- so every heading
-// after one would arrive live. Those three are the whole set: CommonMark defines a
-// line ending as \n, \r, or \r\n, and nothing else.
+// on one. With \r\n, a trailing \r stays on the underline line: the run of - stops
+// matching here, and a parser still reads it as a heading. A lone \r is worse. It ends
+// a line for the parser, and Split does not break on it at all, so every heading after
+// the first one arrives live.
+//
+// Those three are the whole set. CommonMark defines a line ending as \n, \r, or \r\n,
+// and nothing else.
 func defuseHeadings(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
@@ -188,15 +190,15 @@ func plural(n int, noun string) string {
 
 // BuildFailureCheck is the check run for a review that produced no verdict.
 //
-// [BuildCheckRun] reports false there, and a caller that publishes nothing leaves
-// the checks list with no xreview entry -- which reads as a review that did not
-// run, not one that could not be read. Those are different things, and only one of
-// them means an operator should look.
+// [BuildCheckRun] reports false there. A caller that publishes nothing leaves the
+// checks list with no xreview entry, which reads as a review that did not run rather
+// than one that could not be read. Those are different things, and only one of them
+// means an operator should look.
 //
-// neutral rather than failure: this says the tool could not read a review, not that
-// the change is bad, and a repository that wants the distinction to block can
-// require the check. The reason is the one [Verdict] already computed on every
-// refusal path and that nothing published.
+// The conclusion is neutral rather than failure. It says this tool could not read a
+// review, not that the change is bad. A repository that wants that distinction to
+// block can require the check. The reason it carries is the one [Verdict] already
+// computed on every refusal path and nothing published.
 func BuildFailureCheck(v Verdict) CheckRun {
 	reason := v.Reason
 	if reason == "" {

@@ -1,16 +1,18 @@
 // Package xreview is the pull-request review workload: what the agent is asked, how
 // to tell it has answered, and what to publish.
 //
-// Everything about running the session — resolving the agent, adopting one an earlier
-// dispatch created, following a turn across the streams it outlives, answering
-// permission prompts — belongs to the driver package and is the same whatever the
-// agent is asked for. This package is the other half: it writes the instruction, and
-// it reads the reply back into something a workflow can act on. It reaches no server
-// and knows nothing about sessions.
+// The driver package owns everything about running the session. It resolves the
+// agent, adopts one an earlier dispatch created, follows a turn across the streams it
+// outlives, and answers permission prompts. None of that changes with what the agent
+// is asked for.
 //
-// Everything in it exists because of one property of its input. This file holds that
-// property and the rules that follow from it; a code comment says why one statement
-// is where it is, at the statement.
+// This package is the other half. It writes the instruction, and it reads the reply
+// back into something a workflow can act on. It reaches no server and knows nothing
+// about sessions.
+//
+// One property of its input shapes everything here. This file states that property
+// and the rules it forces. A code comment explains one statement, beside that
+// statement.
 //
 // # The input is hostile
 //
@@ -53,20 +55,23 @@
 //
 // Every prompt-bound string is one-lined and clipped. A finding, a scout note or a
 // filename that carried a newline could otherwise open a heading and attribute
-// itself to someone else. The check summary is held to the same rule from the other
-// end: it is assembled under this package's own headings, so a field reaching it is
-// one-lined, and the review's own summary — the one part published as prose — has
-// its heading markers defused instead, so it keeps its paragraphs and loses only the
+// itself to someone else.
+//
+// The check summary follows the same rule from the other end. This package writes
+// that summary under headings of its own, so every field it draws in is one-lined.
+// The review's own summary is the exception, because it is published as prose. Its
+// heading markers are defused instead: it keeps its paragraphs and loses only the
 // ability to open a section.
 //
-// The conclusion follows the findings. A check's pass or fail is derived from what
-// the review listed, not from the word the agent used about itself, so a reply that
-// says approve while listing a blocker still fails — including a blocker that names
-// no line and so cannot be posted as an inline comment.
+// The conclusion follows the findings. A check passes or fails on what the review
+// listed, never on the word the agent used about itself. So a reply that says approve
+// while it lists a blocker still fails. That holds for a blocker which names no line
+// and so cannot become an inline comment.
 //
-// A scout's name is its dispatch identity, fixed when it was sent, never a value the
-// scout returned. And a reading that failed is named as failed — a credential outage
-// that read as a clean review would do so across every pull request at once.
+// A scout's name is its dispatch identity. This side fixes it when the scout goes
+// out, and never takes it from what the scout returned. A reading that failed is
+// reported as failed: a credential outage that read as a clean review would read that
+// way on every pull request at once.
 //
 // # Two prompts, not one
 //
@@ -76,9 +81,8 @@
 //
 // The consequence shapes prompt.go: rules are restated there rather than referred
 // back to. An adopted session replays only its first message, so a rule that lives
-// only in the first prompt is a rule that silently stops applying on re-review.
-// bucketRules is shared between them for exactly that reason, written once so the two
-// cannot drift.
+// only in the first prompt quietly stops applying on re-review. Both prompts render
+// bucketRules for that reason. It is written once, so the two cannot drift.
 //
 // Shared text carries no positional reference for the same reason. Step numbers exist
 // only in the first prompt, so a "Step 3" written into text both of them render points

@@ -171,11 +171,10 @@ func firstNonEmpty(fields map[string]any, keys ...string) string {
 
 // Blockers returns the must-fix findings that name no single line.
 //
-// They exist because the alternative is losing them. A review that says the
-// change needs a test, or that two functions now disagree, has nowhere to put
-// that against a line, and a contract with only line-tied findings drops it
-// silently — the author reads a clean set of inline comments and never learns
-// the review's most important objection.
+// They exist because the alternative is losing them. A review that says the change
+// needs a test, or that two functions now disagree, has no line to put that against.
+// A contract with only line-tied findings drops it silently: the author reads a clean
+// set of inline comments and never learns the review's most important objection.
 func Blockers(v Verdict) []string { return bulletList(v.Structured, "blockers") }
 
 // NonBlockers returns the same for observations that do not block.

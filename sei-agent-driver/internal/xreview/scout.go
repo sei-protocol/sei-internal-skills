@@ -12,10 +12,9 @@ import (
 // Scout is one independent reading of a pull request, gathered before the review
 // that merges them.
 //
-// A scout exists to disagree. Its value is entirely in being a reading the
-// synthesis did not produce, so it runs in its own session on its own agent —
-// the agent fixes the harness, and an opinion from the same harness as the one
-// merging it corroborates nothing. Sessions are per scout for the same reason:
+// A scout exists to disagree. Its whole value is that the synthesis did not produce
+// it, so it runs in its own session on its own agent. The agent fixes the harness,
+// and an opinion from the same harness as the one merging it corroborates nothing.
 // two scouts sharing a conversation would read each other's findings and
 // converge, which is the failure the whole arrangement exists to avoid.
 type Scout struct {
@@ -178,9 +177,10 @@ func ParseScoutReport(text string) ScoutReport {
 // without having looked at lines.
 //
 // A scout gets the diff and no tree, unlike the review. The roles differ: a scout
-// surfaces ranked leads, and the review verifies them against the files. Cloning
-// per scout would also multiply the clone into every sandbox in the gather — they
-// share no filesystem — and the gather is bounded at a fraction of the run, so a
+// surfaces ranked leads, and the review verifies them against the files.
+//
+// Cloning per scout would also multiply the clone into every sandbox in the gather,
+// which share no filesystem. The gather is bounded at a fraction of the run, so a
 // large repository would spend that budget on checkouts rather than readings.
 //
 // A scout is told it is one of several and that another model merges the results.

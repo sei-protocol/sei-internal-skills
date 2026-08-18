@@ -120,10 +120,10 @@ func selectThreads(threads []PriorThread, max int) []PriorThread {
 // historyStep renders what this tool said before and what came back, or nothing
 // when it has not reviewed this pull request yet.
 //
-// Embedded rather than fetched, for the reasons [reconcileStep] gives: a step the
-// agent must perform is a step it can skip, the replies are attacker-influenced
-// prose that would otherwise go through a shell, and attribution has to come from
-// this side — a reply cannot be allowed to claim which finding it answers.
+// Embedded rather than fetched, for the reasons [reconcileStep] gives. A step the
+// agent must perform is a step it can skip. The replies are attacker-influenced
+// prose, and fetching them would send that prose through a shell. And attribution
+// comes from this side: a reply must not claim which finding it answers.
 //
 // A session already remembers its own findings, which is what makes the replies
 // the part that matters. Nothing in a session tells it the author pushed back, or

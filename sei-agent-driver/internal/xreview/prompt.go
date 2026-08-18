@@ -19,10 +19,10 @@ func diffPath(req Request) string {
 
 // fetchDiffCommand is the one command the prompts name for getting the diff.
 //
-// It redirects to a file rather than printing, because an agent's shell tool
-// truncates a large output and a 39-file diff is comfortably large enough to hit
-// that — a review of the first third of a diff reads exactly like a review of all
-// of it. Staging to a file hands the reading to a tool that pages properly. The
+// It redirects to a file rather than printing. An agent's shell tool truncates a
+// large output, and a 39-file diff is comfortably large enough to hit that. A review
+// of the first third of a diff reads exactly like a review of all of it. Staging to a
+// file hands the reading to a tool that pages properly.
 // line count is part of the command so the agent knows how much there is to read
 // rather than inferring it from where its own reading stopped.
 func fetchDiffCommand(req Request) string {
@@ -280,11 +280,11 @@ func BuildPrompt(req Request) string {
 		"",
 	}...)
 
-	// The readings sit between the agent's own pass and its report. That is where
-	// they belong in the instruction, not a guarantee about when they are read:
-	// this is one message, so the agent has the whole of it at once and the
-	// independence that matters is the scouts' — separate sessions that never saw
-	// this review or each other.
+	// The readings sit between the agent's own pass and its report. That is where they
+	// belong in the instruction, and it promises nothing about when the agent reads
+	// them: this is one message, so the agent holds all of it at once. The independence
+	// that matters is the scouts' own -- separate sessions that never saw this review or
+	// each other.
 	lines = append(lines, reconcileStep(req)...)
 
 	lines = append(lines, []string{
@@ -309,10 +309,10 @@ func BuildPrompt(req Request) string {
 // bucketRules renders how a review sorts its observations, and the block it
 // closes with.
 //
-// Shared by both prompts rather than written twice. The adopted prompt is the
-// path almost every review takes — sessions outlive runs, so only the first
-// dispatch on a pull request sees the other one — and a rule that lives in the
-// prompt a session can no longer read is a rule that stops applying on
+// Shared by both prompts rather than written twice. The adopted prompt is the path
+// almost every review takes: sessions outlive runs, so only the first dispatch on a
+// pull request sees the other one. A rule that lives in a prompt the session can no
+// longer read is a rule that stops applying on re-review.
 // re-review. Writing them once is what keeps the two from drifting apart.
 func bucketRules() []string {
 	return []string{
