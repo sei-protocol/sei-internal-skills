@@ -124,9 +124,10 @@ func (d *Driver) answer(ctx context.Context, work Work, w Workload) Result {
 
 // Close ends the unit of work and reclaims what it held.
 //
-// This is the end of the work, not the end of a run, and it is the only thing that
-// frees a sandbox: a close that never happens leaks one for good, because nothing
-// reaps it later. See the package doc.
+// This is the end of the work, not the end of a run, and it is what frees a sandbox
+// once the work is done: a close that never happens leaks one for good, because
+// nothing reaps it on a schedule. Opening reclaims one too, but only a session it
+// finds unable to run a turn. See the package doc.
 //
 // Absent is not an error. Work that ended without ever being started has no
 // session, and saying so is not a failure.
@@ -144,8 +145,8 @@ func (d *Driver) Close(ctx context.Context, w Workload) Result {
 	// minute budget does not buy twenty minutes -- it only means the process is
 	// killed part-way through with the delete never issued, and the sandbox held.
 	// Floored, so a Config that never went through LoadConfig cannot hand teardown
-	// no budget at all -- which would silently skip the only thing that frees a
-	// sandbox, the exact failure this method exists to prevent.
+	// no budget at all -- which would silently skip the reclaim this method exists
+	// to perform.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx),
 		max(4*d.cfg.RequestTimeout, minTeardownBudget))
 	defer cancel()

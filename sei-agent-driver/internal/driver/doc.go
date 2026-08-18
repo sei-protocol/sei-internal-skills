@@ -32,12 +32,15 @@
 // either way — and a stopped runner costs the next invocation a fresh one and a
 // rebuilt transcript. The runner's idle timeout reclaims it unasked.
 //
-// So [Driver.Close], when the work ends, is the only thing that reclaims a sandbox.
-// Nothing else will: the Kubernetes launcher sets no lifetime cap and the server
-// runs no sweep, so a session nothing deletes holds its pod's cpu and memory
-// indefinitely. That is also why teardown runs on a context detached from the run's
-// — a terminate signal cancels the run so that teardown can happen, so inheriting
-// that cancellation would abort the one thing that frees anything.
+// So [Driver.Close], when the work ends, is what reclaims a sandbox. Nothing does it
+// on a schedule: the Kubernetes launcher sets no lifetime cap and the server runs no
+// sweep, so a session nothing deletes holds its pod's cpu and memory indefinitely.
+// Opening reclaims one too, but only a session it finds unable to run a turn at all,
+// so no working session is ever freed except by a close.
+//
+// That is why teardown runs on a context detached from the run's: a terminate signal
+// cancels the run so that teardown can happen, so inheriting that cancellation would
+// abort the reclaim it exists to allow.
 //
 // A run drives exactly one turn, and re-running is the retry: the next invocation
 // adopts the same session with its context intact.
@@ -54,6 +57,6 @@
 //
 // The exit codes in errors.go are a contract with a calling workflow that may be
 // pinned to an older ref, so their meanings only ever widen. The operator-facing
-// description of every environment variable and exit code is
-// cmd/sei-agent-driver/README.md.
+// description of every environment variable and exit code arrives with the command
+// that reads them, in cmd/sei-agent-driver/README.md.
 package driver

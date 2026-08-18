@@ -32,7 +32,12 @@ const (
 
 	// defaultAgent is the agent name to resolve. A name, not an id: ids differ
 	// per deployment, so the workflow that calls this cannot hardcode one.
-	defaultAgent = "sei-droid"
+	//
+	// It has to match the bundle's name on the server exactly -- there is no
+	// lookup-by-alias -- so changing it is a coordinated change with the deployment,
+	// not a rename. A value the server does not know fails the run at agent
+	// resolution, which is loud, and SEIDROID_AGENT_ID overrides it meanwhile.
+	defaultAgent = "seidroid"
 )
 
 // Config is the driver's whole configuration. Every field comes from the

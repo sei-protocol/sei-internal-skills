@@ -5,6 +5,10 @@ import "errors"
 // Exit codes. The caller workflow branches on these, so the numbers are a
 // contract with it and carry over unchanged from the Python driver — a workflow
 // pinned to an older ref must keep reading them the same way.
+//
+// Exported, unlike the defaults in config.go, because that contract is the reason
+// they exist: the command reads them to decide what to report, and a caller outside
+// this module branches on the numbers themselves.
 const (
 	// ExitOK is a completed turn that produced a verdict. A repeat dispatch for the
 	// same pull request is not a separate outcome: it adopts that pull request's
@@ -41,8 +45,8 @@ const (
 	// never reports it: it deletes nothing, because the session is meant to
 	// outlive the run.
 	//
-	// Surfaced rather than swallowed because the delete is the only thing that
-	// reclaims the sandbox. The Kubernetes launcher sets no lifetime cap and the
+	// Surfaced rather than swallowed because nothing reclaims the sandbox on a
+	// schedule. The Kubernetes launcher sets no lifetime cap and the
 	// server runs no sweep, so nothing else will: the pod holds its reserved cpu
 	// and memory until it is removed by hand. Only promoted over ExitOK, so a
 	// leak beside another non-zero outcome shows up in the logs rather than in
