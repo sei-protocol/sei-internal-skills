@@ -24,15 +24,6 @@ type Request struct {
 	// request. See [TriggerID].
 	Trigger string
 
-	// Nonce is the value the closing block must echo for this driver to accept it
-	// as the agent's own. See [Nonce] for how it is derived and why.
-	//
-	// Empty leaves both parsers on their unauthenticated rules, which accept a
-	// decision block the agent copied out of the diff it was reviewing. A
-	// deployment that has not set the secret behaves as it did before; one that has
-	// is closed against a planted verdict.
-	Nonce string
-
 	// Scouts is what the independent readings returned, in dispatch order. Empty
 	// runs the review alone, which is the only mode before any scout is
 	// configured.
@@ -131,9 +122,7 @@ func (r Review) Prompt(answered bool) string {
 // driver's own signals cannot tell an agent mid-answer from one that finished.
 // A reply without the block is an agent still working, and treating it as an
 // answer publishes an opening sentence as a review.
-func (r Review) Complete(text string) bool {
-	return ParseVerdict(text, r.req.Nonce).HasVerdict()
-}
+func (r Review) Complete(text string) bool { return ParseVerdict(text).HasVerdict() }
 
 // clip bounds a value taken from model output before it reaches a rendered prompt,
 // cutting on a rune boundary so the line stays valid UTF-8.

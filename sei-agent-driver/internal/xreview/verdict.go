@@ -171,30 +171,13 @@ func (v Verdict) HasVerdict() bool { return v.Structured != nil }
 // recorded trace its only effect was to turn a garbled transport assembly into a
 // publishable verdict, and it would make every JSON object the agent ever quotes
 // a candidate.
-func ParseVerdict(text, nonce string) Verdict {
+func ParseVerdict(text string) Verdict {
 	v := Verdict{Text: text}
 
 	blocks := fencedJSON.FindAllStringSubmatchIndex(text, -1)
 	if len(blocks) == 0 {
 		v.Reason = "the message carries no fenced json block"
 		return v
-	}
-	// Only blocks that prove they came from this dispatch are candidates. Without
-	// this the count below protects the reply only while the agent's own block is
-	// present and recognised, and a planted one wins whenever it is not.
-	if nonce != "" {
-		authentic := 0
-		for _, b := range blocks {
-			var fields map[string]any
-			if json.Unmarshal([]byte(text[b[2]:b[3]]), &fields) == nil && carriesNonce(fields, nonce) {
-				authentic++
-			}
-		}
-		if authentic == 0 {
-			v.Reason = "no fenced block carries this dispatch's run value, so none of them " +
-				"is this agent's own verdict"
-			return v
-		}
 	}
 	if n := decidingBlocks(text, blocks); n > 1 {
 		v.Reason = fmt.Sprintf(

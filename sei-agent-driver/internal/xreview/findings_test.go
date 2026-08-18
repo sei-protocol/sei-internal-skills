@@ -15,14 +15,14 @@ import (
 func TestPlaceableFindingsDropsWhatCannotBePlaced(t *testing.T) {
 	t.Parallel()
 
-	v := ParseVerdict("prose\n\n```json\n"+`{"read": 120, "decision": "comment","summary":"s","findings":[
+	v := ParseVerdict("prose\n\n```json\n" + `{"read": 120, "decision": "comment","summary":"s","findings":[
 		{"file":"a.go","line":12,"severity":"high","detail":"placeable"},
 		{"file":"","line":9,"severity":"low","detail":"no file"},
 		{"file":"b.go","line":0,"severity":"low","detail":"no line"},
 		{"file":"c.go","line":"34","severity":"low","detail":"line as a string"},
 		{"file":"d.go","line":7,"severity":"low","detail":""},
 		"not an object"
-	]}`+"\n```", "")
+	]}` + "\n```")
 
 	got := PlaceableFindings(v)
 	if len(got) != 2 {
@@ -43,7 +43,7 @@ func TestPlaceableFindingsDropsWhatCannotBePlaced(t *testing.T) {
 func TestPlaceableFindingsOnNoVerdict(t *testing.T) {
 	t.Parallel()
 
-	if got := PlaceableFindings(ParseVerdict("just prose, no block", "")); len(got) != 0 {
+	if got := PlaceableFindings(ParseVerdict("just prose, no block")); len(got) != 0 {
 		t.Errorf("placeable findings = %d, want 0 when there is no verdict", len(got))
 	}
 }
@@ -138,7 +138,7 @@ func TestCheckConclusion(t *testing.T) {
 // verdictFrom parses a closing block the way a real reply carries one.
 func verdictFrom(t *testing.T, block string) Verdict {
 	t.Helper()
-	v := ParseVerdict("Review prose.\n\n```json\n"+block+"\n```\n", "")
+	v := ParseVerdict("Review prose.\n\n```json\n" + block + "\n```\n")
 	if !v.HasVerdict() {
 		t.Fatalf("no verdict parsed from %s", block)
 	}

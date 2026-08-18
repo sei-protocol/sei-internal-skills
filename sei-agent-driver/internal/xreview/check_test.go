@@ -146,7 +146,7 @@ func TestABlockerWithNoLineStillFailsTheCheck(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			v := ParseVerdict(c.reply, "")
+			v := ParseVerdict(c.reply)
 			if got := v.CheckConclusion(); got != c.want {
 				t.Errorf("CheckConclusion = %q, want %q", got, c.want)
 			}
@@ -165,7 +165,7 @@ func TestABlockerWithNoLineStillFailsTheCheck(t *testing.T) {
 func TestBuildFailureCheckNamesWhyThereIsNoVerdict(t *testing.T) {
 	t.Parallel()
 
-	v := ParseVerdict("I could not read the diff.", "")
+	v := ParseVerdict("I could not read the diff.")
 	if _, ok := BuildCheckRun(v); ok {
 		t.Fatal("BuildCheckRun accepted a reply with no verdict")
 	}
@@ -195,7 +195,7 @@ func TestAReviewThatNeverReadTheDiffIsNotClean(t *testing.T) {
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
-			if got := ParseVerdict(c.reply, "").CheckConclusion(); got != c.want {
+			if got := ParseVerdict(c.reply).CheckConclusion(); got != c.want {
 				t.Errorf("CheckConclusion = %q, want %q", got, c.want)
 			}
 		})
