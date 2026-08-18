@@ -54,12 +54,6 @@ func checkTitle(v Verdict) string {
 	return strings.Join(counts, ", ")
 }
 
-// checkSummary renders the review's own summary and every observation that
-// names no line.
-//
-// The line-tied ones are deliberately absent: they are posted against the code
-// they are about, and repeating them here would have an author read each twice.
-// What would otherwise be lost is exactly what this carries.
 // maxCheckSummary bounds the check run's summary.
 //
 // GitHub rejects a check run whose summary exceeds 65,536 characters, and every
@@ -76,8 +70,19 @@ const maxCheckBullet = 2_000
 // list for the whole one.
 const checkTruncated = "\n\n_This summary was truncated. The published comment carries the full review._"
 
+// checkSummary renders the review's own summary and every observation that names no
+// line.
+//
+// The line-tied ones are deliberately absent: they are posted against the code they
+// are about, and repeating them here would have an author read each twice. What would
+// otherwise be lost is exactly what this carries.
+//
+// Every part of it is model text assembled under headings of this package's, which is
+// what makes the sanitising load-bearing here and not in the published comment. There
+// the agent's prose stands alone as the agent's prose; here it sits beside framing it
+// must not be able to imitate.
 func checkSummary(v Verdict) string {
-	sections := []string{v.Summary()}
+	sections := []string{defuseHeadings(v.Summary())}
 	sections = append(sections, bulletSection("Blocking", Blockers(v)))
 	sections = append(sections, bulletSection("Non-blocking", NonBlockers(v)))
 	sections = append(sections, preExistingSection(PreExisting(v)))
@@ -104,10 +109,7 @@ func bulletSection(heading string, items []string) string {
 	lines := make([]string, 0, len(items)+1)
 	lines = append(lines, "### "+heading)
 	for _, item := range items {
-		// One-lined as well as clipped: an entry carrying newlines can otherwise
-		// render its own "### Blocking" heading, which is indistinguishable from
-		// this package's framing to whoever reads the check.
-		lines = append(lines, "- "+clip(oneLine(item), maxCheckBullet))
+		lines = append(lines, checkBullet(item))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -120,9 +122,52 @@ func preExistingSection(issues []PreExistingIssue) string {
 	lines = append(lines, "### Pre-existing",
 		"Already true on the base branch, not introduced here.")
 	for _, issue := range issues {
-		lines = append(lines, fmt.Sprintf("- **%s** — %s", issue.Severity, issue.Body))
+		// Through checkBullet like every other entry. Both fields are model text, and
+		// a severity or a body carrying a newline forges a section here as readily as
+		// a blocker does.
+		lines = append(lines, checkBullet(fmt.Sprintf("**%s** — %s", issue.Severity, issue.Body)))
 	}
 	return strings.Join(lines, "\n")
+}
+
+// checkBullet renders one piece of model text as a list item.
+//
+// One-lined as well as clipped: an entry carrying newlines can otherwise render its
+// own "### Blocking" heading, which is indistinguishable from this package's framing
+// to whoever reads the check.
+func checkBullet(s string) string { return "- " + clip(oneLine(s), maxCheckBullet) }
+
+// defuseHeadings makes a line-leading markdown heading marker inert.
+//
+// For the summary, which is the one piece of model text published here as prose. It
+// keeps its paragraphs, so it cannot be one-lined the way an entry is, and what it
+// must not keep is the ability to open a section: a "### Blocking" of its own reads as
+// this package's own framing.
+//
+// Both spellings, since either makes a heading -- a leading # and a run of = or -
+// alone on a line under a paragraph. A backslash before the first character is what
+// markdown honours, so a legitimate --- separator renders as literal --- text. That is
+// the cost, and it falls on a rule nobody writing a summary needs.
+func defuseHeadings(s string) string {
+	lines := strings.Split(s, "\n")
+	for i, line := range lines {
+		indent := len(line) - len(strings.TrimLeft(line, " \t"))
+		rest := line[indent:]
+		if strings.HasPrefix(rest, "#") || setextUnderline(rest) {
+			lines[i] = line[:indent] + `\` + rest
+		}
+	}
+	return strings.Join(lines, "\n")
+}
+
+// setextUnderline reports whether a line would turn the paragraph above it into a
+// heading: a run of = or of - with nothing else on the line.
+func setextUnderline(s string) bool {
+	t := strings.TrimRight(s, " \t")
+	if t == "" {
+		return false
+	}
+	return strings.Count(t, "=") == len(t) || strings.Count(t, "-") == len(t)
 }
 
 func plural(n int, noun string) string {

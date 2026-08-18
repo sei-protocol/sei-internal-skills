@@ -82,8 +82,14 @@ func TestBuildPromptAttributesScoutsFromTheOrchestrator(t *testing.T) {
 	}}
 	text := BuildPrompt(req)
 
-	if !strings.Contains(text, "Step 3 — reconcile") || !strings.Contains(text, "Step 4 — report") {
-		t.Fatal("BuildPrompt did not insert the reconcile step ahead of a renumbered report")
+	// By position, not by number. The reconcile block is shared with AdoptedPrompt,
+	// which has no numbered steps, so what has to hold is the ordering: readings are
+	// reconciled before the report that carries them.
+	reconcile := strings.Index(text, "Reconcile with the independent readings")
+	report := strings.Index(text, "Step 3 — report")
+	if reconcile < 0 || report < 0 || report < reconcile {
+		t.Fatalf("reconcile at %d, report at %d; the readings must be reconciled before the report",
+			reconcile, report)
 	}
 	// The failed scout is named as failed, not rendered as a clean reading: a
 	// credential outage must not read as a clean review on every pull request.
@@ -355,5 +361,50 @@ func TestCommandsRefuseARepoThatIsNotAName(t *testing.T) {
 	}
 	if safeRepo("sei-protocol/sandbox") != "sei-protocol/sandbox" {
 		t.Error("an ordinary repository name was refused")
+	}
+}
+
+// TestSharedPromptTextNamesNoStep guards the rule the reconcile block broke.
+//
+// Step numbers exist only in [BuildPrompt]. [AdoptedPrompt] has none, and it is the
+// path almost every review takes, so a "Step 3" written into text both of them render
+// points at nothing there. Directional words are a different matter and are allowed:
+// bucketRules says "the buckets above" about buckets it lists itself, which resolves
+// wherever it is rendered.
+func TestSharedPromptTextNamesNoStep(t *testing.T) {
+	req := Request{
+		Repo: "sei-protocol/sei-chain", PR: 3861,
+		GuidelinesFile:    "REVIEW.md",
+		ExtraInstructions: "prefer table-driven tests",
+		PriorThreads: []PriorThread{
+			{File: "p2p/router.go", Line: 12, Body: "still open"},
+		},
+		Scouts: []ScoutResult{{Name: "codex", Findings: []Finding{
+			{File: "p2p/router.go", Line: 174, Severity: "low", Detail: "duplicated default"},
+		}}},
+	}
+
+	for _, shared := range []struct {
+		name  string
+		lines []string
+	}{
+		{"repoContextStep", repoContextStep(req)},
+		{"extraInstructionsStep", extraInstructionsStep(req)},
+		{"historyStep", historyStep(req)},
+		{"reconcileStep", reconcileStep(req)},
+		{"bucketRules", bucketRules()},
+	} {
+		// Non-vacuity first. Every one of these returns nil for an empty request, and a
+		// builder that produced nothing would pass this check while testing nothing.
+		if len(shared.lines) == 0 {
+			t.Errorf("%s produced no lines; this request was built to make it produce some",
+				shared.name)
+			continue
+		}
+		for i, line := range shared.lines {
+			if strings.Contains(line, "Step ") {
+				t.Errorf("%s line %d names a step: %q", shared.name, i, line)
+			}
+		}
 	}
 }

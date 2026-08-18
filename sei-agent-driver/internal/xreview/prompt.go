@@ -118,7 +118,7 @@ func reconcileStep(req Request) []string {
 	}
 
 	out := []string{
-		"Step 3 — reconcile with the independent readings below.",
+		"Reconcile with the independent readings that follow.",
 		"",
 		"Other agents read this same pull request before you, without seeing your",
 		"findings or each other's.",
@@ -164,7 +164,7 @@ func reconcileStep(req Request) []string {
 	return append(out,
 		"",
 		"Check each claim against the diff yourself before you do anything with it.",
-		"Keep the ones that hold and carry them into the sections below as findings of",
+		"Keep the ones that hold and carry them into your own report as findings of",
 		"yours, still naming whose they were. Drop the ones that do not. Where you and",
 		"a reading reached the same point, report it once.",
 		"",
@@ -287,12 +287,8 @@ func BuildPrompt(req Request) string {
 	// this review or each other.
 	lines = append(lines, reconcileStep(req)...)
 
-	report := 3
-	if len(req.Scouts) > 0 {
-		report = 4
-	}
 	lines = append(lines, []string{
-		fmt.Sprintf("Step %d — report, under these headings in this order:", report),
+		"Step 3 — report, under these headings in this order:",
 		"",
 		"1. Blocking — what breaks, with the file and line where there is one.",
 		"2. Security — the same, or that you found none, having looked for the classes",
