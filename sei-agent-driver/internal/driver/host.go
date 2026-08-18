@@ -59,7 +59,8 @@ type Host interface {
 	//
 	// An error wrapping [ErrLeaked] means a session was found and could not be
 	// deleted, so its sandbox is held. That is a different outcome from a failure to
-	// look, and the caller reports it differently: nothing else reclaims a sandbox.
+	// look, and the caller reports it differently, because nothing reclaims a sandbox
+	// on a schedule.
 	Close(ctx context.Context, w Work) (sessionID string, err error)
 }
 

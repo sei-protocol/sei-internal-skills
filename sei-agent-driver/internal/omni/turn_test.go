@@ -260,3 +260,48 @@ func TestTerminalBackedTreatsAnUnknownHarnessStrictly(t *testing.T) {
 		}
 	}
 }
+
+// TestCrossBoundaryNeedsAnAnchorFirst pins that an absent item id cannot open the
+// boundary. Both comparisons are string equality, and an unsent prompt leaves the
+// anchor empty, so a consumed event carrying no item id would otherwise mark the turn
+// as having seen its own prompt echoed — unlocking every rule that waits on it.
+func TestCrossBoundaryNeedsAnAnchorFirst(t *testing.T) {
+	t.Parallel()
+
+	tn := newTurn(nil, nil, true)
+	tn.crossBoundary(omnigent.SessionInputConsumedEvent{
+		Data: omnigent.SessionInputConsumedPayload{ItemID: ""},
+	})
+	if tn.crossed {
+		t.Error("crossed with no prompt sent: an absent item id matched the empty anchor")
+	}
+}
+
+// TestObserveStatusIgnoresAFailureBeforeTheBoundary is the other half of the prior
+// check. The idle path requires the boundary; the failed path recorded the failure
+// without it, so an edge from the prologue — which cannot be this turn's, since this
+// turn has not spoken — ended the run.
+func TestObserveStatusIgnoresAFailureBeforeTheBoundary(t *testing.T) {
+	t.Parallel()
+
+	tn := newTurn(nil, nil, true)
+	tn.observeStatus(omnigent.SessionStatusEvent{
+		Status:     omnigent.SessionStatusEventStatusFailed,
+		ResponseID: omnigent.Ptr("resp_claude_x"),
+	})
+	if tn.failure != nil {
+		t.Errorf("failure = %v, want nil: no prompt of ours had been echoed yet", tn.failure)
+	}
+
+	// A failure naming no response is not another turn's -- it is how the server
+	// reports a session-level fault, and before the boundary that is the failure this
+	// run is waiting on.
+	bare := newTurn(nil, nil, true)
+	bare.observeStatus(omnigent.SessionStatusEvent{
+		Status: omnigent.SessionStatusEventStatusFailed,
+	})
+	if !errors.Is(bare.failure, driver.ErrTurnFailed) {
+		t.Errorf("failure = %v, want ErrTurnFailed: a session-level fault is ours to report",
+			bare.failure)
+	}
+}

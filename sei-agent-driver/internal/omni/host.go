@@ -195,7 +195,8 @@ func (h *Host) resolveAgent(
 //
 // Paged at the server's maximum rather than its default of 20. The server has no
 // label filter, so this walk is linear in the agent's session count, and it runs on
-// every open and every close -- including the close on a runner that is already
+// every open, and [Host.findAllByRunKey] walks the same listing on every close --
+// including the close on a runner that is already
 // being terminated. Sessions accumulate for as long as anything fails to reclaim
 // one, so the cheap default is the expensive one over time.
 func (h *Host) findByRunKey(
@@ -248,9 +249,9 @@ type adoption struct {
 // Searching first is the idempotency guarantee. The run key is a label on the
 // session, so it outlives the runner and a redelivered trigger finds the first
 // run's session rather than doing the work twice. It walks every page because the
-// server has no label filter and a page holds the agent's 20 newest. It is not a
-// lock: two simultaneous runs can both find nothing and both create, which the
-// caller's concurrency group prevents. This rules out the sequential duplicate.
+// server has no label filter. It is not a lock: two simultaneous runs can both find
+// nothing and both create, which the caller's concurrency group prevents. This rules
+// out the sequential duplicate.
 //
 // The refusal is the other half. A session whose sandbox never launched is stopped
 // with its conversation intact, so the run key still finds it forever, and
@@ -315,8 +316,11 @@ func (h *Host) createOrAdopt(
 	if committed == nil {
 		return nil, adoption{}, err
 	}
-	live, _ := reachability(committed)
-	return committed, adoption{continued: true, live: live}, nil
+	// Both halves, like the adopt path above. Dropping revivable here left a session
+	// reconciled after a lost create unable to be woken: neither send arm fires, so
+	// the run re-subscribes until its deadline without ever asking its question.
+	live, revivable := reachability(committed)
+	return committed, adoption{continued: true, live: live, revivable: revivable}, nil
 }
 
 // reachability reads whether a session can take a prompt now, and whether it

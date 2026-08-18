@@ -30,8 +30,12 @@ type Result struct {
 	SessionID string
 
 	// TeardownOK reports that no session was left holding a sandbox. True on a run,
-	// which deletes nothing and so leaks nothing, and on a close that deleted what
-	// it found. A false value is what [ExitTeardownLeak] reports.
+	// which deletes nothing and so leaks nothing, and on a close that deleted what it
+	// found.
+	//
+	// False means only that this did not establish the sandbox was freed. That is
+	// [ExitTeardownLeak] when a session was found and would not delete, and it is
+	// also every close that failed before it could look -- the exit code says which.
 	TeardownOK bool
 }
 
@@ -58,8 +62,9 @@ func New(cfg Config, host Host, log *slog.Logger) *Driver {
 // is [ExitConfig] or [ExitTransport] with a nil Reply, which the caller reports the
 // same way it reports any other outcome.
 //
-// It tears nothing down. The session outlives the run, for the reasons in the
-// package doc, and [Driver.Close] is what ends it.
+// It tears nothing down itself. The session outlives the run, for the reasons in
+// the package doc, and [Driver.Close] is what ends it -- though opening will delete
+// a session it finds unable to run a turn at all.
 //
 // What that leaves behind is a turn still running when a run ends early, on a
 // cancelled context or an expired deadline. The next invocation's prompt queues

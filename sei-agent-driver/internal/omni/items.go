@@ -109,11 +109,12 @@ func GroupIsAfterAnchor(items []omnigent.ConversationItem, anchorID, responseID 
 // assistantMessage decodes an item that is a publishable assistant message, and
 // reports false for anything else.
 //
-// The Type check comes before the Data decode, and that ordering is the only
-// thing standing between a tool output and the pull request: AsMessageData is a
-// bare json.Unmarshal with no discriminator consult, so it decodes a
-// function_call_output into a zero-valued MessageData and reports no error. Tool
-// output on this path carries whole diffs and gh responses.
+// The Type check comes before the Data decode, and it is the first of three things
+// standing between a tool output and the pull request: AsMessageData is a bare
+// json.Unmarshal with no discriminator consult, so it decodes a function_call_output
+// into a zero-valued MessageData and reports no error. The role and empty-text checks
+// behind it would reject that value too -- but resting on a zero-value coincidence,
+// for a payload carrying whole diffs and gh responses, is not a guard.
 func assistantMessage(item omnigent.ConversationItem) (omnigent.MessageData, bool) {
 	switch {
 	case item.Type != "message":

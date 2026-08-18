@@ -1,8 +1,8 @@
 package driver
 
 import (
-	"errors"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -89,8 +89,14 @@ type Config struct {
 	// server-side and the next invocation's prompt queues behind it.
 	RunDeadline time.Duration
 
-	// RequestTimeout bounds the requests this package times itself: the token mint
-	// and the post-turn reply read.
+	// RequestTimeout bounds each request a [Host] times for itself rather than
+	// leaving to the SDK: the token mint, the liveness probe, the reply read, the
+	// salvage read after a lost stream, and, at four times this value, the whole of a
+	// close.
+	//
+	// So it is not only a per-request knob. Lowering it to fail a slow mint faster
+	// also shortens the liveness probe -- and a probe that times out reads as
+	// not-live, which is what decides whether the prompt goes in at all.
 	//
 	// Not handed to the SDK as a unary timeout, so tightening it does not tighten
 	// the client's own calls. The stream is bounded by StreamIdleTimeout instead,
@@ -100,14 +106,13 @@ type Config struct {
 	// UnaryTimeout bounds one non-streaming exchange. The SDK's own default is
 	// shorter than a session create, which provisions a sandbox before it answers.
 	//
-	// It also prices stream recovery. The streaming client carries no whole-response
-	// timeout, correctly, but shares the unary transport, whose
-	// ResponseHeaderTimeout is this value or thirty seconds, whichever is larger. So
-	// this is equally how long a stream open that never answers takes to give up,
-	// and the re-subscribe loop pays it once per attempt.
+	// It does not price stream recovery, which is worth stating because it reads as
+	// though it should. The SDK would derive its transport's response-header timeout
+	// from this value, but only when no HTTP client is supplied -- and a client is
+	// supplied, so what a dead stream open costs is a constant on that client
+	// instead. Raising this cannot lengthen the wait for a stream that never answers.
 	//
-	// The two pull opposite ways and neither is measured. Raise it against a timed
-	// create, and only as far as the run deadline can absorb several dead opens.
+	// Raise it against a timed create, which is the exchange it does price.
 	UnaryTimeout time.Duration
 
 	// StreamIdleTimeout is how long the stream may be silent before it is treated
@@ -127,28 +132,14 @@ type Config struct {
 // It does not check the credential; that is [Config.RequireAuth], kept separate
 // so a caller can load and inspect a configuration without holding a secret.
 func LoadConfig() (Config, error) {
-	// Each read can refuse, so they are gathered before the struct rather than
-	// inside it: a set-but-empty value is a misconfiguration to name, not a default
-	// to fall back to.
-	var errs []error
-	str := func(name, fallback string) string {
-		v, err := envOr(name, fallback)
-		if err != nil {
-			errs = append(errs, err)
-		}
-		return v
-	}
 	cfg := Config{
-		BaseURL: strings.TrimRight(str("OMNIGENT_BASE_URL", defaultBaseURL), "/"),
-		Origin:  str("OMNIGENT_ORIGIN", defaultOrigin),
-		Agent:   str("SEIDROID_AGENT_ID", defaultAgent),
+		BaseURL: strings.TrimRight(envOr("OMNIGENT_BASE_URL", defaultBaseURL), "/"),
+		Origin:  envOr("OMNIGENT_ORIGIN", defaultOrigin),
+		Agent:   envOr("SEIDROID_AGENT_ID", defaultAgent),
 		Token:   resolveToken(),
 
 		MachineClientID:     strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_ID")),
 		MachineClientSecret: strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_SECRET")),
-	}
-	if len(errs) > 0 {
-		return Config{}, errors.Join(errs...)
 	}
 
 	// Seconds, because that is what an operator's existing values mean.
@@ -223,42 +214,65 @@ func resolveToken() string {
 	return strings.TrimSpace(os.Getenv("OMNIGENT_API_TOKEN"))
 }
 
-// envOr is the value of name, or fallback when it is not set.
+// envOr is the value of name, or fallback when it carries none.
 //
-// Set-but-empty is a value, not an absence, and it is refused rather than silently
-// replaced: an operator who writes NAME= in a workflow has said something, and
-// answering with a default hides a misconfiguration behind a run that looks fine.
-func envOr(name, fallback string) (string, error) {
+// Looked up rather than read, so present-but-empty is a case this decides rather
+// than one it stumbles into -- and it decides that empty means absent, for every
+// variable here that has a safe default.
+//
+// That is not indifference to the difference. A workflow makes a value overridable
+// by writing `env: NAME: ${{ vars.NAME }}`, and Actions expands an undefined
+// variable to the empty string rather than omitting the entry, as do a
+// reusable-workflow input defaulting to "" and an unset matrix key. So NAME= is
+// usually the runner's artefact and not something an operator said, and there is no
+// way to unset a ${{ }} interpolation from inside the workflow that wrote it.
+// Refusing it would fail every run in the most idiomatic setup there is.
+//
+// Trimmed, because the value travels into an HTTP header and a URL: a trailing
+// newline from a heredoc or a file-backed variable is rejected far from here, by
+// something that names neither the variable nor the newline.
+func envOr(name, fallback string) string {
 	v, ok := os.LookupEnv(name)
 	if !ok {
-		return fallback, nil
+		return fallback
 	}
-	if strings.TrimSpace(v) == "" {
-		return "", fmt.Errorf("%w: %s is set but empty; unset it to take the default %q",
-			ErrConfig, name, fallback)
+	if trimmed := strings.TrimSpace(v); trimmed != "" {
+		return trimmed
 	}
-	return v, nil
+	return fallback
 }
 
 // secondsOr parses a duration-in-seconds variable, rejecting a value that is not
 // a positive number. A zero or negative deadline would disable the bound it
 // exists to enforce, so it is a configuration error rather than a silent
 // unbounded run.
+// maxSeconds bounds every duration read from the environment. Well above any real
+// budget, and far below where a float64 stops converting to a Duration.
+const maxSeconds float64 = 86_400
+
 func secondsOr(name string, fallback float64) (float64, error) {
 	raw, ok := os.LookupEnv(name)
 	if !ok {
 		return fallback, nil
 	}
-	if strings.TrimSpace(raw) == "" {
-		return 0, fmt.Errorf("%w: %s is set but empty; unset it to take the default",
-			ErrConfig, name)
+	// Empty means absent here for the same reason as in envOr: an undefined
+	// repository variable arrives as an empty entry, not a missing one.
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return fallback, nil
 	}
 	secs, err := strconv.ParseFloat(raw, 64)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %s must be a number, got %q", ErrConfig, name, raw)
 	}
-	if secs <= 0 {
-		return 0, fmt.Errorf("%w: %s must be positive, got %q", ErrConfig, name, raw)
+	// Finite as well as positive. ParseFloat accepts Inf and NaN, and neither
+	// survives the conversion to a Duration: the Go spec leaves an out-of-range
+	// float-to-int conversion implementation-dependent, so "no limit" becomes either
+	// an instantly expired run or a 292-year one depending on the architecture.
+	// Overflow starts around 9.2e9 seconds, so the ceiling bounds that too.
+	if math.IsNaN(secs) || math.IsInf(secs, 0) || secs <= 0 || secs > maxSeconds {
+		return 0, fmt.Errorf("%w: %s must be a positive number of seconds under %g, got %q",
+			ErrConfig, name, maxSeconds, raw)
 	}
 	return secs, nil
 }

@@ -456,10 +456,11 @@ func (c *conversation) salvageFailedTurn(ctx context.Context, t *turn) (driver.R
 // for, and [conversation.salvageFailedTurn] cannot help — it keys on a failure edge
 // a transport drop never produces.
 //
-// Fails closed three ways: only a genuine stream fault is recovered; the prompt
-// must have been echoed, or the run has nothing of its own to find; and exactly
-// one new reply group must exist and be complete, so an ambiguous or unfinished
-// session reports the transport error instead.
+// Fails closed at every step: only a genuine stream fault is recovered; the prompt
+// must have been echoed, or the run has nothing of its own to find; the session must
+// name no active response; exactly one reply group must be new; that group must sit
+// after this turn's prompt; and its reply must be a finished answer. Anything short of
+// all six reports the transport error instead.
 func (c *conversation) recoverFromStreamLoss(
 	ctx context.Context,
 	t *turn,

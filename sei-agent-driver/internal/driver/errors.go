@@ -18,10 +18,14 @@ const (
 	// ExitConfig is a configuration or credential problem. Nothing was sent.
 	ExitConfig = 2
 
-	// ExitTimeout is the run deadline expiring. Nothing is stopped: the turn goes
-	// on server-side and the next invocation's prompt queues behind it, and the
-	// conversation is kept like every other exit — only [Driver.Close] destroys a
-	// session, and it runs when the unit of work ends.
+	// ExitTimeout is the run deadline expiring. Nothing is interrupted: a turn that
+	// had started goes on server-side and the next invocation's prompt queues behind
+	// it, and a run whose prompt never went in leaves nothing running at all -- the
+	// commonest cause, a sandbox that never reported ready. So a caller must not read
+	// this as "still working".
+	//
+	// The conversation is kept, as on every exit. Only a close deletes a session that
+	// can still run a turn; opening deletes one it finds unable to.
 	ExitTimeout = 3
 
 	// ExitTurnFailed is the session reporting failure, which is the agent's
