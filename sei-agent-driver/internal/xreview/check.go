@@ -147,7 +147,6 @@ func checkBullet(s string) string { return "- " + clip(oneLine(s), maxCheckBulle
 // honours. So a legitimate --- separator renders as literal --- text. That is the cost,
 // and it falls on a rule nobody writing a summary needs.
 //
-// Line endings are normalised first, because markdown recognises three and Go splits
 // Line endings are normalised first, because markdown recognises three and Go splits on
 // one. With \r\n, a trailing \r stays on the underline line. The run of - stops matching
 // here, and a parser still reads it as a heading. A lone \r is worse. It ends a line for
