@@ -35,7 +35,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  verify:
+  # The job id is the check-run name branch protection matches on, and it is deliberately
+  # NOT `verify`. Five workflows here already emit a check run called `verify`, so a sixth
+  # could not be required on its own -- and requiring this one specifically is the point.
+  # The family convention is carried by the workflow name above instead.
+  govulncheck:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
