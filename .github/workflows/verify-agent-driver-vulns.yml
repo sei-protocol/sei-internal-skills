@@ -2,17 +2,14 @@ name: Verify sei-agent-driver vulnerabilities
 
 # The schedule is the point: a vulnerability disclosed today applies to code that did not
 # change, so a pull-request-only gate reports clean on a module that has just become
-# vulnerable. Split from verify-agent-driver.yml so a vulnerability failure reads as its own
-# check beside a build failure.
+# vulnerable. Split out so a vulnerability failure reads as its own check.
 
 on:
   pull_request:
     paths: &agent-driver-vuln-paths
       - 'sei-agent-driver/**'
       - 'Makefile'
-      # A release is cut by editing version.json alone, and that push builds and publishes
-      # the driver. Without this the one change that ships the binary is the one change this
-      # gate never sees.
+      # A release is cut by editing version.json alone, and that push publishes the driver.
       - 'version.json'
       - '.github/workflows/verify-agent-driver-vulns.yml'
   push:
@@ -29,29 +26,24 @@ permissions:
 
 concurrency:
   group: verify-agent-driver-vulns-${{ github.event.pull_request.number || github.ref }}
-  # Only a pull request supersedes its own run. A schedule and a workflow_dispatch on main
-  # resolve to the same group, and a cancelled run is neither red nor notified -- so
-  # cancelling there loses the finding rather than superseding it.
+  # Only a pull request supersedes its own run. A cancelled scheduled run is neither red nor
+  # notified, so cancelling there would lose the finding.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  # The job id is the check-run name branch protection matches on, and it is deliberately
-  # NOT `verify`. Five workflows here already emit a check run called `verify`, so a sixth
-  # could not be required on its own -- and requiring this one specifically is the point.
-  # The family convention is carried by the workflow name above instead.
+  # The job id is the check-run name branch protection matches, and deliberately not `verify`:
+  # ten workflows here already emit one by that name, and this has to be requirable alone.
   govulncheck:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          # This job pushes nothing, and the default writes the token into .git/config where
-          # the third-party scanner could read it.
+          # Nothing here pushes, and the default leaves a token where the scanner could read it.
           persist-credentials: false
 
-      # v7 rather than v5: v5 matches only the `go` directive, so it installs the language
-      # version and leaves the `toolchain` line to a run-time re-exec. v7 reads `toolchain`,
-      # which is what decides the standard-library findings this job reports.
+      # v7 reads the `toolchain` directive. v5 matched only `go`, leaving the pinned toolchain
+      # to a run-time re-exec.
       - uses: actions/setup-go@v7
         with:
           go-version-file: sei-agent-driver/go.mod
