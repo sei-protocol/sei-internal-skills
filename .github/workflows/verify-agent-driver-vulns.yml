@@ -1,19 +1,26 @@
 name: Vulnerabilities sei-agent-driver
 
-# Separate from verify-agent-driver.yml because this has a trigger that one cannot: a
-# vulnerability disclosed today applies to code that did not change, so a
-# pull-request-only check reports clean on a module that has become vulnerable. The
-# schedule is the half that catches that, and a distinct check name keeps a vulnerability
-# failure legible next to a build failure.
+# The schedule is the point: a vulnerability disclosed today applies to code that did not
+# change, so a pull-request-only gate reports clean on a module that has just become
+# vulnerable. Split from verify-agent-driver.yml so a vulnerability failure reads as its own
+# check beside a build failure.
+
 on:
   pull_request:
-    paths:
+    paths: &agent-driver-vuln-paths
       - 'sei-agent-driver/**'
       - 'Makefile'
+      # A release is cut by editing version.json alone, and that push builds and publishes
+      # the driver. Without this the one change that ships the binary is the one change this
+      # gate never sees.
+      - 'version.json'
       - '.github/workflows/verify-agent-driver-vulns.yml'
+  push:
+    branches:
+      - main
+    paths: *agent-driver-vuln-paths
   schedule:
-    # Weekday mornings UTC. Off the hour, so this is not queued behind everything else
-    # that runs at :00.
+    # Off the hour: scheduled runs queue behind everything that fires at :00.
     - cron: '17 7 * * 1-5'
   workflow_dispatch:
 
@@ -22,7 +29,10 @@ permissions:
 
 concurrency:
   group: vulns-agent-driver-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Only a pull request supersedes its own run. A schedule and a workflow_dispatch on main
+  # resolve to the same group, and a cancelled run is neither red nor notified -- so
+  # cancelling there loses the finding rather than superseding it.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   govulncheck:
@@ -30,11 +40,18 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+        with:
+          # This job pushes nothing, and the default writes the token into .git/config where
+          # the third-party scanner could read it.
+          persist-credentials: false
 
-      - uses: actions/setup-go@v5
+      # v7 rather than v5: v5 matches only the `go` directive, so it installs the language
+      # version and leaves the `toolchain` line to a run-time re-exec. v7 reads `toolchain`,
+      # which is what decides the standard-library findings this job reports.
+      - uses: actions/setup-go@v7
         with:
           go-version-file: sei-agent-driver/go.mod
           cache-dependency-path: sei-agent-driver/go.sum
 
-      - name: govulncheck
+      - name: No known vulnerability is reachable from sei-agent-driver
         run: make driver-vulncheck

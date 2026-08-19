@@ -119,25 +119,39 @@ driver-check: ## Everything enforced about sei-agent-driver: fmt, build, vet, te
 	cd sei-agent-driver && go test ./... -race
 	cd sei-agent-driver && go mod tidy -diff
 
-# govulncheck is pinned, and the vulnerability database is not: the tool is fetched at
-# this version and reads vuln.go.dev at run time, so a CVE published after this line was
-# written is still reported. Pinned anyway, because @latest in CI runs whatever was
-# published most recently.
+# govulncheck is pinned and the vulnerability database is not: the tool is fetched at this
+# version and reads vuln.go.dev at run time, so a CVE published after this line was written
+# is still reported. Pinned because @latest in CI runs whatever was published most recently.
 GOVULNCHECK_VERSION ?= v1.7.0
 
+# A seam for a run that has to diverge from CI: `-show verbose` for the full module set,
+# `-db <mirror>` while vuln.go.dev is unreachable.
+GOVULNCHECK_FLAGS ?=
+
+# Runs inside the module because go.mod's `toolchain` line selects the Go whose standard
+# library findings are graded against, and that selection only happens from inside a module.
+# GOTOOLCHAIN must be left at auto for it to happen at all.
+#
+# Installed rather than `go run`, because `go run` reports its own 1 for everything and leaves
+# nothing to classify. govulncheck separates a reachable finding (3) from a tool that could not
+# run (1), and only 3 is a vulnerability verdict -- a CVE in a dependency nothing here calls
+# exits 0, which is what makes this safe to gate a merge on.
+#
+# make collapses every recipe failure into its own exit 2, so that distinction travels as the
+# message below and not as a status code. Automation keyed on the job's status still cannot
+# tell a finding from an outage; automation greping for SCANNER UNAVAILABLE can.
 .PHONY: driver-vulncheck
 driver-vulncheck: ## Fail if sei-agent-driver can reach a known vulnerability (CI)
-	@# Exits zero when the only findings are in code this module never calls, and
-	@# non-zero when a vulnerable symbol is on a path from this code. That is what makes
-	@# it safe to gate a merge on: a CVE in a transitive dependency we do not call does
-	@# not turn the build red, and one we do call does.
-	@#
-	@# The cd is load-bearing, and `go run -C sei-agent-driver` is NOT the same thing.
-	@# Standard-library findings are reported against the toolchain Go is running, and
-	@# the `toolchain` line in sei-agent-driver/go.mod only selects that once the working
-	@# directory is inside the module. Measured: from the repo root this reports the
-	@# machine's own Go and fails on stdlib CVEs that line already pins past.
-	cd sei-agent-driver && go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+	@cd sei-agent-driver && GOBIN=$(CURDIR)/sei-agent-driver/bin \
+	  go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
+	@cd sei-agent-driver && ./bin/govulncheck -version
+	@cd sei-agent-driver && ./bin/govulncheck $(GOVULNCHECK_FLAGS) ./...; code=$$?; \
+	  case $$code in \
+	    0) ;; \
+	    3) echo "driver-vulncheck: a reachable vulnerability was found (see above)" >&2; exit 3 ;; \
+	    *) echo "driver-vulncheck: SCANNER UNAVAILABLE (govulncheck exit $$code) --" \
+	            "not a vulnerability verdict; re-run" >&2; exit $$code ;; \
+	  esac
 
 # -buildvcs=false because a nested module cannot stamp VCS info, which is also
 # why the version is passed in: without it the binary cannot say which commit it
