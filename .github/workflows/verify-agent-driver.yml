@@ -2,17 +2,14 @@ name: Verify sei-agent-driver
 
 on:
   pull_request:
-    paths:
+    paths: &agent-driver-paths
       - 'sei-agent-driver/**'
       - 'Makefile'
       - '.github/workflows/verify-agent-driver.yml'
   push:
     branches:
       - main
-    paths:
-      - 'sei-agent-driver/**'
-      - 'Makefile'
-      - '.github/workflows/verify-agent-driver.yml'
+    paths: *agent-driver-paths
 
 permissions:
   contents: read
