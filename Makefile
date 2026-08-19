@@ -119,6 +119,26 @@ driver-check: ## Everything enforced about sei-agent-driver: fmt, build, vet, te
 	cd sei-agent-driver && go test ./... -race
 	cd sei-agent-driver && go mod tidy -diff
 
+# govulncheck is pinned, and the vulnerability database is not: the tool is fetched at
+# this version and reads vuln.go.dev at run time, so a CVE published after this line was
+# written is still reported. Pinned anyway, because @latest in CI runs whatever was
+# published most recently.
+GOVULNCHECK_VERSION ?= v1.7.0
+
+.PHONY: driver-vulncheck
+driver-vulncheck: ## Fail if sei-agent-driver can reach a known vulnerability (CI)
+	@# Exits zero when the only findings are in code this module never calls, and
+	@# non-zero when a vulnerable symbol is on a path from this code. That is what makes
+	@# it safe to gate a merge on: a CVE in a transitive dependency we do not call does
+	@# not turn the build red, and one we do call does.
+	@#
+	@# The cd is load-bearing, and `go run -C sei-agent-driver` is NOT the same thing.
+	@# Standard-library findings are reported against the toolchain Go is running, and
+	@# the `toolchain` line in sei-agent-driver/go.mod only selects that once the working
+	@# directory is inside the module. Measured: from the repo root this reports the
+	@# machine's own Go and fails on stdlib CVEs that line already pins past.
+	cd sei-agent-driver && go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+
 # -buildvcs=false because a nested module cannot stamp VCS info, which is also
 # why the version is passed in: without it the binary cannot say which commit it
 # is, and neither can runtime/debug.ReadBuildInfo.

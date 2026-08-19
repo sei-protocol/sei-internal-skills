@@ -1,0 +1,40 @@
+name: Vulnerabilities sei-agent-driver
+
+# Separate from verify-agent-driver.yml because this has a trigger that one cannot: a
+# vulnerability disclosed today applies to code that did not change, so a
+# pull-request-only check reports clean on a module that has become vulnerable. The
+# schedule is the half that catches that, and a distinct check name keeps a vulnerability
+# failure legible next to a build failure.
+on:
+  pull_request:
+    paths:
+      - 'sei-agent-driver/**'
+      - 'Makefile'
+      - '.github/workflows/verify-agent-driver-vulns.yml'
+  schedule:
+    # Weekday mornings UTC. Off the hour, so this is not queued behind everything else
+    # that runs at :00.
+    - cron: '17 7 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: vulns-agent-driver-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  govulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: sei-agent-driver/go.mod
+          cache-dependency-path: sei-agent-driver/go.sum
+
+      - name: govulncheck
+        run: make driver-vulncheck
