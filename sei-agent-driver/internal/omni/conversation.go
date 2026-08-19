@@ -594,8 +594,8 @@ func (c *conversation) fetchReply(
 	// A minted bearer is deliberately not among the literals. It lives in a local
 	// in newClient rather than on the config, and holding it here to scan for it
 	// would buy nothing: the sandbox never sees this process's bearer, so the agent
-	// cannot quote it. What the agent does hold is its own gh credentials, which
-	// the patterns cover.
+	// cannot quote it. What the agent does hold is its own gh credentials, whose
+	// literal form the patterns recognise.
 	if shape := driver.ScanSecrets(reply.Text, c.host.cfg.Token, c.host.cfg.MachineClientSecret); shape != "" {
 		// Fail closed here rather than at the publish step: this is the last point
 		// where the text is still inside the driver, and the pull requests it posts
@@ -608,8 +608,11 @@ func (c *conversation) fetchReply(
 	// The preview rides on every run, not only the failing ones. A reply is the one
 	// thing here the logs cannot otherwise reconstruct, and a short one is the first
 	// symptom of a turn that ended early, so a dropped stream and an agent that gave
-	// up stay tellable apart afterwards. Safe to log because the credential scan
-	// above has already returned on anything shaped like a secret.
+	// up stay tellable apart afterwards.
+	//
+	// The scan above has returned on every shape it recognises, which is the most that
+	// can be said for it: [driver.ScanSecrets] names the classes it cannot see, so this
+	// is a residual risk accepted for the diagnostic rather than one the scan closes.
 	c.host.log.Info("reply attributed", "session_id", c.sessionID, "turn_id", turnID,
 		"item_id", reply.ItemID, "chars", len(reply.Text),
 		"preview", clip(reply.Text, replyPreviewChars))
