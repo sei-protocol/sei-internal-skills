@@ -23,9 +23,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      # Actions are pinned to a commit, not a tag: a tag is mutable, so the same workflow
+      # can run different code tomorrow.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-go@v5
+      # v7, not v5: v5 matches only the `go` directive in go.mod, so it installs the
+      # language version and leaves the pinned `toolchain` to a run-time download.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: sei-agent-driver/go.mod
           cache-dependency-path: sei-agent-driver/go.sum
