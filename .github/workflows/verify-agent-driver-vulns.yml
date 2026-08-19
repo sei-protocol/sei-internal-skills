@@ -1,0 +1,53 @@
+name: Verify sei-agent-driver vulnerabilities
+
+# The schedule is the point: a vulnerability disclosed today applies to code that did not
+# change, so a pull-request-only gate reports clean on a module that has just become
+# vulnerable. Split out so a vulnerability failure reads as its own check.
+
+on:
+  pull_request:
+    paths: &agent-driver-vuln-paths
+      - 'sei-agent-driver/**'
+      - 'Makefile'
+      # A release is cut by editing version.json alone, and that push publishes the driver.
+      - 'version.json'
+      - '.github/workflows/verify-agent-driver-vulns.yml'
+  push:
+    branches:
+      - main
+    paths: *agent-driver-vuln-paths
+  schedule:
+    # Off the hour: scheduled runs queue behind everything that fires at :00.
+    - cron: '17 7 * * 1-5'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-agent-driver-vulns-${{ github.event.pull_request.number || github.ref }}
+  # Only a pull request supersedes its own run. A cancelled scheduled run is neither red nor
+  # notified, so cancelling there would lose the finding.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The job id is the check-run name branch protection matches, and deliberately not `verify`:
+  # ten workflows here already emit one by that name, and this has to be requirable alone.
+  govulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Nothing here pushes, and the default leaves a token where the scanner could read it.
+          persist-credentials: false
+
+      # v7 reads the `toolchain` directive. v5 matched only `go`, leaving the pinned toolchain
+      # to a run-time re-exec.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: sei-agent-driver/go.mod
+          cache-dependency-path: sei-agent-driver/go.sum
+
+      - name: No known vulnerability is reachable from sei-agent-driver
+        run: make driver-vulncheck
