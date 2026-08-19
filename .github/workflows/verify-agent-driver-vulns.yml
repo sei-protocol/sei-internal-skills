@@ -1,4 +1,4 @@
-name: Vulnerabilities sei-agent-driver
+name: Verify sei-agent-driver vulnerabilities
 
 # The schedule is the point: a vulnerability disclosed today applies to code that did not
 # change, so a pull-request-only gate reports clean on a module that has just become
@@ -28,14 +28,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: vulns-agent-driver-${{ github.event.pull_request.number || github.ref }}
+  group: verify-agent-driver-vulns-${{ github.event.pull_request.number || github.ref }}
   # Only a pull request supersedes its own run. A schedule and a workflow_dispatch on main
   # resolve to the same group, and a cancelled run is neither red nor notified -- so
   # cancelling there loses the finding rather than superseding it.
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  govulncheck:
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
