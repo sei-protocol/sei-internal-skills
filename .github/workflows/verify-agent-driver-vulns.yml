@@ -37,14 +37,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           # Nothing here pushes, and the default leaves a token where the scanner could read it.
           persist-credentials: false
 
       # v7 reads the `toolchain` directive. v5 matched only `go`, leaving the pinned toolchain
       # to a run-time re-exec.
-      - uses: actions/setup-go@v7
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: sei-agent-driver/go.mod
           cache-dependency-path: sei-agent-driver/go.sum
