@@ -1,7 +1,7 @@
 ---
 name: spec-kit
 category: workstream-bootstrap
-description: "Use when authoring a feature specification with GitHub Spec Kit — 'write the spec', 'spec this feature', 'run specify', 'draft spec.md', 'write plan.md', 'write tasks.md', '/spec-kit'. Produces condensed engineering specs: Spec Kit's own template shape and CLI, semantic anchors declared once instead of method explained inline, an Independent Test on every user story, and a named verifier on every success criterion, so the stories seed Linear tickets without a rewrite. Anti-triggers: NOT for filing the tickets themselves (use /tasks-to-linear); NOT for a design spike that argues a position (that is a design doc, not a spec); NOT for work whose diff you could describe in one sentence — skip the spec and do it; NOT for a project description (use /project-brief); NOT for prose review (use prose-steward). It authors the artifacts; it does not decide scope, priority, or which milestone comes first."
+description: "Use when authoring a feature specification with GitHub Spec Kit — 'write the spec', 'spec this feature', 'run specify', 'draft spec.md', 'write plan.md', 'write tasks.md', '/spec-kit'. Produces condensed engineering specs: Spec Kit's own template shape and CLI, semantic anchors declared once instead of method explained inline, an Independent Test on every user story, and a named verifier on every success criterion, so the stories seed Linear tickets without a rewrite. Anti-triggers: NOT for filing the tickets themselves (use /linear-ticket); NOT for a design spike that argues a position (that is a design doc, not a spec); NOT for work whose diff you could describe in one sentence — skip the spec and do it; NOT for a project description (use /project-brief); NOT for prose review (use prose-steward). It authors the artifacts; it does not decide scope, priority, or which milestone comes first."
 user-invocable: true
 ---
 
@@ -17,7 +17,7 @@ The skill adds three things to Spec Kit and changes nothing else:
 2. **A verifier per success criterion.** A criterion no command can check is a
    wish. Say which command checks it, or mark it as judgement.
 3. **A ticket-ready user story.** Spec Kit already requires a priority and an
-   Independent Test. Hold that bar, because `/tasks-to-linear` files one issue
+   Independent Test. Hold that bar, because `/linear-ticket` files one issue
    per story and cannot invent what the story left out.
 
 ## Guardrails
@@ -32,12 +32,13 @@ This skill writes files in `specs/<NNN>-<slug>/`. Before any write:
 3. **Never name an unvetted anchor.** Name an anchor only if it appears in
    `references/anchors.md`. A confabulated method name reads authoritative and
    costs more than a paragraph of plain prose.
-4. **Never file a ticket.** Hand off to `/tasks-to-linear`.
+4. **Never file a ticket.** Hand off to `/linear-ticket`.
 5. **Never overwrite.** If `spec.md`, `plan.md`, or `tasks.md` exists, stop and
    show the diff you propose. Do not write over prior intent.
-6. **Refuse without `.specify/`.** Run `specify init` in the repository. Do not
-   hand-roll the directory or copy a template by hand — the vendored templates
-   are the convention.
+6. **Refuse without `.specify/`.** Name `specify init` and stop. Do not run it:
+   it writes a tree into the repository and that is the caller's decision, not
+   this skill's. Do not hand-roll the directory or copy a template by hand —
+   the vendored templates are the convention.
 
 Refuse to run when the work is one sentence of diff. Say so and stop.
 
@@ -45,8 +46,8 @@ Refuse to run when the work is one sentence of diff. Say so and stop.
 
 | Need | Check |
 |---|---|
-| Spec Kit CLI | `specify --version` |
 | Vendored templates | `.specify/templates/spec-template.md` exists |
+| Spec Kit CLI, for the caller only | `specify --version`, if the templates are absent |
 | Writing verifier | `vale --version` |
 | Linear config, only if tickets follow | `.specify/linear.json` holds the team key |
 
@@ -60,14 +61,13 @@ that, write the code.
 
 State the decision in one line before continuing.
 
-### 2. Run the CLI, do not hand-roll
+### 2. Use the vendored templates, do not hand-roll
 
-```sh
-specify init          # only if .specify/ is absent
-```
+Confirm `.specify/templates/spec-template.md` exists. If it does not, stop and
+tell the caller to run `specify init`. Guardrail 6 applies.
 
-Create `specs/<NNN>-<slug>/` and start from
-`.specify/templates/spec-template.md`. Numbering is sequential and permanent.
+Create `specs/<NNN>-<slug>/` and start from that template. Numbering is
+sequential and permanent.
 
 ### 3. Write the anchor block
 
@@ -134,7 +134,7 @@ Report what Vale said, including a failure.
 
 ### 7. Hand off
 
-`plan.md` is HOW. `tasks.md` is work units. Then `/tasks-to-linear` files one
+`plan.md` is HOW. `tasks.md` is work units. Then `/linear-ticket` files one
 issue per user story.
 
 Do not file tickets from here.

@@ -5,13 +5,13 @@
       "id": "happy-path",
       "input": "Write the spec for adding session item operations to the Go SDK.",
       "expect": [
-        "Confirms .specify/ exists, or runs specify init before writing",
+        "Confirms .specify/ exists before writing, and never runs specify init itself",
         "Creates specs/<NNN>-<slug>/spec.md from the vendored template",
         "Emits an Anchors block with between 3 and 6 anchors, each with a 'Does not cover' entry",
         "Every user story carries Priority, Why this priority, Independent Test, Acceptance Scenarios",
         "Every SC-nnn names a verifier command or the word judgement",
         "Runs vale on the finished spec and reports the result",
-        "Hands off to /tasks-to-linear without filing anything"
+        "Hands off to /linear-ticket without filing anything"
       ]
     },
     {

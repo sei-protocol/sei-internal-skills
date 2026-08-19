@@ -81,7 +81,7 @@ Do not redesign what already works:
 
 ## Why the four story fields are not optional
 
-`/tasks-to-linear` files one Linear issue per user story. It files what the
+`/linear-ticket` files one Linear issue per user story. It files what the
 tasks phase decided and does not re-plan. A story missing its Independent Test
 becomes a ticket whose author has to invent the acceptance bar, which is where
 the specification stops binding the work.
