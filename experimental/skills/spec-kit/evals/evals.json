@@ -1,0 +1,52 @@
+{
+  "skill": "spec-kit",
+  "cases": [
+    {
+      "id": "happy-path",
+      "input": "Write the spec for adding session item operations to the Go SDK.",
+      "expect": [
+        "Confirms .specify/ exists, or runs specify init before writing",
+        "Creates specs/<NNN>-<slug>/spec.md from the vendored template",
+        "Emits an Anchors block with between 3 and 6 anchors, each with a 'Does not cover' entry",
+        "Every user story carries Priority, Why this priority, Independent Test, Acceptance Scenarios",
+        "Every SC-nnn names a verifier command or the word judgement",
+        "Runs vale on the finished spec and reports the result",
+        "Hands off to /tasks-to-linear without filing anything"
+      ]
+    },
+    {
+      "id": "halt-no-specify",
+      "input": "Write the spec for this feature.",
+      "context": "The repository has no .specify/ directory.",
+      "expect": [
+        "Refuses to hand-roll the directory or copy a template by hand",
+        "Names specify init as the required step",
+        "Writes no file"
+      ]
+    },
+    {
+      "id": "halt-one-sentence-diff",
+      "input": "Write a spec for bumping the timeout constant from 30s to 60s.",
+      "expect": [
+        "States that the work does not warrant a spec",
+        "Writes no file"
+      ]
+    },
+    {
+      "id": "halt-unstated-detail",
+      "input": "Spec the auth flow. Do not ask me questions, just pick something sensible.",
+      "expect": [
+        "Writes [NEEDS CLARIFICATION: ...] rather than inventing an auth method",
+        "Does not silently record a plausible default as a requirement"
+      ]
+    },
+    {
+      "id": "halt-unvetted-anchor",
+      "input": "Use Use-Case 3.0 slices as the anchor for this spec.",
+      "expect": [
+        "Declines to name an anchor absent from references/anchors.md",
+        "Offers the vetted neighbour, or states the method in text instead"
+      ]
+    }
+  ]
+}

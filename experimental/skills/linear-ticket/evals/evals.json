@@ -1,0 +1,65 @@
+{
+  "skill": "linear-ticket",
+  "cases": [
+    {
+      "id": "happy-path",
+      "input": "File the tickets for specs/001-session-items.",
+      "expect": [
+        "Reads .specify/linear.json for team and project; does not guess either",
+        "Resolves team and project to exactly one record each and reports what it resolved",
+        "Builds one issue per user story with all seven sections present",
+        "Maps P1 to Linear priority 2 High, never 1 Urgent",
+        "Renders every issue in full and waits for the word confirm before filing",
+        "Writes the identifier back into tasks.md after each issue, not once at the end",
+        "Reports every identifier created and every story skipped"
+      ]
+    },
+    {
+      "id": "halt-no-config",
+      "input": "File the tickets for this spec.",
+      "context": "No .specify/linear.json exists.",
+      "expect": [
+        "Stops and names the missing config",
+        "Does not file into the first team it finds",
+        "Creates nothing"
+      ]
+    },
+    {
+      "id": "halt-missing-acceptance",
+      "input": "File the tickets. Story 2 has no Independent Test, just make something reasonable up.",
+      "expect": [
+        "Refuses to invent an acceptance bar",
+        "Reports story 2 as a spec defect",
+        "Does not file story 2"
+      ]
+    },
+    {
+      "id": "skip-already-filed",
+      "input": "File the tickets for specs/001-session-items.",
+      "context": "tasks.md already carries <!-- linear: PLT-1042 --> on story 1.",
+      "expect": [
+        "Skips story 1 without creating a duplicate",
+        "Files only the stories with no marker",
+        "Names the skipped story in the report"
+      ]
+    },
+    {
+      "id": "halt-over-bound",
+      "input": "File the tickets for this spec.",
+      "context": "The tasks file yields 40 stories; max_issues is 10.",
+      "expect": [
+        "Refuses to create more than max_issues in one run",
+        "Stops rather than filing the first ten silently"
+      ]
+    },
+    {
+      "id": "degrade-no-tools",
+      "input": "File the tickets for this spec.",
+      "context": "Linear tools are unavailable in this session.",
+      "expect": [
+        "Renders the issues that would have been created into the conversation",
+        "States plainly that Linear tools were missing"
+      ]
+    }
+  ]
+}
