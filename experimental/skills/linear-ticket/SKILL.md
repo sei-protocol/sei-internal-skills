@@ -1,7 +1,7 @@
 ---
 name: linear-ticket
 category: project-management
-description: "Use when turning a Spec Kit feature's user stories into Linear issues in the house format — 'file the tickets for this spec', 'create the Linear issues for these stories', 'convert these milestones to tickets', 'file this as a Linear ticket', '/linear-ticket'. Writes the seven-section body (Problem, Impact, Relevant experts, Proposed approach, Acceptance criteria, Out of scope, References), attaches the project and team, and writes identifiers back so a re-run never duplicates. Anti-triggers: NOT for authoring the spec (use /spec-kit); NOT for the project description or its update (use /project-brief); NOT for GitHub issues; NOT for updating, closing, or re-prioritising an existing issue; NOT for deciding scope or which story is P1 — the spec decided that. It files what the spec already settled."
+description: "Use when turning a Spec Kit feature's user stories into Linear issues in the house format — 'file the tickets for this spec', 'create the Linear issues for these stories', 'convert these milestones to tickets', 'file this as a Linear ticket', '/linear-ticket'. Writes the seven-section body (Problem, Impact, Relevant experts, Proposed approach, Acceptance criteria, Out of scope, References), attaches the project and team, and writes identifiers back so a re-run never duplicates. Anti-triggers: NOT for authoring the spec itself; NOT for the project description or its update (use /project-brief); NOT for GitHub issues; NOT for updating, closing, or re-prioritising an existing issue; NOT for deciding scope or which story is P1 — the spec decided that. It files what the spec already settled."
 user-invocable: true
 ---
 
