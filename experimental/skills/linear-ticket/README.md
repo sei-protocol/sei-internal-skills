@@ -28,7 +28,7 @@ never reproduced.
 
 | Skill | Owns |
 |---|---|
-| `/spec-kit` | The spec the stories come from |
+| Spec Kit phases | The spec the stories come from |
 | **`/linear-ticket`** | The ticket body, the project and team, the write-back |
 | `/project-brief` | The project's description, not its issues |
 
