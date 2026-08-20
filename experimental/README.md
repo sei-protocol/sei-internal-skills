@@ -30,7 +30,6 @@ make sync-experimental          # into ~/.claude
 | **Deep-dive engineering** | `ebpf`, `bugbash` |
 | **Recruiting** | `interview` + `sei-interview-expert` |
 | **Project authoring** | `project-brief`, `linear-ticket` |
-| **Specification** | `spec-kit` |
 | **Code quality** | `code-structure` |
 
 `prose-steward` is **not** here. `/xreview` pins it unconditionally on any
