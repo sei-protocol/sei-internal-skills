@@ -2462,7 +2462,8 @@ func TestDriverStopsAListingThatNeverEnds(t *testing.T) {
 	if result.ExitCode == driver.ExitOK {
 		t.Fatal("ExitCode = driver.ExitOK, want a failure -- the listing never ends")
 	}
-	// The bound is 4 x RequestTimeout. Reaching the SDK's 10,000-page backstop would
+	// The bound is 2 x RequestTimeout, halved against what the caller has left.
+	// Reaching the SDK's 10,000-page backstop would
 	// mean the walk ran on the run deadline instead.
 	if hits := fs.ListSessionHits(); hits >= 10000 {
 		t.Errorf("sessions listing requests = %d, want the walk bounded well short of "+

@@ -10,9 +10,9 @@ import "errors"
 // cover more states, which is why a caller branches on it and then reads the log
 // for the detail rather than inferring one from the number.
 //
-// Exported, unlike the defaults in config.go, because that contract is the reason
-// they exist: the command reads them to decide what to report, and a caller outside
-// this module branches on the numbers themselves.
+// Exported, like the timeout defaults in config.go and unlike the base URL, origin
+// and agent, because that contract is the reason they exist: a caller outside this
+// module branches on the numbers themselves.
 const (
 	// ExitOK is a completed turn that produced a verdict. A repeat dispatch for the
 	// same pull request is not a separate outcome: it adopts that pull request's

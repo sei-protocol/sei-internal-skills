@@ -30,7 +30,7 @@
 //   - xreview.go — what a review is asked for: the Request, and the workload the
 //     driver drives.
 //   - prompt.go — the instruction, first dispatch and every one after.
-//   - verdict.go — reading a reply back into the five buckets.
+//   - verdict.go — reading a reply back into the four buckets.
 //   - findings.go — which findings can be placed on a line, and which cannot.
 //   - check.go — the check run, whose conclusion follows the findings.
 //   - publish.go — the comment body, and what happens when it will not fit.
@@ -48,20 +48,22 @@
 // Standards from the base branch. A change that edits REVIEW.md must not hand itself
 // the standards it is judged against.
 //
-// One deciding block. A reply closes with a single fenced json block and nothing after
-// it. A decision quoted inside the diff makes the parse refuse rather than forge. Two
-// blocks are ambiguous, and ambiguity resolved by picking one is how a pull request
-// writes its own verdict.
+// One closing block. A reply closes with a single fenced json block and nothing after
+// it. A block quoted inside the diff makes the parse refuse rather than forge. Two are
+// ambiguous, and ambiguity resolved by picking one is how a pull request writes its own
+// verdict. Both parsers count: a review's deciding block and a scout's report are read
+// from the same attacker-written diff.
 //
 // Every prompt-bound string is one-lined and clipped. A finding, a scout note or a
 // filename that carried a newline could otherwise open a heading and attribute
 // itself to someone else.
 //
-// The check summary follows the same rule from the other end. This package writes
-// that summary under headings of its own, so every field it draws in is one-lined.
-// The review's own summary is the exception, because it is published as prose. Its
-// heading markers are defused instead: it keeps its paragraphs and loses only the
-// ability to open a section.
+// The check summary follows the same rule from the other end. This package writes that
+// summary under headings of its own, so every model-written field it draws in passes
+// through one sanitiser, defuseMarkup. It escapes what would let a line open a markdown
+// block and what would begin an HTML tag, and nothing else. An entry is one-lined on top
+// of that; the review's own summary keeps its paragraphs, because it is published as
+// prose, and loses only the ability to open a section.
 //
 // The conclusion follows the findings. A check passes or fails on what the review
 // listed, never on the word the agent used about itself. So a reply that says approve

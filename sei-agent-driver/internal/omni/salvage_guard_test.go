@@ -11,10 +11,10 @@ import (
 // TestSalvageRefusesWhatTheCompletenessCheckWouldAccept pins the two guards that
 // stand between a dropped stream and publishing somebody else's review.
 //
-// recoverFromStreamLoss has six fail-closed guards and the existing coverage pins
-// one: the reply must carry a closing block. That one stands in for the others,
-// because every fixture's rejected reply is also unfinished -- so removing the
-// active-response guard, or the anchor-position guard, left the suite green.
+// recoverFromStreamLoss has six fail-closed guards. Wherever a fixture's rejected
+// reply is also unfinished, the completeness guard rejects first and stands in for
+// the rest, which is what left the active-response and anchor-position guards
+// unpinned.
 //
 // Both cases here give the salvage a reply that is verdict-shaped and complete, so
 // the completeness check cannot do the rejecting. What is left is the guard under
