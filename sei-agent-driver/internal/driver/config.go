@@ -178,6 +178,26 @@ func (c Config) MarshalJSON() ([]byte, error) {
 	return json.Marshal(fields)
 }
 
+// The timeout defaults, exported because a caller that builds a [Config] without
+// [LoadConfig] still needs a usable value: the constructors that take one substitute
+// these rather than accept a zero, and a zero here is not a slow timeout but an
+// already-expired one.
+const (
+	// DefaultRunDeadline bounds a whole run.
+	DefaultRunDeadline = 1200 * time.Second
+
+	// DefaultRequestTimeout bounds one request a host times for itself.
+	DefaultRequestTimeout = 30 * time.Second
+
+	// DefaultUnaryTimeout bounds one non-streaming SDK call. Longer than
+	// DefaultRequestTimeout because a session create is slower than a read.
+	DefaultUnaryTimeout = 150 * time.Second
+
+	// DefaultStreamIdleTimeout bounds silence on the event stream before the read
+	// is abandoned and re-established.
+	DefaultStreamIdleTimeout = 300 * time.Second
+)
+
 // LoadConfig reads the configuration from the environment.
 //
 // It does not check the credential; that is [Config.RequireAuth], kept separate
@@ -199,10 +219,10 @@ func LoadConfig() (Config, error) {
 		secs float64
 		dst  *time.Duration
 	}{
-		{"XREVIEW_RUN_DEADLINE_S", 1200, &cfg.RunDeadline},
-		{"XREVIEW_REQUEST_TIMEOUT_S", 30, &cfg.RequestTimeout},
-		{"XREVIEW_UNARY_TIMEOUT_S", 150, &cfg.UnaryTimeout},
-		{"XREVIEW_STREAM_IDLE_TIMEOUT_S", 300, &cfg.StreamIdleTimeout},
+		{"XREVIEW_RUN_DEADLINE_S", DefaultRunDeadline.Seconds(), &cfg.RunDeadline},
+		{"XREVIEW_REQUEST_TIMEOUT_S", DefaultRequestTimeout.Seconds(), &cfg.RequestTimeout},
+		{"XREVIEW_UNARY_TIMEOUT_S", DefaultUnaryTimeout.Seconds(), &cfg.UnaryTimeout},
+		{"XREVIEW_STREAM_IDLE_TIMEOUT_S", DefaultStreamIdleTimeout.Seconds(), &cfg.StreamIdleTimeout},
 	} {
 		secs, err := secondsOr(d.name, d.secs)
 		if err != nil {
