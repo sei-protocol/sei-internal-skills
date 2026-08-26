@@ -2,6 +2,7 @@ package xreview
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -35,6 +36,9 @@ func TestBuildCheckRunCarriesWhatTheInlineCommentsCannot(t *testing.T) {
 	for _, want := range []string{
 		"Two problems.", "the new path has no test", "naming could be clearer",
 		"b.go:4 leaks a handle",
+		// The line that says whose fault a pre-existing issue is. Without it the
+		// bucket reads as three more things this change broke.
+		"Already true on the base branch, not introduced here.",
 	} {
 		if !strings.Contains(check.Summary, want) {
 			t.Errorf("Summary missing %q:\n%s", want, check.Summary)
@@ -707,5 +711,171 @@ func TestDefusingPaysForItsClosure(t *testing.T) {
 		if got := defuseMarkup(c.in); got != c.want {
 			t.Errorf("defuseMarkup(%q) = %q, want %q", c.in, got, c.want)
 		}
+	}
+}
+
+// bigReply builds a reply whose summary and buckets are as large as the caller asks,
+// each entry carrying a marker so a lost one is visible rather than merely absent.
+func bigReply(t *testing.T, prose string, entries int, entry string) Verdict {
+	t.Helper()
+
+	bucket := make([]string, entries)
+	pre := make([]map[string]string, entries)
+	for i := range bucket {
+		bucket[i] = fmt.Sprintf("ENTRY-%d ", i) + entry
+		pre[i] = map[string]string{"severity": "suggestion", "body": fmt.Sprintf("PRE-%d ", i) + entry}
+	}
+	body, err := json.Marshal(map[string]any{
+		"read": 900, "decision": "approve", "summary": prose,
+		"blockers": bucket, "non_blockers": bucket, "pre_existing_issues": pre,
+	})
+	if err != nil {
+		t.Fatalf("building the reply: %v", err)
+	}
+	return verdictFrom(t, string(body))
+}
+
+// TestARunawaySummaryCannotEvictTheCheckSections covers the one unbounded part.
+//
+// The schema asks the summary for one or two sentences, and nothing enforced it. The
+// assembled body is cut from the end, and the sections are at the end, so a reply that
+// wrote tens of thousands of characters of prose pushed every one of them past the cut.
+// A blocker that names no line exists only here, so what went missing was the review's
+// objections rather than its formatting.
+func TestARunawaySummaryCannotEvictTheCheckSections(t *testing.T) {
+	t.Parallel()
+
+	v := bigReply(t, strings.Repeat("all clear. ", 6400), 1, "needs a test")
+	check, ok := BuildCheckRun(v)
+	if !ok {
+		t.Fatal("BuildCheckRun reported nothing to publish")
+	}
+	for _, want := range []string{
+		"### Blocking", "### Non-blocking", "### Pre-existing", "ENTRY-0", "PRE-0",
+	} {
+		if !strings.Contains(check.Summary, want) {
+			t.Errorf("a runaway summary evicted %q (body is %d bytes)", want, len(check.Summary))
+		}
+	}
+	// Cut, and said so. Silently keeping the first paragraph reads as the whole summary.
+	if !strings.Contains(check.Summary, "The review's summary was truncated") {
+		t.Errorf("the summary was cut with no notice:\n%s", clip(check.Summary, 400))
+	}
+	if !strings.Contains(check.Summary, "all clear.") {
+		t.Error("the summary was dropped rather than bounded")
+	}
+	// Bounded to something a person reads, not merely to something the API accepts.
+	// Yielding to the sections alone leaves the reader 60,000 characters of prose above
+	// them, which is a body nobody scrolls to the end of.
+	if len(check.Summary) > 3*maxSummaryProse {
+		t.Errorf("Summary is %d bytes; a runaway summary is bounded to a readable one, "+
+			"not to whatever room the sections left", len(check.Summary))
+	}
+}
+
+// TestARunawayBucketCannotEvictTheNextSection covers the mechanism bounding the prose
+// alone does not reach.
+//
+// Nothing upstream limits how many blockers a reply lists. Rendered whole, one bucket
+// spends the budget the next one needs: forty entries at the per-entry clip were enough
+// to evict both sections after it.
+func TestARunawayBucketCannotEvictTheNextSection(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name    string
+		entries int
+		entry   string
+	}{
+		{"many short entries", 5000, "needs a test"},
+		{"forty full-length entries", 40, strings.Repeat("y", 3000)},
+		// Defusing expands what it escapes, so the bound has to hold on the text after
+		// escaping rather than on what the reply wrote.
+		{"entries that maximise escaping", 60, strings.Repeat("<a", 1500)},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			check, ok := BuildCheckRun(bigReply(t, "Looks fine.", c.entries, c.entry))
+			if !ok {
+				t.Fatal("BuildCheckRun reported nothing to publish")
+			}
+			for _, want := range []string{"### Blocking", "### Non-blocking", "### Pre-existing"} {
+				if !strings.Contains(check.Summary, want) {
+					t.Errorf("a runaway bucket evicted %q (body is %d bytes)",
+						want, len(check.Summary))
+				}
+			}
+			// Every bucket keeps something. A section reduced to its heading tells a
+			// reader a bucket exists and nothing about what is in it.
+			if !strings.Contains(check.Summary, "ENTRY-0 ") || !strings.Contains(check.Summary, "PRE-0 ") {
+				t.Error("a bucket rendered no entry at all")
+			}
+			if !strings.Contains(check.Summary, "more, not shown here") {
+				t.Errorf("a shortened bucket does not say how much it left out:\n%s",
+					clip(check.Summary, 400))
+			}
+			// Bounded in count as well as in bytes. A section of five hundred one-line
+			// bullets fits the budget and is still not something a person reads.
+			for _, section := range strings.Split(check.Summary, "\n### ") {
+				if n := strings.Count(section, "\n- "); n > maxCheckEntries+1 {
+					t.Errorf("a section rendered %d entries, over the %d cap",
+						n, maxCheckEntries)
+				}
+			}
+		})
+	}
+}
+
+// TestTheCheckSummaryIsBoundedByItsParts pins which bound is doing the work.
+//
+// The whole-body bound is a backstop, not the control. Asserting only that the body fits
+// would pass on the backstop alone, which is the arrangement that let a runaway part
+// evict a section: it fires after the eviction, not instead of it.
+func TestTheCheckSummaryIsBoundedByItsParts(t *testing.T) {
+	t.Parallel()
+
+	check, ok := BuildCheckRun(bigReply(t,
+		strings.Repeat("all clear. ", 6400), 60, strings.Repeat("<a", 1500)))
+	if !ok {
+		t.Fatal("BuildCheckRun reported nothing to publish")
+	}
+	if len(check.Summary) > maxCheckSummary {
+		t.Errorf("Summary is %d bytes, over the %d the API accepts", len(check.Summary), maxCheckSummary)
+	}
+	if strings.Contains(check.Summary, "This summary was truncated") {
+		t.Errorf("the whole-body backstop fired, so the parts are not bounding the body")
+	}
+}
+
+// TestTheCheckBudgetAddsUp pins the arithmetic the sections rely on.
+//
+// Each part is bounded, and the parts fit together only while these constants agree.
+// Raising one without the others puts the body back over the API limit, where the
+// backstop cuts from the end and the sections are what it reaches first.
+func TestTheCheckBudgetAddsUp(t *testing.T) {
+	t.Parallel()
+
+	// Three sections, one summary, and the notices and separators between them.
+	const slop = 1_000
+	if spend := maxSummaryProse + 3*maxCheckSection + slop; spend > maxCheckSummary {
+		t.Errorf("the parts can spend %d bytes, over the %d the body allows",
+			spend, maxCheckSummary)
+	}
+	// The clamp against what the sections already spent is what makes the guarantee
+	// structural rather than arithmetic: prose yields to a section however the constants
+	// above are set. It binds only once they drift, so it is exercised directly.
+	prose := strings.Repeat("x", 5_000)
+	if got := clipProse(prose, maxCheckSummary); got != "" {
+		t.Errorf("clipProse kept %d bytes where the sections left none", len(got))
+	}
+	spent := maxCheckSummary - maxSummaryProse
+	if got := clipProse(prose, spent); len(got) >= maxSummaryProse {
+		t.Errorf("clipProse kept %d bytes where the sections left less than its own budget", len(got))
+	}
+	if maxCheckBullet*2 > maxCheckSection {
+		t.Errorf("one entry may reach %d bytes once defused, which a %d-byte section "+
+			"cannot hold, so a bucket could render no entry at all",
+			maxCheckBullet*2, maxCheckSection)
 	}
 }
