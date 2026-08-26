@@ -198,8 +198,20 @@ func TestCloseReclaimsWhatItFoundWhenTheSearchRunsOut(t *testing.T) {
 
 	cfg := driverTestConfig(t, fs.URL)
 	cfg.RequestTimeout = 100 * time.Millisecond
+	start := time.Now()
 	result := newTestDriver(cfg, driver.Policy{}, driverTestLogger()).Close(t.Context(), req)
+	elapsed := time.Since(start)
 
+	// The load-bearing assertion, and the one the other checks cannot make: the
+	// search has to leave the deletes room to run. Close budgets itself
+	// max(4*RequestTimeout, 30s); a walk allowed the same would spend the window it
+	// is searching on behalf of, and reclaim would then fail on a dead context rather
+	// than on anything the server did. Unbounded, this walk runs until the SDK's page
+	// cap instead -- which still passes every other assertion here, just slowly.
+	if elapsed > 5*time.Second {
+		t.Errorf("close took %v; the listing is consuming the teardown window it is "+
+			"searching on behalf of", elapsed)
+	}
 	if got := fs.DeletedIDs(); len(got) != 1 || got[0] != "conv_found" {
 		t.Errorf("deleted = %v, want [conv_found]: a match found before the budget ran "+
 			"out still holds a sandbox", got)

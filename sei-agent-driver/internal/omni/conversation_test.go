@@ -97,10 +97,14 @@ type driverFakeServerConfig struct {
 	// multi-page walk. Takes precedence over ItemsResp.
 	ItemsResps []string
 
-	// SessionListNeverEnds serves an empty page that always claims more, with a
-	// fresh cursor each time. This is the one listing shape neither the SDK's
-	// repeated-cursor guard nor its has_more check stops, so it is the only way to
-	// reach a runaway walk. Takes precedence over SessionListResp(s).
+	// SessionListNeverEnds serves a listing that no SDK guard will stop: every page
+	// carries a row, claims more, and advances its cursor. Only the driver's own
+	// walk budget can end it, which is what makes it a test of that budget rather
+	// than of the SDK's. Takes precedence over SessionListResp(s).
+	//
+	// Deliberately not the empty-page shape. The SDK stops on that one itself, so a
+	// test built on it measures the SDK and passes whether or not this driver bounds
+	// anything.
 	SessionListNeverEnds bool
 
 	// SessionListNeverEndsAfterFirst serves SessionListResps first, then the
@@ -276,7 +280,11 @@ func (fs *driverFakeServer) handleListSessions(w http.ResponseWriter, r *http.Re
 		// test would pin the SDK's bound rather than the driver's.
 		time.Sleep(2 * time.Millisecond)
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"data":[],"has_more":true,"last_id":"cur_%d"}`, hit)
+		// A row, more promised, and a fresh cursor -- nothing here for the SDK to
+		// object to. The session carries no run-key label, so a sweep walks past it.
+		fmt.Fprintf(w,
+			`{"data":[{"id":"conv_filler_%d","agent_id":"ag_1","labels":{}}],`+
+				`"has_more":true,"last_id":"conv_filler_%d"}`, hit, hit)
 		return
 	}
 
