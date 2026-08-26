@@ -124,9 +124,11 @@ func healthCheckedClient(log *slog.Logger) (*http.Client, error) {
 // configureHealthChecks enables HTTP/2 keepalive pings on transport and returns the
 // HTTP/2 transport it configured.
 //
-// Separate from its caller, and returning what it set, because http2's configure
-// call refuses a transport it has already enabled — so a test cannot re-derive these
-// settings from a finished client, only from doing the configuring itself.
+// Separate from its caller, and returning what it set, because ReadIdleTimeout and
+// PingTimeout live on the *http2.Transport and nothing reaches it from a finished
+// client: http2's configure call refuses a transport it has already enabled.
+// Whether the call ran at all is readable — it populates Transport.TLSNextProto["h2"]
+// — and that is what pins it.
 func configureHealthChecks(transport *http.Transport) (*http2.Transport, error) {
 	h2, err := http2.ConfigureTransports(transport)
 	if err != nil {

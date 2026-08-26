@@ -111,9 +111,14 @@
 // complaint. Only output_text content parts contribute, since a message may carry
 // the model's private reasoning beside its answer.
 //
-// Attribution is positive throughout. A negative filter — newest message not seen
-// before the turn — fails open, and this package has published another
-// invocation's verdict that way.
+// Attribution is positive wherever a response id is in hand: an item must carry this
+// turn's id. A negative filter — newest message not seen before the turn — fails
+// open, and this package has published another invocation's verdict that way.
+//
+// The salvage path has no id to start from, so it asks which ids are new and then
+// requires the group to sit after this turn's prompt. That position check is the
+// positive half the negative filter cannot carry, and it is the only thing between a
+// prologue's replayed reply and a published review.
 //
 // The streamed text deltas are a progress signal and never a source. They arrive
 // out of index order and can land short of the committed message, so reassembling
