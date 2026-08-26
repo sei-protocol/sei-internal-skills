@@ -132,4 +132,10 @@
 // arrived and land on the caller's default, which is a transport exit. That is the
 // right default -- retryable -- and it is why only the cases that are *not*
 // retryable are wrapped.
+//
+// And it must carry nothing credential-shaped. [driver.ScanSecrets] runs over the
+// whole reply before it is clipped for the log, and a match withholds the text
+// rather than redacting it: this is the last point where the text is still inside
+// the driver, so a partial match is a reason to publish nothing at all. The scan is
+// a backstop and names what it cannot see; it is not a boundary.
 package omni
