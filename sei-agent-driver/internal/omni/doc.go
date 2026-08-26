@@ -74,6 +74,24 @@
 // prompt item's own response id is not that link — it carries whichever response
 // was last active, which is a stale id from before the boundary.
 //
+// # Two copies of this rule
+//
+// The SDK ships its own turn tracker, encoding the same terminal-versus-in-process
+// split, the same prior-response exclusion, and the same anchor-echo rule as
+// [turn]. This package does not use it, and the copy here is authoritative for
+// this driver.
+//
+// Not a preference. [turn] is the larger of the two: it carries the salvage paths
+// that read a verdict off a failed turn, the superseded-session handling, and
+// [turn.crossBoundary], none of which the SDK's version has. Adopting the SDK's
+// would mean giving those up, and they are the difference between a run that
+// reports a review and a run that reports a timeout.
+//
+// The cost is that one server contract is now written down twice. When the
+// turn-end contract moves, both copies need the same edit, and only this one has
+// the tests in this repository. So a bump that changes the SDK's tracker is a
+// prompt to re-read [turn] against it, not a signal to delete [turn].
+//
 // # What may be published
 //
 // Text reaches a caller only as the content of a committed item that carries this
