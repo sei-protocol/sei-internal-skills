@@ -471,8 +471,13 @@ func (h *Host) priorResponseIDs(
 		}
 		// One field and nothing else: the guards that decide publishability run
 		// on the typed snapshot, and all this needs is identity.
-		if item.ResponseID != "" {
-			ids[item.ResponseID] = true
+		//
+		// A method rather than a field, because this route sends the flatten-for-API
+		// shape and the SDK yields it untyped. The typed item the snapshot route
+		// carries is a different shape, and reading its payload off one of these
+		// would have found nothing.
+		if id := item.ResponseID(); id != "" {
+			ids[id] = true
 		}
 	}
 	return ids, nil
