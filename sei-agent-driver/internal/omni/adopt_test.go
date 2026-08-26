@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
 )
@@ -168,6 +169,48 @@ func TestCloseReportsAFailedDelete(t *testing.T) {
 	if result.SessionID != "conv_stuck" {
 		t.Errorf("SessionID = %q, want conv_stuck: the leaked session has to be nameable",
 			result.SessionID)
+	}
+}
+
+// TestCloseReclaimsWhatItFoundWhenTheSearchRunsOut covers the case a bounded walk
+// created: the listing can now end before it has seen every page.
+//
+// The sessions found before the budget ran out still hold sandboxes, so they are
+// deleted rather than abandoned -- reclaiming some beats reclaiming none. But a
+// clean sweep of a short list is not a clean teardown, so the run still reports a
+// leak: a session this work created may exist and nothing has looked at it.
+func TestCloseReclaimsWhatItFoundWhenTheSearchRunsOut(t *testing.T) {
+	t.Parallel()
+
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 26}
+	runKey := testRunKey(req.Repo, req.PR)
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
+		SessionListResps: []string{
+			// One match, then a page that never ends, so the walk is cut short with a
+			// match already in hand.
+			`{"data":[{"id":"conv_found","agent_id":"ag_1","labels":` +
+				`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":true,"last_id":"conv_found"}`,
+		},
+		SessionListNeverEndsAfterFirst: true,
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	cfg.RequestTimeout = 100 * time.Millisecond
+	result := newTestDriver(cfg, driver.Policy{}, driverTestLogger()).Close(t.Context(), req)
+
+	if got := fs.DeletedIDs(); len(got) != 1 || got[0] != "conv_found" {
+		t.Errorf("deleted = %v, want [conv_found]: a match found before the budget ran "+
+			"out still holds a sandbox", got)
+	}
+	if result.TeardownOK {
+		t.Error("TeardownOK = true, want false: the search never finished, so nothing " +
+			"established that no session is held")
+	}
+	if result.ExitCode != driver.ExitTeardownLeak {
+		t.Errorf("ExitCode = %d, want driver.ExitTeardownLeak (%d)",
+			result.ExitCode, driver.ExitTeardownLeak)
 	}
 }
 
