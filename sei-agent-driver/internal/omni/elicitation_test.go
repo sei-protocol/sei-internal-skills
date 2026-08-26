@@ -28,7 +28,7 @@ func TestElicitationFromEventMapsAttestedAndModelFields(t *testing.T) {
 
 		ev := omnigent.ElicitationRequestEvent{
 			ElicitationID: "elicit_1",
-			Type:          omnigent.ElicitationRequestEventTypeResponseElicitationRequest,
+			Type:          "response.elicitation_request",
 			Params: omnigent.ElicitationRequestParams{
 				Message:              "Approve running this?",
 				Phase:                &phase,
@@ -60,7 +60,7 @@ func TestElicitationFromEventMapsAttestedAndModelFields(t *testing.T) {
 		t.Parallel()
 		ev := omnigent.ElicitationRequestEvent{
 			ElicitationID: "elicit_2",
-			Type:          omnigent.ElicitationRequestEventTypeResponseElicitationRequest,
+			Type:          "response.elicitation_request",
 			Params: omnigent.ElicitationRequestParams{
 				Message: "hi",
 				// Phase, PolicyName, Mode, ContentPreview, TargetSessionID and

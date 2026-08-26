@@ -1,6 +1,7 @@
 package omni
 
 import (
+	"encoding/json"
 	"maps"
 	"slices"
 	"strings"
@@ -110,7 +111,7 @@ func groupIsAfterAnchor(items []omnigent.ConversationItem, anchorID, responseID 
 // reports false for anything else.
 //
 // The Type check comes before the Data decode, and it is the first of three things
-// standing between a tool output and the pull request: AsMessageData is a bare
+// standing between a tool output and the pull request: the decode is a bare
 // json.Unmarshal with no discriminator consult, so it decodes a function_call_output
 // into a zero-valued MessageData and reports no error. The role and empty-text checks
 // behind it would reject that value too -- but resting on a zero-value coincidence,
@@ -129,8 +130,8 @@ func assistantMessage(item omnigent.ConversationItem) (omnigent.MessageData, boo
 		return omnigent.MessageData{}, false
 	}
 
-	msg, err := item.Data.AsMessageData()
-	if err != nil {
+	var msg omnigent.MessageData
+	if err := json.Unmarshal(item.Data, &msg); err != nil {
 		return omnigent.MessageData{}, false
 	}
 

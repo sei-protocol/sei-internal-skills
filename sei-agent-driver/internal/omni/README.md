@@ -53,7 +53,7 @@ so a rule is checked where a caller would feel it.
 
 Six pieces carry it. Each is small; together they are the shape of the package.
 
-**The anchor — where our work begins.** `SendInput` returns an id for the prompt,
+**The anchor — where our work begins.** Posting the prompt returns an id for it,
 and the stream echoes it back as `session.input.consumed`. That echo is the
 boundary: nothing at or before it can be ours, because a stream opens by replaying
 earlier work. Two identifiers are involved, because a prompt reaching a live
