@@ -5,7 +5,7 @@ go 1.25.0
 toolchain go1.25.13
 
 require (
-	github.com/sei-protocol/omnigent-go-sdk v0.2.2
+	github.com/sei-protocol/omnigent-go-sdk v0.2.4
 	github.com/urfave/cli/v3 v3.4.1
 	golang.org/x/net v0.58.0
 )
