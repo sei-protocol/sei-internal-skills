@@ -127,8 +127,10 @@ assuming a blank allowlist is merely "cautious."**
 | Variable | Default | Meaning |
 |---|---|---|
 | `XREVIEW_RUN_DEADLINE_S` | `1200` | Bounds the whole run: resolve, create or adopt, and drive. On expiry the run ends and the session is left as it is — the turn keeps running server-side, and the next invocation's prompt queues behind it. |
-| `XREVIEW_REQUEST_TIMEOUT_S` | `30` | Bounds the requests this driver times itself: the token mint and the post-turn reply read. It is deliberately not handed to the SDK as a unary timeout, so the client's own calls (listing, create, send, resolve) keep the SDK's default and tightening this does not tighten those. The event stream is bounded by `XREVIEW_STREAM_IDLE_TIMEOUT_S` instead. |
+| `XREVIEW_REQUEST_TIMEOUT_S` | `30` | Bounds the requests this driver times itself: the token mint and the post-turn reply read. It is deliberately not handed to the SDK as a unary timeout: the client's own calls (listing, create, send, resolve) are bounded by `XREVIEW_UNARY_TIMEOUT_S` instead, so tightening this does not tighten those. The event stream is bounded by `XREVIEW_STREAM_IDLE_TIMEOUT_S` instead. |
 | `XREVIEW_STREAM_IDLE_TIMEOUT_S` | `300` | How long the event stream may sit silent before it's treated as dead. The server heartbeats an idle stream every 15s, so this must stay comfortably above that or a healthy idle stream gets torn down between turns. Minutes rather than seconds because a *newly created* session is quiet while its sandbox provisions, clones the repository and connects a runner: a measured launch produced two heartbeats in 90 seconds while cloning a large repo, and the old 90s default killed the review before the agent existed. The run deadline is the real backstop. |
+| `XREVIEW_UNARY_TIMEOUT_S` | `150` | Bounds one non-streaming SDK call — listing, create, send, resolve. Longer than `XREVIEW_REQUEST_TIMEOUT_S` because a session create is slower than a read. Left at zero the SDK applies its own default, which is shorter than a create. |
+| `XREVIEW_LOG_LEVEL` | `info` | Log verbosity. `debug` adds a record per request, which is what joins a run to gateway access logs; successful traces are not logged below it. |
 
 Each of these must parse as a positive number; zero, negative, or
 non-numeric values are rejected as configuration errors rather than silently
