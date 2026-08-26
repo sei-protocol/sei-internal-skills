@@ -113,9 +113,9 @@ type driverFakeServerConfig struct {
 	// not have taken the prompt, and the caller cannot tell.
 	EventStatus int
 
-	// ApprovalStatus is the status POST .../events answers with for an approval
-	// input. Zero means 200. Lets a test fail answering a permission prompt
-	// without touching the prompt path.
+	// ApprovalStatus is the status the resolve route answers with. Zero means the
+	// server's real 202. Lets a test fail answering a permission prompt without
+	// touching the prompt path, which is a separate route.
 	ApprovalStatus int
 }
 
@@ -226,6 +226,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 	mux.HandleFunc("GET /v1/sessions/{id}/items", fs.handleListItems)
 	mux.HandleFunc("POST /v1/sessions", fs.handleCreateSession)
 	mux.HandleFunc("GET /v1/sessions/{id}/stream", fs.handleStream)
+	mux.HandleFunc("POST /v1/sessions/{id}/elicitations/{eid}/resolve", fs.handleResolve)
 	mux.HandleFunc("POST /v1/sessions/{id}/events", fs.handleEvents)
 	mux.HandleFunc("DELETE /v1/sessions/{id}", fs.handleDelete)
 	mux.HandleFunc("POST /oauth/token", fs.handleToken)
@@ -375,6 +376,46 @@ func (fs *driverFakeServer) handleStream(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+// handleResolve answers a verdict on the dedicated resolve URL, which is where the
+// SDK and upstream's own client both send one: the elicitation id travels in the
+// path and the body carries only the action.
+//
+// The ack is what the server returns -- 202 with {"queued": false}, and no denial
+// field. A verdict is resolved synchronously and persists no conversation item, so
+// there is nothing to queue and nothing to read back. Kept distinct from the events
+// route's ack on purpose: reusing that one here would let a driver read queued:true
+// off a verdict, which no server sends.
+//
+// Recorded into the same list as an events POST, under type "approval", because what
+// a test asks is whether the driver answered a prompt once with the right verdict --
+// not which URL carried it.
+func (fs *driverFakeServer) handleResolve(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	var result struct {
+		Action string `json:"action"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		fs.t.Errorf("decode resolve body: %v", err)
+	}
+	fs.mu.Lock()
+	fs.eventReqs = append(fs.eventReqs, driverEventReq{Type: "approval", Data: map[string]any{
+		"elicitation_id": r.PathValue("eid"),
+		"action":         result.Action,
+		// Recorded so a test can catch a verdict posted to the reader rather than
+		// the owner, which lands nowhere and parks the agent.
+		"target_session_id": r.PathValue("id"),
+	}})
+	fs.mu.Unlock()
+
+	if fs.approvalStatus != 0 {
+		w.WriteHeader(fs.approvalStatus)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_, _ = io.WriteString(w, `{"queued":false}`)
+}
+
 func (fs *driverFakeServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	var req driverEventReq
@@ -385,15 +426,19 @@ func (fs *driverFakeServer) handleEvents(w http.ResponseWriter, r *http.Request)
 	fs.eventReqs = append(fs.eventReqs, req)
 	fs.mu.Unlock()
 
-	if req.Type == "approval" && fs.approvalStatus != 0 {
-		w.WriteHeader(fs.approvalStatus)
-		return
-	}
-	if req.Type != "approval" && fs.eventStatus != 0 {
+	if fs.eventStatus != 0 {
 		w.WriteHeader(fs.eventStatus)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	// The server acks by input class, not uniformly: {"queued":true,"item_id":...}
+	// for an item-typed event, {"queued":false} for a control one. A fixture that
+	// hands the queued shape to a control event lets a driver read an item id off
+	// something that never persisted an item, and no test would see it.
+	if req.Type != "message" && len(fs.eventResps) == 0 {
+		_, _ = io.WriteString(w, `{"queued":false}`)
+		return
+	}
 	if n := int(fs.eventHits.Add(1)) - 1; n < len(fs.eventResps) {
 		_, _ = io.WriteString(w, fs.eventResps[n])
 		return
@@ -2199,52 +2244,6 @@ func TestDriverAllowsAToolNamedOnlyOnTheWire(t *testing.T) {
 	}
 	if got := approvals[0].Data["action"]; got != "accept" {
 		t.Errorf("data.action = %v, want accept -- the tool name did not reach the policy", got)
-	}
-}
-
-// TestDriverFailsWhenTheServerRefusesTheVerdict covers the answer this driver reads
-// but cannot influence. A refusal arrives as a 200, so the only thing separating it
-// from success is the body. Recording the prompt as answered on a refusal would make
-// every later sweep skip it and park the agent for the rest of the run.
-func TestDriverFailsWhenTheServerRefusesTheVerdict(t *testing.T) {
-	t.Parallel()
-
-	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
-		CreateResp: driverSessionResp("conv_deny", "ag_1"),
-		StreamFrames: []string{
-			driverAckFrame(),
-			driverConsumedFrame("item_1"),
-			driverElicitationFrame("elicit_deny", "approve_shell"),
-			driverIdleFrame("resp_claude_a"),
-			driverDoneFrame(),
-		},
-		// The prompt POST is accepted; the approval POST comes back refused.
-		EventResps: []string{
-			`{"queued":true,"item_id":"item_1"}`,
-			`{"queued":false,"denied":true,"reason":"elicitation already resolved"}`,
-		},
-	})
-
-	cfg := driverTestConfig(t, fs.URL)
-	req := testWork{Repo: "sei-protocol/sandbox", PR: 22, Trigger: "trigger-deny"}
-	log, sink := driverCapturingLogger()
-	d := newTestDriver(cfg, driver.NewPolicy("approve_shell", ""), log)
-
-	result := d.Run(t.Context(), req)
-	// driver.ExitTransport for the same reason a 500 on this path is: the turn did
-	// not fail, we failed to answer it.
-	if result.ExitCode != driver.ExitTransport {
-		t.Errorf("ExitCode = %d, want driver.ExitTransport (%d)",
-			result.ExitCode, driver.ExitTransport)
-	}
-	if !result.TeardownOK {
-		t.Error("TeardownOK = false, want true: teardown must still run")
-	}
-	// The reason is the whole reason to read the body. Without it this failure is
-	// indistinguishable from a transport fault, and an operator has nowhere to look.
-	if !strings.Contains(sink.String(), "elicitation already resolved") {
-		t.Errorf("log does not carry the server's stated reason:\n%s", sink.String())
 	}
 }
 

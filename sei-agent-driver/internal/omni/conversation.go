@@ -673,31 +673,24 @@ func (c *conversation) answer(
 		"target_session_id", e.ResolveSession(c.sessionID),
 		"action", action, "reason", reason, "preview", preview)
 
-	// Posted as an input rather than through Sessions().ResolveElicitation, which
-	// reaches the same server-side resolver by a dedicated URL. Both work. This one
-	// is the route the vendored description names for a consumer answering an
-	// elicitation, and it is the only one whose answer this driver can read: a
-	// refusal arrives as a 200 carrying denied and a reason, and the SDK's resolve
-	// call discards the body. An approval this driver records as sent but the server
-	// refused leaves the agent parked for the rest of the run with the transport
-	// looking healthy, which is the failure answerPending exists to prevent.
+	// Answered through the dedicated resolve URL, which is what upstream's own client
+	// does for every verdict -- it does not branch on the elicitation's mode. The
+	// route is absent from the vendored spec because the server registers it
+	// include_in_schema=False, not because it is unsupported; both it and a
+	// type:"approval" input reach the same server-side resolver.
+	//
+	// There is no answer to read. The route acks {"queued": false} on success and
+	// carries no denial field, and neither does the approval branch of the events
+	// route: the server's denied/reason shape belongs to a message input refused by
+	// the input policy, which a verdict never passes through. So a non-2xx is the only
+	// signal that the agent is still blocked.
 	target := e.ResolveSession(c.sessionID)
-	accepted, err := c.client.Sessions().PostEvent(ctx, target, omnigent.SessionEventInput{
-		Type: omnigent.InputTypeApproval,
-		Data: map[string]any{"elicitation_id": e.ID, "action": action},
-	})
-	if err != nil {
+	if err := c.client.Sessions().ResolveElicitation(ctx, target, e.ID,
+		omnigent.ElicitationResult{Action: omnigent.ElicitationAction(action)}); err != nil {
 		// Deliberately not ErrTurnFailed. The turn did not fail; we failed to
 		// answer it, and reporting the agent's outcome for our own transport
 		// fault sends an operator looking in the wrong place.
 		return fmt.Errorf("answering prompt %s left the agent blocked: %w", e.ID, err)
-	}
-	if !accepted.Queued || accepted.Denied {
-		// Fatal for the same reason a transport failure is: the prompt is still
-		// outstanding, so the agent is still blocked. Recording it as answered
-		// would make every later sweep skip it.
-		return fmt.Errorf("answering prompt %s left the agent blocked: the server "+
-			"refused the verdict: %s", e.ID, accepted.Reason)
 	}
 	answered[e.ID] = true
 	return nil
