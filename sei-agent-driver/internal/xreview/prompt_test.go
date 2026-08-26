@@ -409,3 +409,107 @@ func TestSharedPromptTextNamesNoStep(t *testing.T) {
 		}
 	}
 }
+
+// TestAPathIsCheckedInTheFormThePromptCarries guards the order of the two operations a
+// rendered location goes through.
+//
+// The prompt carries oneLine(File), and the check has to be about that value. Checking
+// the raw field lets the two disagree: " /etc/passwd" does not start with a slash, so it
+// passes, and the "/etc/passwd" written a moment later is an absolute path the review is
+// told to open in a sandbox holding a live credential. Both renderers of a model-supplied
+// path are covered, because one of them holding the order right does not make the other
+// safe.
+func TestAPathIsCheckedInTheFormThePromptCarries(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{
+		" /etc/passwd",
+		"\n/etc/passwd",
+		"\t~/.config/gh/hosts.yml",
+		"\n../../.git/config",
+		"  ",
+		// Flattening leaves this one two tokens, and the review would act on the
+		// second. One place or none.
+		"a\n/etc/passwd",
+	} {
+		scouted := Request{Repo: "r/n", PR: 1, Scouts: []ScoutResult{{
+			Name:     "codex",
+			Findings: []Finding{{File: raw, Line: 3, Severity: "high", Detail: "look here"}},
+		}}}
+		prior := Request{Repo: "r/n", PR: 1, PriorThreads: []PriorThread{
+			{File: raw, Line: 3, Body: "said before"},
+		}}
+		for name, lines := range map[string][]string{
+			"reconcileStep": reconcileStep(scouted),
+			"historyStep":   historyStep(prior),
+		} {
+			// Non-vacuity first. Either builder returns nil for an empty request, and one
+			// that rendered nothing would pass every check below while testing nothing.
+			if len(lines) == 0 {
+				t.Fatalf("%s rendered nothing for %q", name, raw)
+			}
+			rendered := strings.Join(lines, "\n")
+			if flat := oneLine(raw); flat != "" && strings.Contains(rendered, flat) {
+				t.Errorf("%s renders %q as a place to open, from %q", name, flat, raw)
+			}
+			if !strings.Contains(rendered, "(no place in this tree)") {
+				t.Errorf("%s renders %q as something other than unplaceable:\n%s",
+					name, raw, rendered)
+			}
+			if strings.Contains(rendered, ":3") {
+				t.Errorf("%s pins a line onto %q, which names no file:\n%s",
+					name, raw, rendered)
+			}
+		}
+	}
+
+	// Flattening comes first, so a real path a model wrote with stray whitespace is still
+	// a location. A guard that merely refused everything unflattened would fail here.
+	sloppy := Request{Repo: "r/n", PR: 1, Scouts: []ScoutResult{{
+		Name:     "codex",
+		Findings: []Finding{{File: " p2p/router.go\n", Line: 174, Severity: "low", Detail: "x"}},
+	}}}
+	if got := strings.Join(reconcileStep(sloppy), "\n"); !strings.Contains(got, "p2p/router.go:174") {
+		t.Errorf("a real path with stray whitespace lost its place:\n%s", got)
+	}
+}
+
+// TestScoutPromptAsksForNothingItCannotOpen keeps the scout's checklist inside the
+// material it has.
+//
+// A scout gets the staged diff and no tree, which the prompt states. An instruction to
+// follow what the changed lines call into needs files that are not in that sandbox, so a
+// scout obeying it spends its turn searching an empty workspace instead of reading the
+// hunks. The review is the one that clones, and it keeps the instruction.
+func TestScoutPromptAsksForNothingItCannotOpen(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
+	// Flattened, because both prompts wrap: the phrase is split over two lines in the one
+	// that has it, and a search of the raw text would miss it there and report agreement.
+	scout := oneLine(ScoutPrompt(req))
+	review := oneLine(BuildPrompt(req))
+
+	const callees = "what they call into"
+
+	// The premise, asserted rather than assumed. If a scout ever clones, the instruction
+	// below becomes satisfiable and this test is what says so.
+	if strings.Contains(scout, "git clone") {
+		t.Error("the scout prompt names a clone; the callee instruction it drops is satisfiable again")
+	}
+	if !strings.Contains(scout, "there is no checkout here") {
+		t.Error("the scout prompt no longer says it has no checkout")
+	}
+	if strings.Contains(scout, callees) {
+		t.Errorf("the scout prompt asks for %q, and has no files to open", callees)
+	}
+
+	// The review clones, so the same instruction is satisfiable there and stays. Without
+	// this, deleting the phrase from both prompts would pass the check above.
+	if !strings.Contains(review, "git clone") {
+		t.Error("the review prompt no longer clones the tree")
+	}
+	if !strings.Contains(review, callees) {
+		t.Errorf("the review prompt lost %q, which its tree is what makes answerable", callees)
+	}
+}

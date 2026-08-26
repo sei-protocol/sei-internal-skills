@@ -3,6 +3,7 @@ package xreview
 import (
 	"strconv"
 	"strings"
+	"unicode/utf8"
 )
 
 // Finding is one observation a review made about a specific line.
@@ -11,8 +12,13 @@ import (
 // against the code it is about. The prose is what a person reads; this is what a
 // machine can place.
 type Finding struct {
-	// File is the path as the diff names it. A finding naming no file cannot be
-	// placed and is dropped rather than posted somewhere arbitrary.
+	// File is the path as the diff names it, repository-relative. A finding naming no
+	// file cannot be placed and is dropped rather than posted somewhere arbitrary.
+	//
+	// It is the path field of a GitHub review comment, which travels in a JSON request
+	// body. So it may hold a space, a parenthesis or a quote — those are ordinary in a
+	// path git tracks — and a caller that puts it in a shell command has to quote it.
+	// postablePath states what this package refuses.
 	File string `json:"file"`
 
 	// Line is the line within that file. Zero means the agent gave none, which is
@@ -143,10 +149,58 @@ func findingFrom(fields map[string]any) Finding {
 
 // placeable reports whether this finding can be posted against a line.
 func (f Finding) placeable() bool {
-	// The path is checked, not merely non-empty. A caller posts these against a pull
-	// request, and the value arrives from a model reading a diff someone else wrote. That is
-	// the same provenance the scout paths already validate.
-	return f.File != "" && isPlainRepoPath(f.File) && f.Line > 0 && f.Detail != ""
+	return postablePath(f.File) && f.Line > 0 && f.Detail != ""
+}
+
+// Bounds on the path a review comment may name. A path is model output and so unbounded,
+// and these are the limits a filesystem git checks a tree out onto imposes anyway: 255
+// bytes to a component, and a whole path a POSIX open can take.
+const (
+	maxCommentPath    = 4096
+	maxCommentPathSeg = 255
+)
+
+// postablePath reports whether p is fit for the path field of a GitHub review comment.
+//
+// The rule is the shape of a repository-relative file path, not a set of permitted
+// characters. This value goes into a JSON request body, where a quote, a dollar or a
+// parenthesis is inert, so a character allowlist buys nothing at this sink and costs real
+// trees: c++/, @types/, app/(marketing)/ and any path with a space are files a review has
+// to be able to comment on. [isPlainRepoPath] is the check for the values this package
+// interpolates into commands, which is a different sink under a different rule.
+//
+// What it refuses is what is not a path into this tree: absolute, a home reference, an
+// empty or dot or parent segment, a control character, a leading dash an argv would read
+// as an option, invalid UTF-8, or anything past the length a checkout could hold. Git
+// tracks none of those, so nothing is lost by refusing them, and each is a way a path
+// could name something other than a file in the pull request.
+//
+// It is not the only thing between a crafted path and the API. GitHub refuses a review
+// comment whose path is not in the pull request's diff, and the repository and pull
+// request number come from the orchestrator rather than from the reply. So a path that
+// passes here still cannot place a comment outside the change under review.
+func postablePath(p string) bool {
+	if p == "" || len(p) > maxCommentPath || !utf8.ValidString(p) {
+		return false
+	}
+	if strings.HasPrefix(p, "/") || strings.HasPrefix(p, "~") || strings.HasPrefix(p, "-") {
+		return false
+	}
+	for _, r := range p {
+		if r < 0x20 || r == 0x7f {
+			return false
+		}
+	}
+	for _, seg := range strings.Split(p, "/") {
+		switch seg {
+		case "", ".", "..":
+			return false
+		}
+		if len(seg) > maxCommentPathSeg {
+			return false
+		}
+	}
+	return true
 }
 
 // dedupeKey identifies a finding by what it says and where. A reply that wrote

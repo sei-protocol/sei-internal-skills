@@ -80,16 +80,49 @@ func cloneCommands(req Request) []string {
 	}
 }
 
-// pointsSomewhereReal reports whether a scout's file is a path inside the tree
-// under review.
+// promptLocation renders a model-supplied file and line as a place the review is told
+// to open, or says there is none.
+//
+// The one renderer for both [reconcileStep] and [historyStep], and the only caller of
+// [pointsSomewhereReal]. The check runs on the flattened, clipped value, which is the
+// value that reaches the prompt. Checking the raw field instead lets the two disagree:
+// " /etc/passwd" starts with a space, so it passes a prefix test that the "/etc/passwd"
+// written a moment later fails.
+//
+// A line of zero is not a location. A scout may report none, and a thread GitHub holds
+// against a whole file carries none, so the file alone is the honest rendering.
+func promptLocation(file string, line int) string {
+	name := clip(oneLine(file), maxScoutField)
+	if !pointsSomewhereReal(name) {
+		return "(no place in this tree)"
+	}
+	if line <= 0 {
+		return name
+	}
+	return fmt.Sprintf("%s:%d", name, line)
+}
+
+// pointsSomewhereReal reports whether a flattened path is inside the tree under review.
 //
 // A scout's file field is model output, and the review is told to check each claim
 // against the diff, which means opening what the claim names. An absolute path, a parent
 // traversal or a home reference names something that is not the pull request, in a sandbox
 // holding a live credential. Such a claim still reaches the review, as text rather than as
 // a location.
+//
+// It takes only a value [oneLine] has already flattened, and refuses any other. That is
+// what keeps the answer true of the string a prompt carries rather than of some earlier
+// form of it, whoever calls this next.
+//
+// A location is also one token in a line this process lays out, so a flattened value
+// still holding a space is two of them. "a /etc/passwd" is not one place, and the half
+// the review would act on is the second. A path that genuinely carries a space loses its
+// rendering as a location and keeps its finding, which is the trade this side takes.
 func pointsSomewhereReal(file string) bool {
-	if file == "" || strings.HasPrefix(file, "/") || strings.HasPrefix(file, "~") {
+	if file == "" || file != oneLine(file) || strings.Contains(file, " ") {
+		return false
+	}
+	if strings.HasPrefix(file, "/") || strings.HasPrefix(file, "~") {
 		return false
 	}
 	for _, seg := range strings.Split(filepath.ToSlash(file), "/") {
@@ -147,18 +180,9 @@ func reconcileStep(req Request) []string {
 			out = append(out, fmt.Sprintf("  %s — %d finding(s), %d shown:",
 				oneLine(s.Name), len(s.Findings), len(shown)))
 			for _, f := range shown {
-				where := fmt.Sprintf("%s:%d", clip(oneLine(f.File), maxScoutField), f.Line)
-				switch {
-				case !pointsSomewhereReal(f.File):
-					where = "(no place in this tree)"
-				case f.Line <= 0:
-					// A zero line is not a location, and the review is told to open
-					// what each claim names. The file alone is the honest rendering,
-					// which is what historyStep already does.
-					where = clip(oneLine(f.File), maxScoutField)
-				}
 				out = append(out, fmt.Sprintf("      %s %s — %s",
-					clip(oneLine(f.Severity), maxScoutField), where,
+					clip(oneLine(f.Severity), maxScoutField),
+					promptLocation(f.File, f.Line),
 					clip(oneLine(f.Detail), maxScoutDetail)))
 			}
 		}
@@ -498,6 +522,10 @@ func safeRepo(repo string) string {
 
 // isPlainRepoPath reports whether p is a repository-relative path and nothing
 // more: no shell metacharacter, no escape from the repository root.
+//
+// The check for a value this package interpolates into a command an agent runs, which is
+// why it is a character allowlist rather than a path-shape rule. A path bound for a JSON
+// request body is a different sink under a different rule; see postablePath.
 func isPlainRepoPath(p string) bool {
 	if p == "" || strings.HasPrefix(p, "/") || strings.Contains(p, "..") {
 		return false

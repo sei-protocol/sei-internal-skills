@@ -78,9 +78,9 @@ const checkTruncated = "\n\n_This summary was truncated. The published comment c
 // Every part of it is model text, assembled under headings of this package's. That is
 // what makes the sanitising load-bearing here and not in the published comment. There
 // the agent's prose stands alone as the agent's prose. Here it sits beside framing it
-// must not be able to imitate.
+// must not be able to imitate, so every field goes through [defuseMarkup].
 func checkSummary(v Verdict) string {
-	sections := []string{defuseHeadings(v.Summary())}
+	sections := []string{defuseMarkup(v.Summary())}
 	sections = append(sections, bulletSection("Blocking", Blockers(v)))
 	sections = append(sections, bulletSection("Non-blocking", NonBlockers(v)))
 	sections = append(sections, preExistingSection(PreExisting(v)))
@@ -130,43 +130,108 @@ func preExistingSection(issues []PreExistingIssue) string {
 
 // checkBullet renders one piece of model text as a list item.
 //
-// One-lined as well as clipped. An entry carrying newlines can otherwise render its own
-// "### Blocking" heading, which is indistinguishable from this package's framing to
-// whoever reads the check.
-func checkBullet(s string) string { return "- " + clip(oneLine(s), maxCheckBullet) }
+// One-lined and clipped before it is defused. A list item is a container: everything
+// after the "- " is block content, so "### Blocking" there is a heading exactly as it is
+// at the margin, and so is an <h3> tag.
+func checkBullet(s string) string {
+	return "- " + defuseMarkup(clip(oneLine(s), maxCheckBullet))
+}
 
-// defuseHeadings makes a line-leading markdown heading marker inert.
+// defuseMarkup makes model text unable to open a markdown block.
 //
-// For the summary, the one piece of model text published here as prose. It keeps its
-// paragraphs, so it cannot be one-lined the way an entry is. What it must not keep is
-// the ability to open a section: a "### Blocking" of its own reads as this package's
-// framing.
+// It is the single door every model-written field passes through on its way into the
+// check summary, prose and list item alike. This package assembles that summary under
+// headings of its own, so text that can open a section can attribute a finding — or a
+// clean bill of health — to the review.
 //
-// Both spellings, since either makes a heading: a leading # and a run of = or - alone on
-// a line under a paragraph. A backslash before the first character is what markdown
-// honours. So a legitimate --- separator renders as literal --- text. That is the cost,
-// and it falls on a rule nobody writing a summary needs.
+// Two rules, which together are the closure. Markdown opens a block only at the start of
+// a line, so [defuseLine] escapes the character that would let a line do it. Raw HTML is
+// the exception that also works mid-line, so [defuseTags] escapes every bracket that
+// could begin a tag.
 //
 // Line endings are normalised first, because markdown recognises three and Go splits on
-// one. With \r\n, a trailing \r stays on the underline line. The run of - stops matching
-// here, and a parser still reads it as a heading. A lone \r is worse. It ends a line for
-// the parser, and Split does not break on it at all, so every heading after the first one
-// arrives live.
+// one. A trailing \r left on a line stops a run of - matching while a parser still reads
+// it as a heading, and a lone \r is a line ending Split does not break on at all, so
+// every heading after one arrives live. Those three are the whole set: CommonMark
+// defines a line ending as \n, \r or \r\n and nothing else.
 //
-// Those three are the whole set. CommonMark defines a line ending as \n, \r, or \r\n,
-// and nothing else.
-func defuseHeadings(s string) string {
+// It over-escapes rather than parses. A "---" separator, a line-leading "1." and a
+// four-space-indented code sample all render with a visible backslash. That cost falls
+// on shapes a review summary does not need, and the alternative is a markdown parser in
+// a sanitiser.
+func defuseMarkup(s string) string {
 	s = strings.ReplaceAll(s, "\r\n", "\n")
 	s = strings.ReplaceAll(s, "\r", "\n")
 	lines := strings.Split(s, "\n")
 	for i, line := range lines {
-		indent := len(line) - len(strings.TrimLeft(line, " \t"))
-		rest := line[indent:]
-		if strings.HasPrefix(rest, "#") || setextUnderline(rest) {
-			lines[i] = line[:indent] + `\` + rest
+		lines[i] = defuseLine(line)
+	}
+	return defuseTags(strings.Join(lines, "\n"))
+}
+
+// defuseLine escapes the character that would let one line open a markdown block.
+//
+// Indentation is kept and the escape goes in front of the first character after it,
+// which is where a backslash escape is honoured.
+func defuseLine(line string) string {
+	indent := len(line) - len(strings.TrimLeft(line, " \t"))
+	rest := line[indent:]
+	at := blockStart(rest)
+	if at < 0 {
+		return line
+	}
+	return line[:indent+at] + `\` + rest[at:]
+}
+
+// blockStart returns where in an unindented line the escape belongs, and -1 when the
+// line opens no block.
+//
+// The cases are markdown's block starts rather than the forgeries seen so far: heading,
+// blockquote, fence, bullet, thematic break, setext underline, ordered list. A list that
+// grew by attack would be short of the next one.
+func blockStart(s string) int {
+	if s == "" {
+		return -1
+	}
+	c := s[0]
+	switch {
+	case c == '#', c == '>':
+		return 0
+	case (c == '`' || c == '~') && leadingRun(s) >= 3:
+		return 0
+	case bulletMarker(s), thematicBreak(s), setextUnderline(s):
+		return 0
+	}
+	return orderedMarker(s)
+}
+
+// bulletMarker reports whether s opens a bullet list: -, + or * followed by a space or
+// nothing. A list item is a container, so what follows the marker can be a heading.
+func bulletMarker(s string) bool {
+	if s[0] != '-' && s[0] != '+' && s[0] != '*' {
+		return false
+	}
+	return len(s) == 1 || s[1] == ' ' || s[1] == '\t'
+}
+
+// thematicBreak reports whether s is a horizontal rule: three or more of -, _ or *, with
+// only spaces and tabs between them. A rule divides the summary where this package did
+// not, which is the visual half of forging a section.
+func thematicBreak(s string) bool {
+	if s[0] != '-' && s[0] != '_' && s[0] != '*' {
+		return false
+	}
+	n := 0
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case s[0]:
+			n++
+		case ' ', '\t':
+		default:
+			return false
 		}
 	}
-	return strings.Join(lines, "\n")
+	return n >= 3
 }
 
 // setextUnderline reports whether a line would turn the paragraph above it into a
@@ -177,6 +242,69 @@ func setextUnderline(s string) bool {
 		return false
 	}
 	return strings.Count(t, "=") == len(t) || strings.Count(t, "-") == len(t)
+}
+
+// orderedMarker returns the index of the . or ) that opens an ordered list, and -1 when
+// s opens none.
+//
+// The delimiter is what gets escaped, not the digits. A backslash is honoured before
+// ASCII punctuation only, so one before a digit renders as a stray backslash and leaves
+// the marker live.
+func orderedMarker(s string) int {
+	i := 0
+	for i < len(s) && i < 9 && s[i] >= '0' && s[i] <= '9' {
+		i++
+	}
+	if i == 0 || i >= len(s) || (s[i] != '.' && s[i] != ')') {
+		return -1
+	}
+	if i+1 < len(s) && s[i+1] != ' ' && s[i+1] != '\t' {
+		return -1
+	}
+	return i
+}
+
+// leadingRun counts how many times a line's first byte repeats at its front.
+func leadingRun(s string) int {
+	n := 0
+	for n < len(s) && s[n] == s[0] {
+		n++
+	}
+	return n
+}
+
+// defuseTags escapes every angle bracket that could begin an HTML tag, comment or
+// declaration.
+//
+// Anywhere in the text, not only at the start of a line. Raw HTML is the one markup that
+// works mid-paragraph: GitHub renders an <h3> there as a heading, and an unclosed <!--
+// hides every section written after it. A bracket that cannot begin a tag — "ch <- x",
+// "a < b" — is left as it was written.
+func defuseTags(s string) string {
+	if !strings.Contains(s, "<") {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s) + len(s)/8)
+	for i := 0; i < len(s); i++ {
+		if s[i] == '<' && i+1 < len(s) && tagStart(s[i+1]) {
+			b.WriteByte('\\')
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
+}
+
+// tagStart reports whether a byte after < can begin a tag name, a closing tag, a comment
+// or declaration, or a processing instruction.
+func tagStart(c byte) bool {
+	switch {
+	case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
+		return true
+	case c == '/', c == '!', c == '?':
+		return true
+	}
+	return false
 }
 
 func plural(n int, noun string) string {
@@ -197,6 +325,10 @@ func plural(n int, noun string) string {
 // review, not that the change is bad. A repository that wants that distinction to
 // block can require the check. The reason it carries is the one [Verdict] already
 // computed on every refusal path and nothing published.
+//
+// The reason quotes model text on one path — the decision word a reply wrote that this
+// driver does not accept — so it is defused like every other field. This is the check a
+// planted block produces, which makes it the one an attacker can aim at.
 func BuildFailureCheck(v Verdict) CheckRun {
 	reason := v.Reason
 	if reason == "" {
@@ -206,7 +338,7 @@ func BuildFailureCheck(v Verdict) CheckRun {
 		Title:      "no verdict",
 		Conclusion: "neutral",
 		Summary: "This review produced no decision that could be read mechanically.\n\n" +
-			clip(oneLine(reason), maxCheckBullet) +
+			defuseMarkup(clip(oneLine(reason), maxCheckBullet)) +
 			"\n\nThe agent's own words, if it wrote any, are in the published comment.",
 	}
 }

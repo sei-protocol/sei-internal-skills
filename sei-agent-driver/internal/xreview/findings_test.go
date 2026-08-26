@@ -1,6 +1,7 @@
 package xreview
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -236,4 +237,81 @@ func TestBothPromptsCarryTheRepoContext(t *testing.T) {
 			}
 		}
 	}
+}
+
+// TestPlaceablePathsAreJudgedAsRepoPaths pins the rule an inline comment's path is held
+// to, and which sink that rule belongs to.
+//
+// The path travels in a JSON request body to the GitHub review-comment API, not through a
+// shell. So the question is whether it is a repository-relative file path, not whether it
+// would survive interpolation: c++/, @types/, a route group in parentheses and a path with
+// a space are files a review has to be able to comment on, and a character allowlist drops
+// every one of them onto the floor.
+//
+// The refusals are the other half. A path that is absolute, that reaches for home, that
+// traverses, that carries an empty or dot segment, that holds a control character, that
+// argv would read as an option, or that no checkout could hold, is not naming a file in
+// this pull request. Both halves run through the same harness, so a harness that accepted
+// or refused everything fails here rather than passing quietly.
+func TestPlaceablePathsAreJudgedAsRepoPaths(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		path  string
+		want  bool
+		about string
+	}{
+		{"src/main.go", true, "an ordinary path"},
+		{"c++/parser.cc", true, "a directory named for the language"},
+		{"@types/node/index.d.ts", true, "a scoped package"},
+		{"app/(marketing)/page.tsx", true, "a route group"},
+		{"app/[slug]/page.tsx", true, "a dynamic route"},
+		{"docs/design notes.md", true, "a path with a space"},
+		{"docs/Q&A.md", true, "a path with an ampersand"},
+		{"pkg/v2..1/x.go", true, "dots inside a segment, which traverse nothing"},
+
+		{"", false, "no path at all"},
+		{"/etc/passwd", false, "absolute"},
+		{"~/.aws/credentials", false, "a home reference"},
+		{"../../../etc/shadow", false, "a traversal"},
+		{"a/../../etc/shadow", false, "a traversal partway along"},
+		{"./a.go", false, "a dot segment"},
+		{"a//b.go", false, "an empty segment"},
+		{"src/", false, "a directory, which is not a file to comment on"},
+		{"a\nb.go", false, "a newline"},
+		{"a\x00b.go", false, "a NUL"},
+		{"-rf", false, "a leading dash argv would read as an option"},
+		{strings.Repeat("a", 256) + "/x.go", false, "a segment no checkout could hold"},
+	} {
+		got := placedPaths(t, tc.path)
+		if tc.want && len(got) != 1 {
+			t.Errorf("%q (%s) placed %d comments, want 1", tc.path, tc.about, len(got))
+			continue
+		}
+		if !tc.want && len(got) != 0 {
+			t.Errorf("%q (%s) placed %d comments, want 0", tc.path, tc.about, len(got))
+			continue
+		}
+		if tc.want && got[0].File != tc.path {
+			t.Errorf("%q placed as %q; the path is posted verbatim", tc.path, got[0].File)
+		}
+	}
+}
+
+// placedPaths runs one inline comment on path through the whole reply-reading path, so
+// what is asserted is what a caller would post. The block is marshalled rather than
+// written out, which keeps a path carrying a control character exact.
+func placedPaths(t *testing.T, path string) []Finding {
+	t.Helper()
+	block, err := json.Marshal(map[string]any{
+		"read": 120, "decision": "comment", "summary": "s",
+		"inline_comments": []any{map[string]any{
+			"path": path, "line": 12, "side": "RIGHT",
+			"severity": "blocker", "body": "boom",
+		}},
+	})
+	if err != nil {
+		t.Fatalf("building the reply block: %v", err)
+	}
+	return PlaceableFindings(verdictFrom(t, string(block)))
 }
