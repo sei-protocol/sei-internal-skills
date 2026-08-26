@@ -64,9 +64,10 @@ const connectionOpenLimit = 40
 // a codex scout produced a complete report and the wait ran its full budget and
 // discarded it.
 //
-// The prompt is sent from the subscription hook rather than before the stream
-// opens. The server buffers nothing, so a turn started before the subscription is
-// live publishes its first events to nobody.
+// The prompt goes in from the subscription hook on a session that can take one now,
+// and from the sandbox-ready edge on one this run created. Either way it goes in
+// after the stream is up: the server buffers nothing, so a turn started before the
+// subscription is live publishes its first events to nobody.
 func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, error) {
 	answered := holdsAnswer(c.items, ask.Done)
 	t := newTurn(c.prior, ask.Done, terminalBacked(c.harness))
@@ -644,8 +645,9 @@ func (c *conversation) answerPending(ctx context.Context, answered map[string]bo
 //
 // Every decision is logged with the attested fields it turned on and the rule that
 // fired, so an operator can see which policy name to allow rather than only that
-// something was declined. The message and preview are logged too, but they are
-// never what the decision reads.
+// something was declined. The preview goes with it, after a credential scan; the
+// message does not, because it is neither clipped nor scanned. Neither is ever what
+// the decision reads.
 func (c *conversation) answer(
 	ctx context.Context,
 	e driver.Elicitation,

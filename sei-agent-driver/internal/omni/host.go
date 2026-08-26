@@ -53,7 +53,7 @@ func New(cfg driver.Config, policy driver.Policy, log *slog.Logger) *Host {
 // caller retries, so each retry pays for the review again and discards it again.
 //
 // Two callers already defend themselves this way and say so where they do it:
-// [Driver.Close] floors its teardown budget, and [Host.boundWalk] floors a listing.
+// [driver.Driver.Close] floors its teardown budget, and [Host.boundWalk] floors a listing.
 // Doing it here instead puts the guard on the path every one of them takes, rather
 // than asking each new read to remember.
 func withUsableTimeouts(cfg driver.Config) driver.Config {
@@ -178,12 +178,16 @@ func alreadyGone(err error) bool {
 
 // boundWalk bounds a whole paginated listing, not just the requests inside it.
 //
-// The SDK's iterator stops on the last page or on its own 10,000-page backstop. It
-// does not stop on an empty page that still claims more, which the hand-written
-// loops this replaced did. A server answering that shape turns one request into
-// thousands, and the caller with no budget of its own is Close: it would spend the
-// whole teardown window listing, then exit by deadline rather than by the leak path,
-// so nothing names the sandbox it failed to reclaim.
+// The SDK's iterator ends when the server says there is no more, and refuses — with
+// [omnigent.ErrListingUnbounded] — on an empty page that claims more, on a page
+// claiming more with no cursor, on a repeated cursor, and at its 10,000-page
+// backstop. So a walk terminates. What it does not do is terminate soon: ten
+// thousand pages of one request each is minutes, and a proxy minting a fresh cursor
+// per page reaches that cap rather than the repeat guard.
+//
+// The caller with no budget of its own is Close. It would spend the whole teardown
+// window listing, then exit by deadline rather than by the leak path, so nothing
+// names the sandbox it failed to reclaim.
 //
 // The budget is a share of what the caller still has, never all of it. Close runs on
 // 4*RequestTimeout, so a walk allowed the same would leave nothing for the deletes
