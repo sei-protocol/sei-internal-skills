@@ -64,9 +64,33 @@ const maxCheckSummary = 60_000
 // maxCheckBullet bounds one entry, so a single long one cannot crowd out the rest.
 const maxCheckBullet = 2_000
 
+// maxSummaryProse bounds the review's own summary before anything is appended to it.
+//
+// The schema asks for one or two sentences. A reply that writes tens of thousands of
+// characters there is a runaway, and the assembled body is cut from the end, so that
+// reply pushed every section this package writes past the cut. A blocker that names no
+// line reaches a reader nowhere else, so what a runaway summary evicted was the review's
+// actual objections.
+const maxSummaryProse = 4_000
+
+// maxCheckSection bounds what one bucket contributes, so a bucket that ran away cannot
+// evict the next one. Three of these and one maxSummaryProse fit inside maxCheckSummary
+// with room to spare, which is what makes every section reach the reader.
+const maxCheckSection = 16_000
+
+// maxCheckEntries bounds how many entries one bucket renders, so a reply that looped
+// does not fill a section with a thousand near-identical lines.
+const maxCheckEntries = 50
+
 // checkTruncated says the summary was cut, so a reader does not take a truncated
 // list for the whole one.
 const checkTruncated = "\n\n_This summary was truncated. The published comment carries the full review._"
+
+// checkProseTruncated says the review's own summary was cut, so a reader does not take
+// what is left of it for the whole of it. Separate from [checkTruncated] because it
+// names a different loss: the sections below it are intact.
+const checkProseTruncated = "\n\n_The review's summary was truncated here. " +
+	"The published comment carries it in full._"
 
 // checkSummary renders the review's own summary and every observation that names no
 // line.
@@ -80,52 +104,102 @@ const checkTruncated = "\n\n_This summary was truncated. The published comment c
 // the agent's prose stands alone as the agent's prose. Here it sits beside framing it
 // must not be able to imitate, so every field goes through [defuseMarkup].
 func checkSummary(v Verdict) string {
-	sections := []string{defuseMarkup(v.Summary())}
-	sections = append(sections, bulletSection("Blocking", Blockers(v)))
-	sections = append(sections, bulletSection("Non-blocking", NonBlockers(v)))
-	sections = append(sections, preExistingSection(PreExisting(v)))
-
+	sections := []string{
+		bulletSection("Blocking", "", Blockers(v)),
+		bulletSection("Non-blocking", "", NonBlockers(v)),
+		preExistingSection(PreExisting(v)),
+	}
 	out := make([]string, 0, len(sections))
 	for _, s := range sections {
 		if strings.TrimSpace(s) != "" {
 			out = append(out, s)
 		}
 	}
-	// Bounded last, over the assembled whole. Bounding each part would still let
-	// enough parts exceed what the API accepts.
-	summary := strings.Join(out, "\n\n")
-	if len(summary) > maxCheckSummary {
-		summary = truncateBytes(summary, maxCheckSummary-len(checkTruncated)) + checkTruncated
+	body := strings.Join(out, "\n\n")
+
+	// The prose is bounded here, against its own budget and against what the sections
+	// already spent. Bounding only the assembled whole cuts from the end, which is where
+	// the sections are: a summary large enough evicted all three of them.
+	if prose := clipProse(defuseMarkup(v.Summary()), len(body)); prose != "" {
+		body = strings.TrimRight(prose+"\n\n"+body, "\n")
 	}
-	return summary
+	// Bounded over the whole as well. Every part is bounded now, so this is the backstop
+	// rather than the control: it fires only on a combination the parts allow and the
+	// API does not.
+	if len(body) > maxCheckSummary {
+		body = truncateBytes(body, maxCheckSummary-len(checkTruncated)) + checkTruncated
+	}
+	return body
 }
 
-func bulletSection(heading string, items []string) string {
+// clipProse bounds the review's summary against maxSummaryProse and against the room the
+// sections left, whichever is smaller.
+//
+// Zero room yields nothing. A bucket large enough to spend the whole budget is a review
+// whose objections are the body, and prose that pushed them out would cost the reader
+// the thing the check exists to carry.
+func clipProse(s string, spent int) string {
+	budget := maxSummaryProse
+	// The separator this prose is joined with, and the notice a cut appends.
+	if room := maxCheckSummary - spent - len(checkProseTruncated) - 2; room < budget {
+		budget = room
+	}
+	if budget <= 0 {
+		return ""
+	}
+	if len(s) <= budget {
+		return s
+	}
+	return truncateBytes(s, budget) + checkProseTruncated
+}
+
+// bulletSection renders one bucket under its heading, bounded in bytes and in count.
+//
+// A bucket is model output and nothing upstream limits how much of it there is. Rendered
+// whole, one bucket spends the budget the next one needs, and the section after it never
+// reaches the reader. What is left out is counted rather than dropped, so a shortened
+// list reads as shortened rather than as all the review had.
+func bulletSection(heading, lead string, items []string) string {
 	if len(items) == 0 {
 		return ""
 	}
-	lines := make([]string, 0, len(items)+1)
-	lines = append(lines, "### "+heading)
+	lines := []string{"### " + heading}
+	if lead != "" {
+		lines = append(lines, lead)
+	}
+	size := 0
+	for _, line := range lines {
+		size += len(line) + 1
+	}
+	shown := 0
 	for _, item := range items {
-		lines = append(lines, checkBullet(item))
+		bullet := checkBullet(item)
+		if shown >= maxCheckEntries || size+len(bullet)+1 > maxCheckSection {
+			break
+		}
+		lines = append(lines, bullet)
+		size += len(bullet) + 1
+		shown++
+	}
+	if n := len(items) - shown; n > 0 {
+		lines = append(lines, fmt.Sprintf(
+			"- _and %d more, not shown here; the published comment carries the full review._", n))
 	}
 	return strings.Join(lines, "\n")
 }
 
+// preExistingSection renders the bucket for problems the change did not introduce.
+//
+// Every entry goes through the same bullet as the others. Both fields are model text,
+// and a severity or a body carrying a newline forges a section here as readily as a
+// blocker does.
 func preExistingSection(issues []PreExistingIssue) string {
-	if len(issues) == 0 {
-		return ""
-	}
-	lines := make([]string, 0, len(issues)+2)
-	lines = append(lines, "### Pre-existing",
-		"Already true on the base branch, not introduced here.")
+	items := make([]string, 0, len(issues))
 	for _, issue := range issues {
-		// Through checkBullet like every other entry. Both fields are model text, and
-		// a severity or a body carrying a newline forges a section here as readily as
-		// a blocker does.
-		lines = append(lines, checkBullet(fmt.Sprintf("**%s** — %s", issue.Severity, issue.Body)))
+		items = append(items, fmt.Sprintf("**%s** — %s", issue.Severity, issue.Body))
 	}
-	return strings.Join(lines, "\n")
+	return bulletSection("Pre-existing",
+		"Already true on the base branch, not introduced here.", items)
 }
 
 // checkBullet renders one piece of model text as a list item.

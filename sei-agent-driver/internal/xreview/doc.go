@@ -58,6 +58,11 @@
 // filename that carried a newline could otherwise open a heading and attribute
 // itself to someone else.
 //
+// Every part of that summary is bounded before it is assembled, not only the assembled
+// whole. The body is cut from the end and the sections are at the end, so a bound over
+// the whole alone let a runaway summary — or a runaway bucket — push the review's own
+// objections past the cut. What a bound leaves out is counted rather than dropped.
+//
 // The check summary follows the same rule from the other end. This package writes that
 // summary under headings of its own, so every model-written field it draws in passes
 // through one sanitiser, defuseMarkup. It escapes what would let a line open a markdown
