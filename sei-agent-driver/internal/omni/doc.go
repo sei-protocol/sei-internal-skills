@@ -81,11 +81,20 @@
 // [turn]. This package does not use it, and the copy here is authoritative for
 // this driver.
 //
-// Not a preference. [turn] is the larger of the two: it carries the salvage paths
-// that read a verdict off a failed turn, the superseded-session handling, and
-// [turn.crossBoundary], none of which the SDK's version has. Adopting the SDK's
-// would mean giving those up, and they are the difference between a run that
-// reports a review and a run that reports a timeout.
+// The difference is who decides the rule. The SDK's tracker takes the end
+// condition as an argument, so a caller states whether a turn ends on an idle
+// status edge or on the response lifecycle. This package derives it instead, from
+// the harness the runner advertises on connect: [inProcessHarnesses] lists the
+// harnesses whose turns end on the lifecycle, and [terminalBacked] gives every
+// other name the stricter rule. Which harness answers to which rule is a fact
+// about this deployment, not about the protocol, so it lives with the deployment
+// rather than in the SDK.
+//
+// The SDK's tracker also filters events by the session they name, which this one
+// does not. Not a gap here: the server publishes a status edge only to the stream
+// of the session it describes, and stamps it with that session's own id, so the
+// filter would never reject anything on this stream. Only elicitations and cost
+// are mirrored into an ancestor's stream, and neither ends a turn.
 //
 // The cost is that one server contract is now written down twice. When the
 // turn-end contract moves, both copies need the same edit, and only this one has
