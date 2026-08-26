@@ -22,8 +22,9 @@ const (
 // The split that matters is attested versus model-influenced. Phase, PolicyName
 // and Mode are stamped by the server's policy engine. Message and
 // ContentPreview originate with the model and are truncated by the server, so
-// they are carried for logging and are never classified on — deciding from a
-// model-chosen string hands the decision to the thing being gated.
+// they are never classified on — deciding from a model-chosen string hands the
+// decision to the thing being gated. Only ContentPreview reaches a log, and only
+// after a credential scan; the fields say why.
 type Elicitation struct {
 	// ID is the correlation key the verdict is sent back with. An empty ID
 	// cannot be answered at all.

@@ -30,7 +30,7 @@
 //   - xreview.go — what a review is asked for: the Request, and the workload the
 //     driver drives.
 //   - prompt.go — the instruction, first dispatch and every one after.
-//   - verdict.go — reading a reply back into the five buckets.
+//   - verdict.go — reading a reply back into the four buckets.
 //   - findings.go — which findings can be placed on a line, and which cannot.
 //   - check.go — the check run, whose conclusion follows the findings.
 //   - publish.go — the comment body, and what happens when it will not fit.
