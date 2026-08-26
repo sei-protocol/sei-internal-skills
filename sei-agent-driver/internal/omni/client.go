@@ -2,6 +2,7 @@ package omni
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -70,7 +71,7 @@ func (h *Host) newClient(ctx context.Context) (*omnigent.Client, error) {
 		return nil, err
 	}
 
-	return omnigent.New(h.cfg.BaseURL,
+	client, err := omnigent.New(h.cfg.BaseURL,
 		omnigent.WithHTTPClient(httpClient),
 		omnigent.WithBearerToken(token),
 		omnigent.WithAuthHeader("Origin", h.cfg.Origin),
@@ -78,6 +79,18 @@ func (h *Host) newClient(ctx context.Context) (*omnigent.Client, error) {
 		omnigent.WithStreamIdleTimeout(h.cfg.StreamIdleTimeout),
 		omnigent.WithUnaryTimeout(h.cfg.UnaryTimeout),
 	)
+	// A base URL the SDK refuses is a misconfiguration, not a transport fault, and
+	// the difference is what the caller does next: a retry cannot fix it. The plain
+	// http ClusterIP is the mistake this catches -- the SDK rejects it because the
+	// credential would travel in cleartext -- and unwrapped it reported as
+	// retryable, so a workflow retrying on transport retried it forever.
+	if errors.Is(err, omnigent.ErrInvalidArgument) {
+		return nil, fmt.Errorf("%w: %w", driver.ErrConfig, err)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return client, nil
 }
 
 // healthCheckedClient returns a client whose HTTP/2 connections answer for
