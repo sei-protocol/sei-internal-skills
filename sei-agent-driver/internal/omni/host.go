@@ -135,6 +135,23 @@ func alreadyGone(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
+// boundWalk bounds a whole paginated listing, not just the requests inside it.
+//
+// The SDK's iterator stops on the last page or on its own 10,000-page backstop. It
+// does not stop on an empty page that still claims more, which the hand-written
+// loops this replaced did. A server answering that shape turns one request into
+// thousands, and the caller with no budget of its own is Close: it would spend the
+// whole teardown window listing, then exit by deadline rather than by the leak path,
+// so nothing names the sandbox it failed to reclaim.
+func (h *Host) boundWalk(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, listingWalkBudget*h.cfg.RequestTimeout)
+}
+
+// listingWalkBudget multiplies [driver.Config.RequestTimeout] into a whole-listing
+// budget. A listing this driver expects to fit in one or two pages gets room for a
+// handful, and no more.
+const listingWalkBudget = 4
+
 // findAllByRunKey collects every session carrying this run key.
 //
 // [Host.findByRunKey] stops at the first, which is what opening wants: it needs the
@@ -145,38 +162,44 @@ func (h *Host) findAllByRunKey(
 	client *omnigent.Client,
 	agentID, runKey string,
 ) ([]string, error) {
+	walkCtx, cancel := h.boundWalk(ctx)
+	defer cancel()
+
 	var ids []string
 	opts := omnigent.ListSessionsOptions{AgentID: agentID, Limit: 1000}
-	for item, err := range client.Sessions().List(ctx, opts) {
+	for session, err := range client.Sessions().List(walkCtx, opts) {
 		if err != nil {
 			return nil, err
 		}
-		if item.Labels[RunKeyLabel] == runKey {
-			ids = append(ids, item.ID)
+		if session.Labels[RunKeyLabel] == runKey {
+			ids = append(ids, session.ID)
 		}
 	}
 	return ids, nil
 }
 
-// resolveAgent finds the agent the server knows by this name, paging the listing
-// until it matches.
+// resolveAgent finds the agent the server knows by this name.
 //
 // It returns the whole agent rather than its id because the harness travels on
 // it, and the harness decides which signal ends a turn.
+//
+// A miss crosses as [driver.ErrConfig], because a name no deployment registers is
+// a configuration fault rather than a transport one, and the exit code a run
+// reports turns on that. The server's own miss message is not wrapped: it
+// enumerates the agent names it did see, and those are an operator's to look up
+// rather than a run's to print.
 func (h *Host) resolveAgent(
 	ctx context.Context, client *omnigent.Client, name string,
 ) (omnigent.AgentObject, error) {
-	var opts omnigent.ListAgentsOptions
-	for agent, err := range client.Sessions().ListAgents(ctx, opts) {
-		if err != nil {
-			return omnigent.AgentObject{}, err
-		}
-		if agent.Name == name {
-			return agent, nil
-		}
+	agent, err := client.Sessions().ResolveAgent(ctx, name)
+	switch {
+	case errors.Is(err, omnigent.ErrNotFound):
+		return omnigent.AgentObject{}, fmt.Errorf("%w: no agent named %q on this server",
+			driver.ErrConfig, name)
+	case err != nil:
+		return omnigent.AgentObject{}, err
 	}
-	return omnigent.AgentObject{}, fmt.Errorf("%w: no agent named %q on this server",
-		driver.ErrConfig, name)
+	return *agent, nil
 }
 
 // findByRunKey walks the agent's sessions for one carrying this run key.
@@ -192,13 +215,18 @@ func (h *Host) findByRunKey(
 	client *omnigent.Client,
 	agentID, runKey string,
 ) (*omnigent.SessionResponse, error) {
+	walkCtx, cancel := h.boundWalk(ctx)
+	defer cancel()
+
 	opts := omnigent.ListSessionsOptions{AgentID: agentID, Limit: 1000}
-	for item, err := range client.Sessions().List(ctx, opts) {
+	for session, err := range client.Sessions().List(walkCtx, opts) {
 		if err != nil {
 			return nil, err
 		}
-		if item.Labels[RunKeyLabel] == runKey {
-			return client.Sessions().Get(ctx, item.ID, omnigent.GetSessionOptions{
+		if session.Labels[RunKeyLabel] == runKey {
+			// Deliberately ctx, not walkCtx: this is the fetch the walk existed to
+			// reach, and it should not inherit what the search already spent.
+			return client.Sessions().Get(ctx, session.ID, omnigent.GetSessionOptions{
 				IncludeItems: omnigent.Ptr(true),
 			})
 		}
@@ -364,9 +392,12 @@ func (h *Host) priorResponseIDs(
 	client *omnigent.Client,
 	sessionID string,
 ) (map[string]bool, error) {
+	walkCtx, cancel := h.boundWalk(ctx)
+	defer cancel()
+
 	ids := map[string]bool{}
 	opts := omnigent.SessionItemsOptions{Limit: 1000}
-	for item, err := range client.Sessions().ListItems(ctx, sessionID, opts) {
+	for item, err := range client.Sessions().ListItems(walkCtx, sessionID, opts) {
 		if err != nil {
 			return nil, fmt.Errorf("listing this session's items: %w", err)
 		}

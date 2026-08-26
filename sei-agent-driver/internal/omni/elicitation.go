@@ -20,7 +20,7 @@ func elicitationFromEvent(ev omnigent.ElicitationRequestEvent) driver.Elicitatio
 		ID:              ev.ElicitationID,
 		Phase:           deref(p.Phase),
 		PolicyName:      deref(p.PolicyName),
-		Mode:            modeString(p.Mode),
+		Mode:            deref(p.Mode),
 		ToolName:        stringAt(p.AdditionalProperties, "tool_name"),
 		Message:         p.Message,
 		ContentPreview:  deref(p.ContentPreview),
@@ -69,13 +69,6 @@ func deref(s *string) string {
 		return ""
 	}
 	return *s
-}
-
-func modeString(m *string) string {
-	if m == nil {
-		return ""
-	}
-	return *m
 }
 
 // stringAt reads a string out of an untyped map, returning "" for a missing key
