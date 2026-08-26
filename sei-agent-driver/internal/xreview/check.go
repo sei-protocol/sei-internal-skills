@@ -360,9 +360,23 @@ func defuseTags(s string) string {
 	}
 	var b strings.Builder
 	b.Grow(len(s) + len(s)/8)
+	backslashes := 0
 	for i := 0; i < len(s); i++ {
-		if s[i] == '<' && i+1 < len(s) && tagStart(s[i+1]) {
+		// Only escape a tag this text has not escaped already. A backslash escapes
+		// the next character only when the run before it is even -- "\\<" is a
+		// literal backslash and a live tag -- so adding one unconditionally revives
+		// what the model had already made inert.
+		//
+		// Block starts need no such counting: the renderer decides them from the raw
+		// line before it processes escapes, so a leading backslash keeps a heading
+		// from opening whatever the parity.
+		if s[i] == '<' && i+1 < len(s) && tagStart(s[i+1]) && backslashes%2 == 0 {
 			b.WriteByte('\\')
+		}
+		if s[i] == '\\' {
+			backslashes++
+		} else {
+			backslashes = 0
 		}
 		b.WriteByte(s[i])
 	}
