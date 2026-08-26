@@ -38,7 +38,38 @@ type Host struct {
 // answered how, and how the turn ended — because those are the questions asked
 // when a run misbehaves and nobody is watching.
 func New(cfg driver.Config, policy driver.Policy, log *slog.Logger) *Host {
-	return &Host{cfg: cfg, policy: policy, log: log}
+	return &Host{cfg: withUsableTimeouts(cfg), policy: policy, log: log}
+}
+
+// withUsableTimeouts replaces a non-positive timeout with the default
+// [driver.LoadConfig] would have supplied.
+//
+// [driver.Config] is exported with exported fields and this constructor takes one,
+// so nothing makes a caller build it through LoadConfig. A zero RequestTimeout is
+// the expensive one: context.WithTimeout with it yields a context that is already
+// expired, so the read that collects the agent's answer fails instantly. The run
+// resolves the agent, launches a sandbox, sends the prompt, waits out the turn, and
+// then throws the finished reply away -- and it exits as a transport fault, which a
+// caller retries, so each retry pays for the review again and discards it again.
+//
+// Two callers already defend themselves this way and say so where they do it:
+// [Driver.Close] floors its teardown budget, and [Host.boundWalk] floors a listing.
+// Doing it here instead puts the guard on the path every one of them takes, rather
+// than asking each new read to remember.
+func withUsableTimeouts(cfg driver.Config) driver.Config {
+	for _, field := range []struct {
+		value    *time.Duration
+		fallback time.Duration
+	}{
+		{&cfg.RequestTimeout, driver.DefaultRequestTimeout},
+		{&cfg.UnaryTimeout, driver.DefaultUnaryTimeout},
+		{&cfg.StreamIdleTimeout, driver.DefaultStreamIdleTimeout},
+	} {
+		if *field.value <= 0 {
+			*field.value = field.fallback
+		}
+	}
+	return cfg
 }
 
 // Open implements [driver.Host].
