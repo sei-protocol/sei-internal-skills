@@ -93,6 +93,16 @@ type driverFakeServerConfig struct {
 	// session with no history, which is what most tests want.
 	ItemsResp string
 
+	// ItemsResps serves one body per items request, so a test can exercise a
+	// multi-page walk. Takes precedence over ItemsResp.
+	ItemsResps []string
+
+	// SessionListNeverEnds serves an empty page that always claims more, with a
+	// fresh cursor each time. This is the one listing shape neither the SDK's
+	// repeated-cursor guard nor its has_more check stops, so it is the only way to
+	// reach a runaway walk. Takes precedence over SessionListResp(s).
+	SessionListNeverEnds bool
+
 	// SessionResps is served in order, one per GET /v1/sessions/{id}, with the
 	// last body repeating. The reply read and any adoption read are the same
 	// route, so a test that needs them to differ configures both.
@@ -103,9 +113,9 @@ type driverFakeServerConfig struct {
 	// not have taken the prompt, and the caller cannot tell.
 	EventStatus int
 
-	// ApprovalStatus is the status POST .../events answers with for an approval
-	// input. Zero means 200. Lets a test fail answering a permission prompt
-	// without touching the prompt path.
+	// ApprovalStatus is the status the resolve route answers with. Zero means the
+	// server's real 202. Lets a test fail answering a permission prompt without
+	// touching the prompt path, which is a separate route.
 	ApprovalStatus int
 }
 
@@ -122,15 +132,18 @@ type driverFakeServerConfig struct {
 // after Run returns are on different goroutines with no other ordering
 // between them.
 type driverFakeServer struct {
-	approvalStatus int
-	eventStatus    int
-	sessionList    string
-	sessionLists   []string
-	itemsResp      string
-	sessionResps   []string
-	listSessHits   atomic.Int64
-	getSessHits    atomic.Int64
-	streamHits     atomic.Int64
+	approvalStatus    int
+	eventStatus       int
+	sessionList       string
+	sessionLists      []string
+	itemsResp         string
+	itemsResps        []string
+	sessListNeverEnds bool
+	listItemsHits     atomic.Int64
+	sessionResps      []string
+	listSessHits      atomic.Int64
+	getSessHits       atomic.Int64
+	streamHits        atomic.Int64
 
 	t   *testing.T
 	URL string
@@ -159,11 +172,17 @@ type driverFakeServer struct {
 
 	mu            sync.Mutex
 	agentReqAfter []string
-	createReqs    []driverCreateReq
-	eventReqs     []driverEventReq
-	deleteHits    int
-	deletedIDs    []string
-	tokenHits     int
+
+	// sessListQueries and itemsQueries record the raw query each listing page was
+	// asked with. The cursor is the one part of a paginated walk a green suite can
+	// lose silently: drop "after" and every page repeats, which still terminates.
+	sessListQueries []string
+	itemsQueries    []string
+	createReqs      []driverCreateReq
+	eventReqs       []driverEventReq
+	deleteHits      int
+	deletedIDs      []string
+	tokenHits       int
 }
 
 func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeServer {
@@ -180,6 +199,8 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		laterStreamFrames: cfg.LaterStreamFrames,
 		sessionList:       cfg.SessionListResp,
 		itemsResp:         cfg.ItemsResp,
+		itemsResps:        cfg.ItemsResps,
+		sessListNeverEnds: cfg.SessionListNeverEnds,
 		sessionResps:      cfg.SessionResps,
 		approvalStatus:    cfg.ApprovalStatus,
 		eventStatus:       cfg.EventStatus,
@@ -205,6 +226,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 	mux.HandleFunc("GET /v1/sessions/{id}/items", fs.handleListItems)
 	mux.HandleFunc("POST /v1/sessions", fs.handleCreateSession)
 	mux.HandleFunc("GET /v1/sessions/{id}/stream", fs.handleStream)
+	mux.HandleFunc("POST /v1/sessions/{id}/elicitations/{eid}/resolve", fs.handleResolve)
 	mux.HandleFunc("POST /v1/sessions/{id}/events", fs.handleEvents)
 	mux.HandleFunc("DELETE /v1/sessions/{id}", fs.handleDelete)
 	mux.HandleFunc("POST /oauth/token", fs.handleToken)
@@ -236,8 +258,18 @@ func (fs *driverFakeServer) handleListAgents(w http.ResponseWriter, r *http.Requ
 
 // handleListSessions answers the pre-create search for a session already
 // carrying this run key. An empty configuration means no prior session.
-func (fs *driverFakeServer) handleListSessions(w http.ResponseWriter, _ *http.Request) {
+func (fs *driverFakeServer) handleListSessions(w http.ResponseWriter, r *http.Request) {
 	hit := int(fs.listSessHits.Add(1))
+	fs.mu.Lock()
+	fs.sessListQueries = append(fs.sessListQueries, r.URL.RawQuery)
+	fs.mu.Unlock()
+
+	if fs.sessListNeverEnds {
+		w.Header().Set("Content-Type", "application/json")
+		fmt.Fprintf(w, `{"data":[],"has_more":true,"last_id":"cur_%d"}`, hit)
+		return
+	}
+
 	body := fs.sessionList
 	if n := len(fs.sessionLists); n > 0 {
 		body = fs.sessionLists[min(hit, n)-1]
@@ -266,8 +298,16 @@ func (fs *driverFakeServer) handleGetSession(w http.ResponseWriter, r *http.Requ
 // handleListItems answers the paged item read the driver uses to learn which
 // response ids predate its turn. Deliberately a separate route from the session
 // snapshot, which caps at the newest 100 items and says nothing about it.
-func (fs *driverFakeServer) handleListItems(w http.ResponseWriter, _ *http.Request) {
+func (fs *driverFakeServer) handleListItems(w http.ResponseWriter, r *http.Request) {
+	hit := int(fs.listItemsHits.Add(1))
+	fs.mu.Lock()
+	fs.itemsQueries = append(fs.itemsQueries, r.URL.RawQuery)
+	fs.mu.Unlock()
+
 	body := fs.itemsResp
+	if n := len(fs.itemsResps); n > 0 {
+		body = fs.itemsResps[min(hit, n)-1]
+	}
 	if body == "" {
 		body = `{"data":[],"has_more":false}`
 	}
@@ -336,6 +376,46 @@ func (fs *driverFakeServer) handleStream(w http.ResponseWriter, r *http.Request)
 	}
 }
 
+// handleResolve answers a verdict on the dedicated resolve URL, which is where the
+// SDK and upstream's own client both send one: the elicitation id travels in the
+// path and the body carries only the action.
+//
+// The ack is what the server returns -- 202 with {"queued": false}, and no denial
+// field. A verdict is resolved synchronously and persists no conversation item, so
+// there is nothing to queue and nothing to read back. Kept distinct from the events
+// route's ack on purpose: reusing that one here would let a driver read queued:true
+// off a verdict, which no server sends.
+//
+// Recorded into the same list as an events POST, under type "approval", because what
+// a test asks is whether the driver answered a prompt once with the right verdict --
+// not which URL carried it.
+func (fs *driverFakeServer) handleResolve(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	var result struct {
+		Action string `json:"action"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		fs.t.Errorf("decode resolve body: %v", err)
+	}
+	fs.mu.Lock()
+	fs.eventReqs = append(fs.eventReqs, driverEventReq{Type: "approval", Data: map[string]any{
+		"elicitation_id": r.PathValue("eid"),
+		"action":         result.Action,
+		// Recorded so a test can catch a verdict posted to the reader rather than
+		// the owner, which lands nowhere and parks the agent.
+		"target_session_id": r.PathValue("id"),
+	}})
+	fs.mu.Unlock()
+
+	if fs.approvalStatus != 0 {
+		w.WriteHeader(fs.approvalStatus)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusAccepted)
+	_, _ = io.WriteString(w, `{"queued":false}`)
+}
+
 func (fs *driverFakeServer) handleEvents(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
 	var req driverEventReq
@@ -346,15 +426,19 @@ func (fs *driverFakeServer) handleEvents(w http.ResponseWriter, r *http.Request)
 	fs.eventReqs = append(fs.eventReqs, req)
 	fs.mu.Unlock()
 
-	if req.Type == "approval" && fs.approvalStatus != 0 {
-		w.WriteHeader(fs.approvalStatus)
-		return
-	}
-	if req.Type != "approval" && fs.eventStatus != 0 {
+	if fs.eventStatus != 0 {
 		w.WriteHeader(fs.eventStatus)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
+	// The server acks by input class, not uniformly: {"queued":true,"item_id":...}
+	// for an item-typed event, {"queued":false} for a control one. A fixture that
+	// hands the queued shape to a control event lets a driver read an item id off
+	// something that never persisted an item, and no test would see it.
+	if req.Type != "message" && len(fs.eventResps) == 0 {
+		_, _ = io.WriteString(w, `{"queued":false}`)
+		return
+	}
 	if n := int(fs.eventHits.Add(1)) - 1; n < len(fs.eventResps) {
 		_, _ = io.WriteString(w, fs.eventResps[n])
 		return
@@ -384,6 +468,18 @@ func (fs *driverFakeServer) handleToken(w http.ResponseWriter, r *http.Request) 
 
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = io.WriteString(w, fs.tokenResp)
+}
+
+func (fs *driverFakeServer) SessListQueries() []string {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	return append([]string(nil), fs.sessListQueries...)
+}
+
+func (fs *driverFakeServer) ItemsQueries() []string {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	return append([]string(nil), fs.itemsQueries...)
 }
 
 func (fs *driverFakeServer) AgentReqAfter() []string {
@@ -460,6 +556,18 @@ func driverDeltaFrame(text string) string {
 	encoded, _ := json.Marshal(text)
 	return driverFrame("response.output_text.delta",
 		fmt.Sprintf(`{"type":"response.output_text.delta","delta":%s}`, encoded))
+}
+
+// driverElicitationToolFrame carries tool_name, which the server sends as an
+// undeclared field on the params object. It reaches the driver only through the
+// SDK's catch-all map, so a frame that declares nothing but policy_name cannot
+// exercise the tool allowlist at all.
+func driverElicitationToolFrame(id, toolName string) string {
+	payload := fmt.Sprintf(
+		`{"type":"response.elicitation_request","elicitation_id":%q,`+
+			`"params":{"message":"approve?","tool_name":%q}}`,
+		id, toolName)
+	return driverFrame("response.elicitation_request", payload)
 }
 
 func driverElicitationFrame(id, policyName string) string {
@@ -553,7 +661,7 @@ func driverSessionWithItems(id, agentID string, items ...string) string {
 		id, agentID, strings.Join(all, ","))
 }
 
-// driverAnchorItemID is the item id the fake SendInput echoes back, and so the
+// driverAnchorItemID is the item id the fake events route echoes back, and so the
 // anchor every turn in these tests is bounded by.
 const driverAnchorItemID = "item_1"
 
@@ -2061,7 +2169,7 @@ func TestAPromptParkedWhileDisconnectedIsAnswered(t *testing.T) {
 //
 // A prompt queued and not yet active leaves no active response, so the session looks
 // idle while holding it — and reading the session was what a resend keyed on.
-// SendInput carries no idempotency key, so the attempt is remembered locally.
+// Posting an input carries no idempotency key, so the attempt is remembered locally.
 func TestAnAttemptedSendIsNeverRepeated(t *testing.T) {
 	t.Parallel()
 
@@ -2086,5 +2194,186 @@ func TestAnAttemptedSendIsNeverRepeated(t *testing.T) {
 	}
 	if result.ExitCode != driver.ExitTurnFailed {
 		t.Errorf("ExitCode = %d, want ExitTurnFailed (%d)", result.ExitCode, driver.ExitTurnFailed)
+	}
+}
+
+// TestDriverAllowsAToolNamedOnlyOnTheWire guards a regression that shipped once.
+//
+// tool_name is not a declared field on the elicitation params, so it survives only
+// as long as the generated type keeps its catch-all map. A spec transform that drops
+// that map still compiles, still passes every other test, and silently declines every
+// prompt the tool allowlist was supposed to accept. This is the only test where the
+// name has to travel the whole way -- frame, catch-all, policy -- to pass.
+func TestDriverAllowsAToolNamedOnlyOnTheWire(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+		CreateResp: driverSessionResp("conv_tool", "ag_1"),
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverElicitationToolFrame("elicit_tool", "Bash"),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			driverSessionWithItems("conv_tool", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_a",
+					driverVerdict("Ran a command.", "approve"))),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 21, Trigger: "trigger-tool"}
+	// No allowed policy names -- the tool allowlist is the only thing that can accept.
+	d := newTestDriver(cfg, driver.NewPolicy("", "Bash"), driverTestLogger())
+
+	if result := d.Run(t.Context(), req); result.ExitCode != driver.ExitOK {
+		t.Fatalf("ExitCode = %d, want driver.ExitOK", result.ExitCode)
+	}
+
+	var approvals []driverEventReq
+	for _, e := range fs.EventReqs() {
+		if e.Type == "approval" {
+			approvals = append(approvals, e)
+		}
+	}
+	if len(approvals) != 1 {
+		t.Fatalf("approval POSTs = %d, want exactly 1", len(approvals))
+	}
+	if got := approvals[0].Data["action"]; got != "accept" {
+		t.Errorf("data.action = %v, want accept -- the tool name did not reach the policy", got)
+	}
+}
+
+// TestDriverCarriesTheCursorAcrossEverySessionsPage pins the one part of a
+// paginated walk that fails silently. Drop the cursor and every page repeats the
+// first: the walk still ends, the suite still passes, and a session on page two is
+// never found -- so Close never reclaims its sandbox.
+func TestDriverCarriesTheCursorAcrossEverySessionsPage(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+		CreateResp: driverSessionResp("conv_cursor", "ag_1"),
+		SessionListResps: []string{
+			`{"data":[{"id":"conv_other","agent_id":"ag_1","labels":{}}],` +
+				`"has_more":true,"last_id":"conv_other"}`,
+			`{"data":[],"has_more":false}`,
+		},
+		StreamFrames: []string{
+			driverAckFrame(), driverConsumedFrame("item_1"),
+			driverIdleFrame("resp_claude_a"), driverDoneFrame(),
+		},
+		SessionResps: []string{
+			driverSessionWithItems("conv_cursor", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_a",
+					driverVerdict("Read it.", "approve"))),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 23, Trigger: "trigger-cursor"}
+	d := newTestDriver(cfg, driver.NewPolicy("", ""), driverTestLogger())
+
+	if result := d.Run(t.Context(), req); result.ExitCode != driver.ExitOK {
+		t.Fatalf("ExitCode = %d, want driver.ExitOK", result.ExitCode)
+	}
+
+	queries := fs.SessListQueries()
+	if len(queries) < 2 {
+		t.Fatalf("sessions listing requests = %d, want at least 2 pages", len(queries))
+	}
+	if strings.Contains(queries[0], "after=") {
+		t.Errorf("first page query = %q, want no cursor", queries[0])
+	}
+	if !strings.Contains(queries[1], "after=conv_other") {
+		t.Errorf("second page query = %q, want after=conv_other", queries[1])
+	}
+	for i, q := range queries {
+		if !strings.Contains(q, "limit=1000") {
+			t.Errorf("page %d query = %q, want limit=1000 on every page", i, q)
+		}
+	}
+}
+
+// TestDriverCollectsPriorResponseIDsFromEveryItemsPage covers the same cursor on the
+// items route. A response id missed here is one the turn machine would accept as its
+// own, so a lost page publishes a stale verdict rather than failing.
+func TestDriverCollectsPriorResponseIDsFromEveryItemsPage(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+		SessionListResp: `{"data":[{"id":"conv_pages","agent_id":"ag_1",` +
+			`"labels":{"` + RunKeyLabel + `":"` + testRunKey("sei-protocol/sandbox", 24) + `"}}],"has_more":false}`,
+		SessionResps: []string{
+			driverSessionResp("conv_pages", "ag_1"),
+			driverSessionWithItems("conv_pages", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_new",
+					driverVerdict("Read it.", "approve"))),
+		},
+		ItemsResps: []string{
+			`{"data":[{"id":"i1","response_id":"resp_old_a"}],"has_more":true,"last_id":"i1"}`,
+			`{"data":[{"id":"i2","response_id":"resp_old_b"}],"has_more":false}`,
+		},
+		StreamFrames: []string{
+			driverAckFrame(), driverConsumedFrame("item_1"),
+			// The prior ids must both be excluded, so a reply on either is not ours.
+			driverIdleFrame("resp_old_b"),
+			driverIdleFrame("resp_claude_new"),
+			driverDoneFrame(),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 24, Trigger: "trigger-items"}
+	d := newTestDriver(cfg, driver.NewPolicy("", ""), driverTestLogger())
+
+	if result := d.Run(t.Context(), req); result.ExitCode != driver.ExitOK {
+		t.Fatalf("ExitCode = %d, want driver.ExitOK", result.ExitCode)
+	}
+
+	queries := fs.ItemsQueries()
+	if len(queries) < 2 {
+		t.Fatalf("items listing requests = %d, want at least 2 pages", len(queries))
+	}
+	if !strings.Contains(queries[1], "after=i1") {
+		t.Errorf("second items page query = %q, want after=i1", queries[1])
+	}
+}
+
+// TestDriverStopsAListingThatNeverEnds bounds the walk, not the request.
+//
+// The SDK's iterator stops on the last page or on its own 10,000-page backstop. It
+// does not stop on an empty page that still claims more -- the shape the hand-written
+// loops this replaced did stop on. Unbounded, one listing spends the whole budget it
+// was given: on Close that is the teardown window, and the run then exits by deadline
+// rather than by the leak path, so nothing names the sandbox left behind.
+func TestDriverStopsAListingThatNeverEnds(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+		// Empty, but always more, with a cursor that advances -- so neither of the
+		// SDK's own self-defence stops fires either.
+		SessionListNeverEnds: true,
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	cfg.RequestTimeout = 100 * time.Millisecond
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 25, Trigger: "trigger-runaway"}
+	d := newTestDriver(cfg, driver.NewPolicy("", ""), driverTestLogger())
+
+	result := d.Run(t.Context(), req)
+	if result.ExitCode == driver.ExitOK {
+		t.Fatal("ExitCode = driver.ExitOK, want a failure -- the listing never ends")
+	}
+	// The bound is 4 x RequestTimeout. Reaching the SDK's 10,000-page backstop would
+	// mean the walk ran on the run deadline instead.
+	if hits := fs.ListSessionHits(); hits >= 10000 {
+		t.Errorf("sessions listing requests = %d, want the walk bounded well short of "+
+			"the SDK's page cap", hits)
 	}
 }

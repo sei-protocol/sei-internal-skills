@@ -29,7 +29,7 @@ type turn struct {
 	// a dropped connection after the bytes went out, a 502. Reading the session
 	// instead cannot settle it -- a prompt queued and not yet active leaves no active
 	// response, so the session looks idle while holding the prompt, and a second send
-	// is what that reads as permission for. SendInput carries no idempotency key.
+	// is what that reads as permission for. Posting an input carries no idempotency key.
 	attempted bool
 
 	// anchorItem is the conversation item the boundary resolved to.

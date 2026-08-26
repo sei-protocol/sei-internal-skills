@@ -1,6 +1,7 @@
 package omni
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -138,9 +139,9 @@ func TestAssistantMessageRejectsUnpublishableShapes(t *testing.T) {
 			}
 			tc.mutate(&item, &msg)
 
-			var data omnigent.ConversationItem_Data
-			if err := data.FromMessageData(msg); err != nil {
-				t.Fatalf("FromMessageData: %v", err)
+			data, err := json.Marshal(msg)
+			if err != nil {
+				t.Fatalf("marshal MessageData: %v", err)
 			}
 			item.Data = data
 
@@ -286,17 +287,20 @@ func TestCrossBoundaryResolvesAPendingAnchorToItsItem(t *testing.T) {
 }
 
 // verdictItem builds a real omnigent.ConversationItem carrying a MessageData
-// payload, via the union type's own From accessor rather than a hand-rolled JSON
-// shape.
+// payload, marshalled the way the wire carries it.
+//
+// Data is json.RawMessage rather than a generated union, so the payload is built
+// from the typed struct and encoded — which is what the server does, and what
+// assistantMessage decodes back.
 func verdictItem(t *testing.T, id, responseID, role, text string) omnigent.ConversationItem {
 	t.Helper()
 
-	var data omnigent.ConversationItem_Data
-	if err := data.FromMessageData(omnigent.MessageData{
-		Role:    omnigent.MessageDataRole(role),
+	data, err := json.Marshal(omnigent.MessageData{
+		Role:    role,
 		Content: []map[string]any{{"type": "output_text", "text": text}},
-	}); err != nil {
-		t.Fatalf("FromMessageData: %v", err)
+	})
+	if err != nil {
+		t.Fatalf("marshal MessageData: %v", err)
 	}
 	return omnigent.ConversationItem{
 		ID: id, ResponseID: responseID, Type: "message", Status: "completed", Data: data,
@@ -308,11 +312,11 @@ func verdictItem(t *testing.T, id, responseID, role, text string) omnigent.Conve
 func verdictFunctionCallItem(t *testing.T, id, responseID string) omnigent.ConversationItem {
 	t.Helper()
 
-	var data omnigent.ConversationItem_Data
-	if err := data.FromFunctionCallData(omnigent.FunctionCallData{
+	data, err := json.Marshal(omnigent.FunctionCallData{
 		CallID: "call_1", Name: "search.web", Arguments: "{}",
-	}); err != nil {
-		t.Fatalf("FromFunctionCallData: %v", err)
+	})
+	if err != nil {
+		t.Fatalf("marshal FunctionCallData: %v", err)
 	}
 	return omnigent.ConversationItem{
 		ID: id, ResponseID: responseID, Type: "function_call", Status: "completed", Data: data,

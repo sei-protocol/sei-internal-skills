@@ -35,7 +35,7 @@
 //
 // Two server-attested facts bound a turn, and everything else is inference:
 //
-// The boundary is the item id SendInput returns, echoed back on the stream as
+// The boundary is the item id posting the prompt returns, echoed back on the stream as
 // session.input.consumed. Nothing at or before it is ever publishable. The stream
 // opens with a prologue that replays earlier work, so without this line a previous
 // invocation's completed reply is indistinguishable from a fresh one.

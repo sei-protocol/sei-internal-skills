@@ -49,7 +49,7 @@ const connectionOpenLimit = 40
 // Turn implements [driver.Conversation].
 //
 // Two server-attested facts bound a turn and everything else is inference. The
-// boundary is the item id SendInput returns, echoed back as
+// boundary is the item id posting the prompt returns, echoed back as
 // session.input.consumed: nothing at or before it is publishable, and without that
 // line a previous invocation's completed reply is indistinguishable from a fresh
 // one, because the stream opens by replaying earlier work.
@@ -306,7 +306,7 @@ func (c *conversation) sendPrompt(ctx context.Context, sessionID, prompt string,
 	// attempted. See [turn.attempted].
 	t.attempted = true
 
-	accepted, err := c.client.SendInput(ctx, sessionID, omnigent.UserMessage(prompt))
+	accepted, err := c.client.Sessions().SendMessage(ctx, sessionID, prompt)
 	if err != nil {
 		return fmt.Errorf("sending the prompt: %w", err)
 	}
@@ -488,7 +488,7 @@ func (c *conversation) recoverFromStreamLoss(
 	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.host.cfg.RequestTimeout)
 	defer cancel()
 
-	session, err := c.client.GetSession(readCtx, c.sessionID, omnigent.GetSessionOptions{
+	session, err := c.client.Sessions().Get(readCtx, c.sessionID, omnigent.GetSessionOptions{
 		IncludeItems: omnigent.Ptr(true),
 	})
 	if err != nil {
@@ -568,7 +568,7 @@ func (c *conversation) fetchReply(
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.host.cfg.RequestTimeout)
 	defer cancel()
 
-	session, err := c.client.GetSession(ctx, c.sessionID, omnigent.GetSessionOptions{
+	session, err := c.client.Sessions().Get(ctx, c.sessionID, omnigent.GetSessionOptions{
 		IncludeItems: omnigent.Ptr(true),
 	})
 	if err != nil {
@@ -594,8 +594,8 @@ func (c *conversation) fetchReply(
 	// A minted bearer is deliberately not among the literals. It lives in a local
 	// in newClient rather than on the config, and holding it here to scan for it
 	// would buy nothing: the sandbox never sees this process's bearer, so the agent
-	// cannot quote it. What the agent does hold is its own gh credentials, which
-	// the patterns cover.
+	// cannot quote it. What the agent does hold is its own gh credentials, whose
+	// literal form the patterns recognise.
 	if shape := driver.ScanSecrets(reply.Text, c.host.cfg.Token, c.host.cfg.MachineClientSecret); shape != "" {
 		// Fail closed here rather than at the publish step: this is the last point
 		// where the text is still inside the driver, and the pull requests it posts
@@ -608,8 +608,11 @@ func (c *conversation) fetchReply(
 	// The preview rides on every run, not only the failing ones. A reply is the one
 	// thing here the logs cannot otherwise reconstruct, and a short one is the first
 	// symptom of a turn that ended early, so a dropped stream and an agent that gave
-	// up stay tellable apart afterwards. Safe to log because the credential scan
-	// above has already returned on anything shaped like a secret.
+	// up stay tellable apart afterwards.
+	//
+	// The scan above has returned on every shape it recognises, which is the most that
+	// can be said for it: [driver.ScanSecrets] names the classes it cannot see, so this
+	// is a residual risk accepted for the diagnostic rather than one the scan closes.
 	c.host.log.Info("reply attributed", "session_id", c.sessionID, "turn_id", turnID,
 		"item_id", reply.ItemID, "chars", len(reply.Text),
 		"preview", clip(reply.Text, replyPreviewChars))
@@ -625,7 +628,7 @@ func (c *conversation) fetchReply(
 // answer stalls the run for the rest of its budget while the transport stays
 // perfectly healthy — which is why it must not be logged and carried past.
 func (c *conversation) answerPending(ctx context.Context, answered map[string]bool) error {
-	session, err := c.client.GetSession(ctx, c.sessionID, omnigent.GetSessionOptions{})
+	session, err := c.client.Sessions().Get(ctx, c.sessionID, omnigent.GetSessionOptions{})
 	if err != nil {
 		return fmt.Errorf("reading this session's parked prompts: %w", err)
 	}
@@ -670,8 +673,19 @@ func (c *conversation) answer(
 		"target_session_id", e.ResolveSession(c.sessionID),
 		"action", action, "reason", reason, "preview", preview)
 
+	// Answered through the dedicated resolve URL, which is what upstream's own client
+	// does for every verdict -- it does not branch on the elicitation's mode. The
+	// route is absent from the vendored spec because the server registers it
+	// include_in_schema=False, not because it is unsupported; both it and a
+	// type:"approval" input reach the same server-side resolver.
+	//
+	// There is no answer to read. The route acks {"queued": false} on success and
+	// carries no denial field, and neither does the approval branch of the events
+	// route: the server's denied/reason shape belongs to a message input refused by
+	// the input policy, which a verdict never passes through. So a non-2xx is the only
+	// signal that the agent is still blocked.
 	target := e.ResolveSession(c.sessionID)
-	if _, err := c.client.ResolveElicitation(ctx, target, e.ID,
+	if err := c.client.Sessions().ResolveElicitation(ctx, target, e.ID,
 		omnigent.ElicitationResult{Action: omnigent.ElicitationAction(action)}); err != nil {
 		// Deliberately not ErrTurnFailed. The turn did not fail; we failed to
 		// answer it, and reporting the agent's outcome for our own transport
