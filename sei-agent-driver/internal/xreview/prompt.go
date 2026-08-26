@@ -480,7 +480,7 @@ func (r Request) guidelinesFile() string {
 // safeRepo returns the repository this prompt may name in a command, or "" when it
 // is not a shape a command can safely carry.
 //
-// Repo is interpolated unquoted into five commands the prompts tell the agent to run, in a
+// Repo is interpolated unquoted into four commands the prompts tell the agent to run, in a
 // sandbox holding a live credential. GuidelinesFile is checked for exactly this reason a
 // few lines down; Repo arrives from the same kind of caller and was not. A value that
 // fails here yields a prompt with no commands, rather than one with a command the caller

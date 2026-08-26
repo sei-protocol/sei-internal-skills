@@ -50,10 +50,11 @@ type Driver struct {
 	log  *slog.Logger
 }
 
-// New returns a driver. The logger receives one structured record per decision
-// point — which session, which run key, which prompt was answered how, and how the
-// turn ended — because those are the questions asked when a run misbehaves and
-// nobody is watching.
+// New returns a driver. The logger receives one structured record per decision this
+// package makes — which session, which run key, whether the reply was usable, and
+// what the run exited with — because those are the questions asked when a run
+// misbehaves and nobody is watching. The prompts a turn parks on, and the turn's own
+// end, are the [Host]'s to record.
 func New(cfg Config, host Host, log *slog.Logger) *Driver {
 	return &Driver{cfg: cfg, host: host, log: log}
 }
