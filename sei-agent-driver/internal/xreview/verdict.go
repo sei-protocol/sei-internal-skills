@@ -181,7 +181,7 @@ func ParseVerdict(text string) Verdict {
 		v.Reason = "the message carries no fenced json block"
 		return v
 	}
-	if n := decidingBlocks(text, blocks); n > 1 {
+	if n := countBlocks(text, blocks, decides); n > 1 {
 		v.Reason = fmt.Sprintf(
 			"%d fenced blocks carry a decision, so the message does not say which is the verdict", n)
 		return v
@@ -210,24 +210,30 @@ func ParseVerdict(text string) Verdict {
 	return v
 }
 
-// decidingBlocks counts how many of a message's fenced blocks parse to a JSON
-// object carrying a recognised decision.
+// countBlocks counts how many of a message's fenced blocks parse to a JSON object that
+// match accepts.
 //
-// Separate from picking the verdict, because the count is a precondition rather than a
-// candidate search: more than one, and there is no verdict to pick.
-func decidingBlocks(text string, blocks [][]int) int {
+// Separate from picking the closing block, because the count is a precondition rather
+// than a candidate search: more than one, and there is nothing to pick. Shared with
+// [ParseScoutReport], which reads a reply drawn from the same attacker-written diff and
+// owes it the same refusal.
+func countBlocks(text string, blocks [][]int, match func(map[string]any) bool) int {
 	n := 0
 	for _, b := range blocks {
 		var out map[string]any
 		if json.Unmarshal([]byte(text[b[2]:b[3]]), &out) != nil {
 			continue
 		}
-		if decisions[normalizeDecision(out["decision"])] {
+		if match(out) {
 			n++
 		}
 	}
 	return n
 }
+
+// decides reports whether a decoded block carries a decision this driver accepts, which
+// is what makes it a candidate verdict.
+func decides(out map[string]any) bool { return decisions[normalizeDecision(out["decision"])] }
 
 // normalizeDecision lowercases and trims a decision value, yielding "" for
 // anything that is not a JSON string.
