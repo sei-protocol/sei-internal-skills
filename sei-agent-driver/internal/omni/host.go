@@ -112,7 +112,7 @@ func (h *Host) Close(ctx context.Context, w driver.Work) (string, error) {
 	var held []string
 	var cause error
 	for _, id := range ids {
-		_, err := client.DeleteSession(ctx, id, omnigent.DeleteSessionOptions{})
+		_, err := client.Sessions().Delete(ctx, id, omnigent.DeleteSessionOptions{})
 		switch {
 		case err == nil, alreadyGone(err):
 			// Already gone counts as reclaimed. Two closes racing, or a reopened and
@@ -147,21 +147,15 @@ func (h *Host) findAllByRunKey(
 ) ([]string, error) {
 	var ids []string
 	opts := omnigent.ListSessionsOptions{AgentID: agentID, Limit: 1000}
-	for {
-		page, err := client.ListSessions(ctx, opts)
+	for item, err := range client.Sessions().List(ctx, opts) {
 		if err != nil {
 			return nil, err
 		}
-		for _, item := range page.Data {
-			if item.Labels[RunKeyLabel] == runKey {
-				ids = append(ids, item.ID)
-			}
+		if item.Labels[RunKeyLabel] == runKey {
+			ids = append(ids, item.ID)
 		}
-		if !page.HasMore || len(page.Data) == 0 {
-			return ids, nil
-		}
-		opts.After = page.LastID
 	}
+	return ids, nil
 }
 
 // resolveAgent finds the agent the server knows by this name, paging the listing
@@ -173,22 +167,16 @@ func (h *Host) resolveAgent(
 	ctx context.Context, client *omnigent.Client, name string,
 ) (omnigent.AgentObject, error) {
 	var opts omnigent.ListAgentsOptions
-	for {
-		page, err := client.ListAgents(ctx, opts)
+	for agent, err := range client.Sessions().ListAgents(ctx, opts) {
 		if err != nil {
 			return omnigent.AgentObject{}, err
 		}
-		for _, agent := range page.Data {
-			if agent.Name == name {
-				return agent, nil
-			}
+		if agent.Name == name {
+			return agent, nil
 		}
-		if !page.HasMore || len(page.Data) == 0 {
-			return omnigent.AgentObject{}, fmt.Errorf("%w: no agent named %q on this server",
-				driver.ErrConfig, name)
-		}
-		opts.After = page.LastID
 	}
+	return omnigent.AgentObject{}, fmt.Errorf("%w: no agent named %q on this server",
+		driver.ErrConfig, name)
 }
 
 // findByRunKey walks the agent's sessions for one carrying this run key.
@@ -205,23 +193,17 @@ func (h *Host) findByRunKey(
 	agentID, runKey string,
 ) (*omnigent.SessionResponse, error) {
 	opts := omnigent.ListSessionsOptions{AgentID: agentID, Limit: 1000}
-	for {
-		page, err := client.ListSessions(ctx, opts)
+	for item, err := range client.Sessions().List(ctx, opts) {
 		if err != nil {
 			return nil, err
 		}
-		for _, item := range page.Data {
-			if item.Labels[RunKeyLabel] == runKey {
-				return client.GetSession(ctx, item.ID, omnigent.GetSessionOptions{
-					IncludeItems: omnigent.Ptr(true),
-				})
-			}
+		if item.Labels[RunKeyLabel] == runKey {
+			return client.Sessions().Get(ctx, item.ID, omnigent.GetSessionOptions{
+				IncludeItems: omnigent.Ptr(true),
+			})
 		}
-		if !page.HasMore || len(page.Data) == 0 {
-			return nil, nil
-		}
-		opts.After = page.LastID
 	}
+	return nil, nil
 }
 
 // adoption is where a conversation's session came from, split into the two
@@ -278,7 +260,7 @@ func (h *Host) createOrAdopt(
 		}
 		h.log.Warn("the session for this work cannot run a turn; replacing it",
 			"run_key", w.RunKey, "session_id", existing.ID)
-		if _, err := client.DeleteSession(ctx, existing.ID, omnigent.DeleteSessionOptions{}); err != nil {
+		if _, err := client.Sessions().Delete(ctx, existing.ID, omnigent.DeleteSessionOptions{}); err != nil {
 			return nil, adoption{}, fmt.Errorf(
 				"the session for this work cannot run a turn and could not be "+
 					"deleted, so a new one would collide with it: %w", err)
@@ -292,7 +274,7 @@ func (h *Host) createOrAdopt(
 		Labels:   map[string]string{RunKeyLabel: w.RunKey},
 	}
 
-	session, err := client.CreateSession(ctx, create)
+	session, err := client.Sessions().Create(ctx, create)
 	if err == nil {
 		return session, adoption{}, nil
 	}
@@ -356,7 +338,7 @@ func (h *Host) sessionIsLive(
 	readCtx, cancel := context.WithTimeout(ctx, h.cfg.RequestTimeout)
 	defer cancel()
 
-	session, err := client.GetSession(readCtx, sessionID, omnigent.GetSessionOptions{})
+	session, err := client.Sessions().Get(readCtx, sessionID, omnigent.GetSessionOptions{})
 	if err != nil {
 		// Logged rather than swallowed. Whether this read succeeds while the stream
 		// will not open is what separates a stream that is wedged from a server that
@@ -384,22 +366,15 @@ func (h *Host) priorResponseIDs(
 ) (map[string]bool, error) {
 	ids := map[string]bool{}
 	opts := omnigent.SessionItemsOptions{Limit: 1000}
-	for {
-		page, err := client.ListSessionItems(ctx, sessionID, opts)
+	for item, err := range client.Sessions().ListItems(ctx, sessionID, opts) {
 		if err != nil {
 			return nil, fmt.Errorf("listing this session's items: %w", err)
 		}
-		for _, item := range page.Data {
-			// A flat map rather than a typed item, which is why this reads one
-			// string and nothing else: the guards that decide publishability run
-			// on the typed snapshot, and all this needs is identity.
-			if id, _ := item["response_id"].(string); id != "" {
-				ids[id] = true
-			}
+		// One field and nothing else: the guards that decide publishability run
+		// on the typed snapshot, and all this needs is identity.
+		if item.ResponseID != "" {
+			ids[item.ResponseID] = true
 		}
-		if !page.HasMore || len(page.Data) == 0 {
-			return ids, nil
-		}
-		opts.After = page.LastID
 	}
+	return ids, nil
 }

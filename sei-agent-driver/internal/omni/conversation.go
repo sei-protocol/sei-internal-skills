@@ -306,7 +306,7 @@ func (c *conversation) sendPrompt(ctx context.Context, sessionID, prompt string,
 	// attempted. See [turn.attempted].
 	t.attempted = true
 
-	accepted, err := c.client.SendInput(ctx, sessionID, omnigent.UserMessage(prompt))
+	accepted, err := c.client.Sessions().SendMessage(ctx, sessionID, prompt)
 	if err != nil {
 		return fmt.Errorf("sending the prompt: %w", err)
 	}
@@ -488,7 +488,7 @@ func (c *conversation) recoverFromStreamLoss(
 	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.host.cfg.RequestTimeout)
 	defer cancel()
 
-	session, err := c.client.GetSession(readCtx, c.sessionID, omnigent.GetSessionOptions{
+	session, err := c.client.Sessions().Get(readCtx, c.sessionID, omnigent.GetSessionOptions{
 		IncludeItems: omnigent.Ptr(true),
 	})
 	if err != nil {
@@ -568,7 +568,7 @@ func (c *conversation) fetchReply(
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.host.cfg.RequestTimeout)
 	defer cancel()
 
-	session, err := c.client.GetSession(ctx, c.sessionID, omnigent.GetSessionOptions{
+	session, err := c.client.Sessions().Get(ctx, c.sessionID, omnigent.GetSessionOptions{
 		IncludeItems: omnigent.Ptr(true),
 	})
 	if err != nil {
@@ -628,7 +628,7 @@ func (c *conversation) fetchReply(
 // answer stalls the run for the rest of its budget while the transport stays
 // perfectly healthy — which is why it must not be logged and carried past.
 func (c *conversation) answerPending(ctx context.Context, answered map[string]bool) error {
-	session, err := c.client.GetSession(ctx, c.sessionID, omnigent.GetSessionOptions{})
+	session, err := c.client.Sessions().Get(ctx, c.sessionID, omnigent.GetSessionOptions{})
 	if err != nil {
 		return fmt.Errorf("reading this session's parked prompts: %w", err)
 	}
@@ -674,7 +674,7 @@ func (c *conversation) answer(
 		"action", action, "reason", reason, "preview", preview)
 
 	target := e.ResolveSession(c.sessionID)
-	if _, err := c.client.ResolveElicitation(ctx, target, e.ID,
+	if err := c.client.Sessions().ResolveElicitation(ctx, target, e.ID,
 		omnigent.ElicitationResult{Action: omnigent.ElicitationAction(action)}); err != nil {
 		// Deliberately not ErrTurnFailed. The turn did not fail; we failed to
 		// answer it, and reporting the agent's outcome for our own transport

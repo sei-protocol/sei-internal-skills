@@ -71,11 +71,11 @@ func deref(s *string) string {
 	return *s
 }
 
-func modeString(m *omnigent.ElicitationRequestParamsMode) string {
+func modeString(m *string) string {
 	if m == nil {
 		return ""
 	}
-	return string(*m)
+	return *m
 }
 
 // stringAt reads a string out of an untyped map, returning "" for a missing key

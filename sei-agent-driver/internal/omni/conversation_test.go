@@ -206,6 +206,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 	mux.HandleFunc("POST /v1/sessions", fs.handleCreateSession)
 	mux.HandleFunc("GET /v1/sessions/{id}/stream", fs.handleStream)
 	mux.HandleFunc("POST /v1/sessions/{id}/events", fs.handleEvents)
+	mux.HandleFunc("POST /v1/sessions/{id}/elicitations/{eid}/resolve", fs.handleResolve)
 	mux.HandleFunc("DELETE /v1/sessions/{id}", fs.handleDelete)
 	mux.HandleFunc("POST /oauth/token", fs.handleToken)
 
@@ -334,6 +335,41 @@ func (fs *driverFakeServer) handleStream(w http.ResponseWriter, r *http.Request)
 		}
 		_ = ctrl.Flush()
 	}
+}
+
+// handleResolve answers an approval on its own route, which is where the SDK
+// sends one and where upstream's client sends one: the id travels in the path and
+// the body carries only the action, so a verdict is not an in-band session event.
+//
+// Recorded into the same list as an events POST, under type "approval", because
+// what a test asks is whether the driver answered a prompt once with the right
+// verdict — not which URL carried it.
+func (fs *driverFakeServer) handleResolve(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	var result struct {
+		Action  string         `json:"action"`
+		Content map[string]any `json:"content,omitempty"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		fs.t.Errorf("decode resolve body: %v", err)
+	}
+	data := map[string]any{
+		"elicitation_id": r.PathValue("eid"),
+		"action":         result.Action,
+	}
+	if result.Content != nil {
+		data["content"] = result.Content
+	}
+	fs.mu.Lock()
+	fs.eventReqs = append(fs.eventReqs, driverEventReq{Type: "approval", Data: data})
+	fs.mu.Unlock()
+
+	if fs.approvalStatus != 0 {
+		w.WriteHeader(fs.approvalStatus)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = io.WriteString(w, `{}`)
 }
 
 func (fs *driverFakeServer) handleEvents(w http.ResponseWriter, r *http.Request) {
