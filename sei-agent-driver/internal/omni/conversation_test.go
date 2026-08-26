@@ -2215,6 +2215,80 @@ func TestAnAttemptedSendIsNeverRepeated(t *testing.T) {
 	}
 }
 
+// TestDriverDeclinesWhatThePolicyDoesNotAllow follows the verdict to the wire.
+//
+// Policy.Decide has thorough unit coverage, and none of it reaches the one line
+// that calls it. Both of these mutations of that call site left the whole suite
+// green before this test existed:
+//
+//	action, reason := driver.Accept, "ignored the policy"
+//	action, reason := c.host.policy.Decide(e); if action == driver.Decline { action = driver.Accept }
+//
+// Which is the same gap the reply path already has a test for, and for the same
+// stated reason: a guard nothing follows to the wire can be dropped from the path
+// without a single test noticing. Here that means approving every tool call an
+// agent makes while it reads an attacker-authored diff, and policy.go says what
+// that is worth -- "Bash" is arbitrary shell, so allowing it allows a push as
+// readily as a diff read.
+//
+// The zero Policy is the case that matters most: it is what an operator with no
+// allowlist configured gets, and it must decline everything.
+func TestDriverDeclinesWhatThePolicyDoesNotAllow(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name   string
+		policy driver.Policy
+	}{
+		{"the zero policy allows nothing", driver.Policy{}},
+		{"an allowlist that does not name this tool", driver.NewPolicy("", "Read")},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			fs := newDriverFakeServer(t, driverFakeServerConfig{
+				AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+				CreateResp: driverSessionResp("conv_deny", "ag_1"),
+				StreamFrames: []string{
+					driverAckFrame(),
+					driverConsumedFrame("item_1"),
+					driverElicitationToolFrame("elicit_1", "Bash"),
+					driverIdleFrame("resp_claude_a"),
+					driverDoneFrame(),
+				},
+				SessionResps: []string{
+					driverSessionWithItems("conv_deny", "ag_1",
+						driverReplyItem("item_reply", "resp_claude_a",
+							driverVerdict("Could not run it.", "approve"))),
+				},
+			})
+
+			cfg := driverTestConfig(t, fs.URL)
+			req := testWork{Repo: "sei-protocol/sandbox", PR: 31, Trigger: "trigger-deny"}
+			d := newTestDriver(cfg, tc.policy, driverTestLogger())
+
+			if result := d.Run(t.Context(), req); result.ExitCode != driver.ExitOK {
+				t.Fatalf("ExitCode = %d, want driver.ExitOK: a declined prompt is the "+
+					"agent's problem to work around, not a failed run", result.ExitCode)
+			}
+
+			var approvals []driverEventReq
+			for _, e := range fs.EventReqs() {
+				if e.Type == "approval" {
+					approvals = append(approvals, e)
+				}
+			}
+			if len(approvals) != 1 {
+				t.Fatalf("approval POSTs = %d, want exactly 1", len(approvals))
+			}
+			if got := approvals[0].Data["action"]; got != "decline" {
+				t.Errorf("data.action = %v, want decline: the policy allows no such "+
+					"tool, and the verdict on the wire is the only thing that enforces it", got)
+			}
+		})
+	}
+}
+
 // TestDriverAllowsAToolNamedOnlyOnTheWire guards a regression that shipped once.
 //
 // tool_name is not a declared field on the elicitation params, so it survives only

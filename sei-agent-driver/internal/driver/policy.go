@@ -51,12 +51,19 @@ type Elicitation struct {
 	// allowlist to prefer: see [Policy.AllowPolicies] for why policy_name is not.
 	ToolName string
 
-	// Message is the prompt text shown to a human. Model-influenced. Logged,
-	// never classified on.
+	// Message is the prompt text shown to a human. Model-influenced, and never
+	// classified on.
+	//
+	// Not logged either, deliberately: it is neither clipped nor scanned for
+	// credentials, so logging it as written would put unbounded model output into a
+	// workflow log. ContentPreview is what the decision log carries instead, and it
+	// goes through both.
 	Message string
 
 	// ContentPreview is a truncated preview of the gated content.
-	// Model-influenced. Logged, never classified on.
+	// Model-influenced, never classified on. Logged, after a credential scan of the
+	// whole value and a clip -- in that order, since clipping first can cut a
+	// credential below the length its pattern needs.
 	ContentPreview string
 
 	// TargetSessionID is set when the prompt is mirrored from another session,

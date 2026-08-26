@@ -154,12 +154,24 @@ func (d *Driver) Close(ctx context.Context, w Workload) (result Result) {
 	//
 	// The budget is a small multiple of one request rather than the run's, because
 	// this is a handful of requests and it usually runs on a process that is already
-	// terminating. A runner grants seconds before it sends SIGKILL, so a twenty
-	// minute budget does not buy twenty minutes -- it only means the process is
-	// killed part-way through with the delete never issued, and the sandbox held.
+	// terminating. A runner grants a bounded window before it sends SIGKILL, so a
+	// twenty minute budget does not buy twenty minutes -- it only means the process
+	// is killed part-way through with the delete never issued, and the sandbox held.
 	// Floored, so a Config that never went through LoadConfig cannot hand teardown
 	// no budget at all -- which would silently skip the reclaim this method exists
 	// to perform.
+	//
+	// The same argument applies to this budget and is not resolved here. At the
+	// default request timeout it is two minutes, which the runner's window may also
+	// be shorter than, and nothing in this process reads that window to find out.
+	// Minting is the largest share of it: three attempts at one request timeout each,
+	// plus backoff, can spend most of the budget before a session has been listed --
+	// and the deletes, the only step that frees anything, take what is left.
+	//
+	// Picking a smaller number without measuring the window would trade one guess
+	// for another, so what is written down is the assumption: this is only as good
+	// as the grace the runner actually grants. Measure a teardown that was killed
+	// mid-flight before changing the multiplier.
 	budget := max(4*d.cfg.RequestTimeout, minTeardownBudget)
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
 	defer cancel()
