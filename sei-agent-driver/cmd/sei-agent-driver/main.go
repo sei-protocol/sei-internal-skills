@@ -60,14 +60,18 @@ func resolvedVersion() string {
 	return version
 }
 
-// logLevel reads XREVIEW_LOG_LEVEL, defaulting to info.
+// logLevel reads LOG_LEVEL, defaulting to info.
+//
+// Unprefixed, unlike this tool's own knobs: verbosity is the runner's business
+// rather than this review's, and a workflow setting it once for every step should
+// not have to know which binary reads it.
 //
 // Debug carries a line per HTTP request with the connection it used and how long it
 // had been idle. That is noise on a healthy run and the whole diagnosis on a run
 // whose connection died, so it is a knob rather than a rebuild.
 func logLevel() slog.Level {
 	var level slog.Level
-	if err := level.UnmarshalText([]byte(os.Getenv("XREVIEW_LOG_LEVEL"))); err != nil {
+	if err := level.UnmarshalText([]byte(os.Getenv("LOG_LEVEL"))); err != nil {
 		return slog.LevelInfo
 	}
 	return level
@@ -133,7 +137,7 @@ func xreviewCommand(log *slog.Logger) *cli.Command {
 				Usage: "guidance this repository adds to every review",
 			},
 			&cli.StringFlag{
-				Name:  "prior-threads",
+				Name:  "conversation-context",
 				Usage: "read this tool's earlier findings and their replies from here as json",
 			},
 			&cli.StringFlag{
@@ -227,7 +231,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	// A history that cannot be read is not a reason to refuse the review. The
 	// review is still correct without it — it just repeats itself — where refusing
 	// leaves the pull request with no review at all.
-	if path := cmd.String("prior-threads"); path != "" {
+	if path := cmd.String("conversation-context"); path != "" {
 		threads, err := readPriorThreads(path)
 		if err != nil {
 			log.Warn("could not read the earlier findings; reviewing without them",

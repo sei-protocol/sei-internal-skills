@@ -34,7 +34,7 @@ runs the same way in a terminal.
 ## Usage
 
 ```
-sei-agent-driver xreview <owner/name> <pr-number> [--out FILE] [--trigger-id ID]
+sei-agent-driver xreview <owner/name> <pr-number> [--out FILE] [--trigger-id ID] [...]
 ```
 
 - `<owner/name> <pr-number>` — the pull request to review. Both are
@@ -64,6 +64,26 @@ sei-agent-driver xreview <owner/name> <pr-number> [--out FILE] [--trigger-id ID]
 Machine-readable output (session id, exit code, teardown flag, and the
 decision when there is one) is printed to stdout as JSON on every run;
 logs go to stderr as structured (`slog`) JSON.
+
+The remaining flags are optional and default to off. Each output flag writes only
+when there is something to write, on the same rule as `--out`: absence is the
+signal, so a caller never posts a stale file from a previous run.
+
+- `--findings-out FILE` — write the observations that name a line, as json, for a
+  caller to post as inline comments. Empty when the review placed none, which is
+  ordinary rather than a failure.
+- `--check-out FILE` — write the check run as json: conclusion, title and summary.
+  The conclusion is derived from the findings, not from the word the agent used for
+  itself, so a review that says `approve` while listing blockers still fails.
+- `--guidelines-file PATH` — a path *inside the reviewed repository* holding the
+  guidance that repository adds to every review. Read by the agent in its sandbox,
+  not by this process.
+- `--extra-instructions TEXT` — additional guidance for this dispatch only. Carried
+  into both the first prompt and the adopted one.
+- `--conversation-context FILE` — this tool's earlier findings and their replies, as
+  json, so a re-review can say what changed instead of repeating itself. A file that
+  cannot be read is a warning rather than a refusal: the review is still correct
+  without it.
 
 ## Environment variables
 
@@ -130,7 +150,7 @@ assuming a blank allowlist is merely "cautious."**
 | `XREVIEW_REQUEST_TIMEOUT_S` | `30` | Bounds the requests this driver times itself: the token mint and the post-turn reply read. It is deliberately not handed to the SDK as a unary timeout: the client's own calls (listing, create, send, resolve) are bounded by `XREVIEW_UNARY_TIMEOUT_S` instead, so tightening this does not tighten those. The event stream is bounded by `XREVIEW_STREAM_IDLE_TIMEOUT_S` instead. |
 | `XREVIEW_STREAM_IDLE_TIMEOUT_S` | `300` | How long the event stream may sit silent before it's treated as dead. The server heartbeats an idle stream every 15s, so this must stay comfortably above that or a healthy idle stream gets torn down between turns. Minutes rather than seconds because a *newly created* session is quiet while its sandbox provisions, clones the repository and connects a runner: a measured launch produced two heartbeats in 90 seconds while cloning a large repo, and the old 90s default killed the review before the agent existed. The run deadline is the real backstop. |
 | `XREVIEW_UNARY_TIMEOUT_S` | `150` | Bounds one non-streaming SDK call — listing, create, send, resolve. Longer than `XREVIEW_REQUEST_TIMEOUT_S` because a session create is slower than a read. Left at zero the SDK applies its own default, which is shorter than a create. |
-| `XREVIEW_LOG_LEVEL` | `info` | Log verbosity. `debug` adds a record per request, which is what joins a run to gateway access logs; successful traces are not logged below it. |
+| `LOG_LEVEL` | `info` | Log verbosity. `debug` adds a record per request, which is what joins a run to gateway access logs; successful traces are not logged below it. |
 
 Each of these must parse as a positive number; zero, negative, or
 non-numeric values are rejected as configuration errors rather than silently
