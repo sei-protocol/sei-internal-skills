@@ -28,7 +28,7 @@ func TestElicitationFromEventMapsAttestedAndModelFields(t *testing.T) {
 
 		ev := omnigent.ElicitationRequestEvent{
 			ElicitationID: "elicit_1",
-			Type:          omnigent.ElicitationRequestEventTypeResponseElicitationRequest,
+			Type:          "response.elicitation_request",
 			Params: omnigent.ElicitationRequestParams{
 				Message:              "Approve running this?",
 				Phase:                &phase,
@@ -40,7 +40,7 @@ func TestElicitationFromEventMapsAttestedAndModelFields(t *testing.T) {
 			},
 		}
 
-		got := ElicitationFromEvent(ev)
+		got := elicitationFromEvent(ev)
 		want := driver.Elicitation{
 			ID:              "elicit_1",
 			Phase:           phase,
@@ -52,7 +52,7 @@ func TestElicitationFromEventMapsAttestedAndModelFields(t *testing.T) {
 			TargetSessionID: targetSession,
 		}
 		if got != want {
-			t.Errorf("ElicitationFromEvent = %+v, want %+v", got, want)
+			t.Errorf("elicitationFromEvent = %+v, want %+v", got, want)
 		}
 	})
 
@@ -60,17 +60,17 @@ func TestElicitationFromEventMapsAttestedAndModelFields(t *testing.T) {
 		t.Parallel()
 		ev := omnigent.ElicitationRequestEvent{
 			ElicitationID: "elicit_2",
-			Type:          omnigent.ElicitationRequestEventTypeResponseElicitationRequest,
+			Type:          "response.elicitation_request",
 			Params: omnigent.ElicitationRequestParams{
 				Message: "hi",
 				// Phase, PolicyName, Mode, ContentPreview, TargetSessionID and
 				// AdditionalProperties are all left nil/unset.
 			},
 		}
-		got := ElicitationFromEvent(ev)
+		got := elicitationFromEvent(ev)
 		want := driver.Elicitation{ID: "elicit_2", Message: "hi"}
 		if got != want {
-			t.Errorf("ElicitationFromEvent = %+v, want %+v", got, want)
+			t.Errorf("elicitationFromEvent = %+v, want %+v", got, want)
 		}
 	})
 }
@@ -109,8 +109,8 @@ func TestElicitationFromSnapshotBothShapes(t *testing.T) {
 				"target_session_id": "conv_child_2",
 			},
 		}
-		if got := ElicitationFromSnapshot(raw); got != want {
-			t.Errorf("ElicitationFromSnapshot(nested) = %+v, want %+v", got, want)
+		if got := elicitationFromSnapshot(raw); got != want {
+			t.Errorf("elicitationFromSnapshot(nested) = %+v, want %+v", got, want)
 		}
 	})
 
@@ -126,15 +126,15 @@ func TestElicitationFromSnapshotBothShapes(t *testing.T) {
 			"content_preview":   "prev",
 			"target_session_id": "conv_child_2",
 		}
-		if got := ElicitationFromSnapshot(raw); got != want {
-			t.Errorf("ElicitationFromSnapshot(flat) = %+v, want %+v", got, want)
+		if got := elicitationFromSnapshot(raw); got != want {
+			t.Errorf("elicitationFromSnapshot(flat) = %+v, want %+v", got, want)
 		}
 	})
 
 	t.Run("id falls back to the bare id key", func(t *testing.T) {
 		t.Parallel()
 		raw := map[string]any{"id": "elicit_4", "policy_name": policyAllowed, "message": "hi"}
-		got := ElicitationFromSnapshot(raw)
+		got := elicitationFromSnapshot(raw)
 		if got.ID != "elicit_4" {
 			t.Errorf("ID = %q, want %q", got.ID, "elicit_4")
 		}
@@ -149,7 +149,7 @@ func TestElicitationFromSnapshotBothShapes(t *testing.T) {
 				"policy_name": "nested-value",
 			},
 		}
-		got := ElicitationFromSnapshot(raw)
+		got := elicitationFromSnapshot(raw)
 		if got.PolicyName != "nested-value" {
 			t.Errorf("PolicyName = %q, want %q (nested params must win)", got.PolicyName, "nested-value")
 		}
@@ -163,7 +163,7 @@ func TestElicitationFromSnapshotBothShapes(t *testing.T) {
 				"policy_name": 12345, // a number where the wire contract says a string
 			},
 		}
-		got := ElicitationFromSnapshot(raw)
+		got := elicitationFromSnapshot(raw)
 		if got.PolicyName != "" {
 			t.Errorf("PolicyName = %q, want empty: a non-string value must not be stringified into a classifiable name", got.PolicyName)
 		}

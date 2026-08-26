@@ -49,7 +49,7 @@ const connectionOpenLimit = 40
 // Turn implements [driver.Conversation].
 //
 // Two server-attested facts bound a turn and everything else is inference. The
-// boundary is the item id SendInput returns, echoed back as
+// boundary is the item id posting the prompt returns, echoed back as
 // session.input.consumed: nothing at or before it is publishable, and without that
 // line a previous invocation's completed reply is indistinguishable from a fresh
 // one, because the stream opens by replaying earlier work.
@@ -73,16 +73,6 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 	prompt := ask.Prompt(answered)
 	c.host.log.Info("turn starting", "session_id", c.sessionID,
 		"answered", answered, "harness", c.harness, "prompt_chars", len(prompt))
-
-	// Asked of any session this run did not open: a prompt parked before this
-	// stream existed is never replayed onto it, so it is read from the snapshot
-	// instead. A session an earlier run left blocked on an elicitation has no reply
-	// yet and is exactly the one that needs this.
-	if c.from.continued {
-		if err := c.answerPending(ctx, t.answered); err != nil {
-			return driver.Reply{}, err
-		}
-	}
 
 	// Whether the session can take a prompt now decides when it goes in, and only a
 	// session this run created cannot. One still launching would accept the prompt
@@ -112,6 +102,22 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 	// cap is roughly three minutes and a turn runs longer, so several reconnects are
 	// success rather than failure.
 	for opens := 1; ; opens++ {
+		// Every iteration, not once before the loop. The stream replays nothing, so a
+		// prompt raised while no stream was attached is never delivered -- and the
+		// permission hook blocks the agent synchronously while it waits, so one this
+		// run never answers stalls the turn for the rest of its budget with the
+		// transport looking perfectly healthy. A reconnect is exactly when such a
+		// prompt is sitting there unanswered.
+		//
+		// On the first pass only for a session this run did not open, which is the
+		// one that may already be holding a prompt. After that on every pass, because
+		// a reconnect is precisely when one has been raised with nobody listening.
+		if c.from.continued || opens > 1 {
+			if err := c.answerPending(ctx, t.answered); err != nil {
+				return driver.Reply{}, err
+			}
+		}
+
 		framesBefore := t.frames
 		reply, err := c.consumeTurn(ctx, prompt, t, opts)
 		carriedNothing := t.frames == framesBefore
@@ -130,28 +136,18 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 		// down, in which case the ready edge has already passed and waiting for it
 		// again would hang.
 		if t.anchor == "" {
-			live, busy := c.host.sessionState(ctx, c.client, c.sessionID)
-			switch {
-			case busy:
-				// The send failed without saying whether the server took it, and the
-				// session is now answering something. Sending again would put a second
-				// prompt to a runtime already working on the first, which costs the
-				// agent budget twice and leaves two replies nothing can tell apart.
-				// SendInput carries no idempotency key, so it must not be repeated.
-				//
-				// Fatal rather than deferred. Waiting for that turn to finish and then
-				// resending is the same double-send one reconnect later, and this run
-				// has no anchor, so it could not attribute the reply even if it waited.
-				// Reporting it now costs the run and nothing else.
+			if t.attempted {
+				// A send went out and its acknowledgement never arrived, so whether the
+				// server took the prompt is unknowable from here. Sending again would
+				// put a second prompt to a runtime that may already be answering the
+				// first, and this run has no anchor, so it could not attribute either
+				// reply. Reporting it costs the run and nothing else.
 				t.fail(fmt.Errorf(
-					"%w: the prompt was sent without a usable acknowledgement and the "+
-						"session is already answering, so it cannot be sent again or "+
-						"attributed", driver.ErrTurnFailed))
-				// The turn's own failure, not the stream error that exposed it. The
-				// caller classifies on what it is handed, so returning err here would
-				// report a transport fault and drop the diagnostic just recorded.
+					"%w: the prompt was sent without a usable acknowledgement, so it can "+
+						"neither be sent again nor attributed", driver.ErrTurnFailed))
 				return reply, t.failure
-			case live:
+			}
+			if c.host.sessionIsLive(ctx, c.client, c.sessionID) {
 				opts.OnSubscribed = c.sendOnSubscribe(prompt, t)
 			}
 			continue
@@ -217,8 +213,8 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 // direction: the worst case is answering in full twice, against putting a follow-up
 // question to an agent that never answered the first one.
 func holdsAnswer(items []omnigent.ConversationItem, done func(string) bool) bool {
-	for _, id := range ReplyGroupsSince(items, nil) {
-		if reply, ok := TurnReply(items, id); ok && done(reply.Text) {
+	for _, id := range replyGroupsSince(items, nil) {
+		if reply, ok := turnReply(items, id); ok && done(reply.Text) {
 			return true
 		}
 	}
@@ -261,7 +257,7 @@ func (c *conversation) consumeTurn(
 			t.crossBoundary(e)
 
 		case omnigent.ElicitationRequestEvent:
-			if err := c.answer(ctx, ElicitationFromEvent(e), t.answered); err != nil {
+			if err := c.answer(ctx, elicitationFromEvent(e), t.answered); err != nil {
 				t.fail(err)
 			}
 
@@ -306,7 +302,11 @@ func (c *conversation) consumeTurn(
 // anchor, so this refuses rather than working blind — streaming on would burn the
 // run deadline before saying so.
 func (c *conversation) sendPrompt(ctx context.Context, sessionID, prompt string, t *turn) error {
-	accepted, err := c.client.SendInput(ctx, sessionID, omnigent.UserMessage(prompt))
+	// Before the call, so a send whose answer never arrives is still remembered as
+	// attempted. See [turn.attempted].
+	t.attempted = true
+
+	accepted, err := c.client.Sessions().SendMessage(ctx, sessionID, prompt)
 	if err != nil {
 		return fmt.Errorf("sending the prompt: %w", err)
 	}
@@ -456,10 +456,11 @@ func (c *conversation) salvageFailedTurn(ctx context.Context, t *turn) (driver.R
 // for, and [conversation.salvageFailedTurn] cannot help — it keys on a failure edge
 // a transport drop never produces.
 //
-// Fails closed three ways: only a genuine stream fault is recovered; the prompt
-// must have been echoed, or the run has nothing of its own to find; and exactly
-// one new reply group must exist and be complete, so an ambiguous or unfinished
-// session reports the transport error instead.
+// Fails closed at every step: only a genuine stream fault is recovered; the prompt
+// must have been echoed, or the run has nothing of its own to find; the session must
+// name no active response; exactly one reply group must be new; that group must sit
+// after this turn's prompt; and its reply must be a finished answer. Anything short of
+// all six reports the transport error instead.
 func (c *conversation) recoverFromStreamLoss(
 	ctx context.Context,
 	t *turn,
@@ -487,7 +488,7 @@ func (c *conversation) recoverFromStreamLoss(
 	readCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.host.cfg.RequestTimeout)
 	defer cancel()
 
-	session, err := c.client.GetSession(readCtx, c.sessionID, omnigent.GetSessionOptions{
+	session, err := c.client.Sessions().Get(readCtx, c.sessionID, omnigent.GetSessionOptions{
 		IncludeItems: omnigent.Ptr(true),
 	})
 	if err != nil {
@@ -508,7 +509,7 @@ func (c *conversation) recoverFromStreamLoss(
 		return driver.Reply{}, cause
 	}
 
-	groups := ReplyGroupsSince(session.Items, t.prior)
+	groups := replyGroupsSince(session.Items, t.prior)
 	if len(groups) != 1 {
 		// Two replies cannot be told apart, and waiting will not separate them.
 		// None means the turn has committed nothing yet, which waiting still can.
@@ -521,7 +522,7 @@ func (c *conversation) recoverFromStreamLoss(
 	// The group above was found by asking which ids are new, which is the negative
 	// filter the package doc forbids. Requiring the reply to sit after this turn's
 	// prompt is the positive half that filter cannot carry.
-	if !GroupIsAfterAnchor(session.Items, t.anchorItem, groups[0]) {
+	if !groupIsAfterAnchor(session.Items, t.anchorItem, groups[0]) {
 		c.host.log.Warn("stream died and the new reply does not sit after this turn's prompt",
 			"session_id", c.sessionID, "anchor_item_id", t.anchorItem,
 			"response_id", groups[0], "error", cause)
@@ -567,14 +568,14 @@ func (c *conversation) fetchReply(
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.host.cfg.RequestTimeout)
 	defer cancel()
 
-	session, err := c.client.GetSession(ctx, c.sessionID, omnigent.GetSessionOptions{
+	session, err := c.client.Sessions().Get(ctx, c.sessionID, omnigent.GetSessionOptions{
 		IncludeItems: omnigent.Ptr(true),
 	})
 	if err != nil {
 		return driver.Reply{}, fmt.Errorf("reading the session for a reply: %w", err)
 	}
 
-	if groups := ReplyGroupsSince(session.Items, prior); len(groups) > 1 {
+	if groups := replyGroupsSince(session.Items, prior); len(groups) > 1 {
 		// Two turns replied into this session while ours ran. Nothing on the wire
 		// says which is ours, so this refuses rather than choosing the newest —
 		// which publishes another invocation's answer as this one's.
@@ -583,7 +584,7 @@ func (c *conversation) fetchReply(
 		return driver.Reply{Reason: "another turn replied into this session while ours ran"}, nil
 	}
 
-	reply, ok := TurnReply(session.Items, turnID)
+	reply, ok := turnReply(session.Items, turnID)
 	if !ok {
 		c.host.log.Warn("no reply carries this turn's response id",
 			"session_id", c.sessionID, "turn_id", turnID, "items", len(session.Items))
@@ -593,8 +594,8 @@ func (c *conversation) fetchReply(
 	// A minted bearer is deliberately not among the literals. It lives in a local
 	// in newClient rather than on the config, and holding it here to scan for it
 	// would buy nothing: the sandbox never sees this process's bearer, so the agent
-	// cannot quote it. What the agent does hold is its own gh credentials, which
-	// the patterns cover.
+	// cannot quote it. What the agent does hold is its own gh credentials, whose
+	// literal form the patterns recognise.
 	if shape := driver.ScanSecrets(reply.Text, c.host.cfg.Token, c.host.cfg.MachineClientSecret); shape != "" {
 		// Fail closed here rather than at the publish step: this is the last point
 		// where the text is still inside the driver, and the pull requests it posts
@@ -607,8 +608,11 @@ func (c *conversation) fetchReply(
 	// The preview rides on every run, not only the failing ones. A reply is the one
 	// thing here the logs cannot otherwise reconstruct, and a short one is the first
 	// symptom of a turn that ended early, so a dropped stream and an agent that gave
-	// up stay tellable apart afterwards. Safe to log because the credential scan
-	// above has already returned on anything shaped like a secret.
+	// up stay tellable apart afterwards.
+	//
+	// The scan above has returned on every shape it recognises, which is the most that
+	// can be said for it: [driver.ScanSecrets] names the classes it cannot see, so this
+	// is a residual risk accepted for the diagnostic rather than one the scan closes.
 	c.host.log.Info("reply attributed", "session_id", c.sessionID, "turn_id", turnID,
 		"item_id", reply.ItemID, "chars", len(reply.Text),
 		"preview", clip(reply.Text, replyPreviewChars))
@@ -624,12 +628,12 @@ func (c *conversation) fetchReply(
 // answer stalls the run for the rest of its budget while the transport stays
 // perfectly healthy — which is why it must not be logged and carried past.
 func (c *conversation) answerPending(ctx context.Context, answered map[string]bool) error {
-	session, err := c.client.GetSession(ctx, c.sessionID, omnigent.GetSessionOptions{})
+	session, err := c.client.Sessions().Get(ctx, c.sessionID, omnigent.GetSessionOptions{})
 	if err != nil {
 		return fmt.Errorf("reading this session's parked prompts: %w", err)
 	}
 	for _, raw := range session.PendingElicitations {
-		if err := c.answer(ctx, ElicitationFromSnapshot(raw), answered); err != nil {
+		if err := c.answer(ctx, elicitationFromSnapshot(raw), answered); err != nil {
 			return err
 		}
 	}
@@ -669,8 +673,19 @@ func (c *conversation) answer(
 		"target_session_id", e.ResolveSession(c.sessionID),
 		"action", action, "reason", reason, "preview", preview)
 
+	// Answered through the dedicated resolve URL, which is what upstream's own client
+	// does for every verdict -- it does not branch on the elicitation's mode. The
+	// route is absent from the vendored spec because the server registers it
+	// include_in_schema=False, not because it is unsupported; both it and a
+	// type:"approval" input reach the same server-side resolver.
+	//
+	// There is no answer to read. The route acks {"queued": false} on success and
+	// carries no denial field, and neither does the approval branch of the events
+	// route: the server's denied/reason shape belongs to a message input refused by
+	// the input policy, which a verdict never passes through. So a non-2xx is the only
+	// signal that the agent is still blocked.
 	target := e.ResolveSession(c.sessionID)
-	if _, err := c.client.ResolveElicitation(ctx, target, e.ID,
+	if err := c.client.Sessions().ResolveElicitation(ctx, target, e.ID,
 		omnigent.ElicitationResult{Action: omnigent.ElicitationAction(action)}); err != nil {
 		// Deliberately not ErrTurnFailed. The turn did not fail; we failed to
 		// answer it, and reporting the agent's outcome for our own transport

@@ -7,10 +7,10 @@ import (
 
 // TestScoutRunKeysNeverCollide guards session identity.
 //
-// The run key IS the session: a later dispatch adopts whatever it matches. Two
-// roles sharing a key means a scout wakes up inside the review's conversation,
-// reads the verdict it was supposed to be independent of, and agrees with it. The
-// arrangement's only purpose is independence, and this is what enforces it.
+// The run key IS the session: a later dispatch adopts whatever it matches. Two roles
+// sharing a key means a scout wakes up inside the review's conversation, reads the
+// verdict it was supposed to be independent of, and agrees with it. The arrangement's
+// only purpose is independence, and this is what enforces it.
 func TestScoutRunKeysNeverCollide(t *testing.T) {
 	const repo, pr = "sei-protocol/sei-chain", 3861
 	review := RunKey(repo, pr)
@@ -40,10 +40,10 @@ func TestScoutRunKeysNeverCollide(t *testing.T) {
 
 // TestScoutCompleteRequiresAFindingsBlock guards the turn-end contract.
 //
-// A session reports itself idle between tool calls, so this is the only reliable
-// signal that a scout has finished. Accepting prose ends the turn on an opening
-// sentence; refusing an empty findings list hangs a scout that correctly found
-// nothing, and the run burns to its deadline.
+// A session reports itself idle between tool calls, so this is the only reliable signal
+// that a scout has finished. Accepting prose ends the turn on an opening sentence.
+// Refusing an empty findings list hangs a scout that correctly found nothing, and the
+// run burns to its deadline.
 func TestScoutCompleteRequiresAFindingsBlock(t *testing.T) {
 	s := NewScout(Request{Repo: "sei-protocol/sei-chain", PR: 3861}, "codex", "sei-droid-codex")
 
@@ -55,8 +55,8 @@ func TestScoutCompleteRequiresAFindingsBlock(t *testing.T) {
 		{"prose only", "I am starting to look at the diff now.", false},
 		{"block without findings", "done\n```json\n{\"read\": 9, \"summary\": \"fine\"}\n```", false},
 		{"malformed block", "done\n```json\n{\"findings\": [}\n```", false},
-		// Without the read count the orchestrator cannot tell a scout that read
-		// the diff from one that never got it, so the report is not an answer.
+		// Without the read count the orchestrator cannot tell a scout that read the diff from
+		// one that never got it. The report is then not an answer.
 		{"findings without a read count", "done\n```json\n{\"findings\": []}\n```", false},
 		{"read nothing is an answer", "the fetch failed\n```json\n{\"read\": 0, \"findings\": []}\n```", true},
 		{"read and found nothing", "clean\n```json\n{\"read\": 812, \"findings\": []}\n```", true},
@@ -73,7 +73,7 @@ func TestScoutCompleteRequiresAFindingsBlock(t *testing.T) {
 // rest on.
 //
 // A scout reports findings and no decision; the review decides. If either parser
-// accepted the other's block, a scout could end its turn on a quoted verdict, or a
+// accepted the other's block, a scout could end its turn on a quoted verdict. Or a
 // review could publish a scout's reading as its own decision.
 func TestScoutAndVerdictContractsStayApart(t *testing.T) {
 	scoutReply := "found one\n```json\n{\"read\": 812, \"findings\": [" +
@@ -91,8 +91,8 @@ func TestScoutAndVerdictContractsStayApart(t *testing.T) {
 	}
 }
 
-// TestScoutPromptsNameTheDiffCommand guards the property that makes a reading a
-// reading, for the same reason the review's prompts are held to it: an abstract
+// TestScoutPromptsNameTheDiffCommand guards the property that makes a reading a reading.
+// It is held to that for the same reason the review's prompts are: an abstract
 // instruction to inspect the diff is satisfiable by `gh pr view`.
 func TestScoutPromptsNameTheDiffCommand(t *testing.T) {
 	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
@@ -118,8 +118,8 @@ func TestScoutPromptsNameTheDiffCommand(t *testing.T) {
 		}
 	}
 
-	// The scout must not be asked for a decision: that is the review's, and two
-	// deciding blocks in one conversation is how a verdict becomes ambiguous.
+	// The scout must not be asked for a decision. That is the review's, and two deciding
+	// blocks in one conversation is how a verdict becomes ambiguous.
 	if strings.Contains(ScoutPrompt(req), `"decision"`) {
 		t.Error("ScoutPrompt asks the scout for a decision, which belongs to the review")
 	}
@@ -141,10 +141,10 @@ func TestScoutNamesItsOwnAgent(t *testing.T) {
 // TestScoutReportSeparatesAFailedReadFromACleanOne guards the distinction three
 // doc comments claim the design rests on.
 //
-// A scout that never got the diff and a scout that read it and found nothing both
-// close with an empty findings list. Only the read count separates them, and
-// without it the orchestrator renders the first as the second — positive evidence
-// of a clean review, generated indefinitely, with no error anywhere.
+// A scout that never got the diff and a scout that read it and found nothing both close
+// with an empty findings list. Only the read count separates them. Without it the
+// orchestrator renders the first as the second: positive evidence of a clean review,
+// generated indefinitely, with no error anywhere.
 func TestScoutReportSeparatesAFailedReadFromACleanOne(t *testing.T) {
 	t.Parallel()
 
@@ -166,9 +166,9 @@ func TestScoutReportSeparatesAFailedReadFromACleanOne(t *testing.T) {
 	}
 }
 
-// TestParseScoutReportSaysWhyItRefused guards the operator's diagnostic. The
-// sibling ParseVerdict sets a distinct reason on every refusal path; a scout that
-// burns its whole budget and returns one generic sentence tells nobody anything.
+// TestParseScoutReportSaysWhyItRefused guards the operator's diagnostic. The sibling
+// ParseVerdict sets a distinct reason on every refusal path. A scout that burns its whole
+// budget and returns one generic sentence tells nobody anything.
 func TestParseScoutReportSaysWhyItRefused(t *testing.T) {
 	t.Parallel()
 
@@ -230,10 +230,10 @@ func TestReconcileStepWillNotPointTheReviewOutOfTheTree(t *testing.T) {
 	}
 }
 
-// TestBothScoutPromptsCarryTheSchema pins the reason the review's own rules are
-// restated on the adopted path: a session replays only its first prompt, so a
-// contract the scout is told to recall is one it may not be able to re-read — and
-// a back-reference points at the old schema if this contract ever changes.
+// TestBothScoutPromptsCarryTheSchema pins the reason the review's own rules are restated
+// on the adopted path. A session replays only its first prompt, so a contract the scout
+// is told to recall is one it may not be able to re-read. And a back-reference points at
+// the old schema if this contract ever changes.
 func TestBothScoutPromptsCarryTheSchema(t *testing.T) {
 	t.Parallel()
 

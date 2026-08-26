@@ -15,7 +15,7 @@ import (
 func TestPlaceableFindingsDropsWhatCannotBePlaced(t *testing.T) {
 	t.Parallel()
 
-	v := ParseVerdict("prose\n\n```json\n" + `{"decision":"comment","summary":"s","findings":[
+	v := ParseVerdict("prose\n\n```json\n" + `{"read": 120, "decision": "comment","summary":"s","findings":[
 		{"file":"a.go","line":12,"severity":"high","detail":"placeable"},
 		{"file":"","line":9,"severity":"low","detail":"no file"},
 		{"file":"b.go","line":0,"severity":"low","detail":"no line"},
@@ -54,7 +54,7 @@ func TestPlaceableFindingsOnNoVerdict(t *testing.T) {
 func TestPlaceableFindingsReadsTheCurrentContract(t *testing.T) {
 	t.Parallel()
 
-	v := verdictFrom(t, `{"decision":"request_changes","summary":"s",
+	v := verdictFrom(t, `{"read": 120, "decision": "request_changes","summary":"s",
 	  "inline_comments":[
 	    {"path":"a.go","line":10,"side":"RIGHT","severity":"blocker","body":"boom"},
 	    {"path":"b.go","line":4,"side":"LEFT","severity":"nit","body":"gone"},
@@ -90,15 +90,15 @@ func TestPlaceableFindingsReadsTheCurrentContract(t *testing.T) {
 	}
 }
 
-// TestPlaceableFindingsStillReadsTheOlderContract is the one that stops a schema
-// change from going silent. A session that reviewed before this contract carries
-// its first prompt in context and cannot be told otherwise, so it keeps answering
-// in the vocabulary it learned. Reading only the new keys would place nothing on
-// every pull request already reviewed, and report success while doing it.
+// TestPlaceableFindingsStillReadsTheOlderContract is the one that stops a schema change
+// from going silent. A session that reviewed before this contract carries its first
+// prompt in context and cannot be told otherwise, so it keeps answering in the vocabulary
+// it learned. Reading only the new keys would place nothing on every pull request already
+// reviewed, and report success while doing it.
 func TestPlaceableFindingsStillReadsTheOlderContract(t *testing.T) {
 	t.Parallel()
 
-	v := verdictFrom(t, `{"decision":"comment","summary":"s",
+	v := verdictFrom(t, `{"read": 120, "decision": "comment","summary":"s",
 	  "findings":[{"file":"a.go","line":10,"severity":"high","detail":"boom"},
 	              {"file":"b.go","line":2,"severity":"low","detail":"minor"}]}`)
 
@@ -125,7 +125,7 @@ func TestCheckConclusion(t *testing.T) {
 		"comment":         "neutral",
 		"approve":         "success",
 	} {
-		v := verdictFrom(t, `{"decision":"`+decision+`","summary":"s"}`)
+		v := verdictFrom(t, `{"read": 120, "decision": "`+decision+`","summary":"s"}`)
 		if got := v.CheckConclusion(); got != want {
 			t.Errorf("decision %q -> %q, want %q", decision, got, want)
 		}
@@ -145,15 +145,15 @@ func verdictFrom(t *testing.T, block string) Verdict {
 	return v
 }
 
-// TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty is the case a fallback
-// misses. A session shown the current schema on re-review knows the new key
-// exists and writes it empty, while still reporting under the vocabulary its
-// first prompt taught. Reading the old key only when the new one is ABSENT
-// places nothing here, and reports success doing it.
+// TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty is the case a fallback misses. A
+// session shown the current schema on re-review knows the new key exists and writes it
+// empty, while still reporting under the vocabulary its first prompt taught. Reading the
+// old key only when the new one is ABSENT places nothing here, and reports success doing
+// it.
 func TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty(t *testing.T) {
 	t.Parallel()
 
-	v := verdictFrom(t, `{"decision":"comment","summary":"s",
+	v := verdictFrom(t, `{"read": 120, "decision": "comment","summary":"s",
 	  "inline_comments":[],
 	  "findings":[{"file":"a.go","line":9,"severity":"high","detail":"boom"}]}`)
 
@@ -172,7 +172,7 @@ func TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty(t *testing.T) {
 func TestPlaceableFindingsDedupesAcrossKeys(t *testing.T) {
 	t.Parallel()
 
-	v := verdictFrom(t, `{"decision":"comment","summary":"s",
+	v := verdictFrom(t, `{"read": 120, "decision": "comment","summary":"s",
 	  "inline_comments":[{"path":"a.go","line":9,"side":"RIGHT","severity":"blocker","body":"boom"}],
 	  "findings":[{"file":"a.go","line":9,"severity":"high","detail":"boom"}]}`)
 
@@ -206,9 +206,9 @@ func TestBothPromptsCarryTheBucketRules(t *testing.T) {
 }
 
 // TestBothPromptsCarryTheRepoContext pins the standards and intent a review
-// reads. Adding a step to one prompt and not the other is how a rule reaches the
-// first dispatch on a pull request and no dispatch after it — and the adopted
-// path is the one almost every review takes.
+// Adding a step to one prompt and not the other is how a rule reaches the first dispatch
+// on a pull request and no dispatch after it. The adopted path is the one almost every
+// review takes.
 func TestBothPromptsCarryTheRepoContext(t *testing.T) {
 	t.Parallel()
 
@@ -218,10 +218,9 @@ func TestBothPromptsCarryTheRepoContext(t *testing.T) {
 		"AdoptedPrompt": AdoptedPrompt(req),
 	} {
 		for _, want := range []string{
-			// From the BASE branch. Read from the working tree, a change that edits
-			// the standards would be handing itself the ones it is judged against —
-			// and they outrank this prompt's checklist, which makes that a way to
-			// approve anything.
+			// From the BASE branch. Read from the working tree, a change that edits the standards
+			// would be handing itself the ones it is judged against. They outrank this prompt's
+			// checklist, which makes that a way to approve anything.
 			"--json baseRefName",
 			"REVIEW.md?ref=$base",
 			"never from pr-42-tree",

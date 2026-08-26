@@ -26,7 +26,7 @@ func TestDriverAdoptsAnExistingSessionForTheSameRunKey(t *testing.T) {
 	// The listing answers with a session already carrying this run key, which is
 	// what a second dispatch of the same trigger would find.
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		CreateResp: driverSessionResp("conv_new", "ag_1"),
 		SessionListResp: `{"data":[{"id":"conv_prior","agent_id":"ag_1","labels":` +
 			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
@@ -74,7 +74,7 @@ func TestDriverCreatesWhenNoSessionCarriesTheRunKey(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages:      []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+		AgentPages:      []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		CreateResp:      driverSessionResp("conv_new", "ag_1"),
 		SessionListResp: `{"data":[],"has_more":false}`,
 		StreamFrames: []string{
@@ -116,7 +116,7 @@ func TestDriverAdoptsRatherThanCreatingWhenTheLabelIsOnALaterPage(t *testing.T) 
 	// into a create. Here the match is on that same page behind a non-matching
 	// entry, which proves the scan does not stop at the first row either.
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		CreateResp: driverSessionResp("conv_new", "ag_1"),
 		SessionListResp: `{"data":[` +
 			`{"id":"conv_other","agent_id":"ag_1","labels":{"` + RunKeyLabel + `":"someone-else"}},` +
@@ -150,7 +150,7 @@ func TestCloseReportsAFailedDelete(t *testing.T) {
 	runKey := testRunKey(req.Repo, req.PR)
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		SessionListResp: `{"data":[{"id":"conv_stuck","agent_id":"ag_1","labels":` +
 			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
 		DeleteStatus: http.StatusInternalServerError,
@@ -181,7 +181,7 @@ func TestCloseDestroysTheSession(t *testing.T) {
 	runKey := testRunKey(req.Repo, req.PR)
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		SessionListResp: `{"data":[{"id":"conv_close","agent_id":"ag_1","labels":` +
 			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
 	})
@@ -202,7 +202,7 @@ func TestCloseIsQuietWhenThereIsNoSession(t *testing.T) {
 	t.Parallel()
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages:      []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+		AgentPages:      []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		SessionListResp: `{"data":[],"has_more":false}`,
 	})
 
@@ -238,7 +238,7 @@ func TestTwoDifferentTriggersShareOneSession(t *testing.T) {
 	// second dispatch adopts rather than creating.
 	runKey := testRunKey(second.Repo, second.PR)
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		CreateResp: driverSessionResp("conv_should_not_be_created", "ag_1"),
 		SessionListResp: `{"data":[{"id":"conv_first","agent_id":"ag_1","labels":` +
 			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
@@ -275,7 +275,7 @@ func TestDriverReplacesASessionThatCannotRunATurn(t *testing.T) {
 	runKey := testRunKey(req.Repo, req.PR)
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		CreateResp: driverSessionResp("conv_fresh", "ag_1"),
 		// Found by run key, but no runner and a host the provider cannot wake.
 		SessionListResp: `{"data":[{"id":"conv_dead","agent_id":"ag_1","runner_online":false,` +
@@ -324,7 +324,7 @@ func TestDriverKeepsASessionWhoseHostCanBeWoken(t *testing.T) {
 	runKey := testRunKey(req.Repo, req.PR)
 
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		CreateResp: driverSessionResp("conv_new", "ag_1"),
 		SessionListResp: `{"data":[{"id":"conv_asleep","agent_id":"ag_1","runner_online":false,` +
 			`"host_resumable":true,"labels":{"` + RunKeyLabel + `":"` + runKey + `"}}],` +
@@ -451,7 +451,7 @@ func TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			tc.cfg.AgentPages = []string{driverAgentPage("ag_1", "sei-droid", "", false)}
+			tc.cfg.AgentPages = []string{driverAgentPage("ag_1", "seidroid", "", false)}
 			tc.cfg.StreamFrames = []string{
 				driverAckFrame(),
 				driverConsumedFrame("item_1"),
@@ -498,8 +498,8 @@ func TestDriverResolvesTheAgentTheWorkNames(t *testing.T) {
 			// One page carrying both, so the name is what selects between them
 			// rather than which page happens to be served.
 			AgentPages: []string{`{"data":[` +
-				`{"id":"ag_1","name":"sei-droid","created_at":1},` +
-				`{"id":"ag_2","name":"sei-droid-codex","created_at":1}],"has_more":false}`},
+				`{"id":"ag_1","name":"seidroid","created_at":1},` +
+				`{"id":"ag_2","name":"seidroid-codex","created_at":1}],"has_more":false}`},
 			CreateResp:      driverSessionResp("conv_a", "ag_1"),
 			SessionListResp: `{"data":[],"has_more":false}`,
 			StreamFrames: []string{
@@ -520,7 +520,7 @@ func TestDriverResolvesTheAgentTheWorkNames(t *testing.T) {
 	}{
 		{"work naming no agent takes the run's default", testWork{Repo: "r/n", PR: 1}, "ag_1"},
 		{"work naming its own agent gets that one",
-			namingWork{testWork{Repo: "r/n", PR: 1}, "sei-droid-codex"}, "ag_2"},
+			namingWork{testWork{Repo: "r/n", PR: 1}, "seidroid-codex"}, "ag_2"},
 		{"an empty name means no preference",
 			namingWork{testWork{Repo: "r/n", PR: 1}, ""}, "ag_1"},
 	} {
@@ -547,7 +547,7 @@ func TestDriverResolvesTheAgentTheWorkNames(t *testing.T) {
 		// the exit code is the contract a caller has to read. A caller that only
 		// checked err would treat this as a completed reading.
 		result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
-			Run(t.Context(), namingWork{testWork{Repo: "r/n", PR: 1}, "sei-droid-absent"})
+			Run(t.Context(), namingWork{testWork{Repo: "r/n", PR: 1}, "seidroid-absent"})
 		if result.ExitCode != driver.ExitConfig {
 			t.Fatalf("ExitCode = %d, want driver.ExitConfig (%d): falling back to the default would "+
 				"answer on the review's own harness and read like a second opinion",
@@ -573,7 +573,7 @@ func TestCloseSurvivesACancelledRunEndToEnd(t *testing.T) {
 
 	runKey := testRunKey("sei-protocol/sandbox", 22)
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		SessionListResp: `{"data":[{"id":"conv_1","labels":` +
 			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
 		SessionResps: []string{driverSessionResp("conv_1", "ag_1")},
@@ -606,7 +606,7 @@ func TestCloseDeletesEverySessionUnderTheRunKey(t *testing.T) {
 
 	runKey := testRunKey("sei-protocol/sandbox", 22)
 	fs := newDriverFakeServer(t, driverFakeServerConfig{
-		AgentPages: []string{driverAgentPage("ag_1", "sei-droid", "ag_1", false)},
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
 		SessionListResp: `{"data":[` +
 			`{"id":"conv_a","labels":{"` + RunKeyLabel + `":"` + runKey + `"}},` +
 			`{"id":"conv_b","labels":{"` + RunKeyLabel + `":"` + runKey + `"}},` +

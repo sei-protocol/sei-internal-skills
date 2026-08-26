@@ -28,6 +28,11 @@ import (
 //
 // It runs the real binary because the gate lives in main's report(), and a test
 // of the driver alone would not touch it.
+// verdictFileAgent is the agent this test's fake server advertises and the binary
+// is told to resolve. Named rather than defaulted: what this test is about is the
+// verdict file, so it should not fail when the package's default agent is renamed.
+const verdictFileAgent = "verdictfile-agent"
+
 func TestVerdictFileIsWrittenOnlyForAStructuredVerdict(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds a binary")
@@ -74,7 +79,7 @@ func TestVerdictFileIsWrittenOnlyForAStructuredVerdict(t *testing.T) {
 			t.Parallel()
 
 			fs := newDriverFakeServer(t, driverFakeServerConfig{
-				AgentPages:      []string{driverAgentPage("ag_1", "sei-droid", "", false)},
+				AgentPages:      []string{driverAgentPage("ag_1", verdictFileAgent, "", false)},
 				CreateResp:      driverSessionResp("conv_1", "ag_1"),
 				SessionListResp: `{"data":[],"has_more":false}`,
 				StreamFrames: []string{
@@ -94,6 +99,7 @@ func TestVerdictFileIsWrittenOnlyForAStructuredVerdict(t *testing.T) {
 			cmd.Env = append(os.Environ(),
 				"OMNIGENT_BASE_URL="+fs.URL,
 				"OMNIGENT_API_TOKEN=test-token",
+				"SEIDROID_AGENT_ID="+verdictFileAgent,
 				"XREVIEW_RUN_DEADLINE_S=60",
 				"GITHUB_RUN_ID=verdictfile",
 				"GITHUB_RUN_ATTEMPT="+string(rune('a'+i)),

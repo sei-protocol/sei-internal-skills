@@ -12,12 +12,13 @@ import (
 // Scout is one independent reading of a pull request, gathered before the review
 // that merges them.
 //
-// A scout exists to disagree. Its value is entirely in being a reading the
-// synthesis did not produce, so it runs in its own session on its own agent —
-// the agent fixes the harness, and an opinion from the same harness as the one
-// merging it corroborates nothing. Sessions are per scout for the same reason:
-// two scouts sharing a conversation would read each other's findings and
-// converge, which is the failure the whole arrangement exists to avoid.
+// A scout exists to disagree. Its whole value is that the synthesis did not produce
+// it, so it runs in its own session on its own agent. The agent fixes the harness,
+// and an opinion from the same harness as the one merging it corroborates nothing.
+//
+// Sessions are per scout for the same reason. Two scouts sharing a conversation would
+// read each other's findings and converge, which is the failure the whole arrangement
+// exists to avoid.
 type Scout struct {
 	req Request
 
@@ -62,19 +63,19 @@ func (s Scout) Prompt(answered bool) string {
 
 // Complete reports whether a reply is a finished reading.
 //
-// The closing findings block is the test, and for the same reason the review's
-// verdict block is: a session reports itself idle between tool calls, so the
-// driver's own signals cannot separate a scout mid-answer from one that finished.
-// A scout that found nothing still closes with the block and an empty list —
-// "nothing here" is an answer, and it has to be distinguishable from a scout that
-// stopped talking.
+// The closing findings block is the test, for the same reason the review's verdict block
+// is. A session reports itself idle between tool calls, so the driver's own signals
+// cannot separate a scout mid-answer from one that finished.
+//
+// A scout that found nothing still closes with the block and an empty list. "Nothing
+// here" is an answer, and it has to be distinguishable from a scout that stopped talking.
 func (s Scout) Complete(text string) bool { return ParseScoutReport(text).HasReport() }
 
 // ScoutRunKey derives the key for one scout's work on one pull request.
 //
-// Joined with NUL like [RunKey], so no scout name can spell a different pull
-// request, and derived over an extra field so a scout's key can never equal the
-// review's for the same pull request.
+// Joined with NUL like [RunKey], so no scout name can spell a different pull request. It
+// is derived over an extra field as well, so a scout's key can never equal the review's
+// for the same pull request.
 func ScoutRunKey(repo string, pr int, scout string) string {
 	sum := sha256.Sum256([]byte(repo + "\x00" + strconv.Itoa(pr) + "\x00" + scout))
 	return hex.EncodeToString(sum[:])[:runKeyLength]
@@ -91,10 +92,10 @@ type ScoutReport struct {
 
 	// Lines is how many lines of diff the scout reported reading.
 	//
-	// It is the one field a scout cannot fill without having run the command,
-	// which is what separates a reading that happened from one that did not. Zero
-	// is the scout saying it never got the diff — an answer, and a different one
-	// from finding nothing in a diff it read.
+	// It is the one field a scout cannot fill without having run the command, which is what
+	// separates a reading that happened from one that did not. Zero is the scout saying it
+	// never got the diff: an answer, and a different one from finding nothing in a diff it
+	// read.
 	Lines int
 
 	// Reason renders why there is no usable report, for the operator who has to
@@ -115,10 +116,10 @@ func (r ScoutReport) HasReport() bool { return r.reported }
 
 // ParseScoutReport decodes a scout's reply.
 //
-// The closing block carries findings and deliberately no decision. That keeps the
-// two contracts apart: [ParseVerdict] recognises a block only when it carries a
-// decision, so a scout's report can never be mistaken for a verdict, and a review
-// that quotes a scout cannot be read as having decided twice.
+// The closing block carries findings and deliberately no decision. That keeps the two
+// contracts apart. [ParseVerdict] recognises a block only when it carries a decision, so
+// a scout's report can never be mistaken for a verdict, and a review that quotes a scout
+// cannot be read as having decided twice.
 func ParseScoutReport(text string) ScoutReport {
 	r := ScoutReport{Text: text}
 
@@ -127,7 +128,15 @@ func ParseScoutReport(text string) ScoutReport {
 		r.Reason = "the reply carries no fenced json block"
 		return r
 	}
+	// The trailing-content rule the verdict parser applies, for the same reason. A scout
+	// reads the same attacker-written diff, and the prompt already tells it to close with one
+	// block and nothing after.
 	last := blocks[len(blocks)-1]
+	if trailing := strings.TrimSpace(text[last[1]:]); trailing != "" {
+		r.Reason = fmt.Sprintf("%d bytes follow the closing block, which must be last",
+			len(trailing))
+		return r
+	}
 
 	var out map[string]any
 	if err := json.Unmarshal([]byte(text[last[2]:last[3]]), &out); err != nil {
@@ -164,21 +173,22 @@ func ParseScoutReport(text string) ScoutReport {
 
 // ScoutPrompt renders the instruction sent to a scout.
 //
-// It names the diff command for the reason [BuildPrompt] does: an agent told to
-// "inspect the diff" can run `gh pr view` and write a fluent reading of the pull
-// request's summary. The closing block is the other half — it cannot be filled
-// without having looked at lines.
+// It names the diff command for the reason [BuildPrompt] does. An agent told to "inspect
+// the diff" can run `gh pr view` and write a fluent reading of the pull request's
+// summary. The closing block is the other half: it cannot be filled without having looked
+// at lines.
 //
 // A scout gets the diff and no tree, unlike the review. The roles differ: a scout
-// surfaces ranked leads, and the review verifies them against the files. Cloning
-// per scout would also multiply the clone into every sandbox in the gather — they
-// share no filesystem — and the gather is bounded at a fraction of the run, so a
+// surfaces ranked leads, and the review verifies them against the files.
+//
+// Cloning per scout would also multiply the clone into every sandbox in the gather,
+// which share no filesystem. The gather is bounded at a fraction of the run, so a
 // large repository would spend that budget on checkouts rather than readings.
 //
-// A scout is told it is one of several and that another model merges the results.
-// That is not context for its own sake: a scout that believes it is the only
-// reviewer hedges toward completeness, and the merge wants a sharp, ranked opinion
-// it can weigh rather than a survey.
+// A scout is told it is one of several, and that another model merges the results. That
+// is not context for its own sake. A scout that believes it is the only reviewer hedges
+// toward completeness, and the merge wants a sharp, ranked opinion it can weigh rather
+// than a survey.
 func ScoutPrompt(req Request) string {
 	return strings.Join([]string{
 		fmt.Sprintf("Read pull request %s#%d and report what you find.", req.Repo, req.PR),
@@ -235,9 +245,8 @@ func ScoutPrompt(req Request) string {
 
 // scoutSchema is the block a scout closes with.
 //
-// In both prompts rather than referred back to: an adopted session replays only
-// its first prompt, so a schema the scout is told to recall is one it may not be
-// able to re-read.
+// In both prompts rather than referred back to. An adopted session replays only its first
+// prompt, so a schema the scout is told to recall is one it may not be able to re-read.
 func scoutSchema() string {
 	return strings.Join([]string{
 		"read is the line count the command above printed, and 0 if you never got the",
@@ -253,9 +262,9 @@ func scoutSchema() string {
 }
 
 // AdoptedScoutPrompt renders the instruction for a scout that has read this pull
-// request before. It has to say the tree moved for the reason [AdoptedPrompt]
-// does: the scout's memory is of the diff as it stood last time, and nothing about
-// a new message tells it otherwise.
+// request before. It has to say the tree moved, for the reason [AdoptedPrompt] does: the
+// scout's memory is of the diff as it stood last time, and nothing about a new message
+// tells it otherwise.
 func AdoptedScoutPrompt(req Request) string {
 	return strings.Join([]string{
 		fmt.Sprintf("You have read %s#%d before in this session.", req.Repo, req.PR),

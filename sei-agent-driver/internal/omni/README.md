@@ -36,8 +36,9 @@ This file does not restate the rules. If you need them, read `doc.go`.
 ## Reading order
 
 Start with the two files that call nothing. Every rule they hold can be read and
-tested without a server, which is why most of this package's tests exercise them
-directly.
+tested without a server, and `turn_test.go` drives the state machine that way. Most
+of the suite runs the other way round -- a fake server, a real driver, an exit code --
+so a rule is checked where a caller would feel it.
 
 | file | the question it answers | reaches the server |
 |---|---|---|
@@ -52,7 +53,7 @@ directly.
 
 Six pieces carry it. Each is small; together they are the shape of the package.
 
-**The anchor — where our work begins.** `SendInput` returns an id for the prompt,
+**The anchor — where our work begins.** Posting the prompt returns an id for it,
 and the stream echoes it back as `session.input.consumed`. That echo is the
 boundary: nothing at or before it can be ours, because a stream opens by replaying
 earlier work. Two identifiers are involved, because a prompt reaching a live

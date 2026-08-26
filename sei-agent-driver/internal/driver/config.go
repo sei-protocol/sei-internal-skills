@@ -1,7 +1,10 @@
 package driver
 
 import (
+	"encoding/json"
 	"fmt"
+	"log/slog"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -10,13 +13,13 @@ import (
 
 // Defaults for the knobs an operator usually leaves alone.
 const (
-	// DefaultOrigin is the server's first-party non-browser sentinel Origin.
+	// defaultOrigin is the server's first-party non-browser sentinel Origin.
 	// State-changing POSTs are gated by a trusted-origin CSRF check. This driver
 	// is not a browser and sends no Origin of its own, so it announces the
 	// sentinel to pass that guard — the same value the Python client sends.
-	DefaultOrigin = "omnigent://internal"
+	defaultOrigin = "omnigent://internal"
 
-	// DefaultBaseURL is loopback rather than a deployment's address: callers pin
+	// defaultBaseURL is loopback rather than a deployment's address: callers pin
 	// this binary at a ref, so a hostname here would tie every one of them to one
 	// deployment and point a bare local run at it. OMNIGENT_BASE_URL carries the
 	// real one.
@@ -27,11 +30,16 @@ const (
 	// runs the job and which URL it dials are independent, so the runner can still
 	// be in-cluster — and what the opt-out would unlock is worse: header auth is
 	// safe only because nothing outside the mesh can set X-Forwarded-Email.
-	DefaultBaseURL = "http://127.0.0.1:6767"
+	defaultBaseURL = "http://127.0.0.1:6767"
 
-	// DefaultAgent is the agent name to resolve. A name, not an id: ids differ
+	// defaultAgent is the agent name to resolve. A name, not an id: ids differ
 	// per deployment, so the workflow that calls this cannot hardcode one.
-	DefaultAgent = "sei-droid"
+	//
+	// It has to match the bundle's name on the server exactly -- there is no
+	// lookup-by-alias -- so changing it is a coordinated change with the deployment,
+	// not a rename. A value the server does not know fails the run at agent
+	// resolution, which is loud, and SEIDROID_AGENT_ID overrides it meanwhile.
+	defaultAgent = "seidroid"
 )
 
 // Config is the driver's whole configuration. Every field comes from the
@@ -83,8 +91,14 @@ type Config struct {
 	// server-side and the next invocation's prompt queues behind it.
 	RunDeadline time.Duration
 
-	// RequestTimeout bounds the requests this package times itself: the token mint
-	// and the post-turn reply read.
+	// RequestTimeout bounds each request a [Host] times for itself rather than
+	// leaving to the SDK: the token mint, the liveness probe, the reply read, the
+	// salvage read after a lost stream, and, at four times this value, the whole of a
+	// close.
+	//
+	// So it is not only a per-request knob. Lowering it to fail a slow mint faster
+	// also shortens the liveness probe -- and a probe that times out reads as
+	// not-live, which is what decides whether the prompt goes in at all.
 	//
 	// Not handed to the SDK as a unary timeout, so tightening it does not tighten
 	// the client's own calls. The stream is bounded by StreamIdleTimeout instead,
@@ -94,14 +108,13 @@ type Config struct {
 	// UnaryTimeout bounds one non-streaming exchange. The SDK's own default is
 	// shorter than a session create, which provisions a sandbox before it answers.
 	//
-	// It also prices stream recovery. The streaming client carries no whole-response
-	// timeout, correctly, but shares the unary transport, whose
-	// ResponseHeaderTimeout is this value or thirty seconds, whichever is larger. So
-	// this is equally how long a stream open that never answers takes to give up,
-	// and the re-subscribe loop pays it once per attempt.
+	// It does not price stream recovery, which is worth stating because it reads as
+	// though it should. The SDK would derive its transport's response-header timeout
+	// from this value, but only when no HTTP client is supplied -- and a client is
+	// supplied, so what a dead stream open costs is a constant on that client
+	// instead. Raising this cannot lengthen the wait for a stream that never answers.
 	//
-	// The two pull opposite ways and neither is measured. Raise it against a timed
-	// create, and only as far as the run deadline can absorb several dead opens.
+	// Raise it against a timed create, which is the exchange it does price.
 	UnaryTimeout time.Duration
 
 	// StreamIdleTimeout is how long the stream may be silent before it is treated
@@ -116,15 +129,64 @@ type Config struct {
 	StreamIdleTimeout time.Duration
 }
 
+// LogValue renders the configuration without its credentials.
+//
+// The whole struct is the natural thing to log once at startup, and two of its
+// fields are secrets. Without this, one slog.Any("config", cfg) writes a bearer
+// token into a workflow log that the author of the pull request under review can
+// read.
+//
+// The credentials are reported as set or not rather than dropped, because "which
+// credential did this run use" is the first question a 401 raises, and the answer
+// decides whether an operator looks at the token or at the machine client.
+func (c Config) LogValue() slog.Value {
+	return slog.GroupValue(
+		slog.String("base_url", c.BaseURL),
+		slog.String("origin", c.Origin),
+		slog.String("agent", c.Agent),
+		slog.Bool("token_set", c.Token != ""),
+		slog.String("machine_client_id", c.MachineClientID),
+		slog.Bool("machine_client_secret_set", c.MachineClientSecret != ""),
+		slog.Duration("run_deadline", c.RunDeadline),
+		slog.Duration("request_timeout", c.RequestTimeout),
+		slog.Duration("unary_timeout", c.UnaryTimeout),
+		slog.Duration("stream_idle_timeout", c.StreamIdleTimeout),
+	)
+}
+
+// String keeps a %v or %s of the configuration as safe as logging it, since a
+// struct reaches a message that way just as easily. Derived from [Config.LogValue]
+// so the two cannot come to disagree about which field is a secret.
+//
+// %#v is covered by neither, and nothing reaches it. Nothing renders a Config that
+// way today.
+func (c Config) String() string { return c.LogValue().String() }
+
+// MarshalJSON renders the configuration without its credentials, so an encoder a
+// debug dump reaches for cannot leak one either.
+//
+// Derived from [Config.LogValue], like [Config.String], and that is what makes a
+// field added later safe: this reports the fields the redacted view names, so a new
+// one is absent until somebody puts it there. Per-field json:"-" tags run the other
+// way round -- every secret is exposed until tagged -- and a tag on the field that
+// needs it most is exactly the one that gets forgotten.
+func (c Config) MarshalJSON() ([]byte, error) {
+	fields := make(map[string]any)
+	for _, attr := range c.LogValue().Group() {
+		fields[attr.Key] = attr.Value.Any()
+	}
+	return json.Marshal(fields)
+}
+
 // LoadConfig reads the configuration from the environment.
 //
 // It does not check the credential; that is [Config.RequireAuth], kept separate
 // so a caller can load and inspect a configuration without holding a secret.
 func LoadConfig() (Config, error) {
 	cfg := Config{
-		BaseURL: strings.TrimRight(envOr("OMNIGENT_BASE_URL", DefaultBaseURL), "/"),
-		Origin:  envOr("OMNIGENT_ORIGIN", DefaultOrigin),
-		Agent:   envOr("SEIDROID_AGENT_ID", DefaultAgent),
+		BaseURL: strings.TrimRight(envOr("OMNIGENT_BASE_URL", defaultBaseURL), "/"),
+		Origin:  envOr("OMNIGENT_ORIGIN", defaultOrigin),
+		Agent:   envOr("SEIDROID_AGENT_ID", defaultAgent),
 		Token:   resolveToken(),
 
 		MachineClientID:     strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_ID")),
@@ -203,19 +265,50 @@ func resolveToken() string {
 	return strings.TrimSpace(os.Getenv("OMNIGENT_API_TOKEN"))
 }
 
+// envOr is the value of name, or fallback when it carries none.
+//
+// Looked up rather than read, so present-but-empty is a case this decides rather
+// than one it stumbles into -- and it decides that empty means absent, for every
+// variable here that has a safe default.
+//
+// That is not indifference to the difference. A workflow makes a value overridable
+// by writing `env: NAME: ${{ vars.NAME }}`, and Actions expands an undefined
+// variable to the empty string rather than omitting the entry, as do a
+// reusable-workflow input defaulting to "" and an unset matrix key. So NAME= is
+// usually the runner's artefact and not something an operator said, and there is no
+// way to unset a ${{ }} interpolation from inside the workflow that wrote it.
+// Refusing it would fail every run in the most idiomatic setup there is.
+//
+// Trimmed, because the value travels into an HTTP header and a URL: a trailing
+// newline from a heredoc or a file-backed variable is rejected far from here, by
+// something that names neither the variable nor the newline.
 func envOr(name, fallback string) string {
-	if v := os.Getenv(name); v != "" {
-		return v
+	v, ok := os.LookupEnv(name)
+	if !ok {
+		return fallback
+	}
+	if trimmed := strings.TrimSpace(v); trimmed != "" {
+		return trimmed
 	}
 	return fallback
 }
+
+// maxSeconds bounds every duration read from the environment. Well above any real
+// budget, and far below where a float64 stops converting to a Duration.
+const maxSeconds float64 = 86_400
 
 // secondsOr parses a duration-in-seconds variable, rejecting a value that is not
 // a positive number. A zero or negative deadline would disable the bound it
 // exists to enforce, so it is a configuration error rather than a silent
 // unbounded run.
 func secondsOr(name string, fallback float64) (float64, error) {
-	raw := os.Getenv(name)
+	raw, ok := os.LookupEnv(name)
+	if !ok {
+		return fallback, nil
+	}
+	// Empty means absent here for the same reason as in envOr: an undefined
+	// repository variable arrives as an empty entry, not a missing one.
+	raw = strings.TrimSpace(raw)
 	if raw == "" {
 		return fallback, nil
 	}
@@ -223,8 +316,14 @@ func secondsOr(name string, fallback float64) (float64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("%w: %s must be a number, got %q", ErrConfig, name, raw)
 	}
-	if secs <= 0 {
-		return 0, fmt.Errorf("%w: %s must be positive, got %q", ErrConfig, name, raw)
+	// Finite as well as positive. ParseFloat accepts Inf and NaN, and neither
+	// survives the conversion to a Duration: the Go spec leaves an out-of-range
+	// float-to-int conversion implementation-dependent, so "no limit" becomes either
+	// an instantly expired run or a 292-year one depending on the architecture.
+	// Overflow starts around 9.2e9 seconds, so the ceiling bounds that too.
+	if math.IsNaN(secs) || math.IsInf(secs, 0) || secs <= 0 || secs > maxSeconds {
+		return 0, fmt.Errorf("%w: %s must be a positive number of seconds under %g, got %q",
+			ErrConfig, name, maxSeconds, raw)
 	}
 	return secs, nil
 }

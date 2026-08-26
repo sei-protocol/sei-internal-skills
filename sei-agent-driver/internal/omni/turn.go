@@ -16,10 +16,21 @@ import (
 type turn struct {
 	// anchor is our own prompt's item id, as the server assigned it.
 	//
-	// Set inside the subscription hook, which the SDK documents as running on the
-	// caller's goroutine before the first event reaches it. So it is in place
-	// before anything can be attributed, and needs no synchronisation.
+	// Written by whichever send arm ran: the subscription hook, or the sandbox-ready
+	// handler in the event loop. Both run on the goroutine that ranges the stream --
+	// the SDK spawns none and invokes the hook inline before the first event -- so it
+	// is in place before anything can be attributed, and needs no synchronisation.
 	anchor string
+
+	// attempted records that a send went out, whatever came back.
+	//
+	// Set before the request, not after, because the ambiguous case is exactly the
+	// one where no answer arrives: a header timeout inside the server's own budget,
+	// a dropped connection after the bytes went out, a 502. Reading the session
+	// instead cannot settle it -- a prompt queued and not yet active leaves no active
+	// response, so the session looks idle while holding the prompt, and a second send
+	// is what that reads as permission for. Posting an input carries no idempotency key.
+	attempted bool
 
 	// anchorItem is the conversation item the boundary resolved to.
 	//
@@ -84,8 +95,8 @@ type turn struct {
 	// and the response lifecycle is the end instead.
 	//
 	// Unknown harnesses are terminal-backed, deliberately: the failure that costs
-	// more is publishing a half-written review, and that is what the lifecycle
-	// event produces on the harnesses that ack their injection.
+	// more is publishing a half-written review, and an unrecognised runtime that does
+	// emit a lifecycle terminal early would produce exactly that.
 	terminalBacked bool
 
 	// failedTurnID is the response id a failed edge named, when it named one.
@@ -139,6 +150,12 @@ func (t *turn) ended() bool { return t.id != "" || t.failure != nil }
 
 // crossBoundary marks the point after which events can be this turn's.
 func (t *turn) crossBoundary(e omnigent.SessionInputConsumedEvent) {
+	// Nothing to cross against until a send has named one. Both comparisons below are
+	// against strings, so an absent item id -- which decodes to "" -- would otherwise
+	// match an unsent prompt and unlock every rule that waits on the boundary.
+	if t.anchor == "" {
+		return
+	}
 	// Either identifier, because the anchor is whichever the send returned. A
 	// prompt persisted straight away is echoed by its item id; one parked as a
 	// pending input is echoed by the pending id it drains, on the same event. The
@@ -159,11 +176,30 @@ func (t *turn) crossBoundary(e omnigent.SessionInputConsumedEvent) {
 
 // observeStatus reads a coarse session status edge.
 //
-// An idle edge carrying a response id, after the boundary, is the end of the turn
-// and the only thing that is. A bare idle edge is pane churn, so a missing
-// response id downgrades the edge to noise rather than making it a wildcard.
+// On a terminal-backed harness an idle edge carrying a response id, after the
+// boundary, is the end of the turn. An in-process one ends on the response lifecycle
+// instead; see [turn.observeResponseTerminal].
+//
+// A bare idle edge is pane churn, so a missing response id downgrades the edge to
+// noise rather than making it a wildcard. A failed edge is the exception: one with no
+// response id is a session-level fault the server reports that way, so it is taken
+// rather than dropped.
 func (t *turn) observeStatus(e omnigent.SessionStatusEvent) {
 	if e.Status == omnigent.SessionStatusEventStatusFailed {
+		// A failure that names a response tells us which turn failed, and there are
+		// two ways it cannot be ours: the id was already on the session before this
+		// run, or this turn has not spoken yet so no response can belong to it. A
+		// previous dispatch's turn goes on running server-side, and its failure
+		// arrives inside our window -- taken as ours it ends the run, and salvage
+		// would then read that turn's reply and publish it as this one's.
+		//
+		// A failure that names no response is not narrowed this way. That is how the
+		// server reports a session-level fault, a sandbox that never launched among
+		// them, and before the boundary that is precisely the failure this run is
+		// waiting on.
+		if e.ResponseID != nil && (!t.crossed || t.prior[*e.ResponseID]) {
+			return
+		}
 		if t.crossed && e.ResponseID != nil {
 			t.failedTurnID = *e.ResponseID
 		}

@@ -112,7 +112,7 @@ func (h *Host) Close(ctx context.Context, w driver.Work) (string, error) {
 	var held []string
 	var cause error
 	for _, id := range ids {
-		_, err := client.DeleteSession(ctx, id, omnigent.DeleteSessionOptions{})
+		_, err := client.Sessions().Delete(ctx, id, omnigent.DeleteSessionOptions{})
 		switch {
 		case err == nil, alreadyGone(err):
 			// Already gone counts as reclaimed. Two closes racing, or a reopened and
@@ -135,6 +135,23 @@ func alreadyGone(err error) bool {
 	return errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound
 }
 
+// boundWalk bounds a whole paginated listing, not just the requests inside it.
+//
+// The SDK's iterator stops on the last page or on its own 10,000-page backstop. It
+// does not stop on an empty page that still claims more, which the hand-written
+// loops this replaced did. A server answering that shape turns one request into
+// thousands, and the caller with no budget of its own is Close: it would spend the
+// whole teardown window listing, then exit by deadline rather than by the leak path,
+// so nothing names the sandbox it failed to reclaim.
+func (h *Host) boundWalk(ctx context.Context) (context.Context, context.CancelFunc) {
+	return context.WithTimeout(ctx, listingWalkBudget*h.cfg.RequestTimeout)
+}
+
+// listingWalkBudget multiplies [driver.Config.RequestTimeout] into a whole-listing
+// budget. A listing this driver expects to fit in one or two pages gets room for a
+// handful, and no more.
+const listingWalkBudget = 4
+
 // findAllByRunKey collects every session carrying this run key.
 //
 // [Host.findByRunKey] stops at the first, which is what opening wants: it needs the
@@ -145,57 +162,52 @@ func (h *Host) findAllByRunKey(
 	client *omnigent.Client,
 	agentID, runKey string,
 ) ([]string, error) {
+	walkCtx, cancel := h.boundWalk(ctx)
+	defer cancel()
+
 	var ids []string
 	opts := omnigent.ListSessionsOptions{AgentID: agentID, Limit: 1000}
-	for {
-		page, err := client.ListSessions(ctx, opts)
+	for session, err := range client.Sessions().List(walkCtx, opts) {
 		if err != nil {
 			return nil, err
 		}
-		for _, item := range page.Data {
-			if item.Labels[RunKeyLabel] == runKey {
-				ids = append(ids, item.ID)
-			}
+		if session.Labels[RunKeyLabel] == runKey {
+			ids = append(ids, session.ID)
 		}
-		if !page.HasMore || len(page.Data) == 0 {
-			return ids, nil
-		}
-		opts.After = page.LastID
 	}
+	return ids, nil
 }
 
-// resolveAgent finds the agent the server knows by this name, paging the listing
-// until it matches.
+// resolveAgent finds the agent the server knows by this name.
 //
 // It returns the whole agent rather than its id because the harness travels on
 // it, and the harness decides which signal ends a turn.
+//
+// A miss crosses as [driver.ErrConfig], because a name no deployment registers is
+// a configuration fault rather than a transport one, and the exit code a run
+// reports turns on that. The server's own miss message is not wrapped: it
+// enumerates the agent names it did see, and those are an operator's to look up
+// rather than a run's to print.
 func (h *Host) resolveAgent(
 	ctx context.Context, client *omnigent.Client, name string,
 ) (omnigent.AgentObject, error) {
-	var opts omnigent.ListAgentsOptions
-	for {
-		page, err := client.ListAgents(ctx, opts)
-		if err != nil {
-			return omnigent.AgentObject{}, err
-		}
-		for _, agent := range page.Data {
-			if agent.Name == name {
-				return agent, nil
-			}
-		}
-		if !page.HasMore || len(page.Data) == 0 {
-			return omnigent.AgentObject{}, fmt.Errorf("%w: no agent named %q on this server",
-				driver.ErrConfig, name)
-		}
-		opts.After = page.LastID
+	agent, err := client.Sessions().ResolveAgent(ctx, name)
+	switch {
+	case errors.Is(err, omnigent.ErrNotFound):
+		return omnigent.AgentObject{}, fmt.Errorf("%w: no agent named %q on this server",
+			driver.ErrConfig, name)
+	case err != nil:
+		return omnigent.AgentObject{}, err
 	}
+	return *agent, nil
 }
 
 // findByRunKey walks the agent's sessions for one carrying this run key.
 //
 // Paged at the server's maximum rather than its default of 20. The server has no
 // label filter, so this walk is linear in the agent's session count, and it runs on
-// every open and every close -- including the close on a runner that is already
+// every open, and [Host.findAllByRunKey] walks the same listing on every close --
+// including the close on a runner that is already
 // being terminated. Sessions accumulate for as long as anything fails to reclaim
 // one, so the cheap default is the expensive one over time.
 func (h *Host) findByRunKey(
@@ -203,24 +215,23 @@ func (h *Host) findByRunKey(
 	client *omnigent.Client,
 	agentID, runKey string,
 ) (*omnigent.SessionResponse, error) {
+	walkCtx, cancel := h.boundWalk(ctx)
+	defer cancel()
+
 	opts := omnigent.ListSessionsOptions{AgentID: agentID, Limit: 1000}
-	for {
-		page, err := client.ListSessions(ctx, opts)
+	for session, err := range client.Sessions().List(walkCtx, opts) {
 		if err != nil {
 			return nil, err
 		}
-		for _, item := range page.Data {
-			if item.Labels[RunKeyLabel] == runKey {
-				return client.GetSession(ctx, item.ID, omnigent.GetSessionOptions{
-					IncludeItems: omnigent.Ptr(true),
-				})
-			}
+		if session.Labels[RunKeyLabel] == runKey {
+			// Deliberately ctx, not walkCtx: this is the fetch the walk existed to
+			// reach, and it should not inherit what the search already spent.
+			return client.Sessions().Get(ctx, session.ID, omnigent.GetSessionOptions{
+				IncludeItems: omnigent.Ptr(true),
+			})
 		}
-		if !page.HasMore || len(page.Data) == 0 {
-			return nil, nil
-		}
-		opts.After = page.LastID
 	}
+	return nil, nil
 }
 
 // adoption is where a conversation's session came from, split into the two
@@ -248,9 +259,9 @@ type adoption struct {
 // Searching first is the idempotency guarantee. The run key is a label on the
 // session, so it outlives the runner and a redelivered trigger finds the first
 // run's session rather than doing the work twice. It walks every page because the
-// server has no label filter and a page holds the agent's 20 newest. It is not a
-// lock: two simultaneous runs can both find nothing and both create, which the
-// caller's concurrency group prevents. This rules out the sequential duplicate.
+// server has no label filter. It is not a lock: two simultaneous runs can both find
+// nothing and both create, which the caller's concurrency group prevents. This rules
+// out the sequential duplicate.
 //
 // The refusal is the other half. A session whose sandbox never launched is stopped
 // with its conversation intact, so the run key still finds it forever, and
@@ -277,7 +288,7 @@ func (h *Host) createOrAdopt(
 		}
 		h.log.Warn("the session for this work cannot run a turn; replacing it",
 			"run_key", w.RunKey, "session_id", existing.ID)
-		if _, err := client.DeleteSession(ctx, existing.ID, omnigent.DeleteSessionOptions{}); err != nil {
+		if _, err := client.Sessions().Delete(ctx, existing.ID, omnigent.DeleteSessionOptions{}); err != nil {
 			return nil, adoption{}, fmt.Errorf(
 				"the session for this work cannot run a turn and could not be "+
 					"deleted, so a new one would collide with it: %w", err)
@@ -291,7 +302,7 @@ func (h *Host) createOrAdopt(
 		Labels:   map[string]string{RunKeyLabel: w.RunKey},
 	}
 
-	session, err := client.CreateSession(ctx, create)
+	session, err := client.Sessions().Create(ctx, create)
 	if err == nil {
 		return session, adoption{}, nil
 	}
@@ -315,8 +326,11 @@ func (h *Host) createOrAdopt(
 	if committed == nil {
 		return nil, adoption{}, err
 	}
-	live, _ := reachability(committed)
-	return committed, adoption{continued: true, live: live}, nil
+	// Both halves, like the adopt path above. Dropping revivable here left a session
+	// reconciled after a lost create unable to be woken: neither send arm fires, so
+	// the run re-subscribes until its deadline without ever asking its question.
+	live, revivable := reachability(committed)
+	return committed, adoption{continued: true, live: live, revivable: revivable}, nil
 }
 
 // reachability reads whether a session can take a prompt now, and whether it
@@ -335,10 +349,8 @@ func reachability(s *omnigent.SessionResponse) (live, revivable bool) {
 	return false, s.HostResumable != nil && *s.HostResumable
 }
 
-// sessionState reports whether a runner is registered for this session right now,
-// and whether the session is already working on a response.
-//
-// live demands an explicit yes.
+// sessionIsLive reports whether a runner is registered for this session right now,
+// and demands an explicit yes.
 //
 // Stricter than the reachability adoption uses, deliberately, because the two
 // decisions fail in opposite directions. Adoption reads an unknown liveness as
@@ -346,18 +358,15 @@ func reachability(s *omnigent.SessionResponse) (live, revivable bool) {
 // not-live so it never puts a prompt into a sandbox that does not exist, which is
 // the failure this whole path is here to prevent. A read that errors answers no
 // for the same reason.
-// busy is the other half, and it is what a caller whose send failed ambiguously
-// needs: an active response means the server took a prompt, so sending again would
-// put a second one to a runtime already answering the first.
-func (h *Host) sessionState(
+func (h *Host) sessionIsLive(
 	ctx context.Context,
 	client *omnigent.Client,
 	sessionID string,
-) (live, busy bool) {
+) bool {
 	readCtx, cancel := context.WithTimeout(ctx, h.cfg.RequestTimeout)
 	defer cancel()
 
-	session, err := client.GetSession(readCtx, sessionID, omnigent.GetSessionOptions{})
+	session, err := client.Sessions().Get(readCtx, sessionID, omnigent.GetSessionOptions{})
 	if err != nil {
 		// Logged rather than swallowed. Whether this read succeeds while the stream
 		// will not open is what separates a stream that is wedged from a server that
@@ -365,10 +374,9 @@ func (h *Host) sessionState(
 		// is getting through. Returning a bare false discards the difference.
 		h.log.Warn("could not read the session while deciding whether it is live",
 			"session_id", sessionID, "error", err)
-		return false, false
+		return false
 	}
-	return session.RunnerOnline != nil && *session.RunnerOnline,
-		session.ActiveResponseID != nil
+	return session.RunnerOnline != nil && *session.RunnerOnline
 }
 
 // priorResponseIDs is every response id already on the session before this run's
@@ -384,24 +392,20 @@ func (h *Host) priorResponseIDs(
 	client *omnigent.Client,
 	sessionID string,
 ) (map[string]bool, error) {
+	walkCtx, cancel := h.boundWalk(ctx)
+	defer cancel()
+
 	ids := map[string]bool{}
 	opts := omnigent.SessionItemsOptions{Limit: 1000}
-	for {
-		page, err := client.ListSessionItems(ctx, sessionID, opts)
+	for item, err := range client.Sessions().ListItems(walkCtx, sessionID, opts) {
 		if err != nil {
 			return nil, fmt.Errorf("listing this session's items: %w", err)
 		}
-		for _, item := range page.Data {
-			// A flat map rather than a typed item, which is why this reads one
-			// string and nothing else: the guards that decide publishability run
-			// on the typed snapshot, and all this needs is identity.
-			if id, _ := item["response_id"].(string); id != "" {
-				ids[id] = true
-			}
+		// One field and nothing else: the guards that decide publishability run
+		// on the typed snapshot, and all this needs is identity.
+		if item.ResponseID != "" {
+			ids[item.ResponseID] = true
 		}
-		if !page.HasMore || len(page.Data) == 0 {
-			return ids, nil
-		}
-		opts.After = page.LastID
 	}
+	return ids, nil
 }

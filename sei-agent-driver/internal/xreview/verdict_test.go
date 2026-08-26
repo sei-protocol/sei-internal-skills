@@ -6,9 +6,9 @@ import (
 	"testing"
 )
 
-// TestParseVerdict covers the three rules the parser enforces: the closing block
-// is the last fenced block, nothing but whitespace may follow it, and the decision
-// must be one of the three the prompts offer.
+// TestParseVerdict covers the three rules the parser enforces. The closing block is the
+// last fenced block, nothing but whitespace may follow it, and the decision must be one
+// of the three the prompts offer.
 //
 // The cases that now yield nothing are as important as the ones that parse. Each
 // of them was accepted before, and two of them accepted a decision the agent had
@@ -39,9 +39,9 @@ func TestParseVerdict(t *testing.T) {
 			wantDecision:   "comment",
 		},
 		{
-			// The prompts ask for exactly one closing block. Two decisions in one
-			// message means the message does not say what the agent decided, even
-			// when the agent wrote both, so this refuses rather than picking.
+			// The prompts ask for exactly one closing block. Two decisions in one message means the
+			// message does not say what the agent decided, even when the agent wrote both. So this
+			// refuses rather than picking.
 			name: "two blocks that both decide are ambiguous, not last-wins",
 			text: "```json\n{\"decision\": \"comment\"}\n```\n" +
 				"Actually, on reflection:\n" +
