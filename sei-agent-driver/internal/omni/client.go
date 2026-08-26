@@ -47,7 +47,7 @@ const (
 func (h *Host) newClient(ctx context.Context) (*omnigent.Client, error) {
 	token := h.cfg.Token
 	if h.cfg.MintsOwnToken() {
-		minted, ttl, err := MintToken(ctx, &http.Client{Timeout: h.cfg.RequestTimeout},
+		minted, ttl, err := mintToken(ctx, &http.Client{Timeout: h.cfg.RequestTimeout},
 			h.cfg.BaseURL, h.cfg.MachineClientID, h.cfg.MachineClientSecret)
 		if err != nil {
 			return nil, err

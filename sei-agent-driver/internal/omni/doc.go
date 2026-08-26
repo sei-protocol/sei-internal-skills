@@ -16,10 +16,11 @@
 // Which id an item carries depends on the harness that produced it, so a turn id
 // is only ever compared against items from the same harness:
 //
-//   - A terminal-backed harness stamps resp_claude_<32 hex>, derived
-//     deterministically from the Claude source key. Its items and the session
-//     status edges describing them share it. Its response lifecycle events do not,
-//     which is one reason a turn never ends on one there.
+//   - A terminal-backed harness stamps an id of its own -- resp_claude_<32 hex> on
+//     claude-native, derived from the Claude source key; another prefix on another
+//     runtime -- and its items and the status edges describing them share it. It
+//     emits no response lifecycle events at all, which is why a turn cannot end on
+//     one there.
 //   - An in-process harness mints one resp_<24 hex> per turn, carries it on every
 //     response lifecycle event for that turn, and the relay stamps the items it
 //     persists with that same id -- deliberately, so a turn's items and its
@@ -34,7 +35,7 @@
 //
 // Two server-attested facts bound a turn, and everything else is inference:
 //
-// The boundary is the item id SendInput returns, echoed back on the stream as
+// The boundary is the item id posting the prompt returns, echoed back on the stream as
 // session.input.consumed. Nothing at or before it is ever publishable. The stream
 // opens with a prologue that replays earlier work, so without this line a previous
 // invocation's completed reply is indistinguishable from a fresh one.
@@ -47,9 +48,10 @@
 // arriving after the boundary. That edge's response id is the turn id. A bare idle
 // edge is terminal churn and ends nothing: two producers emit idle and only one of
 // them means a turn ended, so several arrive per session and one of them lands
-// mid-work. No response lifecycle event ends a turn there either — the completed
-// one acknowledges that the prompt reached the terminal, so it arrives before the
-// answer exists, and ending on it publishes a review the agent has not written.
+// mid-work. A turn cannot end on a response lifecycle event there because none is
+// emitted -- and an unrecognised runtime that did emit one early would publish a
+// review the agent had not finished writing, which is why the strict rule is the
+// default.
 //
 // That edge is the server's intended contract rather than a workaround. The
 // forwarder derives it from Claude Code's Stop hook, which fires once per finished
@@ -92,9 +94,15 @@
 //
 // # Errors cross the boundary in the driver's terms
 //
-// A failure here is wrapped into one of the driver's sentinels — [driver.ErrConfig],
-// [driver.ErrTurnFailed], [driver.ErrMint], [driver.ErrLeaked] — because those are
-// what the exit codes are derived from. Returning this server's own error taxonomy
-// instead would make the contract with a calling workflow depend on the client
+// A failure this package can classify is wrapped into one of the driver's sentinels
+// — [driver.ErrConfig], [driver.ErrTurnFailed], [driver.ErrMint], [driver.ErrLeaked]
+// — because those are what the exit codes are derived from, and returning this
+// server's own taxonomy instead would tie a workflow's contract to a client
 // library's choices.
+//
+// Most failures are not classified. A transport error, a read that would not
+// complete, a create the server rejected for its own reasons: those travel as they
+// arrived and land on the caller's default, which is a transport exit. That is the
+// right default -- retryable -- and it is why only the cases that are *not*
+// retryable are wrapped.
 package omni

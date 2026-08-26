@@ -3,7 +3,9 @@ package driver
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
+	"runtime/debug"
 	"time"
 )
 
@@ -30,8 +32,14 @@ type Result struct {
 	SessionID string
 
 	// TeardownOK reports that no session was left holding a sandbox. True on a run,
-	// which deletes nothing and so leaks nothing, and on a close that deleted what
-	// it found. A false value is what [ExitTeardownLeak] reports.
+	// which deletes nothing and so leaks nothing, and on a close that deleted what it
+	// found.
+	//
+	// False means only that this did not establish the sandbox was freed: a session
+	// found and refused, a close that ran out of budget before it could look, and a
+	// close that never authenticated all report it. [ExitTeardownLeak] covers the
+	// first two, so the exit code narrows the reason without settling it -- the log
+	// names which, and carries the run key to search on.
 	TeardownOK bool
 }
 
@@ -58,14 +66,17 @@ func New(cfg Config, host Host, log *slog.Logger) *Driver {
 // is [ExitConfig] or [ExitTransport] with a nil Reply, which the caller reports the
 // same way it reports any other outcome.
 //
-// It tears nothing down. The session outlives the run, for the reasons in the
-// package doc, and [Driver.Close] is what ends it.
+// It tears nothing down itself. The session outlives the run, for the reasons in
+// the package doc, and [Driver.Close] is what ends it -- though opening will delete
+// a session it finds unable to run a turn at all.
 //
 // What that leaves behind is a turn still running when a run ends early, on a
 // cancelled context or an expired deadline. The next invocation's prompt queues
 // behind it rather than racing it, so this is latency rather than corruption.
-func (d *Driver) Run(ctx context.Context, w Workload) Result {
+func (d *Driver) Run(ctx context.Context, w Workload) (result Result) {
 	work := d.workFor(w)
+	defer d.recoverPanic(work, &result)
+
 	d.log.Info("run starting", "run_key", work.RunKey, "title", work.Title)
 
 	// The whole run is bounded here, so every call below inherits it and no
@@ -73,7 +84,7 @@ func (d *Driver) Run(ctx context.Context, w Workload) Result {
 	ctx, cancel := context.WithTimeout(ctx, d.cfg.RunDeadline)
 	defer cancel()
 
-	result := d.answer(ctx, work, w)
+	result = d.answer(ctx, work, w)
 	d.log.Info("run finished",
 		"run_key", work.RunKey, "session_id", result.SessionID,
 		"exit_code", result.ExitCode, "teardown_ok", result.TeardownOK)
@@ -124,14 +135,17 @@ func (d *Driver) answer(ctx context.Context, work Work, w Workload) Result {
 
 // Close ends the unit of work and reclaims what it held.
 //
-// This is the end of the work, not the end of a run, and it is the only thing that
-// frees a sandbox: a close that never happens leaks one for good, because nothing
-// reaps it later. See the package doc.
+// This is the end of the work, not the end of a run, and it is what frees a sandbox
+// once the work is done: a close that never happens leaks one for good, because
+// nothing reaps it on a schedule. Opening reclaims one too, but only a session it
+// finds unable to run a turn. See the package doc.
 //
 // Absent is not an error. Work that ended without ever being started has no
 // session, and saying so is not a failure.
-func (d *Driver) Close(ctx context.Context, w Workload) Result {
+func (d *Driver) Close(ctx context.Context, w Workload) (result Result) {
 	work := d.workFor(w)
+	defer d.recoverPanic(work, &result)
+
 	d.log.Info("closing out the session", "run_key", work.RunKey, "title", work.Title)
 
 	// Detached, with a budget of its own. A terminate signal cancels ctx so that
@@ -144,10 +158,10 @@ func (d *Driver) Close(ctx context.Context, w Workload) Result {
 	// minute budget does not buy twenty minutes -- it only means the process is
 	// killed part-way through with the delete never issued, and the sandbox held.
 	// Floored, so a Config that never went through LoadConfig cannot hand teardown
-	// no budget at all -- which would silently skip the only thing that frees a
-	// sandbox, the exact failure this method exists to prevent.
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx),
-		max(4*d.cfg.RequestTimeout, minTeardownBudget))
+	// no budget at all -- which would silently skip the reclaim this method exists
+	// to perform.
+	budget := max(4*d.cfg.RequestTimeout, minTeardownBudget)
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
 	defer cancel()
 
 	sessionID, err := d.host.Close(ctx, work)
@@ -155,6 +169,40 @@ func (d *Driver) Close(ctx context.Context, w Workload) Result {
 	case errors.Is(err, ErrLeaked):
 		d.log.Error("could not delete the session; the sandbox will leak until reclaimed",
 			"session_id", sessionID, "error", err)
+		return Result{ExitCode: ExitTeardownLeak, SessionID: sessionID}
+	case errors.Is(err, ErrConfig), errors.Is(err, ErrMint):
+		// Ahead of the unfinished-close arm, because an error can satisfy both and
+		// only one of them can be acted on. http.Client wraps a body read that outran
+		// its timeout in an error reporting itself as a deadline, so a stalled token
+		// endpoint arrives here as a mint failure that is also a deadline. Told to fix
+		// the variable and re-run, a close reclaims the sandbox on the retry; told to
+		// go deleting by hand, an operator does the same work manually.
+		//
+		// A session may still be held either way -- this never reached the delete --
+		// which is why TeardownOK stays false and the reclaim is only deferred.
+		d.log.Error("the close could not authenticate or address the server; "+
+			"re-run it once that is fixed",
+			"run_key", work.RunKey, "agent", work.Agent, "error", err)
+		return Result{ExitCode: ExitConfig, SessionID: sessionID}
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		// A close that did not finish cannot say whether the delete landed, and it is
+		// reported as the leak rather than the timeout because that is the actionable
+		// half of the ambiguity. A caller reading ExitTimeout goes looking for a slow
+		// server; a caller reading this goes looking for a held sandbox. Only one of
+		// those costs anything once the process is gone, and a needless check is
+		// cheaper than a pod nothing reclaims.
+		//
+		// Not gated on ctx.Err() the way [Driver.classify] gates the run deadline. There
+		// the distinction earns its keep, because a single slow request must not read as
+		// the whole run expiring. Here either reading ends at the same place: nothing
+		// established that the session is gone.
+		//
+		// The session id is usually empty here, because a close that timed out before
+		// it listed anything has none to report. The run key is what an operator
+		// searches on in that case.
+		d.log.Error("the close did not finish; a sandbox may still be held",
+			"run_key", work.RunKey, "agent", work.Agent,
+			"session_id", sessionID, "budget", budget, "error", err)
 		return Result{ExitCode: ExitTeardownLeak, SessionID: sessionID}
 	case err != nil:
 		return d.classify(ctx, Result{ExitCode: ExitOK}, err)
@@ -170,6 +218,33 @@ func (d *Driver) Close(ctx context.Context, w Workload) Result {
 		d.log.Info("session deleted", "session_id", sessionID)
 		return Result{ExitCode: ExitOK, SessionID: sessionID, TeardownOK: true}
 	}
+}
+
+// recoverPanic turns a panic into an exit code, and both entry points defer it.
+//
+// The contract this package states is that every outcome is a number the caller acts
+// on. A panic breaks it in the worst way available: the runtime exits 2, which is
+// [ExitConfig], so a crash arrives as "fix your configuration" and a caller that
+// would have retried a transient fault stops instead.
+//
+// It cannot cover a panic on another goroutine -- recover reaches only the stack it
+// is deferred on, and the runtime takes the process down at 2 whatever this does. So
+// it narrows the collision rather than closing it, and [ExitConfig] carries what is
+// left.
+//
+// The stack goes to the log because an exit code cannot be debugged, and this is the
+// last point at which the panic is still in hand.
+func (d *Driver) recoverPanic(work Work, result *Result) {
+	v := recover()
+	if v == nil {
+		return
+	}
+	d.log.Error("the driver panicked",
+		"run_key", work.RunKey, "session_id", result.SessionID,
+		"panic", fmt.Sprint(v), "stack", string(debug.Stack()))
+	// The session id survives the outcome it arrived with. A panic after a session
+	// was opened still leaves one, and it is the only handle on it.
+	*result = Result{ExitCode: ExitInternal, SessionID: result.SessionID}
 }
 
 // classify maps an error onto the exit code the caller reports.

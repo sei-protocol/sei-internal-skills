@@ -82,7 +82,7 @@ var mintBackoff = [...]time.Duration{500 * time.Millisecond, 2 * time.Second}
 // than an outage.
 const mintAttempts = len(mintBackoff) + 1
 
-// MintToken exchanges the machine client's credentials for a short-lived access
+// mintToken exchanges the machine client's credentials for a short-lived access
 // token at POST /oauth/token.
 //
 // The credentials travel as form fields rather than as HTTP Basic. Both are
@@ -107,7 +107,7 @@ const mintAttempts = len(mintBackoff) + 1
 // The returned lifetime is what the server said, so a caller can tell whether a
 // token minted once will outlive the work it was minted for. Zero when the
 // response omitted it.
-func MintToken(
+func mintToken(
 	ctx context.Context,
 	client *http.Client,
 	baseURL, clientID, clientSecret string,
@@ -151,7 +151,7 @@ func MintToken(
 }
 
 // mintOnce is one exchange. Its failures are classified rather than merged:
-// whether another attempt could succeed is the only thing [MintToken] needs from
+// whether another attempt could succeed is the only thing [mintToken] needs from
 // it, and only this function can tell.
 func mintOnce(
 	ctx context.Context,

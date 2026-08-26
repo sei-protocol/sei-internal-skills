@@ -1,10 +1,3 @@
-// Package xreview is the pull-request review workload: what the agent is asked,
-// how to tell it has answered, and what to publish.
-//
-// Everything about running the session — resolving the agent, adopting one an
-// earlier dispatch created, following a turn across the streams it outlives,
-// answering permission prompts — belongs to the driver package and is the same
-// whatever the agent is asked for.
 package xreview
 
 import (
@@ -32,10 +25,9 @@ type Request struct {
 	// PriorThreads is what this tool already said on this pull request, with the
 	// replies it drew. Empty on a first review.
 	//
-	// Supplied rather than remembered. A session recalls its own findings, and
-	// nothing in it records that the author pushed back, fixed the code, or
-	// resolved the thread — which is the half that decides whether a finding is
-	// still worth making.
+	// Supplied rather than remembered. A session recalls its own findings. It records
+	// nothing about the author pushing back, fixing the code, or resolving the thread. That
+	// is the half which decides whether a finding is still worth making.
 	PriorThreads []PriorThread
 
 	// GuidelinesFile is the repository's standards file, relative to its root.
@@ -48,8 +40,8 @@ type Request struct {
 }
 
 // maxScoutDetail bounds one rendered finding. A scout's detail is unbounded model
-// output, and several verbose scouts would otherwise crowd the diff out of the
-// review's context — the one thing it must not lose.
+// output. Several verbose scouts would otherwise crowd the diff out of the review's
+// context, and the diff is the one thing it must not lose.
 const (
 	maxScoutDetail = 500
 
@@ -65,10 +57,10 @@ const (
 
 // ScoutResult is one scout's contribution, as the orchestrator observed it.
 //
-// The orchestrator builds this, not the scout: Name is the identity the scout was
-// dispatched under, so attribution cannot be forged by anything the scout — or
-// anything the scout read — put in its reply. A reading that arrives claiming to
-// be from somewhere else is still recorded here as what it actually is.
+// The orchestrator builds this, not the scout. Name is the identity the scout was
+// dispatched under, so nothing can forge attribution: not the scout, and not anything
+// the scout read. A reading that arrives claiming to be from somewhere else is still
+// recorded here as what it actually is.
 type ScoutResult struct {
 	// Name identifies the scout, e.g. "codex".
 	Name string
@@ -105,9 +97,9 @@ func (r Review) RunKey() string { return RunKey(r.req.Repo, r.req.PR) }
 // Title names the session for a human reading a session list.
 func (r Review) Title() string { return fmt.Sprintf("xreview %s#%d", r.req.Repo, r.req.PR) }
 
-// Prompt is the review instruction. A session that has already reviewed this
-// pull request is asked what changed rather than handed the contract a second
-// time; the two texts are [BuildPrompt] and [AdoptedPrompt].
+// Prompt is the review instruction. A session that has already reviewed this pull
+// request is asked what changed, rather than handed the contract a second time. The two
+// texts are [BuildPrompt] and [AdoptedPrompt].
 func (r Review) Prompt(answered bool) string {
 	if answered {
 		return AdoptedPrompt(r.req)
@@ -117,11 +109,11 @@ func (r Review) Prompt(answered bool) string {
 
 // Complete reports whether a reply is a finished review.
 //
-// The closing verdict block is the whole test, and it is load-bearing rather
-// than cosmetic: a session reports itself idle between tool calls, so the
-// driver's own signals cannot tell an agent mid-answer from one that finished.
-// A reply without the block is an agent still working, and treating it as an
-// answer publishes an opening sentence as a review.
+// The closing verdict block is the whole test, and it is load-bearing rather than
+// cosmetic. A session reports itself idle between tool calls, so the driver's own
+// signals cannot tell an agent mid-answer from one that finished. A reply without the
+// block is an agent still working. Treating it as an answer publishes an opening
+// sentence as a review.
 func (r Review) Complete(text string) bool { return ParseVerdict(text).HasVerdict() }
 
 // clip bounds a value taken from model output before it reaches a rendered prompt,

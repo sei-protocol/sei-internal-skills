@@ -1,6 +1,7 @@
 package omni
 
 import (
+	"encoding/json"
 	"reflect"
 	"strings"
 	"testing"
@@ -19,9 +20,9 @@ func TestTurnReply(t *testing.T) {
 			verdictItem(t, "msg_a1", "resp_a", "assistant", "an earlier message this turn"),
 			verdictItem(t, "msg_a2", "resp_a", "assistant", "the final answer"),
 		}
-		reply, ok := TurnReply(items, "resp_a")
+		reply, ok := turnReply(items, "resp_a")
 		if !ok || reply.Text != "the final answer" || reply.ItemID != "msg_a2" {
-			t.Errorf("TurnReply = %+v (ok=%v), want the final answer from msg_a2", reply, ok)
+			t.Errorf("turnReply = %+v (ok=%v), want the final answer from msg_a2", reply, ok)
 		}
 	})
 
@@ -31,9 +32,9 @@ func TestTurnReply(t *testing.T) {
 			verdictItem(t, "msg_ours", "resp_a", "assistant", "ours"),
 			verdictItem(t, "msg_theirs", "resp_b", "assistant", "newer, and not ours"),
 		}
-		reply, ok := TurnReply(items, "resp_a")
+		reply, ok := turnReply(items, "resp_a")
 		if !ok || reply.Text != "ours" {
-			t.Errorf("TurnReply = %+v (ok=%v), want ours: recency must not outrank the turn id",
+			t.Errorf("turnReply = %+v (ok=%v), want ours: recency must not outrank the turn id",
 				reply, ok)
 		}
 	})
@@ -43,8 +44,8 @@ func TestTurnReply(t *testing.T) {
 		items := []omnigent.ConversationItem{
 			verdictItem(t, "msg_a1", "", "assistant", "carries no response id"),
 		}
-		if _, ok := TurnReply(items, "resp_a"); ok {
-			t.Error("TurnReply matched an item carrying no response id")
+		if _, ok := turnReply(items, "resp_a"); ok {
+			t.Error("turnReply matched an item carrying no response id")
 		}
 	})
 
@@ -53,8 +54,8 @@ func TestTurnReply(t *testing.T) {
 		items := []omnigent.ConversationItem{
 			verdictItem(t, "msg_a1", "", "assistant", "would match a naive comparison"),
 		}
-		if _, ok := TurnReply(items, ""); ok {
-			t.Error("TurnReply matched on an empty turn id, which would publish unattributed text")
+		if _, ok := turnReply(items, ""); ok {
+			t.Error("turnReply matched on an empty turn id, which would publish unattributed text")
 		}
 	})
 
@@ -63,15 +64,15 @@ func TestTurnReply(t *testing.T) {
 		items := []omnigent.ConversationItem{
 			verdictItem(t, "msg_u1", "resp_a", "user", "the prompt we sent"),
 		}
-		if _, ok := TurnReply(items, "resp_a"); ok {
-			t.Error("TurnReply matched a user message, which would publish our own prompt")
+		if _, ok := turnReply(items, "resp_a"); ok {
+			t.Error("turnReply matched a user message, which would publish our own prompt")
 		}
 	})
 
 	t.Run("no items yields no reply", func(t *testing.T) {
 		t.Parallel()
-		if _, ok := TurnReply(nil, "resp_a"); ok {
-			t.Error("TurnReply matched on an empty snapshot")
+		if _, ok := turnReply(nil, "resp_a"); ok {
+			t.Error("turnReply matched on an empty snapshot")
 		}
 	})
 }
@@ -93,8 +94,8 @@ func TestAssistantMessageRejectsToolOutput(t *testing.T) {
 		t.Error("assistantMessage accepted a function_call_output whose payload decoded as a " +
 			"message: the type discriminator must be checked before the union decode")
 	}
-	if _, ok := TurnReply([]omnigent.ConversationItem{item}, "resp_a"); ok {
-		t.Error("TurnReply attributed a tool output as the turn's reply")
+	if _, ok := turnReply([]omnigent.ConversationItem{item}, "resp_a"); ok {
+		t.Error("turnReply attributed a tool output as the turn's reply")
 	}
 }
 
@@ -138,9 +139,9 @@ func TestAssistantMessageRejectsUnpublishableShapes(t *testing.T) {
 			}
 			tc.mutate(&item, &msg)
 
-			var data omnigent.ConversationItem_Data
-			if err := data.FromMessageData(msg); err != nil {
-				t.Fatalf("FromMessageData: %v", err)
+			data, err := json.Marshal(msg)
+			if err != nil {
+				t.Fatalf("marshal MessageData: %v", err)
 			}
 			item.Data = data
 
@@ -193,9 +194,9 @@ func TestReplyGroupsSince(t *testing.T) {
 			verdictItem(t, "msg_old", "resp_old", "assistant", "history"),
 			verdictItem(t, "msg_new", "resp_a", "assistant", "this turn"),
 		}
-		got := ReplyGroupsSince(items, map[string]bool{"resp_old": true})
+		got := replyGroupsSince(items, map[string]bool{"resp_old": true})
 		if !reflect.DeepEqual(got, []string{"resp_a"}) {
-			t.Errorf("ReplyGroupsSince = %v, want [resp_a]", got)
+			t.Errorf("replyGroupsSince = %v, want [resp_a]", got)
 		}
 	})
 
@@ -205,9 +206,9 @@ func TestReplyGroupsSince(t *testing.T) {
 			verdictItem(t, "msg_a", "resp_a", "assistant", "ours"),
 			verdictItem(t, "msg_b", "resp_b", "assistant", "theirs"),
 		}
-		got := ReplyGroupsSince(items, map[string]bool{})
+		got := replyGroupsSince(items, map[string]bool{})
 		if !reflect.DeepEqual(got, []string{"resp_a", "resp_b"}) {
-			t.Errorf("ReplyGroupsSince = %v, want both groups, sorted", got)
+			t.Errorf("replyGroupsSince = %v, want both groups, sorted", got)
 		}
 	})
 
@@ -217,8 +218,8 @@ func TestReplyGroupsSince(t *testing.T) {
 			verdictFunctionCallItem(t, "call_1", "resp_tools"),
 			verdictItem(t, "msg_u", "resp_users", "user", "a prompt"),
 		}
-		if got := ReplyGroupsSince(items, map[string]bool{}); len(got) != 0 {
-			t.Errorf("ReplyGroupsSince = %v, want none: only a reply can be mistaken for a reply", got)
+		if got := replyGroupsSince(items, map[string]bool{}); len(got) != 0 {
+			t.Errorf("replyGroupsSince = %v, want none: only a reply can be mistaken for a reply", got)
 		}
 	})
 }
@@ -246,8 +247,8 @@ func TestGroupIsAfterAnchorRefusesAnEarlierReply(t *testing.T) {
 		{"no anchor at all", "", "resp_mine", false},
 		{"a response the session does not carry", "i2", "resp_absent", false},
 	} {
-		if got := GroupIsAfterAnchor(items, tc.anchor, tc.response); got != tc.want {
-			t.Errorf("%s: GroupIsAfterAnchor = %v, want %v", tc.name, got, tc.want)
+		if got := groupIsAfterAnchor(items, tc.anchor, tc.response); got != tc.want {
+			t.Errorf("%s: groupIsAfterAnchor = %v, want %v", tc.name, got, tc.want)
 		}
 	}
 }
@@ -286,17 +287,20 @@ func TestCrossBoundaryResolvesAPendingAnchorToItsItem(t *testing.T) {
 }
 
 // verdictItem builds a real omnigent.ConversationItem carrying a MessageData
-// payload, via the union type's own From accessor rather than a hand-rolled JSON
-// shape.
+// payload, marshalled the way the wire carries it.
+//
+// Data is json.RawMessage rather than a generated union, so the payload is built
+// from the typed struct and encoded — which is what the server does, and what
+// assistantMessage decodes back.
 func verdictItem(t *testing.T, id, responseID, role, text string) omnigent.ConversationItem {
 	t.Helper()
 
-	var data omnigent.ConversationItem_Data
-	if err := data.FromMessageData(omnigent.MessageData{
-		Role:    omnigent.MessageDataRole(role),
+	data, err := json.Marshal(omnigent.MessageData{
+		Role:    role,
 		Content: []map[string]any{{"type": "output_text", "text": text}},
-	}); err != nil {
-		t.Fatalf("FromMessageData: %v", err)
+	})
+	if err != nil {
+		t.Fatalf("marshal MessageData: %v", err)
 	}
 	return omnigent.ConversationItem{
 		ID: id, ResponseID: responseID, Type: "message", Status: "completed", Data: data,
@@ -308,11 +312,11 @@ func verdictItem(t *testing.T, id, responseID, role, text string) omnigent.Conve
 func verdictFunctionCallItem(t *testing.T, id, responseID string) omnigent.ConversationItem {
 	t.Helper()
 
-	var data omnigent.ConversationItem_Data
-	if err := data.FromFunctionCallData(omnigent.FunctionCallData{
+	data, err := json.Marshal(omnigent.FunctionCallData{
 		CallID: "call_1", Name: "search.web", Arguments: "{}",
-	}); err != nil {
-		t.Fatalf("FromFunctionCallData: %v", err)
+	})
+	if err != nil {
+		t.Fatalf("marshal FunctionCallData: %v", err)
 	}
 	return omnigent.ConversationItem{
 		ID: id, ResponseID: responseID, Type: "function_call", Status: "completed", Data: data,

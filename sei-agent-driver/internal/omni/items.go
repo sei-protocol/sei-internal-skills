@@ -1,6 +1,7 @@
 package omni
 
 import (
+	"encoding/json"
 	"maps"
 	"slices"
 	"strings"
@@ -24,7 +25,7 @@ import (
 // publishes that working to a pull request.
 const textPartType = "output_text"
 
-// TurnReply returns the assistant message that answers the given turn.
+// turnReply returns the assistant message that answers the given turn.
 //
 // Attribution is positive: the item must carry that turn's own response id, which
 // the server stamps on every item the turn commits. It has to be positive, because
@@ -32,7 +33,7 @@ const textPartType = "output_text"
 // fails open: anything the snapshot missed is accepted as this turn's reply.
 //
 // Newest-first, because a turn's last message is its answer.
-func TurnReply(items []omnigent.ConversationItem, turnID string) (driver.Reply, bool) {
+func turnReply(items []omnigent.ConversationItem, turnID string) (driver.Reply, bool) {
 	if turnID == "" {
 		return driver.Reply{}, false
 	}
@@ -52,7 +53,7 @@ func TurnReply(items []omnigent.ConversationItem, turnID string) (driver.Reply, 
 	return driver.Reply{}, false
 }
 
-// ReplyGroupsSince lists the response ids that gained a publishable assistant
+// replyGroupsSince lists the response ids that gained a publishable assistant
 // message since prior, sorted so a log line is stable.
 //
 // One turn commits exactly one such group. More than one means something else
@@ -60,7 +61,7 @@ func TurnReply(items []omnigent.ConversationItem, turnID string) (driver.Reply, 
 // being a superseded run whose stop lost the race against its own turn. This
 // refuses on that rather than choosing the newest group, because choosing is
 // precisely how another invocation's review gets published as this one.
-func ReplyGroupsSince(items []omnigent.ConversationItem, prior map[string]bool) []string {
+func replyGroupsSince(items []omnigent.ConversationItem, prior map[string]bool) []string {
 	groups := map[string]bool{}
 	for _, item := range items {
 		if item.ResponseID == "" || prior[item.ResponseID] {
@@ -73,13 +74,13 @@ func ReplyGroupsSince(items []omnigent.ConversationItem, prior map[string]bool) 
 	return slices.Sorted(maps.Keys(groups))
 }
 
-// GroupIsAfterAnchor reports whether every item carrying responseID sits after
+// groupIsAfterAnchor reports whether every item carrying responseID sits after
 // the anchor item in the session's order.
 //
 // Position, not recency: a stream opens by replaying earlier work, so an earlier
 // invocation's completed reply looks newest too. An anchor the session does not
 // carry answers false — position cannot be proven against an absent item.
-func GroupIsAfterAnchor(items []omnigent.ConversationItem, anchorID, responseID string) bool {
+func groupIsAfterAnchor(items []omnigent.ConversationItem, anchorID, responseID string) bool {
 	if anchorID == "" || responseID == "" {
 		return false
 	}
@@ -109,11 +110,12 @@ func GroupIsAfterAnchor(items []omnigent.ConversationItem, anchorID, responseID 
 // assistantMessage decodes an item that is a publishable assistant message, and
 // reports false for anything else.
 //
-// The Type check comes before the Data decode, and that ordering is the only
-// thing standing between a tool output and the pull request: AsMessageData is a
-// bare json.Unmarshal with no discriminator consult, so it decodes a
-// function_call_output into a zero-valued MessageData and reports no error. Tool
-// output on this path carries whole diffs and gh responses.
+// The Type check comes before the Data decode, and it is the first of three things
+// standing between a tool output and the pull request: the decode is a bare
+// json.Unmarshal with no discriminator consult, so it decodes a function_call_output
+// into a zero-valued MessageData and reports no error. The role and empty-text checks
+// behind it would reject that value too -- but resting on a zero-value coincidence,
+// for a payload carrying whole diffs and gh responses, is not a guard.
 func assistantMessage(item omnigent.ConversationItem) (omnigent.MessageData, bool) {
 	switch {
 	case item.Type != "message":
@@ -128,8 +130,8 @@ func assistantMessage(item omnigent.ConversationItem) (omnigent.MessageData, boo
 		return omnigent.MessageData{}, false
 	}
 
-	msg, err := item.Data.AsMessageData()
-	if err != nil {
+	var msg omnigent.MessageData
+	if err := json.Unmarshal(item.Data, &msg); err != nil {
 		return omnigent.MessageData{}, false
 	}
 
