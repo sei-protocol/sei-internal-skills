@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	omnigent "github.com/sei-protocol/omnigent-go-sdk"
 
@@ -97,12 +98,13 @@ func (h *Host) Close(ctx context.Context, w driver.Work) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	ids, err := h.findAllByRunKey(ctx, client, agent.ID, w.RunKey)
-	if err != nil {
-		return "", err
-	}
+	// A search that ran out of budget still reports what it found, so reclaim runs on
+	// the partial set rather than being abandoned. searchErr is carried to the end: it
+	// means the set may be short, so even a clean sweep of it cannot attest that
+	// nothing is held.
+	ids, searchErr := h.findAllByRunKey(ctx, client, agent.ID, w.RunKey)
 	if len(ids) == 0 {
-		return "", nil
+		return "", searchErr
 	}
 	if len(ids) > 1 {
 		h.log.Warn("more than one session carries this run key; deleting all of them",
@@ -126,6 +128,14 @@ func (h *Host) Close(ctx context.Context, w driver.Work) (string, error) {
 	if len(held) > 0 {
 		return held[0], fmt.Errorf("%w: %s: %w", driver.ErrLeaked, strings.Join(held, ", "), cause)
 	}
+	if searchErr != nil {
+		// Everything named was deleted, but the naming was incomplete. Reported as a
+		// leak because that is what it is: a session this run created may still hold a
+		// sandbox and nothing has looked at it. The id returned is one that was
+		// reclaimed, which is the run key an operator searches on.
+		return ids[0], fmt.Errorf("%w: reclaimed %s before the search finished: %w",
+			driver.ErrLeaked, strings.Join(ids, ", "), searchErr)
+	}
 	return ids[0], nil
 }
 
@@ -143,14 +153,37 @@ func alreadyGone(err error) bool {
 // thousands, and the caller with no budget of its own is Close: it would spend the
 // whole teardown window listing, then exit by deadline rather than by the leak path,
 // so nothing names the sandbox it failed to reclaim.
+//
+// The budget is a share of what the caller still has, never all of it. Close runs on
+// 4*RequestTimeout, so a walk allowed the same would leave nothing for the deletes
+// the walk exists to find -- the search would consume the reclaim it was serving.
+// Halving whatever remains keeps that true however the caller was budgeted.
+//
+// Floored, because the share can round to nothing: a zero RequestTimeout, or a
+// caller already near its deadline, would otherwise hand the walk a context that has
+// already expired and turn every reclaim into a failure before one request goes out.
+// The floor cannot outlive the parent, so it buys time only where time exists.
 func (h *Host) boundWalk(ctx context.Context) (context.Context, context.CancelFunc) {
-	return context.WithTimeout(ctx, listingWalkBudget*h.cfg.RequestTimeout)
+	budget := listingWalkBudget * h.cfg.RequestTimeout
+	if deadline, ok := ctx.Deadline(); ok {
+		budget = min(budget, time.Until(deadline)/2)
+	}
+	return context.WithTimeout(ctx, max(budget, minListingWalkBudget))
 }
 
-// listingWalkBudget multiplies [driver.Config.RequestTimeout] into a whole-listing
-// budget. A listing this driver expects to fit in one or two pages gets room for a
-// handful, and no more.
-const listingWalkBudget = 4
+const (
+	// listingWalkBudget multiplies [driver.Config.RequestTimeout] into a whole-listing
+	// budget. A listing this driver expects to fit in one or two pages gets room for a
+	// handful, and no more. Deliberately below the multiplier Close budgets itself on,
+	// so a walk cannot spend the window it is searching on behalf of.
+	listingWalkBudget = 2
+
+	// minListingWalkBudget is the least a walk gets, so a misconfigured or nearly
+	// spent caller still issues its requests instead of failing on arithmetic. Small
+	// on purpose: it exists to avoid a zero-length context, not to grant a budget, so
+	// the multiplier above stays the thing that normally decides.
+	minListingWalkBudget = time.Second
+)
 
 // findAllByRunKey collects every session carrying this run key.
 //
@@ -169,7 +202,11 @@ func (h *Host) findAllByRunKey(
 	opts := omnigent.ListSessionsOptions{AgentID: agentID, Limit: 1000}
 	for session, err := range client.Sessions().List(walkCtx, opts) {
 		if err != nil {
-			return nil, err
+			// The matches already found are returned with the error, not dropped.
+			// Reclaiming three sandboxes of four beats reclaiming none, and the error
+			// still tells Close the search was incomplete, so it cannot report a
+			// teardown it did not establish.
+			return ids, err
 		}
 		if session.Labels[RunKeyLabel] == runKey {
 			ids = append(ids, session.ID)
