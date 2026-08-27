@@ -81,31 +81,62 @@ func replyGroupsSince(items []omnigent.ConversationItem, prior map[string]bool) 
 // invocation's completed reply looks newest too. An anchor the session does not
 // carry answers false — position cannot be proven against an absent item.
 func groupIsAfterAnchor(items []omnigent.ConversationItem, anchorID, responseID string) bool {
-	if anchorID == "" || responseID == "" {
-		return false
+	t := newAnchorTracker(anchorID, responseID)
+	for _, item := range items {
+		t.observe(item.ID, item.ResponseID)
 	}
-	anchor := -1
-	for i, item := range items {
-		if item.ID == anchorID {
-			anchor = i
-			break
-		}
-	}
-	if anchor < 0 {
-		return false
-	}
-	found := false
-	for i, item := range items {
-		if item.ResponseID != responseID {
-			continue
-		}
-		if i <= anchor {
-			return false
-		}
-		found = true
-	}
-	return found
+	return t.groupFollows()
 }
+
+// anchorTracker is the same rule applied one item at a time, in transcript order.
+//
+// It exists so a caller reading a paged listing does not have to hold the listing. The
+// rule is a single forward pass -- every member of the group must sit after the anchor,
+// and at least one must exist -- so the only state it needs is whether the anchor has
+// gone by and whether anything has disqualified the group. A transcript long enough to
+// need this path is exactly the one worth not accumulating.
+//
+// One implementation, two callers: [groupIsAfterAnchor] feeds it a snapshot window and
+// the salvage walk feeds it a listing. Two copies of a rule that decides what may be
+// published is the drift this avoids.
+type anchorTracker struct {
+	anchorID, responseID string
+	seenAnchor           bool
+	found                bool
+	disqualified         bool
+}
+
+func newAnchorTracker(anchorID, responseID string) *anchorTracker {
+	return &anchorTracker{
+		anchorID:   anchorID,
+		responseID: responseID,
+		// An unnamed anchor or an unnamed turn proves nothing, so nothing observed
+		// can make it true.
+		disqualified: anchorID == "" || responseID == "",
+	}
+}
+
+// observe takes the next item in transcript order.
+func (t *anchorTracker) observe(id, responseID string) {
+	if t.disqualified {
+		return
+	}
+	// Checked before the anchor is marked, so the anchor item carrying this turn's own
+	// response id disqualifies rather than counting as after itself.
+	if responseID == t.responseID {
+		if !t.seenAnchor {
+			t.disqualified = true
+			return
+		}
+		t.found = true
+	}
+	if id == t.anchorID {
+		t.seenAnchor = true
+	}
+}
+
+// groupFollows reports the rule's answer over everything observed so far.
+func (t *anchorTracker) groupFollows() bool { return !t.disqualified && t.found }
 
 // assistantMessage decodes an item that is a publishable assistant message, and
 // reports false for anything else.

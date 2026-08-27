@@ -11,9 +11,11 @@
 // compile-time fact rather than a convention, so a fault in how one deployment
 // reports a turn cannot reach the exit-code contract except through [Host].
 //
-// It keeps the Python driver's contract: the same environment variables, run-key
-// idempotency, and fail-closed permission policy keyed on server-attested tool
-// identity. The exit codes are that set and one more, [ExitInternal], which a
+// It keeps the Python driver's contract: the same environment variables, the same exit
+// codes, and the same fail-closed permission policy keyed on server-attested tool
+// identity. It does not keep that driver's per-trigger idempotency -- the run key is the
+// unit of work, so nothing is skipped as a duplicate and every dispatch adopts the
+// session and reviews the current tree. See [xreview.RunKey]. The exit codes are that set and one more, [ExitInternal], which a
 // caller pinned to an older ref reads as an unknown failure.
 //
 // # One session per unit of work
