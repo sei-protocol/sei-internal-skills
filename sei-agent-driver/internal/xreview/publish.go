@@ -45,86 +45,123 @@ func RenderComment(v Verdict, sessionID string) string {
 			"item `%s` of session `%s`.\n\n",
 		len(prose), v.ItemID, sessionID)
 
-	// Room for the fence close a cut inside a code block needs, reserved
-	// unconditionally so both kinds of cut are bounded the same way. Measured from
-	// the whole reply: a fence still open in a prefix is a fence in the whole, so
-	// its longest fence line bounds any closer a truncation of it can need.
-	reserve := fenceReserve(prose)
+	// Room for the close a cut inside a code block or an HTML comment needs, reserved
+	// unconditionally so every kind of cut is bounded the same way. Measured from the
+	// whole reply: whatever a prefix leaves open was opened by something in the whole,
+	// so the whole bounds the close any cut of it can need.
+	reserve := markupReserve(prose)
 	budget := MaxBodyBytes - len(footer) - len(notice) - len(v.Block) - reserve
 	if budget < minProseBytes {
 		// The closing block alone does not fit, which takes a findings array of a few
 		// thousand entries. The decision still travels in the footer, and the notice still
 		// says where to read the rest. Both beat refusing to publish a review that ran.
-		// Room for the fence close too, since the cut may land inside a code block here
+		// Room for the close too, since the cut may land inside a code block here
 		// exactly as it can above.
-		head := closeDanglingFence(truncateBytes(prose,
+		head := closeDanglingMarkup(truncateBytes(prose,
 			MaxBodyBytes-len(footer)-len(notice)-reserve))
 		return head + notice + footer
 	}
 
-	return closeDanglingFence(truncateBytes(prose, budget)) + notice + v.Block + footer
+	return closeDanglingMarkup(truncateBytes(prose, budget)) + notice + v.Block + footer
 }
 
-// closeDanglingFence appends a fence close when a cut landed inside a code block.
+// closeDanglingMarkup closes the construct a cut landed inside.
 //
-// Both truncation paths need it. An unclosed fence renders everything after it as code,
-// so the notice would stop reading as a notice and the closing block would stop reading
-// as a decision -- a truncated review that no longer says it was truncated.
+// Both truncation paths need it, and for the same reason. An unclosed fence renders
+// everything after it as code; an unclosed HTML comment hides everything after it
+// outright. Either way the notice stops reading as a notice and the closing block stops
+// reading as a decision -- a truncated review that no longer says it was truncated, or
+// no longer appears at all.
 //
 // Counts only a fence that opens a line, which is the only place CommonMark opens one.
 // Counting every occurrence lets a fence named in prose, or one inside a code span,
 // flip the parity and either close a block that was never open or leave one open.
-func closeDanglingFence(s string) string {
-	char, length := openFence(s)
-	if length == 0 {
-		return s
+//
+// The two constructs are tracked together rather than in two passes, because each hides
+// the other: <!-- inside a code block is code, not a comment, and a fence inside a
+// comment is comment text, not a fence. At most one is ever open, so at most one close
+// is appended.
+func closeDanglingMarkup(s string) string {
+	char, length, inComment := openMarkup(s)
+	switch {
+	case inComment:
+		return s + commentClose
+	case length > 0:
+		return s + "\n" + strings.Repeat(string(char), length) + "\n"
 	}
-	return s + "\n" + strings.Repeat(string(char), length) + "\n"
+	return s
 }
 
-// openFence reports the fence still open at the end of s: its character and how long
-// it is, with a zero length when none is open.
+// commentClose closes an HTML comment a truncation left open.
+const commentClose = "\n-->\n"
+
+// openMarkup reports what is still open at the end of s: a code fence, given by its
+// character and how long it is, or an HTML comment.
 //
 // CommonMark closes a fence only with the same character, at least as long as the
 // opener, and with nothing but whitespace after it -- an info string marks an opener,
 // so a line carrying one never closes. One boolean cannot hold that: a ~~~ line
 // inside an open ``` block is content, not a close, and backticks do not close a
 // tilde block however many of them are appended.
-func openFence(s string) (byte, int) {
-	var char byte
-	var length int
+func openMarkup(s string) (char byte, length int, inComment bool) {
 	for _, line := range strings.Split(s, "\n") {
-		trimmed := strings.TrimLeft(line, " \t")
-		run := fenceRun(trimmed)
-		if run == 0 {
-			continue
-		}
-		if length == 0 {
-			char, length = trimmed[0], run
-			continue
-		}
-		if trimmed[0] == char && run >= length &&
-			strings.TrimRight(trimmed[run:], " \t") == "" {
-			length = 0
+		switch {
+		case inComment:
+			// Only --> closes a comment. A fence line inside one is comment text.
+			at := strings.Index(line, "-->")
+			if at < 0 {
+				continue
+			}
+			inComment = commentOpens(line[at+len("-->"):])
+		case length > 0:
+			// Only a matching fence line closes a block. <!-- inside one is code.
+			trimmed := strings.TrimLeft(line, " \t")
+			if run := fenceRun(trimmed); run > 0 && trimmed[0] == char &&
+				run >= length && strings.TrimRight(trimmed[run:], " \t") == "" {
+				length = 0
+			}
+		default:
+			trimmed := strings.TrimLeft(line, " \t")
+			if run := fenceRun(trimmed); run > 0 {
+				char, length = trimmed[0], run
+				continue
+			}
+			inComment = commentOpens(line)
 		}
 	}
-	return char, length
+	return char, length, inComment
 }
 
-// fenceReserve is the bytes to hold back for a fence close, or zero when s carries no
-// fence at all. The longest fence line bounds it: whichever fence a cut leaves open
-// was opened by a line in s, and a close is never longer than its opener.
-func fenceReserve(s string) int {
+// commentOpens reports whether a line leaves an HTML comment open, which is true when
+// the last <!-- on it has no --> after it. Comments do not nest, so the last opener is
+// the only one that can still be open.
+func commentOpens(line string) bool {
+	at := strings.LastIndex(line, "<!--")
+	return at >= 0 && !strings.Contains(line[at:], "-->")
+}
+
+// markupReserve is the bytes to hold back for whichever close a cut in s may need, or
+// zero when s carries nothing that can be left open.
+//
+// The longest fence line bounds the fence close: whichever fence a cut leaves open was
+// opened by a line in s, and a close is never longer than its opener. A comment close is
+// fixed. At most one close is appended, so the larger of the two covers both.
+func markupReserve(s string) int {
 	longest := 0
 	for _, line := range strings.Split(s, "\n") {
 		if run := fenceRun(strings.TrimLeft(line, " \t")); run > longest {
 			longest = run
 		}
 	}
-	if longest == 0 {
-		return 0
+	fence := 0
+	if longest > 0 {
+		fence = longest + len("\n\n")
 	}
-	return longest + len("\n\n")
+	comment := 0
+	if strings.Contains(s, "<!--") {
+		comment = len(commentClose)
+	}
+	return max(fence, comment)
 }
 
 // fenceRun is the length of the fence a line opens or closes, or zero if it is not a
