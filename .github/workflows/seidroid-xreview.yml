@@ -155,7 +155,7 @@ on:
         description: "OMNIGENT_MACHINE_CLIENT_ID for the in-process client_credentials mint. Mirrors the server's own OMNIGENT_MACHINE_CLIENT_ID. Not secret on its own -- the id alone cannot mint a token."
         required: false
         type: string
-        default: 'sei-droid'
+        default: 'seidroid'
       XREVIEW_SCOUTS:
         description: >-
           Independent readings to gather before the review, as `name=agent`,
