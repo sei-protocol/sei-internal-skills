@@ -604,12 +604,15 @@ func (c *conversation) anchorPrecedes(
 	walkCtx, cancel := c.host.boundWalk(ctx)
 	defer cancel()
 
-	// Projected to the two fields position reads, and deliberately carrying no
-	// payload: this list must never reach a content guard. Those decide what is
-	// publishable, and there is one copy of them, on the nested shape the snapshot
-	// sends. A second copy against this route's flattened fields would be two
-	// answers to "may this be published" with nothing keeping them in step.
-	var walked []omnigent.ConversationItem
+	// Read one item at a time, never held. Only two fields matter to position, and
+	// this list must never reach a content guard: those decide what is publishable,
+	// there is one copy of them, and it is on the nested shape the snapshot sends. A
+	// second copy against this route's flattened fields would be two answers to "may
+	// this be published" with nothing keeping them in step.
+	//
+	// The rule is [anchorTracker]'s, the same one the snapshot window goes through.
+	tracker := newAnchorTracker(anchorID, responseID)
+	walked := 0
 	for item, err := range c.client.Sessions().ListItems(walkCtx, c.sessionID,
 		itemWalkOptions()) {
 		if err != nil {
@@ -619,17 +622,15 @@ func (c *conversation) anchorPrecedes(
 				"session_id", c.sessionID, "anchor_item_id", anchorID, "error", err)
 			return false
 		}
-		walked = append(walked, omnigent.ConversationItem{
-			ID:         item.ID(),
-			ResponseID: item.ResponseID(),
-		})
+		walked++
+		tracker.observe(item.ID(), item.ResponseID())
 	}
-	if !groupIsAfterAnchor(walked, anchorID, responseID) {
+	if !tracker.groupFollows() {
 		return false
 	}
 	c.host.log.Info("placed the reply against a prompt the snapshot had truncated",
 		"session_id", c.sessionID, "anchor_item_id", anchorID,
-		"response_id", responseID, "snapshot_items", len(items), "walked_items", len(walked))
+		"response_id", responseID, "snapshot_items", len(items), "walked_items", walked)
 	return true
 }
 

@@ -91,18 +91,30 @@ func cloneCommands(req Request) []string {
 //
 // A line of zero is not a location. A scout may report none, and a thread GitHub holds
 // against a whole file carries none, so the file alone is the honest rendering.
-func promptLocation(file string, line int) string {
+//
+// The rendered path is anchored to the tree rather than left as the caller gave it.
+// [cloneCommands] puts the checkout in a subdirectory and nothing changes directory into
+// it, so a bare path does not name a file in the pull request at all -- it names whatever
+// sits beside the tree. That is both a defect and a hole: ".github/workflows/ci.yml" was
+// unopenable, and ".config/gh/hosts.yml" named the sandbox's own credential. Prefixing
+// makes a location resolve where this function says it resolves, whatever the agent's
+// working directory turns out to be, and [pointsSomewhereReal] refuses the parent
+// segments that would climb back out.
+func promptLocation(req Request, file string, line int) string {
 	name := clip(oneLine(file), maxScoutField)
 	if !pointsSomewhereReal(name) {
 		return "(no place in this tree)"
 	}
+	name = treePath(req) + "/" + strings.TrimPrefix(name, "./")
 	if line <= 0 {
 		return name
 	}
 	return fmt.Sprintf("%s:%d", name, line)
 }
 
-// pointsSomewhereReal reports whether a flattened path is inside the tree under review.
+// pointsSomewhereReal reports whether a flattened path may be resolved against the tree
+// under review. The anchoring is [promptLocation]'s; this decides only what shape of path
+// is allowed to be anchored at all.
 //
 // A scout's file field is model output, and the review is told to check each claim
 // against the diff, which means opening what the claim names. Anything that is not a
@@ -141,7 +153,7 @@ func pointsSomewhereReal(file string) bool {
 // space, and expands onto a live credential; ${HOME}, a backtick pair and $() do the
 // same. Admitting nothing that carries any of it needs no such list.
 //
-// It subsumes two rules that used to stand alone. A leading ~ is refused because ~ is
+// It subsumes the leading-~ and the space rules. A leading ~ is refused because ~ is
 // not a path byte anywhere, not only in front. A space is refused for the same reason,
 // which keeps the tokenisation the caller depends on: a location is one token in a line
 // this process lays out, so a value holding a space is two of them, and "a /etc/passwd"
@@ -211,7 +223,7 @@ func reconcileStep(req Request) []string {
 			for _, f := range shown {
 				out = append(out, fmt.Sprintf("      %s %s — %s",
 					clip(oneLine(f.Severity), maxScoutField),
-					promptLocation(f.File, f.Line),
+					promptLocation(req, f.File, f.Line),
 					clip(oneLine(f.Detail), maxScoutDetail)))
 			}
 		}
@@ -512,7 +524,7 @@ const DefaultGuidelinesFile = "REVIEW.md"
 // repo is the repository name this prompt may write into a command.
 //
 // Every command the prompts name goes through here rather than reading req.Repo
-// directly, so the check cannot be bypassed by adding a sixth command later.
+// directly, so the check cannot be bypassed by a command added later.
 func (req Request) repo() string { return safeRepo(req.Repo) }
 
 // guidelinesFile is the standards file to read, and it is a path this process writes
@@ -533,7 +545,7 @@ func (r Request) guidelinesFile() string {
 // safeRepo returns the repository this prompt may name in a command, or "" when it
 // is not a shape a command can safely carry.
 //
-// Repo is interpolated unquoted into four commands the prompts tell the agent to run, in a
+// Repo is interpolated unquoted into every command the prompts tell the agent to run, in a
 // sandbox holding a live credential. GuidelinesFile is checked for exactly this reason a
 // few lines down; Repo arrives from the same kind of caller and was not. A value that
 // fails here yields a prompt with no commands, rather than one with a command the caller
