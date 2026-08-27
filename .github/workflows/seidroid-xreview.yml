@@ -292,10 +292,16 @@ jobs:
           # passes the mode, but the guard has to know too: a close is teardown, and
           # some checks below stop a review without having any business stopping a
           # reclaim.
-          case "$cmdline" in
-            *close*) echo "command=close" >> "$GITHUB_OUTPUT" ;;
-            *)       echo "command=review" >> "$GITHUB_OUTPUT" ;;
-          esac
+          # Anchored on the word the grammar accepts, immediately after `xreview`, not
+          # a substring of the line: a target whose owner or repository contains
+          # "close" -- owner/closed-loop#12 -- is a review, and a glob called it
+          # teardown.
+          if printf '%s' "$cmdline" \
+            | grep -qE '^[[:space:]]*@?seidroid[[:space:]]+xreview[[:space:]]+close([[:space:]]|$)'; then
+            echo "command=close" >> "$GITHUB_OUTPUT"
+          else
+            echo "command=review" >> "$GITHUB_OUTPUT"
+          fi
           # Re-extracted from the matched line rather than from the raw body, so
           # what is passed on is only ever a substring the anchored pattern
           # already accepted.
