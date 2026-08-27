@@ -13,7 +13,7 @@ This package consumes portable Claude Code skills and specialist agents authored
 ### Output discipline
 
 - **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the component in scope.
-- **Comments & documentation.** Present-state only — never change/history/why-removed inline (that belongs in the PR/commit); sparingly; top-located (package/file/type doc, not the body); comprehensive context in one centralized doc. Champions: `idiomatic-reviewer` owns in-source comments + config annotations (`/idiomatic`); `prose-steward` owns doc artifacts + header-doc prose (`/language`). The full rules and the champion-boundary decision procedure live in those two skills.
+- **Comments & documentation.** Present-state only — never change/history/why-removed inline (that belongs in the PR/commit); sparingly; top-located (package/file/type doc, not the body); comprehensive context in one centralized doc. Champions: `idiomatic-reviewer` owns in-source comments + config annotations (`/idiomatic`); `prose-steward` owns doc artifacts + header-doc prose. The full rules live in `/idiomatic`; the boundary table between the two is in its `references/comment-discipline.md`.
 
 ### Using the skills
 
@@ -44,4 +44,4 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 
 ### Roles, not roster
 
-Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose, `/language`). The full roster of available specialists lives in the synced `.claude/agents/` files.
+Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose). The full roster of available specialists lives in the synced `.claude/agents/` files.
