@@ -186,10 +186,8 @@ func TestSalvageStillRefusesWithoutAProvablePosition(t *testing.T) {
 // They only diverge when a decisive page arrives and a later one fails, which is this
 // fixture. Neither test is redundant.
 //
-// The fixture has to reach that branch, and two earlier attempts did not — the pass came
-// from somewhere else entirely. Three things are load-bearing, so the control sub-test
-// runs the same fixture with the failure removed and asserts the walk both ran and
-// decided. If the control stops publishing, this file is testing nothing again.
+// Three things are load-bearing in reaching that branch at all, and each of them fails
+// silently — the run refuses for a different reason and the case looks covered.
 //
 //  1. The snapshot must not carry the anchor. driverSessionWithItems prepends the prompt
 //     item, which makes groupIsAfterAnchor succeed on the window and skip the walk, so
@@ -201,6 +199,10 @@ func TestSalvageStillRefusesWithoutAProvablePosition(t *testing.T) {
 //  3. The walk's own first page must be decisive on its own — anchor, then the reply group
 //     after it — so that answering from what arrived would publish. Otherwise the refusal
 //     and a correct negative answer are indistinguishable.
+//
+// So the control sub-test runs the same fixture with nothing failing and asserts the walk
+// ran and published. It is the guard on all three: if the control stops publishing, the
+// refusal case proves nothing and says so.
 func TestSalvageRefusesAPartialTranscript(t *testing.T) {
 	t.Parallel()
 
@@ -208,7 +210,6 @@ func TestSalvageRefusesAPartialTranscript(t *testing.T) {
 	const decisivePage = `{"data":[{"id":"item_1","response_id":"resp_prompt"},` +
 		`{"id":"item_reply","response_id":"resp_claude_a"}],` +
 		`"has_more":true,"last_id":"item_reply"}`
-	const emptyPage = `{"data":[],"has_more":false}`
 
 	run := func(t *testing.T, lastPage string) (driver.Result, *driverFakeServer) {
 		t.Helper()
@@ -221,7 +222,7 @@ func TestSalvageRefusesAPartialTranscript(t *testing.T) {
 					driverReplyItem("item_reply", "resp_claude_a",
 						driverVerdict("The review, finished server-side.", "approve"))),
 			},
-			ItemsResps: []string{emptyPage, decisivePage, lastPage},
+			ItemsResps: []string{driverEmptyItemsPage, decisivePage, lastPage},
 		})
 		result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
 			Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 91})
@@ -231,12 +232,11 @@ func TestSalvageRefusesAPartialTranscript(t *testing.T) {
 	// The control. Everything the refusal depends on, with nothing failing.
 	t.Run("the walk runs and decides", func(t *testing.T) {
 		t.Parallel()
-		result, fs := run(t, emptyPage)
+		result, fs := run(t, driverEmptyItemsPage)
 
 		if result.ExitCode != driver.ExitOK {
 			t.Fatalf("ExitCode = %d, want driver.ExitOK: the fixture never reaches the "+
-				"walk's decision, so the refusal below would pass for another reason",
-				result.ExitCode)
+				"walk's decision, so the refusal case proves nothing", result.ExitCode)
 		}
 		if result.Reply == nil || !carriesDecision(result.Reply, "approve") {
 			t.Errorf("Reply = %+v, want the committed review", result.Reply)
