@@ -47,24 +47,47 @@ func RenderComment(v Verdict, sessionID string) string {
 
 	// Reserved unconditionally, so a cut that lands inside a code block and one
 	// that does not are bounded the same way.
-	const fenceClose = "\n```\n"
-
-	budget := MaxBodyBytes - len(footer) - len(notice) - len(v.Block) - len(fenceClose)
+	// The fence close a cut inside a code block may need; see closeDanglingFence.
+	budget := MaxBodyBytes - len(footer) - len(notice) - len(v.Block) - len(danglingFenceClose)
 	if budget < minProseBytes {
 		// The closing block alone does not fit, which takes a findings array of a few
 		// thousand entries. The decision still travels in the footer, and the notice still
 		// says where to read the rest. Both beat refusing to publish a review that ran.
-		return truncateBytes(prose, MaxBodyBytes-len(footer)-len(notice)) + notice + footer
+		// Room for the fence close too, since the cut may land inside a code block here
+		// exactly as it can above.
+		head := closeDanglingFence(truncateBytes(prose,
+			MaxBodyBytes-len(footer)-len(notice)-len(danglingFenceClose)))
+		return head + notice + footer
 	}
 
-	head := truncateBytes(prose, budget)
-	// An odd fence count means the cut landed inside a code block. That would render the
-	// notice and the closing block as code, and change what the comment appears to say.
-	if strings.Count(head, "```")%2 == 1 {
-		head += fenceClose
-	}
-	return head + notice + v.Block + footer
+	return closeDanglingFence(truncateBytes(prose, budget)) + notice + v.Block + footer
 }
+
+// closeDanglingFence appends a fence close when a cut landed inside a code block.
+//
+// Both truncation paths need it. An unclosed fence renders everything after it as code,
+// so the notice would stop reading as a notice and the closing block would stop reading
+// as a decision -- a truncated review that no longer says it was truncated.
+//
+// Counts only a fence that opens a line, which is the only place CommonMark opens one.
+// Counting every occurrence lets a fence named in prose, or one inside a code span,
+// flip the parity and either close a block that was never open or leave one open.
+func closeDanglingFence(s string) string {
+	open := false
+	for _, line := range strings.Split(s, "\n") {
+		if trimmed := strings.TrimLeft(line, " \t"); strings.HasPrefix(trimmed, "```") ||
+			strings.HasPrefix(trimmed, "~~~") {
+			open = !open
+		}
+	}
+	if !open {
+		return s
+	}
+	return s + danglingFenceClose
+}
+
+// danglingFenceClose closes a code block a truncation left open.
+const danglingFenceClose = "\n```\n"
 
 // minProseBytes is the least review text worth publishing alongside a closing
 // block. Below it, the block is so large that carrying it would crowd out the

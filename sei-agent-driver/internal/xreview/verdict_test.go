@@ -28,14 +28,14 @@ func TestParseVerdict(t *testing.T) {
 		},
 		{
 			name:           "one fence tagged json",
-			text:           "Reviewed the diff.\n```json\n{\"decision\": \"approve\"}\n```",
-			wantStructured: map[string]any{"decision": "approve"},
+			text:           "Reviewed the diff.\n```json\n{\"decision\": \"approve\", \"summary\": \"s\"}\n```",
+			wantStructured: map[string]any{"decision": "approve", "summary": "s"},
 			wantDecision:   "approve",
 		},
 		{
 			name:           "one fence untagged",
-			text:           "Reviewed the diff.\n```\n{\"decision\": \"comment\"}\n```",
-			wantStructured: map[string]any{"decision": "comment"},
+			text:           "Reviewed the diff.\n```\n{\"decision\": \"comment\", \"summary\": \"s\"}\n```",
+			wantStructured: map[string]any{"decision": "comment", "summary": "s"},
 			wantDecision:   "comment",
 		},
 		{
@@ -43,24 +43,25 @@ func TestParseVerdict(t *testing.T) {
 			// message does not say what the agent decided, even when the agent wrote both. So this
 			// refuses rather than picking.
 			name: "two blocks that both decide are ambiguous, not last-wins",
-			text: "```json\n{\"decision\": \"comment\"}\n```\n" +
+			text: "```json\n{\"decision\": \"comment\", \"summary\": \"s\"}\n```\n" +
 				"Actually, on reflection:\n" +
-				"```json\n{\"decision\": \"approve\"}\n```",
+				"```json\n{\"decision\": \"approve\", \"summary\": \"s\"}\n```",
 		},
 		{
 			name:           "a capitalised decision is normalised",
-			text:           "```json\n{\"decision\": \"Approve\"}\n```",
-			wantStructured: map[string]any{"decision": "Approve"},
+			text:           "```json\n{\"decision\": \"Approve\", \"summary\": \"s\"}\n```",
+			wantStructured: map[string]any{"decision": "Approve", "summary": "s"},
 			wantDecision:   "approve",
 		},
 		{
 			name: "nested braces inside the block are captured whole",
 			text: "```json\n" +
-				`{"decision": "request_changes", "findings": [{"file": "a.go", "line": 1, ` +
+				`{"decision": "request_changes", "summary": "s", "findings": [{"file": "a.go", "line": 1, ` +
 				`"detail": "nested {braces} inside a string"}]}` +
 				"\n```",
 			wantStructured: map[string]any{
 				"decision": "request_changes",
+				"summary":  "s",
 				"findings": []any{
 					map[string]any{
 						"file":   "a.go",

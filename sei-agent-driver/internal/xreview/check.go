@@ -82,6 +82,10 @@ const maxCheckSection = 16_000
 // does not fill a section with a thousand near-identical lines.
 const maxCheckEntries = 50
 
+// sectionSeparator joins the check body's parts. Named because the prose budget has to
+// account for it, and a blank line between two sections is not obviously two bytes.
+const sectionSeparator = "\n\n"
+
 // checkTruncated says the summary was cut, so a reader does not take a truncated
 // list for the whole one.
 const checkTruncated = "\n\n_This summary was truncated. The published comment carries the full review._"
@@ -115,7 +119,7 @@ func checkSummary(v Verdict) string {
 			out = append(out, s)
 		}
 	}
-	body := strings.Join(out, "\n\n")
+	body := strings.Join(out, sectionSeparator)
 
 	// The prose is bounded here, against its own budget and against what the sections
 	// already spent. Bounding only the assembled whole cuts from the end, which is where
@@ -140,8 +144,9 @@ func checkSummary(v Verdict) string {
 // the thing the check exists to carry.
 func clipProse(s string, spent int) string {
 	budget := maxSummaryProse
-	// The separator this prose is joined with, and the notice a cut appends.
-	if room := maxCheckSummary - spent - len(checkProseTruncated) - 2; room < budget {
+	// What the prose has to leave room for besides itself: the separator joining it to
+	// the first section, and the notice a cut appends.
+	if room := maxCheckSummary - spent - len(checkProseTruncated) - len(sectionSeparator); room < budget {
 		budget = room
 	}
 	if budget <= 0 {

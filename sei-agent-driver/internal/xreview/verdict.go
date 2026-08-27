@@ -85,6 +85,12 @@ func (v Verdict) CheckConclusion() string {
 	if v.Decision() == "request_changes" || len(Blockers(v)) > 0 || v.hasBlockingFinding() {
 		return "failure"
 	}
+	// Deliberately not reading pre_existing_issues, whatever severity they carry. A
+	// blocker the change did not introduce is already on the base branch, so failing
+	// this check would fail every pull request that touches the file until someone
+	// fixes it -- and the author who has to clear the check is the one person who did
+	// not cause it. PreExisting keeps the severity so the reader can see it; the gate
+	// stops at neutral by way of hasNotes.
 	if v.Decision() == "comment" || v.hasNotes() {
 		return "neutral"
 	}
@@ -200,8 +206,15 @@ func ParseVerdict(text string) Verdict {
 		return v
 	}
 
-	if !decisions[normalizeDecision(out["decision"])] {
-		v.Reason = "unrecognised decision " + clip(fmt.Sprintf("%q", fmt.Sprint(out["decision"])), 72)
+	// The same predicate the count above used. Two definitions of "this block decides"
+	// is how a block can stop counting toward the ambiguity rule while still being
+	// accepted as the verdict, which is strictly worse than either rule alone.
+	if !decides(out) {
+		if !decisions[normalizeDecision(out["decision"])] {
+			v.Reason = "unrecognised decision " + clip(fmt.Sprintf("%q", fmt.Sprint(out["decision"])), 72)
+		} else {
+			v.Reason = "the closing block decides without a summary, which the contract asks for"
+		}
 		return v
 	}
 
@@ -233,7 +246,24 @@ func countBlocks(text string, blocks [][]int, match func(map[string]any) bool) i
 
 // decides reports whether a decoded block carries a decision this driver accepts, which
 // is what makes it a candidate verdict.
-func decides(out map[string]any) bool { return decisions[normalizeDecision(out["decision"])] }
+//
+// A summary is required alongside it, because the count rule only refuses two deciding
+// blocks: a single one, quoted out of the reviewed diff by an agent that died before
+// writing its own, satisfies every other rule -- it is the last block and nothing
+// follows it -- and publishes that decision under this tool's identity. The prompt asks
+// for read, decision and summary together, so a block carrying decision alone is not
+// the shape this contract describes. [scoutFields] refuses the same way, on two keys.
+//
+// This raises the bar rather than closing the class: a planted block carrying both keys
+// still passes. What no key check can supply is proof that the agent wrote the block,
+// and the count rule is the only thing that speaks to authorship.
+func decides(out map[string]any) bool {
+	if !decisions[normalizeDecision(out["decision"])] {
+		return false
+	}
+	_, summarised := out["summary"].(string)
+	return summarised
+}
 
 // normalizeDecision lowercases and trims a decision value, yielding "" for
 // anything that is not a JSON string.
