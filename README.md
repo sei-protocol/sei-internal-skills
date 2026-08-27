@@ -168,7 +168,6 @@ private snapshot rather than deleted outright.
   - **Workflow** — `/xreview`
   - **Investigation** — `/root-cause`
   - **Code quality** — `/idiomatic`, `/systems`
-  - **Writing quality** — `/language`
   - **Skill authoring** — `/author-skill`, `/audit-skill`
   - **Output quality** (sei-internal-skills-local) — `/brevity`, `/pr-quality`
   - **Platform infra** — `/platform`, `/kubernetes`

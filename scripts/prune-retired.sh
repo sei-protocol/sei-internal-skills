@@ -56,6 +56,9 @@ RETIRED_SKILLS=(
   tee          # trusted execution environments
   diagram      # house-grammar Lucid diagrams
   lingua       # RENAMED, not cut — superseded by `language` (#294)
+  language     # the dual-audience premise did not hold up; its rules that did
+               # are folded into the prose-steward agent, which no longer needs
+               # a skill behind it
 
   # The aggregators. Linear covers their job natively: Custom Views answer
   # "which projects are at risk / shipped last quarter / are mine", and Pulse

@@ -15,10 +15,10 @@ Workstream launches and governs a substantial, multi-step effort on the Coral st
 
 ## What it does
 
-- Scaffolds the Coral lifecycle (council, xreview, /design, /language, /issue) and inserts gates at the transitions, composing each skill rather than driving or replacing it.
+- Scaffolds the Coral lifecycle (council, xreview, /design, /issue) and inserts gates at the transitions, composing each skill rather than driving or replacing it.
 - Declares three gate kinds up front in a typed ledger: human **checkpoints** (surface + wait for explicit confirmation), signal **guards** (fail-closed metric watches during a cutover), and **review-gates** (merge-on-consensus, satisfied only when the /xreview ledger is unanimous and declared checks pass).
 - The one refusal that matters: it never self-approves a declared checkpoint. A Stop hook governs *stopping*, not *approval* — it cannot manufacture a sign-off the human never gave, and a guard or review-gate never discharges a one-way door.
 
 ## Reading the diagram
 
-This is a linear-pipeline: read it left-to-right as the ordered stages of one workstream, from declaring the ledger through council, xreview-to-convergence, /design, the dual-audience /language pass, implementation, and shipping. The gates sit *on* the arrows between stages — a checkpoint, guard, or review-gate is a one-way door the flow must stop at and clear before advancing, not a stage of its own. The diagram shows where each declared gate falls in the sequence and which composed skill owns the work on either side of it.
+This is a linear-pipeline: read it left-to-right as the ordered stages of one workstream, from declaring the ledger through council, xreview-to-convergence, /design, the dual-audience prose-steward review, implementation, and shipping. The gates sit *on* the arrows between stages — a checkpoint, guard, or review-gate is a one-way door the flow must stop at and clear before advancing, not a stage of its own. The diagram shows where each declared gate falls in the sequence and which composed skill owns the work on either side of it.

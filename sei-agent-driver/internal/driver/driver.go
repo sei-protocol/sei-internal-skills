@@ -56,6 +56,15 @@ type Driver struct {
 // misbehaves and nobody is watching. The prompts a turn parks on, and the turn's own
 // end, are the [Host]'s to record.
 func New(cfg Config, host Host, log *slog.Logger) *Driver {
+	// A non-positive RunDeadline is not an unbounded run, it is a context that has
+	// already expired -- so Run would log "run starting", fail its first request in
+	// microseconds, and report ExitTimeout on a run that never left the ground.
+	// [DefaultRunDeadline] is what [LoadConfig] would have supplied, and this is the
+	// other constructor that doc names; omni.New does the same for the three fields
+	// it owns.
+	if cfg.RunDeadline <= 0 {
+		cfg.RunDeadline = DefaultRunDeadline
+	}
 	return &Driver{cfg: cfg, host: host, log: log}
 }
 
