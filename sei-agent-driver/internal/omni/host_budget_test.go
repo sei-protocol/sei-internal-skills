@@ -72,7 +72,9 @@ func TestBoundWalkNeverSpendsTheWholeCallersBudget(t *testing.T) {
 
 	// Ratios around and past the point where the multiplier would outgrow the
 	// caller, so a walk that took its multiplier unconditionally is caught.
+	// Includes the sub-two-second cases, where the floor and the share disagree.
 	for _, remaining := range []time.Duration{
+		200 * time.Millisecond, time.Second, 1900 * time.Millisecond,
 		2 * time.Second, 10 * time.Second, 30 * time.Second, 120 * time.Second,
 	} {
 		h := &Host{cfg: driver.Config{RequestTimeout: 30 * time.Second}}
@@ -83,12 +85,46 @@ func TestBoundWalkNeverSpendsTheWholeCallersBudget(t *testing.T) {
 		if !ok {
 			t.Fatalf("remaining %v: the walk got no deadline", remaining)
 		}
-		// Strictly less: equal means the walk may consume the caller entirely.
-		if budget := time.Until(deadline); budget >= remaining {
-			t.Errorf("remaining %v: walk budget %v leaves the caller nothing",
-				remaining, budget.Round(time.Millisecond))
+		// Deadline against deadline, never elapsed-time against the nominal window.
+		// time.Until is read after the parent was built, so it is always a little
+		// under `remaining` and a comparison against it can never fail -- which is
+		// how the walk taking the caller's whole window passed this test.
+		parentDeadline, ok := parent.Deadline()
+		if !ok {
+			t.Fatalf("remaining %v: the parent got no deadline", remaining)
+		}
+		if !deadline.Before(parentDeadline) {
+			t.Errorf("remaining %v: the walk runs to the caller's own deadline (%v), "+
+				"so the caller is left nothing for what the walk was serving",
+				remaining, deadline.Sub(parentDeadline))
 		}
 		cancel()
 		cancelParent()
+	}
+}
+
+// TestBoundWalkDiesWithItsCaller pins the parentage, not just the budget.
+//
+// A walk detached from its parent keeps running after the caller is cancelled — on a
+// SIGTERM that is a listing still going while the process is trying to leave. The budget
+// tests cannot see this: a detached context still gets a deadline, and a shorter one.
+func TestBoundWalkDiesWithItsCaller(t *testing.T) {
+	t.Parallel()
+
+	h := &Host{cfg: driver.Config{RequestTimeout: 30 * time.Second}}
+	parent, cancelParent := context.WithCancel(context.Background())
+	walk, cancel := h.boundWalk(parent)
+	defer cancel()
+
+	if err := walk.Err(); err != nil {
+		t.Fatalf("the walk started already done: %v", err)
+	}
+	cancelParent()
+
+	select {
+	case <-walk.Done():
+	case <-time.After(2 * time.Second):
+		t.Error("the caller was cancelled and the walk kept its context live, so a walk " +
+			"outlives the run that started it")
 	}
 }

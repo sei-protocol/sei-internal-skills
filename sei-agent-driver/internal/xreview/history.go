@@ -150,7 +150,7 @@ func historyStep(req Request) []string {
 			state = "resolved"
 		}
 		out = append(out, fmt.Sprintf("  [%s] %s — %s",
-			state, promptLocation(t.File, t.Line), clip(oneLine(t.Body), maxScoutDetail)))
+			state, promptLocation(req, t.File, t.Line), clip(oneLine(t.Body), maxScoutDetail)))
 
 		replies := t.Replies
 		if len(replies) > maxPriorReplies {

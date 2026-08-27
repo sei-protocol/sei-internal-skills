@@ -33,7 +33,10 @@ func TestBothPromptsCarryTheHistory(t *testing.T) {
 		"AdoptedPrompt": AdoptedPrompt(req),
 	} {
 		for _, want := range []string{
-			"[open] a.go:9 — unbounded retry",
+			// Anchored to the checkout, because the tree is a subdirectory and
+			// nothing changes directory into it. A bare "a.go:9" named a sibling
+			// of the tree, so it was not openable.
+			"[open] pr-42-tree/a.go:9 — unbounded retry",
 			"reply: fixed in 3f2a",
 			"A reply is a claim, not a resolution",
 		} {

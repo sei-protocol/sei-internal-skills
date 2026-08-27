@@ -32,6 +32,21 @@ func TestASingleQuotedBlockIsNotAVerdict(t *testing.T) {
 		text: "I have not finished yet.\n```json\n{\"decision\": \"approve\"}\n```",
 		want: false,
 	}, {
+		// A summary key with nothing in it is a block carrying decision alone, which
+		// is what this rule refuses. Verdict.Summary trims, so accepting a blank here
+		// would give one field two answers in one file.
+		name: "a lone decision with an empty summary",
+		text: "```json\n{\"decision\": \"approve\", \"summary\": \"\"}\n```",
+		want: false,
+	}, {
+		name: "a lone decision with a whitespace summary",
+		text: "```json\n{\"decision\": \"approve\", \"summary\": \"   \"}\n```",
+		want: false,
+	}, {
+		name: "a lone decision whose summary is not a string",
+		text: "```json\n{\"decision\": \"approve\", \"summary\": 12}\n```",
+		want: false,
+	}, {
 		// The deliberate tolerance: a review that omits its line count still parses,
 		// and CheckConclusion degrades it to neutral rather than refusing here.
 		name: "a real verdict that omits only the line count",

@@ -654,7 +654,7 @@ func TestDefusingLeavesInlineFormattingAlone(t *testing.T) {
 
 // TestACheckBulletIsOneLine pins the layout every entry in the summary depends on.
 //
-// Defusing is what stops an entry opening a section, so this is no longer the control
+// Defusing is what stops an entry opening a section, so this is not the control
 // that does it. What it still owns is the list: an entry keeping its newlines runs on
 // into the next paragraph and stops reading as one item among several.
 func TestACheckBulletIsOneLine(t *testing.T) {
