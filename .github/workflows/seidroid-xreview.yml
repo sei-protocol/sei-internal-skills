@@ -407,10 +407,23 @@ jobs:
     # A close asked for in a COMMENT is a different thing and does need one. It is a
     # person destroying a session, so it goes through the same team gate the review
     # does; the only ungated close is the one the platform itself reports.
+    # !cancelled() rather than always(), and the guard's RESULT rather than only its
+    # output. always() started this job when the guard had failed -- the secret check
+    # is the last thing the guard does, so should_run is already set by then and the
+    # fast-fail bought nothing -- and started it on a cancelled run, which spends
+    # model quota and holds a sandbox for a review nobody is waiting for.
+    #
+    # !cancelled() is still needed because the close path SKIPS the guard, and a
+    # skipped dependency would otherwise skip this too. Each path names the guard
+    # result it expects, so neither admits the other's.
     if: >-
-      ${{ always() && (
-      (github.event_name == 'issue_comment' && needs.guard.outputs.should_run == 'true') ||
-      (github.event_name == 'pull_request' && inputs.mode == 'close')) }}
+      ${{ !cancelled() && (
+      (github.event_name == 'issue_comment' &&
+        needs.guard.result == 'success' &&
+        needs.guard.outputs.should_run == 'true') ||
+      (github.event_name == 'pull_request' &&
+        inputs.mode == 'close' &&
+        needs.guard.result == 'skipped')) }}
     # Exactly one review per PR: a newer `seidroid xreview` cancels an in-flight one
     # (latest wins, never two posters); the driver traps cancellation and STOPS its
     # session, keeping the conversation. Only the close event deletes it, so a rapid
@@ -449,12 +462,6 @@ jobs:
     env:
       OMNIGENT_MACHINE_CLIENT_ID: ${{ inputs.machine-client-id }}
       OMNIGENT_MACHINE_CLIENT_SECRET: ${{ secrets.OMNIGENT_MACHINE_CLIENT_SECRET }}
-      # The same value under the names the current driver reads, which are what the
-      # deployment calls its own registry entry. One secret exported twice, so a
-      # driver-version that straddles the rename needs no coordinated secret change
-      # in the calling repository.
-      OMNIGENT_M2M_CLIENT_ID: ${{ inputs.machine-client-id }}
-      OMNIGENT_M2M_CLIENT_SECRET: ${{ secrets.OMNIGENT_MACHINE_CLIENT_SECRET }}
       # Whether the bot's identity is available, as a value a step condition can
       # read. The secrets context is not one of those -- a step `if` that touches
       # it is a workflow-file error, not a false condition -- so the presence test
