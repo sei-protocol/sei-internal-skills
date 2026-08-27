@@ -60,6 +60,21 @@ func TestSalvageAnchorsOnTheItemTheSendNamed(t *testing.T) {
 	if got := fs.StreamHits(); got != 1 {
 		t.Errorf("stream subscriptions = %d, want 1: the answer was already readable", got)
 	}
+	// This reply was placed by the paged walk, which reads slice index as
+	// transcript time: a descending listing would put every reply before its own
+	// prompt and refuse the review this path exists to recover. The route does
+	// default to ascending, which is why the bug does not show -- it is the only
+	// listing on the API that does, so the direction is requested, and asserted
+	// here rather than inherited.
+	queries := fs.ItemsQueries()
+	if len(queries) == 0 {
+		t.Fatal("no items listing was requested; this case is supposed to walk")
+	}
+	for i, q := range queries {
+		if !strings.Contains(q, "order=asc") {
+			t.Errorf("items page %d query = %q, want order=asc", i, q)
+		}
+	}
 }
 
 // TestSalvageStillRefusesWithoutAProvablePosition pins the guards the change above
