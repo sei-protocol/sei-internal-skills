@@ -70,14 +70,11 @@ answering our prompt, however well-timed its edge looks. This is what makes
 overlapping runs safe: a superseded run whose stop lost the race ends its turn
 inside our window, and its edge is otherwise identical to ours.
 
-**Positive attribution — the publish gate.** Text reaches a caller only as the
-content of an item that carries this turn's response id, is a completed assistant
-message, was not authored by a client, and is neither injected context nor an
-interrupted partial. Positive throughout, because the negative form — newest
-message not seen before the turn — fails open and admits anything the pre-turn
-snapshot missed. `items.go` also checks an item's type before decoding its payload,
-since the decoder consults no discriminator and turns a tool output into an empty
-message without complaint.
+**Positive attribution — the publish gate.** The model here is that publishing is
+allowed by a positive match rather than by the absence of a reason to refuse: the
+negative form — newest message not seen before the turn — fails open and admits
+anything the pre-turn snapshot missed. The conditions an item must satisfy are in
+`doc.go` under *What may be published*, and `items.go` enforces them.
 
 **The caller's predicate — what "finished" means is not ours.** `driver.Ask` carries
 `Done`, and this package asks it rather than asking the server. A terminal-backed
@@ -103,32 +100,15 @@ the costly mistake differs.
 ## Harness differences
 
 The end of a turn is the one thing the server reports differently per harness, and
-neither signal is available on the other.
+neither signal is available on the other. That is the shape worth carrying in your
+head: there is no single "turn ended" event to wait for, so the package picks a rule
+per harness and `terminalBacked` is where the choice is made.
 
-**Terminal-backed** — the `*-native` harnesses, which drive a real terminal. The end
-is a `session.status` edge reporting idle *and* carrying a response id, arriving
-after the boundary. This is the server's intended contract rather than a workaround:
-the forwarder derives that edge from Claude Code's `Stop` hook, which fires once per
-finished turn, and attaches a response id for exactly this purpose. A bare idle edge
-is terminal churn and ends nothing.
+The two rules, and why an unrecognised harness takes the strict one, are in `doc.go`
+under *How a turn is bounded*. Response ids split the same way — which is why the end
+signal and the attribution have to agree — and that rule is in `doc.go` too, under
+*Response ids belong to a harness, not to the server*.
 
-**In-process** — codex, claude-sdk, the agents SDKs. That edge never arrives:
-`response_id` is documented as `None for ordinary in-process runtime edges`, and only
-the route a native forwarder posts to attaches one. The end there is the response
-lifecycle, which the executor yields only on a final answer, and the relay commits
-the assistant message before publishing it.
-
-`terminalBacked` picks between them from an enumerated list of in-process harnesses,
-so a harness this package does not recognise takes the terminal-backed rule. That
-direction is deliberate: waiting for an edge that never comes ends in a deadline,
-which announces itself, while ending on a lifecycle event too early publishes a
-half-written answer as a verdict.
-
-**Response ids follow the same split**, which is why the end signal and the
-attribution have to agree. A terminal-backed harness derives `resp_claude_<32 hex>`
-from the Claude source key and stamps it on items and on the status edges describing
-them; it emits no response lifecycle events at all. An in-process harness mints one
-`resp_<24 hex>` per turn, carries it on every lifecycle event for that turn, and the
-relay stamps the items it persists with the same id so that a turn's items and its
-lifecycle share one identifier. So a lifecycle id is a valid thing to attribute
-against — on the harness whose items are stamped from it, and only there.
+Both are stated once, there, because this file said at the top that it would not
+restate them and because a prose copy has no test binding it to the original. When
+the server changes a turn-end signal, one copy gets edited and the other does not.
