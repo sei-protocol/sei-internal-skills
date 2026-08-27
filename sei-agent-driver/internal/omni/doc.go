@@ -120,6 +120,13 @@
 // positive half the negative filter cannot carry, and it is the only thing between a
 // prologue's replayed reply and a published review.
 //
+// It reads the snapshot, which carries the newest hundred items and marks no
+// truncation, so a turn whose own tool traffic overruns that window leaves its
+// prompt unfindable there. An anchor missing from the window — and only then — is
+// placed against the paged item route instead. That route sends a flattened shape
+// with no payload to decode, so it can prove position and nothing else; the guards
+// that decide publishability stay on the snapshot, in one copy.
+//
 // The streamed text deltas are a progress signal and never a source. They arrive
 // out of index order and can land short of the committed message, so reassembling
 // them cannot even produce a verdict.

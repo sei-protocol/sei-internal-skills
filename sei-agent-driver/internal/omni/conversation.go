@@ -336,6 +336,14 @@ func (c *conversation) sendPrompt(ctx context.Context, sessionID, prompt string,
 	t.anchor = accepted.ItemID
 	if t.anchor == "" {
 		t.anchor = accepted.PendingID
+	} else {
+		// An item id is the position the snapshot compares against, and it is known
+		// here rather than only at the consume echo. Recovery needs it: a stream that
+		// dies between this response and that echo leaves a reply committed with no
+		// way to prove where it sits, and the run discards an answer it paid for. The
+		// pending arm cannot do this -- a pending id names no item -- so its anchor
+		// item stays whatever [turn.crossBoundary] resolves it to.
+		t.anchorItem = accepted.ItemID
 	}
 	if t.anchor == "" {
 		return fmt.Errorf("%w: the server queued the prompt but named neither an item "+
@@ -457,10 +465,10 @@ func (c *conversation) salvageFailedTurn(ctx context.Context, t *turn) (driver.R
 // for, and [conversation.salvageFailedTurn] cannot help — it keys on a failure edge
 // a transport drop never produces.
 //
-// Fails closed at every step: only a genuine stream fault is recovered; the prompt
-// must have been echoed, or the run has nothing of its own to find; the session must
-// name no active response; exactly one reply group must be new; that group must sit
-// after this turn's prompt; and its reply must be a finished answer. Anything short of
+// Fails closed at every step: only a genuine stream fault is recovered; an item must
+// anchor this turn's prompt, or there is no position to attribute against; the session
+// must name no active response; exactly one reply group must be new; that group must
+// sit after that anchor; and its reply must be a finished answer. Anything short of
 // all six reports the transport error instead.
 func (c *conversation) recoverFromStreamLoss(
 	ctx context.Context,
@@ -470,18 +478,29 @@ func (c *conversation) recoverFromStreamLoss(
 	if !errors.Is(cause, omnigent.ErrStreamInterrupted) && !errors.Is(cause, omnigent.ErrStreamIdle) {
 		return driver.Reply{}, cause
 	}
-	if !t.crossed {
-		// Nothing to salvage, but the two ways of getting here have different
-		// causes and the operator should not have to tell them apart from a stream
-		// error. An unsent prompt means the sandbox never reported itself ready, so
-		// the wait ran out; a sent one means the turn was lost before its prompt
-		// was persisted.
-		if t.anchor == "" {
+	// An item to compare positions against is what this path needs, and the consume
+	// echo is not the only thing that supplies one: a send answered with an item id
+	// names the same item, so a stream that died before the echo can still be
+	// recovered from. The end rules keep requiring the echo -- an event stream
+	// carries no positions, so nothing there can stand in for it -- but a snapshot
+	// does, and [groupIsAfterAnchor] is the proof the package doc asks for.
+	//
+	// The three ways there is no such item are reported apart, because an operator
+	// reading a stream error cannot tell them apart and each has a different cause.
+	if t.anchorItem == "" {
+		switch {
+		case t.anchor == "":
 			c.host.log.Error("the sandbox never reported ready, so the prompt was never sent",
 				"session_id", c.sessionID, "error", cause)
-		} else {
-			c.host.log.Error("the stream died before the prompt was persisted",
-				"session_id", c.sessionID, "anchor_item_id", t.anchor, "error", cause)
+		case !t.crossed:
+			// Parked as a pending input and not yet drained, so no item carries it and
+			// no position can be proven. Waiting is the only thing that resolves it.
+			c.host.log.Error("the stream died while the prompt was still a pending input, "+
+				"so no item anchors it yet",
+				"session_id", c.sessionID, "anchor", t.anchor, "error", cause)
+		default:
+			c.host.log.Error("the prompt was echoed without naming an item",
+				"session_id", c.sessionID, "anchor", t.anchor, "error", cause)
 		}
 		return driver.Reply{}, cause
 	}
@@ -523,7 +542,7 @@ func (c *conversation) recoverFromStreamLoss(
 	// The group above was found by asking which ids are new, which is the negative
 	// filter the package doc forbids. Requiring the reply to sit after this turn's
 	// prompt is the positive half that filter cannot carry.
-	if !groupIsAfterAnchor(session.Items, t.anchorItem, groups[0]) {
+	if !c.anchorPrecedes(readCtx, session.Items, t.anchorItem, groups[0]) {
 		c.host.log.Warn("stream died and the new reply does not sit after this turn's prompt",
 			"session_id", c.sessionID, "anchor_item_id", t.anchorItem,
 			"response_id", groups[0], "error", cause)
@@ -550,6 +569,79 @@ func (c *conversation) recoverFromStreamLoss(
 	c.host.log.Warn("recovered a complete answer from a session whose stream died",
 		"session_id", c.sessionID, "turn_id", groups[0], "error", cause)
 	return reply, nil
+}
+
+// anchorPrecedes proves the reply sits after this turn's prompt, reaching past the
+// snapshot window when it has to.
+//
+// [Sessions.Get] with IncludeItems returns the newest hundred items and marks no
+// truncation, so an anchor the snapshot does not carry has two readings: the prompt
+// is not on this session at all, or this turn's own tool calls have pushed it out of
+// the window. The readings are opposite -- one is a reply to refuse, the other a
+// completed review to publish -- and a long turn is exactly the turn that both
+// overruns the window and spans enough streams to need salvaging, so this is the
+// case recovery exists for rather than an edge of it.
+//
+// The paged route separates them, and it is asked only when it can change the
+// answer: an anchor present in the window is already decisive, so the common path
+// costs nothing. The walk reads two fields, which is all position needs -- that
+// route sends the flattened shape and leaves [ConversationItem.Data] nil, so the
+// content guards could not run on it and are deliberately left on the snapshot.
+func (c *conversation) anchorPrecedes(
+	ctx context.Context,
+	items []omnigent.ConversationItem,
+	anchorID, responseID string,
+) bool {
+	if groupIsAfterAnchor(items, anchorID, responseID) {
+		return true
+	}
+	if carriesItem(items, anchorID) {
+		// The window holds the anchor and the reply is not behind it. Nothing a
+		// wider read could add changes that.
+		return false
+	}
+
+	walkCtx, cancel := c.host.boundWalk(ctx)
+	defer cancel()
+
+	// Projected to the two fields position reads, and deliberately carrying no
+	// payload: this list must never reach a content guard. Those decide what is
+	// publishable, and there is one copy of them, on the nested shape the snapshot
+	// sends. A second copy against this route's flattened fields would be two
+	// answers to "may this be published" with nothing keeping them in step.
+	var walked []omnigent.ConversationItem
+	for item, err := range c.client.Sessions().ListItems(walkCtx, c.sessionID,
+		omnigent.SessionItemsOptions{Limit: 1000}) {
+		if err != nil {
+			// Refuse rather than fall back to the truncated answer: an incomplete
+			// transcript cannot prove a position either way.
+			c.host.log.Warn("could not page this session's items to place the reply",
+				"session_id", c.sessionID, "anchor_item_id", anchorID, "error", err)
+			return false
+		}
+		walked = append(walked, omnigent.ConversationItem{
+			ID:         item.ID(),
+			ResponseID: item.ResponseID(),
+		})
+	}
+	if !groupIsAfterAnchor(walked, anchorID, responseID) {
+		return false
+	}
+	c.host.log.Info("placed the reply against a prompt the snapshot had truncated",
+		"session_id", c.sessionID, "anchor_item_id", anchorID,
+		"response_id", responseID, "snapshot_items", len(items), "walked_items", len(walked))
+	return true
+}
+
+// carriesItem reports whether the snapshot holds this item at all, which is what
+// separates a truncated window from a reply that is not ours.
+func carriesItem(items []omnigent.ConversationItem, id string) bool {
+	for _, item := range items {
+		if item.ID == id {
+			return true
+		}
+	}
+	return false
 }
 
 // fetchReply reads the turn's reply off the session.
