@@ -178,8 +178,17 @@ func TestTheFenceModelFollowsCommonMark(t *testing.T) {
 			"<pre><!--\n", "\n-->\n"},
 		{"an attribute on the block does not hide it",
 			"<pre class=x><!--\n", "\n-->\n"},
-		{"the same inside a textarea",
-			"<textarea><!--\n", "\n-->\n"},
+		// Not the same inside a textarea. It is escapable raw text, so the <!-- is
+		// content and only </textarea> ends the element -- closing with --> would
+		// leave the tag open and capture the footer as its content.
+		{"a comment inside a textarea is content, not a construct",
+			"<textarea><!--\n", "\n</textarea>\n"},
+		{"the same across lines",
+			"<textarea>\n<!-- a\n", "\n</textarea>\n"},
+		{"script is raw text too",
+			"<script><!--\n", "\n</script>\n"},
+		{"style is raw text too",
+			"<style><!--\n", "\n</style>\n"},
 		{"a comment closed inside a raw block leaves the block open",
 			"<pre>\n<!-- a -->\n", "\n</pre>\n"},
 		{"div is not a raw block, so the comment is tracked plainly",
@@ -208,10 +217,10 @@ func TestTheFenceModelFollowsCommonMark(t *testing.T) {
 // and closes only on the same character, at least as long, with nothing but whitespace
 // after it. An HTML comment opens on <!-- and closes on the next -->, and does not nest.
 // A raw block opens on <pre, <script, <style or <textarea at the start of a line and
-// closes only on its own end tag, from anywhere on a line -- except that an HTML comment
-// opened inside one outranks it, because <pre> is not a raw-text element and the comment
-// runs past the end tag. Otherwise each construct hides the others: whichever opens first
-// holds until it closes.
+// closes only on its own end tag, from anywhere on a line -- except inside <pre>, an
+// ordinary element whose content is parsed as HTML, where a comment opened in it outranks
+// the tag and runs past the end tag. Otherwise each construct hides the others: whichever
+// opens first holds until it closes.
 func endsInsideMarkup(s string) (fence, comment bool) {
 	// The three line endings CommonMark recognises, folded to the one Go splits on.
 	s = strings.ReplaceAll(s, "\r\n", "\n")
@@ -230,8 +239,10 @@ func endsInsideMarkup(s string) (fence, comment bool) {
 			continue
 		}
 		if openTag != "" {
-			// A comment opened in here outranks the block, per the HTML rule above.
-			if lastOpenerIsBare(raw) {
+			// Only inside <pre>, an ordinary element whose content is parsed as HTML.
+			// script/style are raw text and textarea/title escapable raw text, so a
+			// <!-- in those is content and only the end tag ends the element.
+			if openTag == "pre" && lastOpenerIsBare(raw) {
 				openTag, comment = "", true
 				continue
 			}
@@ -268,7 +279,7 @@ func endsInsideMarkup(s string) (fence, comment bool) {
 				}
 			}
 			switch {
-			case openTag != "" && lastOpenerIsBare(raw):
+			case openTag == "pre" && lastOpenerIsBare(raw):
 				// <pre><!-- on one line: the comment is what stays open.
 				openTag, comment = "", true
 			case openTag == "":
