@@ -59,8 +59,10 @@ boundary: nothing at or before it can be ours, because a stream opens by replayi
 earlier work. Two identifiers are involved, because a prompt reaching a live
 runtime persists as an item immediately, while one parked before the sandbox is up
 returns a pending id that names no item yet. `turn.anchor` holds whichever came
-back, and `turn.anchorItem` holds the item the boundary resolved to — position
-comparisons use that one.
+back, and `turn.anchorItem` holds the item — set from the send when the send named
+one, and from the echo when the prompt was parked. Position comparisons use that
+one, which is why a stream that dies before the echo can still be recovered from
+while the end rules, having no positions to read, keep waiting for it.
 
 **The prior set — identity is exclusive.** Before the turn, the run records every
 response id already on the session. An id in that set cannot belong to the turn
