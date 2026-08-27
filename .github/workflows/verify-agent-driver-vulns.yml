@@ -1,0 +1,76 @@
+name: Verify sei-agent-driver vulnerabilities
+
+# The schedule is the point: a vulnerability disclosed today applies to code that did not
+# change, so a pull-request-only gate reports clean on a module that has just become
+# vulnerable. Split out so a vulnerability failure reads as its own check.
+
+# No paths filter on pull_request, deliberately. A path-filtered workflow that is
+# skipped reports no check run at all, so this check added to branch protection would
+# sit at "Expected -- waiting for status" forever and every skills-only pull request
+# would be unmergeable. The job id was chosen so this can be required alone, and a
+# filter here would make that unusable.
+#
+# It also matches this workflow's own argument: vulnerability state drifts independently
+# of the diff, so "the driver did not change" is not a reason to skip the scan. The push
+# and schedule triggers keep their filters, where nothing is waiting on a check.
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - 'sei-agent-driver/**'
+      - 'Makefile'
+      # A release is cut by editing version.json alone, and that push publishes the driver.
+      - 'version.json'
+      - '.github/workflows/verify-agent-driver-vulns.yml' 
+  schedule:
+    # Off the hour: scheduled runs queue behind everything that fires at :00.
+    - cron: '17 7 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: verify-agent-driver-vulns-${{ github.event.pull_request.number || github.ref }}
+  # Only a pull request supersedes its own run. A cancelled scheduled run is neither red nor
+  # notified, so cancelling there would lose the finding.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  # The job id is the check-run name branch protection matches, and deliberately not `verify`:
+  # ten workflows here already emit one by that name, and this has to be requirable alone.
+  govulncheck:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          # Nothing here pushes, and the default leaves a token where the scanner could read it.
+          persist-credentials: false
+
+      # v7 reads the `toolchain` directive. v5 matched only `go`, leaving the pinned toolchain
+      # to a run-time re-exec.
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: sei-agent-driver/go.mod
+          # The Makefile pins the scanner version, so it belongs in the key: a bump
+          # otherwise changes what is built without changing what is cached.
+          cache-dependency-path: |
+            sei-agent-driver/go.sum
+            Makefile
+
+      - name: No known vulnerability is reachable from sei-agent-driver
+        # setup-go exports GOTOOLCHAIN=local for every later step. The target needs auto:
+        # standard-library findings are graded against the toolchain go.mod pins, and
+        # under local a go.mod that outgrows the installed toolchain fails as a setup
+        # error that no re-run clears -- on a required check, a repo-wide merge freeze.
+        #
+        # GOVULNCHECK_FLAGS is the break-glass the Makefile documents (`-db <mirror>`
+        # during a vuln.go.dev outage). An unset repository variable expands to empty,
+        # which is the Makefile's own default, so this is inert until someone sets it.
+        env:
+          GOTOOLCHAIN: auto
+          GOVULNCHECK_FLAGS: ${{ vars.GOVULNCHECK_FLAGS }}
+        run: make driver-vulncheck

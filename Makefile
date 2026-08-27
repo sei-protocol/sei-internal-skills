@@ -119,6 +119,39 @@ driver-check: ## Everything enforced about sei-agent-driver: fmt, build, vet, te
 	cd sei-agent-driver && go test ./... -race
 	cd sei-agent-driver && go mod tidy -diff
 
+# Pinned because @latest in CI runs whatever was published most recently. The vulnerability
+# database is not pinned: the tool reads vuln.go.dev at run time.
+GOVULNCHECK_VERSION ?= v1.7.0
+
+# For a run that has to diverge from CI: `-show verbose`, or `-db <mirror>` during an outage.
+# The workflow passes this through from the `GOVULNCHECK_FLAGS` repository variable, so the
+# mirror is reachable in CI and not only locally.
+GOVULNCHECK_FLAGS ?=
+
+# Runs inside the module so go.mod's `toolchain` picks the Go whose standard library findings
+# are graded against; GOTOOLCHAIN must stay at auto. actions/setup-go exports it as `local`,
+# so the workflow sets it back on the step -- under `local` a go.mod that outgrows the
+# installed toolchain fails as a setup error instead of resolving. Installed rather than `go run` so a
+# reachable finding (3) can be told from a scanner that could not run (1) -- make reports 2
+# either way, so that distinction travels as the message.
+.PHONY: driver-vulncheck
+driver-vulncheck: ## Fail if sei-agent-driver can reach a known vulnerability (CI)
+	@cd sei-agent-driver && { \
+	  GOBIN=$(CURDIR)/sei-agent-driver/bin \
+	    go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) && \
+	  ./bin/govulncheck -version; \
+	} || { \
+	  echo "driver-vulncheck: SCANNER UNAVAILABLE (setup failed) --" \
+	       "not a vulnerability verdict; re-run" >&2; exit 1; \
+	}
+	@cd sei-agent-driver && ./bin/govulncheck $(GOVULNCHECK_FLAGS) ./...; code=$$?; \
+	  case $$code in \
+	    0) ;; \
+	    3) echo "driver-vulncheck: a reachable vulnerability was found (see above)" >&2; exit 3 ;; \
+	    *) echo "driver-vulncheck: SCANNER UNAVAILABLE (govulncheck exit $$code) --" \
+	            "not a vulnerability verdict; re-run" >&2; exit $$code ;; \
+	  esac
+
 # -buildvcs=false because a nested module cannot stamp VCS info, which is also
 # why the version is passed in: without it the binary cannot say which commit it
 # is, and neither can runtime/debug.ReadBuildInfo.
