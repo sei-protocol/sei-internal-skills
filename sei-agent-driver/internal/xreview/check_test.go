@@ -396,7 +396,7 @@ func visibleHeadings(text string) []string {
 			inComment, line = true, line[:at]
 		}
 		out = append(out, htmlHeadings(line)...)
-		if n := fenceRun(line); n >= 3 {
+		if n := fenceRun(line); n > 0 {
 			fence = line[:n]
 			continue
 		}
@@ -470,19 +470,6 @@ func htmlHeadings(line string) []string {
 		out = append(out, strings.TrimSpace(rest))
 	}
 	return out
-}
-
-// fenceRun returns how many backticks or tildes open a code fence on this line, and 0
-// when it opens none.
-func fenceRun(s string) int {
-	if s == "" || (s[0] != '`' && s[0] != '~') {
-		return 0
-	}
-	n := 0
-	for n < len(s) && s[n] == s[0] {
-		n++
-	}
-	return n
 }
 
 // unescapedIndex returns where sub occurs without a backslash in front of it, and -1
