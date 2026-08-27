@@ -151,6 +151,29 @@ func TestTheFenceModelFollowsCommonMark(t *testing.T) {
 			"~~~go\r\nx()\r\n", "\n~~~\n"},
 		{"a CRLF comment is seen as closed",
 			"<!-- a -->\r\nprose\r\n", ""},
+		// A raw <pre> runs to its end tag past blank lines, so an unclosed one hides
+		// the notice the way a comment does. <details> and friends stop at a blank
+		// line, and the notice opens with one, so they are not tracked.
+		{"an open pre block closes with its end tag",
+			"<pre>\nx()\n", "\n</pre>\n"},
+		{"a closed pre block is left alone",
+			"<pre>\nx()\n</pre>\nprose\n", ""},
+		{"the end tag closes from anywhere on the line",
+			"<pre>\nx()</pre> and more prose\n", ""},
+		{"an open textarea closes with its own tag",
+			"<textarea rows=2>\nx\n", "\n</textarea>\n"},
+		{"the tag match is case-insensitive",
+			"<PRE>\nx()\n", "\n</pre>\n"},
+		{"a tag that merely starts the same is not one",
+			"<president>\nx()\n", ""},
+		{"a blank-line-terminated tag is not tracked",
+			"<details>\nx()\n", ""},
+		{"a pre inside a fence is code, not a raw block",
+			"```html\n<pre>\n", "\n```\n"},
+		{"a fence inside a pre is literal, not a fence",
+			"<pre>\n```go\n", "\n</pre>\n"},
+		{"a comment inside a pre is literal",
+			"<pre>\n<!-- a\n", "\n</pre>\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -174,7 +197,9 @@ func TestTheFenceModelFollowsCommonMark(t *testing.T) {
 // The rules. A fence opens on three or more backticks or tildes at the start of a line,
 // and closes only on the same character, at least as long, with nothing but whitespace
 // after it. An HTML comment opens on <!-- and closes on the next -->, and does not nest.
-// Each construct hides the other: whichever opens first holds until it closes.
+// A raw block opens on <pre, <script, <style or <textarea at the start of a line and
+// closes only on its own end tag, from anywhere on a line. Each construct hides the
+// others: whichever opens first holds until it closes.
 func endsInsideMarkup(s string) (fence, comment bool) {
 	// The three line endings CommonMark recognises, folded to the one Go splits on.
 	s = strings.ReplaceAll(s, "\r\n", "\n")
@@ -182,6 +207,7 @@ func endsInsideMarkup(s string) (fence, comment bool) {
 
 	var openChar byte
 	openLen := 0
+	openTag := ""
 	for _, raw := range strings.Split(s, "\n") {
 		if comment {
 			at := strings.Index(raw, "-->")
@@ -189,6 +215,12 @@ func endsInsideMarkup(s string) (fence, comment bool) {
 				continue
 			}
 			comment = lastOpenerIsBare(raw[at+3:])
+			continue
+		}
+		if openTag != "" {
+			if strings.Contains(strings.ToLower(raw), "</"+openTag+">") {
+				openTag = ""
+			}
 			continue
 		}
 		line := strings.TrimLeft(raw, " \t")
@@ -210,10 +242,20 @@ func endsInsideMarkup(s string) (fence, comment bool) {
 		case run > 0:
 			openChar, openLen = line[0], run
 		default:
-			comment = lastOpenerIsBare(raw)
+			lower := strings.ToLower(line)
+			for _, t := range []string{"pre", "script", "style", "textarea"} {
+				rest, ok := strings.CutPrefix(lower, "<"+t)
+				if ok && (rest == "" || rest[0] == '>' || rest[0] == ' ' || rest[0] == '\t') {
+					openTag = t
+					break
+				}
+			}
+			if openTag == "" {
+				comment = lastOpenerIsBare(raw)
+			}
 		}
 	}
-	return openLen != 0, comment
+	return openLen != 0, comment || openTag != ""
 }
 
 // lastOpenerIsBare reports whether the final <!-- on a line has no --> after it.
@@ -246,6 +288,9 @@ func TestMarkupReserveHoldsBackEnoughForItsOwnCloser(t *testing.T) {
 		// fence open -- and the body overruns by the closer it did not reserve.
 		{"a lone-CR ending before the fence", "text\r``````go\r", len("\n``````\n")},
 		{"a CRLF fence reserves its own length", "``````go\r\nx()\r\n", len("\n``````\n")},
+		{"a raw block reserves its end tag", "<textarea>\nx\n", len("\n</textarea>\n")},
+		{"the longest close of the three wins",
+			"<pre>\n```\n<!-- a\n", len("\n</pre>\n")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
