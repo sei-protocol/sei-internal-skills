@@ -26,7 +26,7 @@ on:
       - '.github/workflows/verify-agent-driver-vulns.yml' 
   schedule:
     # Off the hour: scheduled runs queue behind everything that fires at :00.
-    - cron: '17 7 * * 1-5'
+    - cron: '17 7 * * *'
   workflow_dispatch:
 
 permissions:
@@ -55,7 +55,22 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: sei-agent-driver/go.mod
-          cache-dependency-path: sei-agent-driver/go.sum
+          # The Makefile pins the scanner version, so it belongs in the key: a bump
+          # otherwise changes what is built without changing what is cached.
+          cache-dependency-path: |
+            sei-agent-driver/go.sum
+            Makefile
 
       - name: No known vulnerability is reachable from sei-agent-driver
+        # setup-go exports GOTOOLCHAIN=local for every later step. The target needs auto:
+        # standard-library findings are graded against the toolchain go.mod pins, and
+        # under local a go.mod that outgrows the installed toolchain fails as a setup
+        # error that no re-run clears -- on a required check, a repo-wide merge freeze.
+        #
+        # GOVULNCHECK_FLAGS is the break-glass the Makefile documents (`-db <mirror>`
+        # during a vuln.go.dev outage). An unset repository variable expands to empty,
+        # which is the Makefile's own default, so this is inert until someone sets it.
+        env:
+          GOTOOLCHAIN: auto
+          GOVULNCHECK_FLAGS: ${{ vars.GOVULNCHECK_FLAGS }}
         run: make driver-vulncheck
