@@ -326,12 +326,22 @@ func (fs *driverFakeServer) handleListItems(w http.ResponseWriter, r *http.Reque
 	if n := len(fs.itemsResps); n > 0 {
 		body = fs.itemsResps[min(hit, n)-1]
 	}
+	if body == driverItemsFail {
+		// A listing that dies partway. The driver has to refuse rather than answer
+		// from the pages it did get.
+		http.Error(w, `{"error":"upstream"}`, http.StatusInternalServerError)
+		return
+	}
 	if body == "" {
 		body = `{"data":[],"has_more":false}`
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = io.WriteString(w, body)
 }
+
+// driverItemsFail marks a page the fake server answers with a 500 instead of a body, for
+// a fixture that needs a listing to die partway.
+const driverItemsFail = "\x00fail"
 
 // driverItemsPage renders a page of the flat item shape that route returns,
 // carrying only the response ids the driver reads off it.

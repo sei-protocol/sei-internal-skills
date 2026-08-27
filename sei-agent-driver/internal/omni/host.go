@@ -194,10 +194,23 @@ func alreadyGone(err error) bool {
 // the walk exists to find -- the search would consume the reclaim it was serving.
 // Halving whatever remains keeps that true however the caller was budgeted.
 //
-// Floored, because the share can round to nothing: a zero RequestTimeout, or a
-// caller already near its deadline, would otherwise hand the walk a context that has
-// already expired and turn every reclaim into a failure before one request goes out.
-// The floor cannot outlive the parent, so it buys time only where time exists.
+// Floored, because the multiplier can round to nothing: a zero RequestTimeout would
+// otherwise hand the walk a context that has already expired and turn every reclaim
+// into a failure before one request goes out.
+//
+// The share is applied after the floor, not before, so the floor cannot undo it. A
+// caller with under two seconds left is the case where the two rules disagree, and the
+// share is the one that has to win: a walk handed the whole window is a search that
+// consumed the reclaim it was serving, which is the failure this exists to prevent.
+// Half of very little is still a request or two, and it leaves the caller the same.
+func (h *Host) boundWalk(ctx context.Context) (context.Context, context.CancelFunc) {
+	budget := max(listingWalkBudget*h.cfg.RequestTimeout, minListingWalkBudget)
+	if deadline, ok := ctx.Deadline(); ok {
+		budget = min(budget, time.Until(deadline)/2)
+	}
+	return context.WithTimeout(ctx, budget)
+}
+
 // itemWalkOptions is how this driver pages a session's items.
 //
 // Order is sent rather than defaulted. One caller reads position out of the
@@ -208,14 +221,6 @@ func alreadyGone(err error) bool {
 // page of items looks like.
 func itemWalkOptions() omnigent.SessionItemsOptions {
 	return omnigent.SessionItemsOptions{Limit: 1000, Order: omnigent.SortAscending}
-}
-
-func (h *Host) boundWalk(ctx context.Context) (context.Context, context.CancelFunc) {
-	budget := listingWalkBudget * h.cfg.RequestTimeout
-	if deadline, ok := ctx.Deadline(); ok {
-		budget = min(budget, time.Until(deadline)/2)
-	}
-	return context.WithTimeout(ctx, max(budget, minListingWalkBudget))
 }
 
 const (
