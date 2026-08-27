@@ -172,3 +172,101 @@ func TestSalvageStillRefusesWithoutAProvablePosition(t *testing.T) {
 		})
 	}
 }
+
+// TestSalvageRefusesAPartialTranscript covers the walk's error branch, which decides
+// whether a salvaged reply is published when the listing behind the proof dies partway.
+//
+// An incomplete transcript cannot prove a position either way, so the driver refuses. The
+// branch is one line and the guard is easy to lose: answering from the pages that did
+// arrive keeps every other test green.
+//
+// [TestSalvageRefusesWhenThePagedReadFails] is the neighbour, and it cannot cover this.
+// Its listing fails on the first page, so a fall-through reaches the decision having
+// observed nothing and refuses anyway — the two behaviours are indistinguishable there.
+// They only diverge when a decisive page arrives and a later one fails, which is this
+// fixture. Neither test is redundant.
+//
+// Three things are load-bearing in reaching that branch at all, and each of them fails
+// silently — the run refuses for a different reason and the case looks covered.
+//
+//  1. The snapshot must not carry the anchor. driverSessionWithItems prepends the prompt
+//     item, which makes groupIsAfterAnchor succeed on the window and skip the walk, so
+//     this uses driverSessionItemsInOrder with the reply alone — the truncated window the
+//     walk exists for.
+//  2. The first request on the items route is priorResponseIDs, not the walk. Feeding it
+//     the decisive page records this turn's own response id as one that predates the turn,
+//     and the reply is then refused for that reason instead of this one.
+//  3. The walk's own first page must be decisive on its own — anchor, then the reply group
+//     after it — so that answering from what arrived would publish. Otherwise the refusal
+//     and a correct negative answer are indistinguishable.
+//
+// So the control sub-test runs the same fixture with nothing failing and asserts the walk
+// ran and published. It is the guard on all three: if the control stops publishing, the
+// refusal case proves nothing and says so.
+func TestSalvageRefusesAPartialTranscript(t *testing.T) {
+	t.Parallel()
+
+	// Page one of the walk: decisive, and it claims more.
+	const decisivePage = `{"data":[{"id":"item_1","response_id":"resp_prompt"},` +
+		`{"id":"item_reply","response_id":"resp_claude_a"}],` +
+		`"has_more":true,"last_id":"item_reply"}`
+
+	run := func(t *testing.T, lastPage string) (driver.Result, *driverFakeServer) {
+		t.Helper()
+		fs := newDriverFakeServer(t, driverFakeServerConfig{
+			AgentPages:   []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+			CreateResp:   driverSessionResp("conv_a", "ag_1"),
+			StreamFrames: []string{driverAckFrame()},
+			SessionResps: []string{
+				driverSessionItemsInOrder("conv_a", "ag_1",
+					driverReplyItem("item_reply", "resp_claude_a",
+						driverVerdict("The review, finished server-side.", "approve"))),
+			},
+			ItemsResps: []string{driverEmptyItemsPage, decisivePage, lastPage},
+		})
+		result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+			Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 91})
+		return result, fs
+	}
+
+	// The control. Everything the refusal depends on, with nothing failing.
+	t.Run("the walk runs and decides", func(t *testing.T) {
+		t.Parallel()
+		result, fs := run(t, driverEmptyItemsPage)
+
+		if result.ExitCode != driver.ExitOK {
+			t.Fatalf("ExitCode = %d, want driver.ExitOK: the fixture never reaches the "+
+				"walk's decision, so the refusal case proves nothing", result.ExitCode)
+		}
+		if result.Reply == nil || !carriesDecision(result.Reply, "approve") {
+			t.Errorf("Reply = %+v, want the committed review", result.Reply)
+		}
+		// One for priorResponseIDs, then both pages of the walk.
+		if got := len(fs.ItemsQueries()); got != 3 {
+			t.Errorf("items listing requests = %d, want 3 (prior ids, then two walk "+
+				"pages): %v", got, fs.ItemsQueries())
+		}
+	})
+
+	t.Run("a page that dies refuses the reply", func(t *testing.T) {
+		t.Parallel()
+		result, fs := run(t, driverItemsFail)
+
+		if result.ExitCode == driver.ExitOK {
+			t.Errorf("ExitCode = driver.ExitOK: the position was answered from the pages "+
+				"that arrived, so an unfinished transcript published a reply. Reply = %+v",
+				result.Reply)
+		}
+		if result.Reply != nil {
+			t.Errorf("Reply = %+v, want none: a reply whose position is unproven must "+
+				"not reach the caller", result.Reply)
+		}
+		// At least the three of the first attempt. The salvage refusing sends the run
+		// back to the stream, and every later attempt walks and fails the same way, so
+		// the count is a floor rather than an equality.
+		if got := len(fs.ItemsQueries()); got < 3 {
+			t.Errorf("items listing requests = %d, want at least 3: the failing page was "+
+				"not reached, so nothing here exercises the refusal", got)
+		}
+	})
+}
