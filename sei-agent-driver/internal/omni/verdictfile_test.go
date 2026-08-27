@@ -54,10 +54,19 @@ func TestVerdictFileIsWrittenOnlyForAStructuredVerdict(t *testing.T) {
 		wantExit int
 	}{
 		{
-			name:     "a structured verdict is written",
-			reply:    "here is my review\n```json\n{\"decision\":\"approve\"}\n```",
+			name: "a structured verdict is written",
+			reply: "here is my review\n```json\n{\"decision\":\"approve\"," +
+				"\"summary\":\"the diff is fine\"}\n```",
 			wantFile: true,
 			wantExit: driver.ExitOK,
+		},
+		{
+			// A decision with nothing said about it is not a review. The driver
+			// refuses it rather than posting a bare verdict word.
+			name:     "a decision with no summary is not written",
+			reply:    "```json\n{\"decision\":\"approve\"}\n```",
+			wantFile: false,
+			wantExit: driver.ExitNoVerdict,
 		},
 		{
 			name: "prose with no fenced block is not written",
