@@ -228,24 +228,35 @@ func checkBullet(s string) string {
 // the exception that also works mid-line, so [defuseTags] escapes every bracket that
 // could begin a tag.
 //
-// Line endings are normalised first, because markdown recognises three and Go splits on
-// one. A trailing \r left on a line stops a run of - matching while a parser still reads
-// it as a heading, and a lone \r is a line ending Split does not break on at all, so
-// every heading after one arrives live. Those three are the whole set: CommonMark
-// defines a line ending as \n, \r or \r\n and nothing else.
+// Line endings are normalised first; see [normalizeLineEndings].
 //
 // It over-escapes rather than parses. A "---" separator, a line-leading "1." and a
 // four-space-indented code sample all render with a visible backslash. That cost falls
 // on shapes a review summary does not need, and the alternative is a markdown parser in
 // a sanitiser.
 func defuseMarkup(s string) string {
-	s = strings.ReplaceAll(s, "\r\n", "\n")
-	s = strings.ReplaceAll(s, "\r", "\n")
-	lines := strings.Split(s, "\n")
+	lines := strings.Split(normalizeLineEndings(s), "\n")
 	for i, line := range lines {
 		lines[i] = defuseLine(line)
 	}
 	return defuseTags(strings.Join(lines, "\n"))
+}
+
+// normalizeLineEndings rewrites every line ending to \n, so a split on \n sees the lines
+// a markdown parser sees.
+//
+// CommonMark recognises three -- \n, \r and \r\n, and nothing else -- and Go splits on
+// one of them. Each of the other two breaks a line-level rule while a parser still
+// applies it. A trailing \r stops a run of - matching, and stops a fence close matching,
+// while a parser still reads the heading and still closes the fence. A lone \r is a line
+// ending a split does not break on at all, so everything after one arrives as a single
+// line.
+//
+// Callers that inspect rather than rewrite normalise for the scan only. The bytes this
+// driver publishes stay the agent's own.
+func normalizeLineEndings(s string) string {
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	return strings.ReplaceAll(s, "\r", "\n")
 }
 
 // defuseLine escapes the character that would let one line open a markdown block.

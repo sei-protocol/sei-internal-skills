@@ -31,6 +31,8 @@ func TestATruncatedCommentStillReadsAsTruncated(t *testing.T) {
 	// The comment must still be open at the cut, so its --> sits past the budget.
 	inComment := "Quoting the report:\n<!-- DESCRIPTION START -->\n<!-- BUGBOT_BUG_ID: " +
 		strings.Repeat("0123456789abcdef\n", 5000) + " -->\n"
+	// A reply that arrives with CRLF endings throughout, cut inside the block.
+	inCRLF := strings.ReplaceAll(inFence, "\n", "\r\n")
 
 	for _, tc := range []struct {
 		name  string
@@ -48,6 +50,8 @@ func TestATruncatedCommentStillReadsAsTruncated(t *testing.T) {
 		{"a fence longer than its closer", inLongFence,
 			"```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
 		{"an HTML comment the cut lands in", inComment,
+			"```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
+		{"a CRLF reply the cut lands in", inCRLF,
 			"```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -133,6 +137,20 @@ func TestTheFenceModelFollowsCommonMark(t *testing.T) {
 			"```go\n<!-- a\n", "\n```\n"},
 		{"a comment closed inside a fence does not close the fence",
 			"```go\n<!-- a -->\n", "\n```\n"},
+		// CommonMark recognises three line endings and Go splits on one. A trailing
+		// \r read as an info string, so a balanced fence never closed and a second
+		// closer was appended -- which a renderer reads as a new opener, the very
+		// failure this function exists to prevent.
+		{"a balanced CRLF fence needs no close",
+			"```go\r\nx()\r\n```\r\n", ""},
+		{"an open CRLF fence closes",
+			"```go\r\nx()\r\n", "\n```\n"},
+		{"a balanced lone-CR fence needs no close",
+			"```go\rx()\r```\r", ""},
+		{"a CRLF tilde fence closes with tildes",
+			"~~~go\r\nx()\r\n", "\n~~~\n"},
+		{"a CRLF comment is seen as closed",
+			"<!-- a -->\r\nprose\r\n", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -158,6 +176,10 @@ func TestTheFenceModelFollowsCommonMark(t *testing.T) {
 // after it. An HTML comment opens on <!-- and closes on the next -->, and does not nest.
 // Each construct hides the other: whichever opens first holds until it closes.
 func endsInsideMarkup(s string) (fence, comment bool) {
+	// The three line endings CommonMark recognises, folded to the one Go splits on.
+	s = strings.ReplaceAll(s, "\r\n", "\n")
+	s = strings.ReplaceAll(s, "\r", "\n")
+
 	var openChar byte
 	openLen := 0
 	for _, raw := range strings.Split(s, "\n") {
@@ -219,6 +241,11 @@ func TestMarkupReserveHoldsBackEnoughForItsOwnCloser(t *testing.T) {
 		{"a long fence reserves its own length", "``````go\nx()\n", len("\n``````\n")},
 		{"a tilde fence", "~~~go\nx()\n", len("\n~~~\n")},
 		{"the longer of the two wins", "``````go\nx()\n<!-- open\n", len("\n``````\n")},
+		// Without normalising, a lone \r leaves this as one line that does not begin
+		// with a fence, so the longest run reads as zero while the scan still finds a
+		// fence open -- and the body overruns by the closer it did not reserve.
+		{"a lone-CR ending before the fence", "text\r``````go\r", len("\n``````\n")},
+		{"a CRLF fence reserves its own length", "``````go\r\nx()\r\n", len("\n``````\n")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
