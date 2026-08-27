@@ -254,6 +254,10 @@ func countBlocks(text string, blocks [][]int, match func(map[string]any) bool) i
 // for read, decision and summary together, so a block carrying decision alone is not
 // the shape this contract describes. [scoutFields] refuses the same way, on two keys.
 //
+// Blank does not count. A "summary" of "" or of spaces is a block carrying decision
+// alone, which is the shape this refuses -- and [Verdict.Summary] already trims, so
+// accepting it here would give one field two answers in one file.
+//
 // This raises the bar rather than closing the class: a planted block carrying both keys
 // still passes. What no key check can supply is proof that the agent wrote the block,
 // and the count rule is the only thing that speaks to authorship.
@@ -261,8 +265,8 @@ func decides(out map[string]any) bool {
 	if !decisions[normalizeDecision(out["decision"])] {
 		return false
 	}
-	_, summarised := out["summary"].(string)
-	return summarised
+	summary, ok := out["summary"].(string)
+	return ok && strings.TrimSpace(summary) != ""
 }
 
 // normalizeDecision lowercases and trims a decision value, yielding "" for

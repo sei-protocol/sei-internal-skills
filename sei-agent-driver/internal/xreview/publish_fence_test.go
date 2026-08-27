@@ -5,14 +5,12 @@ import (
 	"testing"
 )
 
-// TestATruncatedCommentStillReadsAsTruncated covers both cut paths.
+// TestACutBodyIsBoundedAndClosed covers both cut paths.
 //
-// An unclosed fence renders everything after it as code, so the notice stops reading as
-// a notice and the closing block stops reading as a decision. The oversized-block
-// fallback had no rebalancing at all, and the ordinary path counted every "```" -- so a
-// fence named in prose flipped the parity and either closed a block that was never open
-// or left one open.
-func TestATruncatedCommentStillReadsAsTruncated(t *testing.T) {
+// A cut can land inside a fence, a comment or a raw block. Closing it is what keeps the
+// review text after the decision rendering as review text, and the body has to stay
+// within MaxBodyBytes with that close counted.
+func TestACutBodyIsBoundedAndClosed(t *testing.T) {
 	t.Parallel()
 
 	// The fence opens early and never closes, so a cut anywhere after it lands inside
@@ -20,8 +18,7 @@ func TestATruncatedCommentStillReadsAsTruncated(t *testing.T) {
 	// leaves a balanced head, and passes whether or not the rebalancing runs.
 	inFence := "```go\nfunc x() {\n" + strings.Repeat("\t// padding\n", 12000)
 	// A tilde block holding a ``` line, and a long backtick fence a shorter one
-	// cannot close. Both are open at the cut, and neither is closed by the three
-	// backticks the publisher used to append unconditionally.
+	// cannot close. Both are open at the cut, and neither closes on three backticks.
 	inTildes := "~~~go\nfunc x() {\n```\n" + strings.Repeat("\t// padding\n", 12000)
 	inLongFence := "`````go\nfunc x() {\n```\n" + strings.Repeat("\t// padding\n", 12000)
 	// An HTML comment the cut lands inside. A review that quotes another bot's
@@ -63,9 +60,9 @@ func TestATruncatedCommentStillReadsAsTruncated(t *testing.T) {
 				t.Errorf("body = %d bytes, want at most %d", len(body), MaxBodyBytes)
 			}
 			if fence, comment := endsInsideMarkup(body); fence || comment {
-				what := "a code block, so the notice and the decision render as code"
+				what := "a code block, so the review text after the decision renders as code"
 				if comment {
-					what = "an HTML comment, so the notice and the decision are hidden"
+					what = "an HTML comment, so the review text after the decision is hidden"
 				}
 				t.Errorf("the body ends inside %s", what)
 			}
@@ -90,10 +87,9 @@ func TestAFenceNamedInProseDoesNotFlipTheParity(t *testing.T) {
 	}
 }
 
-// TestTheFenceModelFollowsCommonMark pins the three rules one boolean cannot hold.
-//
-// Each case here rendered wrong before: the publisher toggled a single flag on any
-// fence line and always appended three backticks.
+// TestTheFenceModelFollowsCommonMark pins the rules one boolean cannot hold: the fence
+// character, the fence length, the info string, and which construct outranks which where
+// they nest.
 func TestTheFenceModelFollowsCommonMark(t *testing.T) {
 	t.Parallel()
 
@@ -172,8 +168,22 @@ func TestTheFenceModelFollowsCommonMark(t *testing.T) {
 			"```html\n<pre>\n", "\n```\n"},
 		{"a fence inside a pre is literal, not a fence",
 			"<pre>\n```go\n", "\n</pre>\n"},
-		{"a comment inside a pre is literal",
-			"<pre>\n<!-- a\n", "\n</pre>\n"},
+		// A comment opened inside a raw block is the OUTER construct, not content.
+		// <pre> is not a raw-text element in HTML -- only script and style are -- so
+		// <!-- starts a real comment that runs past </pre> and takes the footer with
+		// it. Closing the block instead of the comment leaves it open.
+		{"a comment inside a pre is the outer construct",
+			"<pre>\n<!-- a\n", "\n-->\n"},
+		{"a comment opening on the same line as the block",
+			"<pre><!--\n", "\n-->\n"},
+		{"an attribute on the block does not hide it",
+			"<pre class=x><!--\n", "\n-->\n"},
+		{"the same inside a textarea",
+			"<textarea><!--\n", "\n-->\n"},
+		{"a comment closed inside a raw block leaves the block open",
+			"<pre>\n<!-- a -->\n", "\n</pre>\n"},
+		{"div is not a raw block, so the comment is tracked plainly",
+			"<div><!--\n", "\n-->\n"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -198,8 +208,10 @@ func TestTheFenceModelFollowsCommonMark(t *testing.T) {
 // and closes only on the same character, at least as long, with nothing but whitespace
 // after it. An HTML comment opens on <!-- and closes on the next -->, and does not nest.
 // A raw block opens on <pre, <script, <style or <textarea at the start of a line and
-// closes only on its own end tag, from anywhere on a line. Each construct hides the
-// others: whichever opens first holds until it closes.
+// closes only on its own end tag, from anywhere on a line -- except that an HTML comment
+// opened inside one outranks it, because <pre> is not a raw-text element and the comment
+// runs past the end tag. Otherwise each construct hides the others: whichever opens first
+// holds until it closes.
 func endsInsideMarkup(s string) (fence, comment bool) {
 	// The three line endings CommonMark recognises, folded to the one Go splits on.
 	s = strings.ReplaceAll(s, "\r\n", "\n")
@@ -218,6 +230,11 @@ func endsInsideMarkup(s string) (fence, comment bool) {
 			continue
 		}
 		if openTag != "" {
+			// A comment opened in here outranks the block, per the HTML rule above.
+			if lastOpenerIsBare(raw) {
+				openTag, comment = "", true
+				continue
+			}
 			if strings.Contains(strings.ToLower(raw), "</"+openTag+">") {
 				openTag = ""
 			}
@@ -250,7 +267,11 @@ func endsInsideMarkup(s string) (fence, comment bool) {
 					break
 				}
 			}
-			if openTag == "" {
+			switch {
+			case openTag != "" && lastOpenerIsBare(raw):
+				// <pre><!-- on one line: the comment is what stays open.
+				openTag, comment = "", true
+			case openTag == "":
 				comment = lastOpenerIsBare(raw)
 			}
 		}
@@ -337,8 +358,8 @@ func TestTheNoticeSurvivesMarkupNoCloserCanFix(t *testing.T) {
 			if len(body) > MaxBodyBytes {
 				t.Errorf("body = %d bytes, want at most %d", len(body), MaxBodyBytes)
 			}
-			// The notice has to be the first thing in the body. Merely being present
-			// is what the old order gave, and the old order is the bug.
+			// The notice has to be the first thing in the body. Presence alone does
+			// not keep the cut text from hiding it.
 			if !strings.HasPrefix(body, "> **Review truncated by the publisher.**") {
 				t.Errorf("the body does not open with the notice, so the cut text is "+
 					"ahead of it:\n%s", body[:min(300, len(body))])

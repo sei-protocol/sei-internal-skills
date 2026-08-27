@@ -62,7 +62,7 @@ func TestRenderCommentTruncatesRatherThanRefusing(t *testing.T) {
 		t.Errorf("the elision is not declared:\n%s", body[max(0, len(body)-400):])
 	}
 	if !strings.Contains(body, v.Block) {
-		t.Error("the closing block did not survive truncation, so the decision is no longer " +
+		t.Error("the closing block did not survive truncation, so the decision is not " +
 			"machine-readable")
 	}
 	if n := strings.Count(body, "```"); n%2 != 0 {

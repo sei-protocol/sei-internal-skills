@@ -25,7 +25,7 @@ const MaxBodyBytes = 60_000
 // job after a good review is a second failure, not a safety measure.
 //
 // Every published byte is still the agent's own. What truncation costs is contiguity.
-// The notice says so, names how much went missing, and points at the item the rest can
+// The notice says so, names the whole reply's size, and points at the item the rest can
 // be read from. The decision block rides with it, so a truncated review is still
 // machine-readable. That is what matters the moment anything acts on the decision.
 //
@@ -35,7 +35,7 @@ const MaxBodyBytes = 60_000
 // including nested inside each other, where closing correctly needs a model of HTML
 // nesting rather than of markdown. Putting them ahead of the cut needs no model at all.
 // [closeDanglingMarkup] still runs on the tail, but only so the tail itself renders; the
-// notice no longer depends on it.
+// notice does not depend on it.
 func RenderComment(v Verdict, sessionID string) string {
 	footer := v.footer(sessionID)
 	prose := strings.TrimRight(v.Text, "\n")
@@ -46,7 +46,7 @@ func RenderComment(v Verdict, sessionID string) string {
 	// Measured, not reserved. The whole string is in hand here, so what the close
 	// actually costs is knowable -- nothing at all for the balanced reply, which is
 	// almost all of them. markupReserve answers a different question, the worst case
-	// over an unknown cut, and using it here truncated replies that fitted.
+	// over an unknown cut, so it is not the bound to use where the string is known.
 	if closed := closeDanglingMarkup(prose); len(closed)+len(footer) <= MaxBodyBytes {
 		return closed + footer
 	}
@@ -79,17 +79,20 @@ func RenderComment(v Verdict, sessionID string) string {
 // proseSeparator divides the decision from the cut review text that follows it.
 const proseSeparator = "\n\n---\n\n"
 
-// closeDanglingMarkup closes the construct a cut landed inside.
+// closeDanglingMarkup closes the construct a reply, or a cut through one, landed inside.
 //
-// Both truncation paths need it, and for the same reason. An unclosed fence renders
-// everything after it as code; an unclosed HTML comment hides everything after it
-// outright. Either way the notice stops reading as a notice and the closing block stops
-// reading as a decision -- a truncated review that no longer says it was truncated, or
-// no longer appears at all.
+// Both call sites need it, for different reasons. On the uncut path the footer follows the
+// prose, so an unclosed fence renders the provenance record as code and an unclosed
+// comment hides it outright. On the cut path the notice, the decision and the footer are
+// already ahead of the text, so what is at stake there is only that the tail itself
+// renders. See [RenderComment] for why the order, not this function, is the guard.
 //
-// Counts only a fence that opens a line, which is the only place CommonMark opens one.
-// Counting every occurrence lets a fence named in prose, or one inside a code span,
-// flip the parity and either close a block that was never open or leave one open.
+// Counts only a fence at the start of a line, after any indentation. Counting every
+// occurrence lets a fence named in prose, or one inside a code span, flip the parity and
+// either close a block that was never open or leave one open. CommonMark stops treating a
+// line as a fence opener past three spaces of indent and this does not, deliberately:
+// over-closing appends a fence nothing follows, and under-closing renders the footer as
+// code.
 //
 // The constructs are tracked together rather than in separate passes, because each hides
 // the others: <!-- inside a code block is code, not a comment, and a fence inside a
@@ -98,8 +101,9 @@ const proseSeparator = "\n\n---\n\n"
 //
 // The third is a raw <pre> or <textarea>. CommonMark runs those to their close tag past
 // blank lines, so an unclosed one swallows what follows exactly as a comment does. The
-// blank-line-terminated tags -- <details>, <table>, <div> -- are not tracked: the notice
-// opens with a blank line, which ends them.
+// blank-line-terminated tags -- <details>, <table>, <div> -- are not tracked: the only
+// thing ever placed after this text is the footer, which opens with a blank line, and a
+// blank line ends them.
 //
 // The scan reads normalised line endings and the returned string does not: a \r\n reply
 // keeps its own bytes and gains only the close.
@@ -139,8 +143,15 @@ func openMarkup(s string) (open markup) {
 			}
 			open.comment = commentOpens(line[at+len("-->"):])
 		case open.tag != "":
-			// Only the matching end tag closes one of these, and it closes from
-			// anywhere on the line.
+			// A comment opened in here is the outer construct, not content. <pre> is
+			// not a raw-text element in HTML -- only script and style are -- so <!--
+			// starts a real comment that runs past the end tag and takes everything
+			// after it, the footer included.
+			if commentOpens(line) {
+				open.tag, open.comment = "", true
+				continue
+			}
+			// Otherwise only the matching end tag closes one, from anywhere on the line.
 			if strings.Contains(strings.ToLower(line), "</"+open.tag+">") {
 				open.tag = ""
 			}
@@ -156,7 +167,12 @@ func openMarkup(s string) (open markup) {
 				continue
 			}
 			if tag := rawBlockTag(trimmed); tag != "" {
-				open.tag = tag
+				// Same line, same rule: <pre><!-- leaves the comment open, not the block.
+				if commentOpens(line) {
+					open.comment = true
+				} else {
+					open.tag = tag
+				}
 				continue
 			}
 			open.comment = commentOpens(line)
@@ -166,7 +182,8 @@ func openMarkup(s string) (open markup) {
 }
 
 // markup is the one construct open at a point in a document: a fence, an HTML comment,
-// or a raw block tag. At most one field is ever set.
+// or a raw block tag. At most one construct is ever open, so a fence sets both of its
+// fields and the others stay zero.
 type markup struct {
 	fenceChar byte
 	fenceLen  int
@@ -197,9 +214,10 @@ func rawBlockTag(trimmed string) string {
 	return ""
 }
 
-// rawBlockTags are CommonMark's HTML block type 1 tags. GitHub strips script and style,
-// so only pre and textarea can reach a reader -- the other two are tracked because the
-// parser treats all four the same and a stripped tag still ends a block.
+// rawBlockTags are CommonMark's HTML block type 1 tags. GitHub's sanitiser is expected to
+// strip script and style, so in practice only pre and textarea reach a reader; all four
+// are tracked because the parser treats them the same and a stripped tag still ends a
+// block.
 var rawBlockTags = []string{"pre", "script", "style", "textarea"}
 
 // commentOpens reports whether a line leaves an HTML comment open, which is true when

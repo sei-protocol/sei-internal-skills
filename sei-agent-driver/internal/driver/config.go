@@ -93,8 +93,8 @@ type Config struct {
 
 	// RequestTimeout bounds each request a [Host] times for itself rather than
 	// leaving to the SDK: the token mint, the liveness probe, the reply read, the
-	// salvage read after a lost stream, and, at four times this value, the whole of a
-	// close.
+	// salvage read after a lost stream, at twice this value each paginated listing
+	// walk, and at four times it the whole of a close.
 	//
 	// So it is not only a per-request knob. Lowering it to fail a slow mint faster
 	// also shortens the liveness probe -- and a probe that times out reads as
