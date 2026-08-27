@@ -136,6 +136,21 @@ on:
         required: false
         type: string
         default: 'https://seigent.dev.platform.sei.io'
+      agent-id:
+        description: >-
+          The agent NAME to resolve on the server, as SEIDROID_AGENT_ID. Deployment
+          specific: the driver compiles a default, and a server that calls its agent
+          something else makes that default unresolvable -- a live run against the dev
+          deployment failed with `no agent named "seidroid" on this server`, which
+          nothing in the caller could correct because this input did not exist.
+
+          Empty leaves the driver's own default in place, so a deployment that matches
+          it needs nothing here. There is no lookup by alias: the name must match what
+          the server's agent bundle is called, exactly.
+        required: false
+        type: string
+        default: ''
+
       machine-client-id:
         description: "OMNIGENT_MACHINE_CLIENT_ID for the in-process client_credentials mint. Mirrors the server's own OMNIGENT_MACHINE_CLIENT_ID. Not secret on its own -- the id alone cannot mint a token."
         required: false
@@ -478,6 +493,10 @@ jobs:
     # step-level env at all) -- that is the exact defect that broke every real
     # run of the Python driver's workflow. Every step in this job inherits it.
     env:
+      # Empty is not the same as unset for this one: an empty SEIDROID_AGENT_ID would
+      # override the driver's default with nothing. envOr treats empty as absent, so
+      # passing it through empty is safe and keeps one place deciding the default.
+      SEIDROID_AGENT_ID: ${{ inputs.agent-id }}
       OMNIGENT_MACHINE_CLIENT_ID: ${{ inputs.machine-client-id }}
       OMNIGENT_MACHINE_CLIENT_SECRET: ${{ secrets.OMNIGENT_MACHINE_CLIENT_SECRET }}
       # Whether the bot's identity is available, as a value a step condition can
