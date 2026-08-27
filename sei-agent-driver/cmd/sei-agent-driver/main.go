@@ -443,16 +443,23 @@ func firstNonEmpty(vals ...string) string {
 // that could not be removed is, because leaving it is the exact outcome this
 // exists to prevent -- a read-only mount or a file owned by another uid on a
 // reused workspace would otherwise hand the caller an earlier verdict.
+//
+// Every path is attempted and the failures are joined. The obligation is per file, so
+// returning on the first one would leave the rest of an earlier run's outputs in place
+// -- and the caller decides on each file's presence separately, so that is two stale
+// publishes bought by reporting one error early.
 func clearOutputs(paths ...string) error {
+	var failed error
 	for _, p := range paths {
 		if p == "" {
 			continue
 		}
 		if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
-			return fmt.Errorf("clearing an earlier run's output at %s: %w", p, err)
+			failed = errors.Join(failed,
+				fmt.Errorf("clearing an earlier run's output at %s: %w", p, err))
 		}
 	}
-	return nil
+	return failed
 }
 
 // writeFindings hands the caller the observations it can post against a line.

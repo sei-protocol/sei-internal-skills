@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -195,7 +196,18 @@ func TestARefusedClearIsFatal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := clearOutputs(out)
+	// Two more paths after the undeletable one, each holding an earlier run's bytes.
+	// The obligation is per file, so a return on the first failure leaves these two
+	// where they are and the caller publishes both.
+	findings := filepath.Join(dir, "findings.json")
+	check := filepath.Join(dir, "check.json")
+	for _, p := range []string{findings, check} {
+		if err := os.WriteFile(p, []byte("an earlier run's output"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err := clearOutputs(out, findings, check)
 	if err == nil {
 		t.Fatal("clearOutputs succeeded on a path it could not remove; the caller " +
 			"would publish whatever was left there")
@@ -203,9 +215,84 @@ func TestARefusedClearIsFatal(t *testing.T) {
 	if !strings.Contains(err.Error(), out) {
 		t.Errorf("error = %v, want it to name the path that could not be cleared", err)
 	}
+	for _, p := range []string{findings, check} {
+		if _, statErr := os.Stat(p); statErr == nil {
+			body, _ := os.ReadFile(p)
+			t.Errorf("%s survived (%q): a failure on an earlier path stopped this one "+
+				"from being attempted, so the caller publishes it as this run's",
+				filepath.Base(p), body)
+		}
+	}
 
 	// An absent path stays not-an-error: most runs have nothing to clear.
 	if err := clearOutputs(filepath.Join(dir, "never-written.md")); err != nil {
 		t.Errorf("clearOutputs on an absent path = %v, want nil", err)
 	}
+}
+
+// TestBothCallersActOnARefusedClear covers what clearOutputs returning an error is for.
+//
+// Testing the function alone leaves the whole point untested: a caller that discards the
+// error clears nothing and continues, and the workflow publishes on file presence. There
+// are two callers — run, before anything can exit, and report, before anything is
+// written — so both are pinned. A non-empty directory is the portable way to make
+// os.Remove fail without a read-only mount.
+func TestBothCallersActOnARefusedClear(t *testing.T) {
+	dir := t.TempDir()
+
+	undeletable := func(t *testing.T, name string) string {
+		t.Helper()
+		p := filepath.Join(dir, name)
+		if err := os.Mkdir(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(p, "occupant"), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+
+	t.Run("report refuses", func(t *testing.T) {
+		out := undeletable(t, "report-out")
+		err := report(out, "", "", driver.Result{SessionID: "s1"})
+		if err == nil {
+			t.Fatal("report returned nil on an output it could not clear; the caller " +
+				"publishes on presence, so an earlier verdict posts as this run's")
+		}
+		if !strings.Contains(err.Error(), out) {
+			t.Errorf("error = %v, want it to name the path", err)
+		}
+	})
+
+	t.Run("the binary refuses before it reviews", func(t *testing.T) {
+		out := undeletable(t, "run-out")
+		bin := filepath.Join(dir, "sei-agent-driver")
+		if b, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
+			t.Fatalf("build: %v\n%s", err, b)
+		}
+		// A working credential, so a non-zero exit is about the clear and not about
+		// configuration. The clear runs first either way.
+		cmd := exec.Command(bin, "xreview", "--out", out, "sei-protocol/sandbox", "22")
+		cmd.Env = []string{
+			"PATH=" + os.Getenv("PATH"), "HOME=" + dir,
+			"OMNIGENT_API_TOKEN=test-token",
+			"OMNIGENT_BASE_URL=http://127.0.0.1:1",
+		}
+		var stderr strings.Builder
+		cmd.Stderr = &stderr
+		err := cmd.Run()
+
+		var ee *exec.ExitError
+		if !errors.As(err, &ee) {
+			t.Fatalf("run: %v\n%s", err, stderr.String())
+		}
+		if ee.ExitCode() != driver.ExitConfig {
+			t.Errorf("exit = %d, want driver.ExitConfig (%d): a run that cannot clear "+
+				"its outputs has to refuse, not review\nstderr:\n%s",
+				ee.ExitCode(), driver.ExitConfig, stderr.String())
+		}
+		if !strings.Contains(stderr.String(), "clearing an earlier run's output") {
+			t.Errorf("stderr does not say the clear failed:\n%s", stderr.String())
+		}
+	})
 }

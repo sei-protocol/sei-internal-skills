@@ -76,8 +76,12 @@ signal, so a caller never posts a stale file from a previous run.
   The conclusion is derived from the findings, not from the word the agent used for
   itself, so a review that says `approve` while listing blockers still fails.
 - `--guidelines-file PATH` — a path *inside the reviewed repository* holding the
-  guidance that repository adds to every review. Read by the agent in its sandbox,
-  not by this process.
+  guidance that repository adds to every review. Defaults to `REVIEW.md`, which is
+  read whether or not this is passed; a repository without that file is reviewed
+  against the checklist alone, silently and by design. The value must be a plain
+  repository-relative path — a space, an `@`, a leading `/` or a `..` falls back to
+  the default rather than failing, so check the logged path if standards seem not to
+  be applying. Read by the agent in its sandbox, not by this process.
 - `--extra-instructions TEXT` — additional guidance for this dispatch only. Carried
   into both the first prompt and the adopted one.
 - `--conversation-context FILE` — this tool's earlier findings and their replies, as
@@ -107,12 +111,16 @@ neither is a configuration error; supplying half of the machine-client pair
 is also a configuration error (a distinct, more specific one), because the
 two mistakes have different fixes.
 
-| Variable | Meaning |
-|---|---|
-| `OMNIGENT_API_TOKEN` | A bearer token minted elsewhere. Never logged. |
-| `OMNIGENT_API_TOKEN_FILE` | Path to a file holding that token, re-read on every invocation so a rotated credential is picked up without a redeploy. Takes precedence over `OMNIGENT_API_TOKEN` when both are set. |
-| `OMNIGENT_MACHINE_CLIENT_ID` | The confidential client's identifier. Mirrors the server's own `OMNIGENT_MACHINE_CLIENT_ID` — an operator configures one value, not two vocabularies for the two ends of the same client-credentials pair. |
-| `OMNIGENT_MACHINE_CLIENT_SECRET` | That client's secret, in plaintext, on this side only. **The server stores just a digest of it**, under `OMNIGENT_MACHINE_CLIENT_SECRET_HASH` — note the `_HASH` that only the server-side name carries; do not cross-wire the two. Never logged, and never written to a workflow step output. |
+Nothing here has a default, and the machine-client pair is all-or-nothing: setting
+one half is refused with `machine client is half-configured` and exit 2 rather
+than falling through to an anonymous request.
+
+| Variable | Required | Meaning |
+|---|---|---|
+| `OMNIGENT_API_TOKEN` | one of the three routes | A bearer token minted elsewhere. Never logged. |
+| `OMNIGENT_API_TOKEN_FILE` | one of the three routes | Path to a file holding that token, re-read on every invocation so a rotated credential is picked up without a redeploy. Takes precedence over `OMNIGENT_API_TOKEN` when both are set — and an unreadable file yields an empty token with **no** fallback to it, which presents as "no API credential". |
+| `OMNIGENT_MACHINE_CLIENT_ID` | **yes, with the secret** | The confidential client's identifier. Mirrors the server's own `OMNIGENT_MACHINE_CLIENT_ID` — an operator configures one value, not two vocabularies for the two ends of the same client-credentials pair. |
+| `OMNIGENT_MACHINE_CLIENT_SECRET` | **yes, with the id** | That client's secret, in plaintext, on this side only. **The server stores just a digest of it**, under `OMNIGENT_MACHINE_CLIENT_SECRET_HASH` — note the `_HASH` that only the server-side name carries; do not cross-wire the two. Never logged, and never written to a workflow step output. |
 
 Setting `OMNIGENT_MACHINE_CLIENT_ID` and `OMNIGENT_MACHINE_CLIENT_SECRET` is
 the preferred path for an automated caller: the driver exchanges them for a
@@ -151,14 +159,19 @@ assuming a blank allowlist is merely "cautious."**
 | Variable | Default | Meaning |
 |---|---|---|
 | `XREVIEW_RUN_DEADLINE_S` | `1200` | Bounds the whole run: resolve, create or adopt, and drive. On expiry the run ends and the session is left as it is — the turn keeps running server-side, and the next invocation's prompt queues behind it. |
-| `XREVIEW_REQUEST_TIMEOUT_S` | `30` | Bounds the requests this driver times itself: the token mint and the post-turn reply read. It is deliberately not handed to the SDK as a unary timeout: the client's own calls (listing, create, send, resolve) are bounded by `XREVIEW_UNARY_TIMEOUT_S` instead, so tightening this does not tighten those. The event stream is bounded by `XREVIEW_STREAM_IDLE_TIMEOUT_S` instead. |
+| `XREVIEW_REQUEST_TIMEOUT_S` | `30` | Bounds every request this driver times itself rather than leaving to the SDK, which is wider than it sounds: the token mint, the **liveness probe**, the post-turn reply read, the salvage read after a lost stream, at **twice** this value each paginated listing walk, and at **four times** it the whole of teardown. So it is not a per-request knob. Lowering it to fail a slow mint faster also shortens the liveness probe — and a probe that times out reads as not-live, which is what decides whether the prompt goes in at all — and shortens the walk that finds the session to reclaim, which is the only thing that frees a sandbox (see exit `8`). It is deliberately not handed to the SDK as a unary timeout, so tightening it does not tighten the client's own create/send/resolve calls; those take `XREVIEW_UNARY_TIMEOUT_S`. The event stream takes `XREVIEW_STREAM_IDLE_TIMEOUT_S`. |
 | `XREVIEW_STREAM_IDLE_TIMEOUT_S` | `300` | How long the event stream may sit silent before it's treated as dead. The server heartbeats an idle stream every 15s, so this must stay comfortably above that or a healthy idle stream gets torn down between turns. Minutes rather than seconds because a *newly created* session is quiet while its sandbox provisions, clones the repository and connects a runner: a measured launch produced two heartbeats in 90 seconds while cloning a large repo, and the old 90s default killed the review before the agent existed. The run deadline is the real backstop. |
-| `XREVIEW_UNARY_TIMEOUT_S` | `150` | Bounds one non-streaming SDK call — listing, create, send, resolve. Longer than `XREVIEW_REQUEST_TIMEOUT_S` because a session create is slower than a read. Left at zero the SDK applies its own default, which is shorter than a create. |
-| `LOG_LEVEL` | `info` | Log verbosity. `debug` adds a record per request, which is what joins a run to gateway access logs; successful traces are not logged below it. |
+| `XREVIEW_UNARY_TIMEOUT_S` | `150` | Bounds one non-streaming SDK call — listing, create, send, resolve. Longer than `XREVIEW_REQUEST_TIMEOUT_S` because a session create is slower than a read. Zero does not mean "let the SDK decide": a non-positive value is a configuration error and exits 2, and a `Config` built in code with this unset gets 150s substituted before the client is built. |
 
-Each of these must parse as a positive number; zero, negative, or
+The four values above must each parse as a positive number; zero, negative, or
 non-numeric values are rejected as configuration errors rather than silently
 producing an unbounded run.
+
+### Logging
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `LOG_LEVEL` | `info` | Log verbosity. `debug` adds a record per request, which is what joins a run to gateway access logs; successful traces are not logged below it. Unlike the timeouts this is **not** validated: an unrecognised value falls back to `info` silently, so a typo presents as missing debug records rather than as a configuration error. |
 
 ## Exit codes
 
@@ -204,11 +217,16 @@ its own escalation — so the only fields this policy will ever classify on
 are ones the server's policy engine stamps, never the model-influenced
 `message` or `content_preview` that ride along with a prompt for logging.
 
-**An empty `XREVIEW_ALLOW_POLICIES` (the default) means every prompt is
-declined, with no exceptions.** This is not a "reasonably conservative"
-default that still lets ordinary reads through — a review turn that needs
-to run something gated behind a policy simply cannot, until an operator
-adds that exact `policy_name` to the allowlist. Concretely: on a deployment
+**With both allowlists empty — the default — every prompt is declined, with no
+exceptions.** This is not a "reasonably conservative" default that still lets
+ordinary reads through: a review turn that needs a gated operation simply cannot
+run it. The two allowlists are checked independently and either one can accept,
+so unblocking a turn means adding to one of them — and they are not
+interchangeable. **Add the exact `tool_name` values to `XREVIEW_ALLOW_TOOLS`.**
+Do not reach for `XREVIEW_ALLOW_POLICIES`: this deployment stamps
+`claude_native_permission` as the `policy_name` on every native permission
+request, so allowlisting it accepts every tool call the agent makes, which is
+the opposite of a gate. Concretely: on a deployment
 where every one of the turn's read operations happens to be gated, a blank
 allowlist means the turn parks on every one of them, gets `decline`d, and
 the review effectively can't read anything the gate covers. This is the
