@@ -143,11 +143,9 @@ func openMarkup(s string) (open markup) {
 			}
 			open.comment = commentOpens(line[at+len("-->"):])
 		case open.tag != "":
-			// A comment opened in here is the outer construct, not content. <pre> is
-			// not a raw-text element in HTML -- only script and style are -- so <!--
-			// starts a real comment that runs past the end tag and takes everything
-			// after it, the footer included.
-			if commentOpens(line) {
+			// Inside <pre> a comment outranks the block; inside the other three it does
+			// not. See [commentOutranks].
+			if commentOutranks(open.tag) && commentOpens(line) {
 				open.tag, open.comment = "", true
 				continue
 			}
@@ -167,8 +165,9 @@ func openMarkup(s string) (open markup) {
 				continue
 			}
 			if tag := rawBlockTag(trimmed); tag != "" {
-				// Same line, same rule: <pre><!-- leaves the comment open, not the block.
-				if commentOpens(line) {
+				// Same line, same rule: <pre><!-- leaves the comment open, and
+				// <textarea><!-- leaves the block open.
+				if commentOutranks(tag) && commentOpens(line) {
 					open.comment = true
 				} else {
 					open.tag = tag
@@ -213,6 +212,17 @@ func rawBlockTag(trimmed string) string {
 	}
 	return ""
 }
+
+// commentOutranks reports whether an HTML comment opened inside this block is the
+// construct that stays open.
+//
+// It turns on the element's content model, not on CommonMark. <pre> is an ordinary
+// element, so its content is parsed as HTML and a <!-- inside it opens a real comment
+// that runs past </pre>. script and style are raw text, and textarea and title are
+// escapable raw text: in all four a <!-- is text, and only the matching end tag ends the
+// element. Closing one of those with --> would leave the tag open and capture the footer
+// as its content -- the same harm, arrived at from the other side.
+func commentOutranks(tag string) bool { return tag == "pre" }
 
 // rawBlockTags are CommonMark's HTML block type 1 tags. GitHub's sanitiser is expected to
 // strip script and style, so in practice only pre and textarea reach a reader; all four
