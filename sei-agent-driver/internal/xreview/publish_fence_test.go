@@ -446,3 +446,58 @@ func TestTheUncutBoundCountsTheCloseItWillAppend(t *testing.T) {
 			"close it appends", len(body), MaxBodyBytes)
 	}
 }
+
+// TestABalancedReplyThatFitsIsNotTruncated pins the difference between the close a reply
+// needs and the close a cut might need.
+//
+// Every verdict carries a balanced ```json block, so a worst-case reserve charges every
+// reply for a close none of them uses. Bounding the uncut path that way truncated replies
+// that fitted -- and a truncation notice on an untruncated review tells a reader to go
+// find text that is already in front of them.
+func TestABalancedReplyThatFitsIsNotTruncated(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ name, prose string }{
+		{"a short balanced reply", "It looks fine to me."},
+		{"a balanced fence in the prose", "Here:\n```go\nx()\n```\nThat is the issue."},
+		{"a closed HTML comment", "Quoting:\n<!-- BUGBOT_BUG_ID: abc -->\nSame finding."},
+		{"a closed raw block", "Output:\n<pre>\nx()\n</pre>\nSo it passes."},
+		// Sized to sit just inside the limit with its footer, where a worst-case
+		// reserve is the difference between publishing whole and being cut.
+		{"balanced and just inside the limit", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			mk := func(pad int) Verdict {
+				body := tc.prose
+				if tc.name == "balanced and just inside the limit" {
+					body = strings.Repeat("x", pad)
+				}
+				v := ParseVerdict(body +
+					"\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
+				v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
+				return v
+			}
+			v := mk(0)
+			if tc.name == "balanced and just inside the limit" {
+				base := len(strings.TrimRight(v.Text, "\n")) + len(v.footer("conv_1"))
+				v = mk(MaxBodyBytes - base)
+			}
+
+			body := RenderComment(v, "conv_1")
+			if len(body) > MaxBodyBytes {
+				t.Fatalf("body = %d bytes, want at most %d", len(body), MaxBodyBytes)
+			}
+			if strings.Contains(body, "Review truncated by the publisher") {
+				t.Errorf("a reply of %d bytes that fits in %d was truncated; the uncut "+
+					"bound charged it for a close it does not need",
+					len(strings.TrimRight(v.Text, "\n")), MaxBodyBytes)
+			}
+			// Nothing was cut, so the reply's own text is published whole.
+			if !strings.HasPrefix(body, strings.TrimRight(v.Text, "\n")) {
+				t.Error("the reply's text was altered on a path that cut nothing")
+			}
+		})
+	}
+}

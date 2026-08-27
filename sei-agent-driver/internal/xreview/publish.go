@@ -39,12 +39,16 @@ const MaxBodyBytes = 60_000
 func RenderComment(v Verdict, sessionID string) string {
 	footer := v.footer(sessionID)
 	prose := strings.TrimRight(v.Text, "\n")
-	reserve := markupReserve(prose)
 
-	if len(prose)+len(footer)+reserve <= MaxBodyBytes {
-		// Closed even when nothing was cut: a reply that ends inside its own fence
-		// would otherwise render the footer as code and lose the provenance record.
-		return closeDanglingMarkup(prose) + footer
+	// Closed even when nothing was cut: a reply that ends inside its own fence would
+	// otherwise render the footer as code and lose the provenance record.
+	//
+	// Measured, not reserved. The whole string is in hand here, so what the close
+	// actually costs is knowable -- nothing at all for the balanced reply, which is
+	// almost all of them. markupReserve answers a different question, the worst case
+	// over an unknown cut, and using it here truncated replies that fitted.
+	if closed := closeDanglingMarkup(prose); len(closed)+len(footer) <= MaxBodyBytes {
+		return closed + footer
 	}
 
 	// The notice states the whole reply's size rather than how much was elided. The elided
@@ -55,6 +59,10 @@ func RenderComment(v Verdict, sessionID string) string {
 		"> **Review truncated by the publisher.** The whole reply is %d bytes and the "+
 			"text below is cut. Read the rest at item `%s` of session `%s`.\n\n",
 		len(prose), v.ItemID, sessionID)
+
+	// Here the reserve is right: the cut point is not known until the budget is, so
+	// the bound has to hold for whichever construct the cut leaves open.
+	reserve := markupReserve(prose)
 
 	lead := notice + v.Block + footer + proseSeparator
 	if MaxBodyBytes-len(lead)-reserve < minProseBytes {
