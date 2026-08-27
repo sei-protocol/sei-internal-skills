@@ -132,9 +132,14 @@ GOVULNCHECK_FLAGS ?=
 # either way, so that distinction travels as the message.
 .PHONY: driver-vulncheck
 driver-vulncheck: ## Fail if sei-agent-driver can reach a known vulnerability (CI)
-	@cd sei-agent-driver && GOBIN=$(CURDIR)/sei-agent-driver/bin \
-	  go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION)
-	@cd sei-agent-driver && ./bin/govulncheck -version
+	@cd sei-agent-driver && { \
+	  GOBIN=$(CURDIR)/sei-agent-driver/bin \
+	    go install golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) && \
+	  ./bin/govulncheck -version; \
+	} || { \
+	  echo "driver-vulncheck: SCANNER UNAVAILABLE (setup failed) --" \
+	       "not a vulnerability verdict; re-run" >&2; exit 1; \
+	}
 	@cd sei-agent-driver && ./bin/govulncheck $(GOVULNCHECK_FLAGS) ./...; code=$$?; \
 	  case $$code in \
 	    0) ;; \

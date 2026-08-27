@@ -4,18 +4,26 @@ name: Verify sei-agent-driver vulnerabilities
 # change, so a pull-request-only gate reports clean on a module that has just become
 # vulnerable. Split out so a vulnerability failure reads as its own check.
 
+# No paths filter on pull_request, deliberately. A path-filtered workflow that is
+# skipped reports no check run at all, so this check added to branch protection would
+# sit at "Expected -- waiting for status" forever and every skills-only pull request
+# would be unmergeable. The job id was chosen so this can be required alone, and a
+# filter here would make that unusable.
+#
+# It also matches this workflow's own argument: vulnerability state drifts independently
+# of the diff, so "the driver did not change" is not a reason to skip the scan. The push
+# and schedule triggers keep their filters, where nothing is waiting on a check.
 on:
   pull_request:
-    paths: &agent-driver-vuln-paths
+  push:
+    branches:
+      - main
+    paths:
       - 'sei-agent-driver/**'
       - 'Makefile'
       # A release is cut by editing version.json alone, and that push publishes the driver.
       - 'version.json'
-      - '.github/workflows/verify-agent-driver-vulns.yml'
-  push:
-    branches:
-      - main
-    paths: *agent-driver-vuln-paths
+      - '.github/workflows/verify-agent-driver-vulns.yml' 
   schedule:
     # Off the hour: scheduled runs queue behind everything that fires at :00.
     - cron: '17 7 * * 1-5'
