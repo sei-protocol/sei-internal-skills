@@ -95,7 +95,7 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 
 | ID | Severity | Source | Rule |
 |----|----------|--------|------|
-| CD1 | warn | semantic | A skill that defines or enforces comment/doc conventions follows the present-state-only discipline (no inline change/history/why-removed — that's the PR/commit; sparingly; top-located, not in the body; comprehensive context in one centralized doc) and **names its champion**: `idiomatic-reviewer` for in-source comments + config annotations, `prose-steward` for doc artifacts + file/package header docs. The two axes must not overlap. Full standard: `/idiomatic` `references/comment-discipline.md` and `/language` `references/audience-model.md` (D1–D4). |
+| CD1 | warn | semantic | A skill that defines or enforces comment/doc conventions follows the present-state-only discipline (no inline change/history/why-removed — that's the PR/commit; sparingly; top-located, not in the body; comprehensive context in one centralized doc) and **names its champion**: `idiomatic-reviewer` for in-source comments + config annotations, `prose-steward` for doc artifacts + file/package header docs. The two axes must not overlap. Full standard: `/idiomatic` `references/comment-discipline.md`, which also holds the boundary table. |
 
 ## Persuasion stack (shape-dependent)
 
