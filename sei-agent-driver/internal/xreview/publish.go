@@ -77,20 +77,27 @@ func RenderComment(v Verdict, sessionID string) string {
 // Counting every occurrence lets a fence named in prose, or one inside a code span,
 // flip the parity and either close a block that was never open or leave one open.
 //
-// The two constructs are tracked together rather than in two passes, because each hides
-// the other: <!-- inside a code block is code, not a comment, and a fence inside a
+// The constructs are tracked together rather than in separate passes, because each hides
+// the others: <!-- inside a code block is code, not a comment, and a fence inside a
 // comment is comment text, not a fence. At most one is ever open, so at most one close
 // is appended.
+//
+// The third is a raw <pre> or <textarea>. CommonMark runs those to their close tag past
+// blank lines, so an unclosed one swallows what follows exactly as a comment does. The
+// blank-line-terminated tags -- <details>, <table>, <div> -- are not tracked: the notice
+// opens with a blank line, which ends them.
 //
 // The scan reads normalised line endings and the returned string does not: a \r\n reply
 // keeps its own bytes and gains only the close.
 func closeDanglingMarkup(s string) string {
-	char, length, inComment := openMarkup(s)
+	open := openMarkup(s)
 	switch {
-	case inComment:
+	case open.comment:
 		return s + commentClose
-	case length > 0:
-		return s + "\n" + strings.Repeat(string(char), length) + "\n"
+	case open.tag != "":
+		return s + "\n</" + open.tag + ">\n"
+	case open.fenceLen > 0:
+		return s + "\n" + strings.Repeat(string(open.fenceChar), open.fenceLen) + "\n"
 	}
 	return s
 }
@@ -106,34 +113,80 @@ const commentClose = "\n-->\n"
 // so a line carrying one never closes. One boolean cannot hold that: a ~~~ line
 // inside an open ``` block is content, not a close, and backticks do not close a
 // tilde block however many of them are appended.
-func openMarkup(s string) (char byte, length int, inComment bool) {
+func openMarkup(s string) (open markup) {
 	for _, line := range strings.Split(normalizeLineEndings(s), "\n") {
+		trimmed := strings.TrimLeft(line, " \t")
 		switch {
-		case inComment:
-			// Only --> closes a comment. A fence line inside one is comment text.
+		case open.comment:
+			// Only --> closes a comment. Everything else inside one is comment text.
 			at := strings.Index(line, "-->")
 			if at < 0 {
 				continue
 			}
-			inComment = commentOpens(line[at+len("-->"):])
-		case length > 0:
+			open.comment = commentOpens(line[at+len("-->"):])
+		case open.tag != "":
+			// Only the matching end tag closes one of these, and it closes from
+			// anywhere on the line.
+			if strings.Contains(strings.ToLower(line), "</"+open.tag+">") {
+				open.tag = ""
+			}
+		case open.fenceLen > 0:
 			// Only a matching fence line closes a block. <!-- inside one is code.
-			trimmed := strings.TrimLeft(line, " \t")
-			if run := fenceRun(trimmed); run > 0 && trimmed[0] == char &&
-				run >= length && strings.TrimRight(trimmed[run:], " \t") == "" {
-				length = 0
+			if run := fenceRun(trimmed); run > 0 && trimmed[0] == open.fenceChar &&
+				run >= open.fenceLen && strings.TrimRight(trimmed[run:], " \t") == "" {
+				open.fenceLen = 0
 			}
 		default:
-			trimmed := strings.TrimLeft(line, " \t")
 			if run := fenceRun(trimmed); run > 0 {
-				char, length = trimmed[0], run
+				open.fenceChar, open.fenceLen = trimmed[0], run
 				continue
 			}
-			inComment = commentOpens(line)
+			if tag := rawBlockTag(trimmed); tag != "" {
+				open.tag = tag
+				continue
+			}
+			open.comment = commentOpens(line)
 		}
 	}
-	return char, length, inComment
+	return open
 }
+
+// markup is the one construct open at a point in a document: a fence, an HTML comment,
+// or a raw block tag. At most one field is ever set.
+type markup struct {
+	fenceChar byte
+	fenceLen  int
+	comment   bool
+	tag       string
+}
+
+// rawBlockTag is the tag a line opens a raw HTML block with, lowercased, or "" for none.
+//
+// These are the tags CommonMark runs to their end tag rather than to a blank line, which
+// is what makes an unclosed one able to swallow the notice. The tag has to start the
+// line, and what follows it has to be whitespace, a > or nothing -- <president> is not
+// <pre>.
+func rawBlockTag(trimmed string) string {
+	if trimmed == "" || trimmed[0] != '<' {
+		return ""
+	}
+	lower := strings.ToLower(trimmed)
+	for _, tag := range rawBlockTags {
+		rest, ok := strings.CutPrefix(lower, "<"+tag)
+		if !ok {
+			continue
+		}
+		if rest == "" || rest[0] == '>' || rest[0] == ' ' || rest[0] == '\t' {
+			return tag
+		}
+	}
+	return ""
+}
+
+// rawBlockTags are CommonMark's HTML block type 1 tags. GitHub strips script and style,
+// so only pre and textarea can reach a reader -- the other two are tracked because the
+// parser treats all four the same and a stripped tag still ends a block.
+var rawBlockTags = []string{"pre", "script", "style", "textarea"}
 
 // commentOpens reports whether a line leaves an HTML comment open, which is true when
 // the last <!-- on it has no --> after it. Comments do not nest, so the last opener is
@@ -148,7 +201,8 @@ func commentOpens(line string) bool {
 //
 // The longest fence line bounds the fence close: whichever fence a cut leaves open was
 // opened by a line in s, and a close is never longer than its opener. A comment close is
-// fixed. At most one close is appended, so the larger of the two covers both.
+// fixed, and a raw block's is its own end tag. At most one close is appended, so the
+// largest covers all three.
 func markupReserve(s string) int {
 	longest := 0
 	for _, line := range strings.Split(normalizeLineEndings(s), "\n") {
@@ -164,7 +218,13 @@ func markupReserve(s string) int {
 	if strings.Contains(s, "<!--") {
 		comment = len(commentClose)
 	}
-	return max(fence, comment)
+	tag := 0
+	for _, line := range strings.Split(normalizeLineEndings(s), "\n") {
+		if t := rawBlockTag(strings.TrimLeft(line, " \t")); t != "" {
+			tag = max(tag, len("\n</"+t+">\n"))
+		}
+	}
+	return max(fence, max(comment, tag))
 }
 
 // fenceRun is the length of the fence a line opens or closes, or zero if it is not a
