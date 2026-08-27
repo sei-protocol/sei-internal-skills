@@ -489,7 +489,19 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
         with:
-          go-version: '1.24'
+          # At or above what the driver's own go.mod requires. A live run proved why
+          # this cannot lag: pinned at 1.24 while the module declared go 1.25.0, the
+          # install died with
+          #   requires go >= 1.25.0 (running go 1.24.13; GOTOOLCHAIN=local)
+          # because setup-go exports GOTOOLCHAIN=local, so the go command may not
+          # fetch the toolchain the module asks for. The step that installs the driver
+          # sets GOTOOLCHAIN=auto for that reason and would have recovered this on its
+          # own -- but a version resolved here rather than downloaded there is one
+          # fewer network dependency on the path, so both are set.
+          #
+          # go-version-file is not usable: this workflow checks nothing out, so there
+          # is no go.mod on disk to read. Bump this when the driver's does.
+          go-version: '1.25'
 
       - name: Install the xreview driver
         id: build
