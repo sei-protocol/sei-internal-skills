@@ -1,0 +1,24 @@
+name: AI Review
+on:
+  pull_request:
+    types: [ opened, ready_for_review, synchronize, reopened ]
+  issue_comment:
+    types: [ created ]
+  pull_request_review_comment:
+    types: [ created ]
+jobs:
+  ai-review:
+    if: github.event_name != 'issue_comment' || github.event.issue.pull_request != null
+    # See: https://github.com/sei-protocol/uci/releases/tag/v0.0.19
+    uses: sei-protocol/uci/.github/workflows/ai-review.yml@eb65d6d3f967c661f6af91cfac599fd355445f71
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+      id-token: write
+    secrets: inherit
+    with:
+      # See: https://github.com/sei-protocol/uci/releases/tag/v0.0.19
+      uci-ref: eb65d6d3f967c661f6af91cfac599fd355445f71
+      allowed-team: 'sei-protocol/sei-core'
+      enable-cursor: false # Disabled because this repo has Cursor Bugbot enabled.
