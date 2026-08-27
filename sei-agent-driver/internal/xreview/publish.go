@@ -26,14 +26,25 @@ const MaxBodyBytes = 60_000
 //
 // Every published byte is still the agent's own. What truncation costs is contiguity.
 // The notice says so, names how much went missing, and points at the item the rest can
-// be read from. The closing block is re-appended after the cut, so a truncated review is
-// still machine-readable. That is what matters the moment anything acts on the decision.
+// be read from. The decision block rides with it, so a truncated review is still
+// machine-readable. That is what matters the moment anything acts on the decision.
+//
+// On the truncated path the notice, the decision and the provenance all come before the
+// cut text, and that order is the whole guard. A cut can leave a code fence, an HTML
+// comment or a raw <pre> open, and each of those hides or garbles whatever follows it --
+// including nested inside each other, where closing correctly needs a model of HTML
+// nesting rather than of markdown. Putting them ahead of the cut needs no model at all.
+// [closeDanglingMarkup] still runs on the tail, but only so the tail itself renders; the
+// notice no longer depends on it.
 func RenderComment(v Verdict, sessionID string) string {
 	footer := v.footer(sessionID)
 	prose := strings.TrimRight(v.Text, "\n")
+	reserve := markupReserve(prose)
 
-	if len(prose)+len(footer) <= MaxBodyBytes {
-		return prose + footer
+	if len(prose)+len(footer)+reserve <= MaxBodyBytes {
+		// Closed even when nothing was cut: a reply that ends inside its own fence
+		// would otherwise render the footer as code and lose the provenance record.
+		return closeDanglingMarkup(prose) + footer
 	}
 
 	// The notice states the whole reply's size rather than how much was elided. The elided
@@ -41,29 +52,24 @@ func RenderComment(v Verdict, sessionID string) string {
 	// circularity is not worth a second pass for a number a reader cannot act on anyway.
 	// Where to find the rest is actionable.
 	notice := fmt.Sprintf(
-		"\n\n> **Review truncated by the publisher.** The whole reply is %d bytes: "+
-			"item `%s` of session `%s`.\n\n",
+		"> **Review truncated by the publisher.** The whole reply is %d bytes and the "+
+			"text below is cut. Read the rest at item `%s` of session `%s`.\n\n",
 		len(prose), v.ItemID, sessionID)
 
-	// Room for the close a cut inside a code block or an HTML comment needs, reserved
-	// unconditionally so every kind of cut is bounded the same way. Measured from the
-	// whole reply: whatever a prefix leaves open was opened by something in the whole,
-	// so the whole bounds the close any cut of it can need.
-	reserve := markupReserve(prose)
-	budget := MaxBodyBytes - len(footer) - len(notice) - len(v.Block) - reserve
-	if budget < minProseBytes {
-		// The closing block alone does not fit, which takes a findings array of a few
-		// thousand entries. The decision still travels in the footer, and the notice still
-		// says where to read the rest. Both beat refusing to publish a review that ran.
-		// Room for the close too, since the cut may land inside a code block here
-		// exactly as it can above.
-		head := closeDanglingMarkup(truncateBytes(prose,
-			MaxBodyBytes-len(footer)-len(notice)-reserve))
-		return head + notice + footer
+	lead := notice + v.Block + footer + proseSeparator
+	if MaxBodyBytes-len(lead)-reserve < minProseBytes {
+		// The closing block alone crowds out the review, which takes a findings array
+		// of a few thousand entries. The decision still travels in the footer, and the
+		// notice still says where to read the rest. Both beat refusing to publish a
+		// review that ran.
+		lead = notice + footer + proseSeparator
 	}
 
-	return closeDanglingMarkup(truncateBytes(prose, budget)) + notice + v.Block + footer
+	return lead + closeDanglingMarkup(truncateBytes(prose, MaxBodyBytes-len(lead)-reserve))
 }
+
+// proseSeparator divides the decision from the cut review text that follows it.
+const proseSeparator = "\n\n---\n\n"
 
 // closeDanglingMarkup closes the construct a cut landed inside.
 //

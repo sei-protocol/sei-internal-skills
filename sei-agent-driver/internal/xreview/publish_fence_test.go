@@ -304,3 +304,145 @@ func TestMarkupReserveHoldsBackEnoughForItsOwnCloser(t *testing.T) {
 		})
 	}
 }
+
+// TestTheNoticeSurvivesMarkupNoCloserCanFix is why the notice precedes the cut text.
+//
+// Each fixture leaves two constructs open at once, nested. Appending one close cannot fix
+// that: CommonMark ends a <pre> block at </pre>, but the HTML that reaches a reader is
+// parsed by HTML rules, where an unterminated comment inside the <pre> runs on and takes
+// the close, the notice and the decision with it. Getting that right needs a tag stack.
+// Ordering needs nothing -- the notice is ahead of the cut, so no construct in the cut
+// text can reach it.
+func TestTheNoticeSurvivesMarkupNoCloserCanFix(t *testing.T) {
+	t.Parallel()
+
+	pad := strings.Repeat("a line of the review\n", 4000)
+	for _, tc := range []struct {
+		name  string
+		prose string
+	}{
+		{"an HTML comment nested in a raw block", "<pre>\n<!-- still open\n" + pad},
+		{"a textarea nested in a raw block", "<pre>\n<textarea>\n" + pad},
+		{"a raw block nested in an HTML comment", "<!-- open\n<pre>\n" + pad},
+		{"a fence nested in a raw block", "<pre>\n```go\n" + pad},
+		{"three deep", "<pre>\n<!-- open\n```go\n" + pad},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			v := ParseVerdict(tc.prose +
+				"\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
+			v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
+			body := RenderComment(v, "conv_1")
+
+			if len(body) > MaxBodyBytes {
+				t.Errorf("body = %d bytes, want at most %d", len(body), MaxBodyBytes)
+			}
+			// The notice has to be the first thing in the body. Merely being present
+			// is what the old order gave, and the old order is the bug.
+			if !strings.HasPrefix(body, "> **Review truncated by the publisher.**") {
+				t.Errorf("the body does not open with the notice, so the cut text is "+
+					"ahead of it:\n%s", body[:min(300, len(body))])
+			}
+			cut := strings.Index(body, proseSeparator)
+			if cut < 0 {
+				t.Fatalf("no separator, so the cut text is not fenced off:\n%s", body[:300])
+			}
+			lead := body[:cut]
+			for _, want := range []string{
+				"Review truncated by the publisher",
+				v.Block,
+				// From the footer only. "conv_1" and "item_reply" also appear in the
+				// notice, so neither shows whether the footer survived.
+				"turn `resp_claude_a`",
+				"decision `approve`",
+			} {
+				if !strings.Contains(lead, want) {
+					t.Errorf("%q is not ahead of the cut text, so the reply can hide it",
+						want)
+				}
+			}
+			// And the lead itself must open nothing, or it would hide its own tail.
+			if fence, comment := endsInsideMarkup(lead); fence || comment {
+				t.Errorf("the lead leaves markup open (fence=%v comment=%v)", fence, comment)
+			}
+		})
+	}
+}
+
+// TestAnUncutReplyThatEndsOpenStillShowsItsFooter covers the path with no truncation.
+//
+// The driver did not cut this one -- the agent's own reply ends inside its fence -- but
+// the footer is still the only provenance record that outlives the run's logs, and an
+// open fence renders it as code. Nothing here is about the size limit, so the bound is
+// asserted too: closing costs bytes the untruncated path has to have counted.
+func TestAnUncutReplyThatEndsOpenStillShowsItsFooter(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct{ name, prose string }{
+		{"ends inside a fence", "Here is what I found:\n```go\nx()"},
+		{"ends inside an HTML comment", "Quoting:\n<!-- BUGBOT_BUG_ID: abc"},
+		{"ends inside a raw block", "Output:\n<pre>\nx()"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			v := ParseVerdict(tc.prose +
+				"\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
+			v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
+			body := RenderComment(v, "conv_1")
+
+			if len(body) > MaxBodyBytes {
+				t.Errorf("body = %d bytes, want at most %d", len(body), MaxBodyBytes)
+			}
+			if !strings.Contains(body, "turn `resp_claude_a`") {
+				t.Fatalf("no footer in the body:\n%s", body[max(0, len(body)-200):])
+			}
+			// The footer must not be inside anything the reply left open.
+			at := strings.Index(body, "<sub>seidroid xreview")
+			if fence, comment := endsInsideMarkup(body[:at]); fence || comment {
+				t.Errorf("the footer renders inside open markup (fence=%v comment=%v), "+
+					"so the provenance record is lost", fence, comment)
+			}
+		})
+	}
+}
+
+// TestTheUncutBoundCountsTheCloseItWillAppend sits the reply exactly on the limit.
+//
+// The uncut path appends a close, so its own bound has to count it or the body overruns
+// by those bytes. The window is the width of one close, so the size is computed rather
+// than guessed.
+//
+// The fence is four backticks on purpose. A three-backtick fence is closed by the verdict
+// block's own closing fence, which leaves nothing open and nothing to append; four is
+// longer than the block's three, so the block cannot close it.
+func TestTheUncutBoundCountsTheCloseItWillAppend(t *testing.T) {
+	t.Parallel()
+
+	mk := func(pad int) Verdict {
+		v := ParseVerdict("````go\n" + strings.Repeat("x", pad) +
+			"\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
+		v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
+		return v
+	}
+
+	empty := mk(0)
+	base := len(strings.TrimRight(empty.Text, "\n")) + len(empty.footer("conv_1"))
+	v := mk(MaxBodyBytes - base)
+
+	prose := strings.TrimRight(v.Text, "\n")
+	if got := len(prose) + len(v.footer("conv_1")); got != MaxBodyBytes {
+		t.Fatalf("fixture is %d bytes with its footer, want exactly %d", got, MaxBodyBytes)
+	}
+	if _, length, _ := func() (byte, int, bool) {
+		o := openMarkup(prose)
+		return o.fenceChar, o.fenceLen, o.comment
+	}(); length == 0 {
+		t.Fatal("fixture leaves no fence open, so no close is appended and the bound " +
+			"is not under test")
+	}
+
+	if body := RenderComment(v, "conv_1"); len(body) > MaxBodyBytes {
+		t.Errorf("body = %d bytes, want at most %d: the uncut bound did not count the "+
+			"close it appends", len(body), MaxBodyBytes)
+	}
+}
