@@ -198,6 +198,18 @@ func alreadyGone(err error) bool {
 // caller already near its deadline, would otherwise hand the walk a context that has
 // already expired and turn every reclaim into a failure before one request goes out.
 // The floor cannot outlive the parent, so it buys time only where time exists.
+// itemWalkOptions is how this driver pages a session's items.
+//
+// Order is sent rather than defaulted. One caller reads position out of the
+// listing's own sequence, and this route is the only listing on the API that
+// defaults to ascending -- sessions and agents default to descending -- so the
+// direction it needs is asked for instead of inherited. The caller that only
+// collects ids does not care, and shares this so there is one answer to what a
+// page of items looks like.
+func itemWalkOptions() omnigent.SessionItemsOptions {
+	return omnigent.SessionItemsOptions{Limit: 1000, Order: omnigent.SortAscending}
+}
+
 func (h *Host) boundWalk(ctx context.Context) (context.Context, context.CancelFunc) {
 	budget := listingWalkBudget * h.cfg.RequestTimeout
 	if deadline, ok := ctx.Deadline(); ok {
@@ -468,8 +480,7 @@ func (h *Host) priorResponseIDs(
 	defer cancel()
 
 	ids := map[string]bool{}
-	opts := omnigent.SessionItemsOptions{Limit: 1000}
-	for item, err := range client.Sessions().ListItems(walkCtx, sessionID, opts) {
+	for item, err := range client.Sessions().ListItems(walkCtx, sessionID, itemWalkOptions()) {
 		if err != nil {
 			return nil, fmt.Errorf("listing this session's items: %w", err)
 		}
