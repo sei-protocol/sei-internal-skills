@@ -288,6 +288,14 @@ jobs:
           fi
           echo "should_run=true" >> "$GITHUB_OUTPUT"
           echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          # Which of the two was asked for. The caller routes on the body as well and
+          # passes the mode, but the guard has to know too: a close is teardown, and
+          # some checks below stop a review without having any business stopping a
+          # reclaim.
+          case "$cmdline" in
+            *close*) echo "command=close" >> "$GITHUB_OUTPUT" ;;
+            *)       echo "command=review" >> "$GITHUB_OUTPUT" ;;
+          esac
           # Re-extracted from the matched line rather than from the raw body, so
           # what is passed on is only ever a substring the anchored pattern
           # already accepted.
@@ -346,6 +354,7 @@ jobs:
           REPO: ${{ steps.parse.outputs.review_repo || github.repository }}
           PR: ${{ steps.parse.outputs.review_pr || github.event.issue.number }}
           PARSED: ${{ steps.parse.outputs.should_run }}
+          COMMAND: ${{ steps.parse.outputs.command }}
         run: |
           set -uo pipefail
           deny() { echo "::notice::$1"; echo "admit=false" >> "$GITHUB_OUTPUT"; exit 0; }
@@ -371,7 +380,10 @@ jobs:
           # The label is a convenience rather than a control, so it fails open: it
           # stops a review someone did not want, and being unable to read it must
           # not stop every review when no identity is configured.
-          if [ -n "$SKIP_LABEL" ] && [ -n "${GH_TOKEN:-}" ]; then
+          # ...and it stops a REVIEW, not a teardown. A pull request that gains the
+          # label after a session exists must still be able to reclaim its sandbox,
+          # and nothing else will: no lifetime cap, no sweep.
+          if [ "$COMMAND" != "close" ] && [ -n "$SKIP_LABEL" ] && [ -n "${GH_TOKEN:-}" ]; then
             if gh api "repos/$REPO/pulls/$PR" --jq '.labels[].name' 2>/dev/null                  | grep -qxF "$SKIP_LABEL"; then
               deny "$REPO#$PR carries $SKIP_LABEL; not reviewing"
             fi
@@ -576,6 +588,13 @@ jobs:
       - name: Record the commit under review
         id: head
         if: ${{ inputs.mode == 'review' && !cancelled() }}
+        # Tolerated, because this is a step that improves publishing and must not be
+        # able to prevent reviewing. Failing it hard would let a transient api error
+        # -- or a cross-repository target with no App identity -- abort a review
+        # that would otherwise have run, since the drive step that follows carries no
+        # condition of its own. The publishers fall back to reading the head
+        # themselves and say so when this produced nothing.
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ steps.identity.outputs.token || github.token }}
@@ -735,10 +754,16 @@ jobs:
             echo "no findings to place; the summary carries the review"
             exit 0
           fi
-          # The commit the review actually read, recorded before it started.
-          head_sha="$REVIEWED_SHA"
+          # The commit the review actually read, recorded before it started. Absent
+          # only when that read failed, in which case this falls back to the head now
+          # -- the weaker guarantee, announced rather than assumed.
+          head_sha="${REVIEWED_SHA:-}"
           now="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
-          if [ "$now" != "$head_sha" ]; then
+          if [ -z "$head_sha" ]; then
+            echo "::warning::the reviewed commit was not recorded; publishing against \
+              the current head $now, which the review may not have read"
+            head_sha="$now"
+          elif [ "$now" != "$head_sha" ]; then
             echo "::warning::head moved from $head_sha to $now during the review; \
               publishing against the reviewed commit"
           fi
@@ -806,10 +831,16 @@ jobs:
           fi
           # Against the commit the review actually read. A check on any other commit
           # attaches this verdict to code it never saw.
-          # The commit the review actually read, recorded before it started.
-          head_sha="$REVIEWED_SHA"
+          # The commit the review actually read, recorded before it started. Absent
+          # only when that read failed, in which case this falls back to the head now
+          # -- the weaker guarantee, announced rather than assumed.
+          head_sha="${REVIEWED_SHA:-}"
           now="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
-          if [ "$now" != "$head_sha" ]; then
+          if [ -z "$head_sha" ]; then
+            echo "::warning::the reviewed commit was not recorded; publishing against \
+              the current head $now, which the review may not have read"
+            head_sha="$now"
+          elif [ "$now" != "$head_sha" ]; then
             echo "::warning::head moved from $head_sha to $now during the review; \
               publishing against the reviewed commit"
           fi
@@ -856,10 +887,16 @@ jobs:
           conclusion="$(jq -r .conclusion "$CHECK")"
           # Against the head the review read, so the position cannot attach to code
           # it never saw.
-          # The commit the review actually read, recorded before it started.
-          head_sha="$REVIEWED_SHA"
+          # The commit the review actually read, recorded before it started. Absent
+          # only when that read failed, in which case this falls back to the head now
+          # -- the weaker guarantee, announced rather than assumed.
+          head_sha="${REVIEWED_SHA:-}"
           now="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
-          if [ "$now" != "$head_sha" ]; then
+          if [ -z "$head_sha" ]; then
+            echo "::warning::the reviewed commit was not recorded; publishing against \
+              the current head $now, which the review may not have read"
+            head_sha="$now"
+          elif [ "$now" != "$head_sha" ]; then
             echo "::warning::head moved from $head_sha to $now during the review; \
               publishing against the reviewed commit"
           fi
