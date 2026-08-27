@@ -62,7 +62,7 @@ for a in data-platform-architect tee-specialist diagram-architect; do
 done
 
 # The rename case: the replacement must outlive the thing it replaced.
-check "the replacement survives: language" test -d "$t/.claude/skills/language"
+check "the replacement survives: idiomatic" test -d "$t/.claude/skills/idiomatic"
 
 echo "it NEVER removes the user's own work"
 for s in my-own-skill another-personal; do
@@ -138,7 +138,7 @@ echo "a target path containing spaces is handled exactly"
 t="$scratch/dir with spaces"; seed_env "$t"
 check      "apply exits 0 under a spaced path"  "$PRUNE" --target "$t" --apply
 check_fail "retired removed under a spaced path" test -d "$t/.claude/skills/tee"
-check      "core survived under a spaced path"   test -d "$t/.claude/skills/language"
+check      "core survived under a spaced path"   test -d "$t/.claude/skills/idiomatic"
 check      "user work survived under a spaced path" grep -q MINE "$t/.claude/skills/my-own-skill/SKILL.md"
 
 echo "argument handling"
