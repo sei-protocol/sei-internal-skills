@@ -611,7 +611,7 @@ func (c *conversation) anchorPrecedes(
 	// answers to "may this be published" with nothing keeping them in step.
 	var walked []omnigent.ConversationItem
 	for item, err := range c.client.Sessions().ListItems(walkCtx, c.sessionID,
-		omnigent.SessionItemsOptions{Limit: 1000}) {
+		itemWalkOptions()) {
 		if err != nil {
 			// Refuse rather than fall back to the truncated answer: an incomplete
 			// transcript cannot prove a position either way.
