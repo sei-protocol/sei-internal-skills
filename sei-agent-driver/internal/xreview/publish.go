@@ -81,6 +81,9 @@ func RenderComment(v Verdict, sessionID string) string {
 // the other: <!-- inside a code block is code, not a comment, and a fence inside a
 // comment is comment text, not a fence. At most one is ever open, so at most one close
 // is appended.
+//
+// The scan reads normalised line endings and the returned string does not: a \r\n reply
+// keeps its own bytes and gains only the close.
 func closeDanglingMarkup(s string) string {
 	char, length, inComment := openMarkup(s)
 	switch {
@@ -104,7 +107,7 @@ const commentClose = "\n-->\n"
 // inside an open ``` block is content, not a close, and backticks do not close a
 // tilde block however many of them are appended.
 func openMarkup(s string) (char byte, length int, inComment bool) {
-	for _, line := range strings.Split(s, "\n") {
+	for _, line := range strings.Split(normalizeLineEndings(s), "\n") {
 		switch {
 		case inComment:
 			// Only --> closes a comment. A fence line inside one is comment text.
@@ -148,7 +151,7 @@ func commentOpens(line string) bool {
 // fixed. At most one close is appended, so the larger of the two covers both.
 func markupReserve(s string) int {
 	longest := 0
-	for _, line := range strings.Split(s, "\n") {
+	for _, line := range strings.Split(normalizeLineEndings(s), "\n") {
 		if run := fenceRun(strings.TrimLeft(line, " \t")); run > longest {
 			longest = run
 		}
