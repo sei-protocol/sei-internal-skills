@@ -105,28 +105,57 @@ func promptLocation(file string, line int) string {
 // pointsSomewhereReal reports whether a flattened path is inside the tree under review.
 //
 // A scout's file field is model output, and the review is told to check each claim
-// against the diff, which means opening what the claim names. An absolute path, a parent
-// traversal or a home reference names something that is not the pull request, in a sandbox
-// holding a live credential. Such a claim still reaches the review, as text rather than as
-// a location.
+// against the diff, which means opening what the claim names. Anything that is not a
+// relative path into the pull request names something else, in a sandbox holding a live
+// credential and a policy that permits Bash. Such a claim still reaches the review, as
+// text rather than as a location.
 //
 // It takes only a value [oneLine] has already flattened, and refuses any other. That is
 // what keeps the answer true of the string a prompt carries rather than of some earlier
 // form of it, whoever calls this next.
 //
-// A location is also one token in a line this process lays out, so a flattened value
-// still holding a space is two of them. "a /etc/passwd" is not one place, and the half
-// the review would act on is the second. A path that genuinely carries a space loses its
-// rendering as a location and keeps its finding, which is the trade this side takes.
+// What a location may be made of is [pathBytesOnly]; an absolute path and a parent
+// traversal are refused here.
 func pointsSomewhereReal(file string) bool {
-	if file == "" || file != oneLine(file) || strings.Contains(file, " ") {
+	if file == "" || file != oneLine(file) || !pathBytesOnly(file) {
 		return false
 	}
-	if strings.HasPrefix(file, "/") || strings.HasPrefix(file, "~") {
+	if strings.HasPrefix(file, "/") {
 		return false
 	}
 	for _, seg := range strings.Split(filepath.ToSlash(file), "/") {
 		if seg == ".." {
+			return false
+		}
+	}
+	return true
+}
+
+// pathBytesOnly reports whether every byte of file is one a location is made of: a
+// letter, a digit, or one of . _ - / +
+//
+// An allowlist, not a list of things to refuse, because the value is model output about
+// to be named in a prompt the agent may put through a shell. A denylist has to catch
+// every way a shell can be made to name something else, and is wrong the moment one is
+// missed. "$HOME/.config/gh/hosts.yml" has no leading slash, no parent segment and no
+// space, and expands onto a live credential; ${HOME}, a backtick pair and $() do the
+// same. Admitting nothing that carries any of it needs no such list.
+//
+// It subsumes two rules that used to stand alone. A leading ~ is refused because ~ is
+// not a path byte anywhere, not only in front. A space is refused for the same reason,
+// which keeps the tokenisation the caller depends on: a location is one token in a line
+// this process lays out, so a value holding a space is two of them, and "a /etc/passwd"
+// is not one place -- the half the review would act on is the second.
+//
+// The cost is a real path using anything else -- a space, an accent, an @ -- losing its
+// rendering as a location while keeping its finding. That is the trade this side takes,
+// and it takes it in the safe direction.
+func pathBytesOnly(file string) bool {
+	for i := 0; i < len(file); i++ {
+		switch c := file[i]; {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		case c == '.', c == '_', c == '-', c == '/', c == '+':
+		default:
 			return false
 		}
 	}
