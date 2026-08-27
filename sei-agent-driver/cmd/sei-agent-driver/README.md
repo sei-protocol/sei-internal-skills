@@ -1,7 +1,7 @@
 # xreview
 
 `xreview` drives one sei-droid review of a pull request inside an Omnigent
-managed sandbox: it resolves the `sei-droid` agent, creates or adopts **the
+managed sandbox: it resolves the `seidroid` agent, creates or adopts **the
 session for that pull request**, sends the review prompt,
 answers whatever permission prompts the turn parks on (allowing only what an
 operator listed — see [Permission policy](#permission-policy)), and reads a
@@ -93,7 +93,7 @@ signal, so a caller never posts a stale file from a previous run.
 |---|---|---|
 | `OMNIGENT_BASE_URL` | `http://127.0.0.1:6767` | The Omnigent server. The default is loopback so a bare local run fails locally rather than reaching for someone's deployment; the review workflow always passes the real one (`https://seigent.dev.platform.sei.io`). It must be https or loopback: anything else is refused twice over, once when the client is built and once when the token mint declines to put the client secret on the wire. The in-cluster ClusterIP Service is not usable for this reason — it is plain http on port 80. |
 | `OMNIGENT_ORIGIN` | `omnigent://internal` | Sent as the `Origin` header on every request to satisfy the server's trusted-origin CSRF guard on state-changing POSTs. This process is not a browser and sends no Origin of its own, so it announces this sentinel instead. |
-| `SEIDROID_AGENT_ID` | `sei-droid` | The agent **name** to resolve to an id. There is no lookup-by-name route server-side, so the driver pages the agent listing until this name matches. |
+| `SEIDROID_AGENT_ID` | `seidroid` | The agent **name** to resolve to an id. There is no lookup-by-name route server-side, so the driver pages the agent listing until this name matches. |
 
 The driver also reads `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT` when
 `--trigger-id` is not given. These now only label a dispatch in the logs — they
@@ -122,11 +122,15 @@ workflow step output or a log line to reach the process that uses it. An
 explicit `OMNIGENT_API_TOKEN` (or `_FILE`) overrides the exchange if both
 forms are present.
 
-**`OMNIGENT_MACHINE_CLIENT_SECRET` is the one secret an operator has to
-configure** to run this tool from CI — everything else above has a workable
-default or, for the client id, defaults to `sei-droid`.
+**`OMNIGENT_MACHINE_CLIENT_SECRET` is the one *secret* an operator has to
+configure** to run this tool from CI. It is not the only variable: the machine
+client is a pair, so `OMNIGENT_MACHINE_CLIENT_ID` has to be set beside it and
+has no default. Configuring one half of the pair is refused with
+`machine client is half-configured` and exit 2, deliberately, rather than
+falling through to an anonymous request. Everything else above has a workable
+default.
 
-### Permission policy
+### Permission allowlists
 
 | Variable | Default | Meaning |
 |---|---|---|

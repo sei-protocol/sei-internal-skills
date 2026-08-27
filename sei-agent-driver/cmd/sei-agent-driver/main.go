@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -176,7 +177,10 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	// so an output left by an earlier run on a reused workspace is that run's verdict
 	// posted under this one's name. Clearing inside report is too late: a bad target,
 	// a missing credential and a malformed scout list all exit ahead of it.
-	clearOutputs(cmd.String("out"), cmd.String("findings-out"), cmd.String("check-out"))
+	if err := clearOutputs(cmd.String("out"), cmd.String("findings-out"),
+		cmd.String("check-out")); err != nil {
+		return &exitError{code: driver.ExitConfig, err: err}
+	}
 
 	repo, pr, err := parseTarget(cmd.Args().Slice())
 	if err != nil {
@@ -354,7 +358,9 @@ func report(outPath, findingsPath, checkPath string, result driver.Result) error
 
 	// Before anything is written, on every path: a workspace can be reused, and a
 	// caller posts on presence.
-	clearOutputs(outPath, findingsPath, checkPath)
+	if err := clearOutputs(outPath, findingsPath, checkPath); err != nil {
+		return err
+	}
 
 	if !verdict.HasVerdict() {
 		return nil
@@ -433,14 +439,20 @@ func firstNonEmpty(vals ...string) string {
 // clearOutputs removes any output left by an earlier run.
 //
 // The caller publishes on a file being present, so a stale one is a previous
-// review published under this run's name. An absent file is not an error.
-func clearOutputs(paths ...string) {
+// review published under this run's name. An absent file is not an error; a file
+// that could not be removed is, because leaving it is the exact outcome this
+// exists to prevent -- a read-only mount or a file owned by another uid on a
+// reused workspace would otherwise hand the caller an earlier verdict.
+func clearOutputs(paths ...string) error {
 	for _, p := range paths {
 		if p == "" {
 			continue
 		}
-		_ = os.Remove(p)
+		if err := os.Remove(p); err != nil && !errors.Is(err, fs.ErrNotExist) {
+			return fmt.Errorf("clearing an earlier run's output at %s: %w", p, err)
+		}
 	}
+	return nil
 }
 
 // writeFindings hands the caller the observations it can post against a line.

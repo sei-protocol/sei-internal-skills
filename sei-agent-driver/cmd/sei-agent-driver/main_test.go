@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
@@ -175,5 +176,36 @@ func TestOutputsAreClearedBeforeAnEarlyExit(t *testing.T) {
 		body, _ := os.ReadFile(out)
 		t.Errorf("the earlier run's output survived a failed run (%q); a caller that "+
 			"publishes on file presence would post it as this run's verdict", body)
+	}
+}
+
+// TestARefusedClearIsFatal covers the other half of the same invariant.
+//
+// Clearing is what makes "a file is present" mean "this run produced it". A
+// removal that fails leaves the earlier run's verdict in place, so the run has to
+// refuse rather than continue and let the caller publish it. A non-empty directory
+// is the portable way to make os.Remove fail without a read-only mount.
+func TestARefusedClearIsFatal(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "verdict.md")
+	if err := os.Mkdir(out, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(out, "occupant"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := clearOutputs(out)
+	if err == nil {
+		t.Fatal("clearOutputs succeeded on a path it could not remove; the caller " +
+			"would publish whatever was left there")
+	}
+	if !strings.Contains(err.Error(), out) {
+		t.Errorf("error = %v, want it to name the path that could not be cleared", err)
+	}
+
+	// An absent path stays not-an-error: most runs have nothing to clear.
+	if err := clearOutputs(filepath.Join(dir, "never-written.md")); err != nil {
+		t.Errorf("clearOutputs on an absent path = %v, want nil", err)
 	}
 }
