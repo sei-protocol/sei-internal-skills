@@ -1,0 +1,4 @@
+test.md:11:1:AgenticWriting.EARS-CriterionShall:Acceptance criterion has no SHALL: '2. The system should probably handle a bad token somehow.'. EARS is THE <system> SHALL <response>.
+test.md:13:1:AgenticWriting.EARS-CriterionShall:Acceptance criterion has no SHALL: '4. Users can also pass the token as a query parameter.'. EARS is THE <system> SHALL <response>.
+test.md:22:1:AgenticWriting.EARS-CriterionShall:Acceptance criterion has no SHALL: '2. The parser returns 401.'. EARS is THE <system> SHALL <response>.
+test.md:37:1:AgenticWriting.EARS-CriterionShall:Acceptance criterion has no SHALL: '2. The parser needs a fallback.'. EARS is THE <system> SHALL <response>.

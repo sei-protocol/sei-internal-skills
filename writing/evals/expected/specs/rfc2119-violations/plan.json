@@ -1,0 +1,14 @@
+{
+  "fixture": "evals/fixtures/specs/rfc2119-violations/plan.md",
+  "note": "The negative half of the spec-scoping contract. A plan.md sits beside spec.md in a Spec Kit feature directory and is not a specification: lowercase may/should/must are ordinary prose there, and the three structure rules describe a document this file is not. Prose rules still apply, which the passive-voice finding proves. Regenerate with: vale --output=JSON evals/fixtures/specs/rfc2119-violations/plan.md",
+  "must_include_rules": [
+    "AgenticWriting.STE-Passive"
+  ],
+  "must_not_include_rules": [
+    "AgenticWriting.RFC2119-Keywords",
+    "AgenticWriting.Spec-Anchors",
+    "AgenticWriting.Spec-IndependentTest",
+    "AgenticWriting.Spec-SuccessCriteria"
+  ],
+  "min_findings": 1
+}

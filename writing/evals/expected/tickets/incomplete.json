@@ -1,0 +1,16 @@
+{
+  "fixture": "evals/fixtures/tickets/incomplete.md",
+  "note": "Ticket mode, negative. Problem and Impact are present, so their rules must stay silent.",
+  "must_include_rules": [
+    "AgenticWriting.Ticket-AcceptanceCriteria",
+    "AgenticWriting.Ticket-OutOfScope",
+    "AgenticWriting.Ticket-ProposedApproach",
+    "AgenticWriting.Ticket-References",
+    "AgenticWriting.Ticket-RelevantExperts"
+  ],
+  "must_not_include_rules": [
+    "AgenticWriting.Ticket-Problem",
+    "AgenticWriting.Ticket-Impact"
+  ],
+  "min_findings": 5
+}

@@ -1,0 +1,11 @@
+{
+  "fixture": "evals/fixtures/specs/rfc2119-violations/spec.md",
+  "note": "Named spec.md under a feature directory because RFC 2119 and the three spec-structure rules are scoped to specs/**/spec.md in .vale.ini, which is where a real Spec Kit specification lives. A sibling such as plan.md is not a specification and must not fire these rules. Regenerate with: vale --output=JSON evals/fixtures/specs/rfc2119-violations/spec.md",
+  "must_include_rules": [
+    "AgenticWriting.RFC2119-Keywords",
+    "AgenticWriting.Spec-Anchors",
+    "AgenticWriting.Spec-IndependentTest",
+    "AgenticWriting.Spec-SuccessCriteria"
+  ],
+  "min_findings": 5
+}

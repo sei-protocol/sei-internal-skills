@@ -1,0 +1,12 @@
+{
+  "fixture": "evals/fixtures/design/incomplete.md",
+  "note": "Design mode, negative. All four rushed-document sections are missing.",
+  "must_include_rules": [
+    "AgenticWriting.Design-Alternatives",
+    "AgenticWriting.Design-NonGoals",
+    "AgenticWriting.Design-OpenQuestions",
+    "AgenticWriting.Design-Tradeoffs"
+  ],
+  "must_not_include_rules": [],
+  "min_findings": 4
+}

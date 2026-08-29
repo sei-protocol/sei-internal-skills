@@ -1,0 +1,1 @@
+test.md:1:1:AgenticWriting.Ticket-Problem:Ticket is missing the '## Problem' section. Write 'None.' rather than dropping a heading.

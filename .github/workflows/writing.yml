@@ -56,6 +56,20 @@ jobs:
       # Running the Spec Kit CLI rewrites its bundled assets, which would take
       # the fork's deltas with it. The fork lives away from those paths and this
       # asserts each delta is still present.
+      # A rule that stops firing is a silent failure. Fixtures catch it.
+      - name: Run fixture expectations
+        run: ./writing/evals/run.sh
+
+      # Per-rule golden files. Each rule is isolated by its own config, so a
+      # failure names one rule, and the golden pins line, column and message.
+      - name: Run per-rule golden fixtures
+        run: ./writing/evals/rules/run.sh
+
+      # An anchor arrives with four artifacts or it does not arrive. The anchors
+      # that predate the rule are marked grandfathered and counted.
+      - name: Every admitted anchor carries its four artifacts
+        run: ./writing/scripts/check-admission.sh
+
       - name: Spec template still carries its deltas
         run: ./writing/scripts/check-template-deltas.sh
 
@@ -82,10 +96,14 @@ jobs:
           files: '["writing"]'
           # --glob: writing/styles/write-good is a fetched package and its README
           # is not this repository's prose to fix.
-          # write-good is a fetched package. spec-template.upstream.md is
-          # upstream Spec Kit kept verbatim so check-template-deltas.sh can diff
-          # against it; editing it to satisfy a prose rule would defeat the check.
+          # ONE --glob. Vale takes a single glob expression; passing the flag
+          # more than once keeps only the last, so the exclusions go in one
+          # brace pattern or all but one silently stop applying.
+          #
+          # write-good is a fetched package. evals/ holds fixtures that are
+          # deliberately non-conforming, which is their job. upstream.md is
+          # Spec Kit's own text, kept verbatim so check-template-deltas.sh can
+          # diff against it; editing it to satisfy a prose rule defeats the check.
           vale_flags: >-
             --no-global
-            --glob=!writing/styles/write-good/**
-            --glob=!writing/templates/spec-template.upstream.md
+            --glob=!{writing/styles/write-good/**,writing/evals/**,writing/templates/spec-template.upstream.md}

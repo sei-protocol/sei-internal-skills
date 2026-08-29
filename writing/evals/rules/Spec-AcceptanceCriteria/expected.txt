@@ -1,0 +1,1 @@
+test.md:1:1:AgenticWriting.Spec-AcceptanceCriteria:Spec has no '#### Acceptance Criteria' heading, so EARS conformance was never checked.
