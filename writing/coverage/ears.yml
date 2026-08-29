@@ -1,0 +1,75 @@
+anchor: ears
+source: "Mavin et al., Easy Approach to Requirements Syntax, RE'09"
+total_topics: 8
+enumerated: full
+note: >-
+  Five templates, plus the three properties that hold across all of them: a
+  response stated with SHALL, a named actor that performs it, and a criteria
+  block for them to live in.
+topics:
+  response-stated-with-shall: [EARS-CriterionShall]
+  criteria-block-is-present: [Spec-AcceptanceCriteria]
+  template-ubiquitous: false
+  template-event-driven: false
+  template-state-driven: false
+  template-unwanted-behaviour: false
+  template-optional-feature: false
+  named-actor-performs-the-response: false
+
+false_positives:
+  corpus: PURE
+  corpus_url: https://zenodo.org/records/7118517
+  corpus_licence: CC-BY-4.0
+  corpus_citation: >-
+    Ferrari, Spagnolo, Gnesi. "PURE: A Dataset of Public Requirements
+    Documents." 25th IEEE International Requirements Engineering Conference,
+    2017.
+  measured: 2026-08-28
+  method: >-
+    PURE ships 18 requirements documents as XML. Each <req> element was
+    rendered as a numbered item under an "Acceptance Criteria" heading, because
+    the rule is section-scoped and would otherwise never run: a zero would then
+    read as "no false positives" when it means "never executed". A second,
+    adversarial sample rendered ordinary prose blocks the same way, to ask
+    whether the rule misfires on text that is not a requirement at all. The
+    corpus is downloaded at measurement time and not vendored here.
+  rules:
+    EARS-CriterionShall:
+      requirements_sample:
+        documents: 6
+        items: 979
+        flagged: 370
+        rate: 0.378
+        false_positives: 0
+      adversarial_sample:
+        documents: 12
+        items: 2798
+        flagged: 2339
+        rate: 0.836
+        false_positives: 0
+      severity: error
+      severity_note: >-
+        Error rests on the section scope, not on the predicate. The predicate
+        cannot produce a false positive by construction: it flags items lacking
+        SHALL, so "zero flagged items contained SHALL" is a tautology and not
+        evidence of anything. The evidence is the adversarial rate. Rendering
+        ordinary prose as criteria flagged 2,339 of 2,798 items, 83.6%, so the
+        rule is safe only while the criteria section contains criteria and
+        floods the moment it does not. The 37.8% requirements rate measures the
+        source document's house style rather than the rule: one corpus document
+        writes shall and scores 5.1%, another writes must and scores 100%.
+    Spec-AcceptanceCriteria:
+      corpus_sample:
+        documents: 18
+        fired: 0
+        false_positives: 0
+      negative_control: >-
+        Fires exactly once on a document with no criteria heading, and once on
+        a document whose only heading sits inside a fenced code block.
+      severity: error
+      severity_note: >-
+        A document-level presence check, so a sentence corpus cannot exercise
+        it directly. It stayed silent on all 18 documents once the heading was
+        present, and fires once on a document without it. Raised from warning
+        to error when the repository's only specification was converted to the
+        template, which removed the reason it had been held back.

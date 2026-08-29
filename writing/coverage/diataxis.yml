@@ -1,0 +1,9 @@
+anchor: diataxis
+source: "Procida, Diátaxis"
+total_topics: 1
+enumerated: full
+note: >-
+  Coverage is none, and that is the honest value. Mode purity is a judgement
+  about intent rather than a pattern in the text.
+topics:
+  page-holds-one-mode: false

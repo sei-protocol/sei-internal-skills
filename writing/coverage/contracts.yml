@@ -1,0 +1,26 @@
+contract: house
+source: ".specify/memory/constitution.md"
+total_topics: 15
+enumerated: full
+note: >-
+  Rules that implement this repository's own conventions rather than a public
+  standard. They have no anchor by design: the constitution's first principle
+  says a convention is an anchor, a contract, or deleted, and a contract is
+  stated in full rather than named. Recording them here is what stops a rule
+  existing with no written purpose.
+topics:
+  spec-declares-its-anchors: [Spec-Anchors]
+  spec-states-success-criteria: [Spec-SuccessCriteria]
+  spec-story-carries-an-independent-test: [Spec-IndependentTest]
+  design-states-non-goals: [Design-NonGoals]
+  design-states-alternatives: [Design-Alternatives]
+  design-states-trade-offs: [Design-Tradeoffs]
+  design-states-open-questions: [Design-OpenQuestions]
+  ticket-states-the-problem: [Ticket-Problem]
+  ticket-states-the-impact: [Ticket-Impact]
+  ticket-names-relevant-experts: [Ticket-RelevantExperts]
+  ticket-states-a-proposed-approach: [Ticket-ProposedApproach]
+  ticket-states-acceptance-criteria: [Ticket-AcceptanceCriteria]
+  ticket-states-what-is-out-of-scope: [Ticket-OutOfScope]
+  ticket-states-references: [Ticket-References]
+  prose-avoids-machine-filler: [Model-Tells]

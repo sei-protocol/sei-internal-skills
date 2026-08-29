@@ -11,7 +11,9 @@ here today:
 |---|---|
 | `styles/AgenticWriting/` | the rules, one file per checkable rule |
 | `styles/config/vocabularies/` | terms this repository accepts, and their casing |
-| `scripts/` | the generator for the section rules, and the gate that holds it |
+| `scripts/` | the generator for the section rules, and the gates |
+| `anchors/` | the registry of public standards, and a page per anchor |
+| `coverage/` | which topics of each standard the rules reach, and which they miss |
 
 What arrives next, in order:
 
@@ -28,6 +30,7 @@ What arrives next, in order:
 vale sync                                    # fetch write-good, not committed
 vale --no-global writing                     # what CI checks today
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
+./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ```
 
 `--no-global` matters. Vale merges a user-level configuration with this one, so a
@@ -43,6 +46,19 @@ required format used to satisfy the check.
 Fence tracking needs a script rule. The scripting language cannot import a shared
 helper, and eighteen hand-copied loops drift. Edit the manifest and run the
 generator. `check-generated-rules.sh` fails if the two disagree.
+
+## Anchors, and what they do not cover
+
+`anchors/registry.yaml` is the single source of truth. Each entry names a public
+standard, its steward, its licence, the rules that verify it, and the parts of it
+no rule can reach. That last list is the point: a partial verifier that claims to
+be complete is worse than no verifier.
+
+`coverage/` says the same thing a second way, per topic. `check-coverage.sh`
+fails when the two disagree. They assert it twice on purpose. An orphan check
+catches a rule with no recorded purpose. Only the cross-check catches a rule
+credited to the wrong standard, which is how one anchor came to claim rules that
+check something else.
 
 ## Reading a finding
 

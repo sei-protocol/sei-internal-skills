@@ -1,0 +1,12 @@
+anchor: conventional-commits
+source: "Conventional Commits 1.0.0"
+total_topics: 2
+enumerated: full
+note: >-
+  Coverage is none. Vale cannot read a commit message, so no rule here can check
+  this. An earlier note claimed commitlint checked it in CI; no commitlint
+  exists in this repository, and restating the claim here turned one unverified
+  sentence into two. If a commit-message gate is wanted, it is unbuilt work.
+topics:
+  subject-is-type-scope-description: false
+  breaking-change-is-marked: false
