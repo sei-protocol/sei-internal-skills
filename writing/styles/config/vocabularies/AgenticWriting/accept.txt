@@ -46,3 +46,15 @@ Tengo
 [Cc]onfig
 [Ll]inter'?s?
 [Tt]raceback
+
+# Authors cited in NOTICE.md. A surname is a name, not a spelling error.
+Procida
+Starke
+Hruschka
+Mavin
+Daniele
+Gernot
+
+# Words this repository uses that the dictionary does not carry.
+reimplemented
+[Pp]aywalled

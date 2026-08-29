@@ -148,3 +148,16 @@ When the relevant specialists review a produced artifact (design, plan, diff, or
 
 Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose). The full roster of available specialists lives in the synced `.claude/agents/` files.
 <!-- END sei-internal-skills-managed -->
+
+## Writing
+
+Prose in this repository follows the contract in
+[`writing/CONTRACT.md`](writing/CONTRACT.md). It names public standards rather
+than restating them, so a finding leads to a clause somebody else published.
+
+Vale checks the checkable part. Run `vale --no-global writing/` before you push,
+or read `writing/README.md` for the rest.
+
+The contract sits in its own file rather than in a section here. A sync script
+writes this one from the doctrine block, and two generators writing one file is a
+collision nobody wins.
