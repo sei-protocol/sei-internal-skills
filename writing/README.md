@@ -17,6 +17,7 @@ here today:
 | `CONTRACT.md` | the contract itself: the anchors, and the rules with no public prior |
 | `templates/` | the spec template, and the upstream baseline it forked from |
 | `evals/` | fixtures, per-rule golden files, and the recognition method |
+| `specs/` | what this toolkit is for, and the one verifier it still lacks |
 
 The prose lint skips `evals/`. A fixture is deliberately non-conforming, which is
 what makes it a test.

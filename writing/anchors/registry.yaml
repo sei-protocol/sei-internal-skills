@@ -63,6 +63,10 @@ anchors:
       not_checkable:
         - "One approved meaning per word in context (needs word-sense judgement)."
         - "Correct choice of Technical Name versus Technical Verb."
+        - "A Gherkin scenario. Given, When and Then form one sentence by
+          construction, so a three-clause scenario passes the descriptive limit
+          only by accident. Splitting it would break the shape the anchor asks
+          for, so the length rule reports it and the finding stays a warning."
         - "Whether a procedure step is genuinely a single action."
         - "A noun cluster that contains an adjective, such as 'cluster autoscaler
           group minimum size constraint value'. STE-NounCluster counts a run of four

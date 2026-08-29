@@ -30,13 +30,18 @@
 #
 # Takes an optional root, which is how evals/gates/run.sh points it at a fixture tree.
 set -euo pipefail
-ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# THE DEFAULT ROOT IS THE REPOSITORY, NOT THE TOOLKIT. A verifier line names a
+# command a reader can copy and run, and a reader runs it from the repository
+# root. Anchoring to writing/ made every path resolve one directory too deep.
+ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 ROOT="$(cd "$ROOT" && pwd)"
 exec python3 - "$ROOT" <<'PY'
 import pathlib, re, sys
 
 root = pathlib.Path(sys.argv[1])
-specs = sorted(root.glob('specs/*/spec.md'))
+# Both layouts: a fixture root holds specs/<case>/spec.md, and this repository
+# keeps its own under writing/specs/.
+specs = sorted(root.glob('specs/*/spec.md')) + sorted(root.glob('writing/specs/*/spec.md'))
 if not specs:
     print(f"FAIL no specs under {root}/specs — refusing to report success on an empty set")
     sys.exit(1)

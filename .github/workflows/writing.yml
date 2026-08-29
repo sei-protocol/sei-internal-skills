@@ -94,6 +94,11 @@ jobs:
       - name: The consumer configuration scopes the same rules
         run: ./writing/scripts/check-consumer-scoping.sh
 
+      # Three of seven criteria once cited a check nobody had built. A
+      # criterion citing a missing check reads exactly like one that passes.
+      - name: Every success criterion names a verifier that runs
+        run: ./writing/scripts/check-verifiers.sh
+
       - name: Coverage manifest is true
         run: ./writing/scripts/check-coverage.sh
 
