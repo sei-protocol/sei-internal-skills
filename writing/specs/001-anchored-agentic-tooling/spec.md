@@ -144,8 +144,8 @@ assures it, and none has value if this one does not work. It is also the story V
 completed once in five months.
 
 **Independent Test**: In a repository with the contract present and no skills installed,
-ask for a design document. Confirm the output follows the anchored style, and that no
-anyone invoked a slash command.
+ask for a design document. Confirm the output follows the anchored style, and that
+nobody invoked a slash command.
 
 **Acceptance Scenarios**:
 
@@ -224,7 +224,7 @@ registry records a distinct verdict per model, and that a below-threshold verdic
   the recognition test decides.
 - **A local rule that resembles a public standard.** It stays local, because a later
   upstream change would silently move the rule.
-- **A convention with no verifier.** The contract states it and listed as
+- **A convention with no verifier.** The contract states it and marks it
   uncheckable. Nothing implies that a gate checks it.
 - **Two anchors a model confuses.** The contract names the pair in full, never by short form.
 - **A model that names an anchor and applies it wrongly.** Recognition passes,
@@ -366,7 +366,7 @@ Zero of the 8 entries carry a verdict. Until one does, every claim in this repos
 about how well a model resolves an anchor is untested.
 
 **SC-004** The gate reports zero errors on every governed artifact in this repository.
-*Verifier:* `vale --no-global writing/`
+*Verifier:* `vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/**,writing/templates/spec-template.upstream.md}' writing/`
 
 **SC-005** The contract fits in a single file a person reads in under five minutes.
 *Verifier:* `writing/scripts/check-artifact-length.sh`

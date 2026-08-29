@@ -5,11 +5,15 @@
 # vendored here. OpenSTE is MIT-licensed, so its wordset can be fetched and used to
 # build an approximation. See writing/NOTICE.md.
 #
-# Usage: scripts/sync-openste.sh
+# Usage: writing/scripts/sync-openste.sh
 set -euo pipefail
 
 SRC="${OPENSTE_URL:-https://raw.githubusercontent.com/openste/openste/main/wordset.json}"
-OUT="styles/AgenticWriting/STE-ApprovedWords.generated.yml"
+# Anchored to this script, like every other in the toolkit. It used to be
+# relative to the working directory, so running it from the repository root —
+# which its own usage line asks for — wrote nowhere.
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+OUT="$ROOT/styles/AgenticWriting/STE-ApprovedWords.generated.yml"
 TMP="$(mktemp)"
 
 echo "Fetching OpenSTE wordset from ${SRC}"

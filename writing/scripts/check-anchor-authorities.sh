@@ -21,7 +21,7 @@ REPO="$(cd "$ROOT/.." && pwd)"
 cd "$REPO"
 
 # Every skill and agent this repository ships, by directory name.
-names="$( { ls -d .claude/skills/*/ experimental/skills/*/ 2>/dev/null | xargs -n1 basename
+names="$( { ls -d .claude/skills/*/ experimental/skills/*/ agents/*/ 2>/dev/null | xargs -n1 basename
             ls .claude/agents/*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//'
           } | sort -u | grep -e '-' || true )"
 
@@ -43,7 +43,11 @@ while IFS= read -r f; do
     echo "    An anchor names a standard a reader can follow outside this repository."
     fail=1
   fi
-done < <(find writing/anchors writing/coverage -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' \) 2>/dev/null)
+# .txt too: grandfathered.txt and unregistered.txt are lists of anchor names,
+# which is the likeliest place for a skill name to appear, and the first
+# version skipped them.
+done < <(find writing/anchors writing/coverage -type f \
+         \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.txt' \) 2>/dev/null)
 
 if [ "$fail" -eq 0 ]; then
   echo "No anchor cites a skill. Checked $scanned files against $(printf '%s' "$names" | wc -l | tr -d ' ') names."

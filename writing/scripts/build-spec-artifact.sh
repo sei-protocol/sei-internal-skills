@@ -32,7 +32,7 @@
 set -euo pipefail
 
 STYLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CSS="$STYLE_DIR/writing/styles/artifact/heading-hierarchy.css"
+CSS="$STYLE_DIR/styles/artifact/heading-hierarchy.css"
 
 repo="" ref="" out=""
 while [ $# -gt 0 ]; do

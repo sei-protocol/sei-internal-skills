@@ -17,6 +17,12 @@ on:
   push:
     branches: [main]
 
+# reviewdog posts review comments, which a read-only default token cannot do.
+# The source workflow declared these and the move dropped them.
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
   vale:
     runs-on: ubuntu-latest
@@ -30,6 +36,13 @@ jobs:
       # and the gate says so rather than passing on one arm.
       - name: Fetch main for the monotonicity comparison
         run: git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+
+      # Five scripts below import yaml. The runner image happening to ship it is
+      # not a dependency declaration, and the source workflow declared this.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pyyaml
 
       - name: Install Vale
         run: |

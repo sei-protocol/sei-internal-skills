@@ -20,7 +20,7 @@ on:
 
 jobs:
   writing:
-    uses: bdchatham/agentic-writing/.github/workflows/writing-contract.yml@@REF@
+    uses: sei-protocol/sei-internal-skills/.github/workflows/writing-contract.yml@@REF@
     permissions:
       contents: read
       pull-requests: write

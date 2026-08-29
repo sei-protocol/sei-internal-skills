@@ -36,7 +36,9 @@ What arrives next, in order:
 
 ```sh
 vale sync                                    # fetch write-good, not committed
-vale --no-global writing                     # what CI checks today
+vale --no-global \
+  '--glob=!{writing/styles/write-good/**,writing/evals/**,writing/templates/spec-template.upstream.md}' \
+  writing/                                   # exactly what CI runs
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
@@ -141,6 +143,16 @@ and never blocks. Only prose somebody edits meets the bar.
 Most of that backlog is one rule. ASD-STE100 does not allow contractions and this
 repository writes `don't` 348 times. The house style changes by attrition, on the
 lines people are already editing.
+
+## Licensing boundary
+
+This work is an approximation of ASD-STE100. It is not certified, endorsed by, or
+affiliated with ASD or the STEMG. Copyright covers the specification and its
+dictionary, and neither appears here. The rules cite clauses and describe them in
+our own words.
+
+`NOTICE.md` carries the full terms, and requires this paragraph in the README of
+any fork. Read it before adding an anchor or a rule.
 
 ## Reading a finding
 

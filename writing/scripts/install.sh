@@ -128,15 +128,15 @@ install_machine() {
 
   for style in AgenticWriting config; do
     say "  linking $style into the user styles directory"
-    run ln -sfn "$HOME_DIR/styles/$style" "$vale_dir/styles/$style"
+    run ln -sfn "$HOME_DIR/writing/styles/$style" "$vale_dir/styles/$style"
   done
 
   if [ -f "$vale_dir/.vale.ini" ]; then
     say "  user Vale config exists, leaving it alone"
-    say "    compare against $HOME_DIR/docs/vale-global-config.reference.ini"
+    say "    compare against $HOME_DIR/writing/docs/vale-global-config.reference.ini"
   else
     say "  installing the fallback Vale config"
-    run cp "$HOME_DIR/docs/vale-global-config.reference.ini" "$vale_dir/.vale.ini"
+    run cp "$HOME_DIR/writing/docs/vale-global-config.reference.ini" "$vale_dir/.vale.ini"
   fi
 
   # Without this the first `vale` run fails with "style 'write-good' does not
@@ -158,13 +158,13 @@ install_machine() {
   say "  tickets/id.md             the seven ticket sections, prose"
   say ""
   say "Starting a document:"
-  say "  $HOME_DIR/.specify/templates/"
+  say "  $HOME_DIR/writing/templates/"
   say ""
   say "Publishing a spec as an artifact:"
-  say "  $HOME_DIR/scripts/build-spec-artifact.sh --help"
+  say "  $HOME_DIR/writing/scripts/build-spec-artifact.sh --help"
   say ""
   say "CI for a whole team is a separate, optional step:"
-  say "  cd <repo> && curl -fsSL $RAW/main/scripts/install.sh | bash -s -- repo"
+  say "  cd <repo> && curl -fsSL $RAW/main/writing/scripts/install.sh | bash -s -- repo"
 }
 
 install_repo() {

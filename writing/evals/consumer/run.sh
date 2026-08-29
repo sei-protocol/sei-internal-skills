@@ -39,6 +39,28 @@ check() {  # check <description> <expected> <actual>
   fi
 }
 
+# MACHINE MODE FIRST. It is the documented install — "that is the whole setup" —
+# and nothing tested it, so a directory move broke it silently: two symlinks
+# pointing at the pre-move path and no configuration at all. `ln -sfn` replaces
+# an existing link, so re-running it on a working machine destroyed that too.
+fake_home="$(mktemp -d)"
+# Clone first so the installer finds an existing checkout and skips its own
+# `git clone --branch`, which needs a branch name and gets handed a commit.
+git clone --quiet "$root" "$fake_home/.agentic-writing"
+git -C "$fake_home/.agentic-writing" checkout --quiet "$ref"
+if env HOME="$fake_home" AGENTIC_WRITING_HOME="$fake_home/.agentic-writing" \
+       AGENTIC_WRITING_REPO="$root" AGENTIC_WRITING_REF="$ref" \
+       "$root/writing/scripts/install.sh" machine >"$fake_home/log" 2>&1; then
+  note "ok   machine mode installs"
+else
+  note "FAIL machine mode installs"; sed 's/^/       /' "$fake_home/log"; fail=1
+fi
+dangling=0
+while IFS= read -r l; do [ -e "$l" ] || dangling=$((dangling + 1)); done \
+  < <(find "$fake_home" -type l 2>/dev/null)
+check "machine mode leaves no dangling symlink" "0" "$dangling"
+rm -rf "$fake_home"
+
 cp -R "$root/writing/evals/consumer/tree/." "$work/"
 git -C "$work" init -q .
 
@@ -63,8 +85,8 @@ done
 # The pin is the whole update story. A workflow pinned to a ref that is not the
 # one the rules came from fetches a different set on the consumer's next run.
 check "workflow pins the installed ref" \
-  "uses: bdchatham/agentic-writing/.github/workflows/writing-contract.yml@$ref" \
-  "$(grep -o 'uses: bdchatham/agentic-writing/.github/workflows/writing-contract.yml@.*' .github/workflows/writing.yml)"
+  "uses: sei-protocol/sei-internal-skills/.github/workflows/writing-contract.yml@$ref" \
+  "$(grep -o 'uses: sei-protocol/sei-internal-skills/.github/workflows/writing-contract.yml@.*' .github/workflows/writing.yml)"
 check "config records the same ref" "$ref" \
   "$(grep -o 'pinned to: .*' .vale.ini | sed 's/pinned to: //')"
 check "fetched rules are gitignored" "yes" \
