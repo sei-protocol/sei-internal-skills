@@ -1,0 +1,128 @@
+# Which sections a document in each writing mode must carry.
+#
+# scripts/generate-mode-rules.py turns this into one Vale rule per section, and
+# scripts/check-generated-rules.sh fails if the checked-in rules drift from it.
+#
+# WHY THESE RULES ARE GENERATED. Each one has to know where a fenced code block
+# starts and ends, because `scope: raw` shows a heading quoted inside a fence and
+# an `occurrence` count cannot tell that from a real one. A document that merely
+# shows the required format satisfied the check while having none of it, and both
+# the templates and docs/writing-modes.md quote these headings. Fence tracking
+# needs `extends: script`, Tengo cannot import a shared helper, and eighteen
+# hand-copied loops drift. One loop, generated eighteen times, does not.
+#
+# WHY NOT ONE RULE PER MODE. Vale gives a script rule a single static message,
+# and `%s` substitutes matched text, so a rule covering seven sections cannot say
+# which one is missing. Matches that share a span also collapse into one alert.
+# Collapsing would close the fence hole and make the output worse.
+#
+# Every rule here is presence only. Vale cannot judge whether a section says
+# anything, and each anchor's not_checkable list in anchors/registry.yaml says so.
+
+# A line that opens or closes a fenced code block. CommonMark allows a fence up to
+# three spaces of indentation; four or more make it an indented code block instead.
+fence: '^[ ]{0,3}(?:```|~~~)'
+
+modes:
+  - id: ADR
+    scope_note: "Scoped to docs/adr in .vale.ini. Without that scope it fires on every file."
+    cites: |
+      ADR (Nygard): an ADR records Title, Status, Context, Decision, Consequences.
+      Vale checks presence only; the quality of the section is in the not_checkable
+      list for adr-nygard in anchors/registry.yaml.
+    sections:
+      - rule: ADR-Status
+        heading: Status
+        levels: '#+'
+        message: "ADR is missing a '## Status' section."
+      - rule: ADR-Context
+        heading: Context
+        levels: '#+'
+        message: "ADR is missing a '## Context' section."
+      - rule: ADR-Decision
+        heading: Decision
+        levels: '#+'
+        message: "ADR is missing a '## Decision' section."
+      - rule: ADR-Consequences
+        heading: Consequences
+        levels: '#+'
+        message: "ADR is missing a '## Consequences' section."
+
+  - id: Design
+    scope_note: "Scoped in .vale.ini; without that scope this fires on every file."
+    sections:
+      - rule: Design-NonGoals
+        heading: Non-goals
+        levels: '##'
+        message: "Design is missing '## Non-goals'. A scope with no stated boundary grows while the document is open."
+        cites: |
+          A house section, not an arc42 one — arc42 defines no Non-goals section.
+          The arc42 anchor is verified by Design-Arc42Order and by nothing else.
+      - rule: Design-Alternatives
+        heading: Alternatives
+        levels: '##'
+        message: "Design is missing '## Alternatives'. A decision with no rejected option is a preference."
+        cites: "ADR (Nygard): the forces considered are part of the record."
+      - rule: Design-Tradeoffs
+        heading: 'Trade-?offs'
+        levels: '##'
+        message: "Design is missing '## Trade-offs'. State the cost of the choice, not only the choice."
+        cites: "ADR (Nygard): Consequences states the cost, including the negative one."
+      - rule: Design-OpenQuestions
+        heading: Open questions
+        levels: '##'
+        message: "Design is missing '## Open questions'. An unstated unknown reads as a settled decision."
+        cites: "arc42: risks and technical debt are a named section."
+
+  - id: Spec
+    scope_note: "Scoped in .vale.ini; without that scope this fires on every file."
+    sections:
+      - rule: Spec-Anchors
+        heading: Semantic Anchors
+        levels: '##'
+        message: "Spec is missing the '## Semantic Anchors' block. Name the methods once so the body does not restate them."
+        cites: "This repository's Spec Kit delta: a spec declares its anchors before its body."
+      - rule: Spec-SuccessCriteria
+        heading: Success Criteria
+        levels: '##'
+        message: "Spec is missing '## Success Criteria'. A spec without measurable outcomes cannot be closed."
+        cites: "GitHub Spec Kit spec-template.md: Success Criteria is mandatory."
+      - rule: Spec-IndependentTest
+        inline: '\*\*Independent Test\*\*'
+        message: "Spec has no '**Independent Test**'. A user story without one becomes a ticket whose acceptance bar its implementer invents."
+        cites: "GitHub Spec Kit spec-template.md: each user story states how it is tested independently."
+
+  - id: Ticket
+    scope_note: "Scoped in .vale.ini; without that scope this fires on every file."
+    cites: |
+      House ticket format: seven mandatory sections. No open standard defines them,
+      so they are stated.
+    sections:
+      - rule: Ticket-Problem
+        heading: Problem
+        levels: '##'
+        message: "Ticket is missing the '## Problem' section. Write 'None.' rather than dropping a heading."
+      - rule: Ticket-Impact
+        heading: Impact
+        levels: '##'
+        message: "Ticket is missing the '## Impact' section. Write 'None.' rather than dropping a heading."
+      - rule: Ticket-RelevantExperts
+        heading: Relevant experts
+        levels: '##'
+        message: "Ticket is missing the '## Relevant experts' section. Write 'None.' rather than dropping a heading."
+      - rule: Ticket-ProposedApproach
+        heading: Proposed approach
+        levels: '##'
+        message: "Ticket is missing the '## Proposed approach' section. Write 'None.' rather than dropping a heading."
+      - rule: Ticket-AcceptanceCriteria
+        heading: Acceptance criteria
+        levels: '##'
+        message: "Ticket is missing the '## Acceptance criteria' section. Write 'None.' rather than dropping a heading."
+      - rule: Ticket-OutOfScope
+        heading: Out of scope
+        levels: '##'
+        message: "Ticket is missing the '## Out of scope' section. Write 'None.' rather than dropping a heading."
+      - rule: Ticket-References
+        heading: References
+        levels: '##'
+        message: "Ticket is missing the '## References' section. Write 'None.' rather than dropping a heading."
