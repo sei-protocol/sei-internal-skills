@@ -106,7 +106,7 @@ somebody deleted its fixture.
 ## An anchor is not a skill
 
 An anchor earns its place by being a standard somebody else published and
-maintains, so a reader can follow the name to a clause this repository does not
+maintains. A reader can follow the name to a clause this repository does not
 control. A skill here is not that. Citing one as an anchor's authority makes the
 catalogue circular: the rule is right because our skill says so.
 
