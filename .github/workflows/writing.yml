@@ -1,8 +1,12 @@
 # Checks prose against the writing contract in writing/.
 #
-# SCOPED TO writing/ FOR NOW. The rules are landing as a stacked series, and this
-# repository has 245 Markdown files that have never met them. Widening the scope
-# is its own change, with its own review, because that is the one people feel.
+# THE BACKLOG DOES NOT BLOCK. reviewdog reports on the lines a pull request
+# touches. A finding on a line nobody edited never appears, so the 1,600 findings
+# this repository already carries stay invisible until somebody edits that line.
+#
+# Most of them are one rule. ASD-STE100 does not allow contractions and this
+# repository writes 'don't' 348 times. The house style changes by attrition, on
+# the lines people are already editing, rather than in a sweep nobody asked for.
 #
 # reviewdog reports on the lines a pull request touches, so a finding on a line
 # nobody edited never appears and never blocks.
@@ -119,7 +123,14 @@ jobs:
           reporter: github-pr-review
           fail_level: error
           level: warning
-          files: '["writing"]'
+          # The whole repository now, not writing/ alone. reviewdog reports on
+          # the lines a pull request touches, so the backlog below never appears
+          # and never blocks; only prose somebody edits meets the bar.
+          #
+          # scripts/ is here because sei-internal-skills-doctrine.md is the file
+          # that fans out into every consuming repository's AGENTS.md. It is the
+          # highest-value prose here and it was the last thing in scope.
+          files: '["README.md", "AGENTS.md", "CLAUDE.md", "agents", ".claude", "experimental", "scripts", "writing"]'
           # --glob: writing/styles/write-good is a fetched package and its README
           # is not this repository's prose to fix.
           # ONE --glob. Vale takes a single glob expression; passing the flag

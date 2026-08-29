@@ -131,6 +131,16 @@ That is the per-engineer install and it writes nothing into a repository. Add
 `evals/consumer/run.sh` runs that path end to end against a scratch repository,
 because the two links it depends on used to run nowhere.
 
+## What the gate covers
+
+Every Markdown file in the repository, not just this directory. reviewdog reports
+on the lines a pull request touches, so the backlog already here never appears
+and never blocks. Only prose somebody edits meets the bar.
+
+Most of that backlog is one rule. ASD-STE100 does not allow contractions and this
+repository writes `don't` 348 times. The house style changes by attrition, on the
+lines people are already editing.
+
 ## Reading a finding
 
 Every rule file opens with the clause it enforces and the standard that clause
