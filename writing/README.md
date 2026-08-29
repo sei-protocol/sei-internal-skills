@@ -40,9 +40,9 @@ where a fenced code block starts and ends. Raw text does not distinguish a real
 heading from one quoted inside a fence, so a document that merely showed the
 required format used to satisfy the check.
 
-Fence tracking needs a script rule, the scripting language cannot import a shared
+Fence tracking needs a script rule. The scripting language cannot import a shared
 helper, and eighteen hand-copied loops drift. Edit the manifest and run the
-generator; `check-generated-rules.sh` fails if the two disagree.
+generator. `check-generated-rules.sh` fails if the two disagree.
 
 ## Reading a finding
 
