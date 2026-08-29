@@ -1,0 +1,82 @@
+# arc42 section order. Order is checkable; presence is not.
+#
+# arc42 explicitly permits omitting a section that would be empty, so a presence
+# gate would invent a requirement the standard does not make — it would force
+# twelve headings onto a document that needs six. What the standard does fix is
+# the sequence. So this rule reads the arc42 sections a document actually uses
+# and asserts they appear in the template's order.
+#
+# A heading that is not an arc42 section is ignored, never flagged. A design may
+# carry house sections (Non-goals, Alternatives, Trade-offs, Open questions) and
+# interleave them freely; this rule has no opinion about them.
+#
+# Matching is exact against the canonical name and a short list of documented
+# aliases, after stripping any leading section number. Conservative on purpose:
+# an unrecognised heading costs a missed check, while a loose match costs a false
+# positive, and a rule that cries wolf gets switched off.
+#
+# Scoped in .vale.ini; without that scope this fires on every file.
+extends: script
+message: "%s"
+level: error
+scope: raw
+script: |
+  text := import("text")
+
+  // arc42 v8, in template order. Each entry is the set of spellings that resolve
+  // to that section. Index is the position the standard fixes.
+  sections := [
+    ["introduction and goals", "introduction", "goals and introduction"],
+    ["architecture constraints", "constraints"],
+    ["context and scope", "system scope and context", "context"],
+    ["solution strategy", "strategy"],
+    ["building block view", "building blocks", "building block"],
+    ["runtime view", "runtime"],
+    ["deployment view", "deployment"],
+    ["cross-cutting concepts", "crosscutting concepts"],
+    ["architecture decisions", "decisions"],
+    ["quality requirements"],
+    ["risks and technical debt"],
+    ["glossary"]
+  ]
+  names := [
+    "Introduction and Goals", "Architecture Constraints", "Context and Scope",
+    "Solution Strategy", "Building Block View", "Runtime View", "Deployment View",
+    "Cross-cutting Concepts", "Architecture Decisions", "Quality Requirements",
+    "Risks and Technical Debt", "Glossary"
+  ]
+
+  matches := []
+  offset := 0
+  highest := -1
+  highestName := ""
+
+  for line in text.split(scope, "\n") {
+    if text.has_prefix(line, "## ") {
+      // Strip the marker, any leading section number, and surrounding space.
+      h := text.trim_space(text.trim_prefix(line, "##"))
+      h = text.re_replace("^[0-9]+(\\.[0-9]+)*\\.?[[:space:]]*", h, "")
+      h = text.to_lower(text.trim_space(h))
+
+      idx := -1
+      for i, aliases in sections {
+        for a in aliases {
+          if h == a { idx = i }
+        }
+      }
+
+      if idx >= 0 {
+        if idx < highest {
+          matches = append(matches, {
+            begin: offset,
+            end: offset + len(line),
+            message: format("arc42 orders '%s' before '%s'. This document has them the other way round. Reorder, or drop the arc42 anchor for this document.", names[idx], highestName)
+          })
+        } else {
+          highest = idx
+          highestName = names[idx]
+        }
+      }
+    }
+    offset += len(line) + 1
+  }

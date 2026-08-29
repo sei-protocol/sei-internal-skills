@@ -1,0 +1,55 @@
+# ASD-STE100: start an instruction with the imperative verb, not with an -ing form.
+#
+# Scoped to procedures in .vale.ini. The rule governs a procedure step. A
+# descriptive bullet is not a step, and 'Replacing X' in a Non-goals list is
+# correct English. Measured on four documents in this repository before the
+# scoping: every hit outside a procedure was a false positive, and the design
+# writing mode requires a Non-goals section, so a global rule made two rules
+# here contradict each other by construction.
+#
+# The rule reads raw text and anchors to the Markdown list marker, because a
+# step is a list item. 'scope: list' was tried and rejected: Vale binds '^' to
+# the start of every LINE inside the item, so a wrapped bullet whose
+# continuation line begins with an -ing word was reported as an instruction.
+# That produced errors on correct prose ('...the unchanged tests still /
+# passing is the proof').
+#
+# Known gap, recorded in not_checkable for asd-ste100: raw scope also sees
+# fenced code, so a code sample whose line starts with a list marker and an
+# -ing word is reported. BlockIgnores does not help, because raw scope reads
+# the file before that filter runs.
+#
+# 'exceptions' removes the closed class of words that end in -ing and are not
+# verbs. Vale matches an exception against the words inside the match, so the
+# list marker in the pattern does not defeat it. Add a word here only if it can
+# never be a verb.
+extends: existence
+message: "Instruction starts with the '-ing' form: '%s'. Use the imperative."
+level: error
+scope: raw
+nonword: true
+exceptions:
+  - Anything
+  - anything
+  - Ceiling
+  - During
+  - during
+  - Evening
+  - Everything
+  - everything
+  - King
+  - Morning
+  - Nothing
+  - nothing
+  - Ring
+  - Sibling
+  - Something
+  - something
+  - Spring
+  - String
+  - string
+  - Thing
+  - Things
+  - Wing
+tokens:
+  - '(?m)^[ \t]*(?:[-*+]|\d+[.)])[ \t]+[A-Za-z]+ing\b'

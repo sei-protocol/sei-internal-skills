@@ -1,0 +1,33 @@
+# ASD-STE100: write the full form. A contraction can be misread, and it
+# translates badly.
+extends: substitution
+message: "Write '%s' instead of '%s'. ASD-STE100 does not allow contractions."
+level: error
+ignorecase: true
+swap:
+  "can't": cannot
+  "don't": do not
+  "doesn't": does not
+  "won't": will not
+  "isn't": is not
+  "aren't": are not
+  "wasn't": was not
+  "weren't": were not
+  "hasn't": has not
+  "haven't": have not
+  "didn't": did not
+  "it's": it is
+  "that's": that is
+  "there's": there is
+  "you're": you are
+  "we're": we are
+  "they're": they are
+  "let's": let us
+  "we'll": we will
+  "you'll": you will
+  "I'll": I will
+  "we've": we have
+  "you've": you have
+  "shouldn't": should not
+  "wouldn't": would not
+  "couldn't": could not

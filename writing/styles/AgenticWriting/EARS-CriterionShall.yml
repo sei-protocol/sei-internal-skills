@@ -1,0 +1,97 @@
+# EARS (Mavin et al., RE'09): every acceptance criterion states a response with
+# SHALL. The five templates — ubiquitous, WHEN, IF..THEN, WHILE, WHERE — all end
+# in "the <system> SHALL <response>", so a criterion without it is not in EARS
+# form whatever else it says.
+#
+# THE MATCH IS CASE-INSENSITIVE ON PURPOSE. RFC2119-Keywords requires the
+# uppercase spelling and runs at error on the same path. A case-sensitive match
+# on lowercase `shall` made the two rules unsatisfiable together: no spelling
+# passed both. Write SHALL; it satisfies EARS and RFC 2119 at once.
+#
+# A `script` rule rather than a regex because the check is a negation — an item
+# that does NOT contain SHALL — and RE2 has no lookahead. `conditional` was
+# tried and rejected: it expresses define-then-use for a token, not "this same
+# item also contains X". Verified against its canonical acronym pattern.
+#
+# INVARIANTS, stated because a future edit could quietly break them:
+#   - Tengo len() returns BYTES and Vale reads BYTE offsets, so the arithmetic
+#     is correct on multi-byte input. Measured, not assumed.
+#   - Both end-of-file shapes work, by two different paths: a trailing newline
+#     yields a final empty element that closes the item, and no trailing newline
+#     is closed by the flush after the loop.
+#   - A fenced block is a MODE, not a boundary. Inside a fence nothing is
+#     markdown structure, or a `# comment` in a YAML sample switches the section
+#     off and the rest of it is silently unchecked.
+#
+# Known gaps are recorded under the ears anchor in anchors/registry.yaml.
+extends: script
+message: "Acceptance criterion has no SHALL: '%s'. EARS is THE <system> SHALL <response>."
+level: error
+scope: raw
+script: |
+  text := import("text")
+  matches := []
+  offset := 0
+  in_criteria := false
+  crit_level := 0
+  in_fence := false
+  open := false
+  buf := ""
+  buf_start := 0
+  buf_end := 0
+
+  for line in text.split(scope, "\n") {
+    is_fence := text.re_match(`^[ \t]*(?:`+"```"+`|~~~)`, line)
+
+    if is_fence {
+      if open {
+        if !text.re_match(`(?i)\bshall\b`, buf) {
+          matches = append(matches, {begin: buf_start, end: buf_end})
+        }
+        open = false
+        buf = ""
+      }
+      in_fence = !in_fence
+    } else if !in_fence {
+      is_head := text.re_match(`^[ \t]*#+[ \t]`, line)
+      is_item := text.re_match(`^[0-9]+[.)][ \t]`, line)
+      is_blank := text.re_match(`^[ \t]*$`, line)
+
+      if open && (is_head || is_item || is_blank) {
+        if !text.re_match(`(?i)\bshall\b`, buf) {
+          matches = append(matches, {begin: buf_start, end: buf_end})
+        }
+        open = false
+        buf = ""
+      }
+
+      if is_head {
+        trimmed := text.trim_space(line)
+        level := len(trimmed) - len(text.trim_left(trimmed, "#"))
+        if text.re_match(`(?i)^#+[ \t]+acceptance criteria`, trimmed) {
+          in_criteria = true
+          crit_level = level
+        } else if level <= crit_level {
+          // A deeper sub-heading groups criteria and must not end the section.
+          in_criteria = false
+        }
+      }
+
+      if in_criteria && is_item {
+        buf = line
+        buf_start = offset
+        buf_end = offset + len(line)
+        open = true
+      } else if open {
+        buf = buf + " " + line
+      }
+    }
+
+    offset = offset + len(line) + 1
+  }
+
+  if open {
+    if !text.re_match(`(?i)\bshall\b`, buf) {
+      matches = append(matches, {begin: buf_start, end: buf_end})
+    }
+  }

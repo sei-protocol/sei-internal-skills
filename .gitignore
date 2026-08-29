@@ -16,3 +16,7 @@ sei-agent-driver/bin/
 
 # goreleaser output
 sei-agent-driver/dist/
+
+# Vale fetches write-good into the styles path. The rules under
+# writing/styles/AgenticWriting are ours and are committed.
+writing/styles/write-good/

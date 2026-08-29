@@ -1,0 +1,51 @@
+# ASD-STE100: do not write a noun cluster of more than three nouns.
+#
+# The check uses Vale's Penn Treebank tagger and matches a run of four nouns
+# (NN, NNS, NNP, NNPS). The previous version guessed at nouns from word endings
+# and never matched anything, including the clusters in the fixture.
+# A VOCABULARY ENTRY DOES NOT SUPPRESS THIS RULE. This comment used to send a
+# reader to accept.txt for a product name the tagger splits. Measured: adding
+# 'Google Go Style Guide' there changes nothing, because a vocabulary reaches
+# Vale.Spelling and Vale.Terms and never the tagger. The escape hatch for a
+# citation title is the per-rule directive, which does work here:
+#
+#     <!-- vale AgenticWriting.STE-NounCluster = NO -->
+#
+# Known error modes, measured on this repository's fixtures. Both are recorded
+# in the not_checkable list for asd-ste100 in anchors/registry.yaml:
+#   - An adjective inside the cluster hides it. 'cluster autoscaler group
+#     minimum size constraint value' does not match.
+#   - The tagger reads a verb that looks plural as a noun, so
+#     'strategy selection logic fails' is reported.
+# The rule stays at suggestion level because of both.
+#
+# A third error mode is fixed rather than recorded, because this repository's
+# own house style caused it. The tagger reads an uppercase RFC 2119 or EARS
+# keyword as a proper noun, so every criterion written in the mandated form —
+# 'WHEN a rule changes, THEN THE contract SHALL state it' — reported a cluster.
+# Twelve of the 52 findings here were that one shape. Each token must now hold a
+# lowercase letter, which no all-capital keyword does. A genuine cluster is
+# untouched: 'cluster autoscaler node group' and the proper-noun title
+# 'Go Code Review Comments' both still match.
+#
+# The same constraint removed a second class nobody had noticed. The tagger
+# reads a middle dot and an em dash as proper nouns, so a bulleted list of
+# anchors — 'Clean Architecture · ADR' — reported a cluster. Findings on this
+# repository fell from 52 to 10; the two shapes account for every one of the 42.
+#
+# Requires Vale 3.17.x or later. On 3.14.0 a sequence whose tokens are all
+# `tag:` entries matches nothing at all, so this rule silently stops firing.
+# A leading `pattern:` token restores it there, but a noun cluster has no
+# reliable leading literal, so that would narrow what the rule checks.
+extends: sequence
+message: "Noun cluster of more than three nouns: '%[1]s %[2]s %[3]s %[4]s'. Break it with 'of' or 'for'."
+level: suggestion
+tokens:
+  - tag: NN(P|S|PS)?
+    pattern: '[A-Za-z]*[a-z][A-Za-z-]*'
+  - tag: NN(P|S|PS)?
+    pattern: '[A-Za-z]*[a-z][A-Za-z-]*'
+  - tag: NN(P|S|PS)?
+    pattern: '[A-Za-z]*[a-z][A-Za-z-]*'
+  - tag: NN(P|S|PS)?
+    pattern: '[A-Za-z]*[a-z][A-Za-z-]*'
