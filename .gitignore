@@ -16,3 +16,8 @@ sei-agent-driver/bin/
 
 # goreleaser output
 sei-agent-driver/dist/
+
+# agentic-writing fetches the rules into these. Anything else under .vale/ is
+# yours, including .vale/vocab/Local/accept.txt.
+.vale/styles/
+.vale/src/

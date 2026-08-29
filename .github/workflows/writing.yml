@@ -1,0 +1,27 @@
+# Installed by agentic-writing. This calls a reusable workflow rather than
+# copying one, so a fix to the check reaches this repository when you raise the
+# pin below, instead of needing a pull request here.
+#
+# The pin is a real action ref, so Dependabot raises it like any other.
+name: writing
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# No paths: filter on purpose. A required check that gets skipped stays pending
+# forever on a pull request that touches no Markdown.
+
+jobs:
+  writing:
+    uses: bdchatham/agentic-writing/.github/workflows/writing-contract.yml@c5fe3cd5e877fbd11fb7a37856282d9f75d34acb
+    permissions:
+      contents: read
+      pull-requests: write
+    with:
+      # The default list is README.md, docs, specs, tickets and designs. This
+      # repository keeps its prose in none of those: 245 Markdown files live
+      # under .claude, experimental and agents, so a default install would
+      # check one file.
+      paths: '["README.md", "agents", ".claude", "experimental"]'
