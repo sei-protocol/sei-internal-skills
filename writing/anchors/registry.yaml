@@ -165,6 +165,10 @@ anchors:
         - AgenticWriting.EARS-CriterionShall
         - AgenticWriting.Spec-AcceptanceCriteria
       not_checkable:
+        - "The WHERE template reads 'WHERE <feature is included>', a passive by
+          construction. STE-Passive reports it wherever the template appears,
+          including in this repository's own spec template. Rewriting the clause
+          would misstate the standard, so the finding stays, and stays a warning."
         - "Whether the chosen template matches the real requirement class."
         - "Whether the response is observable."
         - "Whether the actor named before SHALL is the system that acts."

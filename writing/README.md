@@ -14,6 +14,8 @@ here today:
 | `scripts/` | the generator for the section rules, and the gates |
 | `anchors/` | the registry of public standards, and a page per anchor |
 | `coverage/` | which topics of each standard the rules reach, and which they miss |
+| `CONTRACT.md` | the contract itself: the anchors, and the rules with no public prior |
+| `templates/` | the spec template, and the upstream baseline it forked from |
 
 What arrives next, in order:
 
@@ -31,6 +33,7 @@ vale sync                                    # fetch write-good, not committed
 vale --no-global writing                     # what CI checks today
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
+./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
 ```
 
 `--no-global` matters. Vale merges a user-level configuration with this one, so a
@@ -59,6 +62,12 @@ fails when the two disagree. They assert it twice on purpose. An orphan check
 catches a rule with no recorded purpose. Only the cross-check catches a rule
 credited to the wrong standard, which is how one anchor came to claim rules that
 check something else.
+
+## The contract
+
+`CONTRACT.md` is the file an agent loads before anyone invokes it. It names the
+anchors, states the rules that have no public prior, and says which gate checks
+what. Read it first; everything else in this directory serves it.
 
 ## Reading a finding
 

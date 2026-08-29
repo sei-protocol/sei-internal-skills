@@ -47,6 +47,12 @@ jobs:
       # The coverage manifest says what each anchor actually checks. A claim
       # nobody verifies is how one anchor came to credit rules that check
       # something else, so the manifest is enforced rather than trusted.
+      # Running the Spec Kit CLI rewrites its bundled assets, which would take
+      # the fork's deltas with it. The fork lives away from those paths and this
+      # asserts each delta is still present.
+      - name: Spec template still carries its deltas
+        run: ./writing/scripts/check-template-deltas.sh
+
       - name: Coverage manifest is true
         run: ./writing/scripts/check-coverage.sh
 
@@ -59,4 +65,10 @@ jobs:
           files: '["writing"]'
           # --glob: writing/styles/write-good is a fetched package and its README
           # is not this repository's prose to fix.
-          vale_flags: '--no-global --glob=!writing/styles/write-good/**'
+          # write-good is a fetched package. spec-template.upstream.md is
+          # upstream Spec Kit kept verbatim so check-template-deltas.sh can diff
+          # against it; editing it to satisfy a prose rule would defeat the check.
+          vale_flags: >-
+            --no-global
+            --glob=!writing/styles/write-good/**
+            --glob=!writing/templates/spec-template.upstream.md
