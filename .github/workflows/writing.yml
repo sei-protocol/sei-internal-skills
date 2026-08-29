@@ -21,6 +21,12 @@ jobs:
 
       # 3.17.1 is a floor, not a preference. On 3.14.0 a `sequence` whose tokens
       # are all `tag:` entries matches nothing, which silently disables a rule.
+      # check-contract-anchors.sh compares anchors/unregistered.txt against main
+      # to hold the list monotonic. A shallow clone has no main to compare with,
+      # and the gate says so rather than passing on one arm.
+      - name: Fetch main for the monotonicity comparison
+        run: git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+
       - name: Install Vale
         run: |
           VALE_VERSION=3.17.1
@@ -55,6 +61,17 @@ jobs:
 
       - name: Coverage manifest is true
         run: ./writing/scripts/check-coverage.sh
+
+      # SC-002 in the direction nothing checked: the coverage gate reads the
+      # registry and never the contract, so anchors the contract names could
+      # have no entry at all. Twelve of nineteen did.
+      - name: Every anchor the contract names resolves, or is recorded debt
+        run: ./writing/scripts/check-contract-anchors.sh
+
+      # A long anchor page is evidence that it restates a standard instead of
+      # citing one, which NOTICE.md forbids.
+      - name: Every artifact is inside its length limit
+        run: ./writing/scripts/check-artifact-length.sh
 
       - name: Lint prose against the writing contract
         uses: vale-cli/vale-action@reviewdog
