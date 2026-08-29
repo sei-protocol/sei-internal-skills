@@ -155,6 +155,9 @@ Prose in this repository follows the contract in
 [`writing/CONTRACT.md`](writing/CONTRACT.md). It names public standards rather
 than restating them, so a finding leads to a clause somebody else published.
 
+[`writing/CONTEXT.md`](writing/CONTEXT.md) is the short form, generated from the
+registry. Load that one into an agent. Read the long one yourself.
+
 Vale checks the checkable part. Run `vale --no-global writing/` before you push,
 or read `writing/README.md` for the rest.
 
