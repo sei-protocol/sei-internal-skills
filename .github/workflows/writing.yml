@@ -73,6 +73,16 @@ jobs:
       - name: Spec template still carries its deltas
         run: ./writing/scripts/check-template-deltas.sh
 
+      # The rules had golden files and the gates had none, so a gate could
+      # reject a correct document and nothing would notice. One did.
+      - name: Run gate golden fixtures
+        run: ./writing/evals/gates/run.sh
+
+      # An anchor earns its place by being a standard somebody else publishes.
+      # Citing a skill in this repository makes the catalogue circular.
+      - name: No anchor cites a skill as its authority
+        run: ./writing/scripts/check-anchor-authorities.sh
+
       - name: Coverage manifest is true
         run: ./writing/scripts/check-coverage.sh
 

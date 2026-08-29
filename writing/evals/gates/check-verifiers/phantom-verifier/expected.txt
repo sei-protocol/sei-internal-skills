@@ -1,0 +1,6 @@
+exit: 1
+  criterion kind        verifier
+  SC-002    not built   soon.
+
+FAIL specs/case/spec.md SC-001: names 'the recognition suite.' as its verifier, which is prose, not a command. Name a path in backticks, or mark it 'not built — <reason>' or 'judgement — <how>'
+FAIL specs/case/spec.md SC-002: 'not built' with no reason. Say what is missing, or who applies the judgement and how
