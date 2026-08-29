@@ -45,6 +45,7 @@ vale --no-global writing                     # what CI checks today
 ./writing/scripts/check-admission.sh         # an anchor carries its artifacts
 ./writing/evals/gates/run.sh                 # the gates themselves are tested
 ./writing/scripts/check-anchor-authorities.sh  # no anchor cites a skill
+./writing/evals/consumer/run.sh              # another repository can install it
 ```
 
 `--no-global` matters. Vale merges a user-level configuration with this one, so a
@@ -112,6 +113,22 @@ catalogue circular: the rule is right because our skill says so.
 
 `check-anchor-authorities.sh` holds that line across the registry, the anchor
 pages and the coverage manifest. Prose elsewhere may reference a skill freely.
+
+## Another repository can use this
+
+`templates/` and `scripts/install.sh` wire a different repository into the same
+checks. Its CI calls `writing-contract.yml` here rather than copying it, so a
+rule fix reaches it when it raises the pin.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/sei-protocol/sei-internal-skills/main/writing/scripts/install.sh | bash
+```
+
+That is the per-engineer install and it writes nothing into a repository. Add
+`-s -- repo` to wire a repository into CI.
+
+`evals/consumer/run.sh` runs that path end to end against a scratch repository,
+because the two links it depends on used to run nowhere.
 
 ## Reading a finding
 

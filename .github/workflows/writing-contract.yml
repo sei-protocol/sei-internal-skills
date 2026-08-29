@@ -1,0 +1,120 @@
+# Reusable writing-contract check. A consuming repository calls this rather than
+# copying it, so a fix here reaches every caller on their next pin bump instead
+# of needing one pull request per repository.
+#
+# Call it:
+#
+#   jobs:
+#     writing:
+#       uses: sei-protocol/sei-internal-skills/.github/workflows/writing-contract.yml@v1
+#       permissions:
+#         contents: read
+#         pull-requests: write
+#
+# The rules come from the same ref the caller pinned. This workflow reads its own
+# ref out of github.workflow_ref, so the rules and the job can never disagree
+# about which version they are.
+#
+# NOT github.workflow_ref. That is the ENTRY workflow — the caller's file, at the
+# caller's ref. On a pull request in a consuming repository it reads
+# refs/pull/<n>/merge, and the checkout below then asks agentic-writing for a ref
+# that exists only in the caller. The first repository to install this failed on
+# its first run with:
+#
+#     fatal: couldn't find remote ref refs/pull/352/merge
+#
+# github.workflow_ref is the reusable workflow's own ref, which is what the
+# comment above always claimed this read. Only a real cross-repository call can
+# tell the two apart, so no local test found it.
+name: writing contract
+
+on:
+  workflow_call:
+    inputs:
+      paths:
+        description: >-
+          JSON array of paths to lint, for a repository whose documents do not
+          live in the usual places. Omit it and the job lints whichever of
+          docs, specs, tickets, designs and README.md exist.
+        type: string
+        required: false
+        default: ''
+      fail_level:
+        description: 'Severity that fails the job: error, warning or suggestion.'
+        type: string
+        required: false
+        default: error
+
+jobs:
+  vale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve the rules ref
+        id: rules
+        env:
+          # owner/repo/.github/workflows/file.yml@refs/tags/v1
+          WORKFLOW_REF: ${{ github.job_workflow_ref }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          ref="${WORKFLOW_REF##*@}"
+          if [ -z "$ref" ] || [ "$ref" = "$WORKFLOW_REF" ]; then
+            echo "could not read a ref out of '$WORKFLOW_REF'" >&2
+            echo "job_workflow_ref should look like owner/repo/.github/workflows/f.yml@ref" >&2
+            exit 1
+          fi
+          case "$ref" in
+            refs/pull/*)
+              echo "resolved '$ref', which is a pull-request ref in the calling" >&2
+              echo "repository, not a ref of the rules. That is what reading" >&2
+              echo "github.workflow_ref instead of github.workflow_ref does." >&2
+              exit 1 ;;
+          esac
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+          echo "Rules ref: $ref"
+
+      - name: Fetch the writing rules
+        uses: actions/checkout@v4
+        with:
+          repository: sei-protocol/sei-internal-skills
+          ref: ${{ steps.rules.outputs.ref }}
+          path: .vale/src
+          # The rules are one directory of a large repository. Fetching the rest
+          # costs every consumer a full checkout on every lint run.
+          sparse-checkout: writing
+          sparse-checkout-cone-mode: false
+
+      # vale-action brings its own Vale, but the setup below runs `vale sync`
+      # before it, so one has to be on PATH first. Pinned to the floor this
+      # repository's rules need: on 3.14.0 a sequence of tag: tokens matches
+      # nothing and a rule silently stops firing.
+      - name: Install Vale
+        run: |
+          VALE_VERSION=3.17.1
+          curl -sfL "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" \
+            | tar -xz -C /usr/local/bin vale
+          vale --version
+
+      # Both steps live in a script so this workflow can be tested. Inline
+      # shell here is reachable only by merging and hoping, and this is the one
+      # file in the repository that every consumer runs and no job ever did.
+      - name: Install the styles and choose the paths
+        id: paths
+        env:
+          GIVEN: ${{ inputs.paths }}
+        run: ./.vale/src/writing/scripts/consumer-lint-setup.sh .vale/src/writing "$GIVEN"
+
+      # --no-global: a runner has no user-level Vale config and a laptop does,
+      # so without this the two disagree about which rules ran.
+      # --glob: .vale/ holds the fetched rules and the packages' own README
+      # files, which are not this repository's prose to fix.
+      - name: Lint prose against the writing contract
+        if: steps.paths.outputs.files != ''
+        uses: vale-cli/vale-action@reviewdog
+        with:
+          reporter: github-pr-review
+          fail_level: ${{ inputs.fail_level }}
+          files: ${{ steps.paths.outputs.files }}
+          vale_flags: '--no-global --glob=!.vale/**'

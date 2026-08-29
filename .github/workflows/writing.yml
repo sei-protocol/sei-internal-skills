@@ -83,6 +83,17 @@ jobs:
       - name: No anchor cites a skill as its authority
         run: ./writing/scripts/check-anchor-authorities.sh
 
+      # install.sh and writing-contract.yml carry every consuming repository and
+      # neither used to run. This repository's own job is a different file that
+      # installs the rules differently, so green here said nothing about either.
+      - name: Run the consumer path end to end
+        run: ./writing/evals/consumer/run.sh
+
+      # A structure rule left unscoped for consumers runs on every Markdown file
+      # they have. Three rules had drifted between the two configurations.
+      - name: The consumer configuration scopes the same rules
+        run: ./writing/scripts/check-consumer-scoping.sh
+
       - name: Coverage manifest is true
         run: ./writing/scripts/check-coverage.sh
 

@@ -1,0 +1,26 @@
+# Installed by agentic-writing. This calls a reusable workflow rather than
+# copying one, so a fix to the check reaches this repository when you raise the
+# pin below, instead of needing a pull request here.
+#
+# NOTHING RAISES THE PIN FOR YOU. This line used to say Dependabot would, which
+# is true only in a repository that already has a github-actions entry in
+# .github/dependabot.yml. The first repository to install this had none, so the
+# sentence described a mechanism that was not wired up and the pin would have
+# gone stale in silence. Raise it deliberately, and expect new findings when you
+# do.
+name: writing
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# No paths: filter on purpose. A required check that gets skipped stays pending
+# forever on a pull request that touches no Markdown.
+
+jobs:
+  writing:
+    uses: bdchatham/agentic-writing/.github/workflows/writing-contract.yml@@REF@
+    permissions:
+      contents: read
+      pull-requests: write
