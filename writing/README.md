@@ -37,7 +37,7 @@ laptop with the toolkit installed sees different rules than a runner does.
 
 Eighteen of the thirty-two rules come from `scripts/modes.yaml`. Each has to know
 where a fenced code block starts and ends. Raw text does not distinguish a real
-heading from one quoted inside a fence, so a document that merely showed the
+heading from one quoted inside a fence. A document that merely showed the
 required format used to satisfy the check.
 
 Fence tracking needs a script rule. The scripting language cannot import a shared
