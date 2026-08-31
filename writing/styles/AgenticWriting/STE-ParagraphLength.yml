@@ -1,0 +1,7 @@
+# ASD-STE100: a paragraph in a descriptive text has a maximum of 6 sentences.
+extends: occurrence
+message: "Paragraph has more than 6 sentences. ASD-STE100 allows 6."
+level: suggestion
+scope: paragraph
+max: 6
+token: '[.!?](?:\s|$)'

@@ -1,0 +1,8 @@
+# ASD-STE100: a procedural sentence has a maximum of 20 words.
+# Scope this rule to procedure files in .vale.ini. See anchors/asd-ste100.md.
+extends: occurrence
+message: "Procedural sentence has %d words. ASD-STE100 allows 20. Split it."
+level: error
+scope: sentence
+max: 20
+token: '\b\w+\b'

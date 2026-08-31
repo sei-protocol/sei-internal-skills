@@ -1,0 +1,8 @@
+# RFC 2119: a normative keyword carries obligation only in uppercase.
+# Lowercase 'must' or 'should' in a specification is ambiguous prose.
+extends: existence
+message: "Write the RFC 2119 keyword '%s' in uppercase, or rewrite the sentence."
+level: warning
+nonword: false
+tokens:
+  - '\b(?:must not|must|shall not|shall|should not|should|may not|may|required|recommended|optional)\b'

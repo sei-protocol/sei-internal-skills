@@ -1,0 +1,66 @@
+# Checks prose against the writing contract in writing/.
+#
+# SCOPED TO writing/ FOR NOW. The rules are landing as a stacked series, and this
+# repository has 245 Markdown files that have never met them. Widening the scope
+# is its own change, with its own review, because that is the one people feel.
+#
+# reviewdog reports on the lines a pull request touches, so a finding on a line
+# nobody edited never appears and never blocks.
+name: writing
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# reviewdog posts review comments through the API. A restricted default token
+# gets a 403 and the check fails without ever reporting a finding.
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  vale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 3.17.1 is a floor, not a preference. On 3.14.0 a `sequence` whose tokens
+      # are all `tag:` entries matches nothing, which silently disables a rule.
+      - name: Install Vale
+        run: |
+          VALE_VERSION=3.17.1
+          VALE_SHA256=db947f89f2292e6a0381a61de155f6a5f5cb4cb460ca178ea412ef605559cefd
+          curl -sfL -o /tmp/vale.tgz \
+            "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
+          echo "${VALE_SHA256}  /tmp/vale.tgz" | sha256sum -c -
+          tar -xz -C /usr/local/bin -f /tmp/vale.tgz vale
+          vale --version
+
+      # .vale.ini declares Packages and those are not committed. Without this the
+      # rules fail to load and the failure reads as a broken configuration.
+      - name: Fetch the third-party style packages
+        run: vale sync
+
+      - name: Confirm the styles load
+        run: vale ls-config
+
+      # --no-global: a runner has no user-level Vale config and a laptop does, so
+      # without it the two disagree about which rules ran.
+      - name: Lint prose against the writing contract
+        # Pinned to a commit, not the mutable `reviewdog` branch. Every other
+        # workflow here pins a SHA; this one piped a branch into CI with
+        # pull-requests: write.
+        uses: vale-cli/vale-action@518a9136acc6e6668ce7c00d367051e0941e87ff # reviewdog
+        with:
+          # github-pr-review resolves the pull request from the environment and
+          # errors when there is none, so a push to main failed on the reporting
+          # step rather than on a finding — a permanently red badge saying
+          # nothing about prose.
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
+          fail_level: error
+          level: warning
+          files: '["writing"]'
+          # --glob: writing/styles/write-good is a fetched package and its README
+          # is not this repository's prose to fix.
+          vale_flags: '--no-global --glob=!writing/styles/write-good/**'

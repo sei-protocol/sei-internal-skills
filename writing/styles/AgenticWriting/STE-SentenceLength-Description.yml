@@ -1,0 +1,7 @@
+# ASD-STE100: a descriptive sentence has a maximum of 25 words.
+extends: occurrence
+message: "Descriptive sentence has %d words. ASD-STE100 allows 25. Split it."
+level: warning
+scope: sentence
+max: 25
+token: '\b\w+\b'

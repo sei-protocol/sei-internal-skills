@@ -1,0 +1,19 @@
+# ASD-STE100: prefer one clear verb over a phrasal verb, because a phrasal verb
+# often has several meanings.
+extends: substitution
+message: "Use '%s' instead of the phrasal verb '%s'."
+level: warning
+ignorecase: true
+swap:
+  'set up': install
+  'take out': remove
+  'put in': install
+  'turn on': start
+  'turn off': stop
+  'shut down': stop
+  'find out': determine
+  'carry out': do
+  'come across': find
+  'look into': examine
+  'bring about': cause
+  'give up': stop

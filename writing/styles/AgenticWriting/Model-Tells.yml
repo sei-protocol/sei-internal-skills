@@ -1,0 +1,20 @@
+# Not a standard. This rule catches the hedging and filler patterns that make
+# generated prose read as generated. Keep it at suggestion level: a hedge is
+# sometimes the honest word.
+extends: existence
+message: "Hedge or filler: '%s'. Delete it, or state the claim."
+level: suggestion
+ignorecase: true
+tokens:
+  - 'it is important to note that'
+  - 'it is worth noting that'
+  - "it's worth noting that"
+  - 'delve into'
+  - 'in the realm of'
+  - 'navigate the complexities'
+  - 'a testament to'
+  - 'plays a (?:crucial|vital|key|pivotal) role'
+  - 'landscape of'
+  - 'when it comes to'
+  - 'that being said'
+  - 'at the end of the day'

@@ -1,0 +1,48 @@
+# A specification states its acceptance criteria under a heading named
+# "Acceptance Criteria", because that heading is what EARS-CriterionShall keys
+# on. Without it that rule checks nothing and reports success, which is worse
+# than no rule: it manufactures confidence.
+#
+# This rule turns that silence into a finding.
+#
+# A SCRIPT RULE, NOT AN OCCURRENCE COUNT. It needs `scope: raw` to see document
+# structure, and raw text does not distinguish a heading from a heading quoted
+# inside a fenced code block. As an occurrence rule it counted the quoted one,
+# so a specification that merely documents the required format satisfied the
+# check while having no criteria section — the silence detector could itself be
+# silenced. The template and docs/writing-modes.md both quote the heading, so
+# this was not hypothetical.
+#
+# The fence is tracked as a mode, matching EARS-CriterionShall. Inside a fence
+# nothing is markdown structure.
+#
+# Error, not warning. It ran at warning while specs written before the template
+# still emitted Spec Kit's '**Acceptance Scenarios**' paragraph. The only
+# specification in this repository now carries the heading, so the condition
+# that held it back is gone.
+extends: script
+message: "Spec has no '#### Acceptance Criteria' heading, so EARS conformance was never checked."
+level: error
+scope: raw
+script: |
+  text := import("text")
+  matches := []
+  in_fence := false
+  found := false
+  lines := text.split(scope, "\n")
+
+  for line in lines {
+    if text.re_match(`^[ \t]*(?:`+"```"+`|~~~)`, line) {
+      in_fence = !in_fence
+    } else if !in_fence {
+      if text.re_match(`(?i)^[ \t]*#+[ \t]+acceptance criteria`, line) {
+        found = true
+      }
+    }
+  }
+
+  if !found {
+    span := len(lines[0])
+    if span == 0 { span = 1 }
+    matches = append(matches, {begin: 0, end: span})
+  }

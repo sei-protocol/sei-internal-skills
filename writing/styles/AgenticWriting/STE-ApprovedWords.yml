@@ -1,0 +1,35 @@
+# ASD-STE100 rule 1.1: use an approved word in its approved meaning.
+#
+# IMPORTANT: this file holds a small hand-written seed of plain-language
+# substitutions. It is NOT the ASD dictionary, which is copyrighted and is not in
+# this repository. Run scripts/sync-openste.sh to generate the full rule from the
+# MIT-licensed OpenSTE wordset. See NOTICE.md.
+extends: substitution
+message: "Use '%s' instead of '%s'."
+level: warning
+ignorecase: true
+swap:
+  utilize: use
+  utilise: use
+  leverage: use
+  facilitate: help
+  commence: start
+  terminate: stop
+  ascertain: find
+  endeavor: try
+  endeavour: try
+  obtain: get
+  require: need
+  purchase: buy
+  demonstrate: show
+  additional: more
+  numerous: many
+  sufficient: enough
+  subsequently: then
+  'prior to': before
+  'in order to': to
+  'due to the fact that': because
+  'in the event that': if
+  'with regard to': about
+  'a number of': some
+  'at this point in time': now

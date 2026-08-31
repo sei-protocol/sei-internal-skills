@@ -1,0 +1,9 @@
+# ASD-STE100: use the active voice in procedures, and prefer it in descriptions.
+# A be-verb followed by a past participle (Penn tag VBN) is the passive pattern.
+extends: sequence
+message: "Passive voice: '%[1]s %[2]s'. ASD-STE100 asks for the active voice."
+level: warning
+ignorecase: true
+tokens:
+  - pattern: '\b(?:am|are|is|was|were|be|been|being)\b'
+  - tag: VBN

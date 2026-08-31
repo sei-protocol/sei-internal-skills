@@ -1,0 +1,48 @@
+# Project Technical Names and Technical Verbs.
+# ASD-STE100 allows a Technical Name that the project defines. Putting it here
+# makes the decision reviewable in Git instead of implicit in a prompt.
+Kubernetes
+Vale
+ASD-STE100
+Diátaxis
+arc42
+OpenSTE
+STEMG
+ConfigMap
+[Ii]diomatic
+reconcile
+reconciler
+idempotent
+[Ee]val
+[Ee]vals
+[Ee]xplainability
+[Rr]edistributable
+wordset
+# Proper nouns: people, tools and named methods this repository cites.
+Bogard
+Cockburn
+Comartin
+Connextra
+Excalidraw
+Kiro
+Nygard
+Structurizr
+Tengo
+[Aa]gentic
+# Technical terms the general dictionary lacks.
+[Aa]rity
+[Aa]uditable
+[Dd]iffable
+[Ll]intable
+[Ll]ookbehind
+[Pp]repend
+[Pp]repends
+[Pp]repending
+[Rr]eframes
+[Uu]nprobed
+[Vv]endor
+[Vv]endored
+[Vv]endoring
+[Cc]onfig
+[Ll]inter'?s?
+[Tt]raceback

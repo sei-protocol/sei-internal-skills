@@ -1,0 +1,6 @@
+# Words this project never wants. Vale raises an error for each one.
+# Keep this list short: prefer a substitution rule that offers a replacement.
+[Ss]ynergy
+[Ss]eamlessly
+[Ee]ffortlessly
+[Gg]ame.?changing
