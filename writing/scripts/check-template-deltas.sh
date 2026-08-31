@@ -116,6 +116,13 @@ require_each() {  # $1 = section-start ERE, $2 = marker ERE, $3 = why, $4 = noun
 }
 
 require '^## Semantic Anchors'      'methods named once, or the body restates them'
+# THE COLUMN IS THE DELTA, NOT ONLY THE HEADING. CONTRACT.md states this delta as
+# the block *with* a does-not-cover column, and Principle V is what makes the
+# column load-bearing: an anchor is a hint, and the gap is the honest part.
+# Spec-Anchors is presence-only on the heading, so without this the column can be
+# deleted and the gate still passes on a block that teaches no gap.
+require_each '^## Semantic Anchors' '^\|.*[Dd]oes not cover' \
+  'Principle V: an anchor carries what it does not cover' 'anchor block' '^#{1,2}[ \t]'
 require '^## Glossary'              'an agent reads linearly and cannot ask what a term means'
 require '^## Boundary Context'      'a spec with no stated boundary grows while it is open'
 require '^### Requirement [0-9]+:'  'requirements carry their own criteria, so none is an orphan'
