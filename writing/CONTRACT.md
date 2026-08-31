@@ -3,8 +3,8 @@
 This file is the contract. **A convention absent from this file is not adopted.**
 
 Nothing loads it automatically yet. The design is that a session picks it up with no
-invocation, because that is the only way a convention reaches an engineer who is not
-looking for it. `AGENTS.md` gains that pointer later in this series.
+invocation. That is the only way a convention reaches an engineer who is not looking
+for it. `AGENTS.md` gains that pointer later in this series.
 
 Until it does, this file reaches a reader who goes looking. That is the pull model
 Principle IV argues against, so read Principle IV as the target rather than as a
