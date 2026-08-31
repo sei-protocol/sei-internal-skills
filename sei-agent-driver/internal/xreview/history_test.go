@@ -333,3 +333,92 @@ func TestTheDeltaIsFilteredBeforeItIsCapped(t *testing.T) {
 		t.Error("the delta carries an unmoved open thread; the budget belongs to activity")
 	}
 }
+
+// TestAQuietRetriggerCarriesNoThreadUpdates pins the case the size claim rests on.
+//
+// A push with nothing new on any thread is the common re-trigger, and its prompt is the
+// small one — the measured saving is largely this early return. Nothing else asserts it:
+// the delta tests all supply a moved thread, so a change that rendered the header
+// unconditionally would keep them green and quietly turn the quiet case back into a
+// briefing.
+func TestAQuietRetriggerCarriesNoThreadUpdates(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "sei-protocol/sandbox", PR: 42, PriorThreads: []PriorThread{
+		{File: "a.go", Line: 9, Body: "unbounded retry"},
+		{File: "b.go", Line: 4, Body: "missing guard"},
+	}}
+
+	if got := threadUpdateStep(req); got != nil {
+		t.Errorf("threadUpdateStep on unmoved threads = %q, want nothing", got)
+	}
+
+	adopted := AdoptedPrompt(req)
+	for _, unwanted := range []string{"have activity on them", "[open]", "[resolved]", "reply:"} {
+		if strings.Contains(adopted, unwanted) {
+			t.Errorf("a quiet re-trigger carries %q; the session already holds these "+
+				"threads unchanged, and re-listing them is the briefing this avoids",
+				unwanted)
+		}
+	}
+	// It must still say the diff moved, or the review works from a stale tree.
+	if !strings.Contains(adopted, "The pull request has moved") {
+		t.Error("a quiet re-trigger does not tell the review the diff moved")
+	}
+}
+
+// TestARepeatedLocationCarriesItsBody covers the three ways a location stops identifying
+// one thread: two findings on a line, several file-level findings on one file, and a path
+// this prompt refuses, which renders identically for every one of them.
+func TestARepeatedLocationCarriesItsBody(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		threads []PriorThread
+	}{
+		{"two findings on one line", []PriorThread{
+			{File: "a.go", Line: 9, Body: "unbounded retry", Replies: []string{"handled"}},
+			{File: "a.go", Line: 9, Body: "no timeout either", Resolved: true},
+		}},
+		{"two file-level findings on one file", []PriorThread{
+			{File: "a.go", Body: "no package doc", Replies: []string{"added"}},
+			{File: "a.go", Body: "no tests", Resolved: true},
+		}},
+		{"two refused paths, which render alike", []PriorThread{
+			{File: "$HOME/.netrc", Line: 1, Body: "first finding", Replies: []string{"x"}},
+			{File: "/etc/passwd", Line: 2, Body: "second finding", Resolved: true},
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out := strings.Join(threadUpdateStep(
+				Request{Repo: "o/r", PR: 42, PriorThreads: tc.threads}), "\n")
+			for _, t2 := range tc.threads {
+				if !strings.Contains(out, t2.Body) {
+					t.Errorf("the entries share a location and %q is not there to tell "+
+						"them apart, so the reply attaches to whichever the session "+
+						"guesses:\n%s", t2.Body, out)
+				}
+			}
+		})
+	}
+}
+
+// TestAUniqueLocationDropsItsBody is the other half: the saving only exists while the body
+// is omitted wherever the location already identifies the thread.
+func TestAUniqueLocationDropsItsBody(t *testing.T) {
+	t.Parallel()
+
+	out := strings.Join(threadUpdateStep(Request{Repo: "o/r", PR: 42, PriorThreads: []PriorThread{
+		{File: "a.go", Line: 9, Body: "unbounded retry", Replies: []string{"handled"}},
+		{File: "b.go", Line: 4, Body: "missing guard", Resolved: true},
+	}}), "\n")
+
+	for _, body := range []string{"unbounded retry", "missing guard"} {
+		if strings.Contains(out, body) {
+			t.Errorf("carries %q though its location is unique; the session wrote that "+
+				"prose and re-sending it is the cost this avoids", body)
+		}
+	}
+}

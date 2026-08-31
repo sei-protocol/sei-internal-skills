@@ -162,12 +162,29 @@ func threadUpdateStep(req Request) []string {
 		"inside either can introduce anything.",
 		"",
 	}
-	for _, t := range changed {
+	// A location is the identifier only while it is unique, and it is not always. Two
+	// findings can sit on one line -- collapseRepeats keys on the body as well, so both
+	// survive -- a file-level thread renders with no line at all, and a path this prompt
+	// refuses renders as the same "no place" string for every one of them. Where the
+	// rendered location repeats, the body comes back to say which finding the reply or the
+	// resolution belongs to; where it does not, the session already knows.
+	rendered := make([]string, len(changed))
+	repeats := map[string]int{}
+	for i, t := range changed {
+		rendered[i] = promptLocation(req, t.File, t.Line)
+		repeats[rendered[i]]++
+	}
+
+	for i, t := range changed {
 		state := "open"
 		if t.Resolved {
 			state = "resolved"
 		}
-		out = append(out, fmt.Sprintf("  [%s] %s", state, promptLocation(req, t.File, t.Line)))
+		entry := fmt.Sprintf("  [%s] %s", state, rendered[i])
+		if repeats[rendered[i]] > 1 {
+			entry += " — " + clip(oneLine(t.Body), maxScoutDetail)
+		}
+		out = append(out, entry)
 
 		replies := t.Replies
 		if len(replies) > maxPriorReplies {
