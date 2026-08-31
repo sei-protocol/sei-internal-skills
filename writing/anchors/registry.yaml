@@ -1,0 +1,385 @@
+# The single source of truth for this repository.
+#
+# Every consumer is generated from this file: the Claude Code output style, the
+# AGENTS.md fragment, the eval matrix, and the docs table. Do not hand-edit a
+# generated consumer.
+#
+# Schema notes
+#   invoke_as        The exact string that goes into a model's context. Keep it short.
+#                    An anchor that needs a paragraph of explanation is not an anchor.
+#   verifier.coverage full | partial | none
+#                    How much of the standard Vale can check. `none` is a legitimate
+#                    value and it must be stated, not hidden.
+#   recognition       The open question that tests whether a model still resolves
+#                     the term, the concepts a passing answer names, and every
+#                     recorded verdict. See evals/recognition/README.md.
+#                    `verified` is per model. An empty list means "not yet tested".
+
+version: 1
+
+defaults:
+  verifier:
+    kind: vale
+    style: AgenticWriting
+
+anchors:
+
+  - id: asd-ste100
+    admission: grandfathered
+    name: ASD-STE100 Simplified Technical English
+    edition: "Issue 9, January 2025"
+    steward: ASD / STEMG
+    url: https://www.asd-ste100.org/
+    license: proprietary-free-download
+    redistributable: false
+    applies_to: [prose, procedures, tool-descriptions, error-messages, agent-instructions]
+    invoke_as: >-
+      Write all English in ASD-STE100 Simplified Technical English: approved words in
+      their approved part of speech, active voice, simple tenses, one instruction per
+      sentence, no more than three nouns in a noun cluster.
+    rationale: >-
+      A controlled language built so that a reader who cannot ask a follow-up question
+      reads the text one way only. An agent parsing another agent's output is in that
+      position: no back-channel exists.
+    context:
+      order: 1
+      label: ASD-STE100 Simplified Technical English
+      text: >-
+        approved words in their approved part of speech, active voice, simple tenses, one
+        instruction per sentence, no more than three nouns in a noun cluster. Procedures: 20
+        words per sentence. Descriptions: 25 words.
+    verifier:
+      coverage: partial
+      rules:
+        - AgenticWriting.STE-SentenceLength-Procedure
+        - AgenticWriting.STE-SentenceLength-Description
+        - AgenticWriting.STE-ParagraphLength
+        - AgenticWriting.STE-Passive
+        - AgenticWriting.STE-Contractions
+        - AgenticWriting.STE-NounCluster
+        - AgenticWriting.STE-Gerund-Instruction
+        - AgenticWriting.STE-PhrasalVerbs
+        - AgenticWriting.STE-ApprovedWords
+      not_checkable:
+        - "One approved meaning per word in context (needs word-sense judgement)."
+        - "Correct choice of Technical Name versus Technical Verb."
+        - "Whether a procedure step is genuinely a single action."
+        - "A noun cluster that contains an adjective, such as 'cluster autoscaler
+          group minimum size constraint value'. STE-NounCluster counts a run of four
+          tagged nouns, so an adjective inside the cluster hides it."
+        - "Noun-cluster detection in dense technical text is approximate. The
+          part-of-speech tagger misses some clusters and tags a verb such as 'fails'
+          as a noun, so STE-NounCluster reports a false positive as well as a false
+          negative. It stays at suggestion level for that reason."
+        - "An identifier in YAML frontmatter. Vale reads a Markdown file's
+          frontmatter as prose, so `name: configmap-auditor` matches at the
+          lowercase `configmap` inside it and Vale.Terms reports the wrong casing
+          against the vocabulary's `ConfigMap`. ASD-STE100 keeps an identifier verbatim, so this is a false
+          positive, and the frontmatter of every Claude Code skill and agent
+          file carries one. TokenIgnores and BlockIgnores do not suppress it, in
+          three forms tried; only a vocabulary entry does. A consuming repository
+          seeds its own, and templates/consumer.vale.ini says how."
+        - "Whether a list item is a real instruction. STE-Gerund-Instruction
+          anchors to the Markdown list marker in raw text, so it also reads a
+          fenced code sample whose line starts with a marker and an -ing word."
+    recognition:
+      question: "What concepts do you associate with 'ASD-STE100'?"
+      expect: [controlled language, approved dictionary, procedures versus descriptions, sentence length limits, aerospace maintenance]
+      verified: []
+
+  - id: rfc2119
+    admission: grandfathered
+    name: RFC 2119 requirement keywords
+    steward: IETF
+    url: https://www.rfc-editor.org/rfc/rfc2119
+    license: IETF-trust
+    redistributable: true
+    applies_to: [specifications, design-docs, protocol-docs]
+    invoke_as: >-
+      Use RFC 2119 keywords for every normative statement. Write MUST, MUST NOT,
+      SHOULD, SHOULD NOT, and MAY in uppercase. Do not use them for anything that is
+      not a requirement.
+    rationale: >-
+      Uppercase marks obligation and removes the ambiguity of ordinary "should".
+    context:
+      order: 2
+      label: RFC 2119
+      text: >-
+        in a specification, write MUST, SHOULD, and MAY in uppercase. Do not use them for a
+        statement that is not a requirement.
+    verifier:
+      coverage: partial
+      rules: [AgenticWriting.RFC2119-Keywords]
+      not_checkable:
+        - "Whether a keyword marks a real requirement. RFC 2119 governs the
+          obligation, not the sentence around it, so 'you MAY quote this' is
+          correctly cased and asserts nothing normative. The rule reads casing
+          only. coverage/rfc2119.yml has recorded this topic as unchecked since
+          it was written, while this entry said full and listed no gap."
+
+    recognition:
+      question: "What concepts do you associate with 'RFC 2119'?"
+      expect: [MUST, SHOULD, MAY, normative requirement levels, interoperability]
+      verified: []
+
+  - id: ears
+    admission: admitted
+    name: EARS (Easy Approach to Requirements Syntax)
+    steward: Alistair Mavin
+    url: https://alistairmavin.com/ears/
+    citation: >-
+      Mavin, A., Wilkinson, P., Harwood, A., Novak, M. "Easy Approach to
+      Requirements Syntax (EARS)." 17th IEEE International Requirements
+      Engineering Conference (RE'09), 2009, pages 317-322.
+    license: published-papers
+    redistributable: false
+    applies_to: [requirements, acceptance-criteria, issue-descriptions]
+    patterns:
+      - id: ubiquitous
+        shape: "THE <system> SHALL <response>"
+      - id: event-driven
+        shape: "WHEN <trigger>, THE <system> SHALL <response>"
+      - id: state-driven
+        shape: "WHILE <state>, THE <system> SHALL <response>"
+      - id: unwanted-behaviour
+        shape: "IF <condition>, THEN THE <system> SHALL <response>"
+      - id: optional-feature
+        shape: "WHERE <feature>, THE <system> SHALL <response>"
+    keywords: [WHEN, WHILE, IF, THEN, WHERE, SHALL]
+    invoke_as: >-
+      Write each requirement in EARS syntax: ubiquitous, WHEN a trigger, IF an
+      unwanted condition THEN, WHILE a state, or WHERE a feature is included.
+    rationale: >-
+      Five templates cover almost every requirement, and each one is testable by
+      construction because trigger, state, and response are separate slots.
+    context:
+      order: 5
+      label: EARS
+      text: >-
+        write a requirement as ubiquitous, WHEN, IF..THEN, WHILE, or WHERE.
+    verifier:
+      coverage: partial
+      scope:
+        kind: section
+        heading: Acceptance Criteria
+        note: >-
+          The first anchor whose rules do not apply to a whole document. Vale
+          has no section scope, so the rule tracks heading state itself. A
+          specification's narrative prose and its procedure lists are not
+          acceptance criteria, and a document-wide rule would flag both.
+      rules:
+        - AgenticWriting.EARS-CriterionShall
+      not_checkable:
+        - "Whether the chosen template matches the real requirement class."
+        - "Whether the response is observable."
+        - "Whether the actor named before SHALL is the system that acts."
+        - "A criterion in EARS form defeats STE-NounCluster. The tagger reads
+          uppercase THE, SHALL and THEN as nouns, so every well-formed criterion
+          looks like a four-noun run. Measured on the converted specification:
+          12 of 12 noun-cluster findings were EARS criteria. Vale's sequence
+          check rejects an exceptions key, so the rule cannot be taught the
+          keywords without becoming a script."
+        - "A criterion outside a heading named 'Acceptance Criteria'. The scope
+          is the heading text, so a differently named block is not checked.
+          Spec-AcceptanceCriteria reports the absence of that heading, so the
+          silence is at least visible."
+        - "A criterion written as a bullet or a checkbox. Only 'N.' and 'N)'
+          items are read. The house ticket format uses bullets, so this must be
+          fixed before the rule reaches the ticket path."
+        - "A numbered list that is not a criterion but sits inside the criteria
+          section. Every numbered item to the end of the section is treated as
+          a criterion."
+        - "A criterion whose SHALL is supplied by an absorbed continuation line,
+          such as a table row or a lazy continuation belonging to the next item."
+        - "A criterion split by a blank line inside a loose list item. The blank
+          line closes the item, so the second half is not seen."
+        - "Suppression is total and invisible. '<!-- vale off -->' DOES silence
+          a scope: raw rule, including at a position before the directive, so a
+          single unbalanced comment turns the whole error gate off for a
+          document. Measured on this repository's own specification: deleting
+          one '<!-- vale on -->' line took it from 57 findings to 4. Vale owns
+          that behaviour; whether a specification may carry the directive at all
+          is ours to decide, and is undecided."
+        - "A heading indented up to three spaces, separated by a tab, or
+          preceded by a byte-order mark. Setext headings are invisible."
+    recognition:
+      question: "What concepts do you associate with 'EARS requirements syntax'?"
+      expect: [ubiquitous, event-driven, state-driven, unwanted behaviour, optional feature, shall]
+      verified: []
+
+  - id: diataxis
+    admission: grandfathered
+    name: Diátaxis documentation framework
+    steward: Daniele Procida
+    url: https://diataxis.fr/
+    license: public-framework
+    redistributable: false
+    applies_to: [documentation-sets]
+    invoke_as: >-
+      Classify this page under Diátaxis as tutorial, how-to guide, reference, or
+      explanation, and keep it to that one mode.
+    rationale: >-
+      Most bad documentation mixes two modes on one page. Naming the mode first
+      removes the most common structural defect.
+    context:
+      order: 4
+      label: Diátaxis
+      text: >-
+        one page is a tutorial, a how-to guide, reference, or explanation. Not two.
+    verifier:
+      coverage: none
+      rules: []
+      not_checkable:
+        - "Mode purity is a judgement about intent, not a pattern in the text."
+    recognition:
+      question: "What concepts do you associate with 'Diátaxis'?"
+      expect: [tutorial, how-to guide, reference, explanation, acquisition versus application]
+      verified: []
+
+  - id: adr-nygard
+    admission: grandfathered
+    name: Architecture Decision Record (Nygard format)
+    steward: Michael Nygard
+    url: https://cognitect.com/blog/2011/11/15/documenting-architecture-decisions.html
+    license: public-post
+    redistributable: false
+    applies_to: [decisions]
+    invoke_as: >-
+      Record this decision as an ADR in Nygard format: Title, Status, Context,
+      Decision, Consequences. Supersede; never delete.
+    rationale: >-
+      Fixed slots force the author to state the forces and the cost, not only the choice.
+    context:
+      order: 6
+      label: ADR (Nygard)
+      text: >-
+        a decision goes in `docs/adr/` with Status, Context, Decision, Consequences.
+    verifier:
+      coverage: partial
+      rules:
+        - AgenticWriting.ADR-Status
+        - AgenticWriting.ADR-Context
+        - AgenticWriting.ADR-Decision
+        - AgenticWriting.ADR-Consequences
+      not_checkable:
+        - "A required section quoted inside a nested fence. The section rules
+          toggle a flag on any fence marker, so a ``` inside a ~~~ block closes
+          it early. Vale exposes no markdown parser a rule can reach: scope:
+          heading reports per heading and cannot answer whether a document has
+          one at all."
+        - "Whether Consequences states the real negative consequence."
+        - "Whether a superseded record was superseded rather than edited. Vale reads
+          one file and cannot see the pair."
+      correction: >-
+        Until 2026-08-27 this entry also claimed Design-Alternatives and
+        Design-Tradeoffs. Nygard's format is Title, Status, Context, Decision,
+        Consequences, and defines neither. Considered Options and Pros and Cons are
+        MADR additions. The two rules stay on the ADR path in .vale.ini as a local
+        contract; they are not evidence for this anchor.
+    recognition:
+      question: "What concepts do you associate with 'ADR according to Nygard'?"
+      expect: [context, decision, consequences, status, superseded, immutable]
+      verified: []
+
+  - id: arc42
+    admission: grandfathered
+    name: arc42 architecture documentation template
+    steward: Gernot Starke, Peter Hruschka
+    url: https://arc42.org/
+    license: free-to-use
+    redistributable: false
+    applies_to: [design-docs]
+    invoke_as: >-
+      Structure this design document on arc42: goals, constraints, context and scope,
+      solution strategy, building blocks, runtime view, deployment view, crosscutting
+      concepts, decisions, quality requirements, risks, glossary. Omit an empty section.
+    rationale: >-
+      A stable section order makes review cheap, because a reviewer knows where to look.
+    context:
+      order: 8
+      label: arc42
+      text: "a design document follows the arc42 section order. Omit a section rather than pad it."
+    verifier:
+      coverage: partial
+      rules:
+        - AgenticWriting.Design-Arc42Order
+      not_checkable:
+        - "Section presence. arc42 permits omitting a section that would be empty, so
+          an absent section is indistinguishable from a deliberately omitted one. A
+          presence gate would invent a requirement the standard does not make. Order
+          is checked instead, because the template does fix the sequence."
+        - "Section quality. Whether a section says anything is judgement."
+        - "Whether a heading means what arc42 means by it. The rule matches names, not
+          content, and it ignores any heading outside the twelve."
+        - "A section spelled in a way the alias list does not carry. Matching is exact
+          and deliberately conservative, so an unrecognised heading costs a missed
+          check rather than a false positive."
+      correction: >-
+        Until 2026-08-27 this entry claimed Design-NonGoals and Design-OpenQuestions
+        as its verifier. arc42 defines neither section, so the recorded coverage was
+        delivered by rules that check something else. Those two are this repository's
+        own design contract and stay, attributed to it rather than to arc42.
+    recognition:
+      question: "What concepts do you associate with 'arc42'?"
+      expect: [12 sections, building block view, runtime view, crosscutting concepts, quality requirements]
+      verified: []
+
+  - id: conventional-commits
+    admission: grandfathered
+    name: Conventional Commits 1.0.0
+    steward: community
+    url: https://www.conventionalcommits.org/en/v1.0.0/
+    license: CC-BY-3.0
+    redistributable: true
+    applies_to: [commit-messages, pr-titles]
+    invoke_as: >-
+      Write the commit subject as Conventional Commits 1.0.0:
+      type(optional scope)!: description.
+    rationale: >-
+      Machine-readable intent. A release tool can derive the version bump from it.
+    context:
+      order: 7
+      label: Conventional Commits 1.0.0
+      text: >-
+        `type(scope)!: description`.
+    verifier:
+      coverage: none
+      rules: []
+      note: >-
+        Coverage is none. It read `full` on the strength of commitlint checking
+        it in CI, and no commitlint exists in this repository: no configuration,
+        no workflow step, no dependency. Vale cannot read a commit message, so
+        nothing here checks this anchor at all.
+      not_checkable: []
+    recognition:
+      question: "What concepts do you associate with 'Conventional Commits'?"
+      expect: [feat, fix, BREAKING CHANGE, semver bump, scope]
+      verified: []
+
+  - id: bluf
+    admission: grandfathered
+    name: BLUF (Bottom Line Up Front)
+    steward: US Department of Defense writing practice
+    url: https://en.wikipedia.org/wiki/BLUF_(communication)
+    license: public-practice
+    redistributable: true
+    applies_to: [status-updates, incident-reports, email, pr-descriptions]
+    invoke_as: >-
+      Put the conclusion and the requested action in the first sentence. Put the
+      supporting detail after it.
+    rationale: >-
+      The reader may stop after one sentence. Make that sentence sufficient.
+    context:
+      order: 3
+      label: BLUF
+      text: >-
+        put the conclusion and the requested action in the first sentence.
+    verifier:
+      coverage: none
+      rules: []
+      not_checkable:
+        - "Whether the first sentence is the actual bottom line."
+    recognition:
+      question: "What concepts do you associate with 'BLUF'?"
+      expect: [conclusion first, military writing, executive summary, action required]
+      verified: []

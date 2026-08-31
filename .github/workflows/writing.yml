@@ -61,6 +61,12 @@ jobs:
 
       # --no-global: a runner has no user-level Vale config and a laptop does, so
       # without it the two disagree about which rules ran.
+      # The coverage manifest says what each anchor actually checks. A claim
+      # nobody verifies is how one anchor came to credit rules that check
+      # something else, so the manifest is enforced rather than trusted.
+      - name: Coverage manifest is true
+        run: ./writing/scripts/check-coverage.sh
+
       - name: Lint prose against the writing contract
         # Pinned to a commit, not the mutable `reviewdog` branch. Every other
         # workflow here pins a SHA; this one piped a branch into CI with

@@ -1,0 +1,23 @@
+anchor: asd-ste100
+source: "ASD-STE100 Issue 9, January 2025"
+total_topics: 53
+enumerated: partial
+note: >-
+  The standard states 53 writing rules. This file names only the topics we have
+  considered, so the ratio below is a floor on the gap, not a coverage figure.
+  Topic names are ours; no rule text is reproduced. See NOTICE.md.
+topics:
+  approved-word-in-approved-meaning: [STE-ApprovedWords]
+  contractions: [STE-Contractions]
+  active-voice: [STE-Passive]
+  sentence-length-procedure: [STE-SentenceLength-Procedure]
+  sentence-length-description: [STE-SentenceLength-Description]
+  paragraph-length: [STE-ParagraphLength]
+  noun-cluster-length: [STE-NounCluster]
+  imperative-opens-an-instruction: [STE-Gerund-Instruction]
+  phrasal-verbs: [STE-PhrasalVerbs]
+  word-sense-in-context: false
+  technical-name-versus-technical-verb: false
+  one-action-per-procedure-step: false
+  simple-tenses: false
+  article-before-a-noun: false

@@ -1,0 +1,37 @@
+# Anchors the contract names that have no registry entry yet.
+#
+# SC-002 says every anchor the contract names resolves to a registry entry. It does
+# not hold: the contract names nineteen and the registry holds seven of them. Nothing
+# checked the claim, because the verifier SC-002 cited reads the registry and never
+# the contract.
+#
+# This file is the debt, written down rather than implied. scripts/check-contract-
+# anchors.sh gates it:
+#
+#   * a name in the contract, absent from the registry and absent from here, fails;
+#   * a name here that has since earned an entry fails, so the file cannot go stale;
+#   * a name here the contract no longer cites fails, because that is not a debt;
+#   * the file is compared against main and may not gain a line.
+#
+# A name leaves by earning a registry entry with its four admission artifacts. Delete
+# its line in that same commit.
+#
+# NOT YET ENFORCED. writing/scripts/check-contract-anchors.sh arrives with the registry-gates change,
+# later in this series. Until it lands this file is a record and not a gate:
+# a line could be added here rather than removed and nothing would notice.
+# The claims above describe what the gate will assert, not what runs today.
+#
+# One name per line, spelled as the contract's anchor table spells it.
+
+INVEST
+Gherkin
+Cockburn use cases
+C4 model
+Domain-Driven Design
+Clean Architecture
+TDD
+Property-Based Testing
+Effective Go
+Go Code Review Comments
+Google Go Style Guide
+Code Smells

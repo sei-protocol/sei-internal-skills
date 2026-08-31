@@ -1,0 +1,7 @@
+anchor: rfc2119
+source: "RFC 2119"
+total_topics: 2
+enumerated: full
+topics:
+  keyword-is-uppercase: [RFC2119-Keywords]
+  keyword-used-only-for-a-requirement: false

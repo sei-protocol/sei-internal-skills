@@ -1,0 +1,9 @@
+anchor: bluf
+source: "BLUF, US Department of Defense writing practice"
+total_topics: 1
+enumerated: full
+note: >-
+  Coverage is none. Whether the first sentence is the actual bottom line cannot
+  be read from the text.
+topics:
+  conclusion-in-the-first-sentence: false

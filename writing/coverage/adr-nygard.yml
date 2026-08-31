@@ -1,0 +1,11 @@
+anchor: adr-nygard
+source: "Nygard, Documenting Architecture Decisions, 2011"
+total_topics: 6
+enumerated: full
+topics:
+  status-section: [ADR-Status]
+  context-section: [ADR-Context]
+  decision-section: [ADR-Decision]
+  consequences-section: [ADR-Consequences]
+  consequences-state-the-real-cost: false
+  superseded-rather-than-deleted: false

@@ -1,0 +1,12 @@
+anchor: arc42
+source: "arc42 template, 12 sections"
+total_topics: 3
+enumerated: full
+note: >-
+  arc42 permits omitting a section that would be empty, so presence is not a
+  requirement the standard makes and a presence gate would invent one. The
+  template does fix the sequence, so sequence is what a gate can hold.
+topics:
+  sections-run-in-template-order: [Design-Arc42Order]
+  section-presence: false
+  section-quality: false
