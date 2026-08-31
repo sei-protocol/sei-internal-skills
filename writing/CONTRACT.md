@@ -43,7 +43,8 @@ Name one from this table. **Naming an anchor absent from it is forbidden** — a
 confabulated method name reads authoritative and costs more than plain prose.
 
 **No anchor here carries a recorded verdict yet, and the suite that would produce one
-is not built.** `writing/evals/recognition/README.md` states the method and nothing runs it.
+is not built.** No suite exists to produce one, and none of this repository's gates
+claims otherwise.
 Until a verdict exists, treat a surprising output as the anchor failing rather than the
 model disagreeing.
 
@@ -160,13 +161,16 @@ text, no controlled dictionary, no organisation-specific operational detail. A
 convention specific to one organisation's systems stays in that organisation's
 repository and cites the public anchor from there.
 
-**No artifact here names a private skill or agent as an authority.** If a rule matters,
-state the rule. A citation a reader cannot follow is not a citation. CI enforces this.
+**No anchor here cites a skill in this repository as its authority.** An anchor earns
+its place by being a standard somebody else publishes, so a reader can follow the name
+outside this repository. A gate for this arrives later in the series; today the rule
+stands on review.
 
 **A success criterion names a verifier that runs, or says that none does.** Write the
 path in backticks, or write `not built — <what is missing>` or `judgement — <who
 decides and how>`. A criterion citing a check nobody built reads exactly like one that
-passes, which is the failure this repository exists to stop. CI enforces this.
+passes, which is the failure this repository exists to stop. The gate that asserts it
+arrives later in the series; today the rule stands on review.
 
 ### Admitting an anchor
 

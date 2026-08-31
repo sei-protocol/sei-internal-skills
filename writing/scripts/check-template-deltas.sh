@@ -21,8 +21,18 @@ fail=0
 [ -f "$T" ] || { echo "missing $T"; exit 1; }
 [ -f "$U" ] || { echo "missing $U — the fork is no longer diffable"; exit 1; }
 
+# THE HEADER COMMENT IS NOT THE TEMPLATE. `require 'SHALL'` matched the comment's
+# own explanation of SHALL, and the Verifier pattern matched the example line
+# inside it. Stripping every EARS criterion and every *Verifier:* from the body
+# still passed. Everything from the first Markdown heading onward is the
+# template; the block above it explains the template and cannot satisfy it.
+body() {
+  # Everything after the fork header, which is one HTML comment ending in `-->`.
+  awk 'skip { print; next } /^-->[[:space:]]*$/ { skip = 1 }' "$T"
+}
+
 require() {  # $1 = grep -E pattern, $2 = why it exists
-  if ! grep -qE "$1" "$T"; then
+  if ! body | grep -qE "$1"; then
     echo "MISSING from $T: $1"
     echo "    why: $2"
     fail=1
@@ -39,8 +49,17 @@ require '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on'
 require 'SHALL'                     'EARS and RFC 2119 agree only on the uppercase spelling'
 require '^\*Verifier:\*|^  \*Verifier:\*' 'a criterion nothing checks is a wish'
 
-if cmp -s "$T" "$U"; then
-  echo "$T is identical to upstream — the deltas are gone"
+# COMPARE THE BODIES, NOT THE FILES. `cmp -s "$T" "$U"` could never fire: the
+# fork carries a 28-line header the upstream copy does not, so the two differ
+# from line one in every scenario including a total overwrite. It was dead code,
+# and the workflow justified carrying the upstream copy on the grounds that this
+# script diffs against it, which it did not.
+#
+# Stripping the fork header makes the comparison the one that matters. A re-init
+# that overwrites the fork leaves a body identical to upstream's, which is
+# exactly the reversion this file exists to catch.
+if diff -q <(body) <(cat "$U") >/dev/null 2>&1; then
+  echo "$T has the same body as upstream — the deltas are gone"
   fail=1
 fi
 
