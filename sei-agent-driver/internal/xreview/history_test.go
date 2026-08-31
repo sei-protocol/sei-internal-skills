@@ -18,33 +18,58 @@ func TestHistoryStepIsAbsentOnAFirstReview(t *testing.T) {
 	}
 }
 
-// TestBothPromptsCarryTheHistory is the wiring check. A step added to one prompt and not
-// the other reaches the first dispatch on a pull request and no dispatch after it.
-// History only exists from the second dispatch onward, so the adopted prompt is the one
-// that always needs it.
-func TestBothPromptsCarryTheHistory(t *testing.T) {
+// TestTheAdoptedPromptSendsOnlyWhatTheSessionCannotKnow pins the delta contract.
+//
+// A first dispatch has never seen its own findings, so it is sent them in full. A
+// re-review wrote them, in the session it is answering in, so it is sent only what
+// happened to them afterwards on GitHub -- a reply, a resolution -- because that is the
+// part no session can hold.
+//
+// The negative assertions are the point. Re-quoting prose the agent itself wrote is the
+// cost the adopted prompt exists to avoid, and it is the kind of regression that looks
+// harmless in a diff.
+func TestTheAdoptedPromptSendsOnlyWhatTheSessionCannotKnow(t *testing.T) {
 	t.Parallel()
 
 	req := Request{Repo: "sei-protocol/sandbox", PR: 42, PriorThreads: []PriorThread{
+		// Moved: a human replied.
 		{File: "a.go", Line: 9, Body: "unbounded retry", Replies: []string{"fixed in 3f2a"}},
+		// Unmoved: the reviewer's own finding, nothing back. The session remembers it.
+		{File: "b.go", Line: 4, Body: "missing guard on the nil case"},
 	}}
-	for name, prompt := range map[string]string{
-		"BuildPrompt":   BuildPrompt(req),
-		"AdoptedPrompt": AdoptedPrompt(req),
-	} {
+	first, adopted := BuildPrompt(req), AdoptedPrompt(req)
+
+	t.Run("the first dispatch is sent the whole history", func(t *testing.T) {
 		for _, want := range []string{
-			// Anchored to the checkout, because the tree is a subdirectory and
-			// nothing changes directory into it. A bare "a.go:9" named a sibling
-			// of the tree, so it was not openable.
 			"[open] pr-42-tree/a.go:9 — unbounded retry",
+			"[open] pr-42-tree/b.go:4 — missing guard on the nil case",
 			"reply: fixed in 3f2a",
-			"A reply is a claim, not a resolution",
 		} {
-			if !strings.Contains(prompt, want) {
-				t.Errorf("%s does not carry %q", name, want)
+			if !strings.Contains(first, want) {
+				t.Errorf("BuildPrompt does not carry %q", want)
 			}
 		}
-	}
+	})
+
+	t.Run("the re-review is sent the moved thread and its reply", func(t *testing.T) {
+		for _, want := range []string{"[open] pr-42-tree/a.go:9", "reply: fixed in 3f2a"} {
+			if !strings.Contains(adopted, want) {
+				t.Errorf("AdoptedPrompt does not carry %q; a reply happened outside the "+
+					"session, so nothing else can tell the review about it", want)
+			}
+		}
+	})
+
+	t.Run("and not its own prose, nor an unmoved thread", func(t *testing.T) {
+		if strings.Contains(adopted, "unbounded retry") {
+			t.Error("AdoptedPrompt re-quotes the finding body the agent wrote itself; " +
+				"the session holds it, and the location names it")
+		}
+		if strings.Contains(adopted, "b.go:4") || strings.Contains(adopted, "missing guard") {
+			t.Error("AdoptedPrompt carries a thread nothing happened to; only the delta " +
+				"belongs there")
+		}
+	})
 }
 
 // TestHistoryStepContainsWhatARepliesCanClaim covers the reason this is embedded rather
