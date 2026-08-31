@@ -69,7 +69,12 @@ require() {  # $1 = grep -E pattern, $2 = why it exists
 # section guard that its own mangling already broke, awk never evaluates it, the
 # loop opens no block, and the check passes having read nothing. ENVIRON does no
 # escape processing, so a pattern arrives as written.
-require_each() {  # $1 = section-start ERE, $2 = marker ERE, $3 = why, $4 = the noun
+# $5 CLOSES THE BLOCK. Without it a block ends only at the next section start, so
+# the last one runs to end of file and the check asserts "somewhere at or after
+# the final heading" rather than "inside each section". Nothing leaks from the
+# template today, but the gate would not notice a delta that drifted out of its
+# requirement and into a later part of the document.
+require_each() {  # $1 = section-start ERE, $2 = marker ERE, $3 = why, $4 = noun, $5 = block-end ERE
   # A file with no section satisfies the loop below vacuously. Assert the
   # sections exist before trusting an empty result.
   if ! body "$T" | grep -qE "$1"; then
@@ -83,11 +88,12 @@ require_each() {  # $1 = section-start ERE, $2 = marker ERE, $3 = why, $4 = the 
   # An awk that dies prints nothing, which reads as "no misses". Take the exit
   # status separately, the way the Vale probe below does.
   set +e
-  misses=$(body "$T" | START="$1" MARKER="$2" awk '
+  misses=$(body "$T" | START="$1" MARKER="$2" ENDS="$5" awk '
     $0 ~ ENVIRON["START"] {
       if (open && !hit) print name
       open = 1; hit = 0; name = $0; next
     }
+    open && $0 ~ ENVIRON["ENDS"] { if (!hit) print name; open = 0; next }
     open && $0 ~ ENVIRON["MARKER"] { hit = 1 }
     END { if (open && !hit) print name }
   ')
@@ -113,19 +119,19 @@ require '^## Semantic Anchors'      'methods named once, or the body restates th
 require '^## Glossary'              'an agent reads linearly and cannot ask what a term means'
 require '^## Boundary Context'      'a spec with no stated boundary grows while it is open'
 require '^### Requirement [0-9]+:'  'requirements carry their own criteria, so none is an orphan'
-require_each '^### Requirement [0-9]+:' '^\*\*Objective:\*\*'       'names the beneficiary, not only the behaviour' 'requirement'
-require_each '^### Requirement [0-9]+:' '^\*\*Traces to:\*\*'       'every requirement points back at the story it serves' 'requirement'
-require_each '^### Requirement [0-9]+:' '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on' 'requirement'
+require_each '^### Requirement [0-9]+:' '^\*\*Objective:\*\*'       'names the beneficiary, not only the behaviour' 'requirement' '^#{1,3}[ \t]'
+require_each '^### Requirement [0-9]+:' '^\*\*Traces to:\*\*'       'every requirement points back at the story it serves' 'requirement' '^#{1,3}[ \t]'
+require_each '^### Requirement [0-9]+:' '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on' 'requirement' '^#{1,3}[ \t]'
 # ANCHORED TO A CRITERION, NOT TO THE WORD. The paragraph above the criteria
 # explains SHALL, so a bare `\bSHALL\b` is satisfied by that sentence on a body
 # with every EARS line deleted. The delta is a numbered item carrying a SHALL
 # clause, and the pattern says so.
-require_each '^### Requirement [0-9]+:' '^[0-9]+[.)] .*SHALL( |$)' 'EARS and RFC 2119 agree only on the uppercase spelling' 'requirement'
+require_each '^### Requirement [0-9]+:' '^[0-9]+[.)] .*SHALL( |$)' 'EARS and RFC 2119 agree only on the uppercase spelling' 'requirement' '^#{1,3}[ \t]'
 # PER CRITERION. CONTRACT.md scopes *Verifier:* to each success criterion, and a
 # file-wide check passes on SC-001's while SC-002 has none. Spec-SuccessCriteria
 # is presence-only on the heading, so nothing else would notice.
 require_each '^- \*\*SC-[0-9]+\*\*' '\*Verifier:\*' \
-  'a criterion nothing checks is a wish' 'success criterion'
+  'a criterion nothing checks is a wish' 'success criterion' '^#{1,6}[ \t]'
 
 # COMPARE THE BODIES, NOT THE FILES. The fork carries a header the upstream copy
 # does not, so `cmp -s "$T" "$U"` differs from line one in every scenario,

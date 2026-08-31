@@ -33,14 +33,21 @@ which disables `STE-NounCluster` in silence.
 
 ```sh
 vale sync                  # fetch write-good, which is not committed
-vale --no-global writing                     # what CI checks today
+vale --no-global --glob='!{writing/styles/write-good/**,writing/templates/spec-template.upstream.md}' writing
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
 ```
 
-`--no-global` matters. Vale merges a user-level configuration with this one, so a
-laptop with the toolkit installed sees different rules than a runner does.
+That second command is what CI runs. `--no-global` matters: Vale merges a
+user-level configuration with this one, so a laptop with the toolkit installed
+sees different rules than a runner does.
+
+The glob skips two paths. `styles/write-good/` is a fetched package.
+`templates/spec-template.upstream.md` is Spec Kit's own prose, carried
+byte-identical so the delta gate can diff the fork against it. Linting it would
+report findings on the one file nobody may edit. Vale takes a single glob
+expression and keeps the last, so both paths ride in one brace expression.
 
 ## Generated rules
 
