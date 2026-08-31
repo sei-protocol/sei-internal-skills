@@ -132,20 +132,28 @@ require '^## Semantic Anchors'      'methods named once, or the body restates th
 # column", and the template says the same in its own words. A check asking for
 # one filled cell passes on a table where only the first anchor states its gap.
 #
-# So this reads every data row -- five fields when split on the pipe, a first
-# cell that is neither the column heading nor the separator -- and names each one
-# whose third cell is empty. It also names a table with no data row at all.
+# So this reads every data row: a pipe line inside the block whose first cell is
+# neither the column heading nor the separator. It names each row that states no
+# gap, and a table with no data row at all.
+#
+# The field count is checked AFTER the row is counted, never before. A row can
+# lose the gap column two ways -- the cell blanked, or the cell deleted -- and
+# awk's split returns separators plus one, so a two-cell row yields four fields.
+# Skipping on the count would drop the deleted-cell row before counting it, and
+# a table of such rows would report nothing.
 gaps=$(body "$T" | awk '
   /^## Semantic Anchors/ { open = 1; next }
   open && /^#[ \t]|^##[ \t]/ { open = 0 }
   open && /^\|/ {
     n = split($0, c, "|")
-    if (n < 5) next
-    gsub(/^[ \t]+|[ \t]+$/, "", c[2])
-    gsub(/^[ \t]+|[ \t]+$/, "", c[4])
-    if (c[2] == "Anchor" || c[2] ~ /^:?-+:?$/) next
+    first = (n >= 2) ? c[2] : ""
+    gap   = (n >= 4) ? c[4] : ""
+    gsub(/^[ \t]+|[ \t]+$/, "", first)
+    gsub(/^[ \t]+|[ \t]+$/, "", gap)
+    if (first == "Anchor" || first ~ /^:?-+:?$/) next
     rows++
-    if (c[4] == "" || c[4] ~ /^:?-+:?$/) print c[2]
+    if (n < 5 || gap == "" || gap ~ /^:?-+:?$/)
+      print (first == "" ? "(unnamed row)" : first)
   }
   # A sentinel, not an empty line: command substitution strips a trailing
   # newline, so an empty print leaves $gaps empty and the check passes.
