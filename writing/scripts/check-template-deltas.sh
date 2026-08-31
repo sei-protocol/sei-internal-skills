@@ -48,19 +48,63 @@ require() {  # $1 = grep -E pattern, $2 = why it exists
   fi
 }
 
-# ONE PER REQUIREMENT, NOT ONE PER FILE. CONTRACT.md scopes four deltas to each
-# requirement. A file-wide `require` is satisfied by Requirement 1 alone, so
-# deleting all four from Requirement 2 leaves this gate quiet: the body still
-# differs from upstream, and Spec-AcceptanceCriteria and EARS-CriterionShall are
-# presence-only. The second requirement is where the template teaches that the
-# delta repeats, which is the part a file-wide count cannot see.
-requirements=$(body "$T" | grep -cE '^### Requirement [0-9]+:' || true)
+# ONE PER SECTION, NOT ONE PER FILE. CONTRACT.md scopes five deltas to each
+# requirement or each success criterion, and a file-wide check is satisfied by
+# the first one. Delete all of them from Requirement 2 and such a check stays
+# quiet: the body still differs from upstream, and Spec-AcceptanceCriteria and
+# EARS-CriterionShall are presence-only.
+#
+# A count is not enough either. Requirement 1 carries five EARS criteria and
+# Requirement 2 carries two, so a file-wide 7 clears a threshold of 2 with
+# Requirement 2 stripped bare: the surplus in one section hides the absence in
+# the next. This walks the sections and asks each one for itself.
+#
+# awk, not grep: POSIX awk has no \b, so a marker needing a word boundary spells
+# it out. A section heading opens a block, and a block that reaches the next
+# heading with no match is named.
+#
+# THE PATTERNS TRAVEL IN THE ENVIRONMENT, NOT IN -v. awk processes escapes in a
+# -v assignment, so `\*Verifier:\*` arrives as `*Verifier:*` -- an ERE that opens
+# with a repeat and is illegal. Reached directly awk aborts; reached behind a
+# section guard that its own mangling already broke, awk never evaluates it, the
+# loop opens no block, and the check passes having read nothing. ENVIRON does no
+# escape processing, so a pattern arrives as written.
+require_each() {  # $1 = section-start ERE, $2 = marker ERE, $3 = why, $4 = the noun
+  # A file with no section satisfies the loop below vacuously. Assert the
+  # sections exist before trusting an empty result.
+  if ! body "$T" | grep -qE "$1"; then
+    echo "MISSING from $T: no $4 matches $1"
+    echo "    the section this delta is scoped to is not in the template"
+    echo "    why: $3"
+    fail=1
+    return
+  fi
 
-require_each() {  # $1 = grep -E pattern, $2 = why it exists
-  n=$(body "$T" | grep -cE "$1" || true)
-  if [ "$n" -lt "$requirements" ]; then
-    echo "UNDER-APPLIED in $T: $1 appears $n time(s) for $requirements requirement(s)"
-    echo "    why: $2"
+  # An awk that dies prints nothing, which reads as "no misses". Take the exit
+  # status separately, the way the Vale probe below does.
+  set +e
+  misses=$(body "$T" | START="$1" MARKER="$2" awk '
+    $0 ~ ENVIRON["START"] {
+      if (open && !hit) print name
+      open = 1; hit = 0; name = $0; next
+    }
+    open && $0 ~ ENVIRON["MARKER"] { hit = 1 }
+    END { if (open && !hit) print name }
+  ')
+  rc=$?
+  set -e
+  if [ "$rc" -ne 0 ]; then
+    echo "awk exited $rc walking $1 in $T — the delta was not checked"
+    fail=1
+    return
+  fi
+
+  if [ -n "$misses" ]; then
+    echo "$misses" | while IFS= read -r m; do
+      echo "MISSING from $T, under: $m"
+      echo "    marker: $2"
+    done
+    echo "    why: $3"
     fail=1
   fi
 }
@@ -69,15 +113,19 @@ require '^## Semantic Anchors'      'methods named once, or the body restates th
 require '^## Glossary'              'an agent reads linearly and cannot ask what a term means'
 require '^## Boundary Context'      'a spec with no stated boundary grows while it is open'
 require '^### Requirement [0-9]+:'  'requirements carry their own criteria, so none is an orphan'
-require_each '^\*\*Objective:\*\*'       'names the beneficiary, not only the behaviour'
-require_each '^\*\*Traces to:\*\*'       'every requirement points back at the story it serves'
-require_each '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on'
+require_each '^### Requirement [0-9]+:' '^\*\*Objective:\*\*'       'names the beneficiary, not only the behaviour' 'requirement'
+require_each '^### Requirement [0-9]+:' '^\*\*Traces to:\*\*'       'every requirement points back at the story it serves' 'requirement'
+require_each '^### Requirement [0-9]+:' '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on' 'requirement'
 # ANCHORED TO A CRITERION, NOT TO THE WORD. The paragraph above the criteria
 # explains SHALL, so a bare `\bSHALL\b` is satisfied by that sentence on a body
 # with every EARS line deleted. The delta is a numbered item carrying a SHALL
 # clause, and the pattern says so.
-require_each '^[0-9]+[.)] .*\bSHALL\b' 'EARS and RFC 2119 agree only on the uppercase spelling'
-require '^\*Verifier:\*|^  \*Verifier:\*' 'a criterion nothing checks is a wish'
+require_each '^### Requirement [0-9]+:' '^[0-9]+[.)] .*SHALL( |$)' 'EARS and RFC 2119 agree only on the uppercase spelling' 'requirement'
+# PER CRITERION. CONTRACT.md scopes *Verifier:* to each success criterion, and a
+# file-wide check passes on SC-001's while SC-002 has none. Spec-SuccessCriteria
+# is presence-only on the heading, so nothing else would notice.
+require_each '^- \*\*SC-[0-9]+\*\*' '\*Verifier:\*' \
+  'a criterion nothing checks is a wish' 'success criterion'
 
 # COMPARE THE BODIES, NOT THE FILES. The fork carries a header the upstream copy
 # does not, so `cmp -s "$T" "$U"` differs from line one in every scenario,
@@ -136,8 +184,6 @@ fi
 sed "s|${section}|[**/spec-body.md]|" .vale.ini > "$probe"
 body "$T" > "$scratch/spec-body.md"
 
-  # Errors only. The descriptive rules run at warning here and the placeholder
-  # text a template carries is not prose anyone reads.
 # Report against $T. The scratch path is an implementation detail, and the
 # difference in line count is the header body() stripped, which is the offset
 # every reported line needs. Counting it beats matching the header's end marker:
@@ -148,6 +194,9 @@ offset=$(( $(wc -l < "$T") - $(wc -l < "$scratch/spec-body.md") ))
 # Judge on the output, and on the exit status separately. Vale exits non-zero
 # when it reports a finding, and also when it cannot load a configuration; the
 # second prints nothing, and a check that read only the text would pass.
+#
+# --minAlertLevel=error: the descriptive rules run at warning here, and the
+# placeholder text a template carries is not prose anyone reads.
 set +e
 out=$(vale --no-global --config="$probe" --minAlertLevel=error \
       --output=line "$scratch/spec-body.md")
