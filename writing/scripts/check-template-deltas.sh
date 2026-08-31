@@ -48,18 +48,35 @@ require() {  # $1 = grep -E pattern, $2 = why it exists
   fi
 }
 
+# ONE PER REQUIREMENT, NOT ONE PER FILE. CONTRACT.md scopes four deltas to each
+# requirement. A file-wide `require` is satisfied by Requirement 1 alone, so
+# deleting all four from Requirement 2 leaves this gate quiet: the body still
+# differs from upstream, and Spec-AcceptanceCriteria and EARS-CriterionShall are
+# presence-only. The second requirement is where the template teaches that the
+# delta repeats, which is the part a file-wide count cannot see.
+requirements=$(body "$T" | grep -cE '^### Requirement [0-9]+:' || true)
+
+require_each() {  # $1 = grep -E pattern, $2 = why it exists
+  n=$(body "$T" | grep -cE "$1" || true)
+  if [ "$n" -lt "$requirements" ]; then
+    echo "UNDER-APPLIED in $T: $1 appears $n time(s) for $requirements requirement(s)"
+    echo "    why: $2"
+    fail=1
+  fi
+}
+
 require '^## Semantic Anchors'      'methods named once, or the body restates them'
 require '^## Glossary'              'an agent reads linearly and cannot ask what a term means'
 require '^## Boundary Context'      'a spec with no stated boundary grows while it is open'
 require '^### Requirement [0-9]+:'  'requirements carry their own criteria, so none is an orphan'
-require '^\*\*Objective:\*\*'       'names the beneficiary, not only the behaviour'
-require '^\*\*Traces to:\*\*'       'every requirement points back at the story it serves'
-require '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on'
+require_each '^\*\*Objective:\*\*'       'names the beneficiary, not only the behaviour'
+require_each '^\*\*Traces to:\*\*'       'every requirement points back at the story it serves'
+require_each '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on'
 # ANCHORED TO A CRITERION, NOT TO THE WORD. The paragraph above the criteria
 # explains SHALL, so a bare `\bSHALL\b` is satisfied by that sentence on a body
 # with every EARS line deleted. The delta is a numbered item carrying a SHALL
 # clause, and the pattern says so.
-require '^[0-9]+[.)] .*\bSHALL\b' 'EARS and RFC 2119 agree only on the uppercase spelling'
+require_each '^[0-9]+[.)] .*\bSHALL\b' 'EARS and RFC 2119 agree only on the uppercase spelling'
 require '^\*Verifier:\*|^  \*Verifier:\*' 'a criterion nothing checks is a wish'
 
 # COMPARE THE BODIES, NOT THE FILES. The fork carries a header the upstream copy
@@ -81,26 +98,28 @@ fi
 # heading, so Vale pointed at the file as it sits reports a clean template whose
 # body has the delta deleted.
 #
-# The probe configuration is `.vale.ini` with the spec section re-scoped. It is
-# generated rather than written out, so the rule list cannot drift from the one
-# a real specification gets. It sits beside `.vale.ini` because StylesPath and
-# Packages resolve relative to the configuration file.
 # A GATE THAT CANNOT RUN ITS CHECK FAILS. It does not pass with a note: the exit
 # status is what a caller reads, and a pass verdict for a run that checked
 # nothing is the shape this whole file exists to stop. CI installs Vale four
 # steps before this one; a fresh checkout does not, so say what to do.
 if ! command -v vale >/dev/null 2>&1; then
   echo "vale is not on PATH, so the spec rules did not run against $T"
-  echo "    install it, or see writing/README.md for the version CI pins"
+  echo "    install it: writing/README.md names the version CI pins"
   exit 1
 fi
 
 scratch="$(mktemp -d)"
+# The probe is .vale.ini with the spec section re-scoped, generated rather than
+# written out, so its rule list cannot drift from the one a real specification
+# gets. It sits beside .vale.ini because StylesPath and Packages resolve relative
+# to the configuration file.
+#
 # mktemp, not a fixed name: two runs against one checkout would otherwise race,
 # and the first to finish would delete the configuration the second is reading.
-# The template is what the constraint above needs -- the file sits beside
-# .vale.ini, because StylesPath and Packages resolve relative to it.
-probe="$(mktemp ./.vale-template-probe.XXXXXX.ini)"
+# The X's trail and there is no .ini suffix, because BSD mktemp substitutes only
+# a trailing run: `.vale-template-probe.XXXXXX.ini` creates that literal name on
+# macOS and every concurrent run shares it. Vale reads whatever --config names.
+probe="$(mktemp ./.vale-template-probe.XXXXXX)"
 trap 'rm -rf "$scratch" "$probe"' EXIT
 
 # ASSERT THE RE-SCOPE. sed copies its input through when the pattern misses, so

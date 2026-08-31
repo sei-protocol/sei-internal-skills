@@ -26,6 +26,11 @@ What arrives next, in order:
 
 ## Running it
 
+Vale 3.17.1 or later. CI pins that version in `.github/workflows/writing.yml`
+and checks the archive against a recorded sha256. The floor is not a preference:
+on 3.14.0 a `sequence` rule whose tokens are all `tag:` entries matches nothing,
+which disables `STE-NounCluster` in silence.
+
 ```sh
 vale sync                  # fetch write-good, which is not committed
 vale --no-global writing                     # what CI checks today
@@ -63,9 +68,9 @@ check something else.
 
 ## The contract
 
-`CONTRACT.md` is the file to read first. It names the
-anchors, states the rules that have no public prior, and says which gate checks
-what. Read it first; everything else in this directory serves it.
+`CONTRACT.md` is the file to read first. It names the anchors, states the rules
+that have no public prior, and says which gate checks what. Everything else in
+this directory serves it.
 
 ## Reading a finding
 

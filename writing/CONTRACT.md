@@ -101,8 +101,9 @@ sentence under 20 words and a descriptive one under 25. Keep a noun cluster to a
 three words. Keep code, commands,
 identifiers, and quoted output verbatim.
 
-No gate reads code, so the four conventions in this block stand on review alone. Vale
-lints prose. Principle III asks each to say so, and this sentence says it for all four.
+Vale gates the writing convention above. No gate reads code, so the four below it —
+code structure, comments, errors as interface, and two-way doors — stand on review alone.
+Principle III asks each to say so, and this sentence says it for all four.
 
 **Code structure.** Code reads as a legible sequence of named steps a new engineer
 follows top to bottom with no narrator. The method body is the table of contents; step
