@@ -69,6 +69,11 @@ require() {  # $1 = grep -E pattern, $2 = why it exists
 # section guard that its own mangling already broke, awk never evaluates it, the
 # loop opens no block, and the check passes having read nothing. ENVIRON does no
 # escape processing, so a pattern arrives as written.
+# NO INTERVAL EXPRESSIONS IN THESE PATTERNS. The BWK awk macOS shipped before
+# 20200612 reads a brace as a literal, so a bounded repeat matches nothing there,
+# no block closes on a peer heading, and every check silently widens to end of
+# file. The alternations below need no interval support.
+#
 # $5 CLOSES THE BLOCK. Without it a block ends only at the next section start, so
 # the last one runs to end of file and the check asserts "somewhere at or after
 # the final heading" rather than "inside each section". Nothing leaks from the
@@ -123,24 +128,37 @@ require '^## Semantic Anchors'      'methods named once, or the body restates th
 # `[Dd]oes not cover` matches the table header alone -- blank the third cell of
 # every anchor and both still pass on a block that teaches no gap.
 #
-# So this asks for a data row: five fields when split on the pipe, a first cell
-# that is neither the column heading nor the separator, and a third cell
-# carrying text.
+# EACH ANCHOR, NOT ONE OF THEM. CONTRACT.md reads "each with a does not cover
+# column", and the template says the same in its own words. A check asking for
+# one filled cell passes on a table where only the first anchor states its gap.
+#
+# So this reads every data row -- five fields when split on the pipe, a first
+# cell that is neither the column heading nor the separator -- and names each one
+# whose third cell is empty. It also names a table with no data row at all.
 gaps=$(body "$T" | awk '
   /^## Semantic Anchors/ { open = 1; next }
-  open && /^#{1,2}[ \t]/ { open = 0 }
+  open && /^#[ \t]|^##[ \t]/ { open = 0 }
   open && /^\|/ {
     n = split($0, c, "|")
     if (n < 5) next
     gsub(/^[ \t]+|[ \t]+$/, "", c[2])
     gsub(/^[ \t]+|[ \t]+$/, "", c[4])
     if (c[2] == "Anchor" || c[2] ~ /^:?-+:?$/) next
-    if (c[4] != "" && c[4] !~ /^:?-+:?$/) rows++
+    rows++
+    if (c[4] == "" || c[4] ~ /^:?-+:?$/) print c[2]
   }
-  END { print rows + 0 }
+  # A sentinel, not an empty line: command substitution strips a trailing
+  # newline, so an empty print leaves $gaps empty and the check passes.
+  END { if (rows == 0) print "!NOROWS!" }
 ')
-if [ "$gaps" -lt 1 ]; then
-  echo "MISSING from $T: no anchor row carries a 'does not cover' entry"
+if [ -n "$gaps" ]; then
+  echo "$gaps" | while IFS= read -r a; do
+    if [ "$a" = "!NOROWS!" ]; then
+      echo "MISSING from $T: the Semantic Anchors table carries no anchor row"
+    else
+      echo "MISSING from $T: anchor '$a' states no 'does not cover' entry"
+    fi
+  done
   echo "    why: Principle V — an anchor is a hint, and the gap is the honest part"
   fail=1
 fi
@@ -148,9 +166,9 @@ require '^## Glossary'              'an agent reads linearly and cannot ask what
 require '^## Boundary Context'      'a spec with no stated boundary grows while it is open'
 require '^### Requirement [0-9]+:'  'requirements carry their own criteria, so none is an orphan'
 require_each '^### Requirement [0-9]+:' '^\*\*Objective:\*\* As a .+, I want .+, so that .+' \
-  'names the beneficiary, not only the behaviour' 'requirement' '^#{1,3}[ \t]'
-require_each '^### Requirement [0-9]+:' '^\*\*Traces to:\*\*'       'every requirement points back at the story it serves' 'requirement' '^#{1,3}[ \t]'
-require_each '^### Requirement [0-9]+:' '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on' 'requirement' '^#{1,3}[ \t]'
+  'names the beneficiary, not only the behaviour' 'requirement' '^#[ \t]|^##[ \t]|^###[ \t]'
+require_each '^### Requirement [0-9]+:' '^\*\*Traces to:\*\*'       'every requirement points back at the story it serves' 'requirement' '^#[ \t]|^##[ \t]|^###[ \t]'
+require_each '^### Requirement [0-9]+:' '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on' 'requirement' '^#[ \t]|^##[ \t]|^###[ \t]'
 # THE ACTOR IS THE DELTA. CONTRACT.md states this row as EARS with a named actor,
 # and its reason is that `System MUST` names nobody. A pattern asking only for
 # SHALL passes on `1. WHEN [trigger], System SHALL [response].`, which is the
@@ -160,12 +178,12 @@ require_each '^### Requirement [0-9]+:' '^#### Acceptance Criteria' 'the heading
 # It is anchored to a numbered criterion for a second reason: the paragraph above
 # the criteria explains SHALL, so a bare `\bSHALL\b` is satisfied by that
 # sentence on a body with every EARS line deleted.
-require_each '^### Requirement [0-9]+:' '^[0-9]+[.)] .*THE .+ SHALL( |$)' 'EARS with a named actor; System MUST names no actor' 'requirement' '^#{1,3}[ \t]'
+require_each '^### Requirement [0-9]+:' '^[0-9]+[.)] .*THE .+ SHALL( |$)' 'EARS with a named actor; System MUST names no actor' 'requirement' '^#[ \t]|^##[ \t]|^###[ \t]'
 # PER CRITERION. CONTRACT.md scopes *Verifier:* to each success criterion, and a
 # file-wide check passes on SC-001's while SC-002 has none. Spec-SuccessCriteria
 # is presence-only on the heading, so nothing else would notice.
 require_each '^- \*\*SC-[0-9]+\*\*' '\*Verifier:\*' \
-  'a criterion nothing checks is a wish' 'success criterion' '^#{1,6}[ \t]'
+  'a criterion nothing checks is a wish' 'success criterion' '^#+[ \t]'
 
 # COMPARE THE BODIES, NOT THE FILES. The fork carries a header the upstream copy
 # does not, so `cmp -s "$T" "$U"` differs from line one in every scenario,
