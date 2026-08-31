@@ -12,14 +12,15 @@ here today:
 | `styles/AgenticWriting/` | the rules, one file per checkable rule |
 | `styles/config/vocabularies/` | terms this repository accepts, and their casing |
 | `scripts/` | the generator for the section rules, and the gates |
-| `anchors/` | the registry of public standards, and a page per anchor |
+| `anchors/` | the registry of public standards, and one page per anchor so far |
 | `coverage/` | which topics of each standard the rules reach, and which they miss |
 | `CONTRACT.md` | the contract itself: the anchors, and the rules with no public prior |
 | `templates/` | the spec template, and the upstream baseline it forked from |
 
 What arrives next, in order:
 
-1. the anchor registry, the anchor pages, and the coverage manifest
+1. the generated section rules and the manifest they come from
+2. the anchor registry, the anchor pages, and the coverage manifest
 3. the contract, and the spec template it governs
 4. the gates that hold the registry and the contract to their own claims
 5. the four test harnesses
@@ -29,7 +30,7 @@ What arrives next, in order:
 ## Running it
 
 ```sh
-vale sync                                    # fetch write-good, not committed
+vale sync                  # fetch write-good, which is not committed
 vale --no-global writing                     # what CI checks today
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
