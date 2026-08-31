@@ -140,9 +140,9 @@ compliant.
 A specification uses Spec Kit's filenames and its spec template. Nine deltas apply to
 that template, each fixing something upstream leaves to the author.
 
-`check-template-deltas.sh` asserts all nine, in ten checks: the anchor row takes
-two, one for the heading and one for the *does not cover* column, because the
-column is the half Principle V makes load-bearing. The count matters. The opening line of this
+`check-template-deltas.sh` asserts all nine, in ten checks. The anchor row takes
+two: one for the heading, one for the *does not cover* column. Principle V makes
+that column the load-bearing half. The count matters. The opening line of this
 file says a convention absent from this file is not adopted. A delta the gate enforces and
 this table omits is therefore a rule nobody agreed to.
 
