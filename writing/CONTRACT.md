@@ -240,8 +240,8 @@ and the table does not name it, because this contract states ASD-STE100 directly
 Two gates hold these lists, and neither has landed. `check-admission.sh` counts the
 grandfathered names, compares that list against `main`, and holds an `admitted` anchor to
 all four artifacts. `check-contract-anchors.sh` holds `unregistered.txt`. A name this
-contract cites that is in neither the registry nor that file fails. So does a name there
-that has since earned an entry. The file may not gain a line against `main`.
+contract cites that is in neither the registry nor that file fails. A name there that has
+since earned an entry fails too. The file may not gain a line against `main`.
 
 Both arrive later in this series, and each list says the same at its head. Until they
 land the rule stands on review, and a line added to either file rather than removed goes
