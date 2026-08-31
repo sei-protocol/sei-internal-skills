@@ -56,7 +56,11 @@ require '^### Requirement [0-9]+:'  'requirements carry their own criteria, so n
 require '^\*\*Objective:\*\*'       'names the beneficiary, not only the behaviour'
 require '^\*\*Traces to:\*\*'       'every requirement points back at the story it serves'
 require '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on'
-require 'SHALL'                     'EARS and RFC 2119 agree only on the uppercase spelling'
+# ANCHORED TO A CRITERION, NOT TO THE WORD. An unanchored `SHALL` matched the
+# paragraph above the criteria that explains SHALL, so deleting all five EARS
+# lines left the marker satisfied by the sentence describing them. This wants a
+# numbered item that ends in a SHALL clause, which is what the delta actually is.
+require '^[0-9]+[.)] .*\bSHALL\b' 'EARS and RFC 2119 agree only on the uppercase spelling'
 require '^\*Verifier:\*|^  \*Verifier:\*' 'a criterion nothing checks is a wish'
 
 # COMPARE THE BODIES, NOT THE FILES. `cmp -s "$T" "$U"` could never fire: the

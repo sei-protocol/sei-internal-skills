@@ -115,8 +115,12 @@ compliant.
 
 ## The spec contract
 
-A specification uses Spec Kit's filenames and its spec template. Five deltas apply to
+A specification uses Spec Kit's filenames and its spec template. Nine deltas apply to
 that template, each fixing something upstream leaves to the author.
+
+`check-template-deltas.sh` asserts all nine. The count matters: the third principle
+above says a convention absent from this file is not adopted, and four of these were
+missing from the table while CI failed on them.
 
 | Delta | In | Fixes |
 |---|---|---|
@@ -125,6 +129,10 @@ that template, each fixing something upstream leaves to the author.
 | `## Boundary Context` | `spec.md` | A spec with no stated boundary grows while open |
 | `**Objective:** As a <role>, I want <X>, so that <Y>` | each requirement | Names the beneficiary; prevents an orphan requirement |
 | EARS with a named actor — `THE Controller SHALL` | each requirement | `System MUST` names no actor |
+| `### Requirement N:` | `spec.md` | upstream carries a flat list, so criteria have no owner |
+| `**Traces to:**` | each requirement | a requirement that serves no story is an orphan |
+| `#### Acceptance Criteria` | each requirement | the heading EARS-CriterionShall keys on |
+| `*Verifier:*` | each success criterion | a criterion nothing checks is a wish |
 
 `writing/scripts/check-template-deltas.sh` asserts all five, and CI runs it.
 
@@ -188,9 +196,12 @@ and a catalogue that grows by naming becomes a list of things nobody checks.
    A rule that fires often starts at `warning`, and the number says which.
 
 The registry marks every anchor that predates this rule `grandfathered`, and
-`writing/anchors/grandfathered.txt` lists them. They are exempt, and the gate counts them. The
-list only shrinks. CI compares it against `main` and fails on a line that was not there
-before. An anchor marked `admitted` must satisfy all four, and CI enforces it.
+`writing/anchors/grandfathered.txt` lists them. They are exempt, and the list only shrinks.
+
+The gate that counts them, compares the list against `main`, and holds an `admitted`
+anchor to all four artifacts is `check-admission.sh`. It arrives later in this series,
+and that file says the same at its head. Until it lands the rule stands on review, and a
+line added here rather than removed goes unnoticed.
 
 This is what keeps the slope from being a slope. The same four artifacts bound the next
 anchor, or it does not go in.
