@@ -287,10 +287,11 @@ func scoutSchema() string {
 	return strings.Join([]string{
 		"read is the line count the command above printed, and 0 if you never got the",
 		"diff. It is how the reader after you tells a clean reading from a failed one,",
-		"so it is not optional and not an estimate.",
+		"so it is not optional and not an estimate. The placeholder below is the shape,",
+		"not a value to copy.",
 		"",
 		"```json",
-		`{"read": 0,`,
+		`{"read": <line count>,`,
 		` "findings": [{"file": "path", "line": 0, "severity": "high|medium|low",`,
 		`               "detail": "what is wrong and why it matters"}]}`,
 		"```",

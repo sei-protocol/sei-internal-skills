@@ -20,10 +20,16 @@
 //
 // # One session per unit of work
 //
-// The unit of work is not a run. A session is opened on the first dispatch and
-// adopted by every later one, so the agent's memory of the tree survives between
-// invocations and a second-pass prompt can ask what changed rather than asking
-// again. The run key is a label on the session, so it outlives the runner.
+// The unit of work is not a run. A session is opened on the first dispatch and adopted by
+// every later one, so a second-pass prompt can ask what changed rather than briefing the
+// agent again. The run key is a label on the session, so it outlives the runner.
+//
+// What survives is the conversation: the checklist, the output rules, and the findings the
+// agent wrote with the reasoning behind them. The tree does not, and is not meant to --
+// the adopted prompt re-fetches the diff and re-clones the tree on every dispatch, and
+// deletes the tree if it cannot bring it current, because memory of a moved pull request
+// is wrong rather than merely stale. Reusing the session is worth its cost only if the
+// prompt then declines to re-send what the session holds; see [xreview.AdoptedPrompt].
 //
 // For the first workload that unit is a pull request. The vocabulary here stays
 // neutral because nothing in this package depends on which it is — only that two
