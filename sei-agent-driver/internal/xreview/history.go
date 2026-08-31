@@ -145,8 +145,9 @@ func threadUpdateStep(req Request) []string {
 	// so capping first spends the whole budget on unmoved open threads and then discards
 	// them here -- on a busy pull request that returns nil and the session is never told
 	// about a resolution it has no other way to learn of.
+	all := collapseRepeats(req.PriorThreads)
 	var changed []PriorThread
-	for _, t := range collapseRepeats(req.PriorThreads) {
+	for _, t := range all {
 		if t.Resolved || len(t.Replies) > 0 {
 			changed = append(changed, t)
 		}
@@ -168,11 +169,16 @@ func threadUpdateStep(req Request) []string {
 	// refuses renders as the same "no place" string for every one of them. Where the
 	// rendered location repeats, the body comes back to say which finding the reply or the
 	// resolution belongs to; where it does not, the session already knows.
-	rendered := make([]string, len(changed))
+	// Counted over every thread, not only the ones with activity. The session holds the
+	// silent siblings too, so a location shared with one of them is just as ambiguous --
+	// and counting only the delta reports it as unique and drops the discriminator.
 	repeats := map[string]int{}
+	for _, t := range all {
+		repeats[promptLocation(req, t.File, t.Line)]++
+	}
+	rendered := make([]string, len(changed))
 	for i, t := range changed {
 		rendered[i] = promptLocation(req, t.File, t.Line)
-		repeats[rendered[i]]++
 	}
 
 	for i, t := range changed {

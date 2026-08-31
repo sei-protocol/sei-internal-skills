@@ -422,3 +422,28 @@ func TestAUniqueLocationDropsItsBody(t *testing.T) {
 		}
 	}
 }
+
+// TestASilentSiblingStillForcesTheBody covers the ambiguity the delta cannot see.
+//
+// Two findings share a location and only one has activity. Counting repeats over the delta
+// alone reports that location as unique and drops the discriminator — but the session holds
+// the silent sibling too, so it has two findings there and no way to tell which one moved.
+func TestASilentSiblingStillForcesTheBody(t *testing.T) {
+	t.Parallel()
+
+	out := strings.Join(threadUpdateStep(Request{Repo: "o/r", PR: 42, PriorThreads: []PriorThread{
+		{File: "a.go", Line: 9, Body: "unbounded retry", Replies: []string{"handled"}},
+		// Same location, nothing happened to it. Absent from the delta, present in session.
+		{File: "a.go", Line: 9, Body: "no timeout either"},
+	}}), "\n")
+
+	if !strings.Contains(out, "unbounded retry") {
+		t.Errorf("the moved thread shares its location with a silent sibling and ships "+
+			"without its body, so the session cannot tell which finding the reply is "+
+			"about:\n%s", out)
+	}
+	if strings.Contains(out, "no timeout either") {
+		t.Error("the silent sibling is listed; only the delta belongs in the list, and it " +
+			"is there to be counted, not shown")
+	}
+}
