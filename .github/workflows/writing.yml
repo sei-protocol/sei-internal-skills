@@ -27,6 +27,14 @@ jobs:
 
       # 3.17.1 is a floor, not a preference. On 3.14.0 a `sequence` whose tokens
       # are all `tag:` entries matches nothing, which silently disables a rule.
+      # writing/scripts/generate-mode-rules.py imports yaml. The step passes on
+      # today's runner image because it happens to ship PyYAML; that is luck,
+      # not a declared dependency, and it changes without notice.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pyyaml
+
       - name: Install Vale
         run: |
           VALE_VERSION=3.17.1
@@ -41,6 +49,12 @@ jobs:
       # rules fail to load and the failure reads as a broken configuration.
       - name: Fetch the third-party style packages
         run: vale sync
+
+      # The eighteen section rules are generated from writing/scripts/modes.yaml.
+      # A hand edit is worse than a hand-written rule: the next generator run
+      # reverts it in silence.
+      - name: The generated section rules match their manifest
+        run: ./writing/scripts/check-generated-rules.sh
 
       - name: Confirm the styles load
         run: vale ls-config
