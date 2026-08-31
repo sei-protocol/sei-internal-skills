@@ -59,8 +59,12 @@ jobs:
       - name: Confirm the styles load
         run: vale ls-config
 
-      # --no-global: a runner has no user-level Vale config and a laptop does, so
-      # without it the two disagree about which rules ran.
+      # Running the Spec Kit CLI rewrites its bundled assets, which would take
+      # the fork's deltas with it. The fork lives away from those paths and this
+      # asserts each delta is still present.
+      - name: Spec template still carries its deltas
+        run: ./writing/scripts/check-template-deltas.sh
+
       # The coverage manifest says what each anchor actually checks. A claim
       # nobody verifies is how one anchor came to credit rules that check
       # something else, so the manifest is enforced rather than trusted.
@@ -81,6 +85,19 @@ jobs:
           fail_level: error
           level: warning
           files: '["writing"]'
-          # --glob: writing/styles/write-good is a fetched package and its README
-          # is not this repository's prose to fix.
-          vale_flags: '--no-global --glob=!writing/styles/write-good/**'
+          # --no-global: a runner has no user-level Vale config and a laptop
+          # does, so without it the two disagree about which rules ran.
+          #
+          # ONE --glob. Vale takes a single glob expression and keeps the last
+          # occurrence, so a second flag silently drops the first. The brace form
+          # is one expression and Vale expands it; the pinned action reaches Vale
+          # without a shell, so nothing else expands it first. It is a node
+          # action: it splits vale_flags itself on whitespace, honouring quotes
+          # and nothing else, then spawns Vale with an argv array.
+          #
+          # write-good is a fetched package. spec-template.upstream.md is Spec
+          # Kit's own text, carried unedited so check-template-deltas.sh can
+          # compare the fork's body against it.
+          vale_flags: >-
+            --no-global
+            --glob=!{writing/styles/write-good/**,writing/templates/spec-template.upstream.md}

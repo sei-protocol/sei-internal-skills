@@ -170,6 +170,14 @@ anchors:
       rules:
         - AgenticWriting.EARS-CriterionShall
       not_checkable:
+        - "The WHERE template reads 'WHERE <feature is included>', a passive by
+          construction. Rewriting the clause would misstate the standard, so on a
+          real specification STE-Passive reports it and the finding stays, at
+          warning. writing/templates/spec-template.md suppresses the rule around
+          its five placeholder criteria, because those lines are Mavin's wording
+          rather than this repository's prose; the template tells the author to
+          delete that directive with the placeholders, so an author's own WHERE
+          criteria carry the warning."
         - "Whether the chosen template matches the real requirement class."
         - "Whether the response is observable."
         - "Whether the actor named before SHALL is the system that acts."
