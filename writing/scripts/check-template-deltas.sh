@@ -26,13 +26,23 @@ fail=0
 # inside it. Stripping every EARS criterion and every *Verifier:* from the body
 # still passed. Everything from the first Markdown heading onward is the
 # template; the block above it explains the template and cannot satisfy it.
+# Strip a LEADING HTML comment, and only a leading one. Both templates carry
+# `-->` further down inside their own examples, so cutting at the first one found
+# anywhere would silently drop the top of a file that has no header. The fork has
+# a header and upstream does not, which is why this takes a file argument and
+# both sides go through it: an asymmetric extraction compares two different
+# things and stops comparing the moment either file changes shape.
 body() {
-  # Everything after the fork header, which is one HTML comment ending in `-->`.
-  awk 'skip { print; next } /^-->[[:space:]]*$/ { skip = 1 }' "$T"
+  awk '
+    NR == 1 && $0 !~ /^<!--/ { passthrough = 1 }
+    passthrough { print; next }
+    started { print; next }
+    /^-->[[:space:]]*$/ { started = 1 }
+  ' "$1"
 }
 
 require() {  # $1 = grep -E pattern, $2 = why it exists
-  if ! body | grep -qE "$1"; then
+  if ! body "$T" | grep -qE "$1"; then
     echo "MISSING from $T: $1"
     echo "    why: $2"
     fail=1
@@ -58,7 +68,7 @@ require '^\*Verifier:\*|^  \*Verifier:\*' 'a criterion nothing checks is a wish'
 # Stripping the fork header makes the comparison the one that matters. A re-init
 # that overwrites the fork leaves a body identical to upstream's, which is
 # exactly the reversion this file exists to catch.
-if diff -q <(body) <(cat "$U") >/dev/null 2>&1; then
+if diff -q <(body "$T") <(body "$U") >/dev/null 2>&1; then
   echo "$T has the same body as upstream — the deltas are gone"
   fail=1
 fi
