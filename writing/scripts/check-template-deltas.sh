@@ -10,8 +10,15 @@
 # green.
 #
 # This does three things. It asserts each delta is still present, as a marker
-# check rather than a diff, so the wording inside a section is free to change and
-# the section is not. It compares the fork's body against the pinned upstream
+# check rather than a diff. Five of the ten checks read a section heading --
+# Semantic Anchors, Glossary, Boundary Context, Requirement N, and Acceptance
+# Criteria -- and prose under such a heading is free to change.
+#
+# The other five read text, and that text is not free. The Objective's
+# `As a ... I want ... so that ...` sentence, the EARS criterion's
+# `THE <actor> SHALL`, the `**Traces to:**` label, the `*Verifier:*` label, and a
+# filled does-not-cover cell are each a delta CONTRACT.md states in that form.
+# Rewording one is changing the delta, so change the contract in the same edit. It compares the fork's body against the pinned upstream
 # baseline, which is the re-init reversion itself. It runs Vale's spec rules
 # against that body, because the template is the spec contract's only worked
 # example and .vale.ini scopes those rules to specs/**/spec.md.
