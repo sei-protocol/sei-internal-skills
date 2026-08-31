@@ -51,10 +51,21 @@ script: |
   highest := -1
   highestName := ""
 
+  in_fence := false
+
   for line in text.split(scope, "\n") {
-    if text.has_prefix(line, "## ") {
+    // A heading quoted inside a fence is not structure. Without this, a design
+    // document that pastes the arc42 template to explain the ordering reports an
+    // error-level order finding against its own example. The two sibling script
+    // rules already tracked the fence; this one did not.
+    if text.re_match(`^[ ]{0,3}(?:`+"```"+`|~~~)`, line) {
+      in_fence = !in_fence
+    } else if !in_fence && text.re_match(`^[ ]{0,3}#{2,}[ \t]+`, line) {
       // Strip the marker, any leading section number, and surrounding space.
-      h := text.trim_space(text.trim_prefix(line, "##"))
+      // Strip indentation and the marker itself, which may be any depth. The
+      // first version trimmed a literal "##" at column zero, so an indented
+      // heading kept its spaces and matched no section name.
+      h := text.re_replace(`^[ ]{0,3}#+[ \t]+`, line, "")
       h = text.re_replace("^[0-9]+(\\.[0-9]+)*\\.?[[:space:]]*", h, "")
       h = text.to_lower(text.trim_space(h))
 

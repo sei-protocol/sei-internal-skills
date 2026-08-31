@@ -54,7 +54,12 @@ script: |
       in_fence = !in_fence
     } else if !in_fence {
       is_head := text.re_match(`^[ \t]*#+[ \t]`, line)
-      is_item := text.re_match(`^[0-9]+[.)][ \t]`, line)
+      // Bullets and indentation count. is_head and is_blank both tolerated
+      // leading whitespace while this one demanded a digit at column zero, so a
+      // criterion written as a bullet, or nested under one, was never opened as
+      // an item. The rule then reported success on a section it had not read,
+      // which is the silent no-op this whole toolkit exists to prevent.
+      is_item := text.re_match(`^[ \t]*(?:[0-9]+[.)]|[-*+])[ \t]`, line)
       is_blank := text.re_match(`^[ \t]*$`, line)
 
       if open && (is_head || is_item || is_blank) {
