@@ -21,6 +21,27 @@ fail=0
 [ -f "$T" ] || { echo "missing $T"; exit 1; }
 [ -f "$U" ] || { echo "missing $U — the fork is no longer diffable"; exit 1; }
 
+# THE BASELINE IS PINNED, BECAUSE THE REVERSION CHECK TRUSTS IT. That check fires
+# only on byte-identical bodies, so one edited character in $U means the two can
+# never match again and the comparison goes quiet for good -- no error, no
+# output, exit 0. Pinning turns a silent disable into a failure.
+#
+# $U is github/spec-kit templates/spec-template.md at 756d632. Refreshing the
+# baseline means replacing the file, updating this digest and the note at the
+# head of the fork, and re-reading the delta table: upstream may have adopted a
+# delta, which retires the row.
+UPSTREAM_SHA256=3945437fc35cd30a5b2bf7beea680337c3516826d3efa5a6b92c4a7eca1ba28e
+actual=$(shasum -a 256 "$U" 2>/dev/null | cut -d' ' -f1 \
+         || sha256sum "$U" | cut -d' ' -f1)
+if [ "$actual" != "$UPSTREAM_SHA256" ]; then
+  echo "$U does not match its pinned digest"
+  echo "    expected: $UPSTREAM_SHA256"
+  echo "    actual:   $actual"
+  echo "    why: the reversion check compares against this file, and an edited"
+  echo "         baseline disables that check instead of failing it"
+  exit 1
+fi
+
 # THE HEADER COMMENT IS NOT THE TEMPLATE. Everything from the first Markdown
 # heading onward is the template; the block above it explains the template and
 # names every delta, so a marker matched inside the header is satisfied by prose
