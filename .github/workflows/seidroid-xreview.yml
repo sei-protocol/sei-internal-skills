@@ -64,7 +64,7 @@ on:
           green, because it resolves a pin the proxy may never have served.
         required: false
         type: string
-        default: '41cb9f18183fd6f1e856c2df56c09b7a481a4738'
+        default: '9a6922803c4ef764edd6e8adfacbae0899607e06'
       allowed-team:
         description: >-
           org/team-slug whose active members may ask for a review. Empty keeps the
