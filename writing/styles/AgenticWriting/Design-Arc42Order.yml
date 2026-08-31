@@ -60,12 +60,16 @@ script: |
     // rules already tracked the fence; this one did not.
     if text.re_match(`^[ ]{0,3}(?:`+"```"+`|~~~)`, line) {
       in_fence = !in_fence
-    } else if !in_fence && text.re_match(`^[ ]{0,3}#{2,}[ \t]+`, line) {
+    // LEVEL TWO ONLY. arc42 sections are `##` in this template, and widening
+    // this to `#{2,}` scored a nested `### Constraints` as the top-level
+    // Architecture Constraints section, reporting an order finding against a
+    // valid outline. Indentation is tolerated; depth is not.
+    } else if !in_fence && text.re_match(`^[ ]{0,3}##[ \t]+`, line) {
       // Strip the marker, any leading section number, and surrounding space.
       // Strip indentation and the marker itself, which may be any depth. The
       // first version trimmed a literal "##" at column zero, so an indented
       // heading kept its spaces and matched no section name.
-      h := text.re_replace(`^[ ]{0,3}#+[ \t]+`, line, "")
+      h := text.re_replace(`^[ ]{0,3}##[ \t]+`, line, "")
       h = text.re_replace("^[0-9]+(\\.[0-9]+)*\\.?[[:space:]]*", h, "")
       h = text.to_lower(text.trim_space(h))
 
