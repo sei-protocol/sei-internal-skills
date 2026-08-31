@@ -118,7 +118,7 @@ compliant.
 A specification uses Spec Kit's filenames and its spec template. Nine deltas apply to
 that template, each fixing something upstream leaves to the author.
 
-`check-template-deltas.sh` asserts all nine. The count matters: the third principle
+`check-template-deltas.sh` asserts all nine. The count matters. The third principle
 above says a convention absent from this file is not adopted, and four of these were
 missing from the table while CI failed on them.
 
