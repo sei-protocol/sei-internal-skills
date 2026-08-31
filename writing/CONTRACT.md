@@ -174,8 +174,9 @@ gate that asserts it arrives later in the series; today it stands on review.
 
 **Every user story carries four things** — priority, why this priority, an Independent
 Test, and acceptance scenarios. The generator builds a ticket from them, and it cannot
-invent what the story omitted. `Spec-IndependentTest` checks that the words
-`**Independent Test**` appear once in `spec.md`. The other three stand on review.
+invent what the story omitted. `Spec-IndependentTest` checks that
+`**Independent Test**` appears at least once in `spec.md`. Whether every story
+carries one stands on review, along with the other three.
 
 **Every task carries five** — a test-first instruction, an `Observable:` check,
 `_Requirements:_` upward, `_Boundary:_`, and `_Depends:_`. No structure rule reads a
