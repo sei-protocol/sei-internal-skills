@@ -9,8 +9,12 @@
 # finding them, EARS-CriterionShall would check nothing, and the gate would go
 # green.
 #
-# This asserts each delta is still present. It is a marker check, not a diff:
-# the wording inside a section is free to change, the section is not.
+# This does three things. It asserts each delta is still present, as a marker
+# check rather than a diff, so the wording inside a section is free to change and
+# the section is not. It compares the fork's body against the pinned upstream
+# baseline, which is the re-init reversion itself. It runs Vale's spec rules
+# against that body, because the template is the spec contract's only worked
+# example and .vale.ini scopes those rules to specs/**/spec.md.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/../.."
 
