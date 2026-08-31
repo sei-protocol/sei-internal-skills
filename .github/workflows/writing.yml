@@ -89,10 +89,15 @@ jobs:
           # does, so without it the two disagree about which rules ran.
           #
           # ONE --glob. Vale takes a single glob expression and keeps the last
-          # occurrence, so a second flag silently drops the first. write-good is
-          # a fetched package; spec-template.upstream.md is Spec Kit's own text,
-          # carried unedited so check-template-deltas.sh can compare the fork's
-          # body against it.
+          # occurrence, so a second flag silently drops the first. The brace form
+          # is one expression and Vale expands it; the pinned action reaches Vale
+          # without a shell, so nothing else expands it first. It is a node
+          # action: it splits vale_flags itself on whitespace, honouring quotes
+          # and nothing else, then spawns Vale with an argv array.
+          #
+          # write-good is a fetched package. spec-template.upstream.md is Spec
+          # Kit's own text, carried unedited so check-template-deltas.sh can
+          # compare the fork's body against it.
           vale_flags: >-
             --no-global
             --glob=!{writing/styles/write-good/**,writing/templates/spec-template.upstream.md}

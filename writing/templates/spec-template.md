@@ -4,6 +4,14 @@ Keeping the fork visible matters: `specify` overwrites this on re-init, and a
 silent overwrite would take the deltas with it. The pristine copy sits beside
 this one as spec-template.upstream.md, so the fork is diffable.
 
+The baseline is github/spec-kit, templates/spec-template.md, at commit
+756d63212987152564ed0a52ddfd7f8e9b504e09 (2026-05-12).
+https://github.com/github/spec-kit/blob/756d632/templates/spec-template.md
+check-template-deltas.sh diffs this body against that copy, so the copy is
+load-bearing and the revision it came from belongs on the record. Refreshing it
+means replacing spec-template.upstream.md, updating this line, and re-reading
+the delta table: upstream may have adopted a delta, which retires the row.
+
 Deltas, and the reason for each:
 
   ## Semantic Anchors      Methods named once. Without it the body restates
@@ -64,7 +72,7 @@ What this specification is inside, and what it is not responsible for.
 
 ## User Scenarios & Testing *(mandatory)*
 
-Order stories by priority. Each must be independently testable: implementing
+Order stories by priority. Each story stands as an independent test: implementing
 only that one still leaves something usable.
 
 ### User Story 1 - [Brief Title] (Priority: P1)

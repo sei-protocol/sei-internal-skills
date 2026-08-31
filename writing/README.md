@@ -19,13 +19,10 @@ here today:
 
 What arrives next, in order:
 
-1. the generated section rules and the manifest they come from
-2. the anchor registry, the anchor pages, and the coverage manifest
-3. the contract, and the spec template it governs
-4. the gates that hold the registry and the contract to their own claims
-5. the four test harnesses
-6. the consumer install path
-7. the specifications that describe the whole thing
+1. the gates that hold the registry and the contract to their own claims
+2. the four test harnesses
+3. the consumer install path
+4. the specifications that describe the whole thing
 
 ## Running it
 

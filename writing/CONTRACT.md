@@ -48,11 +48,14 @@ carries what it does **not** cover, and a partial verdict keeps its stated text 
 Name one from this table. **Naming an anchor absent from it is forbidden** — a
 confabulated method name reads authoritative and costs more than plain prose.
 
-**No anchor here carries a recorded verdict yet, and the suite that would produce one
-is not built.** No suite exists to produce one, and none of this repository's gates
-claims otherwise.
-Until a verdict exists, treat a surprising output as the anchor failing rather than the
-model disagreeing.
+**No anchor here carries a recorded verdict, and the suite that would produce one is not
+built.** Until a verdict exists, treat a surprising output as the anchor failing rather
+than the model disagreeing.
+
+This table therefore predates Principle II and stands on review, not on evidence. `ears`
+is the one registry entry marked `admitted`, and its `verified` list is empty, so it does
+not meet the precondition Principle II states. The registry grandfathers the other seven
+entries, which exempts them. The next anchor admitted needs the recognition verdict.
 
 | Anchor | Governs | Does not cover |
 |---|---|---|
@@ -107,14 +110,16 @@ anything another system comes to depend on.
 
 ## Writing modes
 
-Four artifacts carry a structure contract. Ordinary prose carries the prose rules only.
+Five artifacts carry a structure contract. Ordinary prose carries the prose rules only.
+Every rule named below runs at `error`, and `.vale.ini` holds the paths.
 
 | Artifact | Path | Gate checks |
 |---|---|---|
-| Design | `docs/design/**` | Non-goals, Alternatives, Trade-offs, Open questions |
-| Spec | `specs/**` | Semantic Anchors, Success Criteria, Independent Test |
-| Ticket | `tickets/**` | the seven sections of the body |
-| Procedure | `docs/procedures/**` | 20-word sentences, imperative steps |
+| Spec | `specs/**/spec.md` | Semantic Anchors, Success Criteria, Independent Test, Acceptance Criteria, an EARS criterion, uppercase RFC 2119 keywords |
+| Design | `{docs/design/**/*.md,designs/**/*.md}` | Non-goals, Alternatives, Trade-offs, Open questions, arc42 section order |
+| ADR | `docs/adr/*.md` | Status, Context, Decision, Consequences |
+| Ticket | `tickets/**/*.md` | the seven sections of the body |
+| Procedure | `docs/procedures/**/*.md` | 20-word sentences, imperative steps |
 
 Run `vale <path>`. Exit code 0 means "no finding at or above the gate". It does not mean
 compliant.
@@ -124,9 +129,9 @@ compliant.
 A specification uses Spec Kit's filenames and its spec template. Nine deltas apply to
 that template, each fixing something upstream leaves to the author.
 
-`check-template-deltas.sh` asserts all nine. The count matters. The third principle above says a convention
-absent from this file is not adopted. Four of these were missing from the table while
-CI failed on them.
+`check-template-deltas.sh` asserts all nine. The count matters. The third principle above
+says a convention absent from this file is not adopted. A delta the gate enforces and this
+table omits is therefore a rule nobody agreed to.
 
 | Delta | In | Fixes |
 |---|---|---|
@@ -141,11 +146,10 @@ CI failed on them.
 | `*Verifier:*` | each success criterion | a criterion nothing checks is a wish |
 
 
-**Three deltas for `plan.md` used to sit in this table** — Boundary Commitments,
-Revalidation Triggers, Existing Architecture Analysis. No plan template ever carried
-them. The gate reads `spec-template.md` only, so nothing caught the claim. This
-table drops the three rather than making them true after the fact. To restore one,
-write the section into a plan template and add the row back in the same change.
+**This table covers `spec.md` alone.** `check-template-deltas.sh` reads
+`spec-template.md` and no other template, so a row for a plan template would state a
+delta no gate checks. To add one, write the section into a plan template and extend the
+gate to read that template, in the change that adds the row.
 
 **Every success criterion names its verifier.** `SC-002 … Verifier: gorelease in CI`.
 A criterion nothing checks says `judgement`. An unmarked criterion is not honest.
@@ -200,8 +204,15 @@ and a catalogue that grows by naming becomes a list of things nobody checks.
 4. **A false-positive count** — measured over a corpus before any rule reaches `error`.
    A rule that fires often starts at `warning`, and the number says which.
 
-The registry marks every anchor that predates this rule `grandfathered`, and
+The registry holds eight entries. Seven carry `admission: grandfathered` and
 `writing/anchors/grandfathered.txt` lists them. They are exempt, and the list only shrinks.
+`ears` is the eighth and the only one marked `admitted`.
+
+The anchor table above names nineteen. Seven of them hold a registry entry. The other
+twelve hold none, and `writing/anchors/unregistered.txt` names all twelve. That file
+records the debt rather than implying it. A name leaves it by earning an entry with the
+four artifacts above, in the change that deletes its line. `asd-ste100` holds an entry
+and the table does not name it, because this contract states ASD-STE100 directly.
 
 The gate that counts them, compares the list against `main`, and holds an `admitted`
 anchor to all four artifacts is `check-admission.sh`. It arrives later in this series,
