@@ -57,6 +57,11 @@ is the one registry entry marked `admitted`, and its `verified` list is empty, s
 not meet the precondition Principle II states. The registry grandfathers the other seven
 entries, which exempts them. The next anchor admitted needs the recognition verdict.
 
+<!-- Every cell in the first column is a citation title. STE-NounCluster reads a
+     title as a noun cluster and cannot judge one, and the rule file names this
+     directive as the escape hatch for that case. It covers the table alone. -->
+<!-- vale AgenticWriting.STE-NounCluster = NO -->
+
 | Anchor | Governs | Does not cover |
 |---|---|---|
 | EARS | requirement syntax | whether the template fits the real class |
@@ -78,6 +83,8 @@ entries, which exempts them. The next anchor admitted needs the recognition verd
 | Go Code Review Comments | review-time Go checklist | design-level structure |
 | Google Go Style Guide | normative Go rulings | this repository's own patterns |
 | Code Smells | surface signs of design trouble | whether the fix is worth it |
+
+<!-- vale AgenticWriting.STE-NounCluster = YES -->
 
 **Clean Architecture carries a documented criticism.** Bogard and Comartin argue the
 indirection does not pay, because most changes traverse every layer anyway. It also

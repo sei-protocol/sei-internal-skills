@@ -32,7 +32,8 @@ Deltas, and the reason for each:
 Write SHALL in uppercase. It satisfies EARS and RFC 2119 at once, and both run
 at error on this path.
 
-Delete every bracketed placeholder and this comment before the spec ships.
+Delete every bracketed placeholder, the two `vale` directives around the EARS
+list, and this comment before the spec ships.
 -->
 
 # Feature Specification: [FEATURE NAME]
@@ -122,11 +123,19 @@ orphan and no criterion floats free of a requirement.
 Write each one in an EARS template. All five end in THE [system] SHALL
 [response]. Uppercase SHALL.
 
+<!-- The five lines below are the EARS templates in Mavin's wording. 'feature is
+     included' is his, and rewriting it to satisfy the passive rule would misteach
+     the anchor this template exists to teach. Delete this directive with the
+     placeholder criteria: your own criteria carry no such exemption. -->
+<!-- vale AgenticWriting.STE-Passive = NO -->
+
 1. WHEN [trigger], THE [system] SHALL [response].
 2. WHILE [state], THE [system] SHALL [response].
 3. IF [unwanted condition], THEN THE [system] SHALL [response].
 4. WHERE [feature is included], THE [system] SHALL [response].
 5. THE [system] SHALL [response].
+
+<!-- vale AgenticWriting.STE-Passive = YES -->
 
 ### Requirement 2: [Name]
 
