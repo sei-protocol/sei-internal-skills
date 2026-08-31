@@ -292,3 +292,44 @@ func TestCollapsedFindingSurvivesOnItsLatestMention(t *testing.T) {
 		t.Errorf("the reply merged from the recent copy is missing: %+v", kept)
 	}
 }
+
+// TestTheDeltaIsFilteredBeforeItIsCapped covers the ordering, which is invisible until a
+// pull request is busy.
+//
+// selectThreads orders unresolved-first, so capping before filtering spends the whole
+// budget on open threads that carry no activity and are then dropped. On a pull request
+// with more unmoved open findings than the cap, that returns nothing at all — and a
+// resolution is the one thing the session has no other way to learn about, since it
+// happened on GitHub rather than in the conversation.
+//
+// The fixture is deliberately past the cap. Under the cap the two orderings agree, which
+// is why this was not visible in the other tests.
+func TestTheDeltaIsFilteredBeforeItIsCapped(t *testing.T) {
+	t.Parallel()
+
+	var threads []PriorThread
+	for i := 0; i < maxPriorThreads+2; i++ {
+		threads = append(threads, PriorThread{
+			File: fmt.Sprintf("open%d.go", i), Line: i + 1, Body: "an open finding",
+		})
+	}
+	threads = append(threads,
+		PriorThread{File: "done.go", Line: 7, Body: "was raised", Resolved: true},
+		PriorThread{File: "answered.go", Line: 9, Body: "was raised", Replies: []string{"handled in 9c2"}},
+	)
+
+	out := strings.Join(threadUpdateStep(Request{Repo: "o/r", PR: 42, PriorThreads: threads}), "\n")
+
+	if out == "" {
+		t.Fatal("no delta at all: the cap was spent on threads with no activity and they " +
+			"were then filtered away, so the session is told nothing happened")
+	}
+	for _, want := range []string{"[resolved]", "done.go:7", "answered.go:9", "handled in 9c2"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the delta does not carry %q", want)
+		}
+	}
+	if strings.Contains(out, "open0.go") {
+		t.Error("the delta carries an unmoved open thread; the budget belongs to activity")
+	}
+}

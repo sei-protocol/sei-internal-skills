@@ -404,10 +404,6 @@ func bucketRules() []string {
 		"Severity for an inline comment is blocker, suggestion or nit. Do not prefix",
 		"the body with it; it is a field, and it gets rendered once.",
 		"",
-		"read is the line count the diff command printed, and 0 if you never got the",
-		"diff. It is how this tool tells a review of the change from a review of",
-		"nothing, so it is not optional and not an estimate.",
-		"",
 		"decision is request_changes if anything blocks, comment if there are only",
 		"non-blocking notes, and approve if you found nothing at all. Use [] for a",
 		"bucket with nothing in it:",
@@ -422,13 +418,24 @@ func bucketRules() []string {
 // session and already holds the sorting rules from its first turn -- re-sending them is
 // what [AdoptedPrompt] exists not to do. But the block is the one rule whose decay is
 // silent: a turn that stops emitting it produces a review nobody sees, because [decides]
-// refuses it and the run exits with [driver.ExitNoVerdict]. Every other rule degrades into
-// a worse review, which a reader can see. So the shape is restated on every dispatch and
-// the prose is not.
+// refuses it and the run exits with [driver.ExitNoVerdict]. So the shape is restated on
+// every dispatch and the sorting prose is not.
+//
+// One field's rule rides along, because read is the second silent decay. A turn that fills
+// in the shape it was handed reports read: 0, [Verdict.readTheDiff] then reads that as a
+// review of nothing, and [Verdict.CheckConclusion] degrades a clean re-review from success
+// to neutral -- a wrong answer with no error anywhere. So the rule travels with the field,
+// and the placeholder is <line count> rather than 0 so that copying the shape cannot
+// produce the sentinel.
 func verdictShape() []string {
 	return []string{
+		"read is the line count the diff command printed, and 0 if you never got the",
+		"diff. It is how this tool tells a review of the change from a review of",
+		"nothing, so it is not optional and not an estimate. The placeholder below is",
+		"the shape, not a value to copy.",
+		"",
 		"```json",
-		`{"read": 0,`,
+		`{"read": <line count>,`,
 		` "decision": "approve" | "comment" | "request_changes",`,
 		` "summary": "one or two sentences",`,
 		` "inline_comments": [{"path": "file", "line": 0, "side": "RIGHT|LEFT",`,

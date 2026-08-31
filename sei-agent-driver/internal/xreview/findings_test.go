@@ -199,15 +199,28 @@ func TestTheVerdictShapeIsOnBothPathsAndTheProseIsNot(t *testing.T) {
 	req := Request{Repo: "sei-protocol/sandbox", PR: 42}
 	first, adopted := BuildPrompt(req), AdoptedPrompt(req)
 
-	// The schema, on both.
+	// The schema, on both -- and the one field rule that rides with it. read is the second
+	// silent decay: a turn that copies the shape it was handed reports read: 0, which reads
+	// as a review of nothing and degrades a clean re-review from success to neutral with no
+	// error anywhere.
 	for name, prompt := range map[string]string{"BuildPrompt": first, "AdoptedPrompt": adopted} {
 		for _, want := range []string{
 			"```json", "inline_comments", "blockers", "non_blockers", "pre_existing_issues",
+			"read is the line count the diff command printed",
 		} {
 			if !strings.Contains(prompt, want) {
 				t.Errorf("%s does not carry %q; a turn that cannot see the block's shape "+
 					"produces a review nobody sees", name, want)
 			}
+		}
+	}
+
+	// And the placeholder is not copyable into the sentinel.
+	for name, prompt := range map[string]string{"BuildPrompt": first, "AdoptedPrompt": adopted} {
+		if strings.Contains(prompt, `"read": 0`) {
+			t.Errorf("%s hands the agent `\"read\": 0` as the shape. Filling that in "+
+				"verbatim reports a review of nothing and silently downgrades the check",
+				name)
 		}
 	}
 

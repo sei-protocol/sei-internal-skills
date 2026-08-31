@@ -244,7 +244,7 @@ func TestBothScoutPromptsCarryTheSchema(t *testing.T) {
 		"ScoutPrompt":        ScoutPrompt(req),
 		"AdoptedScoutPrompt": AdoptedScoutPrompt(req),
 	} {
-		for _, want := range []string{`"read": 0`, `"severity": "high|medium|low"`, "```json"} {
+		for _, want := range []string{`"read": <line count>`, `"severity": "high|medium|low"`, "```json"} {
 			if !strings.Contains(got, want) {
 				t.Errorf("%s does not carry %q", name, want)
 			}
