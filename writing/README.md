@@ -66,7 +66,7 @@ check something else.
 
 ## The contract
 
-`CONTRACT.md` is the file an agent loads before anyone invokes it. It names the
+`CONTRACT.md` is the file to read first. It names the
 anchors, states the rules that have no public prior, and says which gate checks
 what. Read it first; everything else in this directory serves it.
 

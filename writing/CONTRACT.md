@@ -1,8 +1,14 @@
 # agentic-writing Constitution
 
-This file is the contract. It loads in every session with no invocation, and that is
-why a convention here reaches an engineer who is not looking for it. **A convention
-absent from this file is not adopted.**
+This file is the contract. **A convention absent from this file is not adopted.**
+
+Nothing loads it automatically yet. The design is that a session picks it up with no
+invocation, because that is the only way a convention reaches an engineer who is not
+looking for it. `AGENTS.md` gains that pointer later in this series.
+
+Until it does, this file reaches a reader who goes looking. That is the pull model
+Principle IV argues against, so read Principle IV as the target rather than as a
+description of today.
 
 ## Core Principles
 
@@ -134,7 +140,6 @@ CI failed on them.
 | `#### Acceptance Criteria` | each requirement | the heading EARS-CriterionShall keys on |
 | `*Verifier:*` | each success criterion | a criterion nothing checks is a wish |
 
-`writing/scripts/check-template-deltas.sh` asserts all five, and CI runs it.
 
 **Three deltas for `plan.md` used to sit in this table** — Boundary Commitments,
 Revalidation Triggers, Existing Architecture Analysis. No plan template ever carried

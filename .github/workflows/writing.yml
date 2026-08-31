@@ -59,8 +59,6 @@ jobs:
       - name: Confirm the styles load
         run: vale ls-config
 
-      # --no-global: a runner has no user-level Vale config and a laptop does, so
-      # without it the two disagree about which rules ran.
       # Running the Spec Kit CLI rewrites its bundled assets, which would take
       # the fork's deltas with it. The fork lives away from those paths and this
       # asserts each delta is still present.
@@ -87,8 +85,9 @@ jobs:
           fail_level: error
           level: warning
           files: '["writing"]'
-          # --glob: writing/styles/write-good is a fetched package and its README
-          # is not this repository's prose to fix.
+          # --no-global: a runner has no user-level Vale config and a laptop
+          # does, so without it the two disagree about which rules ran.
+          #
           # ONE --glob. Vale takes a single glob expression and keeps the last
           # occurrence, so a second flag silently drops the first. write-good is
           # a fetched package; spec-template.upstream.md is Spec Kit's own text,
