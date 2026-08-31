@@ -14,6 +14,11 @@
 # coverage file; and a measured false-positive count. Delete its line in the
 # same commit that flips it to `admitted`.
 #
+# NOT YET ENFORCED. writing/scripts/check-admission.sh arrives with the harness change,
+# later in this series. Until it lands this file is a record and not a gate:
+# a line could be added here rather than removed and nothing would notice.
+# The claims above describe what the gate will assert, not what runs today.
+#
 # One id per line. A blank line and a # comment are ignored.
 
 adr-nygard

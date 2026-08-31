@@ -12,7 +12,7 @@ here today:
 | `styles/AgenticWriting/` | the rules, one file per checkable rule |
 | `styles/config/vocabularies/` | terms this repository accepts, and their casing |
 | `scripts/` | the generator for the section rules, and the gates |
-| `anchors/` | the registry of public standards, and a page per anchor |
+| `anchors/` | the registry of public standards, and one page per anchor so far |
 | `coverage/` | which topics of each standard the rules reach, and which they miss |
 
 What arrives next, in order:
