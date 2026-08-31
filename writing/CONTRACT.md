@@ -101,6 +101,9 @@ sentence under 20 words and a descriptive one under 25. Keep a noun cluster to a
 three words. Keep code, commands,
 identifiers, and quoted output verbatim.
 
+No gate reads code, so the four conventions in this block stand on review alone. Vale
+lints prose. Principle III asks each to say so, and this sentence says it for all four.
+
 **Code structure.** Code reads as a legible sequence of named steps a new engineer
 follows top to bottom with no narrator. The method body is the table of contents; step
 names carry the *what*; you drill into a step only for its detail. A refactor for
@@ -136,9 +139,9 @@ compliant.
 A specification uses Spec Kit's filenames and its spec template. Nine deltas apply to
 that template, each fixing something upstream leaves to the author.
 
-`check-template-deltas.sh` asserts all nine. The count matters. The third principle above
-says a convention absent from this file is not adopted. A delta the gate enforces and this
-table omits is therefore a rule nobody agreed to.
+`check-template-deltas.sh` asserts all nine. The count matters. The opening line of this
+file says a convention absent from this file is not adopted. A delta the gate enforces and
+this table omits is therefore a rule nobody agreed to.
 
 | Delta | In | Fixes |
 |---|---|---|
@@ -158,22 +161,31 @@ table omits is therefore a rule nobody agreed to.
 delta no gate checks. To add one, write the section into a plan template and extend the
 gate to read that template, in the change that adds the row.
 
+The five conventions below hold for a specification and the files beside it. `.vale.ini`
+scopes the structure rules to `specs/**/spec.md`; a plan or a tasks file gets the prose
+rules and nothing more. Each convention therefore says what checks it.
+
 **Every success criterion names its verifier.** `SC-002 … Verifier: gorelease in CI`.
-A criterion nothing checks says `judgement`. An unmarked criterion is not honest.
+A criterion nothing checks says `judgement`. An unmarked criterion is not honest. The
+gate that asserts it arrives later in the series; today it stands on review.
 
 **Every user story carries four things** — priority, why this priority, an Independent
 Test, and acceptance scenarios. The generator builds a ticket from them, and it cannot
-invent what the story omitted.
+invent what the story omitted. `Spec-IndependentTest` checks that the words
+`**Independent Test**` appear once in `spec.md`. The other three stand on review.
 
 **Every task carries five** — a test-first instruction, an `Observable:` check,
-`_Requirements:_` upward, `_Boundary:_`, and `_Depends:_`.
+`_Requirements:_` upward, `_Boundary:_`, and `_Depends:_`. No structure rule reads a
+tasks file. This one stands on review in full.
 
 **Never invent a requirement.** An unstated detail becomes
 `[NEEDS CLARIFICATION: <the question>]`. A plausible default written silently into a
-spec is the failure the artifact exists to prevent.
+spec is the failure the artifact exists to prevent. No gate reads the marker, because
+Vale cannot tell a needed clarification from an absent one.
 
 **`spec.md` holds what and why only.** Naming a library, a schema, a signature, or a
-file path moves the line to `plan.md`.
+file path moves the line to `plan.md`. No gate checks it. The line between what and how
+is a judgement, and Principle III says to record such a rule as uncheckable.
 
 ## Governance
 

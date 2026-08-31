@@ -85,42 +85,63 @@ fi
 # generated rather than written out, so the rule list cannot drift from the one
 # a real specification gets. It sits beside `.vale.ini` because StylesPath and
 # Packages resolve relative to the configuration file.
-if command -v vale >/dev/null 2>&1; then
-  probe=".vale-template-probe.ini"
-  scratch="$(mktemp -d)"
-  trap 'rm -rf "$scratch" "$probe"' EXIT
+# A GATE THAT CANNOT RUN ITS CHECK FAILS. It does not pass with a note: the exit
+# status is what a caller reads, and a pass verdict for a run that checked
+# nothing is the shape this whole file exists to stop. CI installs Vale four
+# steps before this one; a fresh checkout does not, so say what to do.
+if ! command -v vale >/dev/null 2>&1; then
+  echo "vale is not on PATH, so the spec rules did not run against $T"
+  echo "    install it, or see writing/README.md for the version CI pins"
+  exit 1
+fi
 
-  sed 's|^\[specs/\*\*/spec\.md\]|[**/spec-body.md]|' .vale.ini > "$probe"
-  body "$T" > "$scratch/spec-body.md"
+scratch="$(mktemp -d)"
+# mktemp, not a fixed name: two runs against one checkout would otherwise race,
+# and the first to finish would delete the configuration the second is reading.
+# The template is what the constraint above needs -- the file sits beside
+# .vale.ini, because StylesPath and Packages resolve relative to it.
+probe="$(mktemp ./.vale-template-probe.XXXXXX.ini)"
+trap 'rm -rf "$scratch" "$probe"' EXIT
+
+# ASSERT THE RE-SCOPE. sed copies its input through when the pattern misses, so
+# a renamed or widened section leaves the spec rules scoped to specs/**/spec.md.
+# The scratch body then matches [*.md] alone, where all five are off, and Vale
+# reports nothing at rc 0 -- a probe degraded to a no-op that says it passed.
+section='^\[specs/\*\*/spec\.md\]'
+if ! grep -q "$section" .vale.ini; then
+  echo "no [specs/**/spec.md] section in .vale.ini — the probe cannot re-scope it"
+  echo "    why: without the re-scope the spec rules never reach $T"
+  exit 1
+fi
+
+sed "s|${section}|[**/spec-body.md]|" .vale.ini > "$probe"
+body "$T" > "$scratch/spec-body.md"
 
   # Errors only. The descriptive rules run at warning here and the placeholder
   # text a template carries is not prose anyone reads.
-  # Report against $T. The scratch path is an implementation detail, and the
-  # difference in line count is the header body() stripped, which is the offset
-  # every reported line needs. Counting it beats matching the header's end
-  # marker: body() also handles a file with no header, and there `-->` appears
-  # only inside an example.
-  offset=$(( $(wc -l < "$T") - $(wc -l < "$scratch/spec-body.md") ))
+# Report against $T. The scratch path is an implementation detail, and the
+# difference in line count is the header body() stripped, which is the offset
+# every reported line needs. Counting it beats matching the header's end marker:
+# body() also handles a file with no header, and there `-->` appears only inside
+# an example.
+offset=$(( $(wc -l < "$T") - $(wc -l < "$scratch/spec-body.md") ))
 
-  # Judge on the output, and on the exit status separately. Vale exits non-zero
-  # when it reports a finding, and also when it cannot load a configuration; the
-  # second prints nothing, and a check that read only the text would pass.
-  set +e
-  out=$(vale --no-global --config="$probe" --minAlertLevel=error \
-        --output=line "$scratch/spec-body.md")
-  rc=$?
-  set -e
+# Judge on the output, and on the exit status separately. Vale exits non-zero
+# when it reports a finding, and also when it cannot load a configuration; the
+# second prints nothing, and a check that read only the text would pass.
+set +e
+out=$(vale --no-global --config="$probe" --minAlertLevel=error \
+      --output=line "$scratch/spec-body.md")
+rc=$?
+set -e
 
-  if [ -n "$out" ]; then
-    echo "$out" | awk -F: -v f="$T" -v o="$offset" '{ $1 = f; $2 = $2 + o; print }' OFS=:
-    echo "    why: the template is the spec contract's worked example and fails it"
-    fail=1
-  elif [ "$rc" -ne 0 ]; then
-    echo "vale exited $rc and reported nothing — the spec rules did not run against $T"
-    fail=1
-  fi
-else
-  echo "NOTE: vale is not on PATH — the spec rules did not run against $T"
+if [ -n "$out" ]; then
+  echo "$out" | awk -F: -v f="$T" -v o="$offset" '{ $1 = f; $2 = $2 + o; print }' OFS=:
+  echo "    why: the template is the spec contract's worked example and fails it"
+  fail=1
+elif [ "$rc" -ne 0 ]; then
+  echo "vale exited $rc and reported nothing — the spec rules did not run against $T"
+  fail=1
 fi
 
 [ "$fail" -eq 0 ] && echo "Spec template carries every delta, and passes the spec rules."
