@@ -129,11 +129,16 @@ require '^### Requirement [0-9]+:'  'requirements carry their own criteria, so n
 require_each '^### Requirement [0-9]+:' '^\*\*Objective:\*\*'       'names the beneficiary, not only the behaviour' 'requirement' '^#{1,3}[ \t]'
 require_each '^### Requirement [0-9]+:' '^\*\*Traces to:\*\*'       'every requirement points back at the story it serves' 'requirement' '^#{1,3}[ \t]'
 require_each '^### Requirement [0-9]+:' '^#### Acceptance Criteria' 'the heading EARS-CriterionShall keys on' 'requirement' '^#{1,3}[ \t]'
-# ANCHORED TO A CRITERION, NOT TO THE WORD. The paragraph above the criteria
-# explains SHALL, so a bare `\bSHALL\b` is satisfied by that sentence on a body
-# with every EARS line deleted. The delta is a numbered item carrying a SHALL
-# clause, and the pattern says so.
-require_each '^### Requirement [0-9]+:' '^[0-9]+[.)] .*SHALL( |$)' 'EARS and RFC 2119 agree only on the uppercase spelling' 'requirement' '^#{1,3}[ \t]'
+# THE ACTOR IS THE DELTA. CONTRACT.md states this row as EARS with a named actor,
+# and its reason is that `System MUST` names nobody. A pattern asking only for
+# SHALL passes on `1. WHEN [trigger], System SHALL [response].`, which is the
+# shape the delta exists to replace; EARS-CriterionShall is a presence check for
+# `shall` inside a list item and would not notice either.
+#
+# It is anchored to a numbered criterion for a second reason: the paragraph above
+# the criteria explains SHALL, so a bare `\bSHALL\b` is satisfied by that
+# sentence on a body with every EARS line deleted.
+require_each '^### Requirement [0-9]+:' '^[0-9]+[.)] .*THE .+ SHALL( |$)' 'EARS with a named actor; System MUST names no actor' 'requirement' '^#{1,3}[ \t]'
 # PER CRITERION. CONTRACT.md scopes *Verifier:* to each success criterion, and a
 # file-wide check passes on SC-001's while SC-002 has none. Spec-SuccessCriteria
 # is presence-only on the heading, so nothing else would notice.
