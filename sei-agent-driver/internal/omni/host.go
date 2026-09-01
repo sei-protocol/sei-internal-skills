@@ -22,17 +22,20 @@ const managed = "managed"
 // recognises a session an earlier one created. Namespaced because labels are a
 // shared surface.
 //
-// The value keeps the xreview spelling deliberately, and a rename sweep must not take
-// it. This label is written on live sessions, it is the only thing adopt matches on, and
-// it is the only label create writes. Changing it orphans every session a running
-// deployment would otherwise adopt: a second session per pull request, and a --close
-// that walks the listing, matches nothing and reclaims nothing, against a server with no
-// lifetime cap and no sweep of its own.
+// The value is persisted state, not a name: the deployed driver writes it on every
+// session it opens, and it is the only thing adopt matches on and the only label create
+// writes. Changing it orphans every session carrying the old one -- a second session per
+// pull request, and a --close that walks the listing, matches nothing and reclaims
+// nothing, against a server with no lifetime cap and no sweep of its own. The failure is
+// silent: close reports success.
 //
-// [TestRunKeyLabelIsNotSwept] is the guard rather than this paragraph, because this
-// paragraph already failed to stop one sweep -- the rename that dropped the x rewrote
-// the warning along with the value, leaving a comment that argued against its own line.
-const RunKeyLabel = "xreview.seinetwork.io/run-key"
+// Changing it needs the deployment verified to hold no sessions, or a migration that
+// reads both labels before it writes the new one.
+//
+// [TestRunKeyLabelMatchesTheDeployment] is the guard rather than this paragraph, because
+// a rename sweep edits comments as readily as code: a warning written here is rewritten
+// by the same pass it exists to stop, and comes out agreeing with the change.
+const RunKeyLabel = "review.seinetwork.io/run-key"
 
 // Host is an Omnigent deployment, and the [driver.Host] this driver runs against.
 type Host struct {
