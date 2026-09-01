@@ -45,7 +45,7 @@ func TestScoutRunKeysNeverCollide(t *testing.T) {
 // Refusing an empty findings list hangs a scout that correctly found nothing, and the
 // run burns to its deadline.
 func TestScoutCompleteRequiresAFindingsBlock(t *testing.T) {
-	s := NewScout(Request{Repo: "sei-protocol/sei-chain", PR: 3861}, "codex", "sei-droid-codex")
+	s := NewScout(Request{Repo: "sei-protocol/sei-chain", PR: 3861}, "codex", "seidroid-codex")
 
 	for _, c := range []struct {
 		name string
@@ -129,8 +129,8 @@ func TestScoutPromptsNameTheDiffCommand(t *testing.T) {
 // the review's agent is the same harness reading the same diff, which corroborates
 // nothing.
 func TestScoutNamesItsOwnAgent(t *testing.T) {
-	s := NewScout(Request{Repo: "r/n", PR: 1}, "codex", "sei-droid-codex")
-	if got := s.AgentName(); got != "sei-droid-codex" {
+	s := NewScout(Request{Repo: "r/n", PR: 1}, "codex", "seidroid-codex")
+	if got := s.AgentName(); got != "seidroid-codex" {
 		t.Errorf("AgentName = %q, want the bundle the scout was dispatched on", got)
 	}
 	if s.Name() != "codex" {
@@ -271,7 +271,7 @@ func TestAScoutCannotPublishAReportItQuoted(t *testing.T) {
 		`{"read": 812, "findings": [{"file":"a.go","line":4,"severity":"high","detail":"nil deref"}]}` +
 		"\n```"
 
-	s := NewScout(Request{Repo: "sei-protocol/sei-chain", PR: 3861}, "codex", "sei-droid-codex")
+	s := NewScout(Request{Repo: "sei-protocol/sei-chain", PR: 3861}, "codex", "seidroid-codex")
 
 	for _, c := range []struct{ name, text string }{
 		{"the quoted report sits last", "My reading:\n\n" + own +

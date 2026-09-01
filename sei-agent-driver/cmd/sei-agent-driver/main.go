@@ -117,7 +117,7 @@ func main() {
 func xreviewCommand(log *slog.Logger) *cli.Command {
 	return &cli.Command{
 		Name:      "xreview",
-		Usage:     "review a pull request with the sei-droid agent",
+		Usage:     "review a pull request with the seidroid agent",
 		ArgsUsage: "<owner/name> <pr-number>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{

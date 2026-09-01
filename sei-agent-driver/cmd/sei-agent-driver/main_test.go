@@ -30,22 +30,22 @@ func TestParseScouts(t *testing.T) {
 		{name: "none configured runs the review alone", raw: "  "},
 		{
 			name: "dispatch order is preserved",
-			raw:  "codex=sei-droid-codex, cursor=sei-droid-cursor",
+			raw:  "codex=seidroid-codex, cursor=seidroid-cursor",
 			want: []scoutSpec{
-				{name: "codex", agent: "sei-droid-codex"},
-				{name: "cursor", agent: "sei-droid-cursor"},
+				{name: "codex", agent: "seidroid-codex"},
+				{name: "cursor", agent: "seidroid-cursor"},
 			},
 		},
 		{name: "missing agent", raw: "codex=", wantErr: true},
-		{name: "missing name", raw: "=sei-droid-codex", wantErr: true},
+		{name: "missing name", raw: "=seidroid-codex", wantErr: true},
 		{name: "no separator", raw: "codex", wantErr: true},
 		{name: "duplicate name collides on the run key", raw: "codex=a,codex=b", wantErr: true},
 		// The bundle fixes the harness, so both of these produce a reading that is
 		// not independent of the thing it is meant to check.
-		{name: "scout on the review's own agent", raw: "codex=sei-droid", wantErr: true},
+		{name: "scout on the review's own agent", raw: "codex=seidroid", wantErr: true},
 		{name: "two scouts on one agent", raw: "codex=a,cursor=a", wantErr: true},
 	} {
-		got, err := parseScouts(c.raw, "sei-droid")
+		got, err := parseScouts(c.raw, "seidroid")
 		if c.wantErr {
 			if err == nil {
 				t.Errorf("%s: parseScouts(%q) succeeded; a silently dropped scout makes a "+
