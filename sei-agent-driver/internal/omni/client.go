@@ -32,7 +32,7 @@ const (
 	// this is what a dead stream open costs, and the re-subscribe loop pays it once
 	// per attempt. Raising it with that knob would make every reconnect on a wedged
 	// server more expensive, which is the opposite of what raising a request budget
-	// is meant to buy. Config's XREVIEW_UNARY_TIMEOUT_S prices the SDK's own unary
+	// is meant to buy. Config's SEIDROID_UNARY_TIMEOUT_S prices the SDK's own unary
 	// calls; it does not move this wall.
 	defaultResponseHeaderTimeout = 60 * time.Second
 )
@@ -75,7 +75,7 @@ func (h *Host) newClient(ctx context.Context) (*omnigent.Client, error) {
 		omnigent.WithHTTPClient(httpClient),
 		omnigent.WithBearerToken(token),
 		omnigent.WithAuthHeader("Origin", h.cfg.Origin),
-		omnigent.WithUserAgent("seidroid-xreview"),
+		omnigent.WithUserAgent("seidroid-review"),
 		omnigent.WithStreamIdleTimeout(h.cfg.StreamIdleTimeout),
 		omnigent.WithUnaryTimeout(h.cfg.UnaryTimeout),
 	)

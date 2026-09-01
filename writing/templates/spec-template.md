@@ -4,6 +4,16 @@ Keeping the fork visible matters: `specify` overwrites this on re-init, and a
 silent overwrite would take the deltas with it. The pristine copy sits beside
 this one as spec-template.upstream.md, so the fork is diffable.
 
+The baseline is github/spec-kit, templates/spec-template.md, at commit
+756d63212987152564ed0a52ddfd7f8e9b504e09 (2026-05-12).
+https://github.com/github/spec-kit/blob/756d632/templates/spec-template.md
+check-template-deltas.sh diffs this body against that copy, so the copy is
+load-bearing. That script pins its sha256, because an edited baseline would
+disable the comparison rather than fail it. Refreshing the baseline means
+replacing spec-template.upstream.md, updating both this note and that digest,
+and re-reading the delta table: upstream may have adopted a delta, which
+retires the row.
+
 Deltas, and the reason for each:
 
   ## Semantic Anchors      Methods named once. Without it the body restates
@@ -24,7 +34,8 @@ Deltas, and the reason for each:
 Write SHALL in uppercase. It satisfies EARS and RFC 2119 at once, and both run
 at error on this path.
 
-Delete every bracketed placeholder and this comment before the spec ships.
+Delete every bracketed placeholder, the two `vale` directives around the EARS
+list, and this comment before the spec ships.
 -->
 
 # Feature Specification: [FEATURE NAME]
@@ -64,7 +75,7 @@ What this specification is inside, and what it is not responsible for.
 
 ## User Scenarios & Testing *(mandatory)*
 
-Order stories by priority. Each must be independently testable: implementing
+Order stories by priority. Each story stands as an independent test: implementing
 only that one still leaves something usable.
 
 ### User Story 1 - [Brief Title] (Priority: P1)
@@ -114,11 +125,19 @@ orphan and no criterion floats free of a requirement.
 Write each one in an EARS template. All five end in THE [system] SHALL
 [response]. Uppercase SHALL.
 
+<!-- The five lines below are the EARS templates in Mavin's wording. 'feature is
+     included' is his, and rewriting it to satisfy the passive rule would misteach
+     the anchor this template exists to teach. Delete this directive with the
+     placeholder criteria: your own criteria carry no such exemption. -->
+<!-- vale AgenticWriting.STE-Passive = NO -->
+
 1. WHEN [trigger], THE [system] SHALL [response].
 2. WHILE [state], THE [system] SHALL [response].
 3. IF [unwanted condition], THEN THE [system] SHALL [response].
 4. WHERE [feature is included], THE [system] SHALL [response].
 5. THE [system] SHALL [response].
+
+<!-- vale AgenticWriting.STE-Passive = YES -->
 
 ### Requirement 2: [Name]
 

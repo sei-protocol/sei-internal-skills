@@ -12,7 +12,7 @@ here today:
 | `styles/AgenticWriting/` | the rules, one file per checkable rule |
 | `styles/config/vocabularies/` | terms this repository accepts, and their casing |
 | `scripts/` | the generator for the section rules, and the gates |
-| `anchors/` | the registry of public standards, and a page per anchor |
+| `anchors/` | the registry of public standards, and one page per anchor so far |
 | `coverage/` | which topics of each standard the rules reach, and which they miss |
 | `CONTRACT.md` | the contract itself: the anchors, and the rules with no public prior |
 | `templates/` | the spec template, and the upstream baseline it forked from |
@@ -23,18 +23,21 @@ what makes it a test.
 
 What arrives next, in order:
 
-1. the anchor registry, the anchor pages, and the coverage manifest
-3. the contract, and the spec template it governs
-4. the gates that hold the registry and the contract to their own claims
-5. the four test harnesses
-6. the consumer install path
-7. the specifications that describe the whole thing
+1. the gates that hold the registry and the contract to their own claims
+2. the four test harnesses
+3. the consumer install path
+4. the specifications that describe the whole thing
 
 ## Running it
 
+Vale 3.17.1 or later. CI pins that version in `.github/workflows/writing.yml`
+and checks the archive against a recorded sha256. The floor is not a preference:
+on 3.14.0 a `sequence` rule whose tokens are all `tag:` entries matches nothing,
+which disables `STE-NounCluster` in silence.
+
 ```sh
-vale sync                                    # fetch write-good, not committed
-vale --no-global writing                     # what CI checks today
+vale sync                  # fetch write-good, which is not committed
+vale --no-global --glob='!{writing/styles/write-good/**,writing/templates/spec-template.upstream.md}' writing
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
@@ -48,8 +51,15 @@ vale --no-global writing                     # what CI checks today
 ./writing/evals/consumer/run.sh              # another repository can install it
 ```
 
-`--no-global` matters. Vale merges a user-level configuration with this one, so a
-laptop with the toolkit installed sees different rules than a runner does.
+That second command is what CI runs. `--no-global` matters: Vale merges a
+user-level configuration with this one, so a laptop with the toolkit installed
+sees different rules than a runner does.
+
+The glob skips two paths. `styles/write-good/` is a fetched package.
+`templates/spec-template.upstream.md` is Spec Kit's own prose, carried
+byte-identical so the delta gate can diff the fork against it. Linting it would
+report findings on the one file nobody may edit. Vale takes a single glob
+expression and keeps the last, so both paths ride in one brace expression.
 
 ## Generated rules
 
@@ -77,16 +87,17 @@ check something else.
 
 ## The contract
 
-`CONTRACT.md` is the file an agent loads before anyone invokes it. It names the
-anchors, states the rules that have no public prior, and says which gate checks
-what. Read it first; everything else in this directory serves it.
+`CONTRACT.md` is the file to read first. It names the anchors, states the rules
+that have no public prior, and says which gate checks what. Everything else in
+this directory serves it.
 
 ## The debt has a home
 
 `anchors/unregistered.txt` names the anchors the contract cites that have no
-registry entry yet. Twelve of nineteen. The gate prints them on every run. It
-fails on a name in neither place, and on a line that has since earned an entry.
-It compares the file against `main`, so the list can only shrink.
+registry entry yet. The gate prints the count and the names on every run. This
+file repeats neither, because a number here goes stale the moment an anchor earns
+an entry. The gate fails on a name in neither place, and on a line that has since
+earned an entry. It compares the file against `main`, so the list can only shrink.
 
 A stated gap beats a silent one. Nothing checked this direction before, because
 the coverage gate reads the registry and never the contract.

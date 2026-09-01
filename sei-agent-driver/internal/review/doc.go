@@ -1,4 +1,4 @@
-// Package xreview is the pull-request review workload: what the agent is asked, how
+// Package review is the pull-request review workload: what the agent is asked, how
 // to tell it has answered, and what to publish.
 //
 // The driver package owns everything about running the session. It resolves the
@@ -41,7 +41,7 @@
 //
 // # Reading order
 //
-//   - xreview.go — what a review is asked for: the Request, and the workload the
+//   - review.go — what a review is asked for: the Request, and the workload the
 //     driver drives.
 //   - prompt.go — the instruction, first dispatch and every one after.
 //   - verdict.go — reading a reply back into the four buckets.
@@ -110,4 +110,4 @@
 // at nothing on the path almost every review takes.
 //
 // The scout prompts follow the same split for the same reason.
-package xreview
+package review

@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"fmt"
@@ -37,6 +37,18 @@ type Request struct {
 	// ExtraInstructions is guidance the calling repository adds to every review.
 	// Empty adds nothing.
 	ExtraInstructions string
+
+	// IncludeNits admits nit-severity findings to the inline placement.
+	//
+	// False, the default, drops them. A nit is advice about code that already works,
+	// and a review that opens fifteen threads of advice around two real findings
+	// teaches the author to skim all seventeen. Opting in is per pull request,
+	// because the author is the one who knows whether they want the polish pass.
+	//
+	// The prompt is told as well as the placement filtered. Telling it alone would
+	// leave the rule to the model's compliance; filtering alone would spend a
+	// review's attention writing findings this tool then discards.
+	IncludeNits bool
 }
 
 // maxScoutDetail bounds one rendered finding. A scout's detail is unbounded model
@@ -95,7 +107,7 @@ func New(req Request) Review { return Review{req: req} }
 func (r Review) RunKey() string { return RunKey(r.req.Repo, r.req.PR) }
 
 // Title names the session for a human reading a session list.
-func (r Review) Title() string { return fmt.Sprintf("xreview %s#%d", r.req.Repo, r.req.PR) }
+func (r Review) Title() string { return fmt.Sprintf("review %s#%d", r.req.Repo, r.req.PR) }
 
 // Prompt is the review instruction. A session that has already reviewed this pull
 // request is asked what changed, rather than handed the contract a second time. The two

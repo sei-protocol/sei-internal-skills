@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"encoding/json"
@@ -25,7 +25,7 @@ func TestPlaceableFindingsDropsWhatCannotBePlaced(t *testing.T) {
 		"not an object"
 	]}` + "\n```")
 
-	got := PlaceableFindings(v)
+	got := PlaceableFindings(v, true)
 	if len(got) != 2 {
 		t.Fatalf("placeable findings = %d, want 2: %+v", len(got), got)
 	}
@@ -44,7 +44,7 @@ func TestPlaceableFindingsDropsWhatCannotBePlaced(t *testing.T) {
 func TestPlaceableFindingsOnNoVerdict(t *testing.T) {
 	t.Parallel()
 
-	if got := PlaceableFindings(ParseVerdict("just prose, no block")); len(got) != 0 {
+	if got := PlaceableFindings(ParseVerdict("just prose, no block"), true); len(got) != 0 {
 		t.Errorf("placeable findings = %d, want 0 when there is no verdict", len(got))
 	}
 }
@@ -64,7 +64,7 @@ func TestPlaceableFindingsReadsTheCurrentContract(t *testing.T) {
 	  "non_blockers":["naming could be clearer"],
 	  "pre_existing_issues":[{"severity":"nit","body":"old thing"}]}`)
 
-	got := PlaceableFindings(v)
+	got := PlaceableFindings(v, true)
 	if len(got) != 2 {
 		t.Fatalf("placed %d findings, want 2 (the line-less one is dropped): %+v", len(got), got)
 	}
@@ -103,7 +103,7 @@ func TestPlaceableFindingsStillReadsTheOlderContract(t *testing.T) {
 	  "findings":[{"file":"a.go","line":10,"severity":"high","detail":"boom"},
 	              {"file":"b.go","line":2,"severity":"low","detail":"minor"}]}`)
 
-	got := PlaceableFindings(v)
+	got := PlaceableFindings(v, true)
 	if len(got) != 2 {
 		t.Fatalf("placed %d, want 2: %+v", len(got), got)
 	}
@@ -158,7 +158,7 @@ func TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty(t *testing.T) {
 	  "inline_comments":[],
 	  "findings":[{"file":"a.go","line":9,"severity":"high","detail":"boom"}]}`)
 
-	got := PlaceableFindings(v)
+	got := PlaceableFindings(v, true)
 	if len(got) != 1 {
 		t.Fatalf("placed %d, want 1: an empty inline_comments must not hide a "+
 			"filled findings", len(got))
@@ -177,31 +177,65 @@ func TestPlaceableFindingsDedupesAcrossKeys(t *testing.T) {
 	  "inline_comments":[{"path":"a.go","line":9,"side":"RIGHT","severity":"blocker","body":"boom"}],
 	  "findings":[{"file":"a.go","line":9,"severity":"high","detail":"boom"}]}`)
 
-	if got := PlaceableFindings(v); len(got) != 1 {
+	if got := PlaceableFindings(v, true); len(got) != 1 {
 		t.Fatalf("placed %d, want 1: the same finding under both keys is one "+
 			"finding, and posting it twice is noise on the author's diff", len(got))
 	}
 }
 
-// TestBothPromptsCarryTheBucketRules pins what a session can actually read.
-// Sessions outlive runs, so every dispatch after the first takes the adopted
-// path; rules that live only in the other prompt stop applying there.
-func TestBothPromptsCarryTheBucketRules(t *testing.T) {
+// TestTheVerdictShapeIsOnBothPathsAndTheProseIsNot pins the one asymmetry in what a
+// re-review is re-sent.
+//
+// Both prompts carry the closing block's schema. Only the first carries the prose that
+// explains how to sort observations into it, because the adopted prompt reaches a session
+// that already holds it and re-sending it is what that prompt exists not to do.
+//
+// The schema is the exception because its decay is the only silent one: a turn that stops
+// emitting the block produces a review nobody sees, since the driver refuses it and exits
+// ExitNoVerdict. A forgotten sorting rule produces a worse review, which a reader sees.
+func TestTheVerdictShapeIsOnBothPathsAndTheProseIsNot(t *testing.T) {
 	t.Parallel()
 
 	req := Request{Repo: "sei-protocol/sandbox", PR: 42}
-	for name, prompt := range map[string]string{
-		"BuildPrompt":   BuildPrompt(req),
-		"AdoptedPrompt": AdoptedPrompt(req),
-	} {
+	first, adopted := BuildPrompt(req), AdoptedPrompt(req)
+
+	// The schema, on both -- and the one field rule that rides with it. read is the second
+	// silent decay: a turn that copies the shape it was handed reports read: 0, which reads
+	// as a review of nothing and degrades a clean re-review from success to neutral with no
+	// error anywhere.
+	for name, prompt := range map[string]string{"BuildPrompt": first, "AdoptedPrompt": adopted} {
 		for _, want := range []string{
-			"inline_comments", "blockers", "non_blockers", "pre_existing_issues",
-			"side is RIGHT for an added or changed line",
-			"blocker, suggestion or nit",
+			"```json", "inline_comments", "blockers", "non_blockers", "pre_existing_issues",
+			"read is the line count the diff command printed",
 		} {
 			if !strings.Contains(prompt, want) {
-				t.Errorf("%s does not carry %q", name, want)
+				t.Errorf("%s does not carry %q; a turn that cannot see the block's shape "+
+					"produces a review nobody sees", name, want)
 			}
+		}
+	}
+
+	// And the placeholder is not copyable into the sentinel.
+	for name, prompt := range map[string]string{"BuildPrompt": first, "AdoptedPrompt": adopted} {
+		if strings.Contains(prompt, `"read": 0`) {
+			t.Errorf("%s hands the agent `\"read\": 0` as the shape. Filling that in "+
+				"verbatim reports a review of nothing and silently downgrades the check",
+				name)
+		}
+	}
+
+	// The sorting prose, on the first only.
+	for _, prose := range []string{
+		"side is RIGHT for an added or changed line",
+		"blocker, suggestion or nit",
+		"Sort each one:",
+	} {
+		if !strings.Contains(first, prose) {
+			t.Errorf("BuildPrompt does not carry %q", prose)
+		}
+		if strings.Contains(adopted, prose) {
+			t.Errorf("AdoptedPrompt carries %q. The session already holds it, and "+
+				"re-sending it is the cost that prompt exists to avoid", prose)
 		}
 	}
 }
@@ -313,5 +347,52 @@ func placedPaths(t *testing.T, path string) []Finding {
 	if err != nil {
 		t.Fatalf("building the reply block: %v", err)
 	}
-	return PlaceableFindings(verdictFrom(t, string(block)))
+	return PlaceableFindings(verdictFrom(t, string(block)), true)
+}
+
+// TestPlaceableFindingsGatesNits pins the rule that a nit is placed only when the
+// pull request asked for one.
+//
+// Both directions on one fixture, because the interesting failure is a gate wired to
+// a constant: a filter that always drops passes a drop-only test, and one that never
+// drops passes a keep-only test.
+func TestPlaceableFindingsGatesNits(t *testing.T) {
+	v := verdictFrom(t, `{"read":40,"decision":"comment","summary":"s",
+	  "inline_comments":[
+	    {"path":"a.go","line":1,"side":"RIGHT","severity":"blocker","body":"real"},
+	    {"path":"b.go","line":2,"side":"RIGHT","severity":"nit","body":"polish"}]}`)
+
+	off := PlaceableFindings(v, false)
+	if len(off) != 1 || off[0].Severity != "blocker" {
+		t.Fatalf("with nits off = %+v; want the blocker alone", off)
+	}
+
+	on := PlaceableFindings(v, true)
+	if len(on) != 2 {
+		t.Fatalf("with nits on = %+v; want both", on)
+	}
+	if on[1].Severity != "nit" {
+		t.Errorf("second severity = %q; want nit", on[1].Severity)
+	}
+}
+
+// TestDroppedNitDoesNotClaimTheDedupeKey covers the ordering inside the loop.
+//
+// [Finding.dedupeKey] carries no severity, so a nit and a blocker reported about the
+// same line in the same words share one key. Checking the severity after the key is
+// recorded would let the dropped nit suppress the blocker — a review that silently
+// loses its only real finding, which is the worst outcome this file can produce.
+func TestDroppedNitDoesNotClaimTheDedupeKey(t *testing.T) {
+	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"s",
+	  "inline_comments":[
+	    {"path":"a.go","line":7,"side":"RIGHT","severity":"nit","body":"same words"},
+	    {"path":"a.go","line":7,"side":"RIGHT","severity":"blocker","body":"same words"}]}`)
+
+	got := PlaceableFindings(v, false)
+	if len(got) != 1 {
+		t.Fatalf("got %d findings %+v; want the blocker alone", len(got), got)
+	}
+	if got[0].Severity != "blocker" {
+		t.Errorf("severity = %q; want blocker — the dropped nit claimed the key", got[0].Severity)
+	}
 }

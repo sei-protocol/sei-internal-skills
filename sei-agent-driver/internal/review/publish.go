@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"fmt"
@@ -292,7 +292,7 @@ const minProseBytes = 4096
 // that makes a wrong-session or wrong-turn publish discoverable after the fact.
 func (v Verdict) footer(sessionID string) string {
 	return fmt.Sprintf(
-		"\n\n<sub>seidroid xreview · decision `%s` · session `%s` · turn `%s` · item `%s`</sub>\n",
+		"\n\n<sub>seidroid review · decision `%s` · session `%s` · turn `%s` · item `%s`</sub>\n",
 		v.Decision(), sessionID, v.TurnID, v.ItemID)
 }
 
