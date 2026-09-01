@@ -170,8 +170,8 @@ on:
           session on its own agent bundle, seeing neither the review nor another
           scout; the review then verifies their claims against the diff and merges
           what holds. A scout naming the review's own agent is refused, as are two
-          scouts sharing one — neither would be a second opinion. Named to match
-          the environment variable it becomes 1:1.
+          scouts sharing one — neither would be a second opinion. Passed to the driver as
+          SEIDROID_SCOUTS.
 
           Set this on the CLOSE job too. Scouts hold sessions of their own, and
           close derives which to delete from this value: unset there, every scout
@@ -182,8 +182,8 @@ on:
       claude-model:
         description: >-
           Model to answer the review on, substituting for the one the agent's spec
-          names. Empty leaves the spec's own, which is the default. Named to match
-          the environment variable it becomes 1:1.
+          names. Empty leaves the spec's own, which is the default. Passed to the driver as
+          SEIDROID_MODEL.
 
           The server forwards the value as-is and enumerates nothing, so an
           unrecognised name is not rejected here or at configuration time -- it
@@ -200,8 +200,8 @@ on:
           accepts automatically (see Policy.Decide in internal/driver/policy.go).
           Prefer allow-tools: policy_name is claude_native_permission for
           every native prompt (measured), so any value here accepts every tool
-          call rather than a class of them. Passed to the driver as the matching
-            SEIDROID_ variable.
+          call rather than a class of them. Passed to the driver as
+          SEIDROID_ALLOW_POLICIES.
         required: false
         type: string
         default: ''
@@ -209,8 +209,8 @@ on:
         description: >-
           Comma-separated tool_name values to accept. This deployment does stamp
           tool_name (measured), so this is the allowlist to prefer: it
-          discriminates per tool. Named to match the environment variable it
-          becomes 1:1.
+          discriminates per tool. Passed to the driver as
+          SEIDROID_ALLOW_TOOLS.
 
           Defaults to `Bash,Read` because the review cannot happen without them.
           The prompt's first step is a `gh pr diff` command, so an empty allowlist
