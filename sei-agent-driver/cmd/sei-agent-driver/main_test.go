@@ -30,22 +30,22 @@ func TestParseScouts(t *testing.T) {
 		{name: "none configured runs the review alone", raw: "  "},
 		{
 			name: "dispatch order is preserved",
-			raw:  "codex=sei-droid-codex, cursor=sei-droid-cursor",
+			raw:  "codex=seidroid-codex, cursor=seidroid-cursor",
 			want: []scoutSpec{
-				{name: "codex", agent: "sei-droid-codex"},
-				{name: "cursor", agent: "sei-droid-cursor"},
+				{name: "codex", agent: "seidroid-codex"},
+				{name: "cursor", agent: "seidroid-cursor"},
 			},
 		},
 		{name: "missing agent", raw: "codex=", wantErr: true},
-		{name: "missing name", raw: "=sei-droid-codex", wantErr: true},
+		{name: "missing name", raw: "=seidroid-codex", wantErr: true},
 		{name: "no separator", raw: "codex", wantErr: true},
 		{name: "duplicate name collides on the run key", raw: "codex=a,codex=b", wantErr: true},
 		// The bundle fixes the harness, so both of these produce a reading that is
 		// not independent of the thing it is meant to check.
-		{name: "scout on the review's own agent", raw: "codex=sei-droid", wantErr: true},
+		{name: "scout on the review's own agent", raw: "codex=seidroid", wantErr: true},
 		{name: "two scouts on one agent", raw: "codex=a,cursor=a", wantErr: true},
 	} {
-		got, err := parseScouts(c.raw, "sei-droid")
+		got, err := parseScouts(c.raw, "seidroid")
 		if c.wantErr {
 			if err == nil {
 				t.Errorf("%s: parseScouts(%q) succeeded; a silently dropped scout makes a "+
@@ -112,7 +112,7 @@ func TestParseTargetKeepsEveryNameGitHubAllows(t *testing.T) {
 }
 
 // TestReportWritesEachOutputOnItsOwnFlag pins that the check run and the findings
-// no longer depend on --out. A checks list with no xreview entry reads as a
+// no longer depend on --out. A checks list with no review entry reads as a
 // review that did not run rather than one that passed, so gating the fail-closed
 // signal on an unrelated flag made it fail open.
 func TestReportWritesEachOutputOnItsOwnFlag(t *testing.T) {
@@ -123,7 +123,7 @@ func TestReportWritesEachOutputOnItsOwnFlag(t *testing.T) {
 		Text:   "A review.\n\n```json\n{\"decision\":\"comment\",\"summary\":\"s\"}\n```",
 		TurnID: "t1", ItemID: "i1",
 	}}
-	if err := report("", "", check, result); err != nil {
+	if err := report("", "", check, result, false); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 	if _, err := os.Stat(check); err != nil {
@@ -142,7 +142,7 @@ func TestReportClearsAnEarlierRunsOutputs(t *testing.T) {
 	}
 
 	// A run that reached no verdict: nothing to publish.
-	if err := report(out, "", "", driver.Result{SessionID: "s2"}); err != nil {
+	if err := report(out, "", "", driver.Result{SessionID: "s2"}, false); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
@@ -168,7 +168,7 @@ func TestOutputsAreClearedBeforeAnEarlyExit(t *testing.T) {
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
-	cmd := exec.Command(bin, "xreview", "--out", out, "sei-protocol/sandbox", "22")
+	cmd := exec.Command(bin, "review", "--out", out, "sei-protocol/sandbox", "22")
 	// No credential, so this exits before it reaches the review.
 	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir}
 	_ = cmd.Run()
@@ -254,7 +254,7 @@ func TestBothCallersActOnARefusedClear(t *testing.T) {
 
 	t.Run("report refuses", func(t *testing.T) {
 		out := undeletable(t, "report-out")
-		err := report(out, "", "", driver.Result{SessionID: "s1"})
+		err := report(out, "", "", driver.Result{SessionID: "s1"}, false)
 		if err == nil {
 			t.Fatal("report returned nil on an output it could not clear; the caller " +
 				"publishes on presence, so an earlier verdict posts as this run's")
@@ -272,7 +272,7 @@ func TestBothCallersActOnARefusedClear(t *testing.T) {
 		}
 		// A working credential, so a non-zero exit is about the clear and not about
 		// configuration. The clear runs first either way.
-		cmd := exec.Command(bin, "xreview", "--out", out, "sei-protocol/sandbox", "22")
+		cmd := exec.Command(bin, "review", "--out", out, "sei-protocol/sandbox", "22")
 		cmd.Env = []string{
 			"PATH=" + os.Getenv("PATH"), "HOME=" + dir,
 			"OMNIGENT_API_TOKEN=test-token",

@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"strings"
@@ -393,7 +393,7 @@ func TestSharedPromptTextNamesNoStep(t *testing.T) {
 		{"extraInstructionsStep", extraInstructionsStep(req)},
 		{"historyStep", historyStep(req)},
 		{"reconcileStep", reconcileStep(req)},
-		{"bucketRules", bucketRules()},
+		{"bucketRules", bucketRules(false)},
 	} {
 		// Non-vacuity first. Every one of these returns nil for an empty request, and a builder
 		// that produced nothing would pass this check while testing nothing.
@@ -511,5 +511,107 @@ func TestScoutPromptAsksForNothingItCannotOpen(t *testing.T) {
 	}
 	if !strings.Contains(review, callees) {
 		t.Errorf("the review prompt lost %q, which its tree is what makes answerable", callees)
+	}
+}
+
+// TestNitGateForbidsPromotionRatherThanHidingTheLabel pins the shape the filter
+// depends on, and it is the test the first attempt at this did not have.
+//
+// That attempt dropped nit from the severity vocabulary when the flag was off. The
+// observation does not disappear with its label: the sorting rules still put anything
+// tied to a line in inline_comments, so a review holding a nit-grade observation and no
+// way to call it one relabels it a suggestion — and [PlaceableFindings] cannot tell that
+// from a real one. Withholding the word converts a suppressed thread into an invisible
+// one.
+//
+// So the label must stay offered on both settings, because the filter enforces on the
+// label, and the off setting must carry the instruction that makes the label honest.
+func TestNitGateForbidsPromotionRatherThanHidingTheLabel(t *testing.T) {
+	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
+	flat := func(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+	for _, nits := range []bool{false, true} {
+		req.IncludeNits = nits
+		for name, got := range map[string]string{
+			"BuildPrompt":   flat(BuildPrompt(req)),
+			"AdoptedPrompt": flat(AdoptedPrompt(req)),
+		} {
+			// The vocabulary is not the gate, and must not move with it.
+			if !strings.Contains(got, "blocker|suggestion|nit") {
+				t.Errorf("%s with nits=%v stopped offering the nit severity; the "+
+					"filter has nothing left to recognise", name, nits)
+			}
+
+			forbids := strings.Contains(got, "not call one a suggestion")
+			if forbids == nits {
+				t.Errorf("%s with nits=%v: promotion instruction present = %v, want %v",
+					name, nits, forbids, !nits)
+			}
+
+			// A ban has to name where the observation goes instead. bucketRules calls a
+			// note missing from the block one the author never sees, so a nit banned
+			// with no destination leaves dropping it as the cheapest way to obey both.
+			sends := strings.Contains(got, "in non_blockers instead of inline_comments")
+			if sends == nits {
+				t.Errorf("%s with nits=%v: redirect to non_blockers present = %v, want "+
+					"%v — a ban with nowhere to send the nit tells the review to drop it",
+					name, nits, sends, !nits)
+			}
+
+			// And the redirect has to widen the bucket it redirects into. bucketRules
+			// defines non_blockers as holding what is tied to no single line, and a nit
+			// is tied to one, so a bare redirect swaps one contradiction for another.
+			amends := strings.Contains(got, "also takes a nit that is tied to one")
+			if amends == nits {
+				t.Errorf("%s with nits=%v: bucket amendment present = %v, want %v — the "+
+					"redirect points into a bucket defined as line-less", name, nits, amends, !nits)
+			}
+		}
+	}
+}
+
+// TestEveryDispatchStatesTheNitSettingItIsRunningUnder is the session-continuity half,
+// and the case a one-sided rule gets wrong.
+//
+// The session outlives the run, so an instruction is not undone by being left out of a
+// later prompt — it is still sitting in the conversation. A first dispatch with nits off
+// plants "leave nits out"; the author then adds the label; the opt-in dispatch reuses
+// that session. If the opt-in path says nothing about nits, the ban stands and the label
+// does nothing, which is a setting that reads as applied and is not.
+//
+// So both settings have to speak, on both prompts. Absence is not neutral here.
+func TestEveryDispatchStatesTheNitSettingItIsRunningUnder(t *testing.T) {
+	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
+
+	// Whitespace-collapsed, because the prompt is wrapped for a reader and the model
+	// sees one stream. Matching the wrapped form makes a reflow look like a behaviour
+	// change, which is a test that fails for the wrong reason.
+	flat := func(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+	for _, c := range []struct {
+		nits         bool
+		says, unsays string
+	}{
+		{false, "does not ask for nits", "asks for nits. Report"},
+		{true, "asks for nits. Report", "does not ask for nits"},
+	} {
+		req.IncludeNits = c.nits
+		for name, got := range map[string]string{
+			"BuildPrompt":   flat(BuildPrompt(req)),
+			"AdoptedPrompt": flat(AdoptedPrompt(req)),
+		} {
+			if !strings.Contains(got, c.says) {
+				t.Errorf("%s with nits=%v does not state the setting it runs under; a "+
+					"reused session keeps whatever the last dispatch said", name, c.nits)
+			}
+			if strings.Contains(got, c.unsays) {
+				t.Errorf("%s with nits=%v also carries the opposite setting", name, c.nits)
+			}
+			// The retraction is what makes it win over what the session holds.
+			if !strings.Contains(got, "no longer holds") {
+				t.Errorf("%s with nits=%v states the setting but does not supersede an "+
+					"earlier one", name, c.nits)
+			}
+		}
 	}
 }

@@ -1,6 +1,6 @@
 contract: house
 source: ".specify/memory/constitution.md"
-total_topics: 15
+total_topics: 16
 enumerated: full
 note: >-
   Rules that implement this repository's own conventions rather than a public
@@ -9,6 +9,7 @@ note: >-
   stated in full rather than named. Recording them here is what stops a rule
   existing with no written purpose.
 topics:
+  spec-carries-a-criteria-heading: [Spec-AcceptanceCriteria]
   spec-declares-its-anchors: [Spec-Anchors]
   spec-states-success-criteria: [Spec-SuccessCriteria]
   spec-story-carries-an-independent-test: [Spec-IndependentTest]
