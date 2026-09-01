@@ -342,6 +342,15 @@ type adoption struct {
 	revivable bool
 }
 
+// modelOrEmpty reads a work's model override, treating "leave it alone" as "no
+// override at create" -- a session being opened here carries nothing to leave alone.
+func modelOrEmpty(model *string) string {
+	if model == nil {
+		return ""
+	}
+	return *model
+}
+
 // reconcileModel moves an adopted session's model override to what this work asks for.
 //
 // The override lives on the session row, not on the turn, so a session opened by an
@@ -431,7 +440,9 @@ func (h *Host) createOrAdopt(
 			h.log.Info("adopting the session an earlier dispatch created",
 				"run_key", w.RunKey, "session_id", existing.ID,
 				"live", live, "revivable", revivable)
-			h.reconcileModel(ctx, client, existing, w.Model, live)
+			if w.Model != nil {
+				h.reconcileModel(ctx, client, existing, *w.Model, live)
+			}
 			return existing, adoption{continued: true, live: live, revivable: revivable}, nil
 		}
 		h.log.Warn("the session for this work cannot run a turn; replacing it",
@@ -452,7 +463,7 @@ func (h *Host) createOrAdopt(
 		// At create as well as on adopt, because the override has to be on the session
 		// row before the harness launches. Setting it afterwards would leave the first
 		// turn -- the one that writes the review -- on the spec's model.
-		ModelOverride: w.Model,
+		ModelOverride: modelOrEmpty(w.Model),
 	}
 
 	session, err := client.Sessions().Create(ctx, create)

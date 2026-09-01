@@ -301,18 +301,17 @@ func (d *Driver) classify(ctx context.Context, result Result, err error) Result 
 // being the ones it names when it names them, and the run's configured defaults
 // otherwise. See [AgentNamer].
 func (d *Driver) workFor(w Workload) Work {
-	agent := d.cfg.Agent
-	model := d.cfg.Model
 	if a, ok := w.(AgentNamer); ok {
 		if named := a.AgentName(); named != "" {
-			agent = named
-
-			// And with it the model, because the configured one was chosen for the
-			// default agent. A workload on its own agent is a second harness, and a
-			// model name one provider answers to is rejected at turn start by another
-			// -- which costs the reading, not just the model.
-			model = ""
+			// Its own agent is its own harness and its own provider, so the configured
+			// model is neither its to take -- a name one provider answers to is
+			// rejected at turn start by another, costing the reading and not just the
+			// model -- nor its to lose. A nil model leaves the session's own override
+			// untouched, which is the difference between not managing something and
+			// clearing it.
+			return Work{RunKey: w.RunKey(), Title: w.Title(), Agent: named}
 		}
 	}
-	return Work{RunKey: w.RunKey(), Title: w.Title(), Agent: agent, Model: model}
+	model := d.cfg.Model
+	return Work{RunKey: w.RunKey(), Title: w.Title(), Agent: d.cfg.Agent, Model: &model}
 }

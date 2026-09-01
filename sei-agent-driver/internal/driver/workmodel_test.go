@@ -23,17 +23,20 @@ func TestWorkForWithholdsTheModelFromAWorkloadOnItsOwnAgent(t *testing.T) {
 	if review.Agent != "seidroid" {
 		t.Errorf("review agent = %q, want seidroid (the configured default)", review.Agent)
 	}
-	if review.Model != "claude-opus-4-7" {
-		t.Errorf("review model = %q, want claude-opus-4-7", review.Model)
+	if review.Model == nil || *review.Model != "claude-opus-4-7" {
+		t.Errorf("review model = %v, want claude-opus-4-7", review.Model)
 	}
 
 	scout := d.workFor(namedWork{testWork: work, agent: "seidroid-codex"})
 	if scout.Agent != "seidroid-codex" {
 		t.Errorf("scout agent = %q, want seidroid-codex (its own)", scout.Agent)
 	}
-	if scout.Model != "" {
-		t.Errorf("scout model = %q, want empty — a model chosen for one provider fails "+
-			"at turn start on another, costing the reading", scout.Model)
+	// Nil, not empty. Empty would mean "clear it", and clearing an override this run
+	// does not manage is as wrong as setting one.
+	if scout.Model != nil {
+		t.Errorf("scout model = %q, want nil — a model chosen for one provider fails at "+
+			"turn start on another, costing the reading, and an empty value would clear "+
+			"an override the scout's session owns", *scout.Model)
 	}
 }
 
@@ -56,8 +59,8 @@ func TestWorkForKeepsTheModelWhenTheWorkloadNamesNoAgent(t *testing.T) {
 	if got.Agent != "seidroid" {
 		t.Errorf("agent = %q, want seidroid", got.Agent)
 	}
-	if got.Model != "claude-opus-4-7" {
-		t.Errorf("model = %q, want claude-opus-4-7 — this work runs on the very agent "+
+	if got.Model == nil || *got.Model != "claude-opus-4-7" {
+		t.Errorf("model = %v, want claude-opus-4-7 — this work runs on the very agent "+
 			"the model was configured for", got.Model)
 	}
 }

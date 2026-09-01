@@ -23,12 +23,17 @@ import (
 // driverCreateReq is the subset of a session-create body this file asserts
 // on.
 type driverCreateReq struct {
-	AgentID       string            `json:"agent_id"`
-	HostType      string            `json:"host_type"`
-	Title         string            `json:"title"`
-	Workspace     string            `json:"workspace"`
-	Labels        map[string]string `json:"labels"`
-	ModelOverride string            `json:"model_override"`
+	AgentID   string            `json:"agent_id"`
+	HostType  string            `json:"host_type"`
+	Title     string            `json:"title"`
+	Workspace string            `json:"workspace"`
+	Labels    map[string]string `json:"labels"`
+
+	// A pointer so a test can tell an omitted field from an empty one. The SDK tags
+	// this omitempty, and whether the default path sends "model_override":"" or
+	// nothing at all is the difference between a server that validates the value
+	// rejecting every create and accepting it.
+	ModelOverride *string `json:"model_override"`
 }
 
 // driverPatchReq is the subset of a session-update body this file asserts on.

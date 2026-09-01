@@ -16,12 +16,16 @@ type Work struct {
 	// Agent names the agent the work must run on. Empty takes the host's default.
 	Agent string
 
-	// Model substitutes for the model the agent's spec names. Empty leaves the spec's
-	// own.
+	// Model is the model override this work asks for, and it is three-valued.
+	//
+	// Nil leaves whatever the session carries alone; a value sets it, and an empty
+	// value clears it back to the agent spec's own. The distinction is the one the SDK
+	// draws between SetModelOverride and ClearModelOverride, and it is load-bearing
+	// here: work that does not manage the model must not clear it either.
 	//
 	// Per work rather than per run, because a configured model belongs to the agent it
 	// was configured for. See [Driver.workFor].
-	Model string
+	Model *string
 }
 
 // Ask is one exchange: what to say, and how to know the answer is finished.

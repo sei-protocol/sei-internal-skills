@@ -163,11 +163,158 @@ func TestCreateCarriesTheConfiguredModel(t *testing.T) {
 	if len(created) != 1 {
 		t.Fatalf("created %d sessions %+v, want 1", len(created), created)
 	}
-	if created[0].ModelOverride != "claude-opus-4-7" {
-		t.Errorf("create model_override = %q, want claude-opus-4-7", created[0].ModelOverride)
+	if created[0].ModelOverride == nil || *created[0].ModelOverride != "claude-opus-4-7" {
+		t.Errorf("create model_override = %v, want claude-opus-4-7", created[0].ModelOverride)
 	}
 	// Nothing to reconcile on a session this run opened.
 	if patches := fs.PatchReqs(); len(patches) != 0 {
 		t.Errorf("sent %d session patches %+v, want none", len(patches), patches)
+	}
+}
+
+// TestCreateOmitsTheModelWhenNoneIsConfigured pins the path every current run takes.
+//
+// Nothing is configured in the ordinary case, and the wire shape of that case is not
+// obvious from the Go: the SDK tags model_override omitempty, so the field should be
+// absent rather than sent as an empty string. The difference is not cosmetic — a server
+// that validates the value would reject every create, which is a review outage rather
+// than a review on the wrong model. The fake accepts any body, so nothing else in this
+// package would notice the tag changing.
+func TestCreateOmitsTheModelWhenNoneIsConfigured(t *testing.T) {
+	t.Parallel()
+
+	work := testWork{Repo: "sei-protocol/sandbox", PR: 25, Trigger: "first"}
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages:      []string{driverAgentPage("ag_1", "seidroid", "", false)},
+		CreateResp:      driverSessionResp("conv_new", "ag_1"),
+		SessionListResp: `{"data":[],"has_more":false}`,
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			driverSessionResp("conv_new", "ag_1"),
+			driverSessionWithItems("conv_new", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_a",
+					driverVerdict("Read the diff.", "comment"))),
+		},
+	})
+
+	runWithModel(t, fs, work, "")
+
+	created := fs.CreateReqs()
+	if len(created) != 1 {
+		t.Fatalf("created %d sessions %+v, want 1", len(created), created)
+	}
+	if created[0].ModelOverride != nil {
+		t.Errorf("create sent model_override = %q; want the field absent, because the "+
+			"SDK tags it omitempty and nothing asked for a model",
+			*created[0].ModelOverride)
+	}
+}
+
+// TestAdoptedScoutSessionIsLeftAtItsOwnModel drives a workload on its own agent
+// through the adopt path, which is where the three-valued model earns its shape.
+//
+// A scout carries a nil model: not "claude-opus-4-7", so the configured one does not
+// reach another provider's harness, and not "" either, because "" means clear and
+// clearing an override this run does not manage is the same overreach as setting one.
+// The session here already carries one, so a reconcile that ran at all would be visible
+// as a patch.
+//
+// It is also the only test that takes a nil model through the host. A nil deref here
+// fails the review outright, and nothing else in this package exercises the path.
+func TestAdoptedScoutSessionIsLeftAtItsOwnModel(t *testing.T) {
+	t.Parallel()
+
+	scout := namingWork{
+		testWork: testWork{Repo: "sei-protocol/sandbox", PR: 26, Trigger: "scout"},
+		agent:    "seidroid-codex",
+	}
+	runKey := testRunKey(scout.Repo, scout.PR)
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_codex", "seidroid-codex", "", false)},
+		CreateResp: driverSessionResp("conv_new", "ag_codex"),
+		SessionListResp: `{"data":[{"id":"conv_scout","agent_id":"ag_codex","labels":` +
+			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			// Already carrying an override, so a reconcile could not be a no-op.
+			`{"id":"conv_scout","agent_id":"ag_codex","created_at":1,"status":"idle",` +
+				`"items":[],"model_override":"gpt-5-codex"}`,
+			driverSessionResp("conv_scout", "ag_codex"),
+			driverSessionWithItems("conv_scout", "ag_codex",
+				driverReplyItem("item_reply", "resp_claude_a",
+					driverVerdict("Read the diff.", "comment"))),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	cfg.Model = "claude-opus-4-7"
+	result := newTestDriver(cfg, driver.Policy{}, driverTestLogger()).Run(t.Context(), scout)
+
+	if result.SessionID != "conv_scout" {
+		t.Fatalf("SessionID = %q, want conv_scout — the scout adopt path did not run",
+			result.SessionID)
+	}
+	if patches := fs.PatchReqs(); len(patches) != 0 {
+		t.Errorf("sent %d session patches %+v to a scout, want none: the configured "+
+			"model is not its to take, and not its to lose", len(patches), patches)
+	}
+}
+
+// TestCreatedScoutSessionCarriesNoModel is the nil-at-create case, and it is the one
+// the sibling create test cannot reach.
+//
+// A review with nothing configured still carries a non-nil model — a pointer to the
+// empty string, meaning "no override" — so it exercises the value branch. Only a
+// workload on its own agent carries nil, and only its first dispatch creates. Without
+// this, [modelOrEmpty] could return anything for nil and the suite would stay green
+// while every first scout dispatch sent it.
+func TestCreatedScoutSessionCarriesNoModel(t *testing.T) {
+	t.Parallel()
+
+	scout := namingWork{
+		testWork: testWork{Repo: "sei-protocol/sandbox", PR: 27, Trigger: "scout"},
+		agent:    "seidroid-codex",
+	}
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages:      []string{driverAgentPage("ag_codex", "seidroid-codex", "", false)},
+		CreateResp:      driverSessionResp("conv_new", "ag_codex"),
+		SessionListResp: `{"data":[],"has_more":false}`,
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			driverSessionResp("conv_new", "ag_codex"),
+			driverSessionWithItems("conv_new", "ag_codex",
+				driverReplyItem("item_reply", "resp_claude_a",
+					driverVerdict("Read the diff.", "comment"))),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	cfg.Model = "claude-opus-4-7"
+	newTestDriver(cfg, driver.Policy{}, driverTestLogger()).Run(t.Context(), scout)
+
+	created := fs.CreateReqs()
+	if len(created) != 1 {
+		t.Fatalf("created %d sessions %+v, want 1", len(created), created)
+	}
+	if created[0].ModelOverride != nil {
+		t.Errorf("created a scout session with model_override = %q; want the field "+
+			"absent — the configured model belongs to the review's agent",
+			*created[0].ModelOverride)
 	}
 }
