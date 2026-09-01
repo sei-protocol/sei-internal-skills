@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"encoding/json"

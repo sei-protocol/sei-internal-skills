@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"crypto/sha256"
@@ -49,7 +49,7 @@ func (s Scout) RunKey() string { return ScoutRunKey(s.req.Repo, s.req.PR, s.name
 
 // Title names the session for a human reading a session list.
 func (s Scout) Title() string {
-	return fmt.Sprintf("xreview scout %s %s#%d", s.name, s.req.Repo, s.req.PR)
+	return fmt.Sprintf("review scout %s %s#%d", s.name, s.req.Repo, s.req.PR)
 }
 
 // Prompt asks for this scout's reading. A scout that has read this pull request

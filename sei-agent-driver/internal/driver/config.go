@@ -214,7 +214,7 @@ func LoadConfig() (Config, error) {
 		BaseURL: strings.TrimRight(envOr("OMNIGENT_BASE_URL", defaultBaseURL), "/"),
 		Origin:  envOr("OMNIGENT_ORIGIN", defaultOrigin),
 		Agent:   envOr("SEIDROID_AGENT_ID", defaultAgent),
-		Model:   strings.TrimSpace(os.Getenv("XREVIEW_MODEL")),
+		Model:   strings.TrimSpace(os.Getenv("SEIDROID_MODEL")),
 		Token:   resolveToken(),
 
 		MachineClientID:     strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_ID")),
@@ -227,10 +227,10 @@ func LoadConfig() (Config, error) {
 		secs float64
 		dst  *time.Duration
 	}{
-		{"XREVIEW_RUN_DEADLINE_S", DefaultRunDeadline.Seconds(), &cfg.RunDeadline},
-		{"XREVIEW_REQUEST_TIMEOUT_S", DefaultRequestTimeout.Seconds(), &cfg.RequestTimeout},
-		{"XREVIEW_UNARY_TIMEOUT_S", DefaultUnaryTimeout.Seconds(), &cfg.UnaryTimeout},
-		{"XREVIEW_STREAM_IDLE_TIMEOUT_S", DefaultStreamIdleTimeout.Seconds(), &cfg.StreamIdleTimeout},
+		{"SEIDROID_RUN_DEADLINE_S", DefaultRunDeadline.Seconds(), &cfg.RunDeadline},
+		{"SEIDROID_REQUEST_TIMEOUT_S", DefaultRequestTimeout.Seconds(), &cfg.RequestTimeout},
+		{"SEIDROID_UNARY_TIMEOUT_S", DefaultUnaryTimeout.Seconds(), &cfg.UnaryTimeout},
+		{"SEIDROID_STREAM_IDLE_TIMEOUT_S", DefaultStreamIdleTimeout.Seconds(), &cfg.StreamIdleTimeout},
 	} {
 		secs, err := secondsOr(d.name, d.secs)
 		if err != nil {

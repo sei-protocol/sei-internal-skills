@@ -15,7 +15,7 @@
 // codes, and the same fail-closed permission policy keyed on server-attested tool
 // identity. It does not keep that driver's per-trigger idempotency -- the run key is the
 // unit of work, so nothing is skipped as a duplicate and every dispatch adopts the
-// session and reviews the current tree. See [xreview.RunKey]. The exit codes are that set and one more, [ExitInternal], which a
+// session and reviews the current tree. See [review.RunKey]. The exit codes are that set and one more, [ExitInternal], which a
 // caller pinned to an older ref reads as an unknown failure.
 //
 // # One session per unit of work
@@ -29,7 +29,7 @@
 // the adopted prompt re-fetches the diff and re-clones the tree on every dispatch, and
 // deletes the tree if it cannot bring it current, because memory of a moved pull request
 // is wrong rather than merely stale. Reusing the session is worth its cost only if the
-// prompt then declines to re-send what the session holds; see [xreview.AdoptedPrompt].
+// prompt then declines to re-send what the session holds; see [review.AdoptedPrompt].
 //
 // For the first workload that unit is a pull request. The vocabulary here stays
 // neutral because nothing in this package depends on which it is — only that two

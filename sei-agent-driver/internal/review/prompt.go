@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"fmt"
@@ -277,7 +277,7 @@ func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 // and a server-side shell gate, live outside this driver.
 func BuildPrompt(req Request) string {
 	lines := []string{
-		fmt.Sprintf("Review pull request %s#%d as the seidroid xreview bot.", req.Repo, req.PR),
+		fmt.Sprintf("Review pull request %s#%d as the seidroid review bot.", req.Repo, req.PR),
 		"",
 		"Step 1 — read the diff. Run:",
 		"",

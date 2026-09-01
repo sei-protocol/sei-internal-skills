@@ -112,7 +112,7 @@ func TestParseTargetKeepsEveryNameGitHubAllows(t *testing.T) {
 }
 
 // TestReportWritesEachOutputOnItsOwnFlag pins that the check run and the findings
-// no longer depend on --out. A checks list with no xreview entry reads as a
+// no longer depend on --out. A checks list with no review entry reads as a
 // review that did not run rather than one that passed, so gating the fail-closed
 // signal on an unrelated flag made it fail open.
 func TestReportWritesEachOutputOnItsOwnFlag(t *testing.T) {
@@ -168,7 +168,7 @@ func TestOutputsAreClearedBeforeAnEarlyExit(t *testing.T) {
 	if out, err := exec.Command("go", "build", "-o", bin, ".").CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
-	cmd := exec.Command(bin, "xreview", "--out", out, "sei-protocol/sandbox", "22")
+	cmd := exec.Command(bin, "review", "--out", out, "sei-protocol/sandbox", "22")
 	// No credential, so this exits before it reaches the review.
 	cmd.Env = []string{"PATH=" + os.Getenv("PATH"), "HOME=" + dir}
 	_ = cmd.Run()
@@ -272,7 +272,7 @@ func TestBothCallersActOnARefusedClear(t *testing.T) {
 		}
 		// A working credential, so a non-zero exit is about the clear and not about
 		// configuration. The clear runs first either way.
-		cmd := exec.Command(bin, "xreview", "--out", out, "sei-protocol/sandbox", "22")
+		cmd := exec.Command(bin, "review", "--out", out, "sei-protocol/sandbox", "22")
 		cmd.Env = []string{
 			"PATH=" + os.Getenv("PATH"), "HOME=" + dir,
 			"OMNIGENT_API_TOKEN=test-token",
