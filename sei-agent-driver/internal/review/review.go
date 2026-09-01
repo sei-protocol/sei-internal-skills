@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"fmt"
@@ -107,7 +107,7 @@ func New(req Request) Review { return Review{req: req} }
 func (r Review) RunKey() string { return RunKey(r.req.Repo, r.req.PR) }
 
 // Title names the session for a human reading a session list.
-func (r Review) Title() string { return fmt.Sprintf("xreview %s#%d", r.req.Repo, r.req.PR) }
+func (r Review) Title() string { return fmt.Sprintf("review %s#%d", r.req.Repo, r.req.PR) }
 
 // Prompt is the review instruction. A session that has already reviewed this pull
 // request is asked what changed, rather than handed the contract a second time. The two

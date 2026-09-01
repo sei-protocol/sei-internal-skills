@@ -5,7 +5,7 @@
 // the agent, creating or adopting the session, following a turn across the
 // streams it outlives, answering the permission prompts it raises, telling a
 // finished turn from an agent still working — is the driver's, and is the same
-// whatever the workload asks for. `xreview` is the first; a workload is a prompt,
+// whatever the workload asks for. `review` is the first; a workload is a prompt,
 // a way to read the reply, and somewhere to put it.
 //
 // Configured entirely by environment so no credential lands in an argument; the
@@ -32,7 +32,7 @@ import (
 
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/omni"
-	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/xreview"
+	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/review"
 	"github.com/urfave/cli/v3"
 )
 
@@ -88,7 +88,7 @@ func main() {
 		Usage:   "drive an Omnigent agent session to a machine-readable answer",
 		Version: resolvedVersion(),
 		Commands: []*cli.Command{
-			xreviewCommand(log),
+			reviewCommand(log),
 		},
 	}
 
@@ -108,15 +108,15 @@ func main() {
 	}
 }
 
-// xreviewCommand is the pull-request review workload: it hands the agent a diff
+// reviewCommand is the pull-request review workload: it hands the agent a diff
 // to read and expects a verdict back, then leaves the caller to post it.
 //
 // The flags are all about where the answer goes, because that is the only part
 // of a workload the caller has to wire. What identifies the work stays in the
 // arguments.
-func xreviewCommand(log *slog.Logger) *cli.Command {
+func reviewCommand(log *slog.Logger) *cli.Command {
 	return &cli.Command{
-		Name:      "xreview",
+		Name:      "review",
 		Usage:     "review a pull request with the seidroid agent",
 		ArgsUsage: "<owner/name> <pr-number>",
 		Flags: []cli.Flag{
@@ -131,7 +131,7 @@ func xreviewCommand(log *slog.Logger) *cli.Command {
 			&cli.StringFlag{
 				Name: "guidelines-file",
 				Usage: "repository standards file to read from the base branch " +
-					"(default " + xreview.DefaultGuidelinesFile + ")",
+					"(default " + review.DefaultGuidelinesFile + ")",
 			},
 			&cli.StringFlag{
 				Name:  "extra-instructions",
@@ -210,18 +210,18 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	defer stop()
 
 	policy := driver.NewPolicy(
-		os.Getenv("XREVIEW_ALLOW_POLICIES"),
-		os.Getenv("XREVIEW_ALLOW_TOOLS"),
+		os.Getenv("SEIDROID_ALLOW_POLICIES"),
+		os.Getenv("SEIDROID_ALLOW_TOOLS"),
 	)
 	if len(policy.AllowPolicies) == 0 && len(policy.AllowTools) == 0 {
 		log.Warn("no permission allowlist configured; every prompt will be declined",
-			"hint", "set XREVIEW_ALLOW_TOOLS to the tool_name values this run logs")
+			"hint", "set SEIDROID_ALLOW_TOOLS to the tool_name values this run logs")
 	}
 
-	req := xreview.Request{
+	req := review.Request{
 		Repo: repo,
 		PR:   pr,
-		Trigger: xreview.TriggerID(
+		Trigger: review.TriggerID(
 			cmd.String("trigger-id"),
 			os.Getenv("GITHUB_RUN_ID"),
 			os.Getenv("GITHUB_RUN_ATTEMPT"),
@@ -254,7 +254,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	// Parsed leniently here and enforced below, so a malformed scout list cannot
 	// refuse --close: that is the only path that reclaims a sandbox, and it must
 	// not depend on an unrelated variable being well-formed.
-	specs, scoutErr := parseScouts(os.Getenv("XREVIEW_SCOUTS"), cfg.Agent)
+	specs, scoutErr := parseScouts(os.Getenv("SEIDROID_SCOUTS"), cfg.Agent)
 
 	// The driver states what a run needs from a server; omni is the implementation
 	// that reaches this one. Wiring them is this binary's job -- it is the only
@@ -274,12 +274,12 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 				"error", scoutErr)
 		}
 		for _, spec := range specs {
-			if scout := d.Close(ctx, xreview.NewScout(req, spec.name, spec.agent)); !scout.TeardownOK {
+			if scout := d.Close(ctx, review.NewScout(req, spec.name, spec.agent)); !scout.TeardownOK {
 				log.Warn("could not reclaim a scout's session; its sandbox may be left running",
 					"scout", spec.name, "session_id", scout.SessionID, "exit_code", scout.ExitCode)
 			}
 		}
-		result := d.Close(ctx, xreview.New(req))
+		result := d.Close(ctx, review.New(req))
 		if err := report("", "", "", result, req.IncludeNits); err != nil {
 			return &exitError{code: driver.ExitConfig, err: err}
 		}
@@ -299,7 +299,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	req.Scouts = gatherScouts(ctx, d, req, specs,
 		cfg.RunDeadline*scoutShareNum/scoutShareDenom, log)
 
-	result := d.Run(ctx, xreview.New(req))
+	result := d.Run(ctx, review.New(req))
 
 	if err := report(cmd.String("out"), cmd.String("findings-out"),
 		cmd.String("check-out"), result, req.IncludeNits); err != nil {
@@ -342,9 +342,9 @@ func report(outPath, findingsPath, checkPath string, result driver.Result, inclu
 		"exit_code":   result.ExitCode,
 		"teardown_ok": result.TeardownOK,
 	}
-	var verdict xreview.Verdict
+	var verdict review.Verdict
 	if result.Reply != nil {
-		verdict = xreview.ParseVerdict(result.Reply.Text)
+		verdict = review.ParseVerdict(result.Reply.Text)
 		verdict.TurnID = result.Reply.TurnID
 		verdict.ItemID = result.Reply.ItemID
 		payload["decision"] = verdict.Decision()
@@ -377,7 +377,7 @@ func report(outPath, findingsPath, checkPath string, result driver.Result, inclu
 	// that did not run rather than one that passed, so gating it on --out made the
 	// fail-closed signal the one that failed open.
 	if outPath != "" {
-		body := xreview.RenderComment(verdict, result.SessionID)
+		body := review.RenderComment(verdict, result.SessionID)
 		if err := os.WriteFile(outPath, []byte(body), 0o644); err != nil {
 			return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
 		}
@@ -392,7 +392,7 @@ func report(outPath, findingsPath, checkPath string, result driver.Result, inclu
 //
 // An absent file is not an error: a pull request reviewed for the first time has
 // no history, and that is the common case rather than a fault.
-func readPriorThreads(path string) ([]xreview.PriorThread, error) {
+func readPriorThreads(path string) ([]review.PriorThread, error) {
 	blob, err := os.ReadFile(path)
 	if errors.Is(err, os.ErrNotExist) {
 		return nil, nil
@@ -403,7 +403,7 @@ func readPriorThreads(path string) ([]xreview.PriorThread, error) {
 	if len(bytes.TrimSpace(blob)) == 0 {
 		return nil, nil
 	}
-	var threads []xreview.PriorThread
+	var threads []review.PriorThread
 	if err := json.Unmarshal(blob, &threads); err != nil {
 		return nil, fmt.Errorf("decoding %s: %w", path, err)
 	}
@@ -413,13 +413,13 @@ func readPriorThreads(path string) ([]xreview.PriorThread, error) {
 // writeCheckRun renders the check run the caller publishes.
 //
 // Written whenever there is a verdict, unlike the findings: a review that found
-// nothing still concludes, and a checks list with no xreview entry reads as a
+// nothing still concludes, and a checks list with no review entry reads as a
 // review that did not run rather than one that passed.
-func writeCheckRun(path string, verdict xreview.Verdict, includeNits bool) error {
+func writeCheckRun(path string, verdict review.Verdict, includeNits bool) error {
 	if path == "" {
 		return nil
 	}
-	check, ok := xreview.BuildCheckRun(verdict, includeNits)
+	check, ok := review.BuildCheckRun(verdict, includeNits)
 	if !ok {
 		return nil
 	}
@@ -475,11 +475,11 @@ func clearOutputs(paths ...string) error {
 // this review"; this one's means "and place these on the code", and a review with
 // nothing placeable is normal rather than a failure — so an empty list writes no
 // file and the caller posts a summary alone.
-func writeFindings(path string, verdict xreview.Verdict, includeNits bool) error {
+func writeFindings(path string, verdict review.Verdict, includeNits bool) error {
 	if path == "" {
 		return nil
 	}
-	findings := xreview.PlaceableFindings(verdict, includeNits)
+	findings := review.PlaceableFindings(verdict, includeNits)
 	if len(findings) == 0 {
 		return nil
 	}
@@ -620,11 +620,11 @@ func parseScouts(raw, reviewAgent string) ([]scoutSpec, error) {
 func gatherScouts(
 	ctx context.Context,
 	d *driver.Driver,
-	req xreview.Request,
+	req review.Request,
 	specs []scoutSpec,
 	budget time.Duration,
 	log *slog.Logger,
-) []xreview.ScoutResult {
+) []review.ScoutResult {
 	if len(specs) == 0 {
 		return nil
 	}
@@ -635,7 +635,7 @@ func gatherScouts(
 	ctx, cancel := context.WithTimeout(ctx, budget)
 	defer cancel()
 
-	out := make([]xreview.ScoutResult, len(specs))
+	out := make([]review.ScoutResult, len(specs))
 	var wg sync.WaitGroup
 	for i, spec := range specs {
 		wg.Add(1)
@@ -689,19 +689,19 @@ func scoutNote(result driver.Result) string {
 func runScout(
 	ctx context.Context,
 	d *driver.Driver,
-	req xreview.Request,
+	req review.Request,
 	spec scoutSpec,
 	log *slog.Logger,
-) (res xreview.ScoutResult) {
-	res = xreview.ScoutResult{Name: spec.name}
+) (res review.ScoutResult) {
+	res = review.ScoutResult{Name: spec.name}
 	defer func() {
 		if p := recover(); p != nil {
 			log.Error("scout panicked", "scout", spec.name, "panic", p)
-			res = xreview.ScoutResult{Name: spec.name, Note: "it failed unexpectedly"}
+			res = review.ScoutResult{Name: spec.name, Note: "it failed unexpectedly"}
 		}
 	}()
 
-	result := d.Run(ctx, xreview.NewScout(req, spec.name, spec.agent))
+	result := d.Run(ctx, review.NewScout(req, spec.name, spec.agent))
 	// The session id is logged even on failure: it names the sandbox, and nothing
 	// else reclaims one, so this is the operator's only handle on a leak.
 	log.Info("scout finished", "scout", spec.name, "agent", spec.agent,
@@ -721,7 +721,7 @@ func runScout(
 		return res
 	}
 
-	parsed := xreview.ParseScoutReport(result.Reply.Text)
+	parsed := review.ParseScoutReport(result.Reply.Text)
 	switch {
 	case !parsed.HasReport():
 		res.Note = parsed.Reason

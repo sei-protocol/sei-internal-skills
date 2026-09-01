@@ -22,9 +22,9 @@ const managed = "managed"
 // recognises a session an earlier one created. Namespaced because labels are a
 // shared surface.
 //
-// The value still says xreview because it is written on live sessions: changing
+// The value still says review because it is written on live sessions: changing
 // it orphans every session a running deployment would otherwise adopt.
-const RunKeyLabel = "xreview.seinetwork.io/run-key"
+const RunKeyLabel = "review.seinetwork.io/run-key"
 
 // Host is an Omnigent deployment, and the [driver.Host] this driver runs against.
 type Host struct {

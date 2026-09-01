@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"encoding/json"
@@ -58,7 +58,7 @@ func TestBuildCheckRunCarriesWhatTheInlineCommentsCannot(t *testing.T) {
 }
 
 // TestBuildCheckRunOnACleanReview covers the case that must still publish. A
-// checks list with no xreview entry reads as a review that did not run, not one
+// checks list with no review entry reads as a review that did not run, not one
 // that passed.
 func TestBuildCheckRunOnACleanReview(t *testing.T) {
 	t.Parallel()

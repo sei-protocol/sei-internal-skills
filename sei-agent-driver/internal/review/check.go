@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"fmt"
@@ -421,7 +421,7 @@ func plural(n int, noun string) string {
 // BuildFailureCheck is the check run for a review that produced no verdict.
 //
 // [BuildCheckRun] reports false there. A caller that publishes nothing leaves the checks
-// list with no xreview entry, which reads as a review that did not run rather than one
+// list with no review entry, which reads as a review that did not run rather than one
 // that could not be read. Those are different things, and only one of them means an
 // operator should look.
 //
