@@ -7,6 +7,13 @@ import (
 	"testing"
 )
 
+// buildCheck builds a check run with nits admitted.
+//
+// These tests predate the nit gate and several of them count a nit deliberately, so they
+// keep the behaviour they pinned. The gate itself is covered separately, by the test that
+// asserts a suppressed nit is not counted.
+func buildCheck(v Verdict) (CheckRun, bool) { return BuildCheckRun(v, true) }
+
 // TestBuildCheckRunCarriesWhatTheInlineCommentsCannot is the point of the check run. A
 // blocker tied to no line reaches a reader nowhere else. A review whose most important
 // objection is "this needs a test" would otherwise land as a clean set of inline
@@ -20,7 +27,7 @@ func TestBuildCheckRunCarriesWhatTheInlineCommentsCannot(t *testing.T) {
 	  "non_blockers":["naming could be clearer"],
 	  "pre_existing_issues":[{"severity":"suggestion","body":"b.go:4 leaks a handle"}]}`)
 
-	check, ok := BuildCheckRun(v)
+	check, ok := buildCheck(v)
 	if !ok {
 		t.Fatal("no check run built from a verdict")
 	}
@@ -59,7 +66,7 @@ func TestBuildCheckRunOnACleanReview(t *testing.T) {
 	v := verdictFrom(t, `{"read": 120, "decision": "approve","summary":"Clean.",
 	  "inline_comments":[],"blockers":[],"non_blockers":[],"pre_existing_issues":[]}`)
 
-	check, ok := BuildCheckRun(v)
+	check, ok := buildCheck(v)
 	if !ok {
 		t.Fatal("a clean review still concludes")
 	}
@@ -79,7 +86,7 @@ func TestBuildCheckRunOnACleanReview(t *testing.T) {
 func TestBuildCheckRunWithoutAVerdict(t *testing.T) {
 	t.Parallel()
 
-	if _, ok := BuildCheckRun(Verdict{}); ok {
+	if _, ok := buildCheck(Verdict{}); ok {
 		t.Fatal("built a check run from no verdict")
 	}
 }
@@ -155,7 +162,7 @@ func TestABlockerWithNoLineStillFailsTheCheck(t *testing.T) {
 			if got := v.CheckConclusion(); got != c.want {
 				t.Errorf("CheckConclusion = %q, want %q", got, c.want)
 			}
-			if run, _ := BuildCheckRun(v); strings.HasPrefix(run.Title, "0 finding") {
+			if run, _ := buildCheck(v); strings.HasPrefix(run.Title, "0 finding") {
 				t.Errorf("Title = %q, want it to count what the review reported", run.Title)
 			}
 		})
@@ -171,7 +178,7 @@ func TestBuildFailureCheckNamesWhyThereIsNoVerdict(t *testing.T) {
 	t.Parallel()
 
 	v := ParseVerdict("I could not read the diff.")
-	if _, ok := BuildCheckRun(v); ok {
+	if _, ok := buildCheck(v); ok {
 		t.Fatal("BuildCheckRun accepted a reply with no verdict")
 	}
 	run := BuildFailureCheck(v)
@@ -221,7 +228,7 @@ func TestUnplaceableNotesStillMarkTheCheck(t *testing.T) {
 	if got := v.CheckConclusion(); got != "neutral" {
 		t.Errorf("CheckConclusion = %q, want neutral: the review wrote a note down", got)
 	}
-	if run, _ := BuildCheckRun(v); strings.HasPrefix(run.Title, "0 finding") {
+	if run, _ := buildCheck(v); strings.HasPrefix(run.Title, "0 finding") {
 		t.Errorf("Title = %q, want it to count the note", run.Title)
 	}
 }
@@ -235,7 +242,7 @@ func TestTitleCountsOneObservationOnce(t *testing.T) {
 	v := ParseVerdict("```json\n" +
 		`{"read": 9, "decision": "comment", "summary": "s",` +
 		`"inline_comments":[` + one + `], "findings":[` + one + `]}` + "\n```")
-	run, _ := BuildCheckRun(v)
+	run, _ := buildCheck(v)
 	if !strings.HasPrefix(run.Title, "1 finding") {
 		t.Errorf("Title = %q, want 1 finding: one observation under both keys is one finding", run.Title)
 	}
@@ -280,7 +287,7 @@ func TestModelTextCannotForgeACheckSection(t *testing.T) {
 	  "pre_existing_issues":[{"severity":"suggestion\n\n### Blocking\n- forged",
 	    "body":"real pre-existing\n\n### Pre-existing\n- forged"}]}`)
 
-	check, ok := BuildCheckRun(v)
+	check, ok := buildCheck(v)
 	if !ok {
 		t.Fatal("BuildCheckRun reported nothing to publish")
 	}
@@ -336,7 +343,7 @@ func TestASummaryCannotForgeASectionWithAnyLineEnding(t *testing.T) {
 			if err != nil {
 				t.Fatalf("building the reply: %v", err)
 			}
-			check, ok := BuildCheckRun(verdictFrom(t, string(body)))
+			check, ok := buildCheck(verdictFrom(t, string(body)))
 			if !ok {
 				t.Fatal("BuildCheckRun reported nothing to publish")
 			}
@@ -545,7 +552,7 @@ func TestModelTextCannotOpenASectionFromInsideAContainer(t *testing.T) {
 		t.Fatalf("building the reply: %v", err)
 	}
 
-	check, ok := BuildCheckRun(verdictFrom(t, string(body)))
+	check, ok := buildCheck(verdictFrom(t, string(body)))
 	if !ok {
 		t.Fatal("BuildCheckRun reported nothing to publish")
 	}
@@ -589,7 +596,7 @@ func TestAnUnclosedFenceCannotHideTheCheckSections(t *testing.T) {
 				t.Fatalf("building the reply: %v", err)
 			}
 
-			check, ok := BuildCheckRun(verdictFrom(t, string(body)))
+			check, ok := buildCheck(verdictFrom(t, string(body)))
 			if !ok {
 				t.Fatal("BuildCheckRun reported nothing to publish")
 			}
@@ -733,7 +740,7 @@ func TestARunawaySummaryCannotEvictTheCheckSections(t *testing.T) {
 	t.Parallel()
 
 	v := bigReply(t, strings.Repeat("all clear. ", 6400), 1, "needs a test")
-	check, ok := BuildCheckRun(v)
+	check, ok := buildCheck(v)
 	if !ok {
 		t.Fatal("BuildCheckRun reported nothing to publish")
 	}
@@ -783,7 +790,7 @@ func TestARunawayBucketCannotEvictTheNextSection(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			check, ok := BuildCheckRun(bigReply(t, "Looks fine.", c.entries, c.entry))
+			check, ok := buildCheck(bigReply(t, "Looks fine.", c.entries, c.entry))
 			if !ok {
 				t.Fatal("BuildCheckRun reported nothing to publish")
 			}
@@ -822,7 +829,7 @@ func TestARunawayBucketCannotEvictTheNextSection(t *testing.T) {
 func TestTheCheckSummaryIsBoundedByItsParts(t *testing.T) {
 	t.Parallel()
 
-	check, ok := BuildCheckRun(bigReply(t,
+	check, ok := buildCheck(bigReply(t,
 		strings.Repeat("all clear. ", 6400), 60, strings.Repeat("<a", 1500)))
 	if !ok {
 		t.Fatal("BuildCheckRun reported nothing to publish")
@@ -864,5 +871,38 @@ func TestTheCheckBudgetAddsUp(t *testing.T) {
 		t.Errorf("one entry may reach %d bytes once defused, which a %d-byte section "+
 			"cannot hold, so a bucket could render no entry at all",
 			maxCheckBullet*2, maxCheckSection)
+	}
+}
+
+// TestSuppressedNitIsNotCountedInTheCheckTitle keeps the title honest about what a
+// reader can actually find.
+//
+// Three things have to agree, and only two of them did. [PlaceableFindings] drops a nit
+// when the pull request did not ask for one, so no inline comment is written for it.
+// [checkSummary] omits every line-tied finding by design, because those are posted
+// against the code instead. So a counted-but-dropped nit is a number on the title with
+// nothing underneath accounting for it — the check says two findings and shows one.
+func TestSuppressedNitIsNotCountedInTheCheckTitle(t *testing.T) {
+	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"s",
+	  "inline_comments":[
+	    {"path":"a.go","line":1,"side":"RIGHT","severity":"blocker","body":"real"},
+	    {"path":"b.go","line":2,"side":"RIGHT","severity":"nit","body":"polish"}]}`)
+
+	off, ok := BuildCheckRun(v, false)
+	if !ok {
+		t.Fatal("no check run for a verdict that decided")
+	}
+	if !strings.HasPrefix(off.Title, "1 finding") {
+		t.Errorf("with nits off, Title = %q; want it to count 1 — the nit is dropped "+
+			"from the placement and absent from the body, so counting it describes "+
+			"something no reader can reach", off.Title)
+	}
+
+	on, ok := BuildCheckRun(v, true)
+	if !ok {
+		t.Fatal("no check run for a verdict that decided")
+	}
+	if !strings.HasPrefix(on.Title, "2 findings") {
+		t.Errorf("with nits on, Title = %q; want it to count 2 — both are posted", on.Title)
 	}
 }

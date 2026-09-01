@@ -368,7 +368,7 @@ func BuildPrompt(req Request) string {
 		"Finish with a single fenced json block, and nothing after it.",
 		"",
 	}...)
-	lines = append(lines, bucketRules()...)
+	lines = append(lines, bucketRules(req.IncludeNits)...)
 	return strings.Join(lines, "\n")
 }
 
@@ -377,7 +377,7 @@ func BuildPrompt(req Request) string {
 // The first dispatch on a pull request only. A re-review runs in the same session and
 // already holds this, so [AdoptedPrompt] sends [verdictShape] alone -- the schema without
 // the sorting prose. Holding a session and then re-sending what it holds buys nothing.
-func bucketRules() []string {
+func bucketRules(includeNits bool) []string {
 	return append([]string{
 		"Every observation you made goes in the block, in exactly one bucket. A note",
 		"worth writing in the prose is worth an entry: one missing from the block is",
@@ -408,7 +408,7 @@ func bucketRules() []string {
 		"non-blocking notes, and approve if you found nothing at all. Use [] for a",
 		"bucket with nothing in it:",
 		"",
-	}, verdictShape()...)
+	}, verdictShape(includeNits)...)
 }
 
 // verdictShape is the closing block's schema, apart from the prose that explains how to
@@ -427,8 +427,8 @@ func bucketRules() []string {
 // to neutral -- a wrong answer with no error anywhere. So the rule travels with the field,
 // and the placeholder is <line count> rather than 0 so that copying the shape cannot
 // produce the sentinel.
-func verdictShape() []string {
-	return []string{
+func verdictShape(includeNits bool) []string {
+	shape := []string{
 		"read is the line count the diff command printed, and 0 if you never got the",
 		"diff. It is how this tool tells a review of the change from a review of",
 		"nothing, so it is not optional and not an estimate. The placeholder below is",
@@ -446,6 +446,66 @@ func verdictShape() []string {
 		` "pre_existing_issues": [{"severity": "blocker|suggestion",`,
 		`                          "body": "where it is and what it costs"}]}`,
 		"```",
+	}
+	return append(shape, nitRule(includeNits)...)
+}
+
+// nitRule states the pull request's current nit setting, and says it on both settings.
+//
+// The off setting redirects rather than forbids, and that is the difference between a
+// rule a review can follow and one it has to break. [bucketRules] opens by saying every
+// observation goes in the block, and that one missing from the block is one the author
+// never sees -- so banning a nit from the block with nowhere to send it leaves the
+// cheapest consistent move being to drop the observation. non_blockers is the bucket
+// already used for a finding that cannot be placed on a line, and [check.go] renders it
+// under Non-blocking, so the nit is reported without opening a thread. That is what the
+// flag is for: a gate on placement, not on noticing.
+//
+// The redirect amends that bucket in the same breath. [bucketRules] defines non_blockers
+// as holding what is tied to no single line, and a nit is tied to one, so a bare
+// redirect would trade one contradiction for another. The amendment rides here rather
+// than on the bucket line because [bucketRules] runs on the first dispatch only: a
+// re-review would inherit the bucket definition without the clause that widens it.
+//
+// Both, because the session outlives the run. A first turn told to leave nits out still
+// holds that instruction when a later dispatch opts in, so saying nothing on the opt-in
+// path is not neutral -- it leaves the ban standing, and the label the author just added
+// does nothing. Each dispatch therefore names the setting that is current and that it
+// replaces any earlier one.
+//
+// It rides in [verdictShape], the one block both [BuildPrompt] and [AdoptedPrompt] send,
+// so no dispatch can omit it.
+//
+// nit stays in the severity vocabulary on both settings rather than being withheld on
+// the off one. An observation does not disappear when its honest label does: the sorting
+// rules still say every observation goes in exactly one bucket, and inline_comments is
+// the bucket for anything tied to a line. A review holding a nit-grade line observation
+// and no way to call it one relabels it a suggestion, which [PlaceableFindings] cannot
+// tell from a real one -- so withholding the word would convert the threads this flag
+// suppresses into threads it cannot see.
+//
+// Same reasoning as ai-review, whose schema keeps nit in the enum on both settings and
+// whose prompt carries the instruction.
+func nitRule(includeNits bool) []string {
+	if includeNits {
+		return []string{
+			"",
+			"This pull request asks for nits. Report a nit-grade observation with severity",
+			"nit. If an earlier turn told you to leave nits out, that",
+			"no longer holds: this line is the current setting and it replaces it.",
+		}
+	}
+	return []string{
+		"",
+		"This pull request does not ask for nits. Put a nit-grade observation in",
+		"non_blockers instead of inline_comments: it is still reported, and it does not",
+		"open a thread on the line. That bucket is described above as holding what is",
+		"tied to no single line; while this setting holds it also takes a nit that is",
+		"tied to one, and the line belongs in the text. Do not call one a suggestion to",
+		"place it inline --",
+		"a nit reported as a suggestion is worse than a nit, because it reads as",
+		"something worth acting on. If an earlier turn asked for nits, that",
+		"no longer holds: this line is the current setting and it replaces it.",
 	}
 }
 
@@ -688,7 +748,7 @@ func AdoptedPrompt(req Request) string {
 		"how to sort observations into it you already have.",
 		"",
 	)
-	lines = append(lines, verdictShape()...)
+	lines = append(lines, verdictShape(req.IncludeNits)...)
 
 	return strings.Join(append(lines,
 		"",

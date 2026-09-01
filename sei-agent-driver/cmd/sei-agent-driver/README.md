@@ -84,6 +84,38 @@ signal, so a caller never posts a stale file from a previous run.
   be applying. Read by the agent in its sandbox, not by this process.
 - `--extra-instructions TEXT` — additional guidance for this dispatch only. Carried
   into both the first prompt and the adopted one.
+- `--include-nits` — place nit-severity findings inline as well. Off by default. Off
+  means redirected, not suppressed. The prompt sends a nit to `non_blockers` instead of
+  `inline_comments`. The check run then lists it under Non-blocking, and no thread opens
+  on the line. A wall of advice around two real findings teaches the author to skim all
+  of it.
+
+  The redirect widens that bucket, and says so. The sorting rules call `non_blockers`
+  line-less, but a nit names a line. A bare redirect would swap one contradiction for
+  another, so the rule states the wider contract.
+
+  The check run's finding count applies the same gate as the placement. Its body omits
+  every line-tied finding by design, so counting a suppressed nit would name a finding
+  the check cannot show. The published summary comment is a separate surface: it carries
+  the reply's closing block whole, so that block still lists the nit.
+
+  Naming the destination is load-bearing. The sorting rules say every observation belongs
+  in the block. They also say a note missing from the block is one the author never sees.
+  A nit banned from the block with nowhere to go therefore leaves one cheap way to obey
+  both rules: drop the observation. The flag gates placement, not noticing.
+
+  Every dispatch states the setting it runs under, in both directions. Each also states
+  that it replaces any earlier one. The session outlives the run, so a first turn told to
+  leave nits out still holds that instruction. Silence on a later opt-in would leave the
+  ban standing and the flag inert.
+
+  When it is off, the prompt also forbids relabelling a nit as a suggestion to place it
+  inline. The placement then drops anything still called a nit. The driver does both on
+  purpose. Telling the model alone leaves the rule to its compliance. Filtering alone
+  leaves the review no reason not to promote.
+
+  The severity vocabulary does not move with the flag. The filter enforces on the label,
+  so withholding the word would turn a suppressed thread into an unrecognisable one.
 - `--conversation-context FILE` — this tool's earlier findings and their replies, as
   json, so a re-review can say what changed instead of repeating itself. A file that
   cannot be read is a warning rather than a refusal: the review is still correct

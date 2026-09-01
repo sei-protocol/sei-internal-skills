@@ -102,7 +102,11 @@ const maxPlaceableFindings = 50
 // is nowhere sensible to put one that has neither. What is dropped here is still in the
 // prose the summary comment carries. Nothing is lost from the review, only from the
 // inline placement.
-func PlaceableFindings(v Verdict) []Finding {
+//
+// includeNits carries [Request.IncludeNits]. It is enforced here, on the one path that
+// produces every inline comment, rather than left to the prompt the model may ignore or
+// to each caller to remember.
+func PlaceableFindings(v Verdict, includeNits bool) []Finding {
 	seen := make(map[string]bool)
 	out := make([]Finding, 0)
 	for _, entry := range reportedFindings(v) {
@@ -111,6 +115,12 @@ func PlaceableFindings(v Verdict) []Finding {
 			continue
 		}
 		f := findingFrom(fields)
+		// Before the dedupe, not after: [Finding.dedupeKey] does not carry severity, so
+		// a dropped nit that claimed the key would suppress a blocker reported about the
+		// same line in the same words.
+		if f.Severity == "nit" && !includeNits {
+			continue
+		}
 		if !f.placeable() || seen[f.dedupeKey()] {
 			continue
 		}
@@ -321,14 +331,28 @@ func intField(m map[string]any, key string) int {
 // reportedFindings concatenates both schema keys without deduping, because its
 // callers filter afterwards. An adopted session that writes one observation under
 // both vocabularies would otherwise have it counted twice in the check's title.
-func distinctReported(v Verdict) int {
+func distinctReported(v Verdict, includeNits bool) int {
 	seen := make(map[string]bool)
 	for _, entry := range reportedFindings(v) {
 		fields, ok := entry.(map[string]any)
 		if !ok {
 			continue
 		}
-		seen[findingFrom(fields).dedupeKey()] = true
+		f := findingFrom(fields)
+		// The same gate [PlaceableFindings] applies, and before the key for the same
+		// reason. A nit this run will not post appears nowhere in this check: no inline
+		// comment is written for it, and [checkSummary] leaves out every line-tied
+		// finding by design. Counting it puts a number on the title that nothing
+		// underneath accounts for.
+		//
+		// Only this check. [RenderComment] publishes the reply's closing block whole, so
+		// the published comment still carries the entry -- the count and that block
+		// disagree by the nits taken out here, and closing that would mean editing model
+		// output rather than counting it.
+		if f.Severity == "nit" && !includeNits {
+			continue
+		}
+		seen[f.dedupeKey()] = true
 	}
 	return len(seen)
 }
