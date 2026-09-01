@@ -452,6 +452,15 @@ func verdictShape(includeNits bool) []string {
 
 // nitRule states the pull request's current nit setting, and says it on both settings.
 //
+// The off setting redirects rather than forbids, and that is the difference between a
+// rule a review can follow and one it has to break. [bucketRules] opens by saying every
+// observation goes in the block, and that one missing from the block is one the author
+// never sees -- so banning a nit from the block with nowhere to send it leaves the
+// cheapest consistent move being to drop the observation. non_blockers is the bucket
+// already used for a finding that cannot be placed on a line, and [check.go] renders it
+// under Non-blocking, so the nit is reported without opening a thread. That is what the
+// flag is for: a gate on placement, not on noticing.
+//
 // Both, because the session outlives the run. A first turn told to leave nits out still
 // holds that instruction when a later dispatch opts in, so saying nothing on the opt-in
 // path is not neutral -- it leaves the ban standing, and the label the author just added
@@ -482,8 +491,9 @@ func nitRule(includeNits bool) []string {
 	}
 	return []string{
 		"",
-		"This pull request does not ask for nits. Leave a nit-grade observation out of",
-		"the block entirely, and do not call one a suggestion to get it past this rule:",
+		"This pull request does not ask for nits. Put a nit-grade observation in",
+		"non_blockers instead of inline_comments: it is still reported, and it does not",
+		"open a thread on the line. Do not call one a suggestion to place it inline --",
 		"a nit reported as a suggestion is worse than a nit, because it reads as",
 		"something worth acting on. If an earlier turn asked for nits, that",
 		"no longer holds: this line is the current setting and it replaces it.",

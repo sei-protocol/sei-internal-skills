@@ -528,12 +528,13 @@ func TestScoutPromptAsksForNothingItCannotOpen(t *testing.T) {
 // label, and the off setting must carry the instruction that makes the label honest.
 func TestNitGateForbidsPromotionRatherThanHidingTheLabel(t *testing.T) {
 	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
+	flat := func(s string) string { return strings.Join(strings.Fields(s), " ") }
 
 	for _, nits := range []bool{false, true} {
 		req.IncludeNits = nits
 		for name, got := range map[string]string{
-			"BuildPrompt":   BuildPrompt(req),
-			"AdoptedPrompt": AdoptedPrompt(req),
+			"BuildPrompt":   flat(BuildPrompt(req)),
+			"AdoptedPrompt": flat(AdoptedPrompt(req)),
 		} {
 			// The vocabulary is not the gate, and must not move with it.
 			if !strings.Contains(got, "blocker|suggestion|nit") {
@@ -541,10 +542,20 @@ func TestNitGateForbidsPromotionRatherThanHidingTheLabel(t *testing.T) {
 					"filter has nothing left to recognise", name, nits)
 			}
 
-			forbids := strings.Contains(got, "do not call one a suggestion")
+			forbids := strings.Contains(got, "not call one a suggestion")
 			if forbids == nits {
 				t.Errorf("%s with nits=%v: promotion instruction present = %v, want %v",
 					name, nits, forbids, !nits)
+			}
+
+			// A ban has to name where the observation goes instead. bucketRules calls a
+			// note missing from the block one the author never sees, so a nit banned
+			// with no destination leaves dropping it as the cheapest way to obey both.
+			sends := strings.Contains(got, "in non_blockers instead of inline_comments")
+			if sends == nits {
+				t.Errorf("%s with nits=%v: redirect to non_blockers present = %v, want "+
+					"%v — a ban with nowhere to send the nit tells the review to drop it",
+					name, nits, sends, !nits)
 			}
 		}
 	}
