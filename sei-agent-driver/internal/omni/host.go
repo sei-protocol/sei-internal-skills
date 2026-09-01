@@ -22,9 +22,20 @@ const managed = "managed"
 // recognises a session an earlier one created. Namespaced because labels are a
 // shared surface.
 //
-// The value still says xreview because it is written on live sessions: changing
-// it orphans every session a running deployment would otherwise adopt.
-const RunKeyLabel = "xreview.seinetwork.io/run-key"
+// The value is persisted state, not a name: the deployed driver writes it on every
+// session it opens, and it is the only thing adopt matches on and the only label create
+// writes. Changing it orphans every session carrying the old one -- a second session per
+// pull request, and a --close that walks the listing, matches nothing and reclaims
+// nothing, against a server with no lifetime cap and no sweep of its own. The failure is
+// silent: close reports success.
+//
+// Changing it needs the deployment verified to hold no sessions, or a migration that
+// reads both labels before it writes the new one.
+//
+// [TestRunKeyLabelMatchesTheDeployment] is the guard rather than this paragraph, because
+// a rename sweep edits comments as readily as code: a warning written here is rewritten
+// by the same pass it exists to stop, and comes out agreeing with the change.
+const RunKeyLabel = "review.seinetwork.io/run-key"
 
 // Host is an Omnigent deployment, and the [driver.Host] this driver runs against.
 type Host struct {
@@ -342,6 +353,75 @@ type adoption struct {
 	revivable bool
 }
 
+// modelOrEmpty reads a work's model override, treating "leave it alone" as "no
+// override at create" -- a session being opened here carries nothing to leave alone.
+func modelOrEmpty(model *string) string {
+	if model == nil {
+		return ""
+	}
+	return *model
+}
+
+// reconcileModel moves an adopted session's model override to what this work asks for.
+//
+// The override lives on the session row, not on the turn, so a session opened by an
+// earlier dispatch answers on that dispatch's model until something changes it. A pull
+// request that gained a model label between reviews would otherwise be answered by the
+// old model with nothing in the output saying so.
+//
+// The current value is read from the session rather than assumed, so the common case --
+// nothing asked for and no override present -- costs no request.
+//
+// live is reported rather than acted on, and it is the limit of what this can promise.
+// The server places the override on the row so that it is there *before the harness
+// launches*, which is the SDK's stated reason for its create-time field. A session whose
+// harness is already up has therefore already read its model, and this run's turn goes to
+// that process: the row is correct for the next launch, not for the turn about to be
+// sent. Saying so is the point -- an unqualified success here would have the log claim a
+// change this run did not get.
+//
+// A failure is logged, not returned. The model is a preference, and the review still runs
+// on the model the session already carries; refusing here would turn a preference into a
+// pull request with no review on it. Not the agent spec's model -- this runs only when
+// current and want already differ, so a failed write leaves the session on the override
+// it had, which in the clear case is the very one the run was removing.
+func (h *Host) reconcileModel(
+	ctx context.Context,
+	client *omnigent.Client,
+	session *omnigent.SessionResponse,
+	want string,
+	live bool,
+) {
+	current := ""
+	if session.ModelOverride != nil {
+		current = *session.ModelOverride
+	}
+	if current == want {
+		return
+	}
+
+	var err error
+	if want == "" {
+		_, err = client.Sessions().ClearModelOverride(ctx, session.ID)
+	} else {
+		_, err = client.Sessions().SetModelOverride(ctx, session.ID, want)
+	}
+	if err != nil {
+		h.log.Warn("could not move the adopted session's model, so it answers on the "+
+			"one it already had",
+			"session_id", session.ID, "want", want, "have", current, "error", err)
+		return
+	}
+	if live {
+		h.log.Warn("moved the adopted session's model, but its harness is already up "+
+			"and read the old one at launch, so this run still answers on that",
+			"session_id", session.ID, "want", want, "have", current)
+		return
+	}
+	h.log.Info("moved the adopted session's model before its harness launched",
+		"session_id", session.ID, "want", want, "have", current)
+}
+
 // createOrAdopt finds this work's session or opens one, and refuses to hand back a
 // session that can never run a turn.
 //
@@ -373,6 +453,9 @@ func (h *Host) createOrAdopt(
 			h.log.Info("adopting the session an earlier dispatch created",
 				"run_key", w.RunKey, "session_id", existing.ID,
 				"live", live, "revivable", revivable)
+			if w.Model != nil {
+				h.reconcileModel(ctx, client, existing, *w.Model, live)
+			}
 			return existing, adoption{continued: true, live: live, revivable: revivable}, nil
 		}
 		h.log.Warn("the session for this work cannot run a turn; replacing it",
@@ -389,6 +472,11 @@ func (h *Host) createOrAdopt(
 		HostType: managed,
 		Title:    w.Title,
 		Labels:   map[string]string{RunKeyLabel: w.RunKey},
+
+		// At create as well as on adopt, because the override has to be on the session
+		// row before the harness launches. Setting it afterwards would leave the first
+		// turn -- the one that writes the review -- on the spec's model.
+		ModelOverride: modelOrEmpty(w.Model),
 	}
 
 	session, err := client.Sessions().Create(ctx, create)

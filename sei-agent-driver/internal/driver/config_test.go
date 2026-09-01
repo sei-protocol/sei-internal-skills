@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -19,11 +20,11 @@ import (
 // exports -- a developer with OMNIGENT_BASE_URL set would otherwise fail the
 // defaults case and pass the override cases for the wrong reason.
 var configEnv = []string{
-	"OMNIGENT_BASE_URL", "OMNIGENT_ORIGIN", "SEIDROID_AGENT_ID",
+	"OMNIGENT_BASE_URL", "OMNIGENT_ORIGIN", "SEIDROID_AGENT_ID", "SEIDROID_MODEL",
 	"OMNIGENT_API_TOKEN", "OMNIGENT_API_TOKEN_FILE",
 	"OMNIGENT_MACHINE_CLIENT_ID", "OMNIGENT_MACHINE_CLIENT_SECRET",
-	"XREVIEW_RUN_DEADLINE_S", "XREVIEW_REQUEST_TIMEOUT_S",
-	"XREVIEW_UNARY_TIMEOUT_S", "XREVIEW_STREAM_IDLE_TIMEOUT_S",
+	"SEIDROID_RUN_DEADLINE_S", "SEIDROID_REQUEST_TIMEOUT_S",
+	"SEIDROID_UNARY_TIMEOUT_S", "SEIDROID_STREAM_IDLE_TIMEOUT_S",
 }
 
 // clearConfigEnv empties every configuration variable. Empty rather than unset,
@@ -47,7 +48,7 @@ func unset(t *testing.T, name string) {
 }
 
 func TestEnvOrTreatsAnEmptyVariableAsAbsent(t *testing.T) {
-	const name = "XREVIEW_TEST_ENVOR"
+	const name = "SEIDROID_TEST_ENVOR"
 
 	t.Run("absent takes the fallback", func(t *testing.T) {
 		unset(t, name)
@@ -81,7 +82,7 @@ func TestEnvOrTreatsAnEmptyVariableAsAbsent(t *testing.T) {
 }
 
 func TestSecondsOrRefusesAValueThatWouldDisableTheBound(t *testing.T) {
-	const name = "XREVIEW_TEST_SECONDS"
+	const name = "SEIDROID_TEST_SECONDS"
 
 	// Every rejected shape resolves to zero, which as a duration means an already
 	// expired context: a bound that disables itself is worse than a wrong one, so
@@ -214,7 +215,7 @@ func TestLoadConfigLeavesAnUnreadableTokenFileForRequireAuth(t *testing.T) {
 
 func TestLoadConfigReportsABadDurationAndReturnsNothingUsable(t *testing.T) {
 	clearConfigEnv(t)
-	t.Setenv("XREVIEW_RUN_DEADLINE_S", "twenty minutes")
+	t.Setenv("SEIDROID_RUN_DEADLINE_S", "twenty minutes")
 
 	cfg, err := LoadConfig()
 	if !errors.Is(err, ErrConfig) {
@@ -292,6 +293,49 @@ func TestConfigNeverRendersACredential(t *testing.T) {
 		// its purpose.
 		if !strings.Contains(rendered.text, "seidroid") {
 			t.Errorf("%s dropped the agent name", rendered.how)
+		}
+	}
+}
+
+// TestConfigEnvNamesEveryVariableTheSourceReads makes the comment on [configEnv] an
+// enforced claim rather than a maintained one.
+//
+// That list drifted the moment a variable was added: SEIDROID_MODEL was read by
+// [LoadConfig] and absent here, so clearConfigEnv stopped neutralising the whole
+// environment and a developer exporting it would have failed the defaults case for a
+// reason unrelated to their change. Nothing detected that, because the list's
+// completeness was only asserted in prose.
+//
+// It reads config.go rather than calling anything: the point is to catch a name the
+// source reads and this file does not know about, which no amount of exercising
+// [LoadConfig] can reveal.
+func TestConfigEnvNamesEveryVariableTheSourceReads(t *testing.T) {
+	t.Parallel()
+
+	src, err := os.ReadFile("config.go")
+	if err != nil {
+		t.Fatalf("reading config.go: %v", err)
+	}
+
+	known := make(map[string]bool, len(configEnv))
+	for _, name := range configEnv {
+		known[name] = true
+	}
+
+	// By naming convention, which is what makes this cheap: every variable this package
+	// reads carries one of the three prefixes, so the names can be found without
+	// tracking which helper reads them.
+	found := regexp.MustCompile(`"((?:OMNIGENT|SEIDROID)_[A-Z0-9_]+)"`).
+		FindAllStringSubmatch(string(src), -1)
+	if len(found) == 0 {
+		t.Fatal("found no environment variable names in config.go; the pattern has " +
+			"stopped matching and this test now proves nothing")
+	}
+
+	for _, m := range found {
+		if !known[m[1]] {
+			t.Errorf("config.go reads %s and configEnv does not list it, so "+
+				"clearConfigEnv leaves it set from the developer's environment", m[1])
 		}
 	}
 }

@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"crypto/sha256"
@@ -49,7 +49,7 @@ func (s Scout) RunKey() string { return ScoutRunKey(s.req.Repo, s.req.PR, s.name
 
 // Title names the session for a human reading a session list.
 func (s Scout) Title() string {
-	return fmt.Sprintf("xreview scout %s %s#%d", s.name, s.req.Repo, s.req.PR)
+	return fmt.Sprintf("review scout %s %s#%d", s.name, s.req.Repo, s.req.PR)
 }
 
 // Prompt asks for this scout's reading. A scout that has read this pull request
@@ -287,10 +287,11 @@ func scoutSchema() string {
 	return strings.Join([]string{
 		"read is the line count the command above printed, and 0 if you never got the",
 		"diff. It is how the reader after you tells a clean reading from a failed one,",
-		"so it is not optional and not an estimate.",
+		"so it is not optional and not an estimate. The placeholder below is the shape,",
+		"not a value to copy.",
 		"",
 		"```json",
-		`{"read": 0,`,
+		`{"read": <line count>,`,
 		` "findings": [{"file": "path", "line": 0, "severity": "high|medium|low",`,
 		`               "detail": "what is wrong and why it matters"}]}`,
 		"```",

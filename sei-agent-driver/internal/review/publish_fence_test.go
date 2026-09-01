@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"strings"
@@ -429,7 +429,7 @@ func TestAnUncutReplyThatEndsOpenStillShowsItsFooter(t *testing.T) {
 				t.Fatalf("no footer in the body:\n%s", body[max(0, len(body)-200):])
 			}
 			// The footer must not be inside anything the reply left open.
-			at := strings.Index(body, "<sub>seidroid xreview")
+			at := strings.Index(body, "<sub>seidroid review")
 			if fence, comment := endsInsideMarkup(body[:at]); fence || comment {
 				t.Errorf("the footer renders inside open markup (fence=%v comment=%v), "+
 					"so the provenance record is lost", fence, comment)

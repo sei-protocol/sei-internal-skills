@@ -1,8 +1,8 @@
-name: seidroid xreview
-run-name: seidroid xreview / ${{ github.event.issue.number && format('#{0}', github.event.issue.number) || github.ref_name }}
+name: seidroid review
+run-name: seidroid review / ${{ github.event.issue.number && format('#{0}', github.event.issue.number) || github.ref_name }}
 # Reusable, comment-triggered agentic PR review, driven by the sei-agent-driver
 # binary in this repository. A thin caller in the reviewed repo wires the triggers
-# and calls this with `uses:`. Flow: comment `@seidroid xreview` on a pull request
+# and calls this with `uses:`. Flow: comment `@seidroid review` on a pull request
 # -> guard gate -> install and run the driver over one managed omnigent session ->
 # post one sticky verdict, the findings it can place, and a check run.
 #
@@ -11,8 +11,8 @@ run-name: seidroid xreview / ${{ github.event.issue.number && format('#{0}', git
 # person asked for it. The sibling `ai-review.yml` is the automatic path; this is not
 # a second copy of it.
 #
-# The driver is installed with `go install` at `driver-version`, so a caller updates
-# by bumping one pinned ref and this file never copies driver logic. The session is
+# The driver is installed with `go install` at `driver-version`, which the caller pins,
+# so a caller updates by bumping one ref and this file never copies driver logic. The session is
 # keyed on the pull request and OUTLIVES the run, which is why `mode: close` exists:
 # it is the only thing that reclaims a sandbox.
 #
@@ -24,7 +24,7 @@ run-name: seidroid xreview / ${{ github.event.issue.number && format('#{0}', git
 #     The driver mints its own session bearer in-process from
 #     OMNIGENT_MACHINE_CLIENT_ID + OMNIGENT_MACHINE_CLIENT_SECRET
 #     (client_credentials). The secret is wired as JOB-level env on the
-#     `xreview` job below, never as step-level env on a `uses:` step --
+#     `review` job below, never as step-level env on a `uses:` step --
 #     step-level env on a `uses:` step does not reach a composite action, and
 #     that exact defect broke every real run of the original Python workflow.
 #   - Every GitHub-supplied value (repo, PR number, comment id) is routed
@@ -38,7 +38,7 @@ run-name: seidroid xreview / ${{ github.event.issue.number && format('#{0}', git
 #     the exit code, so a review that reached one still posts it whatever else
 #     went wrong; `!cancelled()` rather than `success()` keeps that true while
 #     still skipping a run superseded by a newer trigger.
-#   - XREVIEW_ALLOW_TOOLS is a workflow input, defaulting to Bash,Read because the
+#   - allow-tools is a workflow input, defaulting to Bash,Read because the
 #     prompt's first step is a shell command and a declined prompt therefore
 #     produces a turn that reports it could not read the diff. Its access
 #     control is the trigger gate above, not the allowlist -- see
@@ -59,12 +59,15 @@ on:
         description: >-
           sei-agent-driver version to install: a commit sha of this repository, or a
           module tag once one is cut. No release yet contains the driver -- the newest
-          predates it -- so the default is a sha, and `go install` resolves it to a
-          pseudo-version. Verified from an empty module cache: a warm one is a false
-          green, because it resolves a pin the proxy may never have served.
-        required: false
+          predates it -- so pass a sha, which `go install` resolves to a pseudo-version.
+          Verify it from an empty module cache: a warm one is a false green, because it
+          resolves a pin the proxy may never have served.
+
+          Required, with no default. A default ages silently against the subcommands and
+          inputs this file uses, and the caller finds out at run time. Pinning is the
+          caller's decision, so it is the caller's to state.
+        required: true
         type: string
-        default: '41cb9f18183fd6f1e856c2df56c09b7a481a4738'
       allowed-team:
         description: >-
           org/team-slug whose active members may ask for a review. Empty keeps the
@@ -111,7 +114,7 @@ on:
       timeout-minutes:
         description: >-
           Cap on the review job. Keep it comfortably above the driver's own
-          XREVIEW_RUN_DEADLINE_S: the driver reports a timeout and the reason it
+          SEIDROID_RUN_DEADLINE_S: the driver reports a timeout and the reason it
           hit one, where the runner killing the job leaves an annotation saying
           only that the job was cancelled.
         required: false
@@ -147,6 +150,12 @@ on:
           Empty leaves the driver's own default in place, so a deployment that matches
           it needs nothing here. There is no lookup by alias: the name must match what
           the server's agent bundle is called, exactly.
+
+          A mismatch does not present as a configuration error. The name is a join key
+          with the omnigent.ai/agent label the server stamps on the runner Pod and the
+          admission policy that mounts the git credential from it, so a runner that
+          does not match attracts no credential and the review reports that it could
+          not read the repository.
         required: false
         type: string
         default: ''
@@ -156,7 +165,7 @@ on:
         required: false
         type: string
         default: 'seidroid'
-      XREVIEW_SCOUTS:
+      scouts:
         description: >-
           Independent readings to gather before the review, as `name=agent`,
           comma-separated. Empty runs the review alone, which is what it did
@@ -164,8 +173,8 @@ on:
           session on its own agent bundle, seeing neither the review nor another
           scout; the review then verifies their claims against the diff and merges
           what holds. A scout naming the review's own agent is refused, as are two
-          scouts sharing one — neither would be a second opinion. Named to match
-          the environment variable it becomes 1:1.
+          scouts sharing one — neither would be a second opinion. Passed to the driver as
+          SEIDROID_SCOUTS.
 
           Set this on the CLOSE job too. Scouts hold sessions of their own, and
           close derives which to delete from this value: unset there, every scout
@@ -173,23 +182,38 @@ on:
         required: false
         type: string
         default: ''
-      XREVIEW_ALLOW_POLICIES:
+      claude-model:
         description: >-
-          Comma-separated policy_name values the driver's permission policy
-          accepts automatically (see Policy.Decide in internal/driver/policy.go).
-          Prefer XREVIEW_ALLOW_TOOLS: policy_name is claude_native_permission for
-          every native prompt (measured), so any value here accepts every tool
-          call rather than a class of them. Named to match the environment
-          variable it becomes 1:1.
+          Model to answer the review on, substituting for the one the agent's spec
+          names. Empty leaves the spec's own, which is the default. Passed to the driver as
+          SEIDROID_MODEL.
+
+          The server forwards the value as-is and enumerates nothing, so an
+          unrecognised name is not rejected here or at configuration time -- it
+          fails at turn start, and the review is the thing that does not happen.
+
+          It applies to the review's own agent only. A scout runs on another agent,
+          so another harness and another provider, and it keeps its spec's model.
         required: false
         type: string
         default: ''
-      XREVIEW_ALLOW_TOOLS:
+      allow-policies:
+        description: >-
+          Comma-separated policy_name values the driver's permission policy
+          accepts automatically (see Policy.Decide in internal/driver/policy.go).
+          Prefer allow-tools: policy_name is claude_native_permission for
+          every native prompt (measured), so any value here accepts every tool
+          call rather than a class of them. Passed to the driver as
+          SEIDROID_ALLOW_POLICIES.
+        required: false
+        type: string
+        default: ''
+      allow-tools:
         description: >-
           Comma-separated tool_name values to accept. This deployment does stamp
           tool_name (measured), so this is the allowlist to prefer: it
-          discriminates per tool. Named to match the environment variable it
-          becomes 1:1.
+          discriminates per tool. Passed to the driver as
+          SEIDROID_ALLOW_TOOLS.
 
           Defaults to `Bash,Read` because the review cannot happen without them.
           The prompt's first step is a `gh pr diff` command, so an empty allowlist
@@ -274,14 +298,14 @@ jobs:
         run: |
           set -euo pipefail
           cmd="$(printf '%s' "$BODY" | tr -d '\r')"
-          # Require a LINE reading `@seidroid xreview`, optionally `close`, optionally
+          # Require a LINE reading `@seidroid review`, optionally `close`, optionally
           # followed by one `owner/name#number` naming a pull request ELSEWHERE.
           # Anchoring to a whole line is what keeps a comment that merely quotes or
           # discusses the command from triggering a review, and the target's shape
           # is pinned tightly enough that nothing else can ride in on it.
           #
-          # The @ is optional so `@seidroid xreview` -- the documented form, and what
-          # the mention actually notifies -- and a bare `seidroid xreview` both work.
+          # The @ is optional so `@seidroid review` -- the documented form, and what
+          # the mention actually notifies -- and a bare `seidroid review` both work.
           # Whole-line anchoring is what keeps that safe: a comment discussing the
           # command has other words on the line and does not match.
           #
@@ -296,7 +320,7 @@ jobs:
           # parsed as a target and flowed into an api path as a dot segment.
           target_re='[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*#[0-9]+'
           cmdline="$(printf '%s\n' "$cmd" \
-            | grep -m1 -E "^[[:space:]]*@?seidroid[[:space:]]+xreview([[:space:]]+close)?([[:space:]]+${target_re})?[[:space:]]*$" || true)"
+            | grep -m1 -E "^[[:space:]]*@?seidroid[[:space:]]+review([[:space:]]+close)?([[:space:]]+${target_re})?[[:space:]]*$" || true)"
           if [ -z "$cmdline" ]; then
             echo "should_run=false" >> "$GITHUB_OUTPUT"
             exit 0
@@ -307,12 +331,12 @@ jobs:
           # passes the mode, but the guard has to know too: a close is teardown, and
           # some checks below stop a review without having any business stopping a
           # reclaim.
-          # Anchored on the word the grammar accepts, immediately after `xreview`, not
+          # Anchored on the word the grammar accepts, immediately after `review`, not
           # a substring of the line: a target whose owner or repository contains
           # "close" -- owner/closed-loop#12 -- is a review, and a glob called it
           # teardown.
           if printf '%s' "$cmdline" \
-            | grep -qE '^[[:space:]]*@?seidroid[[:space:]]+xreview[[:space:]]+close([[:space:]]|$)'; then
+            | grep -qE '^[[:space:]]*@?seidroid[[:space:]]+review[[:space:]]+close([[:space:]]|$)'; then
             echo "command=close" >> "$GITHUB_OUTPUT"
           else
             echo "command=review" >> "$GITHUB_OUTPUT"
@@ -335,7 +359,7 @@ jobs:
             # fix is to derive the mint's owner from this value, not to drop the
             # check.
             if [ "${repo%%/*}" != "$REPO_OWNER" ]; then
-              echo "::error::xreview target $repo is under a different owner; \
+              echo "::error::review target $repo is under a different owner; \
                 only repositories under $REPO_OWNER can be reviewed from here"
               echo "should_run=false" >> "$GITHUB_OUTPUT"
               exit 0
@@ -430,7 +454,7 @@ jobs:
             exit 1
           fi
 
-  xreview:
+  review:
     name: Review
     needs: guard
     # A close arriving as a pull_request event needs no guard verdict — GitHub's own
@@ -457,7 +481,7 @@ jobs:
       (github.event_name == 'pull_request' &&
         inputs.mode == 'close' &&
         needs.guard.result == 'skipped')) }}
-    # Exactly one review per PR: a newer `seidroid xreview` cancels an in-flight one
+    # Exactly one review per PR: a newer `seidroid review` cancels an in-flight one
     # (latest wins, never two posters); the driver traps cancellation and STOPS its
     # session, keeping the conversation. Only the close event deletes it, so a rapid
     # re-trigger does not reclaim the sandbox. Job-level so the group is entered only
@@ -472,7 +496,7 @@ jobs:
       # the session is keyed on: two pull requests here both naming owner/name#9
       # would otherwise drive one target session at once.
       group: >-
-        seidroid-xreview-${{ inputs.mode }}-${{ needs.guard.outputs.review_repo || github.repository }}-${{ needs.guard.outputs.review_pr || needs.guard.outputs.pr_number || github.event.pull_request.number }}
+        seidroid-review-${{ inputs.mode }}-${{ needs.guard.outputs.review_repo || github.repository }}-${{ needs.guard.outputs.review_pr || needs.guard.outputs.pr_number || github.event.pull_request.number }}
       cancel-in-progress: true
     # The reviewed repo's runner label, GitHub-hosted by default. The default pairs
     # with the https base URL: the mint refuses to send the client secret over plain
@@ -481,13 +505,13 @@ jobs:
     runs-on: ${{ inputs.runs-on }}
     # The outer bound on a wedged review. Without it the account default is six
     # hours, and the managed sandbox stays up for the whole of it. Comfortably
-    # above the driver's own XREVIEW_RUN_DEADLINE_S so the driver reports the
+    # above the driver's own SEIDROID_RUN_DEADLINE_S so the driver reports the
     # timeout, with its reason, before the runner kills the job.
     timeout-minutes: ${{ inputs.timeout-minutes }}
     permissions:
       pull-requests: write   # upsert the one sticky verdict comment
       contents: read         # read PR metadata
-      checks: write          # publish the xreview check run
+      checks: write          # publish the review check run
     # The credential lives ONLY here, at job level. It must never be re-declared
     # as step-level env on a `uses:` step (composite/action steps do not receive
     # step-level env at all) -- that is the exact defect that broke every real
@@ -522,7 +546,7 @@ jobs:
           # is no go.mod on disk to read. Bump this when the driver's does.
           go-version: '1.25'
 
-      - name: Install the xreview driver
+      - name: Install the review driver
         id: build
         shell: bash
         env:
@@ -586,7 +610,7 @@ jobs:
           GH_TOKEN: ${{ steps.identity.outputs.token || github.token }}
           REPO: ${{ needs.guard.outputs.review_repo || github.repository }}
           PR: ${{ needs.guard.outputs.review_pr || needs.guard.outputs.pr_number }}
-          THREADS: ${{ runner.temp }}/xreview-prior-threads.json
+          THREADS: ${{ runner.temp }}/review-prior-threads.json
         run: |
           set -euo pipefail
           echo "threads_path=$THREADS" >> "$GITHUB_OUTPUT"
@@ -614,10 +638,10 @@ jobs:
           # originalLine still says where it was written -- which is what makes a
           # thread on since-rewritten code readable rather than a finding at line 0.
           jq '[ .data.repository.pullRequest.reviewThreads.nodes[]
-                | select((.comments.nodes[0].body // "") | contains("<!-- seidroid-xreview:finding -->"))
+                | select((.comments.nodes[0].body // "") | contains("<!-- seidroid-review:finding -->"))
                 | { file: (.path // ""),
                     line: (.line // .originalLine // 0),
-                    body: ((.comments.nodes[0].body // "") | sub("<!-- seidroid-xreview:finding -->\n*"; "")),
+                    body: ((.comments.nodes[0].body // "") | sub("<!-- seidroid-review:finding -->\n*"; "")),
                     replies: [ .comments.nodes[1:][] | "\(.author.login // "someone"): \(.body)" ],
                     resolved: .isResolved } ]' "$THREADS.raw" > "$THREADS"
           echo "carrying $(jq length "$THREADS") prior finding(s) into this review"
@@ -657,9 +681,10 @@ jobs:
         env:
           BIN: ${{ steps.build.outputs.bin }}
           OMNIGENT_BASE_URL: ${{ inputs.omnigent-base-url }}
-          XREVIEW_SCOUTS: ${{ inputs.XREVIEW_SCOUTS }}
-          XREVIEW_ALLOW_POLICIES: ${{ inputs.XREVIEW_ALLOW_POLICIES }}
-          XREVIEW_ALLOW_TOOLS: ${{ inputs.XREVIEW_ALLOW_TOOLS }}
+          SEIDROID_SCOUTS: ${{ inputs.scouts }}
+          SEIDROID_MODEL: ${{ inputs.claude-model }}
+          SEIDROID_ALLOW_POLICIES: ${{ inputs.allow-policies }}
+          SEIDROID_ALLOW_TOOLS: ${{ inputs.allow-tools }}
           MODE: ${{ inputs.mode }}
           # The reviewed pull request, which is this repository's unless the
           # trigger named another. The session is keyed on this pair, so a
@@ -689,7 +714,7 @@ jobs:
           # attempt 2 of this one, or any run on a non-ephemeral self-hosted
           # runner, which is the steady state here -- satisfies the non-empty
           # check below and gets posted as this review.
-          out_dir="$RUNNER_TEMP/xreview-out/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          out_dir="$RUNNER_TEMP/review-out/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
           rm -rf "$out_dir"
           mkdir -p "$out_dir"
           verdict="$out_dir/verdict.md"
@@ -699,14 +724,14 @@ jobs:
           findings="$out_dir/findings.json"
           echo "findings_path=$findings" >> "$GITHUB_OUTPUT"
           # Written whenever the review reached a verdict, including a clean one:
-          # a checks list with no xreview entry reads as a review that did not run.
+          # a checks list with no review entry reads as a review that did not run.
           check="$out_dir/check.json"
           echo "check_path=$check" >> "$GITHUB_OUTPUT"
 
           if [ "$MODE" = "close" ]; then
-            args=(xreview "$REPO" "$PR" --close)
+            args=(review "$REPO" "$PR" --close)
           else
-            args=(xreview "$REPO" "$PR" --out "$verdict" --findings-out "$findings"
+            args=(review "$REPO" "$PR" --out "$verdict" --findings-out "$findings"
                   --check-out "$check")
             # Absent when the read above failed, and the driver reads that as a
             # first review rather than an error.
@@ -741,11 +766,11 @@ jobs:
           elif [ -s "$verdict" ]; then
             echo "verdict_produced=true" >> "$GITHUB_OUTPUT"
             if [ "$rc" -ne 0 ]; then
-              echo "::warning::xreview exited $rc but produced a verdict (e.g. a teardown leak); see logs"
+              echo "::warning::review exited $rc but produced a verdict (e.g. a teardown leak); see logs"
             fi
           else
             echo "verdict_produced=false" >> "$GITHUB_OUTPUT"
-            echo "::error::xreview produced no verdict (exit $rc)"
+            echo "::error::review produced no verdict (exit $rc)"
           fi
           exit "$rc"
 
@@ -778,11 +803,11 @@ jobs:
           REVIEWED_SHA: ${{ steps.head.outputs.sha }}
           FINDINGS: ${{ steps.drive.outputs.findings_path }}
           # Marks every inline comment as this tool's, so a reader can tell an
-          # xreview note from ai-review's and a later run can find its own.
-          MARKER: "<!-- seidroid-xreview:finding -->"
+          # review note from ai-review's and a later run can find its own.
+          MARKER: "<!-- seidroid-review:finding -->"
           # Findings that reached neither a line nor a file, collected for the
           # summary. Declared here so the step below can read it by output.
-          NOTE: ${{ runner.temp }}/xreview-unplaced.md
+          NOTE: ${{ runner.temp }}/review-unplaced.md
         run: |
           set -euo pipefail
           echo "note_path=$NOTE" >> "$GITHUB_OUTPUT"
@@ -813,7 +838,7 @@ jobs:
           while IFS=$'\t' read -r path line side severity detail_b64; do
             [ -z "$path" ] && continue
             detail="$(printf '%s' "$detail_b64" | base64 --decode)"
-            body="$MARKER"$'\n'"**xreview · ${severity}** — ${detail}"
+            body="$MARKER"$'\n'"**review · ${severity}** — ${detail}"
             if gh api -X POST "repos/$REPO/pulls/$PR/comments" \
                  -f body="$body" -f commit_id="$head_sha" -f path="$path" \
                  -F line="$line" -f side="$side" >/dev/null 2>&1; then
@@ -842,11 +867,11 @@ jobs:
           fi
           echo "findings: $on_line on a line, $on_file on a file, $unplaced in the summary"
 
-      - name: Publish the xreview check run
-        # The half of a review a reader sees without opening it. Named xreview
+      - name: Publish the review check run
+        # The half of a review a reader sees without opening it. Named review
         # rather than "AI Review": both systems run during the transition and both
         # post as seidroid[bot], so two checks under one name would be unreadable,
-        # where a green AI Review beside a red xreview is not.
+        # where a green AI Review beside a red review is not.
         #
         # continue-on-error like the other publish steps: a check run that fails to
         # post must not bury a review that was produced.
@@ -882,13 +907,13 @@ jobs:
               publishing against the reviewed commit"
           fi
           gh api -X POST "repos/$REPO/check-runs" \
-            -f name=xreview \
+            -f name=review \
             -f head_sha="$head_sha" \
             -f status=completed \
             -f conclusion="$(jq -r .conclusion "$CHECK")" \
             -f output[title]="$(jq -r .title "$CHECK")" \
             -f output[summary]="$(jq -r .summary "$CHECK")" >/dev/null
-          echo "published xreview check: $(jq -r .conclusion "$CHECK") — $(jq -r .title "$CHECK")"
+          echo "published review check: $(jq -r .conclusion "$CHECK") — $(jq -r .title "$CHECK")"
 
       - name: State the review's position on the pull request
         # The check run is the gate a merge reads; this is the one a person reads,
@@ -914,7 +939,14 @@ jobs:
           # Scopes the withdrawal below to this tool's own blocks. ai-review posts
           # under the same bot identity and marks its reviews differently; its
           # position is not this one's to change.
-          MARKER: "<!-- seidroid-xreview -->"
+          #
+          # Changing this value strands every blocking review posted under the old one:
+          # the withdrawal matches on startswith, so a later clean run approves and
+          # retracts nothing, the pull request stays red for a finding that is gone, and
+          # only a human can then clear it. Before changing it, confirm no open pull
+          # request carries a CHANGES_REQUESTED review whose body starts with the old
+          # value.
+          MARKER: "<!-- seidroid-review -->"
         run: |
           set -euo pipefail
           if [ ! -s "$CHECK" ]; then
@@ -942,10 +974,10 @@ jobs:
           note=""
           if [ "$conclusion" = "failure" ]; then
             event=REQUEST_CHANGES
-            note="xreview found something blocking. The findings are on the lines they are about, and the summary is in this tool's comment on this pull request."
+            note="review found something blocking. The findings are on the lines they are about, and the summary is in this tool's comment on this pull request."
           elif [ "$conclusion" = "success" ] && [ "$APPROVE_ON_SUCCESS" = "true" ]; then
             event=APPROVE
-            note="xreview found nothing blocking."
+            note="review found nothing blocking."
           fi
 
           if [ -n "$event" ]; then
@@ -968,7 +1000,7 @@ jobs:
           | while read -r id; do
               [ -n "$id" ] || continue
               gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$id/dismissals" \
-                -f message="Superseded: the latest xreview found nothing blocking." \
+                -f message="Superseded: the latest review found nothing blocking." \
                 -f event=DISMISS >/dev/null && echo "withdrew review $id"
             done
 
@@ -976,7 +1008,7 @@ jobs:
         # Post only when a real verdict was produced, and even when the drive
         # step above exited non-zero -- `!cancelled()` runs on any outcome
         # except the job itself being cancelled (e.g. superseded by a newer
-        # `seidroid xreview`), which is the one case with nothing to post.
+        # `seidroid review`), which is the one case with nothing to post.
         # Keying on verdict_produced, not the exit code, so a teardown-only
         # failure still posts a valid verdict and a no-verdict run never
         # upserts a placeholder.
@@ -984,7 +1016,7 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ steps.identity.outputs.token || github.token }}
-          MARKER: "<!-- seidroid-xreview -->"
+          MARKER: "<!-- seidroid-review -->"
           # The reviewed pull request, which is where a reader looks for a review.
           # Reachable because the identity above is minted for that repository; the
           # fallback token is not, so without the app credentials a cross-repository
