@@ -385,7 +385,7 @@ func report(outPath, findingsPath, checkPath string, result driver.Result, inclu
 	if err := writeFindings(findingsPath, verdict, includeNits); err != nil {
 		return err
 	}
-	return writeCheckRun(checkPath, verdict)
+	return writeCheckRun(checkPath, verdict, includeNits)
 }
 
 // readPriorThreads loads what this tool said on this pull request before.
@@ -415,11 +415,11 @@ func readPriorThreads(path string) ([]xreview.PriorThread, error) {
 // Written whenever there is a verdict, unlike the findings: a review that found
 // nothing still concludes, and a checks list with no xreview entry reads as a
 // review that did not run rather than one that passed.
-func writeCheckRun(path string, verdict xreview.Verdict) error {
+func writeCheckRun(path string, verdict xreview.Verdict, includeNits bool) error {
 	if path == "" {
 		return nil
 	}
-	check, ok := xreview.BuildCheckRun(verdict)
+	check, ok := xreview.BuildCheckRun(verdict, includeNits)
 	if !ok {
 		return nil
 	}

@@ -90,6 +90,14 @@ signal, so a caller never posts a stale file from a previous run.
   on the line. A wall of advice around two real findings teaches the author to skim all
   of it.
 
+  The redirect widens that bucket, and says so. The sorting rules call `non_blockers`
+  line-less, but a nit names a line. A bare redirect would swap one contradiction for
+  another, so the rule states the wider contract.
+
+  The check run's finding count applies the same gate as the placement. Its body omits
+  every line-tied finding by design, so counting a suppressed nit would name a finding no
+  reader can reach.
+
   Naming the destination is load-bearing. The sorting rules say every observation belongs
   in the block. They also say a note missing from the block is one the author never sees.
   A nit banned from the block with nowhere to go therefore leaves one cheap way to obey

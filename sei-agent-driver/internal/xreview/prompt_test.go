@@ -557,6 +557,15 @@ func TestNitGateForbidsPromotionRatherThanHidingTheLabel(t *testing.T) {
 					"%v — a ban with nowhere to send the nit tells the review to drop it",
 					name, nits, sends, !nits)
 			}
+
+			// And the redirect has to widen the bucket it redirects into. bucketRules
+			// defines non_blockers as holding what is tied to no single line, and a nit
+			// is tied to one, so a bare redirect swaps one contradiction for another.
+			amends := strings.Contains(got, "also takes a nit that is tied to one")
+			if amends == nits {
+				t.Errorf("%s with nits=%v: bucket amendment present = %v, want %v — the "+
+					"redirect points into a bucket defined as line-less", name, nits, amends, !nits)
+			}
 		}
 	}
 }

@@ -331,14 +331,23 @@ func intField(m map[string]any, key string) int {
 // reportedFindings concatenates both schema keys without deduping, because its
 // callers filter afterwards. An adopted session that writes one observation under
 // both vocabularies would otherwise have it counted twice in the check's title.
-func distinctReported(v Verdict) int {
+func distinctReported(v Verdict, includeNits bool) int {
 	seen := make(map[string]bool)
 	for _, entry := range reportedFindings(v) {
 		fields, ok := entry.(map[string]any)
 		if !ok {
 			continue
 		}
-		seen[findingFrom(fields).dedupeKey()] = true
+		f := findingFrom(fields)
+		// The same gate [PlaceableFindings] applies, and before the key for the same
+		// reason. A nit this run will not post appears nowhere a reader can reach: no
+		// inline comment is written for it, and [checkSummary] leaves out every line-tied
+		// finding by design. Counting it puts a number on the title that nothing
+		// underneath accounts for.
+		if f.Severity == "nit" && !includeNits {
+			continue
+		}
+		seen[f.dedupeKey()] = true
 	}
 	return len(seen)
 }

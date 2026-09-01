@@ -461,6 +461,12 @@ func verdictShape(includeNits bool) []string {
 // under Non-blocking, so the nit is reported without opening a thread. That is what the
 // flag is for: a gate on placement, not on noticing.
 //
+// The redirect amends that bucket in the same breath. [bucketRules] defines non_blockers
+// as holding what is tied to no single line, and a nit is tied to one, so a bare
+// redirect would trade one contradiction for another. The amendment rides here rather
+// than on the bucket line because [bucketRules] runs on the first dispatch only: a
+// re-review would inherit the bucket definition without the clause that widens it.
+//
 // Both, because the session outlives the run. A first turn told to leave nits out still
 // holds that instruction when a later dispatch opts in, so saying nothing on the opt-in
 // path is not neutral -- it leaves the ban standing, and the label the author just added
@@ -493,7 +499,10 @@ func nitRule(includeNits bool) []string {
 		"",
 		"This pull request does not ask for nits. Put a nit-grade observation in",
 		"non_blockers instead of inline_comments: it is still reported, and it does not",
-		"open a thread on the line. Do not call one a suggestion to place it inline --",
+		"open a thread on the line. That bucket is described above as holding what is",
+		"tied to no single line; while this setting holds it also takes a nit that is",
+		"tied to one, and the line belongs in the text. Do not call one a suggestion to",
+		"place it inline --",
 		"a nit reported as a suggestion is worse than a nit, because it reads as",
 		"something worth acting on. If an earlier turn asked for nits, that",
 		"no longer holds: this line is the current setting and it replaces it.",
