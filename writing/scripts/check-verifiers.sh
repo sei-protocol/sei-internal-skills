@@ -90,20 +90,26 @@ for spec in specs:
                        f"'judgement — <how>'")
             continue
 
+        # Before a path is required, not inside the loop over paths. PATHISH matches
+        # only a string with a slash or a known extension, so a bare command never
+        # reaches `targets` -- the allowlist could not fire where it used to sit, and
+        # a verifier reading `vale ...` was rejected for naming no path.
+        first = spans[0].split()[0] if spans[0].split() else ''
+        if first in COMMANDS:
+            rows.append(f"  {sc:<10}{'runs':<12}{' '.join(spans)[:56]}")
+            continue
+
         targets = [m for s in spans for m in PATHISH.findall(s)]
         if not targets:
             bad.append(f"{rel} {sc}: the backticks hold '{' '.join(spans)}', which names no path. "
                        f"A verifier is something a reader can run")
             continue
         for tgt in targets:
-            first = spans[0].split()[0] if spans[0].split() else ''
-            if tgt == first and first in COMMANDS:
-                continue
             if not (root / tgt.rstrip('/')).exists():
                 bad.append(f"{rel} {sc}: names '{tgt}', which does not exist")
         rows.append(f"  {sc:<10}{'runs':<12}{' '.join(spans)[:56]}")
 
-print(f"  {"criterion":<10}{"kind":<12}verifier")
+print(f"  {'criterion':<10}{'kind':<12}verifier")
 for r in rows:
     print(r)
 

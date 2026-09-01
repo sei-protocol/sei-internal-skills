@@ -20,9 +20,13 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 REPO="$(cd "$ROOT/.." && pwd)"
 cd "$REPO"
 
-# Every skill and agent this repository ships, by directory name.
+# The hyphenated skill and agent names this repository ships. The filter is
+# deliberate: a single common word like `platform` or `systems` would match
+# ordinary prose on an anchor page, and this gate reads whole files. So the
+# denylist is the hyphenated subset, and the success line says so rather than
+# claiming to have checked every name.
 names="$( { ls -d .claude/skills/*/ experimental/skills/*/ 2>/dev/null | xargs -n1 basename
-            ls .claude/agents/*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//'
+            ls .claude/agents/*.md experimental/agents/*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//'
           } | sort -u | grep -e '-' || true )"
 
 if [ -z "$names" ]; then
@@ -45,7 +49,16 @@ while IFS= read -r f; do
   fi
 done < <(find writing/anchors writing/coverage -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' \) 2>/dev/null)
 
+# The sibling arms refuse an empty denylist and an empty spec set; this one is the
+# last place that could report success over nothing. If the directories move, find
+# writes to /dev/null and the loop never runs.
+if [ "$scanned" -eq 0 ]; then
+  echo "scanned no files under writing/anchors or writing/coverage — refusing to"
+  echo "  report success on an empty set. Did either directory move?"
+  exit 1
+fi
+
 if [ "$fail" -eq 0 ]; then
-  echo "No anchor cites a skill. Checked $scanned files against $(printf '%s' "$names" | wc -l | tr -d ' ') names."
+  echo "No anchor cites a skill. Checked $scanned files against $(printf '%s\n' "$names" | wc -l | tr -d ' ') hyphenated names."
 fi
 exit "$fail"
