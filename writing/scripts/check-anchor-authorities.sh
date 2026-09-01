@@ -16,13 +16,20 @@
 # coverage manifest. Prose elsewhere may reference a skill freely; the contract
 # does that itself.
 set -euo pipefail
-# Takes an optional root, matching check-verifiers.sh, so evals/gates can run this
-# against a fixture tree. Without it the only way to exercise this gate was against
-# the live repository, which would freeze live state into a golden and break on any
-# later change that adds a hyphenated skill.
-ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+# Two anchors, because the question has two halves and they do not move together.
+#
+# REPO is the repository holding this script, always, and it is where the denylist
+# comes from: which skills and agents this repository ships is a fact about the
+# repository, not about the tree under test. Deriving it from ROOT left a fixture
+# root pointing at a directory with no .claude, so the denylist came back empty and
+# the gate refused before it read anything.
+#
+# ROOT is the anchor layer to scan, and takes an optional argument so evals/gates
+# can point it at a fixture tree. Scanning a fixed path under REPO instead made
+# every case read the same directory and none read its own.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="${1:-$REPO/writing}"
 ROOT="$(cd "$ROOT" && pwd)"
-REPO="$(cd "$ROOT/.." && pwd)"
 cd "$REPO"
 
 # The hyphenated skill and agent names this repository ships. The filter is
@@ -55,7 +62,7 @@ while IFS= read -r f; do
 # .txt included: unregistered.txt and grandfathered.txt hold anchor ids, and the
 # first holds precisely the ids with no registry entry -- the ones that appear
 # nowhere else in this set, which is where a skill-named anchor would sit unseen.
-done < <(find writing/anchors writing/coverage -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.txt' \) 2>/dev/null)
+done < <(find "$ROOT/anchors" "$ROOT/coverage" -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.txt' \) 2>/dev/null)
 
 # The sibling arms refuse an empty denylist and an empty spec set; this one is the
 # last place that could report success over nothing. If the directories move, find

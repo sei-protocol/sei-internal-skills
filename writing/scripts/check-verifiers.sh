@@ -14,7 +14,7 @@
 #   *Verifier:* judgement — a reviewer attempts it on three findings and reports.
 #   *Verifier:* not built — the recognition suite does not exist yet.
 #
-# The first must name a path that exists. The other two must give a reason, because
+# The first must name an executable path. The other two must give a reason, because
 # "not built" with no explanation is a shrug rather than a statement.
 #
 # BOTH LAYOUTS COUNT. The first version demanded '**SC-001**' at column zero and an
