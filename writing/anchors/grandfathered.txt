@@ -1,0 +1,30 @@
+# Anchors exempt from the four-artifact admission rule.
+#
+# Every anchor here predates the rule. The rule would be decorative if it
+# exempted them silently, so the exemption is written down, printed on every
+# run of scripts/check-admission.sh, and gated by that script:
+#
+#   * an anchor marked `grandfathered` in the registry and absent from this
+#     file fails the gate, so a new exemption cannot be taken quietly;
+#   * this file may only shrink. The gate compares it against origin/main and
+#     fails on a line that was not there before.
+#
+# An anchor leaves by earning all four artifacts: a registry entry with a
+# steward, a licence and a recognition test; a fixture for every rule; a
+# coverage file; and a measured false-positive count. Delete its line in the
+# same commit that flips it to `admitted`.
+#
+# NOT YET ENFORCED. writing/scripts/check-admission.sh arrives with the harness change,
+# later in this series. Until it lands this file is a record and not a gate:
+# a line could be added here rather than removed and nothing would notice.
+# The claims above describe what the gate will assert, not what runs today.
+#
+# One id per line. A blank line and a # comment are ignored.
+
+adr-nygard
+arc42
+asd-ste100
+bluf
+conventional-commits
+diataxis
+rfc2119

@@ -297,15 +297,21 @@ func (d *Driver) classify(ctx context.Context, result Result, err error) Result 
 }
 
 // workFor reduces a workload to the identity a host needs: the run key it is found
-// by, the title it is listed under, and the agent it must run on — that being the
-// one it names when it names one, and the run's configured default otherwise. See
-// [AgentNamer].
+// by, the title it is listed under, and the agent and model it must run on — those
+// being the ones it names when it names them, and the run's configured defaults
+// otherwise. See [AgentNamer].
 func (d *Driver) workFor(w Workload) Work {
-	agent := d.cfg.Agent
 	if a, ok := w.(AgentNamer); ok {
 		if named := a.AgentName(); named != "" {
-			agent = named
+			// Its own agent is its own harness and its own provider, so the configured
+			// model is neither its to take -- a name one provider answers to is
+			// rejected at turn start by another, costing the reading and not just the
+			// model -- nor its to lose. A nil model leaves the session's own override
+			// untouched, which is the difference between not managing something and
+			// clearing it.
+			return Work{RunKey: w.RunKey(), Title: w.Title(), Agent: named}
 		}
 	}
-	return Work{RunKey: w.RunKey(), Title: w.Title(), Agent: agent}
+	model := d.cfg.Model
+	return Work{RunKey: w.RunKey(), Title: w.Title(), Agent: d.cfg.Agent, Model: &model}
 }

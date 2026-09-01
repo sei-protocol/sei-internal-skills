@@ -1,8 +1,14 @@
 # agentic-writing Constitution
 
-This file is the contract. It loads in every session with no invocation, and that is
-why a convention here reaches an engineer who is not looking for it. **A convention
-absent from this file is not adopted.**
+This file is the contract. **A convention absent from this file is not adopted.**
+
+Nothing loads it automatically yet. The design is that a session picks it up with no
+invocation. That is the only way a convention reaches an engineer who is not looking
+for it. `AGENTS.md` gains that pointer later in this series.
+
+Until it does, this file reaches a reader who goes looking. That is the pull model
+Principle IV argues against, so read Principle IV as the target rather than as a
+description of today.
 
 ## Core Principles
 
@@ -42,10 +48,19 @@ carries what it does **not** cover, and a partial verdict keeps its stated text 
 Name one from this table. **Naming an anchor absent from it is forbidden** — a
 confabulated method name reads authoritative and costs more than plain prose.
 
-**No anchor here carries a recorded verdict yet, and the suite that would produce one
-is not built.** `writing/evals/recognition/README.md` states the method and nothing runs it.
-Until a verdict exists, treat a surprising output as the anchor failing rather than the
-model disagreeing.
+**No anchor here carries a recorded verdict, and the suite that would produce one is not
+built.** Until a verdict exists, treat a surprising output as the anchor failing rather
+than the model disagreeing.
+
+This table therefore predates Principle II and stands on review, not on evidence. `ears`
+is the one registry entry marked `admitted`, and its `verified` list is empty, so it does
+not meet the precondition Principle II states. The registry grandfathers the other seven
+entries, which exempts them. The next anchor admitted needs the recognition verdict.
+
+<!-- Every cell in the first column is a citation title. STE-NounCluster reads a
+     title as a noun cluster and cannot judge one, and the rule file names this
+     directive as the escape hatch for that case. It covers the table alone. -->
+<!-- vale AgenticWriting.STE-NounCluster = NO -->
 
 | Anchor | Governs | Does not cover |
 |---|---|---|
@@ -69,6 +84,8 @@ model disagreeing.
 | Google Go Style Guide | normative Go rulings | this repository's own patterns |
 | Code Smells | surface signs of design trouble | whether the fix is worth it |
 
+<!-- vale AgenticWriting.STE-NounCluster = YES -->
+
 **Clean Architecture carries a documented criticism.** Bogard and Comartin argue the
 indirection does not pay, because most changes traverse every layer anyway. It also
 collides with Go idiom, where three similar lines beat a premature helper. Use it for
@@ -83,6 +100,10 @@ one meaning only, the active voice, and one instruction per sentence. Keep a pro
 sentence under 20 words and a descriptive one under 25. Keep a noun cluster to at most
 three words. Keep code, commands,
 identifiers, and quoted output verbatim.
+
+Vale gates the writing convention above. No gate reads code, so the four below it —
+code structure, comments, errors as interface, and two-way doors — stand on review alone.
+Principle III asks each to say so, and this sentence says it for all four.
 
 **Code structure.** Code reads as a legible sequence of named steps a new engineer
 follows top to bottom with no narrator. The method body is the table of contents; step
@@ -100,22 +121,30 @@ anything another system comes to depend on.
 
 ## Writing modes
 
-Four artifacts carry a structure contract. Ordinary prose carries the prose rules only.
+Five artifacts carry a structure contract. Ordinary prose carries the prose rules only.
+Every rule named below runs at `error`, and `.vale.ini` holds the paths.
 
 | Artifact | Path | Gate checks |
 |---|---|---|
-| Design | `docs/design/**` | Non-goals, Alternatives, Trade-offs, Open questions |
-| Spec | `specs/**` | Semantic Anchors, Success Criteria, Independent Test |
-| Ticket | `tickets/**` | the seven sections of the body |
-| Procedure | `docs/procedures/**` | 20-word sentences, imperative steps |
+| Spec | `specs/**/spec.md` | Semantic Anchors, Success Criteria, Independent Test, Acceptance Criteria, an EARS criterion, uppercase RFC 2119 keywords |
+| Design | `{docs/design/**/*.md,designs/**/*.md}` | Non-goals, Alternatives, Trade-offs, Open questions, arc42 section order |
+| ADR | `docs/adr/*.md` | Status, Context, Decision, Consequences |
+| Ticket | `tickets/**/*.md` | the seven sections of the body |
+| Procedure | `docs/procedures/**/*.md` | 20-word sentences, imperative steps |
 
 Run `vale <path>`. Exit code 0 means "no finding at or above the gate". It does not mean
 compliant.
 
 ## The spec contract
 
-A specification uses Spec Kit's filenames and its spec template. Five deltas apply to
+A specification uses Spec Kit's filenames and its spec template. Nine deltas apply to
 that template, each fixing something upstream leaves to the author.
+
+`check-template-deltas.sh` asserts all nine, in ten checks. The anchor row takes
+two: one for the heading, one for the *does not cover* column. Principle V makes
+that column the load-bearing half. The count matters. The opening line of this
+file says a convention absent from this file is not adopted. A delta the gate enforces and
+this table omits is therefore a rule nobody agreed to.
 
 | Delta | In | Fixes |
 |---|---|---|
@@ -124,31 +153,43 @@ that template, each fixing something upstream leaves to the author.
 | `## Boundary Context` | `spec.md` | A spec with no stated boundary grows while open |
 | `**Objective:** As a <role>, I want <X>, so that <Y>` | each requirement | Names the beneficiary; prevents an orphan requirement |
 | EARS with a named actor — `THE Controller SHALL` | each requirement | `System MUST` names no actor |
+| `### Requirement N:` | `spec.md` | upstream carries a flat list, so criteria have no owner |
+| `**Traces to:**` | each requirement | a requirement that serves no story is an orphan |
+| `#### Acceptance Criteria` | each requirement | the heading EARS-CriterionShall keys on |
+| `*Verifier:*` | each success criterion | a criterion nothing checks is a wish |
 
-`writing/scripts/check-template-deltas.sh` asserts all five, and CI runs it.
 
-**Three deltas for `plan.md` used to sit in this table** — Boundary Commitments,
-Revalidation Triggers, Existing Architecture Analysis. No plan template ever carried
-them. The gate reads `spec-template.md` only, so nothing caught the claim. This
-table drops the three rather than making them true after the fact. To restore one,
-write the section into a plan template and add the row back in the same change.
+**This table covers `spec.md` alone.** `check-template-deltas.sh` reads
+`spec-template.md` and no other template, so a row for a plan template would state a
+delta no gate checks. To add one, write the section into a plan template and extend the
+gate to read that template, in the change that adds the row.
+
+The five conventions below hold for a specification and the files beside it. `.vale.ini`
+scopes the structure rules to `specs/**/spec.md`; a plan or a tasks file gets the prose
+rules and nothing more. Each convention therefore says what checks it.
 
 **Every success criterion names its verifier.** `SC-002 … Verifier: gorelease in CI`.
-A criterion nothing checks says `judgement`. An unmarked criterion is not honest.
+A criterion nothing checks says `judgement`. An unmarked criterion is not honest. The
+gate that asserts it arrives later in the series; today it stands on review.
 
 **Every user story carries four things** — priority, why this priority, an Independent
 Test, and acceptance scenarios. The generator builds a ticket from them, and it cannot
-invent what the story omitted.
+invent what the story omitted. `Spec-IndependentTest` checks that
+`**Independent Test**` appears at least once in `spec.md`. Whether every story
+carries one stands on review, along with the other three.
 
 **Every task carries five** — a test-first instruction, an `Observable:` check,
-`_Requirements:_` upward, `_Boundary:_`, and `_Depends:_`.
+`_Requirements:_` upward, `_Boundary:_`, and `_Depends:_`. No structure rule reads a
+tasks file. This one stands on review in full.
 
 **Never invent a requirement.** An unstated detail becomes
 `[NEEDS CLARIFICATION: <the question>]`. A plausible default written silently into a
-spec is the failure the artifact exists to prevent.
+spec is the failure the artifact exists to prevent. No gate reads the marker, because
+Vale cannot tell a needed clarification from an absent one.
 
 **`spec.md` holds what and why only.** Naming a library, a schema, a signature, or a
-file path moves the line to `plan.md`.
+file path moves the line to `plan.md`. No gate checks it. The line between what and how
+is a judgement, and Principle III says to record such a rule as uncheckable.
 
 ## Governance
 
@@ -160,13 +201,16 @@ text, no controlled dictionary, no organisation-specific operational detail. A
 convention specific to one organisation's systems stays in that organisation's
 repository and cites the public anchor from there.
 
-**No artifact here names a private skill or agent as an authority.** If a rule matters,
-state the rule. A citation a reader cannot follow is not a citation. CI enforces this.
+**No anchor here cites a skill in this repository as its authority.** An anchor earns
+its place by being a standard somebody else publishes, so a reader can follow the name
+outside this repository. A gate for this arrives later in the series; today the rule
+stands on review.
 
 **A success criterion names a verifier that runs, or says that none does.** Write the
 path in backticks, or write `not built — <what is missing>` or `judgement — <who
 decides and how>`. A criterion citing a check nobody built reads exactly like one that
-passes, which is the failure this repository exists to stop. CI enforces this.
+passes, which is the failure this repository exists to stop. The gate that asserts it
+arrives later in the series; today the rule stands on review.
 
 ### Admitting an anchor
 
@@ -183,10 +227,25 @@ and a catalogue that grows by naming becomes a list of things nobody checks.
 4. **A false-positive count** — measured over a corpus before any rule reaches `error`.
    A rule that fires often starts at `warning`, and the number says which.
 
-The registry marks every anchor that predates this rule `grandfathered`, and
-`writing/anchors/grandfathered.txt` lists them. They are exempt, and the gate counts them. The
-list only shrinks. CI compares it against `main` and fails on a line that was not there
-before. An anchor marked `admitted` must satisfy all four, and CI enforces it.
+The registry holds eight entries. Seven carry `admission: grandfathered` and
+`writing/anchors/grandfathered.txt` lists them. They are exempt, and the list only shrinks.
+`ears` is the eighth and the only one marked `admitted`.
+
+The anchor table above names nineteen. Seven of them hold a registry entry. The other
+twelve hold none, and `writing/anchors/unregistered.txt` names all twelve. That file
+records the debt rather than implying it. A name leaves it by earning an entry with the
+four artifacts above, in the change that deletes its line. `asd-ste100` holds an entry
+and the table does not name it, because this contract states ASD-STE100 directly.
+
+Two gates hold these lists, and neither has landed. `check-admission.sh` counts the
+grandfathered names, compares that list against `main`, and holds an `admitted` anchor to
+all four artifacts. `check-contract-anchors.sh` holds `unregistered.txt`. A name this
+contract cites that is in neither the registry nor that file fails. A name there that has
+since earned an entry fails too. The file may not gain a line against `main`.
+
+Both arrive later in this series, and each list says the same at its head. Until they
+land the rule stands on review, and a line added to either file rather than removed goes
+unnoticed.
 
 This is what keeps the slope from being a slope. The same four artifacts bound the next
 anchor, or it does not go in.

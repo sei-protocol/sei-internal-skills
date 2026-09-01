@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"fmt"
@@ -26,25 +26,25 @@ type CheckRun struct {
 
 // BuildCheckRun renders a verdict as a check run, and reports whether there is
 // one to publish.
-func BuildCheckRun(v Verdict) (CheckRun, bool) {
+func BuildCheckRun(v Verdict, includeNits bool) (CheckRun, bool) {
 	if !v.HasVerdict() {
 		return CheckRun{}, false
 	}
 	return CheckRun{
 		Conclusion: v.CheckConclusion(),
-		Title:      checkTitle(v),
+		Title:      checkTitle(v, includeNits),
 		Summary:    checkSummary(v),
 	}, true
 }
 
 // checkTitle counts what the review found, because the count is what a reader
 // scanning the checks list is deciding on.
-func checkTitle(v Verdict) string {
+func checkTitle(v Verdict, includeNits bool) string {
 	// Every finding the reply reported, not only the placeable ones. A finding dropped for
 	// naming no line is still something the review said. A title that counts only what could
 	// be pinned to a line reads as "found nothing" over a review that found something.
 	counts := []string{
-		plural(distinctReported(v)+len(Blockers(v))+len(NonBlockers(v)), "finding"),
+		plural(distinctReported(v, includeNits)+len(Blockers(v))+len(NonBlockers(v)), "finding"),
 	}
 	if n := len(PreExisting(v)); n > 0 {
 		counts = append(counts, plural(n, "pre-existing issue"))
@@ -421,7 +421,7 @@ func plural(n int, noun string) string {
 // BuildFailureCheck is the check run for a review that produced no verdict.
 //
 // [BuildCheckRun] reports false there. A caller that publishes nothing leaves the checks
-// list with no xreview entry, which reads as a review that did not run rather than one
+// list with no review entry, which reads as a review that did not run rather than one
 // that could not be read. Those are different things, and only one of them means an
 // operator should look.
 //
