@@ -1,6 +1,6 @@
 # xreview
 
-`xreview` drives one sei-droid review of a pull request inside an Omnigent
+`xreview` drives one seidroid review of a pull request inside an Omnigent
 managed sandbox: it resolves the `seidroid` agent, creates or adopts **the
 session for that pull request**, sends the review prompt,
 answers whatever permission prompts the turn parks on (allowing only what an
@@ -152,7 +152,7 @@ assuming a blank allowlist is merely "cautious."**
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `XREVIEW_SCOUTS` | *(empty)* | Scouts to gather a reading from before the review, as `name=agent,name=agent` — e.g. `codex=sei-droid-codex,cursor=sei-droid-cursor`. Empty runs the review alone, which is the behaviour without this set. Each scout reads the same pull request in its **own session on its own agent**, seeing neither the review nor another scout; the review then verifies their claims against the diff and merges what holds. The agent is what fixes the harness, so a scout naming the review's own agent is refused — a reading from the same harness is not independent of the one it is checking — as are two scouts on one agent, which would count one opinion twice. A scout that fails contributes a note the review is shown rather than nothing, because a reading that failed must not look like a reading that found nothing. Scouts share `XREVIEW_RUN_DEADLINE_S`: they run in parallel with two fifths of it between them, and the review keeps its own full deadline, so a run costs at worst `deadline x 1.4` end to end. |
+| `XREVIEW_SCOUTS` | *(empty)* | Scouts to gather a reading from before the review, as `name=agent,name=agent` — e.g. `codex=seidroid-codex,cursor=seidroid-cursor`. Empty runs the review alone, which is the behaviour without this set. Each scout reads the same pull request in its **own session on its own agent**, seeing neither the review nor another scout; the review then verifies their claims against the diff and merges what holds. The agent is what fixes the harness, so a scout naming the review's own agent is refused — a reading from the same harness is not independent of the one it is checking — as are two scouts on one agent, which would count one opinion twice. A scout that fails contributes a note the review is shown rather than nothing, because a reading that failed must not look like a reading that found nothing. Scouts share `XREVIEW_RUN_DEADLINE_S`: they run in parallel with two fifths of it between them, and the review keeps its own full deadline, so a run costs at worst `deadline x 1.4` end to end. |
 
 ### Timeouts (seconds)
 
