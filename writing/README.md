@@ -84,7 +84,8 @@ this directory serves it.
 ## The debt has a home
 
 `anchors/unregistered.txt` names the anchors the contract cites that have no
-registry entry yet. Twelve of nineteen. The gate prints them on every run. It
+registry entry yet. The gate prints the count and the names on every run, so this
+file does not repeat a number that goes stale the moment one earns an entry. It
 fails on a name in neither place, and on a line that has since earned an entry.
 It compares the file against `main`, so the list can only shrink.
 

@@ -3,8 +3,9 @@
 #
 # Two limits, and they are not the same rule:
 #
-#   * the contract must stay under 250 lines, because SC-005 says a person reads it
-#     in under five minutes and a longer file is not that file;
+#   * the contract must stay under CONTRACT_MAX lines, because SC-005 says a person
+#     reads it in under five minutes and a longer file is not that file. The number
+#     is named once, below, so this sentence cannot drift from it;
 #   * an anchor page must stay under 150 lines, because a long one is evidence that
 #     it restates the standard instead of citing it. That is the failure the
 #     repository exists to avoid, and NOTICE.md is the licence reason it forbids.

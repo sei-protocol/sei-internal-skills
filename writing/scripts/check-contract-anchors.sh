@@ -110,24 +110,35 @@ def grew():
         return subprocess.run(['git', '-C', str(root), *a], capture_output=True, text=True, timeout=15)
     try:
         if git('rev-parse', '--verify', '--quiet', BASELINE_REF).returncode != 0:
-            return set(), f'not compared — {BASELINE_REF} is absent'
+            return set(), 0, f'not compared — {BASELINE_REF} is absent'
         prev = git('show', f'{BASELINE_REF}:{BASELINE}')
         if prev.returncode != 0:
-            return set(), f'not compared — {BASELINE} does not exist on {BASELINE_REF} yet'
+            return set(), 0, f'not compared — {BASELINE} does not exist on {BASELINE_REF} yet'
     except (OSError, subprocess.SubprocessError) as e:
-        return set(), f'not compared — git did not run ({e})'
-    was = {l.strip() for l in prev.stdout.splitlines()
-           if l.strip() and not l.strip().startswith('#')}
-    now = set(listed)
-    return now - was, (f'compared against {BASELINE_REF} — {len(was)} there, {len(now)} here, '
-                       f'{len(was - now)} registered since')
+        return set(), 0, f'not compared — git did not run ({e})'
+    prev_lines = [l.strip() for l in prev.stdout.splitlines()
+                  if l.strip() and not l.strip().startswith('#')]
+    # Folded on both sides, so an editorial respelling of a name the contract also
+    # respelled is not read as a new debt. The raw counts ride alongside because a set
+    # collapses a duplicated line, and 'may not gain a line' is a claim about lines.
+    was = {key(x) for x in prev_lines}
+    now = {key(x) for x in listed}
+    gained = {x for x in listed if key(x) not in was}
+    dupes = len(listed) - len(now)
+    return gained, dupes, (f'compared against {BASELINE_REF} — {len(prev_lines)} there, '
+                           f'{len(listed)} here, {len(was - now)} registered since')
 
 
-added, how = grew()
+added, dupes, how = grew()
 print(f"  monotonicity:                {how}")
+if dupes:
+    bad.append(f"{BASELINE} lists {dupes} name(s) twice. The file may not gain a line, and a "
+               f"repeated line is a gained line that set comparison would not see")
 for x in sorted(added):
     bad.append(f"{BASELINE} gained '{x}' since {BASELINE_REF}. The list only shrinks: a name "
-               f"leaves it by earning a registry entry, and nothing puts one back")
+               f"leaves it by earning a registry entry, and nothing puts one back. If you "
+               f"renamed this anchor in the contract rather than adding a debt, rename it on "
+               f"{BASELINE_REF} in the same change, because this gate reads the two together")
 
 if bad:
     print()
