@@ -514,32 +514,38 @@ func TestScoutPromptAsksForNothingItCannotOpen(t *testing.T) {
 	}
 }
 
-// TestSeverityVocabularyFollowsTheNitGate pins that the prompt and the placement
-// filter agree on which severities exist.
+// TestNitGateForbidsPromotionRatherThanHidingTheLabel pins the shape the gate depends
+// on, and it is the test the first attempt at this did not have.
 //
-// A prompt that still offers nit while [PlaceableFindings] drops it spends a review's
-// attention writing findings this tool then discards. Both prompts are checked because
-// a re-review builds its schema from [verdictShape] without the sorting prose.
-func TestSeverityVocabularyFollowsTheNitGate(t *testing.T) {
+// That attempt dropped nit from the severity vocabulary when the flag was off. The
+// observation does not disappear with its label: the sorting rules still put anything
+// tied to a line in inline_comments, so a review holding a nit-grade observation and no
+// way to call it one relabels it a suggestion — and [PlaceableFindings] cannot tell that
+// from a real one. Withholding the word converts a suppressed thread into an invisible
+// one.
+//
+// So two things are checked. The label stays offered on both settings, because the
+// filter enforces on the label. And the off setting carries the instruction that makes
+// the label honest.
+func TestNitGateForbidsPromotionRatherThanHidingTheLabel(t *testing.T) {
 	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
 
-	for _, c := range []struct {
-		nits         bool
-		want, unwant string
-	}{
-		{false, "blocker|suggestion", "blocker|suggestion|nit"},
-		{true, "blocker|suggestion|nit", ""},
-	} {
-		req.IncludeNits = c.nits
+	for _, nits := range []bool{false, true} {
+		req.IncludeNits = nits
 		for name, got := range map[string]string{
 			"BuildPrompt":   BuildPrompt(req),
 			"AdoptedPrompt": AdoptedPrompt(req),
 		} {
-			if !strings.Contains(got, c.want) {
-				t.Errorf("%s with nits=%v does not offer %q", name, c.nits, c.want)
+			// The vocabulary is not the gate, and must not move with it.
+			if !strings.Contains(got, "blocker|suggestion|nit") {
+				t.Errorf("%s with nits=%v stopped offering the nit severity; the "+
+					"filter has nothing left to recognise", name, nits)
 			}
-			if c.unwant != "" && strings.Contains(got, c.unwant) {
-				t.Errorf("%s with nits=%v still offers %q", name, c.nits, c.unwant)
+
+			forbids := strings.Contains(got, "do not call one a suggestion")
+			if forbids == nits {
+				t.Errorf("%s with nits=%v: promotion instruction present = %v, want %v",
+					name, nits, forbids, !nits)
 			}
 		}
 	}

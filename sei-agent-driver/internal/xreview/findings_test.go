@@ -227,7 +227,7 @@ func TestTheVerdictShapeIsOnBothPathsAndTheProseIsNot(t *testing.T) {
 	// The sorting prose, on the first only.
 	for _, prose := range []string{
 		"side is RIGHT for an added or changed line",
-		"blocker or suggestion",
+		"blocker, suggestion or nit",
 		"Sort each one:",
 	} {
 		if !strings.Contains(first, prose) {

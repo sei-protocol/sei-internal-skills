@@ -401,7 +401,7 @@ func bucketRules(includeNits bool) []string {
 		"  blocker only when it is critical on its own — an exploitable hole, data",
 		"  loss, a likely outage — and suggestion otherwise.",
 		"",
-		severityRule(includeNits),
+		"Severity for an inline comment is blocker, suggestion or nit. Do not prefix",
 		"the body with it; it is a field, and it gets rendered once.",
 		"",
 		"decision is request_changes if anything blocks, comment if there are only",
@@ -409,18 +409,6 @@ func bucketRules(includeNits bool) []string {
 		"bucket with nothing in it:",
 		"",
 	}, verdictShape(includeNits)...)
-}
-
-// severityRule names the severities an inline comment may carry.
-//
-// Omitting nit is the whole instruction when nits are off. A vocabulary the model was
-// never given is a cheaper rule than one it is given and told not to use, and this
-// tool drops a nit either way -- see [PlaceableFindings].
-func severityRule(includeNits bool) string {
-	if includeNits {
-		return "Severity for an inline comment is blocker, suggestion or nit. Do not prefix"
-	}
-	return "Severity for an inline comment is blocker or suggestion. Do not prefix"
 }
 
 // verdictShape is the closing block's schema, apart from the prose that explains how to
@@ -440,11 +428,7 @@ func severityRule(includeNits bool) string {
 // and the placeholder is <line count> rather than 0 so that copying the shape cannot
 // produce the sentinel.
 func verdictShape(includeNits bool) []string {
-	inline := `                      "severity": "blocker|suggestion",`
-	if includeNits {
-		inline = `                      "severity": "blocker|suggestion|nit",`
-	}
-	return []string{
+	shape := []string{
 		"read is the line count the diff command printed, and 0 if you never got the",
 		"diff. It is how this tool tells a review of the change from a review of",
 		"nothing, so it is not optional and not an estimate. The placeholder below is",
@@ -455,13 +439,39 @@ func verdictShape(includeNits bool) []string {
 		` "decision": "approve" | "comment" | "request_changes",`,
 		` "summary": "one or two sentences",`,
 		` "inline_comments": [{"path": "file", "line": 0, "side": "RIGHT|LEFT",`,
-		inline,
+		`                      "severity": "blocker|suggestion|nit",`,
 		`                      "body": "what is wrong and why it matters"}],`,
 		` "blockers": ["must fix, tied to no single line"],`,
 		` "non_blockers": ["worth noting, tied to no single line"],`,
 		` "pre_existing_issues": [{"severity": "blocker|suggestion",`,
 		`                          "body": "where it is and what it costs"}]}`,
 		"```",
+	}
+	return append(shape, nitRule(includeNits)...)
+}
+
+// nitRule tells a review what to do with an observation that is only a nit.
+//
+// Keeping nit in the severity vocabulary and forbidding the promotion, rather than
+// withholding the word. An observation does not disappear when its honest label does:
+// the sorting rules still say every observation goes in exactly one bucket, and
+// inline_comments is the bucket for anything tied to a line. A review holding a
+// nit-grade line observation and no way to call it one relabels it a suggestion, which
+// [PlaceableFindings] cannot tell from a real one -- so withholding the word would
+// convert the threads this flag suppresses into threads it cannot see.
+//
+// Same reasoning as ai-review, whose schema keeps nit in the enum on both settings and
+// whose prompt carries this instruction.
+func nitRule(includeNits bool) []string {
+	if includeNits {
+		return nil
+	}
+	return []string{
+		"",
+		"This pull request did not ask for nits. Leave a nit-grade observation out of",
+		"the block entirely, and do not call one a suggestion to get it past this rule:",
+		"a nit reported as a suggestion is worse than a nit, because it reads as",
+		"something worth acting on.",
 	}
 }
 
