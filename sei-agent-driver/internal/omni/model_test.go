@@ -1,6 +1,7 @@
 package omni
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
@@ -316,5 +317,59 @@ func TestCreatedScoutSessionCarriesNoModel(t *testing.T) {
 		t.Errorf("created a scout session with model_override = %q; want the field "+
 			"absent — the configured model belongs to the review's agent",
 			*created[0].ModelOverride)
+	}
+}
+
+// TestReviewSurvivesAFailedModelMove is the fail-open promise, and it had no test.
+//
+// The model is a preference. A run that refused because the server would not move it
+// would trade a review on the wrong model for no review at all, which is the worse of
+// the two for the author waiting on it.
+//
+// The session here carries a different override, so the reconcile reaches the write and
+// the server rejects it. What must still arrive is the verdict.
+func TestReviewSurvivesAFailedModelMove(t *testing.T) {
+	t.Parallel()
+
+	work := testWork{Repo: "sei-protocol/sandbox", PR: 28, Trigger: "labelled"}
+	runKey := testRunKey(work.Repo, work.PR)
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages:  []string{driverAgentPage("ag_1", "seidroid", "", false)},
+		CreateResp:  driverSessionResp("conv_new", "ag_1"),
+		PatchStatus: http.StatusInternalServerError,
+		SessionListResp: `{"data":[{"id":"conv_prior","agent_id":"ag_1","labels":` +
+			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			`{"id":"conv_prior","agent_id":"ag_1","created_at":1,"status":"idle",` +
+				`"items":[],"model_override":"an-older-model"}`,
+			driverSessionResp("conv_prior", "ag_1"),
+			driverSessionWithItems("conv_prior", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_a",
+					driverVerdict("Re-read the diff.", "comment"))),
+		},
+	})
+
+	result := runWithModel(t, fs, work, "claude-opus-4-7")
+
+	// The write was attempted, so this is the failure path and not a skipped reconcile.
+	if patches := fs.PatchReqs(); len(patches) != 1 {
+		t.Fatalf("sent %d patches %+v, want 1 — the reconcile never reached the server, "+
+			"so this test is not exercising the failure", len(patches), patches)
+	}
+	if !carriesDecision(result.Reply, "comment") {
+		t.Errorf("Reply = %+v; want the review to arrive anyway — a model that could not "+
+			"be moved is a preference unmet, not a reason to leave the pull request "+
+			"without a review", result.Reply)
+	}
+	if result.ExitCode != driver.ExitOK {
+		t.Errorf("ExitCode = %d, want %d — the run must not fail on a preference",
+			result.ExitCode, driver.ExitOK)
 	}
 }

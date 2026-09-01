@@ -369,9 +369,11 @@ func modelOrEmpty(model *string) string {
 // sent. Saying so is the point -- an unqualified success here would have the log claim a
 // change this run did not get.
 //
-// A failure is logged, not returned. The model is a preference, and the review is still
-// a review on the agent spec's own model; refusing here would turn a preference into a
-// pull request with no review on it.
+// A failure is logged, not returned. The model is a preference, and the review still runs
+// on the model the session already carries; refusing here would turn a preference into a
+// pull request with no review on it. Not the agent spec's model -- this runs only when
+// current and want already differ, so a failed write leaves the session on the override
+// it had, which in the clear case is the very one the run was removing.
 func (h *Host) reconcileModel(
 	ctx context.Context,
 	client *omnigent.Client,

@@ -90,6 +90,10 @@ type driverFakeServerConfig struct {
 	// 200.
 	DeleteStatus int
 
+	// PatchStatus makes session update answer with this status. Zero and 200 both
+	// succeed.
+	PatchStatus int
+
 	// TokenResp is the body for POST /oauth/token. Defaults to a valid
 	// token payload.
 	TokenResp string
@@ -190,6 +194,7 @@ type driverFakeServer struct {
 	eventResps   []string
 	eventHits    atomic.Int64
 	deleteStatus int
+	patchStatus  int
 	tokenResp    string
 
 	totalHits atomic.Int64
@@ -233,6 +238,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		eventResp:              cfg.EventResp,
 		eventResps:             cfg.EventResps,
 		deleteStatus:           cfg.DeleteStatus,
+		patchStatus:            cfg.PatchStatus,
 		tokenResp:              cfg.TokenResp,
 	}
 	if fs.sandboxFrames == nil {
@@ -385,7 +391,15 @@ func (fs *driverFakeServer) handlePatchSession(w http.ResponseWriter, r *http.Re
 	}
 	fs.mu.Lock()
 	fs.patchReqs = append(fs.patchReqs, req)
+	status := fs.patchStatus
 	fs.mu.Unlock()
+
+	// Recorded before the refusal, so a test can tell a patch the server rejected from
+	// one the driver never sent.
+	if status != 0 && status != http.StatusOK {
+		w.WriteHeader(status)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	fmt.Fprint(w, driverSessionResp(r.PathValue("id"), "ag_1"))
