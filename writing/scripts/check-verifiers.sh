@@ -109,14 +109,32 @@ for spec in specs:
         # directory satisfied .exists() and was reported as `runs`, which is the
         # confusion this gate names as its reason for existing: a verifier nobody
         # built reads exactly like one that passes.
+        def resolve(tok):
+            # Both spellings. Targets resolve against writing/, so `scripts/x.sh`
+            # worked and `writing/scripts/x.sh` did not -- and the second is the form
+            # an author reaches for, because writing/README.md lists every local
+            # command with the ./writing/ prefix. A gate that rejects the documented
+            # spelling and says the file "does not exist" is the least useful failure
+            # it could give.
+            rel_tok = tok.rstrip('/')
+            for base in (root, root.parent):
+                candidate = base / rel_tok
+                if candidate.exists():
+                    return candidate
+            return None
+
         missing = False
         for tgt in targets:
-            path = root / tgt.rstrip('/')
-            if not path.exists():
+            path = resolve(tgt)
+            if path is None:
                 bad.append(f"{rel} {sc}: names '{tgt}', which does not exist")
                 missing = True
-            elif not (path.is_file() and os.access(path, os.X_OK)):
-                bad.append(f"{rel} {sc}: names '{tgt}', which exists but is not executable. "
+            elif tgt == first and not (path.is_file() and os.access(path, os.X_OK)):
+                # Only the first token is what the criterion runs. The rest are its
+                # arguments, and an input is not an executable -- requiring it of all
+                # of them made a verifier that takes a file reject itself, and
+                # reported a directory argument in the same words as a phantom.
+                bad.append(f"{rel} {sc}: runs '{tgt}', which exists but is not executable. "
                            f"A verifier is something a reader can run")
                 missing = True
         # The table is what a reader scans, so it must not show a broken criterion in

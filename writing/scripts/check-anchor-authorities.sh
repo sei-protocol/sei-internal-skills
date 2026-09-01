@@ -68,7 +68,7 @@ done < <(find "$ROOT/anchors" "$ROOT/coverage" -type f \( -name '*.md' -o -name 
 # last place that could report success over nothing. If the directories move, find
 # writes to /dev/null and the loop never runs.
 if [ "$scanned" -eq 0 ]; then
-  echo "scanned no files under writing/anchors or writing/coverage — refusing to"
+  echo "scanned no files under $ROOT/anchors or $ROOT/coverage — refusing to"
   echo "  report success on an empty set. Did either directory move?"
   exit 1
 fi
