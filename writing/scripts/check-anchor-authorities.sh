@@ -16,7 +16,12 @@
 # coverage manifest. Prose elsewhere may reference a skill freely; the contract
 # does that itself.
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Takes an optional root, matching check-verifiers.sh, so evals/gates can run this
+# against a fixture tree. Without it the only way to exercise this gate was against
+# the live repository, which would freeze live state into a golden and break on any
+# later change that adds a hyphenated skill.
+ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
+ROOT="$(cd "$ROOT" && pwd)"
 REPO="$(cd "$ROOT/.." && pwd)"
 cd "$REPO"
 
@@ -41,13 +46,16 @@ scanned=0 fail=0
 while IFS= read -r f; do
   [ -f "$f" ] || continue
   scanned=$((scanned + 1))
-  if grep -nIE "(^|[^A-Za-z0-9/-])($pattern)([^A-Za-z0-9-]|$)" "$f" >/dev/null 2>&1; then
+  if grep -nIE "(^|[^A-Za-z0-9-])($pattern)([^A-Za-z0-9-]|$)" "$f" >/dev/null 2>&1; then
     echo "AN ANCHOR CITES A SKILL in $f:"
-    grep -nIE "(^|[^A-Za-z0-9/-])($pattern)([^A-Za-z0-9-]|$)" "$f" | sed 's/^/    /'
+    grep -nIE "(^|[^A-Za-z0-9-])($pattern)([^A-Za-z0-9-]|$)" "$f" | sed 's/^/    /'
     echo "    An anchor names a standard a reader can follow outside this repository."
     fail=1
   fi
-done < <(find writing/anchors writing/coverage -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' \) 2>/dev/null)
+# .txt included: unregistered.txt and grandfathered.txt hold anchor ids, and the
+# first holds precisely the ids with no registry entry -- the ones that appear
+# nowhere else in this set, which is where a skill-named anchor would sit unseen.
+done < <(find writing/anchors writing/coverage -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.txt' \) 2>/dev/null)
 
 # The sibling arms refuse an empty denylist and an empty spec set; this one is the
 # last place that could report success over nothing. If the directories move, find

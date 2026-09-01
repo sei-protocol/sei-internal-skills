@@ -33,6 +33,7 @@ set -euo pipefail
 ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 ROOT="$(cd "$ROOT" && pwd)"
 exec python3 - "$ROOT" <<'PY'
+import os
 import pathlib, re, sys
 
 root = pathlib.Path(sys.argv[1])
@@ -104,10 +105,23 @@ for spec in specs:
             bad.append(f"{rel} {sc}: the backticks hold '{' '.join(spans)}', which names no path. "
                        f"A verifier is something a reader can run")
             continue
+        # Existing is not running. A criterion naming writing/README.md or a bare
+        # directory satisfied .exists() and was reported as `runs`, which is the
+        # confusion this gate names as its reason for existing: a verifier nobody
+        # built reads exactly like one that passes.
+        missing = False
         for tgt in targets:
-            if not (root / tgt.rstrip('/')).exists():
+            path = root / tgt.rstrip('/')
+            if not path.exists():
                 bad.append(f"{rel} {sc}: names '{tgt}', which does not exist")
-        rows.append(f"  {sc:<10}{'runs':<12}{' '.join(spans)[:56]}")
+                missing = True
+            elif not (path.is_file() and os.access(path, os.X_OK)):
+                bad.append(f"{rel} {sc}: names '{tgt}', which exists but is not executable. "
+                           f"A verifier is something a reader can run")
+                missing = True
+        # The table is what a reader scans, so it must not show a broken criterion in
+        # the same column as a working one.
+        rows.append(f"  {sc:<10}{('missing' if missing else 'runs'):<12}{' '.join(spans)[:56]}")
 
 print(f"  {'criterion':<10}{'kind':<12}verifier")
 for r in rows:
