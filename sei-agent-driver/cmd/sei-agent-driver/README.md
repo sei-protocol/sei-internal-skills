@@ -25,11 +25,11 @@ stays up while the session exists. Nothing else reclaims it: the Kubernetes
 launcher sets no lifetime cap and the server runs no sweep, so a close event that
 never arrives leaves a pod holding its cpu and memory indefinitely.
 
-It is normally invoked by a workflow rather than run by hand. That caller lives in
-the repository being reviewed: `sei-protocol/sandbox`'s `review.yml` dispatches
-`seidroid-review.yml` on a `seidroid review` comment, and on a pull request
-closing. Every input below is a plain environment variable or CLI flag, so it also
-runs the same way in a terminal.
+It is normally invoked by a workflow rather than run by hand. The caller lives in the
+repository being reviewed: a thin workflow there dispatches `seidroid-review.yml` on a
+`seidroid review` comment, and on a pull request closing. This file names no caller, because that file belongs to
+the other repository and this one cannot keep the reference true. Every input below is a plain environment variable or CLI flag, so it also runs
+the same way in a terminal.
 
 ## Usage
 
