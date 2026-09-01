@@ -1,6 +1,6 @@
 # xreview
 
-`xreview` drives one sei-droid review of a pull request inside an Omnigent
+`xreview` drives one seidroid review of a pull request inside an Omnigent
 managed sandbox: it resolves the `seidroid` agent, creates or adopts **the
 session for that pull request**, sends the review prompt,
 answers whatever permission prompts the turn parks on (allowing only what an
@@ -84,6 +84,38 @@ signal, so a caller never posts a stale file from a previous run.
   be applying. Read by the agent in its sandbox, not by this process.
 - `--extra-instructions TEXT` — additional guidance for this dispatch only. Carried
   into both the first prompt and the adopted one.
+- `--include-nits` — place nit-severity findings inline as well. Off by default. Off
+  means redirected, not suppressed. The prompt sends a nit to `non_blockers` instead of
+  `inline_comments`. The check run then lists it under Non-blocking, and no thread opens
+  on the line. A wall of advice around two real findings teaches the author to skim all
+  of it.
+
+  The redirect widens that bucket, and says so. The sorting rules call `non_blockers`
+  line-less, but a nit names a line. A bare redirect would swap one contradiction for
+  another, so the rule states the wider contract.
+
+  The check run's finding count applies the same gate as the placement. Its body omits
+  every line-tied finding by design, so counting a suppressed nit would name a finding
+  the check cannot show. The published summary comment is a separate surface: it carries
+  the reply's closing block whole, so that block still lists the nit.
+
+  Naming the destination is load-bearing. The sorting rules say every observation belongs
+  in the block. They also say a note missing from the block is one the author never sees.
+  A nit banned from the block with nowhere to go therefore leaves one cheap way to obey
+  both rules: drop the observation. The flag gates placement, not noticing.
+
+  Every dispatch states the setting it runs under, in both directions. Each also states
+  that it replaces any earlier one. The session outlives the run, so a first turn told to
+  leave nits out still holds that instruction. Silence on a later opt-in would leave the
+  ban standing and the flag inert.
+
+  When it is off, the prompt also forbids relabelling a nit as a suggestion to place it
+  inline. The placement then drops anything still called a nit. The driver does both on
+  purpose. Telling the model alone leaves the rule to its compliance. Filtering alone
+  leaves the review no reason not to promote.
+
+  The severity vocabulary does not move with the flag. The filter enforces on the label,
+  so withholding the word would turn a suppressed thread into an unrecognisable one.
 - `--conversation-context FILE` — this tool's earlier findings and their replies, as
   json, so a re-review can say what changed instead of repeating itself. A file that
   cannot be read is a warning rather than a refusal: the review is still correct
@@ -98,7 +130,7 @@ signal, so a caller never posts a stale file from a previous run.
 | `OMNIGENT_BASE_URL` | `http://127.0.0.1:6767` | The Omnigent server. The default is loopback so a bare local run fails locally rather than reaching for someone's deployment; the review workflow always passes the real one (`https://seigent.dev.platform.sei.io`). It must be https or loopback: anything else is refused twice over, once when the client is built and once when the token mint declines to put the client secret on the wire. The in-cluster ClusterIP Service is not usable for this reason — it is plain http on port 80. |
 | `OMNIGENT_ORIGIN` | `omnigent://internal` | Sent as the `Origin` header on every request to satisfy the server's trusted-origin CSRF guard on state-changing POSTs. This process is not a browser and sends no Origin of its own, so it announces this sentinel instead. |
 | `SEIDROID_AGENT_ID` | `seidroid` | The agent **name** to resolve to an id. There is no lookup-by-name route server-side, so the driver pages the agent listing until this name matches. |
-| `XREVIEW_MODEL` | *(empty)* | Substitutes for the model the agent spec names. Empty leaves the spec's own. **The review's own agent only** — a scout runs on another agent, so another harness and another provider, and it keeps its spec's model, and an override of its own is left alone rather than cleared. Forwarding a name one provider does not answer to costs the whole reading, not just the model. Applied at **both** ends of the session's life, because the override lives on the session row rather than on the turn: a session this run opens carries it from create, so the first turn — the one that writes the review — is already on it; a session an earlier dispatch opened is moved to it on adopt. One limit on the adopt half: the row is read when the harness launches, so a session whose harness is **already up** answers this run on the model it launched with, and the new value takes effect at the next launch. The log says which of the two happened rather than reporting a bare success. The reconcile compares before it writes, so the common case (nothing asked for, no override present) costs no request, and a failure is logged rather than fatal — the review is still a review on the spec's model. The server forwards the value as-is and enumerates nothing, so a name it does not recognise fails at turn start. |
+| `XREVIEW_MODEL` | *(empty)* | Substitutes for the model the agent spec names. Empty leaves the spec's own. It applies to the review's own agent only. A scout runs on another agent, so another harness and another provider. A scout therefore keeps its spec's model, and the driver leaves any override of its own alone. Forwarding a name one provider does not answer to costs the whole reading, not just the model. The driver applies the override at both ends of a session's life, because it lives on the session row rather than on the turn. A session this run opens carries it from create, so the first turn — the one that writes the review — already runs on it. For a session an earlier dispatch opened, the driver moves it on adopt. One limit applies there. The harness reads the row when it launches. A session whose harness is already up therefore answers this run on the model it launched with. The new value takes effect at the next launch. The log says which of the two happened instead of reporting a bare success. The reconcile compares before it writes, so the common case costs no request: nothing asked for, no override present. A failure logs a warning rather than failing the run, because the review is still a review on the spec's model. The server forwards the value as-is and enumerates nothing, so it does not reject an unrecognised name here — that fails at turn start. |
 
 The driver also reads `GITHUB_RUN_ID` and `GITHUB_RUN_ATTEMPT` when
 `--trigger-id` is not given. These now only label a dispatch in the logs — they
@@ -153,7 +185,7 @@ assuming a blank allowlist is merely "cautious."**
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `XREVIEW_SCOUTS` | *(empty)* | Scouts to gather a reading from before the review, as `name=agent,name=agent` — e.g. `codex=sei-droid-codex,cursor=sei-droid-cursor`. Empty runs the review alone, which is the behaviour without this set. Each scout reads the same pull request in its **own session on its own agent**, seeing neither the review nor another scout; the review then verifies their claims against the diff and merges what holds. The agent is what fixes the harness, so a scout naming the review's own agent is refused — a reading from the same harness is not independent of the one it is checking — as are two scouts on one agent, which would count one opinion twice. A scout that fails contributes a note the review is shown rather than nothing, because a reading that failed must not look like a reading that found nothing. Scouts share `XREVIEW_RUN_DEADLINE_S`: they run in parallel with two fifths of it between them, and the review keeps its own full deadline, so a run costs at worst `deadline x 1.4` end to end. |
+| `XREVIEW_SCOUTS` | *(empty)* | Scouts to gather a reading from before the review, as `name=agent,name=agent` — e.g. `codex=seidroid-codex,cursor=seidroid-cursor`. Empty runs the review alone, which is the behaviour without this set. Each scout reads the same pull request in its **own session on its own agent**, seeing neither the review nor another scout; the review then verifies their claims against the diff and merges what holds. The agent is what fixes the harness, so a scout naming the review's own agent is refused — a reading from the same harness is not independent of the one it is checking — as are two scouts on one agent, which would count one opinion twice. A scout that fails contributes a note the review is shown rather than nothing, because a reading that failed must not look like a reading that found nothing. Scouts share `XREVIEW_RUN_DEADLINE_S`: they run in parallel with two fifths of it between them, and the review keeps its own full deadline, so a run costs at worst `deadline x 1.4` end to end. |
 
 ### Timeouts (seconds)
 

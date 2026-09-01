@@ -117,7 +117,7 @@ func main() {
 func xreviewCommand(log *slog.Logger) *cli.Command {
 	return &cli.Command{
 		Name:      "xreview",
-		Usage:     "review a pull request with the sei-droid agent",
+		Usage:     "review a pull request with the seidroid agent",
 		ArgsUsage: "<owner/name> <pr-number>",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -136,6 +136,12 @@ func xreviewCommand(log *slog.Logger) *cli.Command {
 			&cli.StringFlag{
 				Name:  "extra-instructions",
 				Usage: "guidance this repository adds to every review",
+			},
+			&cli.BoolFlag{
+				Name: "include-nits",
+				Usage: "place nit-severity findings inline as well; off by default, " +
+					"because a nit is advice and a wall of it buries the two " +
+					"findings that block",
 			},
 			&cli.StringFlag{
 				Name:  "conversation-context",
@@ -231,6 +237,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 
 	req.GuidelinesFile = cmd.String("guidelines-file")
 	req.ExtraInstructions = cmd.String("extra-instructions")
+	req.IncludeNits = cmd.Bool("include-nits")
 
 	// A history that cannot be read is not a reason to refuse the review. The
 	// review is still correct without it — it just repeats itself — where refusing
@@ -273,7 +280,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 			}
 		}
 		result := d.Close(ctx, xreview.New(req))
-		if err := report("", "", "", result); err != nil {
+		if err := report("", "", "", result, req.IncludeNits); err != nil {
 			return &exitError{code: driver.ExitConfig, err: err}
 		}
 		if result.ExitCode != driver.ExitOK {
@@ -295,7 +302,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	result := d.Run(ctx, xreview.New(req))
 
 	if err := report(cmd.String("out"), cmd.String("findings-out"),
-		cmd.String("check-out"), result); err != nil {
+		cmd.String("check-out"), result, req.IncludeNits); err != nil {
 		// The run's own outcome wins: ExitConfig here would relabel a review that
 		// timed out as one rejected before it started.
 		code := result.ExitCode
@@ -329,7 +336,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 // [driver.ExitNoVerdict], upserting unparsed prose over a previous good review.
 // That prose is deliberately not published; stdout carries the decision, the
 // structured block and, when there is no verdict, the reason there is none.
-func report(outPath, findingsPath, checkPath string, result driver.Result) error {
+func report(outPath, findingsPath, checkPath string, result driver.Result, includeNits bool) error {
 	payload := map[string]any{
 		"session_id":  result.SessionID,
 		"exit_code":   result.ExitCode,
@@ -375,10 +382,10 @@ func report(outPath, findingsPath, checkPath string, result driver.Result) error
 			return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
 		}
 	}
-	if err := writeFindings(findingsPath, verdict); err != nil {
+	if err := writeFindings(findingsPath, verdict, includeNits); err != nil {
 		return err
 	}
-	return writeCheckRun(checkPath, verdict)
+	return writeCheckRun(checkPath, verdict, includeNits)
 }
 
 // readPriorThreads loads what this tool said on this pull request before.
@@ -408,11 +415,11 @@ func readPriorThreads(path string) ([]xreview.PriorThread, error) {
 // Written whenever there is a verdict, unlike the findings: a review that found
 // nothing still concludes, and a checks list with no xreview entry reads as a
 // review that did not run rather than one that passed.
-func writeCheckRun(path string, verdict xreview.Verdict) error {
+func writeCheckRun(path string, verdict xreview.Verdict, includeNits bool) error {
 	if path == "" {
 		return nil
 	}
-	check, ok := xreview.BuildCheckRun(verdict)
+	check, ok := xreview.BuildCheckRun(verdict, includeNits)
 	if !ok {
 		return nil
 	}
@@ -468,11 +475,11 @@ func clearOutputs(paths ...string) error {
 // this review"; this one's means "and place these on the code", and a review with
 // nothing placeable is normal rather than a failure — so an empty list writes no
 // file and the caller posts a summary alone.
-func writeFindings(path string, verdict xreview.Verdict) error {
+func writeFindings(path string, verdict xreview.Verdict, includeNits bool) error {
 	if path == "" {
 		return nil
 	}
-	findings := xreview.PlaceableFindings(verdict)
+	findings := xreview.PlaceableFindings(verdict, includeNits)
 	if len(findings) == 0 {
 		return nil
 	}

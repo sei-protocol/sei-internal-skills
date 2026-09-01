@@ -118,3 +118,41 @@ func TestTruncateBytesNeverSplitsARune(t *testing.T) {
 		}
 	}
 }
+
+// TestPublishedCommentKeepsASuppressedNitInItsBlock records the residue the nit gate
+// deliberately leaves, so the next reader does not take it for a bug.
+//
+// The gate governs placement and the check run's count. It does not reach the published
+// summary comment, because [RenderComment] carries the reply's closing block whole and
+// that block is model output. So the check can say one finding over a comment whose block
+// lists two.
+//
+// Closing that would mean rewriting what the agent said before publishing it, which is a
+// larger decision than a severity gate: the block is the record of the reply, and a
+// publisher that edits it makes the transcript and the comment disagree instead.
+func TestPublishedCommentKeepsASuppressedNitInItsBlock(t *testing.T) {
+	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"s",
+	  "inline_comments":[
+	    {"path":"a.go","line":1,"side":"RIGHT","severity":"blocker","body":"real"},
+	    {"path":"b.go","line":2,"side":"RIGHT","severity":"nit","body":"polish"}]}`)
+
+	// The two surfaces the gate does reach.
+	if got := PlaceableFindings(v, false); len(got) != 1 {
+		t.Fatalf("PlaceableFindings = %+v; want the blocker alone", got)
+	}
+	check, ok := BuildCheckRun(v, false)
+	if !ok {
+		t.Fatal("no check run for a verdict that decided")
+	}
+	if !strings.HasPrefix(check.Title, "1 finding") {
+		t.Fatalf("check Title = %q; want 1 finding", check.Title)
+	}
+
+	// And the one it does not.
+	body := RenderComment(v, "sess_1")
+	if !strings.Contains(body, "polish") {
+		t.Errorf("the published comment dropped the suppressed nit from its block; the "+
+			"gate is not supposed to edit model output, and the comment on "+
+			"distinctReported says so:\n%s", body)
+	}
+}
