@@ -37,7 +37,7 @@ which disables `STE-NounCluster` in silence.
 
 ```sh
 vale sync                  # fetch write-good, which is not committed
-vale --no-global --glob='!{writing/styles/write-good/**,writing/templates/spec-template.upstream.md}' writing
+vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/**,writing/evals/rules/**,writing/templates/spec-template.upstream.md}' writing
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
