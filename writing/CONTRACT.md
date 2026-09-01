@@ -237,14 +237,16 @@ records the debt rather than implying it. A name leaves it by earning an entry w
 four artifacts above, in the change that deletes its line. `asd-ste100` holds an entry
 and the table does not name it, because this contract states ASD-STE100 directly.
 
-Two gates hold these lists. `check-admission.sh` counts the grandfathered names, compares
+Two gates hold these lists, one of them today. `check-admission.sh` counts the
+grandfathered names, compares
 that list against `main`, and holds an `admitted` anchor to all four artifacts.
 `check-contract-anchors.sh` holds `unregistered.txt`. A name this contract cites that is in
 neither the registry nor that file fails. A name there that has since earned an entry fails
 too. The file may not gain a line against `main`.
 
-`check-contract-anchors.sh` runs on every push and pull request. `check-admission.sh`
-arrives later in this series, and `grandfathered.txt` says so at its head. Until it lands,
+`check-contract-anchors.sh` runs on every pull request and on every push to `main`.
+`check-admission.sh` arrives later in this series, and `grandfathered.txt` says so at
+its head. Until it lands,
 that list stands on review, and a line added to it rather than removed goes unnoticed.
 
 This is what keeps the slope from being a slope. The same four artifacts bound the next
