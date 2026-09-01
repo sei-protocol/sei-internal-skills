@@ -124,18 +124,30 @@ for spec in specs:
             return None
 
         missing = False
+
+        # The command is checked on its own, not through targets. Narrowing the
+        # executable test to `tgt == first` left it unchecked whenever `first` was not
+        # path-like: it never enters targets, and `if not targets` above is satisfied
+        # by any argument that happens to look like a path. `missing-tool README.md`
+        # was reported as running.
+        command = resolve(first)
+        if command is None:
+            bad.append(f"{rel} {sc}: runs '{first}', which does not exist and is not a "
+                       f"command this repository requires on PATH")
+            missing = True
+        elif not (command.is_file() and os.access(command, os.X_OK)):
+            bad.append(f"{rel} {sc}: runs '{first}', which exists but is not executable. "
+                       f"A verifier is something a reader can run")
+            missing = True
+
+        # Its arguments only have to be there. An input is not an executable, and
+        # requiring it of every token made a verifier reject its own file and reported
+        # a directory argument in the same words as a phantom.
         for tgt in targets:
-            path = resolve(tgt)
-            if path is None:
+            if tgt == first:
+                continue
+            if resolve(tgt) is None:
                 bad.append(f"{rel} {sc}: names '{tgt}', which does not exist")
-                missing = True
-            elif tgt == first and not (path.is_file() and os.access(path, os.X_OK)):
-                # Only the first token is what the criterion runs. The rest are its
-                # arguments, and an input is not an executable -- requiring it of all
-                # of them made a verifier that takes a file reject itself, and
-                # reported a directory argument in the same words as a phantom.
-                bad.append(f"{rel} {sc}: runs '{tgt}', which exists but is not executable. "
-                           f"A verifier is something a reader can run")
                 missing = True
         # The table is what a reader scans, so it must not show a broken criterion in
         # the same column as a working one.
