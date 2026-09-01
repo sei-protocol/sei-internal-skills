@@ -11,8 +11,8 @@ run-name: seidroid review / ${{ github.event.issue.number && format('#{0}', gith
 # person asked for it. The sibling `ai-review.yml` is the automatic path; this is not
 # a second copy of it.
 #
-# The driver is installed with `go install` at `driver-version`, so a caller updates
-# by bumping one pinned ref and this file never copies driver logic. The session is
+# The driver is installed with `go install` at `driver-version`, which the caller pins,
+# so a caller updates by bumping one ref and this file never copies driver logic. The session is
 # keyed on the pull request and OUTLIVES the run, which is why `mode: close` exists:
 # it is the only thing that reclaims a sandbox.
 #
@@ -59,12 +59,15 @@ on:
         description: >-
           sei-agent-driver version to install: a commit sha of this repository, or a
           module tag once one is cut. No release yet contains the driver -- the newest
-          predates it -- so the default is a sha, and `go install` resolves it to a
-          pseudo-version. Verified from an empty module cache: a warm one is a false
-          green, because it resolves a pin the proxy may never have served.
-        required: false
+          predates it -- so pass a sha, which `go install` resolves to a pseudo-version.
+          Verify it from an empty module cache: a warm one is a false green, because it
+          resolves a pin the proxy may never have served.
+
+          Required, with no default. A default ages silently against the subcommands and
+          inputs this file uses, and the caller finds out at run time. Pinning is the
+          caller's decision, so it is the caller's to state.
+        required: true
         type: string
-        default: '9a6922803c4ef764edd6e8adfacbae0899607e06'
       allowed-team:
         description: >-
           org/team-slug whose active members may ask for a review. Empty keeps the
@@ -936,6 +939,13 @@ jobs:
           # Scopes the withdrawal below to this tool's own blocks. ai-review posts
           # under the same bot identity and marks its reviews differently; its
           # position is not this one's to change.
+          #
+          # Changing this value strands every blocking review posted under the old one:
+          # the withdrawal matches on startswith, so a later clean run approves and
+          # retracts nothing, the pull request stays red for a finding that is gone, and
+          # only a human can then clear it. Before changing it, confirm no open pull
+          # request carries a CHANGES_REQUESTED review whose body starts with the old
+          # value.
           MARKER: "<!-- seidroid-review -->"
         run: |
           set -euo pipefail
