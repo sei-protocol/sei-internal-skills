@@ -1,0 +1,14 @@
+{
+  "fixture": "evals/fixtures/design/arc42-out-of-order.md",
+  "note": "arc42 order, negative. Constraints follows Solution strategy, which reverses the template. The four house sections are all present, so only the order rule may fire.",
+  "must_include_rules": [
+    "AgenticWriting.Design-Arc42Order"
+  ],
+  "must_not_include_rules": [
+    "AgenticWriting.Design-NonGoals",
+    "AgenticWriting.Design-Alternatives",
+    "AgenticWriting.Design-Tradeoffs",
+    "AgenticWriting.Design-OpenQuestions"
+  ],
+  "min_findings": 1
+}

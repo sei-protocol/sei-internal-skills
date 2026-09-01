@@ -1,0 +1,13 @@
+{
+  "fixture": "evals/fixtures/design/complete.md",
+  "note": "Design mode, positive. A complete design must fire no structural rule. It uses no arc42 section names, so the order rule must stay silent on it too.",
+  "must_include_rules": [],
+  "must_not_include_rules": [
+    "AgenticWriting.Design-NonGoals",
+    "AgenticWriting.Design-Alternatives",
+    "AgenticWriting.Design-Tradeoffs",
+    "AgenticWriting.Design-OpenQuestions",
+    "AgenticWriting.Design-Arc42Order"
+  ],
+  "min_findings": 0
+}

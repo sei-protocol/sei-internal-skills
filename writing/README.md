@@ -16,6 +16,10 @@ here today:
 | `coverage/` | which topics of each standard the rules reach, and which they miss |
 | `CONTRACT.md` | the contract itself: the anchors, and the rules with no public prior |
 | `templates/` | the spec template, and the upstream baseline it forked from |
+| `evals/` | fixtures, per-rule golden files, and the recognition method |
+
+The prose lint skips `evals/`. A fixture is deliberately non-conforming, which is
+what makes it a test.
 
 What arrives next, in order:
 
@@ -33,12 +37,15 @@ which disables `STE-NounCluster` in silence.
 
 ```sh
 vale sync                  # fetch write-good, which is not committed
-vale --no-global --glob='!{writing/styles/write-good/**,writing/templates/spec-template.upstream.md}' writing
+vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/**,writing/evals/rules/**,writing/templates/spec-template.upstream.md}' writing
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
 ./writing/scripts/check-contract-anchors.sh  # every anchor named resolves
 ./writing/scripts/check-artifact-length.sh   # nothing restates a standard
+./writing/evals/run.sh                       # every rule still fires
+./writing/evals/rules/run.sh                 # goldens pin line, column, message
+./writing/scripts/check-admission.sh         # an anchor carries its artifacts
 ```
 
 That second command is what CI runs. `--no-global` matters: Vale merges a
@@ -91,6 +98,19 @@ earned an entry. It compares the file against `main`, so the list can only shrin
 
 A stated gap beats a silent one. Nothing checked this direction before, because
 the coverage gate reads the registry and never the contract.
+
+## Testing a rule
+
+A rule that stops firing is a silent failure. Silent failure is the reason a
+prompt alone earns no trust. Two harnesses catch it.
+
+`evals/run.sh` lints each fixture and asserts the rules that must fire did.
+`evals/rules/run.sh` isolates one rule per directory and pins the exact line,
+column and message, so a rule that starts reporting the wrong span fails.
+
+A fixture directory missing a piece fails rather than skipping. The harness once
+passed over any directory with no input, so a rule still reported `ok` after
+somebody deleted its fixture.
 
 ## Reading a finding
 

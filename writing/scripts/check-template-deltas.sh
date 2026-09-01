@@ -272,14 +272,17 @@ trap 'rm -rf "$scratch" "$probe"' EXIT
 # a renamed or widened section leaves the spec rules scoped to specs/**/spec.md.
 # The scratch body then matches [*.md] alone, where all five are off, and Vale
 # reports nothing at rc 0 -- a probe degraded to a no-op that says it passed.
-section='^\[specs/\*\*/spec\.md\]'
-if ! grep -q "$section" .vale.ini; then
+# The brace form counts: a section widened to reach the fixtures still scopes the
+# spec rules to specs/**/spec.md, and the whole heading is replaced either way. What
+# the guard is for is a heading that has gone or no longer names that scope at all.
+section='^\[\{?specs/\*\*/spec\.md.*\]$'
+if ! grep -Eq "$section" .vale.ini; then
   echo "no [specs/**/spec.md] section in .vale.ini — the probe cannot re-scope it"
   echo "    why: without the re-scope the spec rules never reach $T"
   exit 1
 fi
 
-sed "s|${section}|[**/spec-body.md]|" .vale.ini > "$probe"
+sed -E "s|${section}|[**/spec-body.md]|" .vale.ini > "$probe"
 body "$T" > "$scratch/spec-body.md"
 
 # Report against $T. The scratch path is an implementation detail, and the

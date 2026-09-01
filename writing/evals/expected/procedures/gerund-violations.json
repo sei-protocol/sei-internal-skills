@@ -1,0 +1,9 @@
+{
+  "fixture": "evals/fixtures/procedures/gerund-violations.md",
+  "note": "Procedure mode. STE-Gerund-Instruction is scoped here because ASD-STE100's imperative rule governs a step, not a descriptive bullet.",
+  "must_include_rules": [
+    "AgenticWriting.STE-Gerund-Instruction"
+  ],
+  "must_not_include_rules": [],
+  "min_findings": 2
+}

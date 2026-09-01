@@ -1,0 +1,15 @@
+{
+  "fixture": "evals/fixtures/tickets/complete.md",
+  "note": "Ticket mode, positive. A complete body must fire no structural rule.",
+  "must_include_rules": [],
+  "must_not_include_rules": [
+    "AgenticWriting.Ticket-Problem",
+    "AgenticWriting.Ticket-Impact",
+    "AgenticWriting.Ticket-RelevantExperts",
+    "AgenticWriting.Ticket-ProposedApproach",
+    "AgenticWriting.Ticket-AcceptanceCriteria",
+    "AgenticWriting.Ticket-OutOfScope",
+    "AgenticWriting.Ticket-References"
+  ],
+  "min_findings": 0
+}

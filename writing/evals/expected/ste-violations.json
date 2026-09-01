@@ -1,0 +1,16 @@
+{
+  "fixture": "evals/fixtures/ste-violations.md",
+  "note": "Minimum expected findings. Regenerate with: vale --output=JSON evals/fixtures/ste-violations.md RFC 2119 moved to evals/fixtures/specs/: the rule is scoped to specifications, so it cannot fire on this file. The gerund rule moved to evals/fixtures/procedures/: it is scoped to procedures, so line 12's '1. Configuring...' is now the negative control. EARS-Shall was retired: it flagged 'shall' when it appeared, which polices the compliant sentences. EARS-CriterionShall flags a criterion that lacks the shape, and it is scoped to specs.",
+  "must_include_rules": [
+    "AgenticWriting.STE-SentenceLength-Description",
+    "AgenticWriting.STE-Passive",
+    "AgenticWriting.STE-Contractions",
+    "AgenticWriting.STE-ApprovedWords",
+    "AgenticWriting.STE-PhrasalVerbs",
+    "AgenticWriting.STE-NounCluster"
+  ],
+  "min_findings": 12,
+  "must_not_include_rules": [
+    "AgenticWriting.STE-Gerund-Instruction"
+  ]
+}
