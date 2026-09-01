@@ -450,28 +450,43 @@ func verdictShape(includeNits bool) []string {
 	return append(shape, nitRule(includeNits)...)
 }
 
-// nitRule tells a review what to do with an observation that is only a nit.
+// nitRule states the pull request's current nit setting, and says it on both settings.
 //
-// Keeping nit in the severity vocabulary and forbidding the promotion, rather than
-// withholding the word. An observation does not disappear when its honest label does:
-// the sorting rules still say every observation goes in exactly one bucket, and
-// inline_comments is the bucket for anything tied to a line. A review holding a
-// nit-grade line observation and no way to call it one relabels it a suggestion, which
-// [PlaceableFindings] cannot tell from a real one -- so withholding the word would
-// convert the threads this flag suppresses into threads it cannot see.
+// Both, because the session outlives the run. A first turn told to leave nits out still
+// holds that instruction when a later dispatch opts in, so saying nothing on the opt-in
+// path is not neutral -- it leaves the ban standing, and the label the author just added
+// does nothing. Each dispatch therefore names the setting that is current and that it
+// replaces any earlier one.
+//
+// It rides in [verdictShape], the one block both [BuildPrompt] and [AdoptedPrompt] send,
+// so no dispatch can omit it.
+//
+// nit stays in the severity vocabulary on both settings rather than being withheld on
+// the off one. An observation does not disappear when its honest label does: the sorting
+// rules still say every observation goes in exactly one bucket, and inline_comments is
+// the bucket for anything tied to a line. A review holding a nit-grade line observation
+// and no way to call it one relabels it a suggestion, which [PlaceableFindings] cannot
+// tell from a real one -- so withholding the word would convert the threads this flag
+// suppresses into threads it cannot see.
 //
 // Same reasoning as ai-review, whose schema keeps nit in the enum on both settings and
-// whose prompt carries this instruction.
+// whose prompt carries the instruction.
 func nitRule(includeNits bool) []string {
 	if includeNits {
-		return nil
+		return []string{
+			"",
+			"This pull request asks for nits. Report a nit-grade observation with severity",
+			"nit. If an earlier turn told you to leave nits out, that",
+			"no longer holds: this line is the current setting and it replaces it.",
+		}
 	}
 	return []string{
 		"",
-		"This pull request did not ask for nits. Leave a nit-grade observation out of",
+		"This pull request does not ask for nits. Leave a nit-grade observation out of",
 		"the block entirely, and do not call one a suggestion to get it past this rule:",
 		"a nit reported as a suggestion is worse than a nit, because it reads as",
-		"something worth acting on.",
+		"something worth acting on. If an earlier turn asked for nits, that",
+		"no longer holds: this line is the current setting and it replaces it.",
 	}
 }
 

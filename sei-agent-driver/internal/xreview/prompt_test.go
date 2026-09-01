@@ -514,8 +514,8 @@ func TestScoutPromptAsksForNothingItCannotOpen(t *testing.T) {
 	}
 }
 
-// TestNitGateForbidsPromotionRatherThanHidingTheLabel pins the shape the gate depends
-// on, and it is the test the first attempt at this did not have.
+// TestNitGateForbidsPromotionRatherThanHidingTheLabel pins the shape the filter
+// depends on, and it is the test the first attempt at this did not have.
 //
 // That attempt dropped nit from the severity vocabulary when the flag was off. The
 // observation does not disappear with its label: the sorting rules still put anything
@@ -524,9 +524,8 @@ func TestScoutPromptAsksForNothingItCannotOpen(t *testing.T) {
 // from a real one. Withholding the word converts a suppressed thread into an invisible
 // one.
 //
-// So two things are checked. The label stays offered on both settings, because the
-// filter enforces on the label. And the off setting carries the instruction that makes
-// the label honest.
+// So the label must stay offered on both settings, because the filter enforces on the
+// label, and the off setting must carry the instruction that makes the label honest.
 func TestNitGateForbidsPromotionRatherThanHidingTheLabel(t *testing.T) {
 	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
 
@@ -546,6 +545,52 @@ func TestNitGateForbidsPromotionRatherThanHidingTheLabel(t *testing.T) {
 			if forbids == nits {
 				t.Errorf("%s with nits=%v: promotion instruction present = %v, want %v",
 					name, nits, forbids, !nits)
+			}
+		}
+	}
+}
+
+// TestEveryDispatchStatesTheNitSettingItIsRunningUnder is the session-continuity half,
+// and the case a one-sided rule gets wrong.
+//
+// The session outlives the run, so an instruction is not undone by being left out of a
+// later prompt — it is still sitting in the conversation. A first dispatch with nits off
+// plants "leave nits out"; the author then adds the label; the opt-in dispatch reuses
+// that session. If the opt-in path says nothing about nits, the ban stands and the label
+// does nothing, which is a setting that reads as applied and is not.
+//
+// So both settings have to speak, on both prompts. Absence is not neutral here.
+func TestEveryDispatchStatesTheNitSettingItIsRunningUnder(t *testing.T) {
+	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
+
+	// Whitespace-collapsed, because the prompt is wrapped for a reader and the model
+	// sees one stream. Matching the wrapped form makes a reflow look like a behaviour
+	// change, which is a test that fails for the wrong reason.
+	flat := func(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+	for _, c := range []struct {
+		nits         bool
+		says, unsays string
+	}{
+		{false, "does not ask for nits", "asks for nits. Report"},
+		{true, "asks for nits. Report", "does not ask for nits"},
+	} {
+		req.IncludeNits = c.nits
+		for name, got := range map[string]string{
+			"BuildPrompt":   flat(BuildPrompt(req)),
+			"AdoptedPrompt": flat(AdoptedPrompt(req)),
+		} {
+			if !strings.Contains(got, c.says) {
+				t.Errorf("%s with nits=%v does not state the setting it runs under; a "+
+					"reused session keeps whatever the last dispatch said", name, c.nits)
+			}
+			if strings.Contains(got, c.unsays) {
+				t.Errorf("%s with nits=%v also carries the opposite setting", name, c.nits)
+			}
+			// The retraction is what makes it win over what the session holds.
+			if !strings.Contains(got, "no longer holds") {
+				t.Errorf("%s with nits=%v states the setting but does not supersede an "+
+					"earlier one", name, c.nits)
 			}
 		}
 	}

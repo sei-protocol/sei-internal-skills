@@ -86,9 +86,12 @@ signal, so a caller never posts a stale file from a previous run.
   into both the first prompt and the adopted one.
 - `--include-nits` — place nit-severity findings inline as well. Off by default, so a
   nit reaches the summary prose but never opens a thread; a wall of advice around two
-  real findings teaches the author to skim all of it. When it is off the prompt says so
-  and forbids relabelling a nit as a suggestion, and the placement drops anything still
-  called a nit. Both, because telling the model alone leaves the rule to its compliance,
+  real findings teaches the author to skim all of it. Every dispatch states the setting
+  it is running under, in both directions, and that it replaces any earlier one — the
+  session outlives the run, so a first turn told to leave nits out still holds that
+  instruction, and saying nothing on a later opt-in would leave the ban standing and the
+  flag inert. When it is off the prompt also forbids relabelling a nit as a suggestion,
+  and the placement drops anything still called a nit. Both, because telling the model alone leaves the rule to its compliance,
   and filtering alone leaves the review no reason not to promote. The severity
   vocabulary itself does not move with the flag — the filter enforces on the label, so
   withholding the word would turn a suppressed thread into an unrecognisable one.
