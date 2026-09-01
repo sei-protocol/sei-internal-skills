@@ -340,10 +340,15 @@ func distinctReported(v Verdict, includeNits bool) int {
 		}
 		f := findingFrom(fields)
 		// The same gate [PlaceableFindings] applies, and before the key for the same
-		// reason. A nit this run will not post appears nowhere a reader can reach: no
-		// inline comment is written for it, and [checkSummary] leaves out every line-tied
+		// reason. A nit this run will not post appears nowhere in this check: no inline
+		// comment is written for it, and [checkSummary] leaves out every line-tied
 		// finding by design. Counting it puts a number on the title that nothing
 		// underneath accounts for.
+		//
+		// Only this check. [RenderComment] publishes the reply's closing block whole, so
+		// the published comment still carries the entry -- the count and that block
+		// disagree by the nits taken out here, and closing that would mean editing model
+		// output rather than counting it.
 		if f.Severity == "nit" && !includeNits {
 			continue
 		}
