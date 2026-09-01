@@ -102,7 +102,11 @@ const maxPlaceableFindings = 50
 // is nowhere sensible to put one that has neither. What is dropped here is still in the
 // prose the summary comment carries. Nothing is lost from the review, only from the
 // inline placement.
-func PlaceableFindings(v Verdict) []Finding {
+//
+// includeNits carries [Request.IncludeNits]. It is enforced here, on the one path that
+// produces every inline comment, rather than left to the prompt the model may ignore or
+// to each caller to remember.
+func PlaceableFindings(v Verdict, includeNits bool) []Finding {
 	seen := make(map[string]bool)
 	out := make([]Finding, 0)
 	for _, entry := range reportedFindings(v) {
@@ -111,6 +115,12 @@ func PlaceableFindings(v Verdict) []Finding {
 			continue
 		}
 		f := findingFrom(fields)
+		// Before the dedupe, not after: [Finding.dedupeKey] does not carry severity, so
+		// a dropped nit that claimed the key would suppress a blocker reported about the
+		// same line in the same words.
+		if f.Severity == "nit" && !includeNits {
+			continue
+		}
 		if !f.placeable() || seen[f.dedupeKey()] {
 			continue
 		}

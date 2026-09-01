@@ -123,7 +123,7 @@ func TestReportWritesEachOutputOnItsOwnFlag(t *testing.T) {
 		Text:   "A review.\n\n```json\n{\"decision\":\"comment\",\"summary\":\"s\"}\n```",
 		TurnID: "t1", ItemID: "i1",
 	}}
-	if err := report("", "", check, result); err != nil {
+	if err := report("", "", check, result, false); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 	if _, err := os.Stat(check); err != nil {
@@ -142,7 +142,7 @@ func TestReportClearsAnEarlierRunsOutputs(t *testing.T) {
 	}
 
 	// A run that reached no verdict: nothing to publish.
-	if err := report(out, "", "", driver.Result{SessionID: "s2"}); err != nil {
+	if err := report(out, "", "", driver.Result{SessionID: "s2"}, false); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
@@ -254,7 +254,7 @@ func TestBothCallersActOnARefusedClear(t *testing.T) {
 
 	t.Run("report refuses", func(t *testing.T) {
 		out := undeletable(t, "report-out")
-		err := report(out, "", "", driver.Result{SessionID: "s1"})
+		err := report(out, "", "", driver.Result{SessionID: "s1"}, false)
 		if err == nil {
 			t.Fatal("report returned nil on an output it could not clear; the caller " +
 				"publishes on presence, so an earlier verdict posts as this run's")

@@ -393,7 +393,7 @@ func TestSharedPromptTextNamesNoStep(t *testing.T) {
 		{"extraInstructionsStep", extraInstructionsStep(req)},
 		{"historyStep", historyStep(req)},
 		{"reconcileStep", reconcileStep(req)},
-		{"bucketRules", bucketRules()},
+		{"bucketRules", bucketRules(false)},
 	} {
 		// Non-vacuity first. Every one of these returns nil for an empty request, and a builder
 		// that produced nothing would pass this check while testing nothing.
@@ -511,5 +511,36 @@ func TestScoutPromptAsksForNothingItCannotOpen(t *testing.T) {
 	}
 	if !strings.Contains(review, callees) {
 		t.Errorf("the review prompt lost %q, which its tree is what makes answerable", callees)
+	}
+}
+
+// TestSeverityVocabularyFollowsTheNitGate pins that the prompt and the placement
+// filter agree on which severities exist.
+//
+// A prompt that still offers nit while [PlaceableFindings] drops it spends a review's
+// attention writing findings this tool then discards. Both prompts are checked because
+// a re-review builds its schema from [verdictShape] without the sorting prose.
+func TestSeverityVocabularyFollowsTheNitGate(t *testing.T) {
+	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
+
+	for _, c := range []struct {
+		nits         bool
+		want, unwant string
+	}{
+		{false, "blocker|suggestion", "blocker|suggestion|nit"},
+		{true, "blocker|suggestion|nit", ""},
+	} {
+		req.IncludeNits = c.nits
+		for name, got := range map[string]string{
+			"BuildPrompt":   BuildPrompt(req),
+			"AdoptedPrompt": AdoptedPrompt(req),
+		} {
+			if !strings.Contains(got, c.want) {
+				t.Errorf("%s with nits=%v does not offer %q", name, c.nits, c.want)
+			}
+			if c.unwant != "" && strings.Contains(got, c.unwant) {
+				t.Errorf("%s with nits=%v still offers %q", name, c.nits, c.unwant)
+			}
+		}
 	}
 }

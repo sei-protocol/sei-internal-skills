@@ -368,7 +368,7 @@ func BuildPrompt(req Request) string {
 		"Finish with a single fenced json block, and nothing after it.",
 		"",
 	}...)
-	lines = append(lines, bucketRules()...)
+	lines = append(lines, bucketRules(req.IncludeNits)...)
 	return strings.Join(lines, "\n")
 }
 
@@ -377,7 +377,7 @@ func BuildPrompt(req Request) string {
 // The first dispatch on a pull request only. A re-review runs in the same session and
 // already holds this, so [AdoptedPrompt] sends [verdictShape] alone -- the schema without
 // the sorting prose. Holding a session and then re-sending what it holds buys nothing.
-func bucketRules() []string {
+func bucketRules(includeNits bool) []string {
 	return append([]string{
 		"Every observation you made goes in the block, in exactly one bucket. A note",
 		"worth writing in the prose is worth an entry: one missing from the block is",
@@ -401,14 +401,26 @@ func bucketRules() []string {
 		"  blocker only when it is critical on its own — an exploitable hole, data",
 		"  loss, a likely outage — and suggestion otherwise.",
 		"",
-		"Severity for an inline comment is blocker, suggestion or nit. Do not prefix",
+		severityRule(includeNits),
 		"the body with it; it is a field, and it gets rendered once.",
 		"",
 		"decision is request_changes if anything blocks, comment if there are only",
 		"non-blocking notes, and approve if you found nothing at all. Use [] for a",
 		"bucket with nothing in it:",
 		"",
-	}, verdictShape()...)
+	}, verdictShape(includeNits)...)
+}
+
+// severityRule names the severities an inline comment may carry.
+//
+// Omitting nit is the whole instruction when nits are off. A vocabulary the model was
+// never given is a cheaper rule than one it is given and told not to use, and this
+// tool drops a nit either way -- see [PlaceableFindings].
+func severityRule(includeNits bool) string {
+	if includeNits {
+		return "Severity for an inline comment is blocker, suggestion or nit. Do not prefix"
+	}
+	return "Severity for an inline comment is blocker or suggestion. Do not prefix"
 }
 
 // verdictShape is the closing block's schema, apart from the prose that explains how to
@@ -427,7 +439,11 @@ func bucketRules() []string {
 // to neutral -- a wrong answer with no error anywhere. So the rule travels with the field,
 // and the placeholder is <line count> rather than 0 so that copying the shape cannot
 // produce the sentinel.
-func verdictShape() []string {
+func verdictShape(includeNits bool) []string {
+	inline := `                      "severity": "blocker|suggestion",`
+	if includeNits {
+		inline = `                      "severity": "blocker|suggestion|nit",`
+	}
 	return []string{
 		"read is the line count the diff command printed, and 0 if you never got the",
 		"diff. It is how this tool tells a review of the change from a review of",
@@ -439,7 +455,7 @@ func verdictShape() []string {
 		` "decision": "approve" | "comment" | "request_changes",`,
 		` "summary": "one or two sentences",`,
 		` "inline_comments": [{"path": "file", "line": 0, "side": "RIGHT|LEFT",`,
-		`                      "severity": "blocker|suggestion|nit",`,
+		inline,
 		`                      "body": "what is wrong and why it matters"}],`,
 		` "blockers": ["must fix, tied to no single line"],`,
 		` "non_blockers": ["worth noting, tied to no single line"],`,
@@ -688,7 +704,7 @@ func AdoptedPrompt(req Request) string {
 		"how to sort observations into it you already have.",
 		"",
 	)
-	lines = append(lines, verdictShape()...)
+	lines = append(lines, verdictShape(req.IncludeNits)...)
 
 	return strings.Join(append(lines,
 		"",

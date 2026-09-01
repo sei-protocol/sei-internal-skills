@@ -84,6 +84,12 @@ signal, so a caller never posts a stale file from a previous run.
   be applying. Read by the agent in its sandbox, not by this process.
 - `--extra-instructions TEXT` — additional guidance for this dispatch only. Carried
   into both the first prompt and the adopted one.
+- `--include-nits` — place nit-severity findings inline as well. Off by default, so a
+  nit reaches the summary prose but never opens a thread; a wall of advice around two
+  real findings teaches the author to skim all of it. The flag does two things: it
+  offers `nit` in the prompt's severity vocabulary, and it admits nits to the inline
+  placement. Both, because telling the model alone leaves the rule to its compliance,
+  and filtering alone spends a review's attention on findings this tool discards.
 - `--conversation-context FILE` — this tool's earlier findings and their replies, as
   json, so a re-review can say what changed instead of repeating itself. A file that
   cannot be read is a warning rather than a refusal: the review is still correct
