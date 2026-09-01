@@ -16,10 +16,9 @@
 # A name leaves by earning a registry entry with its four admission artifacts. Delete
 # its line in that same commit.
 #
-# NOT YET ENFORCED. writing/scripts/check-contract-anchors.sh arrives with the registry-gates change,
-# later in this series. Until it lands this file is a record and not a gate:
-# a line could be added here rather than removed and nothing would notice.
-# The claims above describe what the gate will assert, not what runs today.
+# ENFORCED. writing/scripts/check-contract-anchors.sh runs on every pull request and
+# on every push to main, and the claims above describe what it asserts rather than an
+# intention.
 #
 # One name per line, spelled as the contract's anchor table spells it.
 

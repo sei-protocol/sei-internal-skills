@@ -37,6 +37,8 @@ vale --no-global --glob='!{writing/styles/write-good/**,writing/templates/spec-t
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
+./writing/scripts/check-contract-anchors.sh  # every anchor named resolves
+./writing/scripts/check-artifact-length.sh   # nothing restates a standard
 ```
 
 That second command is what CI runs. `--no-global` matters: Vale merges a
@@ -78,6 +80,17 @@ check something else.
 `CONTRACT.md` is the file to read first. It names the anchors, states the rules
 that have no public prior, and says which gate checks what. Everything else in
 this directory serves it.
+
+## The debt has a home
+
+`anchors/unregistered.txt` names the anchors the contract cites that have no
+registry entry yet. The gate prints the count and the names on every run. This
+file repeats neither, because a number here goes stale the moment an anchor earns
+an entry. The gate fails on a name in neither place, and on a line that has since
+earned an entry. It compares the file against `main`, so the list can only shrink.
+
+A stated gap beats a silent one. Nothing checked this direction before, because
+the coverage gate reads the registry and never the contract.
 
 ## Reading a finding
 

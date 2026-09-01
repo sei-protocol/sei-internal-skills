@@ -25,8 +25,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 3.17.1 is a floor, not a preference. On 3.14.0 a `sequence` whose tokens
-      # are all `tag:` entries matches nothing, which silently disables a rule.
       # writing/scripts/generate-mode-rules.py imports yaml. The step passes on
       # today's runner image because it happens to ship PyYAML; that is luck,
       # not a declared dependency, and it changes without notice.
@@ -35,6 +33,14 @@ jobs:
           python-version: '3.12'
       - run: pip install pyyaml
 
+      # check-contract-anchors.sh compares anchors/unregistered.txt against main
+      # to hold the list monotonic. A shallow clone has no main to compare with,
+      # and the gate says so rather than passing on one arm.
+      - name: Fetch main for the monotonicity comparison
+        run: git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
+
+      # 3.17.1 is a floor, not a preference. On 3.14.0 a `sequence` whose tokens
+      # are all `tag:` entries matches nothing, which silently disables a rule.
       - name: Install Vale
         run: |
           VALE_VERSION=3.17.1
@@ -70,6 +76,17 @@ jobs:
       # something else, so the manifest is enforced rather than trusted.
       - name: Coverage manifest is true
         run: ./writing/scripts/check-coverage.sh
+
+      # SC-002 in the direction nothing checked: the coverage gate reads the
+      # registry and never the contract, so anchors the contract names could
+      # have no entry at all. Twelve of nineteen did.
+      - name: Every anchor the contract names resolves, or is recorded debt
+        run: ./writing/scripts/check-contract-anchors.sh
+
+      # A long anchor page is evidence that it restates a standard instead of
+      # citing one, which NOTICE.md forbids.
+      - name: Every artifact is inside its length limit
+        run: ./writing/scripts/check-artifact-length.sh
 
       - name: Lint prose against the writing contract
         # Pinned to a commit, not the mutable `reviewdog` branch. Every other
