@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"fmt"
@@ -18,33 +18,58 @@ func TestHistoryStepIsAbsentOnAFirstReview(t *testing.T) {
 	}
 }
 
-// TestBothPromptsCarryTheHistory is the wiring check. A step added to one prompt and not
-// the other reaches the first dispatch on a pull request and no dispatch after it.
-// History only exists from the second dispatch onward, so the adopted prompt is the one
-// that always needs it.
-func TestBothPromptsCarryTheHistory(t *testing.T) {
+// TestTheAdoptedPromptSendsOnlyWhatTheSessionCannotKnow pins the delta contract.
+//
+// A first dispatch has never seen its own findings, so it is sent them in full. A
+// re-review wrote them, in the session it is answering in, so it is sent only what
+// happened to them afterwards on GitHub -- a reply, a resolution -- because that is the
+// part no session can hold.
+//
+// The negative assertions are the point. Re-quoting prose the agent itself wrote is the
+// cost the adopted prompt exists to avoid, and it is the kind of regression that looks
+// harmless in a diff.
+func TestTheAdoptedPromptSendsOnlyWhatTheSessionCannotKnow(t *testing.T) {
 	t.Parallel()
 
 	req := Request{Repo: "sei-protocol/sandbox", PR: 42, PriorThreads: []PriorThread{
+		// Moved: a human replied.
 		{File: "a.go", Line: 9, Body: "unbounded retry", Replies: []string{"fixed in 3f2a"}},
+		// Unmoved: the reviewer's own finding, nothing back. The session remembers it.
+		{File: "b.go", Line: 4, Body: "missing guard on the nil case"},
 	}}
-	for name, prompt := range map[string]string{
-		"BuildPrompt":   BuildPrompt(req),
-		"AdoptedPrompt": AdoptedPrompt(req),
-	} {
+	first, adopted := BuildPrompt(req), AdoptedPrompt(req)
+
+	t.Run("the first dispatch is sent the whole history", func(t *testing.T) {
 		for _, want := range []string{
-			// Anchored to the checkout, because the tree is a subdirectory and
-			// nothing changes directory into it. A bare "a.go:9" named a sibling
-			// of the tree, so it was not openable.
 			"[open] pr-42-tree/a.go:9 — unbounded retry",
+			"[open] pr-42-tree/b.go:4 — missing guard on the nil case",
 			"reply: fixed in 3f2a",
-			"A reply is a claim, not a resolution",
 		} {
-			if !strings.Contains(prompt, want) {
-				t.Errorf("%s does not carry %q", name, want)
+			if !strings.Contains(first, want) {
+				t.Errorf("BuildPrompt does not carry %q", want)
 			}
 		}
-	}
+	})
+
+	t.Run("the re-review is sent the moved thread and its reply", func(t *testing.T) {
+		for _, want := range []string{"[open] pr-42-tree/a.go:9", "reply: fixed in 3f2a"} {
+			if !strings.Contains(adopted, want) {
+				t.Errorf("AdoptedPrompt does not carry %q; a reply happened outside the "+
+					"session, so nothing else can tell the review about it", want)
+			}
+		}
+	})
+
+	t.Run("and not its own prose, nor an unmoved thread", func(t *testing.T) {
+		if strings.Contains(adopted, "unbounded retry") {
+			t.Error("AdoptedPrompt re-quotes the finding body the agent wrote itself; " +
+				"the session holds it, and the location names it")
+		}
+		if strings.Contains(adopted, "b.go:4") || strings.Contains(adopted, "missing guard") {
+			t.Error("AdoptedPrompt carries a thread nothing happened to; only the delta " +
+				"belongs there")
+		}
+	})
 }
 
 // TestHistoryStepContainsWhatARepliesCanClaim covers the reason this is embedded rather
@@ -265,5 +290,160 @@ func TestCollapsedFindingSurvivesOnItsLatestMention(t *testing.T) {
 	}
 	if !slices.Contains(kept.Replies, "me: still true") {
 		t.Errorf("the reply merged from the recent copy is missing: %+v", kept)
+	}
+}
+
+// TestTheDeltaIsFilteredBeforeItIsCapped covers the ordering, which is invisible until a
+// pull request is busy.
+//
+// selectThreads orders unresolved-first, so capping before filtering spends the whole
+// budget on open threads that carry no activity and are then dropped. On a pull request
+// with more unmoved open findings than the cap, that returns nothing at all — and a
+// resolution is the one thing the session has no other way to learn about, since it
+// happened on GitHub rather than in the conversation.
+//
+// The fixture is deliberately past the cap. Under the cap the two orderings agree, which
+// is why this was not visible in the other tests.
+func TestTheDeltaIsFilteredBeforeItIsCapped(t *testing.T) {
+	t.Parallel()
+
+	var threads []PriorThread
+	for i := 0; i < maxPriorThreads+2; i++ {
+		threads = append(threads, PriorThread{
+			File: fmt.Sprintf("open%d.go", i), Line: i + 1, Body: "an open finding",
+		})
+	}
+	threads = append(threads,
+		PriorThread{File: "done.go", Line: 7, Body: "was raised", Resolved: true},
+		PriorThread{File: "answered.go", Line: 9, Body: "was raised", Replies: []string{"handled in 9c2"}},
+	)
+
+	out := strings.Join(threadUpdateStep(Request{Repo: "o/r", PR: 42, PriorThreads: threads}), "\n")
+
+	if out == "" {
+		t.Fatal("no delta at all: the cap was spent on threads with no activity and they " +
+			"were then filtered away, so the session is told nothing happened")
+	}
+	for _, want := range []string{"[resolved]", "done.go:7", "answered.go:9", "handled in 9c2"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the delta does not carry %q", want)
+		}
+	}
+	if strings.Contains(out, "open0.go") {
+		t.Error("the delta carries an unmoved open thread; the budget belongs to activity")
+	}
+}
+
+// TestAQuietRetriggerCarriesNoThreadUpdates pins the case the size claim rests on.
+//
+// A push with nothing new on any thread is the common re-trigger, and its prompt is the
+// small one — the measured saving is largely this early return. Nothing else asserts it:
+// the delta tests all supply a moved thread, so a change that rendered the header
+// unconditionally would keep them green and quietly turn the quiet case back into a
+// briefing.
+func TestAQuietRetriggerCarriesNoThreadUpdates(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "sei-protocol/sandbox", PR: 42, PriorThreads: []PriorThread{
+		{File: "a.go", Line: 9, Body: "unbounded retry"},
+		{File: "b.go", Line: 4, Body: "missing guard"},
+	}}
+
+	if got := threadUpdateStep(req); got != nil {
+		t.Errorf("threadUpdateStep on unmoved threads = %q, want nothing", got)
+	}
+
+	adopted := AdoptedPrompt(req)
+	for _, unwanted := range []string{"have activity on them", "[open]", "[resolved]", "reply:"} {
+		if strings.Contains(adopted, unwanted) {
+			t.Errorf("a quiet re-trigger carries %q; the session already holds these "+
+				"threads unchanged, and re-listing them is the briefing this avoids",
+				unwanted)
+		}
+	}
+	// It must still say the diff moved, or the review works from a stale tree.
+	if !strings.Contains(adopted, "The pull request has moved") {
+		t.Error("a quiet re-trigger does not tell the review the diff moved")
+	}
+}
+
+// TestARepeatedLocationCarriesItsBody covers the three ways a location stops identifying
+// one thread: two findings on a line, several file-level findings on one file, and a path
+// this prompt refuses, which renders identically for every one of them.
+func TestARepeatedLocationCarriesItsBody(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		threads []PriorThread
+	}{
+		{"two findings on one line", []PriorThread{
+			{File: "a.go", Line: 9, Body: "unbounded retry", Replies: []string{"handled"}},
+			{File: "a.go", Line: 9, Body: "no timeout either", Resolved: true},
+		}},
+		{"two file-level findings on one file", []PriorThread{
+			{File: "a.go", Body: "no package doc", Replies: []string{"added"}},
+			{File: "a.go", Body: "no tests", Resolved: true},
+		}},
+		{"two refused paths, which render alike", []PriorThread{
+			{File: "$HOME/.netrc", Line: 1, Body: "first finding", Replies: []string{"x"}},
+			{File: "/etc/passwd", Line: 2, Body: "second finding", Resolved: true},
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			out := strings.Join(threadUpdateStep(
+				Request{Repo: "o/r", PR: 42, PriorThreads: tc.threads}), "\n")
+			for _, t2 := range tc.threads {
+				if !strings.Contains(out, t2.Body) {
+					t.Errorf("the entries share a location and %q is not there to tell "+
+						"them apart, so the reply attaches to whichever the session "+
+						"guesses:\n%s", t2.Body, out)
+				}
+			}
+		})
+	}
+}
+
+// TestAUniqueLocationDropsItsBody is the other half: the saving only exists while the body
+// is omitted wherever the location already identifies the thread.
+func TestAUniqueLocationDropsItsBody(t *testing.T) {
+	t.Parallel()
+
+	out := strings.Join(threadUpdateStep(Request{Repo: "o/r", PR: 42, PriorThreads: []PriorThread{
+		{File: "a.go", Line: 9, Body: "unbounded retry", Replies: []string{"handled"}},
+		{File: "b.go", Line: 4, Body: "missing guard", Resolved: true},
+	}}), "\n")
+
+	for _, body := range []string{"unbounded retry", "missing guard"} {
+		if strings.Contains(out, body) {
+			t.Errorf("carries %q though its location is unique; the session wrote that "+
+				"prose and re-sending it is the cost this avoids", body)
+		}
+	}
+}
+
+// TestASilentSiblingStillForcesTheBody covers the ambiguity the delta cannot see.
+//
+// Two findings share a location and only one has activity. Counting repeats over the delta
+// alone reports that location as unique and drops the discriminator — but the session holds
+// the silent sibling too, so it has two findings there and no way to tell which one moved.
+func TestASilentSiblingStillForcesTheBody(t *testing.T) {
+	t.Parallel()
+
+	out := strings.Join(threadUpdateStep(Request{Repo: "o/r", PR: 42, PriorThreads: []PriorThread{
+		{File: "a.go", Line: 9, Body: "unbounded retry", Replies: []string{"handled"}},
+		// Same location, nothing happened to it. Absent from the delta, present in session.
+		{File: "a.go", Line: 9, Body: "no timeout either"},
+	}}), "\n")
+
+	if !strings.Contains(out, "unbounded retry") {
+		t.Errorf("the moved thread shares its location with a silent sibling and ships "+
+			"without its body, so the session cannot tell which finding the reply is "+
+			"about:\n%s", out)
+	}
+	if strings.Contains(out, "no timeout either") {
+		t.Error("the silent sibling is listed; only the delta belongs in the list, and it " +
+			"is there to be counted, not shown")
 	}
 }

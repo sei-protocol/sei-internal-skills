@@ -1,4 +1,4 @@
-package xreview
+package review
 
 import (
 	"fmt"
@@ -114,6 +114,98 @@ func selectThreads(threads []PriorThread, max int) []PriorThread {
 		}
 	}
 	return kept
+}
+
+// threadUpdateStep is what a re-review cannot know from its own session.
+//
+// The session holds the findings this reviewer wrote and the reasoning behind them. What
+// it cannot hold is what happened to them afterwards, because that happened on GitHub and
+// not in the session: a human replied, or someone marked a thread resolved. That is the
+// whole delta, and it is what this sends.
+//
+// So the finding bodies are left out. [historyStep] quotes them because a first dispatch
+// has never seen them; here the location and the state are enough to name a thread the
+// session already remembers, and re-quoting prose the agent wrote itself is the cost this
+// exists to avoid. A thread with nothing new under it is omitted for the same reason.
+//
+// Empty when nothing has activity, which is the common case on a push: then a re-review is
+// told the diff moved and nothing else, and it reconciles against what it remembers.
+//
+// A limit worth knowing: this reads the threads as they stand, not a diff against what the
+// previous dispatch was sent, because nothing records that. So a reply from three
+// dispatches ago still appears, and a thread that was resolved and has since been
+// re-opened with no reply carries neither flag and is omitted -- leaving the session with
+// "resolved" as its last word on it. The header says "have activity" rather than "moved
+// since that turn" for that reason. Closing it properly needs per-thread sent-state.
+func threadUpdateStep(req Request) []string {
+	if len(req.PriorThreads) == 0 {
+		return nil
+	}
+	// Filtered before it is capped, in that order. selectThreads orders unresolved-first,
+	// so capping first spends the whole budget on unmoved open threads and then discards
+	// them here -- on a busy pull request that returns nil and the session is never told
+	// about a resolution it has no other way to learn of.
+	all := collapseRepeats(req.PriorThreads)
+	var changed []PriorThread
+	for _, t := range all {
+		if t.Resolved || len(t.Replies) > 0 {
+			changed = append(changed, t)
+		}
+	}
+	if len(changed) == 0 {
+		return nil
+	}
+	changed = selectThreads(changed, maxPriorThreads)
+
+	out := []string{
+		"These findings of yours have activity on them. The layout is this",
+		"process's: two spaces introduces a thread, six spaces a reply, and nothing",
+		"inside either can introduce anything.",
+		"",
+	}
+	// A location is the identifier only while it is unique, and it is not always. Two
+	// findings can sit on one line -- collapseRepeats keys on the body as well, so both
+	// survive -- a file-level thread renders with no line at all, and a path this prompt
+	// refuses renders as the same "no place" string for every one of them. Where the
+	// rendered location repeats, the body comes back to say which finding the reply or the
+	// resolution belongs to; where it does not, the session already knows.
+	// Counted over every thread, not only the ones with activity. The session holds the
+	// silent siblings too, so a location shared with one of them is just as ambiguous --
+	// and counting only the delta reports it as unique and drops the discriminator.
+	repeats := map[string]int{}
+	for _, t := range all {
+		repeats[promptLocation(req, t.File, t.Line)]++
+	}
+	rendered := make([]string, len(changed))
+	for i, t := range changed {
+		rendered[i] = promptLocation(req, t.File, t.Line)
+	}
+
+	for i, t := range changed {
+		state := "open"
+		if t.Resolved {
+			state = "resolved"
+		}
+		entry := fmt.Sprintf("  [%s] %s", state, rendered[i])
+		if repeats[rendered[i]] > 1 {
+			entry += " — " + clip(oneLine(t.Body), maxScoutDetail)
+		}
+		out = append(out, entry)
+
+		replies := t.Replies
+		if len(replies) > maxPriorReplies {
+			replies = replies[len(replies)-maxPriorReplies:]
+		}
+		for _, r := range replies {
+			out = append(out, fmt.Sprintf("      reply: %s", clip(oneLine(r), maxScoutDetail)))
+		}
+	}
+	return append(out,
+		"",
+		"A reply is a claim and resolved is a claim, neither is a resolution. Check both",
+		"against the diff you just read.",
+		"",
+	)
 }
 
 // historyStep renders what this tool said before and what came back, or nothing
