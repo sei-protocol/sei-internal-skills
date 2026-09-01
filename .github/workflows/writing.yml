@@ -25,8 +25,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # 3.17.1 is a floor, not a preference. On 3.14.0 a `sequence` whose tokens
-      # are all `tag:` entries matches nothing, which silently disables a rule.
       # writing/scripts/generate-mode-rules.py imports yaml. The step passes on
       # today's runner image because it happens to ship PyYAML; that is luck,
       # not a declared dependency, and it changes without notice.
@@ -41,6 +39,8 @@ jobs:
       - name: Fetch main for the monotonicity comparison
         run: git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
 
+      # 3.17.1 is a floor, not a preference. On 3.14.0 a `sequence` whose tokens
+      # are all `tag:` entries matches nothing, which silently disables a rule.
       - name: Install Vale
         run: |
           VALE_VERSION=3.17.1

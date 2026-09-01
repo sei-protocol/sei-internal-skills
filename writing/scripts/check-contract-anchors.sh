@@ -69,10 +69,20 @@ listed = [l.strip() for l in baseline_file.read_text().splitlines()
           if l.strip() and not l.strip().startswith('#')]
 excused = {key(x) for x in listed}
 
+# One lookup, because the two directions have to agree. Resolution accepts a prefix
+# so the contract can cite 'EARS' against a registry name of 'EARS requirement
+# syntax'; the staleness check below asks the same question in reverse, and asking it
+# with exact matching let a prefix-resolved name sit in the debt file unflagged --
+# which is the one thing that file promises cannot happen.
+def resolve(name):
+    k = key(name)
+    return known.get(k) or next((v for kk, v in known.items() if kk and kk.startswith(k)), None)
+
+
 bad, resolved, waiting = [], [], []
 for name in named:
     k = key(name)
-    hit = known.get(k) or next((v for kk, v in known.items() if kk and kk.startswith(k)), None)
+    hit = resolve(name)
     if hit:
         resolved.append((name, hit))
     elif k in excused:
@@ -83,7 +93,7 @@ for name in named:
                    f"and let a reviewer see the debt")
 
 for x in listed:
-    if key(x) in known:
+    if resolve(x):
         bad.append(f"{BASELINE} still lists '{x}', which now has a registry entry. "
                    f"Delete the line in the commit that adds the entry")
     elif key(x) not in {key(n) for n in named}:
