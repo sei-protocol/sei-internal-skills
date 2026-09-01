@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -19,7 +20,7 @@ import (
 // exports -- a developer with OMNIGENT_BASE_URL set would otherwise fail the
 // defaults case and pass the override cases for the wrong reason.
 var configEnv = []string{
-	"OMNIGENT_BASE_URL", "OMNIGENT_ORIGIN", "SEIDROID_AGENT_ID",
+	"OMNIGENT_BASE_URL", "OMNIGENT_ORIGIN", "SEIDROID_AGENT_ID", "XREVIEW_MODEL",
 	"OMNIGENT_API_TOKEN", "OMNIGENT_API_TOKEN_FILE",
 	"OMNIGENT_MACHINE_CLIENT_ID", "OMNIGENT_MACHINE_CLIENT_SECRET",
 	"XREVIEW_RUN_DEADLINE_S", "XREVIEW_REQUEST_TIMEOUT_S",
@@ -292,6 +293,49 @@ func TestConfigNeverRendersACredential(t *testing.T) {
 		// its purpose.
 		if !strings.Contains(rendered.text, "seidroid") {
 			t.Errorf("%s dropped the agent name", rendered.how)
+		}
+	}
+}
+
+// TestConfigEnvNamesEveryVariableTheSourceReads makes the comment on [configEnv] an
+// enforced claim rather than a maintained one.
+//
+// That list drifted the moment a variable was added: XREVIEW_MODEL was read by
+// [LoadConfig] and absent here, so clearConfigEnv stopped neutralising the whole
+// environment and a developer exporting it would have failed the defaults case for a
+// reason unrelated to their change. Nothing detected that, because the list's
+// completeness was only asserted in prose.
+//
+// It reads config.go rather than calling anything: the point is to catch a name the
+// source reads and this file does not know about, which no amount of exercising
+// [LoadConfig] can reveal.
+func TestConfigEnvNamesEveryVariableTheSourceReads(t *testing.T) {
+	t.Parallel()
+
+	src, err := os.ReadFile("config.go")
+	if err != nil {
+		t.Fatalf("reading config.go: %v", err)
+	}
+
+	known := make(map[string]bool, len(configEnv))
+	for _, name := range configEnv {
+		known[name] = true
+	}
+
+	// By naming convention, which is what makes this cheap: every variable this package
+	// reads carries one of the three prefixes, so the names can be found without
+	// tracking which helper reads them.
+	found := regexp.MustCompile(`"((?:OMNIGENT|SEIDROID|XREVIEW)_[A-Z0-9_]+)"`).
+		FindAllStringSubmatch(string(src), -1)
+	if len(found) == 0 {
+		t.Fatal("found no environment variable names in config.go; the pattern has " +
+			"stopped matching and this test now proves nothing")
+	}
+
+	for _, m := range found {
+		if !known[m[1]] {
+			t.Errorf("config.go reads %s and configEnv does not list it, so "+
+				"clearConfigEnv leaves it set from the developer's environment", m[1])
 		}
 	}
 }
