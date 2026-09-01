@@ -56,6 +56,13 @@ type Config struct {
 	// Agent is the agent *name* to resolve to an id.
 	Agent string
 
+	// Model substitutes for the model the agent spec names. Empty leaves the spec's
+	// own, which is the default.
+	//
+	// The server forwards the value as-is and enumerates nothing, so a name it does
+	// not recognise fails at turn start rather than here.
+	Model string
+
 	// Token is the bearer credential, when one was minted elsewhere. Never
 	// logged, and never included in an error from this package.
 	//
@@ -207,6 +214,7 @@ func LoadConfig() (Config, error) {
 		BaseURL: strings.TrimRight(envOr("OMNIGENT_BASE_URL", defaultBaseURL), "/"),
 		Origin:  envOr("OMNIGENT_ORIGIN", defaultOrigin),
 		Agent:   envOr("SEIDROID_AGENT_ID", defaultAgent),
+		Model:   strings.TrimSpace(os.Getenv("XREVIEW_MODEL")),
 		Token:   resolveToken(),
 
 		MachineClientID:     strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_ID")),

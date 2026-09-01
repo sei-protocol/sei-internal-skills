@@ -342,6 +342,44 @@ type adoption struct {
 	revivable bool
 }
 
+// reconcileModel points an adopted session at the model this run was configured with.
+//
+// The override lives on the session row, not on the turn, so a session opened by an
+// earlier dispatch answers on that dispatch's model until something changes it. A pull
+// request that gained a model label between reviews would otherwise be answered by the
+// old model with nothing in the output saying so.
+//
+// The current value is read from the session rather than assumed, so the common case --
+// no model configured and no override present -- costs no request.
+//
+// A failure is logged, not returned. The model is a preference, and the review is still
+// a review on the agent spec's own model; refusing here would turn a preference into a
+// pull request with no review on it.
+func (h *Host) reconcileModel(ctx context.Context, client *omnigent.Client, session *omnigent.SessionResponse) {
+	current := ""
+	if session.ModelOverride != nil {
+		current = *session.ModelOverride
+	}
+	if current == h.cfg.Model {
+		return
+	}
+
+	var err error
+	if h.cfg.Model == "" {
+		_, err = client.Sessions().ClearModelOverride(ctx, session.ID)
+	} else {
+		_, err = client.Sessions().SetModelOverride(ctx, session.ID, h.cfg.Model)
+	}
+	if err != nil {
+		h.log.Warn("could not point the adopted session at this run's model, so it "+
+			"answers on the one it already had",
+			"session_id", session.ID, "want", h.cfg.Model, "have", current, "error", err)
+		return
+	}
+	h.log.Info("pointed the adopted session at this run's model",
+		"session_id", session.ID, "want", h.cfg.Model, "have", current)
+}
+
 // createOrAdopt finds this work's session or opens one, and refuses to hand back a
 // session that can never run a turn.
 //
@@ -373,6 +411,7 @@ func (h *Host) createOrAdopt(
 			h.log.Info("adopting the session an earlier dispatch created",
 				"run_key", w.RunKey, "session_id", existing.ID,
 				"live", live, "revivable", revivable)
+			h.reconcileModel(ctx, client, existing)
 			return existing, adoption{continued: true, live: live, revivable: revivable}, nil
 		}
 		h.log.Warn("the session for this work cannot run a turn; replacing it",
@@ -389,6 +428,11 @@ func (h *Host) createOrAdopt(
 		HostType: managed,
 		Title:    w.Title,
 		Labels:   map[string]string{RunKeyLabel: w.RunKey},
+
+		// At create as well as on adopt, because the override has to be on the session
+		// row before the harness launches. Setting it afterwards would leave the first
+		// turn -- the one that writes the review -- on the spec's model.
+		ModelOverride: h.cfg.Model,
 	}
 
 	session, err := client.Sessions().Create(ctx, create)

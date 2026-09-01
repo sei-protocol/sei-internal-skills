@@ -23,11 +23,21 @@ import (
 // driverCreateReq is the subset of a session-create body this file asserts
 // on.
 type driverCreateReq struct {
-	AgentID   string            `json:"agent_id"`
-	HostType  string            `json:"host_type"`
-	Title     string            `json:"title"`
-	Workspace string            `json:"workspace"`
-	Labels    map[string]string `json:"labels"`
+	AgentID       string            `json:"agent_id"`
+	HostType      string            `json:"host_type"`
+	Title         string            `json:"title"`
+	Workspace     string            `json:"workspace"`
+	Labels        map[string]string `json:"labels"`
+	ModelOverride string            `json:"model_override"`
+}
+
+// driverPatchReq is the subset of a session-update body this file asserts on.
+//
+// A pointer, because the route's three states are distinct on the wire: absent
+// leaves the field alone, and a value either sets or -- as a clear alias -- removes
+// the override.
+type driverPatchReq struct {
+	ModelOverride *string `json:"model_override"`
 }
 
 // driverEventReq is the subset of a POST .../events body this file asserts
@@ -188,6 +198,7 @@ type driverFakeServer struct {
 	sessListQueries []string
 	itemsQueries    []string
 	createReqs      []driverCreateReq
+	patchReqs       []driverPatchReq
 	eventReqs       []driverEventReq
 	deleteHits      int
 	deletedIDs      []string
@@ -238,6 +249,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 	mux.HandleFunc("GET /v1/sessions/{id}/stream", fs.handleStream)
 	mux.HandleFunc("POST /v1/sessions/{id}/elicitations/{eid}/resolve", fs.handleResolve)
 	mux.HandleFunc("POST /v1/sessions/{id}/events", fs.handleEvents)
+	mux.HandleFunc("PATCH /v1/sessions/{id}", fs.handlePatchSession)
 	mux.HandleFunc("DELETE /v1/sessions/{id}", fs.handleDelete)
 	mux.HandleFunc("POST /oauth/token", fs.handleToken)
 
@@ -355,6 +367,24 @@ func driverItemsPage(responseIDs ...string) string {
 
 // ListSessionHits is how many times the pre-create search ran.
 func (fs *driverFakeServer) ListSessionHits() int { return int(fs.listSessHits.Load()) }
+
+// handlePatchSession records a session update and answers with the session.
+//
+// It echoes rather than applying: nothing in this file reads a patched session back,
+// and a fake that pretended to hold state would invite a test to trust it.
+func (fs *driverFakeServer) handlePatchSession(w http.ResponseWriter, r *http.Request) {
+	body, _ := io.ReadAll(r.Body)
+	var req driverPatchReq
+	if err := json.Unmarshal(body, &req); err != nil {
+		fs.t.Errorf("decode session-patch body: %v", err)
+	}
+	fs.mu.Lock()
+	fs.patchReqs = append(fs.patchReqs, req)
+	fs.mu.Unlock()
+
+	w.Header().Set("Content-Type", "application/json")
+	fmt.Fprint(w, driverSessionResp(r.PathValue("id"), "ag_1"))
+}
 
 func (fs *driverFakeServer) handleCreateSession(w http.ResponseWriter, r *http.Request) {
 	body, _ := io.ReadAll(r.Body)
@@ -520,6 +550,12 @@ func (fs *driverFakeServer) CreateReqs() []driverCreateReq {
 	fs.mu.Lock()
 	defer fs.mu.Unlock()
 	return append([]driverCreateReq(nil), fs.createReqs...)
+}
+
+func (fs *driverFakeServer) PatchReqs() []driverPatchReq {
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+	return append([]driverPatchReq(nil), fs.patchReqs...)
 }
 
 func (fs *driverFakeServer) EventReqs() []driverEventReq {
