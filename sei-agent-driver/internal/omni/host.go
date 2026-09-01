@@ -342,7 +342,7 @@ type adoption struct {
 	revivable bool
 }
 
-// reconcileModel points an adopted session at the model this run was configured with.
+// reconcileModel moves an adopted session's model override to what this work asks for.
 //
 // The override lives on the session row, not on the turn, so a session opened by an
 // earlier dispatch answers on that dispatch's model until something changes it. A pull
@@ -350,34 +350,54 @@ type adoption struct {
 // old model with nothing in the output saying so.
 //
 // The current value is read from the session rather than assumed, so the common case --
-// no model configured and no override present -- costs no request.
+// nothing asked for and no override present -- costs no request.
+//
+// live is reported rather than acted on, and it is the limit of what this can promise.
+// The server places the override on the row so that it is there *before the harness
+// launches*, which is the SDK's stated reason for its create-time field. A session whose
+// harness is already up has therefore already read its model, and this run's turn goes to
+// that process: the row is correct for the next launch, not for the turn about to be
+// sent. Saying so is the point -- an unqualified success here would have the log claim a
+// change this run did not get.
 //
 // A failure is logged, not returned. The model is a preference, and the review is still
 // a review on the agent spec's own model; refusing here would turn a preference into a
 // pull request with no review on it.
-func (h *Host) reconcileModel(ctx context.Context, client *omnigent.Client, session *omnigent.SessionResponse) {
+func (h *Host) reconcileModel(
+	ctx context.Context,
+	client *omnigent.Client,
+	session *omnigent.SessionResponse,
+	want string,
+	live bool,
+) {
 	current := ""
 	if session.ModelOverride != nil {
 		current = *session.ModelOverride
 	}
-	if current == h.cfg.Model {
+	if current == want {
 		return
 	}
 
 	var err error
-	if h.cfg.Model == "" {
+	if want == "" {
 		_, err = client.Sessions().ClearModelOverride(ctx, session.ID)
 	} else {
-		_, err = client.Sessions().SetModelOverride(ctx, session.ID, h.cfg.Model)
+		_, err = client.Sessions().SetModelOverride(ctx, session.ID, want)
 	}
 	if err != nil {
-		h.log.Warn("could not point the adopted session at this run's model, so it "+
-			"answers on the one it already had",
-			"session_id", session.ID, "want", h.cfg.Model, "have", current, "error", err)
+		h.log.Warn("could not move the adopted session's model, so it answers on the "+
+			"one it already had",
+			"session_id", session.ID, "want", want, "have", current, "error", err)
 		return
 	}
-	h.log.Info("pointed the adopted session at this run's model",
-		"session_id", session.ID, "want", h.cfg.Model, "have", current)
+	if live {
+		h.log.Warn("moved the adopted session's model, but its harness is already up "+
+			"and read the old one at launch, so this run still answers on that",
+			"session_id", session.ID, "want", want, "have", current)
+		return
+	}
+	h.log.Info("moved the adopted session's model before its harness launched",
+		"session_id", session.ID, "want", want, "have", current)
 }
 
 // createOrAdopt finds this work's session or opens one, and refuses to hand back a
@@ -411,7 +431,7 @@ func (h *Host) createOrAdopt(
 			h.log.Info("adopting the session an earlier dispatch created",
 				"run_key", w.RunKey, "session_id", existing.ID,
 				"live", live, "revivable", revivable)
-			h.reconcileModel(ctx, client, existing)
+			h.reconcileModel(ctx, client, existing, w.Model, live)
 			return existing, adoption{continued: true, live: live, revivable: revivable}, nil
 		}
 		h.log.Warn("the session for this work cannot run a turn; replacing it",
@@ -432,7 +452,7 @@ func (h *Host) createOrAdopt(
 		// At create as well as on adopt, because the override has to be on the session
 		// row before the harness launches. Setting it afterwards would leave the first
 		// turn -- the one that writes the review -- on the spec's model.
-		ModelOverride: h.cfg.Model,
+		ModelOverride: w.Model,
 	}
 
 	session, err := client.Sessions().Create(ctx, create)
