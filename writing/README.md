@@ -37,7 +37,7 @@ which disables `STE-NounCluster` in silence.
 
 ```sh
 vale sync                  # fetch write-good, which is not committed
-vale --no-global --glob='!{writing/styles/write-good/**,writing/templates/spec-template.upstream.md}' writing
+vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/**,writing/evals/rules/**,writing/templates/spec-template.upstream.md}' writing
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
@@ -117,7 +117,7 @@ somebody deleted its fixture.
 ## An anchor is not a skill
 
 An anchor earns its place by being a standard somebody else published and
-maintains. A reader can follow the name to a clause this repository does not
+maintains. A reader can then follow the name to a clause this repository does not
 control. A skill here is not that. Citing one as an anchor's authority makes the
 catalogue circular: the rule is right because our skill says so.
 
