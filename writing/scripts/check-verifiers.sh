@@ -107,6 +107,16 @@ for spec in specs:
         # `writing/styles/write-good/`, which resolves to nothing and never could --
         # and that is the repository's own headline command.
         GLOBBY = set('*?![]{}')
+
+        def globby(span, token):
+            # Keyed on the word the token came out of, not the whole span. Keying on
+            # the span let one glob anywhere in a verifier turn argument checking off
+            # for every other argument in it.
+            for word in span.split():
+                if token in word:
+                    return bool(GLOBBY & set(word))
+            return bool(GLOBBY & set(span))
+
         targets = [(m, s) for s in spans for m in PATHISH.findall(s)]
         if not targets and not allowlisted:
             bad.append(f"{rel} {sc}: the backticks hold '{' '.join(spans)}', which names no path. "
@@ -155,7 +165,7 @@ for spec in specs:
         for tgt, span in targets:
             if tgt == first:
                 continue
-            if GLOBBY & set(span):
+            if globby(span, tgt):
                 continue
             if resolve(tgt) is None:
                 bad.append(f"{rel} {sc}: names '{tgt}', which does not exist")
