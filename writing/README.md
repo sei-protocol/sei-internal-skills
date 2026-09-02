@@ -19,8 +19,10 @@ here today:
 | `evals/` | fixtures, per-rule golden files, and the recognition method |
 | `specs/` | what this toolkit is for, and the one verifier it still lacks |
 
-The prose lint skips `evals/`. A fixture is deliberately non-conforming, which is
-what makes it a test.
+The prose lint skips the trees that hold deliberately non-conforming prose, a
+fixture being the clearest case: being non-conforming is what makes it a test.
+`writing/scripts/lint.sh` names each one and why. Prose elsewhere under `evals/`
+is governed like any other.
 
 What arrives next, in order:
 
@@ -36,9 +38,12 @@ and checks the archive against a recorded sha256. The floor is not a preference:
 on 3.14.0 a `sequence` rule whose tokens are all `tag:` entries matches nothing,
 which disables `STE-NounCluster` in silence.
 
+A local run reports on every line. CI reports only on lines the pull request
+touched, so a local run can show findings CI never will.
+
 ```sh
 vale sync                  # fetch write-good, which is not committed
-vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/**,writing/evals/rules/**,writing/evals/consumer/tree/**,writing/templates/spec-template.upstream.md}' writing
+./writing/scripts/lint.sh                    # the prose gate, as CI runs it
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
@@ -49,6 +54,8 @@ vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/*
 ./writing/scripts/check-admission.sh         # an anchor carries its artifacts
 ./writing/evals/gates/run.sh                 # the gates that have a case are tested
 ./writing/scripts/check-anchor-authorities.sh  # no anchor cites a skill
+./writing/scripts/check-consumer-scoping.sh  # both configs scope the same rules
+./writing/scripts/check-verifiers.sh         # every criterion names a verifier
 ./writing/evals/consumer/run.sh              # another repository can install it
 ```
 
@@ -56,11 +63,11 @@ That second command is what CI runs. `--no-global` matters: Vale merges a
 user-level configuration with this one, so a laptop with the toolkit installed
 sees different rules than a runner does.
 
-The glob skips two paths. `styles/write-good/` is a fetched package.
-`templates/spec-template.upstream.md` is Spec Kit's own prose, carried
-byte-identical so the delta gate can diff the fork against it. Linting it would
-report findings on the one file nobody may edit. Vale takes a single glob
-expression and keeps the last, so both paths ride in one brace expression.
+`writing/scripts/lint.sh` holds the exclusions and a reason for each, and both CI
+and a person run that script. This paragraph used to restate the list and had
+drifted: it said two paths beside a command naming five. Vale takes a single glob
+expression and keeps the last. They ride in one brace expression, which is the
+other reason the list lives in one place.
 
 ## Generated rules
 

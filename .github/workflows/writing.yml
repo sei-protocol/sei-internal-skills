@@ -18,12 +18,24 @@ on:
 permissions:
   contents: read
   pull-requests: write
+  # On a push the reporter is github-check, which creates a check run through the
+  # Checks API. A permissions block sets the whole set, so without this the push
+  # arm has `checks: none` and cannot report. It has never been exercised: the
+  # last main push produced no finding, so reviewdog had nothing to post.
+  checks: write
 
 jobs:
   vale:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
+      # Nothing here pushes, and the fetch below is anonymous HTTPS against a
+      # public repository. Left at its default the token is written into
+      # .git/config, where ten scripts, four harnesses, an unpinned pip install
+      # and a network vale sync all run beside it.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       # writing/scripts/generate-mode-rules.py imports yaml. The step passes on
       # today's runner image because it happens to ship PyYAML; that is luck,
@@ -45,7 +57,7 @@ jobs:
         run: |
           VALE_VERSION=3.17.1
           VALE_SHA256=db947f89f2292e6a0381a61de155f6a5f5cb4cb460ca178ea412ef605559cefd
-          curl -sfL -o /tmp/vale.tgz \
+          curl -sfL --retry 3 --retry-all-errors --max-time 120 -o /tmp/vale.tgz \
             "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
           echo "${VALE_SHA256}  /tmp/vale.tgz" | sha256sum -c -
           tar -xz -C /usr/local/bin -f /tmp/vale.tgz vale
@@ -108,7 +120,7 @@ jobs:
 
       # Three of seven criteria once cited a check nobody had built. A
       # criterion citing a missing check reads exactly like one that passes.
-      - name: Every success criterion names a verifier that runs
+      - name: Every success criterion names a verifier that exists
         run: ./writing/scripts/check-verifiers.sh
 
       # The coverage manifest says what each anchor actually checks. A claim
@@ -128,6 +140,10 @@ jobs:
       - name: Every artifact is inside its length limit
         run: ./writing/scripts/check-artifact-length.sh
 
+      - name: Read the lint flags from the script that defines them
+        id: lintflags
+        run: echo "flags=$(./writing/scripts/lint.sh --print-flags)" >> "$GITHUB_OUTPUT"
+
       - name: Lint prose against the writing contract
         # Pinned to a commit, not the mutable `reviewdog` branch. Every other
         # workflow here pins a SHA; this one piped a branch into CI with
@@ -139,6 +155,11 @@ jobs:
           # step rather than on a finding — a permanently red badge saying
           # nothing about prose.
           reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
+          # Without this the action downloads its own Vale and defaults to
+          # `latest`, so the checksummed 3.17.1 installed above governed only
+          # `vale sync` and the gates -- not the binary that decides this check.
+          # A Vale release could turn this repository red with no commit here.
+          version: none
           fail_level: error
           level: warning
           files: '["writing"]'
@@ -152,12 +173,10 @@ jobs:
           # action: it splits vale_flags itself on whitespace, honouring quotes
           # and nothing else, then spawns Vale with an argv array.
           #
-          # write-good is a fetched package. evals/fixtures, evals/rules and the
-          # consumer tree hold inputs that are deliberately non-conforming, which is
-          # their job -- the consumer eval lints that tree itself, against a golden.
-          # The rest of evals/ is ordinary prose and stays inside the contract. spec-template.upstream.md
-          # is Spec Kit's own text, carried unedited so check-template-deltas.sh can
-          # compare the fork's body against it.
-          vale_flags: >-
-            --no-global
-            --glob=!{writing/styles/write-good/**,writing/evals/fixtures/**,writing/evals/rules/**,writing/evals/consumer/tree/**,writing/templates/spec-template.upstream.md}
+          # DERIVED, NOT RESTATED. writing/scripts/lint.sh holds the exclusions and
+          # the reason for each, and a person runs that same script. The list had
+          # three copies before this and two had already drifted -- one said the
+          # lint skips `evals/`, another said two paths beside a command naming
+          # five. The brace expression carries no spaces, so the action's
+          # whitespace split is safe.
+          vale_flags: ${{ steps.lintflags.outputs.flags }}

@@ -345,7 +345,7 @@ and changes no other file.
 
 **SC-005**: This specification passes the writing gate with no finding at error
 level.
-*Verifier:* `vale --no-global writing/specs/002-recognition-suite/spec.md`
+*Verifier:* `writing/scripts/lint.sh writing/specs/002-recognition-suite/spec.md`
 
 **SC-006**: Every criterion above names a verifier that runs, or states plainly
 that none does.
