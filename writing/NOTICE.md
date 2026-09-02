@@ -17,14 +17,17 @@ copyrighted standard, and must not reproduce a controlled dictionary.
   approximately 900 approved words.
 - Source: <https://www.asd-ste100.org/>
 - Availability: the specification is free to download after a request to STEMG.
-  It is **not** openly licensed. Redistribution and derivative works are restricted.
+  ASD-STE100 carries **no** open license, and its terms restrict redistribution and
+  derivative works.
 
 Consequences for this repository:
 
 1. No file here contains the specification text or the approved-word dictionary.
-2. Rules reference rule numbers and describe the constraint in original words.
-3. The vocabulary check derives from the separately licensed OpenSTE wordset
-   (MIT), not from the ASD dictionary. See `writing/scripts/sync-openste.sh`.
+2. A rule cites a rule number and describes the constraint in original words.
+3. The vocabulary check does not derive from the ASD dictionary. It holds a
+   hand-written seed of plain-language substitutions today.
+   `writing/scripts/sync-openste.sh` will replace that seed from the separately
+   licensed OpenSTE wordset (MIT). PR #364 brings the script.
 4. Disclaimer, which must stay in the README of any fork: this work is an
    approximation of ASD-STE100. It is not certified. It is not affiliated with or
    endorsed by ASD or STEMG. A passing Vale run is not a certificate of compliance.
@@ -32,8 +35,10 @@ Consequences for this repository:
 ## OpenSTE wordset
 
 - Source: <https://github.com/openste/openste>
-- License: MIT. Redistribution is allowed with attribution.
-- Used to generate the approved-word substitution rule and `accept.txt`.
+- License: MIT, which allows redistribution with attribution.
+- The source of the approved-word substitution rule, once
+  `writing/scripts/sync-openste.sh` lands. `accept.txt` holds this repository's own
+  Project Technical Names, not the wordset.
 
 ## Other standards referenced
 
