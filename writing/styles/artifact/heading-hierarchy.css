@@ -1,0 +1,30 @@
+/* Canonical heading hierarchy for a Markdown artifact published to claude.ai.
+ *
+ * The platform renders Markdown with its own stylesheet, which sets h2 to
+ * 1.15em in --md-muted and h3 to body size. A section heading therefore has
+ * lower contrast than the text it heads, and a subsection is invisible. On a
+ * 400-line specification with a dozen sections that is a navigation failure.
+ *
+ * Prepend this block to the Markdown before publishing. It renders after the
+ * platform stylesheet, so it wins on cascade order without !important.
+ *
+ * It reuses the platform's own tokens, so both themes resolve with no media
+ * query and no second palette to keep in step. Do not replace a token with a
+ * literal colour: the artifact renders in the viewer's theme, and a literal
+ * works in one of them.
+ *
+ * This changes presentation only. It touches no heading level, so every Vale
+ * template rule still matches its literal heading. See ADR 0002.
+ */
+h2 {
+  font-size: 1.45em;
+  color: var(--md-text);
+  margin-top: 30px;
+  padding-top: 14px;
+  border-top: 1px solid var(--md-rule);
+}
+h3 {
+  font-size: 1.12em;
+  color: var(--md-text);
+  margin-top: 20px;
+}

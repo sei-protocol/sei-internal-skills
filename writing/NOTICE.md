@@ -26,19 +26,23 @@ Consequences for this repository:
 2. A rule cites a rule number and describes the constraint in original words.
 3. The vocabulary check does not derive from the ASD dictionary. It holds a
    hand-written seed of plain-language substitutions today.
-   `writing/scripts/sync-openste.sh` will replace that seed from the separately
-   licensed OpenSTE wordset (MIT). PR #364 brings the script.
+   `writing/scripts/sync-openste.sh` builds that replacement from the separately
+   licensed OpenSTE wordset (MIT). It writes a candidate that Vale does not
+   load, so the seed is still the rule that runs. Adoption is a vocabulary
+   decision, because the wordset does not carry every entry the seed has.
 4. `writing/README.md` carries the disclaimer, which states that this work approximates
    ASD-STE100 and that no Vale run certifies it. A fork keeps that section. The
    words live there and not here, because two copies of a disclaimer drift.
 
 ## OpenSTE wordset
 
-- Source: <https://github.com/openste/openste>
+- Source: <https://github.com/openste/openste>, wordset at
+  `vocabulary/openste.json`.
 - License: MIT, which allows redistribution with attribution.
-- The source of the approved-word substitution rule, once
-  `writing/scripts/sync-openste.sh` lands. `accept.txt` holds this repository's own
-  Project Technical Names, not the wordset.
+- The intended source of the approved-word substitution rule.
+  `writing/scripts/sync-openste.sh` reads it, and no rule that runs today derives
+  from it. `accept.txt` holds this repository's own Project Technical Names, not
+  the wordset.
 
 ## Other standards referenced
 

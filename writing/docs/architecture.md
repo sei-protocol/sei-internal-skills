@@ -78,10 +78,10 @@ closer to correct, which is worth having, and which you MUST NOT depend on.
 | `writing/scripts/` | The generators, the gates CI runs, and `lint.sh` |
 | `writing/evals/` | Recognition tests and rule regression fixtures |
 
-Two blocks in the plan are not in the tree yet, and PR #364 brings both.
-`writing/scripts/render-context.py` turns the registry into the generated context
-files. `writing/scripts/sync-openste.sh` turns the MIT wordset into the approved-word
-rule.
+`writing/scripts/render-context.py` turns the registry into `writing/CONTEXT.md`.
+`writing/scripts/sync-openste.sh` builds an approved-word rule from the MIT
+wordset. It writes a candidate under `styles/openste/`, which no
+`BasedOnStyles` names, so the hand-written seed is still the rule that runs.
 
 ## 9. Decisions
 

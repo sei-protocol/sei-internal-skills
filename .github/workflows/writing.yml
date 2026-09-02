@@ -125,6 +125,15 @@ jobs:
       - name: Every success criterion names a verifier that exists
         run: ./writing/scripts/check-verifiers.sh
 
+      # CONTEXT.md is generated from the registry. A hand edit survives until
+      # the next run of the generator, then vanishes without a trace.
+      - name: The generated context file matches the registry
+        run: |
+          python3 writing/scripts/render-context.py --target agents > /tmp/CONTEXT.md
+          diff -q /tmp/CONTEXT.md writing/CONTEXT.md || {
+            echo "writing/CONTEXT.md is stale. Run writing/scripts/render-context.py."
+            exit 1; }
+
       # The coverage manifest says what each anchor actually checks. A claim
       # nobody verifies is how one anchor came to credit rules that check
       # something else, so the manifest is enforced rather than trusted.

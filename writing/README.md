@@ -16,6 +16,7 @@ here today:
 | `anchors/` | the registry of public standards, and one page per anchor so far |
 | `coverage/` | which topics of each standard the rules reach, and which they miss |
 | `CONTRACT.md` | the contract itself: the anchors, and the rules with no public prior |
+| `CONTEXT.md` | the short form an agent loads, generated from the registry |
 | `templates/` | the spec template, and the upstream baseline it forked from |
 | `evals/` | fixtures, per-rule golden files, and the recognition method |
 | `specs/` | what this toolkit is for, and the one verifier it still lacks |
