@@ -59,12 +59,37 @@ for fixture in "${fixtures[@]}"; do
     fi
   done < <(jq -r '.must_not_include_rules // [] | .[]' "$expected")
 
-  min="$(jq -r '.min_findings' "$expected")"
-  if [ "$count" -lt "$min" ]; then
-    echo "LOW  ${base}: ${count} findings, expected at least ${min}"
-    fail=1
-  fi
+  # Validated, not trusted. A missing field makes jq print `null`, and
+  # `[ "$count" -lt null ]` writes to stderr and returns 2 -- which inside an `if`
+  # is not fatal under `set -e`, so the branch is skipped and the run reports
+  # success. A malformed expectation has to fail like an absent one.
+  min="$(jq -r '.min_findings // empty' "$expected")"
+  case "$min" in
+    '' | *[!0-9]*)
+      echo "BAD  ${base}: min_findings is missing or not a number in ${expected}"
+      fail=1
+      ;;
+    *)
+      if [ "$count" -lt "$min" ]; then
+        echo "LOW  ${base}: ${count} findings, expected at least ${min}"
+        fail=1
+      fi
+      ;;
+  esac
 done
+
+# The other direction. The loop above is driven by the fixtures, so an expectation
+# whose fixture is gone is never visited and its assertions leave the suite without
+# a word. That is the silent-skip this harness exists to rule out, and the fixture
+# side already refuses the mirror case above.
+while IFS= read -r expectation; do
+  rel="${expectation#writing/evals/expected/}"
+  fixture="writing/evals/fixtures/${rel%.json}.md"
+  [ -f "$fixture" ] || {
+    echo "no fixture for ${expectation} — its assertions ran against nothing"
+    fail=1
+  }
+done < <(find writing/evals/expected -type f -name '*.json' | sort)
 
 [ "$fail" -eq 0 ] && echo "All fixture expectations met."
 exit "$fail"

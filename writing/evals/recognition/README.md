@@ -59,10 +59,10 @@ disagrees can read what the model said rather than take the label.
 
 ## Why this matters more than it looks
 
-This test is the difference between an explainable system and a folk remedy. When someone
-asks why the output improved, the answer is: the model resolves this term to this
-published body of work, here is the question that shows it, and here is the answer, on
-this model version, on this date.
+This test is the difference between an explainable system and a folk remedy. It answers
+the question of why the output improved. The model resolves this term to this published
+body of work. Here is the question that shows it, and here is the answer, on this model
+version and on this date.
 
 Re-run the whole matrix on every model upgrade. Treat a `strong` to `partial` regression
 as a breaking change to the writing contract.

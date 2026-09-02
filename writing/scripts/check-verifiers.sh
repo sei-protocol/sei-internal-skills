@@ -14,7 +14,7 @@
 #   *Verifier:* judgement — a reviewer attempts it on three findings and reports.
 #   *Verifier:* not built — the recognition suite does not exist yet.
 #
-# The first must name a path that exists. The other two must give a reason, because
+# The first must name an executable path. The other two must give a reason, because
 # "not built" with no explanation is a shrug rather than a statement.
 #
 # BOTH LAYOUTS COUNT. The first version demanded '**SC-001**' at column zero and an
@@ -30,18 +30,14 @@
 #
 # Takes an optional root, which is how evals/gates/run.sh points it at a fixture tree.
 set -euo pipefail
-# THE DEFAULT ROOT IS THE REPOSITORY, NOT THE TOOLKIT. A verifier line names a
-# command a reader can copy and run, and a reader runs it from the repository
-# root. Anchoring to writing/ made every path resolve one directory too deep.
-ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+ROOT="${1:-$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 ROOT="$(cd "$ROOT" && pwd)"
 exec python3 - "$ROOT" <<'PY'
+import os
 import pathlib, re, sys
 
 root = pathlib.Path(sys.argv[1])
-# Both layouts: a fixture root holds specs/<case>/spec.md, and this repository
-# keeps its own under writing/specs/.
-specs = sorted(root.glob('specs/*/spec.md')) + sorted(root.glob('writing/specs/*/spec.md'))
+specs = sorted(root.glob('specs/*/spec.md'))
 if not specs:
     print(f"FAIL no specs under {root}/specs — refusing to report success on an empty set")
     sys.exit(1)
@@ -95,20 +91,85 @@ for spec in specs:
                        f"'judgement — <how>'")
             continue
 
-        targets = [m for s in spans for m in PATHISH.findall(s)]
-        if not targets:
+        # Before a path is required, not inside the loop over paths. PATHISH matches
+        # only a string with a slash or a known extension, so a bare command never
+        # reaches `targets` -- the allowlist could not fire where it used to sit, and
+        # a verifier reading `vale ...` was rejected for naming no path.
+        first = spans[0].split()[0] if spans[0].split() else ''
+        # An allowlisted command is exempt from the executable test and from nothing
+        # else. Returning early here left its arguments unvalidated, which is the
+        # third time in this file a branch that exits early has left the neighbouring
+        # question unasked -- so the exemption is now a flag rather than a jump.
+        allowlisted = first in COMMANDS
+
+        # Paired with the span it came from, because a token lifted out of a glob is
+        # not a path. `--glob=!{writing/styles/write-good/**,...}` yields
+        # `writing/styles/write-good/`, which resolves to nothing and never could --
+        # and that is the repository's own headline command.
+        GLOBBY = set('*?![]{}')
+        # Tokens carry the word they came out of, rather than being matched back to
+        # one afterwards. Searching for the word by substring exempted a literal
+        # argument whenever the same text also appeared inside a --glob word, so a
+        # missing file could still be reported as running. Pairing at extraction
+        # makes the question exact and needs no search.
+        targets = [(m, w) for s in spans for w in s.split() for m in PATHISH.findall(w)]
+        if not targets and not allowlisted:
             bad.append(f"{rel} {sc}: the backticks hold '{' '.join(spans)}', which names no path. "
                        f"A verifier is something a reader can run")
             continue
-        for tgt in targets:
-            first = spans[0].split()[0] if spans[0].split() else ''
-            if tgt == first and first in COMMANDS:
-                continue
-            if not (root / tgt.rstrip('/')).exists():
-                bad.append(f"{rel} {sc}: names '{tgt}', which does not exist")
-        rows.append(f"  {sc:<10}{'runs':<12}{' '.join(spans)[:56]}")
+        # Existing is not running. A criterion naming writing/README.md or a bare
+        # directory satisfied .exists() and was reported as `runs`, which is the
+        # confusion this gate names as its reason for existing: a verifier nobody
+        # built reads exactly like one that passes.
+        def resolve(tok):
+            # Both spellings. Targets resolve against writing/, so `scripts/x.sh`
+            # worked and `writing/scripts/x.sh` did not -- and the second is the form
+            # an author reaches for, because writing/README.md lists every local
+            # command with the ./writing/ prefix. A gate that rejects the documented
+            # spelling and says the file "does not exist" is the least useful failure
+            # it could give.
+            rel_tok = tok.rstrip('/')
+            for base in (root, root.parent):
+                candidate = base / rel_tok
+                if candidate.exists():
+                    return candidate
+            return None
 
-print(f"  {"criterion":<10}{"kind":<12}verifier")
+        missing = False
+
+        # The command is checked on its own, not through targets. Narrowing the
+        # executable test to `tgt == first` left it unchecked whenever `first` was not
+        # path-like: it never enters targets, and `if not targets` above is satisfied
+        # by any argument that happens to look like a path. `missing-tool README.md`
+        # was reported as running.
+        command = None if allowlisted else resolve(first)
+        if allowlisted:
+            pass
+        elif command is None:
+            bad.append(f"{rel} {sc}: runs '{first}', which does not exist and is not a "
+                       f"command this repository requires on PATH")
+            missing = True
+        elif not (command.is_file() and os.access(command, os.X_OK)):
+            bad.append(f"{rel} {sc}: runs '{first}', which exists but is not executable. "
+                       f"A verifier is something a reader can run")
+            missing = True
+
+        # Its arguments only have to be there. An input is not an executable, and
+        # requiring it of every token made a verifier reject its own file and reported
+        # a directory argument in the same words as a phantom.
+        for tgt, word in targets:
+            if tgt == first:
+                continue
+            if GLOBBY & set(word):
+                continue
+            if resolve(tgt) is None:
+                bad.append(f"{rel} {sc}: names '{tgt}', which does not exist")
+                missing = True
+        # The table is what a reader scans, so it must not show a broken criterion in
+        # the same column as a working one.
+        rows.append(f"  {sc:<10}{('missing' if missing else 'runs'):<12}{' '.join(spans)[:56]}")
+
+print(f"  {'criterion':<10}{'kind':<12}verifier")
 for r in rows:
     print(r)
 
