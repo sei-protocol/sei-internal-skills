@@ -46,7 +46,7 @@ vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/*
 ./writing/evals/run.sh                       # every rule still fires
 ./writing/evals/rules/run.sh                 # goldens pin line, column, message
 ./writing/scripts/check-admission.sh         # an anchor carries its artifacts
-./writing/evals/gates/run.sh                 # the gates themselves are tested
+./writing/evals/gates/run.sh                 # the gates that have a case are tested
 ./writing/scripts/check-anchor-authorities.sh  # no anchor cites a skill
 ```
 

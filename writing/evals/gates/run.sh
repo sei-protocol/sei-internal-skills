@@ -38,5 +38,10 @@ $actual"
   fi
 done
 
-[ "$fail" -eq 0 ] && echo "All gate fixtures match their golden files."
+[ "$fail" -eq 0 ] && # Named, not counted. "All gate fixtures match" is true and reads as "the gates are
+# tested"; only the gates with a directory here have a case at all.
+covered="$(ls -d writing/evals/gates/*/ 2>/dev/null | xargs -n1 basename | sort | paste -sd', ' -)"
+total="$(ls writing/scripts/check-*.sh 2>/dev/null | wc -l | tr -d ' ')"
+echo "All gate fixtures match their golden files."
+echo "Covered: ${covered:-none} — of $total gates in writing/scripts. The rest have no case."
 exit "$fail"

@@ -102,7 +102,12 @@ for spec in specs:
         # question unasked -- so the exemption is now a flag rather than a jump.
         allowlisted = first in COMMANDS
 
-        targets = [m for s in spans for m in PATHISH.findall(s)]
+        # Paired with the span it came from, because a token lifted out of a glob is
+        # not a path. `--glob=!{writing/styles/write-good/**,...}` yields
+        # `writing/styles/write-good/`, which resolves to nothing and never could --
+        # and that is the repository's own headline command.
+        GLOBBY = set('*?![]{}')
+        targets = [(m, s) for s in spans for m in PATHISH.findall(s)]
         if not targets and not allowlisted:
             bad.append(f"{rel} {sc}: the backticks hold '{' '.join(spans)}', which names no path. "
                        f"A verifier is something a reader can run")
@@ -147,8 +152,10 @@ for spec in specs:
         # Its arguments only have to be there. An input is not an executable, and
         # requiring it of every token made a verifier reject its own file and reported
         # a directory argument in the same words as a phantom.
-        for tgt in targets:
+        for tgt, span in targets:
             if tgt == first:
+                continue
+            if GLOBBY & set(span):
                 continue
             if resolve(tgt) is None:
                 bad.append(f"{rel} {sc}: names '{tgt}', which does not exist")
