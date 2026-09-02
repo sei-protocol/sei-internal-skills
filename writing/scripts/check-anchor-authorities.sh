@@ -43,7 +43,7 @@ cd "$REPO"
 # per agent, so it belongs on the first arm rather than the second. Left off, the
 # gate read 30 names and missed sei-spec and xreview-scout-codex -- either could
 # be cited as an anchor authority with the gate green.
-names="$( { ls -d .claude/skills/*/ experimental/skills/*/ agents/*/ 2>/dev/null | xargs -n1 basename
+names="$( { ls -d .claude/skills/*/ experimental/skills/*/ agents/*/ agents/*/skills/*/ 2>/dev/null | xargs -n1 basename
             ls .claude/agents/*.md experimental/agents/*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//'
           } | sort -u | grep -e '-' || true )"
 

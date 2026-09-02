@@ -76,8 +76,25 @@ while IFS= read -r l; do
   links=$((links + 1))
   [ -e "$l" ] || dangling=$((dangling + 1))
 done < <(find "$fake_home" -type l 2>/dev/null)
-check "machine mode links the styles under the fake home" "yes" \
-  "$(if [ "$links" -gt 0 ]; then echo yes; else echo no; fi)"
+# NAME THE PATH, DO NOT COUNT. A count is green on any one symlink anywhere under
+# $fake_home, so it survives the installer dropping `config`, and -- the defect
+# this block exists for -- it survives the destination moving: a link that
+# resolves somewhere Vale never reads is still live and still counted. These
+# assert where Vale actually looks, which is what broke.
+#
+# RESOLVED THE WAY install.sh RESOLVES IT, not written out. The two platforms put
+# the user Vale directory in different places, so a literal path passes on one and
+# fails on the other -- which is how this assertion was first written, green on
+# Linux and red on a developer's Mac.
+case "$(uname -s)" in
+  Darwin) want_vale_dir="$fake_home/Library/Application Support/vale" ;;
+  *)      want_vale_dir="$fake_home/.config/vale" ;;
+esac
+for style in AgenticWriting config; do
+  check "machine mode links $style where Vale reads it" "yes" \
+    "$(if [ -L "$want_vale_dir/styles/$style" ] \
+        && [ -e "$want_vale_dir/styles/$style" ]; then echo yes; else echo no; fi)"
+done
 check "machine mode leaves no dangling symlink" "0" "$dangling"
 rm -rf "$fake_home"
 
