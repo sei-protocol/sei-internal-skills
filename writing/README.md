@@ -46,6 +46,8 @@ vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/*
 ./writing/evals/run.sh                       # every rule still fires
 ./writing/evals/rules/run.sh                 # goldens pin line, column, message
 ./writing/scripts/check-admission.sh         # an anchor carries its artifacts
+./writing/evals/gates/run.sh                 # the gates that have a case are tested
+./writing/scripts/check-anchor-authorities.sh  # no anchor cites a skill
 ```
 
 That second command is what CI runs. `--no-global` matters: Vale merges a
@@ -111,6 +113,16 @@ column and message, so a rule that starts reporting the wrong span fails.
 A fixture directory missing a piece fails rather than skipping. The harness once
 passed over any directory with no input, so a rule still reported `ok` after
 somebody deleted its fixture.
+
+## An anchor is not a skill
+
+An anchor earns its place by being a standard somebody else published and
+maintains. A reader can then follow the name to a clause this repository does not
+control. A skill here is not that. Citing one as an anchor's authority makes the
+catalogue circular: the rule is right because our skill says so.
+
+`check-anchor-authorities.sh` holds that line across the registry, the anchor
+pages and the coverage manifest. Prose elsewhere may reference a skill freely.
 
 ## Reading a finding
 

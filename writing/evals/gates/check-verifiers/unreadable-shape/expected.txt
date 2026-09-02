@@ -1,0 +1,4 @@
+exit: 1
+  criterion kind        verifier
+
+FAIL specs/case/spec.md: names SC-1, SC-2 but in a shape this gate cannot read. Write each as '**SC-001**' at the head of a line or of a list item, with its '*Verifier:*' line under it

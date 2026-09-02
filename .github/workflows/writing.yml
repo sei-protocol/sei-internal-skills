@@ -85,6 +85,16 @@ jobs:
       - name: Every admitted anchor carries its four artifacts
         run: ./writing/scripts/check-admission.sh
 
+      # The rules had golden files and the gates had none, so a gate could
+      # reject a correct document and nothing would notice. One did.
+      - name: Run gate golden fixtures
+        run: ./writing/evals/gates/run.sh
+
+      # An anchor earns its place by being a standard somebody else publishes.
+      # Citing a skill in this repository makes the catalogue circular.
+      - name: No anchor cites a skill as its authority
+        run: ./writing/scripts/check-anchor-authorities.sh
+
       # The coverage manifest says what each anchor actually checks. A claim
       # nobody verifies is how one anchor came to credit rules that check
       # something else, so the manifest is enforced rather than trusted.

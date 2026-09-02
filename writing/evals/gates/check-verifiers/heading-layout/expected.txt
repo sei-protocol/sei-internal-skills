@@ -1,0 +1,6 @@
+exit: 0
+  criterion kind        verifier
+  SC-001    runs        tools/measure.sh
+  SC-002    judgement   a second scorer reads ten answers and compares.
+
+Every success criterion names a verifier that runs, or says why none does.
