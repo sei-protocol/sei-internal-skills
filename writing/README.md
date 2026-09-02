@@ -139,6 +139,20 @@ pages and the coverage manifest. Prose elsewhere may reference a skill freely.
 checks. Its CI calls `writing-contract.yml` here rather than copying it, so a
 rule fix reaches it when it raises the pin.
 
+## What the gate covers
+
+Every tree this repository keeps prose in, not just this directory.
+`writing/scripts/lint.sh` names each one. The workflow reads that list from the
+script rather than repeating it, so the documented command and the gate cover
+the same paths.
+
+reviewdog reports on the lines a pull request touches, so the backlog already
+here never appears and never blocks. Only prose somebody edits meets the bar.
+
+Most of that backlog is one rule. ASD-STE100 does not allow contractions, and
+1,525 of the 1,613 errors here are that one rule. The house style changes by
+attrition, on the lines people are already editing.
+
 ## Reading a finding
 
 Every rule file opens with the clause it enforces and the standard that clause

@@ -367,13 +367,17 @@ Zero of the 8 entries carry a verdict. Until one does, every claim in this repos
 about how well a model resolves an anchor is untested.
 
 **SC-004** The gate reports zero errors on every artifact under `writing/`.
-*Verifier:* `writing/scripts/lint.sh`
+*Verifier:* `writing/scripts/lint.sh writing`
 
-`writing/` is narrower than the contract governs. `.vale.ini` opens `[*.md]`, so the
-contract covers every Markdown file here. A repository-wide run reports thousands of
-errors. Those files have never met the rules. Widening this criterion would make it
-false rather than stronger. Widening the gate is separate work, and
-`.github/workflows/writing.yml` records the same scope and the same reason.
+THE PATH ARGUMENT IS PART OF THE CRITERION. `writing/` is narrower than the contract
+governs, and narrower than the gate covers. `writing/scripts/lint.sh` with no argument
+lints every tree the contract governs. It reports over a thousand errors there, because
+those files have never met the rules. Widening this criterion to match would make it
+false rather than stronger.
+
+That backlog blocks nobody. reviewdog reports on the lines a pull request touches.
+`.github/workflows/writing.yml` runs the wide lint, so a finding on a line nobody
+edited never appears.
 
 The script carries the exclusions and the reason for each. Every excluded tree holds
 non-conforming prose on purpose. Linting it reports errors by design, and says

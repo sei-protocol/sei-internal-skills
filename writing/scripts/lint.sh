@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Lint prose against the writing contract. This is the one definition of how the
-# gate runs, and both CI and a person invoke it.
+# Lint prose against the writing contract. This is the one definition of what the
+# gate covers and how it runs, and both CI and a person invoke it.
 #
 #   writing/scripts/lint.sh                 # everything the contract governs
 #   writing/scripts/lint.sh <path>...       # just these, read where you typed them
-#   writing/scripts/lint.sh --print-flags   # the flags, for a caller that needs them
+#   writing/scripts/lint.sh --print-flags   # the flags, for the workflow
+#   writing/scripts/lint.sh --print-paths   # the paths as JSON, for the workflow
 #
 # THE EXCLUSIONS ARE WHY THIS FILE EXISTS. Each entry in EXCLUDED names a tree
 # that holds non-conforming prose on purpose, so linting it reports errors by
@@ -30,20 +31,63 @@ EXCLUDED=(
 # whitespace to build its own flags.
 GLOB="!{$(IFS=','; printf '%s' "${EXCLUDED[*]}")}"
 
+# THE SAME REASON HOLDS FOR THE PATHS. The workflow derives the action's `files:`
+# input from --print-paths, so CI and a person running this with no arguments
+# cover one set of paths. A list restated in the workflow can name its own paths
+# beside a script that defaults to something narrower, and a contributor then
+# passes locally and fails the gate on a file the documented command never read.
+#
+# scripts/ is here for sei-internal-skills-doctrine.md, the file that fans out
+# into every consuming repository's AGENTS.md.
+#
+# sei-agent-driver/ is out, and it is the only tracked prose that is. It is a
+# separate Go module with its own go.mod, and its two README files are package
+# documentation that installs the contract on its own terms.
+#
+# Bare paths, no quote and no backslash: --print-paths writes them into a JSON
+# array without escaping them.
+SCOPED=(
+  README.md
+  AGENTS.md
+  CLAUDE.md
+  agents
+  .claude
+  experimental
+  scripts
+  writing
+)
+
 # --no-global: a runner has no user-level Vale config, and a laptop that has one
 # would otherwise lint this repository through it.
 FLAGS=(--no-global "--glob=$GLOB")
 
-if [ "${1:-}" = "--print-flags" ]; then
-  printf '%s\n' "${FLAGS[*]}"
-  exit 0
-fi
+case "${1:-}" in
+  --print-flags)
+    printf '%s\n' "${FLAGS[*]}"
+    exit 0
+    ;;
+  --print-paths)
+    # A JSON ARRAY, NOT A BARE LIST. The action resolves a single existing path
+    # directly and parses anything else as JSON, so a comma-separated string
+    # reaches JSON.parse -- and a parse failure there warns and lints `.`
+    # instead of failing, which would widen the gate in silence.
+    #
+    # Same shape as consumer-lint-setup.sh, which builds the same input for the
+    # reusable workflow.
+    json=''
+    for entry in "${SCOPED[@]}"; do
+      json="${json:+$json,}\"$entry\""
+    done
+    printf '[%s]\n' "$json"
+    exit 0
+    ;;
+esac
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 
 if [ "$#" -eq 0 ]; then
   cd "$REPO_ROOT"
-  exec vale "${FLAGS[@]}" writing
+  exec vale "${FLAGS[@]}" "${SCOPED[@]}"
 fi
 
 # A PATH ARGUMENT IS READ WHERE THE CALLER TYPED IT. The lint runs from the

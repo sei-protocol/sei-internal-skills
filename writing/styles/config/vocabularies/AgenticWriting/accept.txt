@@ -58,3 +58,43 @@ Gernot
 # Words this repository uses that the dictionary does not carry.
 reimplemented
 [Pp]aywalled
+
+# Identifiers this repository ships: the hyphenated agent and skill names.
+# Vale reads a Markdown file's YAML frontmatter as prose, so a line like
+# 'name: kubernetes-specialist' is checked as a sentence and its lowercase word
+# is reported against the vocabulary's casing. An identifier is not prose.
+#
+# HYPHENATED ONLY. An entry here is not a permission; it is the one correct
+# casing, and every other form becomes an error. Seeding this file with bare
+# words such as 'evm' and 'design' took this repository from 40 findings to 636,
+# because every EVM and every sentence-initial Design became wrong.
+
+audit-skill
+author-skill
+chaos-suite
+code-structure
+go-to-market-specialist
+gov-ops
+harbor-dev
+idiomatic-reviewer
+k8s-capacity-management
+kubernetes-specialist
+linear-ticket
+network-specialist
+observability-platform-engineer
+opentelemetry-expert
+platform-engineer
+platform-release-manager
+pr-quality
+product-engineer
+product-manager
+project-brief
+prose-steward
+root-cause
+security-specialist
+sei-network-specialist
+solidity-developer
+sre-engineer
+systems-engineer
+validate-release
+validator-platform

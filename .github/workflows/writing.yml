@@ -1,11 +1,13 @@
 # Checks prose against the writing contract in writing/.
 #
-# SCOPED TO writing/ FOR NOW. The rules are landing as a stacked series, and this
-# repository has 245 Markdown files that have never met them. Widening the scope
-# is its own change, with its own review, because that is the one people feel.
+# THE BACKLOG DOES NOT BLOCK. reviewdog reports on the lines a pull request
+# touches. A finding on a line nobody edited never appears, so the findings this
+# repository already carries stay invisible until somebody edits that line.
 #
-# reviewdog reports on the lines a pull request touches, so a finding on a line
-# nobody edited never appears and never blocks.
+# Most of them are one rule. ASD-STE100 does not allow contractions, and 1,525
+# of the 1,613 errors here are that one rule. The house style changes by
+# attrition, on the lines people are already editing, rather than in a sweep
+# nobody asked for.
 name: writing
 
 on:
@@ -140,21 +142,38 @@ jobs:
       - name: Every artifact is inside its length limit
         run: ./writing/scripts/check-artifact-length.sh
 
-      - name: Read the lint flags from the script that defines them
-        id: lintflags
+      - name: Read the lint flags and paths from the script that defines them
+        id: lint
         # Split, not inlined. Under `bash -e` the exit status of a command
         # substitution used in a word does not trip errexit -- `echo` returns 0
         # regardless -- so a lint.sh that failed wrote `flags=` and the step
         # passed. Vale then ran with no --no-global and no --glob, and the
         # reporter filters to touched lines, so the excluded trees produced
         # findings nobody saw and the check stayed green.
+        #
+        # The paths need the same guard for a worse reason, and a parse check as
+        # well: on a `files:` it cannot read the action warns and lints `.`
+        # instead of failing, so an empty or malformed value widens the gate
+        # past the paths lint.sh names and reports on prose nobody scoped.
         run: |
           flags="$(./writing/scripts/lint.sh --print-flags)"
           if [ -z "$flags" ]; then
             echo "lint.sh --print-flags produced nothing" >&2
             exit 1
           fi
+          paths="$(./writing/scripts/lint.sh --print-paths)"
+          if [ -z "$paths" ]; then
+            echo "lint.sh --print-paths produced nothing" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$paths" \
+               | python3 -c 'import json,sys; sys.exit(not isinstance(json.load(sys.stdin), list))'
+          then
+            echo "lint.sh --print-paths is not a JSON array: $paths" >&2
+            exit 1
+          fi
           echo "flags=$flags" >> "$GITHUB_OUTPUT"
+          echo "paths=$paths" >> "$GITHUB_OUTPUT"
 
       - name: Lint prose against the writing contract
         # Pinned to a commit, not the mutable `reviewdog` branch. Every other
@@ -174,7 +193,13 @@ jobs:
           version: none
           fail_level: error
           level: warning
-          files: '["writing"]'
+          # DERIVED, NOT RESTATED, for the reason the flags below are. The
+          # list lives in writing/scripts/lint.sh, and a person running that
+          # script with no arguments covers the same paths, so the documented
+          # command and this gate cannot disagree. A list written here can: it
+          # names its own paths beside a script that defaults to something
+          # narrower, and a contributor then passes locally and fails here.
+          files: ${{ steps.lint.outputs.paths }}
           # --no-global: a runner has no user-level Vale config and a laptop
           # does, so without it the two disagree about which rules ran.
           #
@@ -191,4 +216,4 @@ jobs:
           # lint skips `evals/`, another said two paths beside a command naming
           # five. The brace expression carries no spaces, so the action's
           # whitespace split is safe.
-          vale_flags: ${{ steps.lintflags.outputs.flags }}
+          vale_flags: ${{ steps.lint.outputs.flags }}

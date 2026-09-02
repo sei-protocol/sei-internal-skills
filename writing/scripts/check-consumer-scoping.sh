@@ -83,12 +83,19 @@ rules = {f'AgenticWriting.{p.stem}' for p in (root / 'styles' / 'AgenticWriting'
 # A difference that is deliberate, with the reason. This gate catches drift; a
 # recorded decision is not drift, and hiding it behind a narrower pattern was
 # not the same as accounting for it.
-DELIBERATE = {
-    'Vale.Spelling': 'a global spell check reports every identifier and product '
-                     'name, so it needs a curated accept list. This repository '
-                     'has one; a repository installing the toolkit does not yet, '
-                     'and a user-level global configuration never will.',
-}
+#
+# EMPTY ON PURPOSE, AND AN ENTRY COSTS TWO THINGS. A rule named here leaves the
+# comparison, so nothing holds the three configurations in step on it again. It
+# also leaves every off-count printed below, so each file reports one rule fewer
+# than it disables. Both are worth paying for a difference that is real and
+# stays real, and neither is worth paying for one that has been resolved.
+#
+# Vale.Spelling was the one entry, for the asymmetry that .vale.ini enforced the
+# rule while the two shipped configurations turned it off. All three turn it off
+# now, so the rule is in step and belongs in the comparison like any other. An
+# entry whose difference has closed prints nothing and checks nothing, which is
+# the shape this gate exists to catch.
+DELIBERATE: dict[str, str] = {}
 
 if not rules:
     print("FAIL no rule files found — refusing to report success on an empty set")
