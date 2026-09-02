@@ -10,7 +10,8 @@ here today:
 | Path | Holds |
 |---|---|
 | `styles/AgenticWriting/` | the rules, one file per checkable rule |
-| `styles/config/vocabularies/` | terms this repository accepts, and their casing |
+| `styles/config/vocabularies/AgenticWriting/` | public technical names, and their casing. These travel to every consuming repository |
+| `styles/config/vocabularies/Local/` | the names of this repository alone. The install scripts remove this directory from the tree they hand a consumer |
 | `scripts/` | the generator for the section rules, and the gates |
 | `anchors/` | the registry of public standards, and one page per anchor so far |
 | `coverage/` | which topics of each standard the rules reach, and which they miss |
