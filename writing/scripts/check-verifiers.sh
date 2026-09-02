@@ -107,17 +107,12 @@ for spec in specs:
         # `writing/styles/write-good/`, which resolves to nothing and never could --
         # and that is the repository's own headline command.
         GLOBBY = set('*?![]{}')
-
-        def globby(span, token):
-            # Keyed on the word the token came out of, not the whole span. Keying on
-            # the span let one glob anywhere in a verifier turn argument checking off
-            # for every other argument in it.
-            for word in span.split():
-                if token in word:
-                    return bool(GLOBBY & set(word))
-            return bool(GLOBBY & set(span))
-
-        targets = [(m, s) for s in spans for m in PATHISH.findall(s)]
+        # Tokens carry the word they came out of, rather than being matched back to
+        # one afterwards. Searching for the word by substring exempted a literal
+        # argument whenever the same text also appeared inside a --glob word, so a
+        # missing file could still be reported as running. Pairing at extraction
+        # makes the question exact and needs no search.
+        targets = [(m, w) for s in spans for w in s.split() for m in PATHISH.findall(w)]
         if not targets and not allowlisted:
             bad.append(f"{rel} {sc}: the backticks hold '{' '.join(spans)}', which names no path. "
                        f"A verifier is something a reader can run")
@@ -162,10 +157,10 @@ for spec in specs:
         # Its arguments only have to be there. An input is not an executable, and
         # requiring it of every token made a verifier reject its own file and reported
         # a directory argument in the same words as a phantom.
-        for tgt, span in targets:
+        for tgt, word in targets:
             if tgt == first:
                 continue
-            if globby(span, tgt):
+            if GLOBBY & set(word):
                 continue
             if resolve(tgt) is None:
                 bad.append(f"{rel} {sc}: names '{tgt}', which does not exist")
