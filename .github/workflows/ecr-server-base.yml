@@ -88,7 +88,7 @@ jobs:
           file: deploy/docker/Dockerfile
           # The kubernetes extra is what lets the server launch managed sandboxes.
           # Without it the server starts and then cannot create a single Pod.
-          build-args: OMNIGENT_EXTRAS=kubernetes
+          build-args: OMNIGENT_EXTRAS=kubernetes,slack
           push: false
           load: true
           platforms: linux/amd64
@@ -96,7 +96,7 @@ jobs:
           cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-server-base
           cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-server-base,mode=max
 
-      - name: Gate — the image carries the extra and the fork's carried patch
+      - name: Gate — the image carries both extras and the fork's carried patch
         # Mirrors ecr-server.yml's discipline: prove it in the built image before
         # publishing, with the same library the server will run. Both assertions
         # have failed in practice — a base built without the extra 404s every
@@ -131,6 +131,22 @@ jobs:
           except Exception as exc:
               print(f"  FAIL client_credentials grant missing: {exc}"); bad = True
 
+          try:
+              # Unlike the kubernetes extra, `slack` installs a SEPARATE
+              # distribution: omnigent_slack ships in no core install, so the
+              # import proves the extra on its own -- and it is not on any index,
+              # so it resolves only from integrations/slack via tool.uv.sources.
+              # A base built without it leaves the bot Deployment in
+              # CrashLoopBackOff on a bare ModuleNotFoundError: the container runs
+              # `python -m omnigent_slack` directly, so the CLI wrapper that would
+              # otherwise print an install hint never runs. Nothing short of a full
+              # base-plus-overlay rebuild fixes it, which is what this gate saves.
+              print("  omnigent-slack", version("omnigent-slack"))
+              import omnigent_slack  # noqa: F401
+              print("  ok slack extra present")
+          except Exception as exc:
+              print(f"  FAIL slack extra missing: {exc}"); bad = True
+
           print("server-base-ok" if not bad else "server-base-FAILED")
           sys.exit(1 if bad else 0)
           '
@@ -140,7 +156,7 @@ jobs:
         with:
           context: .
           file: deploy/docker/Dockerfile
-          build-args: OMNIGENT_EXTRAS=kubernetes
+          build-args: OMNIGENT_EXTRAS=kubernetes,slack
           push: true
           platforms: linux/amd64
           tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
