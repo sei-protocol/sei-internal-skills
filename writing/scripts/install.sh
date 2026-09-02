@@ -142,9 +142,22 @@ install_machine() {
   esac
   run mkdir -p "$vale_dir/styles"
 
+  # `-n` applies only when the destination is a symlink to a directory. Against
+  # a real directory `ln` links *inside* it -- styles/config/config, exit 0, no
+  # output -- and `-f` will not remove a directory to prevent that. Vale creates
+  # <StylesPath>/config/vocabularies itself, so the user this collides with is
+  # the one the next branch supports: the one who already has a Vale config.
+  # `rm -rf` is too blunt against a directory they may own.
   for style in AgenticWriting config; do
+    dest="$vale_dir/styles/$style"
+    if [ -d "$dest" ] && [ ! -L "$dest" ]; then
+      say "  $dest is a real directory, not a link this script owns." >&2
+      say "    Move it aside and re-run. Linking into it would put the rules at" >&2
+      say "    $dest/$style, where Vale does not look for them." >&2
+      exit 2
+    fi
     say "  linking $style into the user styles directory"
-    run ln -sfn "$HOME_DIR/writing/styles/$style" "$vale_dir/styles/$style"
+    run ln -sfn "$HOME_DIR/writing/styles/$style" "$dest"
   done
 
   # No fallback config is written. The reference this used to copy lives in the
@@ -234,21 +247,33 @@ install_repo() {
     git clone --quiet --depth 1 --branch "$REF" "$REPO_URL" "$src"
   fi
 
+  # What this run wrote, and what it found and left alone. The closing summary
+  # is built from these rather than naming a fixed list, which said the checks
+  # were wired even on a run that declined to write the file that wires them.
+  wrote=""
+  kept=""
+
   if [ -f "$root/.vale.ini" ]; then
     say "  .vale.ini exists, leaving it alone"
     say "    compare against $src/writing/templates/consumer.vale.ini"
+    kept="$kept .vale.ini"
   else
     say "  writing .vale.ini"
     render "$src/writing/templates/consumer.vale.ini" "$root/.vale.ini"
+    wrote="$wrote .vale.ini"
   fi
 
   wf="$root/.github/workflows/writing.yml"
   if [ -f "$wf" ]; then
     say "  writing.yml exists, leaving it alone"
+    say "    compare against $src/writing/templates/writing.yml"
+    say "    it needs the 'uses:' call to writing-contract.yml to run the checks"
+    kept="$kept .github/workflows/writing.yml"
   else
     say "  writing .github/workflows/writing.yml"
     run mkdir -p "$root/.github/workflows"
     render "$src/writing/templates/writing.yml" "$wf"
+    wrote="$wrote .github/workflows/writing.yml"
   fi
 
   # Fetch the rules now, so `vale` works immediately rather than failing with
@@ -269,6 +294,11 @@ install_repo() {
   # committed copy lives outside it and gets installed into place. CI does the
   # same. Vale errors on a Vocab it cannot find, so the file always exists.
   run mkdir -p "$root/.vale/vocab"
+  if [ -f "$root/.vale/vocab/accept.txt" ]; then
+    kept="$kept .vale/vocab/accept.txt"
+  else
+    wrote="$wrote .vale/vocab/accept.txt"
+  fi
   if ! $DRY_RUN && [ ! -f "$root/.vale/vocab/accept.txt" ]; then
     cat > "$root/.vale/vocab/accept.txt" <<'VOCAB'
 # Terms this repository accepts, one per line, case-sensitive. Commit this file.
@@ -293,6 +323,7 @@ VOCAB
   fi
 
   if ! grep -qxF '.vale/styles/' "$root/.gitignore" 2>/dev/null; then
+    wrote="$wrote .gitignore"
     say "  adding the fetched paths to .gitignore"
     append "$root/.gitignore" '
 # agentic-writing fetches the rules into these. Anything else under .vale/ is
@@ -303,8 +334,17 @@ VOCAB
   fi
 
   say ""
-  say "Commit these, and the checks run for everyone on every branch:"
-  say "  .vale.ini  .github/workflows/writing.yml  .gitignore  .vale/vocab/accept.txt"
+  if [ -n "$wrote" ]; then
+    say "Commit these:"
+    for f in $wrote; do say "  $f"; done
+  fi
+  if [ -n "$kept" ]; then
+    say "Left alone, because this repository already had them:"
+    for f in $kept; do say "  $f"; done
+    say "  The checks do not run until these match the templates above."
+  else
+    say "  The checks now run for everyone on every branch."
+  fi
   say ""
   say "The rules themselves are in .vale/, which is gitignored. Re-run this to"
   say "refresh them, or raise the pin in .vale.ini and writing.yml together." 

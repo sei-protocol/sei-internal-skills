@@ -30,6 +30,21 @@ GIVEN="${2:-}"
   exit 1
 }
 
+# This installs into .vale/styles, and Vale reads whatever StylesPath the
+# consumer's own .vale.ini names -- a file this contract explicitly does not own
+# or overwrite. When the two disagree the rules land where Vale never looks, and
+# the job dies on a Vale runtime error instead of reporting a finding. Checked
+# rather than assumed, and fail-closed: an unreadable or absent declaration is a
+# mismatch, because guessing wrong is the silent failure being prevented.
+declared="$(sed -n 's/^[[:space:]]*StylesPath[[:space:]]*=[[:space:]]*//p' .vale.ini 2>/dev/null \
+              | head -1 | tr -d '\r' | sed 's/[[:space:]]*$//')"
+if [ "$declared" != ".vale/styles" ]; then
+  echo "StylesPath in .vale.ini is '${declared:-<unset>}', and this workflow installs" >&2
+  echo "the rules into .vale/styles. Vale would read the wrong tree." >&2
+  echo "Set 'StylesPath = .vale/styles', or drop the reusable workflow and run vale yourself." >&2
+  exit 1
+fi
+
 mkdir -p .vale/styles
 rm -rf .vale/styles/AgenticWriting .vale/styles/config
 cp -R "$SRC/styles/AgenticWriting" .vale/styles/

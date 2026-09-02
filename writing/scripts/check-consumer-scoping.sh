@@ -34,29 +34,46 @@ def disabled_in_default_section(path):
         if s.startswith('['):
             section = s
             continue
-        m = re.match(r'AgenticWriting\.([A-Za-z0-9-]+)\s*=\s*NO\s*$', s)
+        # The prefix takes a hyphen too: `write-good` is a style name.
+        m = re.match(r'([A-Za-z0-9-]+)\.([A-Za-z0-9-]+)\s*=\s*NO\s*$', s)
         if m and section == '[*.md]':
-            out.add(m.group(1))
+            out.add(f'{m.group(1)}.{m.group(2)}')
     return out
 
 # The repository's own configuration sits at the root, one level above this
 # toolkit. The consumer template ships inside it.
 repo = disabled_in_default_section(root.parent / '.vale.ini')
 consumer = disabled_in_default_section(root / 'templates' / 'consumer.vale.ini')
-rules = {p.stem for p in (root / 'styles' / 'AgenticWriting').glob('*.yml')}
+rules = {f'AgenticWriting.{p.stem}' for p in (root / 'styles' / 'AgenticWriting').glob('*.yml')}
+
+# A difference that is deliberate, with the reason. This gate catches drift; a
+# recorded decision is not drift, and hiding it behind a narrower pattern was
+# not the same as accounting for it.
+DELIBERATE = {
+    'Vale.Spelling': 'a global spell check reports every identifier and product '
+                     'name, so it needs a curated accept list. This repository '
+                     'has one; a repository installing the toolkit does not yet.',
+}
 
 if not rules:
     print("FAIL no rule files found — refusing to report success on an empty set")
     sys.exit(1)
 
 bad = []
+for r in sorted((repo ^ consumer) & set(DELIBERATE)):
+    print(f"deliberate  {r}: {DELIBERATE[r]}")
+repo -= set(DELIBERATE)
+consumer -= set(DELIBERATE)
+
 for r in sorted(repo - consumer):
     bad.append(f"'{r}' is path-scoped in .vale.ini and unscoped in templates/consumer.vale.ini, "
                f"so a consumer runs it on every Markdown file")
 for r in sorted(consumer - repo):
     bad.append(f"'{r}' is scoped for consumers and unscoped here, so this repository "
                f"does not test the rule the way a consumer runs it")
-for r in sorted((repo | consumer) - rules):
+# Only AgenticWriting rules have a file under styles/AgenticWriting. A key from
+# Vale's own style or from a package names a rule this repository does not ship.
+for r in sorted(k for k in (repo | consumer) - rules if k.startswith('AgenticWriting.')):
     bad.append(f"'{r}' is named in a configuration but is not a rule file")
 
 print(f"rules: {len(rules)}   off in [*.md] here: {len(repo)}   for consumers: {len(consumer)}")
