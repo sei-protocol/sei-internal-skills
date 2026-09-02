@@ -54,17 +54,28 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      # The token is not needed after any checkout here: nothing pushes, and the
+      # rules are fetched over the same API. Left at its default it is written
+      # into .git/config, where the code fetched below can read it -- and that
+      # token carries the write permissions this workflow documents.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Resolve the rules ref
         id: rules
         env:
           # owner/repo/.github/workflows/file.yml@refs/tags/v1
           WORKFLOW_REF: ${{ github.job_workflow_ref }}
-          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          ref="${WORKFLOW_REF##*@}"
+          # Split on the FIRST `@`. A Git ref may contain one -- only `@{` and a
+          # bare `@` are excluded -- so a caller pinned to `release@2024` made
+          # the last-match form yield `2024`, and a ref of that name existing
+          # here would have fetched a different rule set without failing. The
+          # prefix is owner/repo/.github/workflows/<file>.yml, and neither an
+          # owner nor a repository name can contain `@`.
+          ref="${WORKFLOW_REF#*@}"
           if [ -z "$ref" ] || [ "$ref" = "$WORKFLOW_REF" ]; then
             echo "could not read a ref out of '$WORKFLOW_REF'" >&2
             echo "job_workflow_ref should look like owner/repo/.github/workflows/f.yml@ref" >&2
@@ -93,6 +104,10 @@ jobs:
           repository: sei-protocol/sei-internal-skills
           ref: ${{ steps.rules.outputs.ref }}
           path: .vale/src
+          # This tree holds the scripts the next step executes. Persisting the
+          # caller's token here would leave it readable on disk to code that
+          # arrived with this checkout.
+          persist-credentials: false
           # The rules are one directory of a large repository. Fetching the rest
           # costs every consumer a full checkout on every lint run.
           # Cone mode, which is what selects a subtree. In non-cone mode the

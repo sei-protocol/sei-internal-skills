@@ -34,10 +34,20 @@ GIVEN="${2:-}"
 # consumer's own .vale.ini names -- a file this contract explicitly does not own
 # or overwrite. When the two disagree the rules land where Vale never looks, and
 # the job dies on a Vale runtime error instead of reporting a finding. Checked
-# rather than assumed, and fail-closed: an unreadable or absent declaration is a
-# mismatch, because guessing wrong is the silent failure being prevented.
-declared="$(sed -n 's/^[[:space:]]*StylesPath[[:space:]]*=[[:space:]]*//p' .vale.ini 2>/dev/null \
-              | head -1 | tr -d '\r' | sed 's/[[:space:]]*$//')"
+# rather than assumed, and fail-closed: a declaration that is not exactly this is
+# a mismatch, because guessing wrong is the silent failure being prevented.
+#
+# The absent-config case gets its own sentence and its own guard. Reading it
+# inside the command substitution let `set -e` and `pipefail` abort the step on
+# sed's exit status, which took the diagnostic with it.
+if [ ! -f .vale.ini ]; then
+  echo "no .vale.ini in this repository, so Vale has no configuration to run." >&2
+  echo "Run install.sh repo to write one, or commit your own declaring" >&2
+  echo "'StylesPath = .vale/styles'." >&2
+  exit 1
+fi
+declared="$(sed -n 's/^[[:space:]]*StylesPath[[:space:]]*=[[:space:]]*//p' .vale.ini \
+              | head -1 | tr -d '\r' | sed 's/[[:space:]]*$//')" || declared=""
 if [ "$declared" != ".vale/styles" ]; then
   echo "StylesPath in .vale.ini is '${declared:-<unset>}', and this workflow installs" >&2
   echo "the rules into .vale/styles. Vale would read the wrong tree." >&2

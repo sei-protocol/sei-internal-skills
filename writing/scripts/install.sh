@@ -103,10 +103,18 @@ run() {
 
 # Same, for the two operations that need a shell redirection.
 render() {  # render TEMPLATE DEST — substitute the ref this install used
+  # $REF reaches sed as a replacement, where `\`, `&` and `|` are not literal.
+  # A ref holding `&` renders `@REF@` verbatim into the output; one holding `|`
+  # closes the expression and sed fails after the redirection has already
+  # truncated the destination. Both are valid in a Git ref name, and REF comes
+  # from the environment. Same reasoning as the argv note above: this is input
+  # the script does not control.
   if $DRY_RUN; then
     printf '  would: render %s -> %s\n' "$1" "$2"
   else
-    sed "s|@REF@|$REF|g" "$1" > "$2"
+    local escaped
+    escaped="$(printf '%s' "$REF" | sed 's/[\\&|]/\\&/g')"
+    sed "s|@REF@|$escaped|g" "$1" > "$2"
   fi
 }
 append() {  # append FILE TEXT
@@ -247,28 +255,40 @@ install_repo() {
     git clone --quiet --depth 1 --branch "$REF" "$REPO_URL" "$src"
   fi
 
-  # What this run wrote, and what it found and left alone. The closing summary
-  # is built from these rather than naming a fixed list, which said the checks
-  # were wired even on a run that declined to write the file that wires them.
+  # What this run wrote, what it had already installed, and what belongs to the
+  # repository. The closing summary is built from these rather than a fixed list.
+  #
+  # A file already installed by this toolkit is not the same as a file the
+  # repository brought: re-running is invited, and reporting that the checks are
+  # unwired on a correctly installed repository is as wrong as the fixed list
+  # was. Each template leaves a marker, so the two cases are told apart by
+  # reading the file rather than by its existence.
   wrote=""
-  kept=""
+  mine=""
+  theirs=""
 
-  if [ -f "$root/.vale.ini" ]; then
-    say "  .vale.ini exists, leaving it alone"
-    say "    compare against $src/writing/templates/consumer.vale.ini"
-    kept="$kept .vale.ini"
-  else
+  if [ ! -f "$root/.vale.ini" ]; then
     say "  writing .vale.ini"
     render "$src/writing/templates/consumer.vale.ini" "$root/.vale.ini"
     wrote="$wrote .vale.ini"
+  elif grep -q 'installs from:' "$root/.vale.ini"; then
+    say "  .vale.ini is this toolkit's, leaving it alone"
+    mine="$mine .vale.ini"
+  else
+    say "  .vale.ini is this repository's own, leaving it alone"
+    say "    compare against $src/writing/templates/consumer.vale.ini"
+    theirs="$theirs .vale.ini"
   fi
 
   wf="$root/.github/workflows/writing.yml"
-  if [ -f "$wf" ]; then
-    say "  writing.yml exists, leaving it alone"
+  if [ -f "$wf" ] && grep -q 'sei-internal-skills/.github/workflows/writing-contract.yml@' "$wf"; then
+    say "  writing.yml is this toolkit's, leaving it alone"
+    mine="$mine .github/workflows/writing.yml"
+  elif [ -f "$wf" ]; then
+    say "  writing.yml is this repository's own, leaving it alone"
     say "    compare against $src/writing/templates/writing.yml"
     say "    it needs the 'uses:' call to writing-contract.yml to run the checks"
-    kept="$kept .github/workflows/writing.yml"
+    theirs="$theirs .github/workflows/writing.yml"
   else
     say "  writing .github/workflows/writing.yml"
     run mkdir -p "$root/.github/workflows"
@@ -294,9 +314,9 @@ install_repo() {
   # committed copy lives outside it and gets installed into place. CI does the
   # same. Vale errors on a Vocab it cannot find, so the file always exists.
   run mkdir -p "$root/.vale/vocab"
-  if [ -f "$root/.vale/vocab/accept.txt" ]; then
-    kept="$kept .vale/vocab/accept.txt"
-  else
+  # No template to compare against, and an existing one stops nothing, so it is
+  # named only when this run creates it.
+  if [ ! -f "$root/.vale/vocab/accept.txt" ]; then
     wrote="$wrote .vale/vocab/accept.txt"
   fi
   if ! $DRY_RUN && [ ! -f "$root/.vale/vocab/accept.txt" ]; then
@@ -338,12 +358,16 @@ VOCAB
     say "Commit these:"
     for f in $wrote; do say "  $f"; done
   fi
-  if [ -n "$kept" ]; then
-    say "Left alone, because this repository already had them:"
-    for f in $kept; do say "  $f"; done
+  if [ -n "$mine" ]; then
+    say "Already installed, and refreshed by this run:"
+    for f in $mine; do say "  $f"; done
+  fi
+  if [ -n "$theirs" ]; then
+    say "Left alone, because this repository has its own:"
+    for f in $theirs; do say "  $f"; done
     say "  The checks do not run until these match the templates above."
   else
-    say "  The checks now run for everyone on every branch."
+    say "  The checks run for everyone on every branch."
   fi
   say ""
   say "The rules themselves are in .vale/, which is gitignored. Re-run this to"
