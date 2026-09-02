@@ -149,10 +149,9 @@ nobody invoked a slash command.
 
 **Acceptance Scenarios**:
 
-1. **Given** a repository carrying the contract and no installed skills,
-   **When** an engineer asks for a technical design document,
-   **Then** the output follows the
-   anchored style without any invocation.
+1. **Given** a repository carrying the contract and no installed skills.
+   **When** an engineer asks for a technical design document.
+   **Then** the output follows the anchored style without any invocation.
 2. **Given** the same repository, **When** the engineer runs the gate, **Then** the gate
    reports findings against the same anchors the contract named.
 
@@ -171,10 +170,10 @@ anchor to steward to verdict resolves with no missing link.
 
 **Acceptance Scenarios**:
 
-1. **Given** a reported finding,
-   **When** a reviewer looks up its rule,
-   **Then** the rule names the anchor and the anchor resolves to a registry entry with a steward, a
-   licence, and a verdict.
+1. **Given** a reported finding.
+   **When** a reviewer looks up its rule.
+   **Then** the rule names the anchor, and the anchor resolves to a registry entry
+   with a steward, a licence, and a verdict.
 2. **Given** an anchor with no recorded verdict, **When** a reviewer reads the registry,
    **Then** the registry states the absence rather than implying it.
 
@@ -453,5 +452,5 @@ because of the fourth one.
    context file reaches the session. These are perhaps the same file.
 2. **What is the failing threshold for a recognition test?** Published practice uses 80% and 50%
    bands. Adopting them without measuring our own anchors would be borrowing a number.
-3. **Do the four generic skills become experts, or does one expert absorb several?**
+3. **Do the four generic skills become experts, or does one expert absorb the rest?**
    Four narrow experts have the same recall problem as four skills.
