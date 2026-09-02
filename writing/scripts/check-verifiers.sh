@@ -96,12 +96,14 @@ for spec in specs:
         # reaches `targets` -- the allowlist could not fire where it used to sit, and
         # a verifier reading `vale ...` was rejected for naming no path.
         first = spans[0].split()[0] if spans[0].split() else ''
-        if first in COMMANDS:
-            rows.append(f"  {sc:<10}{'runs':<12}{' '.join(spans)[:56]}")
-            continue
+        # An allowlisted command is exempt from the executable test and from nothing
+        # else. Returning early here left its arguments unvalidated, which is the
+        # third time in this file a branch that exits early has left the neighbouring
+        # question unasked -- so the exemption is now a flag rather than a jump.
+        allowlisted = first in COMMANDS
 
         targets = [m for s in spans for m in PATHISH.findall(s)]
-        if not targets:
+        if not targets and not allowlisted:
             bad.append(f"{rel} {sc}: the backticks hold '{' '.join(spans)}', which names no path. "
                        f"A verifier is something a reader can run")
             continue
@@ -130,8 +132,10 @@ for spec in specs:
         # path-like: it never enters targets, and `if not targets` above is satisfied
         # by any argument that happens to look like a path. `missing-tool README.md`
         # was reported as running.
-        command = resolve(first)
-        if command is None:
+        command = None if allowlisted else resolve(first)
+        if allowlisted:
+            pass
+        elif command is None:
             bad.append(f"{rel} {sc}: runs '{first}', which does not exist and is not a "
                        f"command this repository requires on PATH")
             missing = True

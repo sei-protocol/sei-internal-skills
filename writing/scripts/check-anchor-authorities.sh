@@ -54,7 +54,7 @@ while IFS= read -r f; do
   [ -f "$f" ] || continue
   scanned=$((scanned + 1))
   if grep -nIE "(^|[^A-Za-z0-9-])($pattern)([^A-Za-z0-9-]|$)" "$f" >/dev/null 2>&1; then
-    echo "AN ANCHOR CITES A SKILL in $f:"
+    echo "AN ANCHOR CITES A SKILL in ${f#$ROOT/}:"
     grep -nIE "(^|[^A-Za-z0-9-])($pattern)([^A-Za-z0-9-]|$)" "$f" | sed 's/^/    /'
     echo "    An anchor names a standard a reader can follow outside this repository."
     fail=1
@@ -64,9 +64,20 @@ while IFS= read -r f; do
 # nowhere else in this set, which is where a skill-named anchor would sit unseen.
 done < <(find "$ROOT/anchors" "$ROOT/coverage" -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.txt' \) 2>/dev/null)
 
+# Checked before the count, because a count cannot tell them apart. find takes both
+# roots at once: given a missing one it reports on stderr, keeps walking the other,
+# and exits 1 -- and a process substitution discards that status. So losing
+# writing/coverage left four files from writing/anchors and a clean run over half
+# the scope this script's header declares.
+
 # The sibling arms refuse an empty denylist and an empty spec set; this one is the
 # last place that could report success over nothing. If the directories move, find
 # writes to /dev/null and the loop never runs.
+for d in "$ROOT/anchors" "$ROOT/coverage"; do
+  [ -d "$d" ] || { echo "no directory at ${d#$ROOT/} under $ROOT — refusing to report"; \
+                   echo "  success over part of the scope. Did it move?"; exit 1; }
+done
+
 if [ "$scanned" -eq 0 ]; then
   echo "scanned no files under $ROOT/anchors or $ROOT/coverage — refusing to"
   echo "  report success on an empty set. Did either directory move?"
