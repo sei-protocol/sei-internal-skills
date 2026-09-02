@@ -21,9 +21,8 @@
 #
 # WHAT IT INSTALLS
 #
-#   ~/.agentic-writing              the checkout, holding the rules, the Spec Kit
-#                                   templates under .specify/templates, and
-#                                   scripts/build-spec-artifact.sh
+#   ~/.agentic-writing              the checkout, holding the rules under
+#                                   writing/ and the templates beside them
 #   <user vale dir>/styles/         symlinks to the rules, so vale finds them
 #   <user vale dir>/.vale.ini       the fallback config, if you have none
 #
@@ -52,6 +51,12 @@ set -euo pipefail
 REPO_URL="${AGENTIC_WRITING_REPO:-https://github.com/sei-protocol/sei-internal-skills}"
 RAW="https://raw.githubusercontent.com/sei-protocol/sei-internal-skills"
 HOME_DIR="${AGENTIC_WRITING_HOME:-$HOME/.agentic-writing}"
+# main is a branch, not a pin. Passing a tag gets a fixed ruleset; the rendered
+# workflow and config then record it, and a rule change reaches the consumer only
+# when they raise it. Left as main because a consumer with no tag still needs a
+# working install, and because `git clone --branch` below takes a branch or a tag
+# and not a commit, so resolving this to a SHA would record a ref this installer
+# cannot itself consume.
 REF="${AGENTIC_WRITING_REF:-main}"
 DRY_RUN=false
 
@@ -91,7 +96,7 @@ run() {
 }
 
 # Same, for the two operations that need a shell redirection.
-render() {  # render TEMPLATE DEST — substitute the pinned ref
+render() {  # render TEMPLATE DEST — substitute the ref this install used
   if $DRY_RUN; then
     printf '  would: render %s -> %s\n' "$1" "$2"
   else
@@ -136,12 +141,16 @@ install_machine() {
     run ln -sfn "$HOME_DIR/writing/styles/$style" "$vale_dir/styles/$style"
   done
 
+  # No fallback config is written. The reference this used to copy lives in the
+  # standalone repository and was not carried across, so under `set -e` the cp
+  # aborted the install outright for anybody who did not already have a
+  # user-level .vale.ini -- which is most first-time users.
   if [ -f "$vale_dir/.vale.ini" ]; then
     say "  user Vale config exists, leaving it alone"
-    say "    compare against $HOME_DIR/docs/vale-global-config.reference.ini"
   else
-    say "  installing the fallback Vale config"
-    run cp "$HOME_DIR/docs/vale-global-config.reference.ini" "$vale_dir/.vale.ini"
+    say "  no user Vale config; the styles are linked but nothing selects them"
+    say "    write $vale_dir/.vale.ini naming the AgenticWriting styles you want,"
+    say "    or use repo mode, which installs a configuration for a repository"
   fi
 
   # Without this the first `vale` run fails with "style 'write-good' does not
@@ -154,7 +163,7 @@ install_machine() {
   fi
 
   say ""
-  say 'Done. `vale docs/` now works in any directory.'
+  say 'Done. The styles are linked; a user-level .vale.ini selects them.'
   say ""
   say "Which rules run depends on where a file sits:"
   say "  specs/<feature>/spec.md   spec structure, RFC 2119 casing, prose"
@@ -163,10 +172,7 @@ install_machine() {
   say "  tickets/id.md             the seven ticket sections, prose"
   say ""
   say "Starting a document:"
-  say "  $HOME_DIR/.specify/templates/"
-  say ""
-  say "Publishing a spec as an artifact:"
-  say "  $HOME_DIR/scripts/build-spec-artifact.sh --help"
+  say "  $HOME_DIR/writing/templates/"
   say ""
   say "CI for a whole team is a separate, optional step:"
   say "  cd <repo> && curl -fsSL $RAW/main/writing/scripts/install.sh | bash -s -- repo"

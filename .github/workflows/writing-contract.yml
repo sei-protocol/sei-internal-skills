@@ -83,8 +83,12 @@ jobs:
           path: .vale/src
           # The rules are one directory of a large repository. Fetching the rest
           # costs every consumer a full checkout on every lint run.
+          # Cone mode, which is what selects a subtree. In non-cone mode the
+          # pattern is gitignore-style: `writing` names an entry, not the tree
+          # beneath it, so the checkout arrived without consumer-lint-setup.sh or
+          # the styles and every consumer's lint failed on the fetch rather than
+          # on a finding.
           sparse-checkout: writing
-          sparse-checkout-cone-mode: false
 
       # vale-action brings its own Vale, but the setup below runs `vale sync`
       # before it, so one has to be on PATH first. Pinned to the floor this

@@ -7,7 +7,7 @@
 #   writing-contract.yml           the reusable workflow their CI calls
 #
 # Everything this repository verifies about itself goes through .github/workflows
-# /vale.yml, which is a different file that installs rules differently. Green
+# /writing.yml, which is a different file that installs rules differently. Green
 # there said nothing about either link.
 #
 # This builds a scratch repository from evals/consumer/tree, installs into it,
@@ -66,14 +66,18 @@ check "workflow pins the installed ref" \
   "uses: sei-protocol/sei-internal-skills/.github/workflows/writing-contract.yml@$ref" \
   "$(grep -o 'uses: sei-protocol/sei-internal-skills/.github/workflows/writing-contract.yml@.*' .github/workflows/writing.yml)"
 check "config records the same ref" "$ref" \
-  "$(grep -o 'pinned to: .*' .vale.ini | sed 's/pinned to: //')"
+  "$(grep -o 'installs from: .*' .vale.ini | sed 's/installs from: //')"
 check "fetched rules are gitignored" "yes" \
   "$(grep -qxF '.vale/styles/' .gitignore && echo yes || echo no)"
 
 # The one thing a local test can say about the cross-repository checkout.
+# Read off the WORKFLOW_REF binding, not the file. Scanning the whole workflow
+# matched the header comment first, so reverting the binding to
+# github.workflow_ref -- the exact defect this exists to catch -- still passed.
 check "the workflow resolves its own ref, not the caller's" "job_workflow_ref" \
-  "$(grep -o 'github\.job_workflow_ref' "$root/.github/workflows/writing-contract.yml" \
-     | head -1 | sed 's/github\.//')"
+  "$(grep -oE 'WORKFLOW_REF: \$\{\{ github\.[a-z_]+ \}\}' \
+       "$root/.github/workflows/writing-contract.yml" \
+     | head -1 | grep -oE 'github\.[a-z_]+' | sed 's/github\.//')"
 
 # From here the script stops being the laptop and becomes the runner.
 #

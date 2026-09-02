@@ -95,9 +95,6 @@ jobs:
       - name: No anchor cites a skill as its authority
         run: ./writing/scripts/check-anchor-authorities.sh
 
-      # The coverage manifest says what each anchor actually checks. A claim
-      # nobody verifies is how one anchor came to credit rules that check
-      # something else, so the manifest is enforced rather than trusted.
       # install.sh and writing-contract.yml carry every consuming repository and
       # neither used to run. This repository's own job is a different file that
       # installs the rules differently, so green here said nothing about either.
@@ -109,6 +106,9 @@ jobs:
       - name: The consumer configuration scopes the same rules
         run: ./writing/scripts/check-consumer-scoping.sh
 
+      # The coverage manifest says what each anchor actually checks. A claim
+      # nobody verifies is how one anchor came to credit rules that check
+      # something else, so the manifest is enforced rather than trusted.
       - name: Coverage manifest is true
         run: ./writing/scripts/check-coverage.sh
 
