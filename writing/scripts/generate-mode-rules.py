@@ -4,8 +4,8 @@
 Reads scripts/modes.yaml and writes styles/AgenticWriting/<rule>.yml. Run it after
 editing the manifest; scripts/check-generated-rules.sh fails if the two disagree.
 
-    python3 scripts/generate-mode-rules.py            # write
-    python3 scripts/generate-mode-rules.py --check    # report drift, write nothing
+    python3 writing/scripts/generate-mode-rules.py            # write
+    python3 writing/scripts/generate-mode-rules.py --check    # report drift
 
 The rules were `extends: occurrence` with a `(?m)` token and `scope: raw`. Raw text
 does not distinguish a heading from a heading quoted inside a fenced code block, so a
@@ -144,6 +144,30 @@ def main():
     # A rule file that carries the banner but no longer appears in the manifest is
     # an orphan: nothing regenerates it and nothing would notice it going stale.
     named = {s['rule'] for m in manifest['modes'] for s in m['sections']}
+
+    # AND EVERY NAMED RULE MUST BE DISABLED IN [*.md]. That half has the teeth.
+    # [*.md] sets BasedOnStyles to include AgenticWriting, so a rule file is on
+    # everywhere by default and each generated rule is switched off by a
+    # hand-maintained line. Add a section to the manifest, run the generator, and
+    # this gate used to pass while the new rule ran at error level on every
+    # Markdown file in the repository — failing on a README for a missing
+    # '## Whatever' and pointing nowhere near the missing configuration line.
+    config = ROOT.parent / '.vale.ini'
+    if not config.is_file():
+        drift.append(f"{config} is missing, so the scoping half cannot be checked")
+    else:
+        off, section = set(), None
+        for line in config.read_text().splitlines():
+            s = line.strip()
+            if s.startswith('['):
+                section = s
+                continue
+            m = re.match(r'AgenticWriting\.([A-Za-z0-9-]+)\s*=\s*NO\s*$', s)
+            if m and section == '[*.md]':
+                off.add(m.group(1))
+        for rule in sorted(named - off):
+            drift.append(f"{rule} is in the manifest and not disabled in [*.md] of "
+                         f".vale.ini — it runs at error level on every Markdown file")
     for path in sorted(OUT.glob('*.yml')):
         if path.stem not in named and path.read_text().startswith(BANNER):
             drift.append(f"{path.relative_to(ROOT)} is generated but the manifest "
@@ -153,7 +177,7 @@ def main():
         for d in drift:
             print(f"FAIL {d}")
         if drift:
-            print("\nRun: python3 scripts/generate-mode-rules.py")
+            print("\nRun: python3 writing/scripts/generate-mode-rules.py")
             return 1
         print(f"All {len(named)} generated rules match scripts/modes.yaml.")
         return 0

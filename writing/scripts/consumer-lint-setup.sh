@@ -30,12 +30,46 @@ GIVEN="${2:-}"
   exit 1
 }
 
+# This installs into .vale/styles, and Vale reads whatever StylesPath the
+# consumer's own .vale.ini names -- a file this contract explicitly does not own
+# or overwrite. When the two disagree the rules land where Vale never looks, and
+# the job dies on a Vale runtime error instead of reporting a finding. Checked
+# rather than assumed, and fail-closed: a declaration that is not exactly this is
+# a mismatch, because guessing wrong is the silent failure being prevented.
+#
+# The absent-config case gets its own sentence and its own guard. Reading it
+# inside the command substitution let `set -e` and `pipefail` abort the step on
+# sed's exit status, which took the diagnostic with it.
+if [ ! -f .vale.ini ]; then
+  echo "no .vale.ini in this repository, so Vale has no configuration to run." >&2
+  echo "Run install.sh repo to write one, or commit your own declaring" >&2
+  echo "'StylesPath = .vale/styles'." >&2
+  exit 1
+fi
+declared="$(sed -n 's/^[[:space:]]*StylesPath[[:space:]]*=[[:space:]]*//p' .vale.ini \
+              | head -1 | tr -d '\r' | sed 's/[[:space:]]*$//')" || declared=""
+if [ "$declared" != ".vale/styles" ]; then
+  echo "StylesPath in .vale.ini is '${declared:-<unset>}', and this workflow installs" >&2
+  echo "the rules into .vale/styles. Vale would read the wrong tree." >&2
+  echo "Set 'StylesPath = .vale/styles', or drop the reusable workflow and run vale yourself." >&2
+  exit 1
+fi
+
 mkdir -p .vale/styles
 rm -rf .vale/styles/AgenticWriting .vale/styles/config
 cp -R "$SRC/styles/AgenticWriting" .vale/styles/
 cp -R "$SRC/styles/config" .vale/styles/
 
 # The caller's own accepted terms, committed outside the fetched tree.
+#
+# THE DELETE IS THE BOUNDARY, NOT THE COPY BELOW. The fetched tree carries a
+# Local vocabulary of its own, because Vale reads a vocabulary only from
+# StylesPath/config/vocabularies and the rules repository has to keep its own
+# names somewhere Vale looks. Those names are that repository's agent and skill
+# identifiers, and Vale.Terms would impose their casing on this repository's
+# prose. Overwriting accept.txt alone left that to statement order and to the
+# fetched tree holding no second file: a reject.txt beside it would survive.
+rm -rf .vale/styles/config/vocabularies/Local
 mkdir -p .vale/styles/config/vocabularies/Local
 if [ -f .vale/vocab/accept.txt ]; then
   cp .vale/vocab/accept.txt .vale/styles/config/vocabularies/Local/accept.txt

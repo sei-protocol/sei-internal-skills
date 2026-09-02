@@ -1,0 +1,25 @@
+# The names of this repository alone. The AgenticWriting vocabulary beside this
+# one travels to every consuming repository and holds public technical names, so
+# an agent or skill identifier belongs here. templates/consumer.vale.ini states
+# the same split from the consumer's side.
+#
+# COMMITTED, BECAUSE VALE REFUSES A VOCABULARY IT CANNOT FIND. A Vocab naming an
+# absent directory stops the run with E100 before Vale reads a document, so this
+# file cannot be generated at lint time.
+#
+# THE LOCATION CANNOT KEEP IT HOME. Vale reads a vocabulary only from
+# StylesPath/config/vocabularies, and both install paths copy styles/config
+# whole. scripts/install.sh and scripts/consumer-lint-setup.sh delete this
+# directory from the installed tree before they graft the consumer's own, and
+# check-consumer-scoping.sh holds the user-level configuration to a Vocab that
+# never names Local.
+#
+# AN ENTRY EARNS ITS PLACE BY SUPPRESSING A FINDING. Vale.Spelling is off in
+# .vale.ini, so Vale.Terms is the only rule a vocabulary reaches, and Vale.Terms
+# reports every casing other than the one written here. An entry that suppresses
+# nothing makes a sentence-initial `Audit-skill` and a `# Gov-Ops` heading errors
+# and buys nothing back. Measure with scripts/lint.sh before you add one.
+
+# Shadows the shorter accepted term `Kubernetes`, which Vale.Terms otherwise
+# reports inside this identifier in 24 places.
+kubernetes-specialist

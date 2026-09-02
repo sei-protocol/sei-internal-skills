@@ -3,11 +3,14 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/sei-protocol/sei-internal-skills/main/writing/scripts/install.sh | bash
 #
-# That is the whole setup. After it, `vale` works in any directory, with no
-# per-project configuration and nothing to commit.
+# That links the rules into your user Vale directory. A user-level .vale.ini has
+# to select them, and this script does not write one: the reference config it used
+# to copy lives in the standalone repository and was not carried across. Until it
+# is, machine mode gets you the rules and you supply the configuration -- or use
+# repo mode below, which installs a working one.
 #
-# WHICH RULES RUN DEPENDS ON WHERE THE FILE SITS. The contract is a directory
-# convention rather than a config file:
+# WHICH RULES RUN DEPENDS ON WHERE THE FILE SITS, once a configuration selects
+# the rules. The contract is a directory convention rather than a config file:
 #
 #   specs/<feature>/spec.md   spec structure, RFC 2119 casing, prose
 #   docs/adr/NNNN-name.md     the four Nygard sections, prose, no sentence cap
@@ -21,11 +24,11 @@
 #
 # WHAT IT INSTALLS
 #
-#   ~/.agentic-writing              the checkout, holding the rules, the Spec Kit
-#                                   templates under .specify/templates, and
-#                                   scripts/build-spec-artifact.sh
+#   ~/.agentic-writing              the checkout, holding the rules under
+#                                   writing/ and the templates beside them
 #   <user vale dir>/styles/         symlinks to the rules, so vale finds them
-#   <user vale dir>/.vale.ini       the fallback config, if you have none
+#
+# It writes no .vale.ini. See the note at the top.
 #
 # It is idempotent. Re-run it to pick up new rules.
 #
@@ -52,6 +55,12 @@ set -euo pipefail
 REPO_URL="${AGENTIC_WRITING_REPO:-https://github.com/sei-protocol/sei-internal-skills}"
 RAW="https://raw.githubusercontent.com/sei-protocol/sei-internal-skills"
 HOME_DIR="${AGENTIC_WRITING_HOME:-$HOME/.agentic-writing}"
+# main is a branch, not a pin. Passing a tag gets a fixed ruleset; the rendered
+# workflow and config then record it, and a rule change reaches the consumer only
+# when they raise it. Left as main because a consumer with no tag still needs a
+# working install, and because `git clone --branch` below takes a branch or a tag
+# and not a commit, so resolving this to a SHA would record a ref this installer
+# cannot itself consume.
 REF="${AGENTIC_WRITING_REF:-main}"
 DRY_RUN=false
 
@@ -64,8 +73,10 @@ install.sh — the agentic-writing toolkit.
   install.sh --dry-run       report what would happen, write nothing
   install.sh --help          this text
 
-After a machine install, `vale docs/` works anywhere. Which rules run depends on
-the directory a file sits in:
+A machine install links the rules; a user-level .vale.ini has to select them,
+and this script writes none. Repo mode installs a working configuration. Once a
+configuration is in place, which rules run depends on the directory a file sits
+in:
 
   specs/<feature>/spec.md   spec structure, RFC 2119 casing, prose
   docs/adr/NNNN-name.md     Nygard sections, prose, no sentence cap
@@ -91,11 +102,19 @@ run() {
 }
 
 # Same, for the two operations that need a shell redirection.
-render() {  # render TEMPLATE DEST — substitute the pinned ref
+render() {  # render TEMPLATE DEST — substitute the ref this install used
+  # $REF reaches sed as a replacement, where `\`, `&` and `|` are not literal.
+  # A ref holding `&` renders `@REF@` verbatim into the output; one holding `|`
+  # closes the expression and sed fails after the redirection has already
+  # truncated the destination. Both are valid in a Git ref name, and REF comes
+  # from the environment. Same reasoning as the argv note above: this is input
+  # the script does not control.
   if $DRY_RUN; then
     printf '  would: render %s -> %s\n' "$1" "$2"
   else
-    sed "s|@REF@|$REF|g" "$1" > "$2"
+    local escaped
+    escaped="$(printf '%s' "$REF" | sed 's/[\\&|]/\\&/g')"
+    sed "s|@REF@|$escaped|g" "$1" > "$2"
   fi
 }
 append() {  # append FILE TEXT
@@ -119,6 +138,11 @@ install_machine() {
     run git clone --quiet --branch "$REF" "$REPO_URL" "$HOME_DIR"
   fi
 
+  # The rules live under writing/ here. This installer began in a repository whose
+  # root was the toolkit, so every path that still assumes that layout points at
+  # nothing -- and a symlink to a missing directory fails at lint time, in the
+  # consumer's repository, not here.
+
   # macOS and Linux put the user Vale directory in different places.
   case "$(uname -s)" in
     Darwin) vale_dir="$HOME/Library/Application Support/vale" ;;
@@ -126,32 +150,63 @@ install_machine() {
   esac
   run mkdir -p "$vale_dir/styles"
 
+  # `-n` applies only when the destination is a symlink to a directory. Against
+  # a real directory `ln` links *inside* it -- styles/config/config, exit 0, no
+  # output -- and `-f` will not remove a directory to prevent that. Vale creates
+  # <StylesPath>/config/vocabularies itself, so the user this collides with is
+  # the one the next branch supports: the one who already has a Vale config.
+  # `rm -rf` is too blunt against a directory they may own.
+  #
+  # `config` links the rules repository's Local vocabulary too, and this mode
+  # grafts nothing over it. What keeps those names off every repository on the
+  # machine is the user-level Vocab, which names AgenticWriting alone --
+  # check-consumer-scoping.sh holds the reference configuration to that.
   for style in AgenticWriting config; do
+    dest="$vale_dir/styles/$style"
+    if [ -d "$dest" ] && [ ! -L "$dest" ]; then
+      say "  $dest is a real directory, not a link this script owns." >&2
+      say "    Move it aside and re-run. Linking into it would put the rules at" >&2
+      say "    $dest/$style, where Vale does not look for them." >&2
+      exit 2
+    fi
     say "  linking $style into the user styles directory"
-    run ln -sfn "$HOME_DIR/writing/styles/$style" "$vale_dir/styles/$style"
+    run ln -sfn "$HOME_DIR/writing/styles/$style" "$dest"
   done
 
+  # No fallback config is written. The reference this used to copy lives in the
+  # standalone repository and was not carried across, so under `set -e` the cp
+  # aborted the install outright for anybody who did not already have a
+  # user-level .vale.ini -- which is most first-time users.
   if [ -f "$vale_dir/.vale.ini" ]; then
     say "  user Vale config exists, leaving it alone"
-    say "    compare against $HOME_DIR/writing/docs/vale-global-config.reference.ini"
   else
-    say "  installing the fallback Vale config"
-    run cp "$HOME_DIR/writing/docs/vale-global-config.reference.ini" "$vale_dir/.vale.ini"
+    say "  no user Vale config; the styles are linked but nothing selects them"
+    say "    write $vale_dir/.vale.ini naming the AgenticWriting styles you want,"
+    say "    or use repo mode, which installs a configuration for a repository"
   fi
 
-  # Without this the first `vale` run fails with "style 'write-good' does not
-  # exist". Repo mode already syncs; machine mode did not, and the gap hid on a
-  # machine whose styles directory was already populated.
-  say "  fetching the declared packages"
-  if ! $DRY_RUN; then
-    ( cd "$vale_dir" && vale sync >/dev/null 2>&1 ) || \
-      say "    note: 'vale sync' failed. Is vale on PATH? Run it in $vale_dir." 
+  # `vale sync` reads Packages out of a config, so it needs one: with no
+  # .vale.ini it stops at "no .vale.ini file found" and fetches nothing. Syncing
+  # is worth doing only for a user who already has a config -- without one the
+  # first `vale` run has no rules selected, so a missing package is not yet what
+  # stands between them and a working setup.
+  if [ -f "$vale_dir/.vale.ini" ]; then
+    # Without this the first `vale` run fails with "style 'write-good' does not
+    # exist". Repo mode already syncs; machine mode did not, and the gap hid on
+    # a machine whose styles directory was already populated.
+    say "  fetching the packages your config declares"
+    if ! $DRY_RUN; then
+      ( cd "$vale_dir" && vale sync >/dev/null 2>&1 ) || \
+        say "    note: 'vale sync' failed. Run it in $vale_dir to see why."
+    fi
+  else
+    say "  skipping the package fetch; there is no config yet to declare any"
   fi
 
   say ""
-  say 'Done. `vale docs/` now works in any directory.'
+  say 'Done. The styles are linked; a user-level .vale.ini selects them.'
   say ""
-  say "Which rules run depends on where a file sits:"
+  say "Once a config selects them, which rules run depends on where a file sits:"
   say "  specs/<feature>/spec.md   spec structure, RFC 2119 casing, prose"
   say "  docs/adr/NNNN-name.md     Nygard sections, prose, no sentence cap"
   say "  docs/design/name.md       design sections, prose, no sentence cap"
@@ -159,9 +214,6 @@ install_machine() {
   say ""
   say "Starting a document:"
   say "  $HOME_DIR/writing/templates/"
-  say ""
-  say "Publishing a spec as an artifact:"
-  say "  $HOME_DIR/writing/scripts/build-spec-artifact.sh --help"
   say ""
   say "CI for a whole team is a separate, optional step:"
   say "  cd <repo> && curl -fsSL $RAW/main/writing/scripts/install.sh | bash -s -- repo"
@@ -208,21 +260,45 @@ install_repo() {
     git clone --quiet --depth 1 --branch "$REF" "$REPO_URL" "$src"
   fi
 
-  if [ -f "$root/.vale.ini" ]; then
-    say "  .vale.ini exists, leaving it alone"
-    say "    compare against $src/templates/consumer.vale.ini"
-  else
+  # What this run wrote, what it had already installed, and what belongs to the
+  # repository. The closing summary is built from these rather than a fixed list.
+  #
+  # A file already installed by this toolkit is not the same as a file the
+  # repository brought: re-running is invited, and reporting that the checks are
+  # unwired on a correctly installed repository is as wrong as the fixed list
+  # was. Each template leaves a marker, so the two cases are told apart by
+  # reading the file rather than by its existence.
+  wrote=""
+  mine=""
+  theirs=""
+
+  if [ ! -f "$root/.vale.ini" ]; then
     say "  writing .vale.ini"
     render "$src/writing/templates/consumer.vale.ini" "$root/.vale.ini"
+    wrote="$wrote .vale.ini"
+  elif grep -q 'installs from:' "$root/.vale.ini"; then
+    say "  .vale.ini is this toolkit's, leaving it alone"
+    mine="$mine .vale.ini"
+  else
+    say "  .vale.ini is this repository's own, leaving it alone"
+    say "    compare against $src/writing/templates/consumer.vale.ini"
+    theirs="$theirs .vale.ini"
   fi
 
   wf="$root/.github/workflows/writing.yml"
-  if [ -f "$wf" ]; then
-    say "  writing.yml exists, leaving it alone"
+  if [ -f "$wf" ] && grep -q 'sei-internal-skills/.github/workflows/writing-contract.yml@' "$wf"; then
+    say "  writing.yml is this toolkit's, leaving it alone"
+    mine="$mine .github/workflows/writing.yml"
+  elif [ -f "$wf" ]; then
+    say "  writing.yml is this repository's own, leaving it alone"
+    say "    compare against $src/writing/templates/writing.yml"
+    say "    it needs the 'uses:' call to writing-contract.yml to run the checks"
+    theirs="$theirs .github/workflows/writing.yml"
   else
     say "  writing .github/workflows/writing.yml"
     run mkdir -p "$root/.github/workflows"
     render "$src/writing/templates/writing.yml" "$wf"
+    wrote="$wrote .github/workflows/writing.yml"
   fi
 
   # Fetch the rules now, so `vale` works immediately rather than failing with
@@ -238,16 +314,16 @@ install_repo() {
     run rm -rf "$root/.vale/styles/$style"
     run cp -R "$src/writing/styles/$style" "$root/.vale/styles/"
   done
-  if ! $DRY_RUN; then
-    ( cd "$root" && vale sync >/dev/null 2>&1 ) || \
-      say "    note: 'vale sync' did not run. Run it to fetch write-good and proselint."
-  fi
-
   # This repository's own accepted terms. Vale reads a vocabulary from
   # StylesPath/config/vocabularies, which the fetch above overwrites, so the
   # committed copy lives outside it and gets installed into place. CI does the
   # same. Vale errors on a Vocab it cannot find, so the file always exists.
   run mkdir -p "$root/.vale/vocab"
+  # No template to compare against, and an existing one stops nothing, so it is
+  # named only when this run creates it.
+  if [ ! -f "$root/.vale/vocab/accept.txt" ]; then
+    wrote="$wrote .vale/vocab/accept.txt"
+  fi
   if ! $DRY_RUN && [ ! -f "$root/.vale/vocab/accept.txt" ]; then
     cat > "$root/.vale/vocab/accept.txt" <<'VOCAB'
 # Terms this repository accepts, one per line, case-sensitive. Commit this file.
@@ -262,11 +338,23 @@ install_repo() {
 # `evm` wrong wherever you wrote `EVM`. A hyphenated name collides with nothing.
 VOCAB
   fi
+  # THE DELETE IS THE BOUNDARY, NOT THE COPY. The fetched tree carries a Local
+  # vocabulary of its own -- the rules repository's agent and skill identifiers,
+  # which Vale reads only from StylesPath/config/vocabularies and so cannot keep
+  # anywhere else. Vale.Terms would impose their casing on this repository's
+  # prose. Overwriting accept.txt alone left that to statement order.
+  run rm -rf "$root/.vale/styles/config/vocabularies/Local"
   run mkdir -p "$root/.vale/styles/config/vocabularies/Local"
   run cp "$root/.vale/vocab/accept.txt" \
         "$root/.vale/styles/config/vocabularies/Local/accept.txt"
 
+  if ! $DRY_RUN; then
+    ( cd "$root" && vale sync >/dev/null 2>&1 ) || \
+      say "    note: 'vale sync' did not run. Run it to fetch write-good and proselint."
+  fi
+
   if ! grep -qxF '.vale/styles/' "$root/.gitignore" 2>/dev/null; then
+    wrote="$wrote .gitignore"
     say "  adding the fetched paths to .gitignore"
     append "$root/.gitignore" '
 # agentic-writing fetches the rules into these. Anything else under .vale/ is
@@ -277,8 +365,21 @@ VOCAB
   fi
 
   say ""
-  say "Commit these, and the checks run for everyone on every branch:"
-  say "  .vale.ini  .github/workflows/writing.yml  .gitignore  .vale/vocab/accept.txt"
+  if [ -n "$wrote" ]; then
+    say "Commit these:"
+    for f in $wrote; do say "  $f"; done
+  fi
+  if [ -n "$mine" ]; then
+    say "Already installed, and refreshed by this run:"
+    for f in $mine; do say "  $f"; done
+  fi
+  if [ -n "$theirs" ]; then
+    say "Left alone, because this repository has its own:"
+    for f in $theirs; do say "  $f"; done
+    say "  The checks do not run until these match the templates above."
+  else
+    say "  The checks run for everyone on every branch."
+  fi
   say ""
   say "The rules themselves are in .vale/, which is gitignored. Re-run this to"
   say "refresh them, or raise the pin in .vale.ini and writing.yml together." 

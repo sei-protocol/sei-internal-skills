@@ -24,3 +24,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+      # reviewdog reports through the Checks API on a push, which
+      # github-pr-review cannot serve. Without this a main-branch run goes red on
+      # reporting after the lint itself passed.
+      checks: write

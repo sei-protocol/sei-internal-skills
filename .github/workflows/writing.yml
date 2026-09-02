@@ -1,15 +1,13 @@
 # Checks prose against the writing contract in writing/.
 #
 # THE BACKLOG DOES NOT BLOCK. reviewdog reports on the lines a pull request
-# touches. A finding on a line nobody edited never appears, so the 1,600 findings
-# this repository already carries stay invisible until somebody edits that line.
+# touches. A finding on a line nobody edited never appears, so the findings this
+# repository already carries stay invisible until somebody edits that line.
 #
-# Most of them are one rule. ASD-STE100 does not allow contractions and this
-# repository writes 'don't' 348 times. The house style changes by attrition, on
-# the lines people are already editing, rather than in a sweep nobody asked for.
-#
-# reviewdog reports on the lines a pull request touches, so a finding on a line
-# nobody edited never appears and never blocks.
+# Most of them are one rule. ASD-STE100 does not allow contractions, and 1,525
+# of the 1,613 errors here are that one rule. The house style changes by
+# attrition, on the lines people are already editing, rather than in a sweep
+# nobody asked for.
 name: writing
 
 on:
@@ -17,38 +15,54 @@ on:
   push:
     branches: [main]
 
-# reviewdog posts review comments, which a read-only default token cannot do.
-# The source workflow declared these and the move dropped them.
+# reviewdog posts review comments through the API. A restricted default token
+# gets a 403 and the check fails without ever reporting a finding.
 permissions:
   contents: read
   pull-requests: write
+  # On a push the reporter is github-check, which creates a check run through the
+  # Checks API. A permissions block sets the whole set, so without this the push
+  # arm has `checks: none` and cannot report. It has never been exercised: the
+  # last main push produced no finding, so reviewdog had nothing to post.
+  checks: write
 
 jobs:
   vale:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
+      # Nothing here pushes, and the fetch below is anonymous HTTPS against a
+      # public repository. Left at its default the token is written into
+      # .git/config, where ten scripts, four harnesses, an unpinned pip install
+      # and a network vale sync all run beside it.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
-      # 3.17.1 is a floor, not a preference. On 3.14.0 a `sequence` whose tokens
-      # are all `tag:` entries matches nothing, which silently disables a rule.
+      # writing/scripts/generate-mode-rules.py imports yaml. The step passes on
+      # today's runner image because it happens to ship PyYAML; that is luck,
+      # not a declared dependency, and it changes without notice.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pyyaml
+
       # check-contract-anchors.sh compares anchors/unregistered.txt against main
       # to hold the list monotonic. A shallow clone has no main to compare with,
       # and the gate says so rather than passing on one arm.
       - name: Fetch main for the monotonicity comparison
         run: git fetch --no-tags origin '+refs/heads/main:refs/remotes/origin/main'
 
-      # Five scripts below import yaml. The runner image happening to ship it is
-      # not a dependency declaration, and the source workflow declared this.
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.12'
-      - run: pip install pyyaml
-
+      # 3.17.1 is a floor, not a preference. On 3.14.0 a `sequence` whose tokens
+      # are all `tag:` entries matches nothing, which silently disables a rule.
       - name: Install Vale
         run: |
           VALE_VERSION=3.17.1
-          curl -sfL "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" \
-            | tar -xz -C /usr/local/bin vale
+          VALE_SHA256=db947f89f2292e6a0381a61de155f6a5f5cb4cb460ca178ea412ef605559cefd
+          curl -sfL --retry 3 --retry-all-errors --max-time 120 -o /tmp/vale.tgz \
+            "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
+          echo "${VALE_SHA256}  /tmp/vale.tgz" | sha256sum -c -
+          tar -xz -C /usr/local/bin -f /tmp/vale.tgz vale
           vale --version
 
       # .vale.ini declares Packages and those are not committed. Without this the
@@ -56,23 +70,21 @@ jobs:
       - name: Fetch the third-party style packages
         run: vale sync
 
-      - name: Confirm the styles load
-        run: vale ls-config
-
-      # --no-global: a runner has no user-level Vale config and a laptop does, so
-      # without it the two disagree about which rules ran.
       # The eighteen section rules are generated from writing/scripts/modes.yaml.
       # A hand edit is worse than a hand-written rule: the next generator run
       # reverts it in silence.
       - name: The generated section rules match their manifest
         run: ./writing/scripts/check-generated-rules.sh
 
-      # The coverage manifest says what each anchor actually checks. A claim
-      # nobody verifies is how one anchor came to credit rules that check
-      # something else, so the manifest is enforced rather than trusted.
+      - name: Confirm the styles load
+        run: vale ls-config
+
       # Running the Spec Kit CLI rewrites its bundled assets, which would take
       # the fork's deltas with it. The fork lives away from those paths and this
       # asserts each delta is still present.
+      - name: Spec template still carries its deltas
+        run: ./writing/scripts/check-template-deltas.sh
+
       # A rule that stops firing is a silent failure. Fixtures catch it.
       - name: Run fixture expectations
         run: ./writing/evals/run.sh
@@ -86,9 +98,6 @@ jobs:
       # that predate the rule are marked grandfathered and counted.
       - name: Every admitted anchor carries its four artifacts
         run: ./writing/scripts/check-admission.sh
-
-      - name: Spec template still carries its deltas
-        run: ./writing/scripts/check-template-deltas.sh
 
       # The rules had golden files and the gates had none, so a gate could
       # reject a correct document and nothing would notice. One did.
@@ -108,12 +117,12 @@ jobs:
 
       # A structure rule left unscoped for consumers runs on every Markdown file
       # they have. Three rules had drifted between the two configurations.
-      - name: The consumer configuration scopes the same rules
+      - name: All three configurations scope the same rules
         run: ./writing/scripts/check-consumer-scoping.sh
 
       # Three of seven criteria once cited a check nobody had built. A
       # criterion citing a missing check reads exactly like one that passes.
-      - name: Every success criterion names a verifier that runs
+      - name: Every success criterion names a verifier that exists
         run: ./writing/scripts/check-verifiers.sh
 
       # CONTEXT.md is generated from the registry. A hand edit survives until
@@ -125,6 +134,9 @@ jobs:
             echo "writing/CONTEXT.md is stale. Run writing/scripts/render-context.py."
             exit 1; }
 
+      # The coverage manifest says what each anchor actually checks. A claim
+      # nobody verifies is how one anchor came to credit rules that check
+      # something else, so the manifest is enforced rather than trusted.
       - name: Coverage manifest is true
         run: ./writing/scripts/check-coverage.sh
 
@@ -139,30 +151,78 @@ jobs:
       - name: Every artifact is inside its length limit
         run: ./writing/scripts/check-artifact-length.sh
 
+      - name: Read the lint flags and paths from the script that defines them
+        id: lint
+        # Split, not inlined. Under `bash -e` the exit status of a command
+        # substitution used in a word does not trip errexit -- `echo` returns 0
+        # regardless -- so a lint.sh that failed wrote `flags=` and the step
+        # passed. Vale then ran with no --no-global and no --glob, and the
+        # reporter filters to touched lines, so the excluded trees produced
+        # findings nobody saw and the check stayed green.
+        #
+        # The paths need the same guard for a worse reason, and a parse check as
+        # well: on a `files:` it cannot read the action warns and lints `.`
+        # instead of failing, so an empty or malformed value widens the gate
+        # past the paths lint.sh names and reports on prose nobody scoped.
+        run: |
+          flags="$(./writing/scripts/lint.sh --print-flags)"
+          if [ -z "$flags" ]; then
+            echo "lint.sh --print-flags produced nothing" >&2
+            exit 1
+          fi
+          paths="$(./writing/scripts/lint.sh --print-paths)"
+          if [ -z "$paths" ]; then
+            echo "lint.sh --print-paths produced nothing" >&2
+            exit 1
+          fi
+          if ! printf '%s' "$paths" \
+               | python3 -c 'import json,sys; sys.exit(not isinstance(json.load(sys.stdin), list))'
+          then
+            echo "lint.sh --print-paths is not a JSON array: $paths" >&2
+            exit 1
+          fi
+          echo "flags=$flags" >> "$GITHUB_OUTPUT"
+          echo "paths=$paths" >> "$GITHUB_OUTPUT"
+
       - name: Lint prose against the writing contract
-        uses: vale-cli/vale-action@reviewdog
+        # Pinned to a commit, not the mutable `reviewdog` branch. Every other
+        # workflow here pins a SHA; this one piped a branch into CI with
+        # pull-requests: write.
+        uses: vale-cli/vale-action@518a9136acc6e6668ce7c00d367051e0941e87ff # reviewdog
         with:
-          reporter: github-pr-review
+          # github-pr-review resolves the pull request from the environment and
+          # errors when there is none, so a push to main failed on the reporting
+          # step rather than on a finding — a permanently red badge saying
+          # nothing about prose.
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
+          # Without this the action downloads its own Vale and defaults to
+          # `latest`, so the checksummed 3.17.1 installed above governed only
+          # `vale sync` and the gates -- not the binary that decides this check.
+          # A Vale release could turn this repository red with no commit here.
+          version: none
           fail_level: error
           level: warning
-          # The whole repository now, not writing/ alone. reviewdog reports on
-          # the lines a pull request touches, so the backlog below never appears
-          # and never blocks; only prose somebody edits meets the bar.
+          # DERIVED, NOT RESTATED, for the reason the flags below are. The
+          # list lives in writing/scripts/lint.sh, and a person running that
+          # script with no arguments covers the same paths, so the documented
+          # command and this gate cannot disagree. A list written here can: it
+          # names its own paths beside a script that defaults to something
+          # narrower, and a contributor then passes locally and fails here.
+          files: ${{ steps.lint.outputs.paths }}
+          # --no-global: a runner has no user-level Vale config and a laptop
+          # does, so without it the two disagree about which rules ran.
           #
-          # scripts/ is here because sei-internal-skills-doctrine.md is the file
-          # that fans out into every consuming repository's AGENTS.md. It is the
-          # highest-value prose here and it was the last thing in scope.
-          files: '["README.md", "AGENTS.md", "CLAUDE.md", "agents", ".claude", "experimental", "scripts", "writing"]'
-          # --glob: writing/styles/write-good is a fetched package and its README
-          # is not this repository's prose to fix.
-          # ONE --glob. Vale takes a single glob expression; passing the flag
-          # more than once keeps only the last, so the exclusions go in one
-          # brace pattern or all but one silently stop applying.
+          # ONE --glob. Vale takes a single glob expression and keeps the last
+          # occurrence, so a second flag silently drops the first. The brace form
+          # is one expression and Vale expands it; the pinned action reaches Vale
+          # without a shell, so nothing else expands it first. It is a node
+          # action: it splits vale_flags itself on whitespace, honouring quotes
+          # and nothing else, then spawns Vale with an argv array.
           #
-          # write-good is a fetched package. evals/ holds fixtures that are
-          # deliberately non-conforming, which is their job. upstream.md is
-          # Spec Kit's own text, kept verbatim so check-template-deltas.sh can
-          # diff against it; editing it to satisfy a prose rule defeats the check.
-          vale_flags: >-
-            --no-global
-            --glob=!{writing/styles/write-good/**,writing/evals/**,writing/templates/spec-template.upstream.md}
+          # DERIVED, NOT RESTATED. writing/scripts/lint.sh holds the exclusions and
+          # the reason for each, and a person runs that same script. The list had
+          # three copies before this and two had already drifted -- one said the
+          # lint skips `evals/`, another said two paths beside a command naming
+          # five. The brace expression carries no spaces, so the action's
+          # whitespace split is safe.
+          vale_flags: ${{ steps.lint.outputs.flags }}
