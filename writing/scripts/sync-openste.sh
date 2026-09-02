@@ -36,7 +36,8 @@ curl -fsSL --retry 3 --max-time 120 "${SRC}" -o "${TMP}"
 
 mkdir -p "$(dirname "$OUT")"
 python3 - "${TMP}" "${OUT}" <<'PY'
-import json, pathlib, sys
+import json
+import re, pathlib, sys
 
 src, out = sys.argv[1], sys.argv[2]
 data = json.load(open(src))
@@ -77,8 +78,19 @@ lines = [
     "ignorecase: true",
     "swap:",
 ]
+# TWO LAYERS, AND UPSTREAM CONTROLS BOTH. A swap key is compiled as a regex, not
+# matched literally, so a title carrying ( [ + ? | either fails to compile or
+# silently widens the match. Five entries in the current wordset already do --
+# 'case (in case of)', 'chance (by chance)', 'few (a few)', 'long (as long as)',
+# 'long (no longer)'. re.escape makes the key mean the text upstream wrote.
+#
+# The scalar is the second layer. json.dumps emits a double-quoted string whose
+# escaping YAML reads the same way, so a title carrying " or \ cannot end the
+# scalar early. No entry does today; nobody here curates the list, and the file
+# is documented for adoption into styles/AgenticWriting/, where every rule is
+# armed on sight -- so a parse failure there stops Vale loading at all.
 for bad, good in sorted(pairs.items()):
-    lines.append(f'  "{bad}": "{good}"')
+    lines.append(f"  {json.dumps(re.escape(bad))}: {json.dumps(good)}")
 
 pathlib.Path(out).write_text("\n".join(lines) + "\n")
 print(f"Wrote {out} with {len(pairs)} pairs.")
