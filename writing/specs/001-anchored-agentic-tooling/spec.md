@@ -20,7 +20,6 @@ it around spec-driven development with a clean semantic anchoring on technical d
 doc writing style.
 ```
 
-<!-- vale off -->
 ## Semantic Anchors
 
 Named once. Not restated below.
@@ -32,7 +31,6 @@ Named once. Not restated below.
 | INVEST | user story quality | whether the slice delivers value |
 | Gherkin | acceptance scenarios | whether the scenario is the important one |
 | Conventional Commits | commit subject | whether the scope names the right component |
-<!-- vale on -->
 
 ## Glossary
 
@@ -95,7 +93,7 @@ not size. It is whether a mechanism reaches an engineer who is not looking for i
 | Skill | Needs an install, then a remembered trigger phrase | No |
 | Experimental skill | Needs a second, separate opt-in | Invisible |
 
-So V2 inverts the ratio. The convention moves into the channel that already works, and
+V2 inverts the ratio. The convention moves into the channel that already works, and
 a skill becomes the rare case.
 
 **This is why semantic anchoring is load-bearing rather than cosmetic.** An anchor is
@@ -144,15 +142,14 @@ assures it, and none has value if this one does not work. It is also the story V
 completed once in five months.
 
 **Independent Test**: In a repository with the contract present and no skills installed,
-ask for a design document. Confirm the output follows the anchored style, and that no
-anyone invoked a slash command.
+ask for a design document. Confirm the output follows the anchored style, and that
+nobody invoked a slash command.
 
 **Acceptance Scenarios**:
 
-1. **Given** a repository carrying the contract and no installed skills,
-   **When** an engineer asks for a technical design document,
-   **Then** the output follows the
-   anchored style without any invocation.
+1. **Given** a repository carrying the contract and no installed skills.
+   **When** an engineer asks for a technical design document.
+   **Then** the output follows the anchored style without any invocation.
 2. **Given** the same repository, **When** the engineer runs the gate, **Then** the gate
    reports findings against the same anchors the contract named.
 
@@ -171,10 +168,10 @@ anchor to steward to verdict resolves with no missing link.
 
 **Acceptance Scenarios**:
 
-1. **Given** a reported finding,
-   **When** a reviewer looks up its rule,
-   **Then** the rule names the anchor and the anchor resolves to a registry entry with a steward, a
-   licence, and a verdict.
+1. **Given** a reported finding.
+   **When** a reviewer looks up its rule.
+   **Then** the rule names the anchor, and the anchor resolves to a registry entry
+   with a steward, a licence, and a verdict.
 2. **Given** an anchor with no recorded verdict, **When** a reviewer reads the registry,
    **Then** the registry states the absence rather than implying it.
 
@@ -221,10 +218,10 @@ registry records a distinct verdict per model, and that a below-threshold verdic
 ### Edge Cases
 
 - **An anchor that is famous but sparse in training data.** Fame is not evidence. The
-  the recognition test decides.
+  recognition test decides.
 - **A local rule that resembles a public standard.** It stays local, because a later
   upstream change would silently move the rule.
-- **A convention with no verifier.** The contract states it and listed as
+- **A convention with no verifier.** The contract states it and lists it as
   uncheckable. Nothing implies that a gate checks it.
 - **Two anchors a model confuses.** The contract names the pair in full, never by short form.
 - **A model that names an anchor and applies it wrongly.** Recognition passes,
@@ -354,6 +351,10 @@ is the criterion V2 exists to satisfy; the others are subordinate to it.
 in `writing/anchors/unregistered.txt` as a recorded debt. A name in neither fails the build.
 *Verifier:* `writing/scripts/check-contract-anchors.sh`
 
+The script compares against `origin/main` and fails closed without it. It also imports
+PyYAML, which is not in the standard library. A clean checkout needs `git fetch origin
+main` and PyYAML present first. CI supplies both in earlier steps.
+
 The criterion is not yet met. The contract names 19 anchors and the registry holds 7 of
 them. `writing/anchors/unregistered.txt` holds the other 12 as debt. That list only shrinks,
 and a name leaves it by earning a registry entry with the four admission artifacts.
@@ -365,8 +366,20 @@ holds the method and nothing runs it.
 Zero of the 8 entries carry a verdict. Until one does, every claim in this repository
 about how well a model resolves an anchor is untested.
 
-**SC-004** The gate reports zero errors on every governed artifact in this repository.
-*Verifier:* `vale --no-global writing/`
+**SC-004** The gate reports zero errors on every artifact under `writing/`.
+*Verifier:* `writing/scripts/lint.sh`
+
+`writing/` is narrower than the contract governs. `.vale.ini` opens `[*.md]`, so the
+contract covers every Markdown file here. A repository-wide run reports thousands of
+errors. Those files have never met the rules. Widening this criterion would make it
+false rather than stronger. Widening the gate is separate work, and
+`.github/workflows/writing.yml` records the same scope and the same reason.
+
+The script carries the exclusions and the reason for each. Every excluded tree holds
+non-conforming prose on purpose. Linting it reports errors by design, and says
+nothing about the artifacts this criterion covers. Naming the script rather than a
+`vale` command line is deliberate. The gate skips any argument holding a glob
+character, so an exclusion inside a criterion is a claim no gate can read.
 
 **SC-005** The contract fits in a single file a person reads in under five minutes.
 *Verifier:* `writing/scripts/check-artifact-length.sh`
@@ -443,5 +456,5 @@ because of the fourth one.
    context file reaches the session. These are perhaps the same file.
 2. **What is the failing threshold for a recognition test?** Published practice uses 80% and 50%
    bands. Adopting them without measuring our own anchors would be borrowing a number.
-3. **Do the four generic skills become experts, or does one expert absorb several?**
+3. **Do the four generic skills become experts, or does one expert absorb the rest?**
    Four narrow experts have the same recall problem as four skills.

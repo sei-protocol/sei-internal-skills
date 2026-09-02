@@ -12,30 +12,38 @@ here today:
 | `styles/AgenticWriting/` | the rules, one file per checkable rule |
 | `styles/config/vocabularies/` | terms this repository accepts, and their casing |
 | `scripts/` | the generator for the section rules, and the gates |
-| `anchors/` | the registry of public standards, and a page per anchor |
+| `anchors/` | the registry of public standards, and one page per anchor so far |
 | `coverage/` | which topics of each standard the rules reach, and which they miss |
 | `CONTRACT.md` | the contract itself: the anchors, and the rules with no public prior |
 | `templates/` | the spec template, and the upstream baseline it forked from |
 | `evals/` | fixtures, per-rule golden files, and the recognition method |
 | `specs/` | what this toolkit is for, and the one verifier it still lacks |
 
-The prose lint skips `evals/`. A fixture is deliberately non-conforming, which is
-what makes it a test.
+The prose lint skips the trees that hold non-conforming prose on purpose. A
+fixture is the clearest case: being non-conforming is what makes it a test.
+`writing/scripts/lint.sh` names each tree and the reason. The contract governs
+prose elsewhere under `evals/` like any other.
 
 What arrives next, in order:
 
-1. the anchor registry, the anchor pages, and the coverage manifest
-3. the contract, and the spec template it governs
-4. the gates that hold the registry and the contract to their own claims
-5. the four test harnesses
-6. the consumer install path
-7. the specifications that describe the whole thing
+1. the gates that hold the registry and the contract to their own claims
+2. the four test harnesses
+3. the consumer install path
+4. the specifications that describe the whole thing
 
 ## Running it
 
+Vale 3.17.1 or later. CI pins that version in `.github/workflows/writing.yml`
+and checks the archive against a recorded sha256. The floor is not a preference:
+on 3.14.0 a `sequence` rule whose tokens are all `tag:` entries matches nothing,
+which disables `STE-NounCluster` in silence.
+
+A local run reports on every line. CI reports only on lines the pull request
+touched, so a local run can show findings CI never will.
+
 ```sh
-vale sync                                    # fetch write-good, not committed
-vale --no-global writing                     # what CI checks today
+vale sync                  # fetch write-good, which is not committed
+./writing/scripts/lint.sh                    # the prose gate, as CI runs it
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
@@ -44,13 +52,22 @@ vale --no-global writing                     # what CI checks today
 ./writing/evals/run.sh                       # every rule still fires
 ./writing/evals/rules/run.sh                 # goldens pin line, column, message
 ./writing/scripts/check-admission.sh         # an anchor carries its artifacts
-./writing/evals/gates/run.sh                 # the gates themselves are tested
+./writing/evals/gates/run.sh                 # the gates that have a case are tested
 ./writing/scripts/check-anchor-authorities.sh  # no anchor cites a skill
+./writing/scripts/check-consumer-scoping.sh  # both configs scope the same rules
+./writing/scripts/check-verifiers.sh         # every criterion names a verifier
 ./writing/evals/consumer/run.sh              # another repository can install it
 ```
 
-`--no-global` matters. Vale merges a user-level configuration with this one, so a
-laptop with the toolkit installed sees different rules than a runner does.
+That second command is what CI runs. `--no-global` matters: Vale merges a
+user-level configuration with this one, so a laptop with the toolkit installed
+sees different rules than a runner does.
+
+`writing/scripts/lint.sh` holds the exclusions and a reason for each, and both CI
+and a person run that script. This paragraph used to restate the list and had
+drifted: it said two paths beside a command naming five. Vale takes a single glob
+expression and keeps the last. They ride in one brace expression, which is the
+other reason the list lives in one place.
 
 ## Generated rules
 
@@ -78,16 +95,17 @@ check something else.
 
 ## The contract
 
-`CONTRACT.md` is the file an agent loads before anyone invokes it. It names the
-anchors, states the rules that have no public prior, and says which gate checks
-what. Read it first; everything else in this directory serves it.
+`CONTRACT.md` is the file to read first. It names the anchors, states the rules
+that have no public prior, and says which gate checks what. Everything else in
+this directory serves it.
 
 ## The debt has a home
 
 `anchors/unregistered.txt` names the anchors the contract cites that have no
-registry entry yet. Twelve of nineteen. The gate prints them on every run. It
-fails on a name in neither place, and on a line that has since earned an entry.
-It compares the file against `main`, so the list can only shrink.
+registry entry yet. The gate prints the count and the names on every run. This
+file repeats neither, because a number here goes stale the moment an anchor earns
+an entry. The gate fails on a name in neither place, and on a line that has since
+earned an entry. It compares the file against `main`, so the list can only shrink.
 
 A stated gap beats a silent one. Nothing checked this direction before, because
 the coverage gate reads the registry and never the contract.
@@ -108,7 +126,7 @@ somebody deleted its fixture.
 ## An anchor is not a skill
 
 An anchor earns its place by being a standard somebody else published and
-maintains. A reader can follow the name to a clause this repository does not
+maintains. A reader can then follow the name to a clause this repository does not
 control. A skill here is not that. Citing one as an anchor's authority makes the
 catalogue circular: the rule is right because our skill says so.
 
@@ -120,16 +138,6 @@ pages and the coverage manifest. Prose elsewhere may reference a skill freely.
 `templates/` and `scripts/install.sh` wire a different repository into the same
 checks. Its CI calls `writing-contract.yml` here rather than copying it, so a
 rule fix reaches it when it raises the pin.
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/sei-protocol/sei-internal-skills/main/writing/scripts/install.sh | bash
-```
-
-That is the per-engineer install and it writes nothing into a repository. Add
-`-s -- repo` to wire a repository into CI.
-
-`evals/consumer/run.sh` runs that path end to end against a scratch repository,
-because the two links it depends on used to run nowhere.
 
 ## Reading a finding
 

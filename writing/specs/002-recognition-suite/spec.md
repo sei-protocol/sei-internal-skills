@@ -94,9 +94,9 @@ and the raw answer.
 ### User Story 2 - A fall the upgrade cannot hide (Priority: P2)
 
 A model upgrade lands. The maintainer re-runs the suite against the new model
-identifier and rates the answers. The run report names every anchor whose
-verdict dropped, before the maintainer reads a single answer. An anchor that
-fell from strong to partial appears at the top of that report.
+identifier and rates the answers. The run report opens with every anchor whose
+verdict dropped, so the maintainer finds a fall without re-reading answers. An
+anchor that fell from strong to partial appears at the top of that report.
 
 **Why this priority**: the catalogue is a standing bet, and a model upgrade can
 lose it. A drop nobody sees is the failure this suite exists to stop.
@@ -332,8 +332,8 @@ anchors and the registry holds 7. A criterion written against the catalogue coul
 not pass until twelve unrelated entries existed. Closing that gap is
 `writing/anchors/unregistered.txt`, not this suite.
 
-**SC-002**: A run against a new model identifier names every anchor that dropped,
-before a person reads any answer.
+**SC-002**: A run against a new model identifier names every anchor that dropped. The
+names sit at the top of the report, so finding a fall costs no re-reading.
 *Verifier:* not built — no run report and no verdict comparison exist yet.
 
 **SC-003**: A maintainer covers one added anchor by editing the registry alone,
@@ -345,7 +345,7 @@ and changes no other file.
 
 **SC-005**: This specification passes the writing gate with no finding at error
 level.
-*Verifier:* `vale --no-global writing/specs/002-recognition-suite/spec.md`
+*Verifier:* `writing/scripts/lint.sh writing/specs/002-recognition-suite/spec.md`
 
 **SC-006**: Every criterion above names a verifier that runs, or states plainly
 that none does.
@@ -388,3 +388,22 @@ the change merges.
   belong to the plan.
 - Rewriting a convention after a weak verdict. The verdict is evidence, and an
   author decides what to do with it.
+
+## Open questions
+
+Three requirements above carry a `[NEEDS CLARIFICATION]` marker. Each of those
+obligations is incomplete as written. This section names them in one place, so a
+reader sees the open decisions without reading 390 lines. Status stays Draft while
+any of them stands open. Spec 001 keeps the same section for the same reason.
+
+1. **How many answers per question — one, or a fixed sample?** (Requirement 3,
+   criterion 5.) One answer per question costs least and reads as a single result.
+   A sample measures a model whose answers vary between runs. That variation is
+   what this suite exists to detect. The cost is a person rating every answer.
+2. **Which rating combination gives each of the three verdicts?** (Requirement 3,
+   criterion 3.) Until someone decides this, the suite cannot turn four ratings
+   into a verdict. Nothing downstream of the ratings can follow.
+3. **Does a fall end the run in failure, or report and exit clean?**
+   (Requirement 5, criterion 5.) This question decides whether the suite is a gate
+   or a report. It changes who acts on a fall, and when. Answer it first: the other
+   two do not depend on it, and it constrains how CI calls the suite.

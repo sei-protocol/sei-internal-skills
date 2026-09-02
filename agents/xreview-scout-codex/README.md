@@ -17,10 +17,10 @@ scouts sharing one agent, which would count one opinion twice.
 
 ## How it is invoked
 
-Never directly. `sei-agent-driver` dispatches it when `XREVIEW_SCOUTS` names it:
+Never directly. `sei-agent-driver` dispatches it when `SEIDROID_SCOUTS` names it:
 
 ```
-XREVIEW_SCOUTS=codex=xreview-scout-codex
+SEIDROID_SCOUTS=codex=xreview-scout-codex
 ```
 
 `codex` is the name findings are attributed under; `xreview-scout-codex` is this

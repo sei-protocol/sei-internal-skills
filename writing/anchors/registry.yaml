@@ -112,9 +112,15 @@ anchors:
         in a specification, write MUST, SHOULD, and MAY in uppercase. Do not use them for a
         statement that is not a requirement.
     verifier:
-      coverage: full
+      coverage: partial
       rules: [AgenticWriting.RFC2119-Keywords]
-      not_checkable: []
+      not_checkable:
+        - "Whether a keyword marks a real requirement. RFC 2119 governs the
+          obligation, not the sentence around it, so 'you MAY quote this' is
+          correctly cased and asserts nothing normative. The rule reads casing
+          only. coverage/rfc2119.yml has recorded this topic as unchecked since
+          it was written, while this entry said full and listed no gap."
+
     recognition:
       question: "What concepts do you associate with 'RFC 2119'?"
       expect: [MUST, SHOULD, MAY, normative requirement levels, interoperability]
@@ -167,12 +173,15 @@ anchors:
           acceptance criteria, and a document-wide rule would flag both.
       rules:
         - AgenticWriting.EARS-CriterionShall
-        - AgenticWriting.Spec-AcceptanceCriteria
       not_checkable:
         - "The WHERE template reads 'WHERE <feature is included>', a passive by
-          construction. STE-Passive reports it wherever the template appears,
-          including in this repository's own spec template. Rewriting the clause
-          would misstate the standard, so the finding stays, and stays a warning."
+          construction. Rewriting the clause would misstate the standard, so on a
+          real specification STE-Passive reports it and the finding stays, at
+          warning. writing/templates/spec-template.md suppresses the rule around
+          its five placeholder criteria, because those lines are Mavin's wording
+          rather than this repository's prose; the template tells the author to
+          delete that directive with the placeholders, so an author's own WHERE
+          criteria carry the warning."
         - "Whether the chosen template matches the real requirement class."
         - "Whether the response is observable."
         - "Whether the actor named before SHALL is the system that acts."
@@ -298,6 +307,10 @@ anchors:
       concepts, decisions, quality requirements, risks, glossary. Omit an empty section.
     rationale: >-
       A stable section order makes review cheap, because a reviewer knows where to look.
+    context:
+      order: 8
+      label: arc42
+      text: "a design document follows the arc42 section order. Omit a section rather than pad it."
     verifier:
       coverage: partial
       rules:

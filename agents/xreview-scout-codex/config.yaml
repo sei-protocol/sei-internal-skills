@@ -1,5 +1,5 @@
 spec_version: 1
-# CRITICAL: name MUST match what a caller names in XREVIEW_SCOUTS. The driver
+# CRITICAL: name MUST match what a caller names in SEIDROID_SCOUTS. The driver
 # resolves an agent by this name through GET /v1/agents — there is no
 # lookup-by-id — and a name the server does not know fails the scout rather than
 # falling back, deliberately: a reading that quietly ran on the review's own
