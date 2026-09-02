@@ -19,10 +19,10 @@ here today:
 | `evals/` | fixtures, per-rule golden files, and the recognition method |
 | `specs/` | what this toolkit is for, and the one verifier it still lacks |
 
-The prose lint skips the trees that hold deliberately non-conforming prose, a
-fixture being the clearest case: being non-conforming is what makes it a test.
-`writing/scripts/lint.sh` names each one and why. Prose elsewhere under `evals/`
-is governed like any other.
+The prose lint skips the trees that hold non-conforming prose on purpose. A
+fixture is the clearest case: being non-conforming is what makes it a test.
+`writing/scripts/lint.sh` names each tree and the reason. The contract governs
+prose elsewhere under `evals/` like any other.
 
 What arrives next, in order:
 
