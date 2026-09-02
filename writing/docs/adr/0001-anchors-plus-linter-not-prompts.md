@@ -8,7 +8,7 @@ Accepted, 2026-08-19.
 
 A private output style or a personal skill improves model output. It has four defects:
 
-1. It is not portable. It works only where the file is installed.
+1. It is not portable. It works only where someone installed the file.
 2. It is not explainable. A reader cannot tell which instruction did the work.
 3. It is not verifiable. Nothing checks whether the model obeyed it.
 4. It is not durable. A model upgrade can change the result, and nothing detects that.
@@ -44,7 +44,7 @@ Negative:
 - Partial coverage invites a false sense of compliance. The `coverage` field is a
   countermeasure, not a fix.
 - Vale adds a dependency and a CI job to every consumer repository.
-- STE is copyrighted, so the vocabulary check is an approximation from OpenSTE. A passing
+- STE carries its own copyright, so the vocabulary check approximates it from OpenSTE. A passing
   run is not a certificate.
 
 ## Alternatives considered
@@ -55,5 +55,5 @@ Negative:
 loop is slow and the agent burns turns on rewrites.
 
 **Fine-tune or a bespoke controlled language.** Rejected: an invented term carries no
-weight as an anchor, and a private language cannot be audited by a reader who does not
+weight as an anchor, and no reader can audit a private language when they do not
 have it.

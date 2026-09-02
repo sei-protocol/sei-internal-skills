@@ -155,16 +155,21 @@ belongs. Vale is a prose linter, so cross-reference integrity may be a repositor
 test rather than a style rule. Its output is a smaller doctrine, not a larger
 one.
 
-**Spec B — Session host integration.** The collaboration plane. It decides three things. How a session
-carries durable feedback for an artifact that later merges. How a chat interface
-dispatches and records a review round. What the session stores rather than git. Its hardest question is the boundary between a session and a
-repository. Getting that wrong makes the repository optional, and the repository
-is what makes the work auditable.
+**Spec B — Session host integration.** The collaboration plane. It decides three
+things:
+
+- how a session carries durable feedback for an artifact that later merges
+- how a chat interface dispatches and records a review round
+- what the session stores rather than git
+
+Its hardest question is the boundary between a session and a repository. Getting
+that wrong makes the repository optional, and the repository is what makes the
+work auditable.
 
 **Spec C — Tool integrations.** How the tools already in use bind to both planes.
 Four of them matter here: one runs independent multi-specialist review, one files
 tickets from a specification, and two review code, for step structure and for
-language idiom. Its hardest question is precedence. All four state overlapping
+language idiom. Its hardest question is precedence. All four state rules that overlap
 rules today, and a doctrine file resolves the overlap by hand.
 
 Naming those four adds nothing a reader outside one organisation can act on. What

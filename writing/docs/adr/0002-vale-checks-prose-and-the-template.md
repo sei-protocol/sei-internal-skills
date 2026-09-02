@@ -76,7 +76,7 @@ Two rules follow from the failure modes above rather than from the discriminator
 
 - A pattern MUST NOT scan an unbounded body. Bound every quantifier, or do not write the
   rule.
-- A template rule states presence or order only. It MUST NOT claim the section says
+- A template rule states only presence or order. It MUST NOT claim the section says
   anything, and its comment says so, as the shipping rules already do.
 
 ## Consequences
