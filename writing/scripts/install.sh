@@ -73,8 +73,10 @@ install.sh — the agentic-writing toolkit.
   install.sh --dry-run       report what would happen, write nothing
   install.sh --help          this text
 
-After a machine install, `vale docs/` works anywhere. Which rules run depends on
-the directory a file sits in:
+A machine install links the rules; a user-level .vale.ini has to select them,
+and this script writes none. Repo mode installs a working configuration. Once a
+configuration is in place, which rules run depends on the directory a file sits
+in:
 
   specs/<feature>/spec.md   spec structure, RFC 2119 casing, prose
   docs/adr/NNNN-name.md     Nygard sections, prose, no sentence cap
@@ -157,19 +159,28 @@ install_machine() {
     say "    or use repo mode, which installs a configuration for a repository"
   fi
 
-  # Without this the first `vale` run fails with "style 'write-good' does not
-  # exist". Repo mode already syncs; machine mode did not, and the gap hid on a
-  # machine whose styles directory was already populated.
-  say "  fetching the declared packages"
-  if ! $DRY_RUN; then
-    ( cd "$vale_dir" && vale sync >/dev/null 2>&1 ) || \
-      say "    note: 'vale sync' failed. Is vale on PATH? Run it in $vale_dir." 
+  # `vale sync` reads Packages out of a config, so it needs one: with no
+  # .vale.ini it stops at "no .vale.ini file found" and fetches nothing. Syncing
+  # is worth doing only for a user who already has a config -- without one the
+  # first `vale` run has no rules selected, so a missing package is not yet what
+  # stands between them and a working setup.
+  if [ -f "$vale_dir/.vale.ini" ]; then
+    # Without this the first `vale` run fails with "style 'write-good' does not
+    # exist". Repo mode already syncs; machine mode did not, and the gap hid on
+    # a machine whose styles directory was already populated.
+    say "  fetching the packages your config declares"
+    if ! $DRY_RUN; then
+      ( cd "$vale_dir" && vale sync >/dev/null 2>&1 ) || \
+        say "    note: 'vale sync' failed. Run it in $vale_dir to see why."
+    fi
+  else
+    say "  skipping the package fetch; there is no config yet to declare any"
   fi
 
   say ""
   say 'Done. The styles are linked; a user-level .vale.ini selects them.'
   say ""
-  say "Which rules run depends on where a file sits:"
+  say "Once a config selects them, which rules run depends on where a file sits:"
   say "  specs/<feature>/spec.md   spec structure, RFC 2119 casing, prose"
   say "  docs/adr/NNNN-name.md     Nygard sections, prose, no sentence cap"
   say "  docs/design/name.md       design sections, prose, no sentence cap"
@@ -253,11 +264,6 @@ install_repo() {
     run rm -rf "$root/.vale/styles/$style"
     run cp -R "$src/writing/styles/$style" "$root/.vale/styles/"
   done
-  if ! $DRY_RUN; then
-    ( cd "$root" && vale sync >/dev/null 2>&1 ) || \
-      say "    note: 'vale sync' did not run. Run it to fetch write-good and proselint."
-  fi
-
   # This repository's own accepted terms. Vale reads a vocabulary from
   # StylesPath/config/vocabularies, which the fetch above overwrites, so the
   # committed copy lives outside it and gets installed into place. CI does the
@@ -280,6 +286,11 @@ VOCAB
   run mkdir -p "$root/.vale/styles/config/vocabularies/Local"
   run cp "$root/.vale/vocab/accept.txt" \
         "$root/.vale/styles/config/vocabularies/Local/accept.txt"
+
+  if ! $DRY_RUN; then
+    ( cd "$root" && vale sync >/dev/null 2>&1 ) || \
+      say "    note: 'vale sync' did not run. Run it to fetch write-good and proselint."
+  fi
 
   if ! grep -qxF '.vale/styles/' "$root/.gitignore" 2>/dev/null; then
     say "  adding the fetched paths to .gitignore"
