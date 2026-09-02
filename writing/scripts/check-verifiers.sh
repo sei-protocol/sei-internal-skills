@@ -49,13 +49,50 @@ SC_LINE = re.compile(r'^[ \t]*(?:[-*+][ \t]+|\d+\.[ \t]+)?\*\*(SC-\d+)\*\*')
 V_LINE = re.compile(r'^[ \t]*\*Verifier:\*')
 # Anything that looks like a criterion id, to tell "none" from "unreadable".
 SC_ANY = re.compile(r'\bSC-\d+\b')
-COMMANDS = {'vale'}          # a tool the repository already requires on PATH
+# EMPTY ON PURPOSE. An allowlisted command was exempt from the executable test,
+# and the gate skips any argument holding a glob character -- so `vale --glob=... x`
+# passed with its arguments unread, and the table called it verified. Every
+# verifier names a script now, including the prose lint, which is what
+# writing/scripts/lint.sh exists to make possible.
+COMMANDS: set[str] = set()
 bad, rows = [], []
 
 for spec in specs:
     lines = spec.read_text().splitlines()
+    # A criterion or verifier line quoted inside a fence documents the convention
+    # rather than declaring one, and raw text cannot tell them apart: a spec that
+    # showed the required shape gained a phantom criterion and then failed on it.
+    # writing/README.md records this same fix for the Vale rules.
+    # Markdown closes a fence only on the SAME marker at the same length or
+    # longer. A toggle that flipped on any ``` or ~~~ broke on the one shape
+    # this repository writes most: a snippet showing the criterion convention
+    # has to sit in a longer fence, because the snippet itself holds one. The
+    # outer ```` opened, the inner ``` closed, and the snippet's criterion lines
+    # survived as declarations -- the phantom criterion this strip exists to
+    # stop. The mismatch the other way round hides a real criterion instead.
+    _prose, _open = [], None
+    for _l in lines:
+        _m = re.match(r'^[ \t]*(`{3,}|~{3,})', _l)
+        if _m and _open is None:
+            _open = _m.group(1)
+        elif _m and _open and _m.group(1)[0] == _open[0] and len(_m.group(1)) >= len(_open):
+            _open = None
+        elif _open is None:
+            _prose.append(_l)
+            continue
+        _prose.append('')
+    lines = _prose
     rel = spec.relative_to(root)
     criteria = [(i, m) for i, l in enumerate(lines) if (m := SC_LINE.match(l))]
+    # Every id mentioned has to be one the gate read. The fallback below fires only
+    # when NOTHING parsed, so a single id written inline or in a table -- among
+    # criteria that did parse -- vanished with no output, and the run still passed.
+    if criteria:
+        declared = {m.group(1) for _, m in criteria}
+        for name in sorted({m.group(0) for l in lines for m in SC_ANY.finditer(l)} - declared):
+            bad.append(f"{rel}: mentions {name} but never declares it. Write it as "
+                       f"'**{name}**' at the head of a line or list item, or stop "
+                       f"naming it as a criterion")
     if not criteria:
         loose = sorted({m.group(0) for l in lines for m in [SC_ANY.search(l)] if m})
         if loose:
@@ -69,7 +106,14 @@ for spec in specs:
 
     for idx, (i, m) in enumerate(criteria):
         sc = m.group(1)
+        # Ends at the next criterion OR the next heading. Without the heading the
+        # final criterion ran to end of file, so a '*Verifier:*' written anywhere
+        # below -- in an appendix showing the convention -- was read as its own.
         end = criteria[idx + 1][0] if idx + 1 < len(criteria) else len(lines)
+        for j in range(i + 1, end):
+            if re.match(r'^[ \t]*#{1,6}[ \t]', lines[j]):
+                end = j
+                break
         vlines = [l for l in lines[i:end] if V_LINE.match(l)]
         if len(vlines) != 1:
             bad.append(f"{rel} {sc}: has {len(vlines)} verifier lines, expected exactly one")
@@ -167,7 +211,7 @@ for spec in specs:
                 missing = True
         # The table is what a reader scans, so it must not show a broken criterion in
         # the same column as a working one.
-        rows.append(f"  {sc:<10}{('missing' if missing else 'runs'):<12}{' '.join(spans)[:56]}")
+        rows.append(f"  {sc:<10}{('missing' if missing else 'exists'):<12}{' '.join(spans)[:56]}")
 
 print(f"  {'criterion':<10}{'kind':<12}verifier")
 for r in rows:
@@ -178,5 +222,6 @@ if bad:
     for b in bad:
         print(f"FAIL {b}")
     sys.exit(1)
-print("\nEvery success criterion names a verifier that runs, or says why none does.")
+print("\nEvery success criterion names a verifier that exists and is executable, "
+      "or says why none does.")
 PY

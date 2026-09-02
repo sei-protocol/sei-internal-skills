@@ -1,7 +1,6 @@
 exit: 0
   criterion kind        verifier
   SC-001    exists      tools/measure.sh
-  SC-002    judgement   a second scorer reads ten answers and compares.
-  SC-003    not built   no check reads the registry for a missing model.
+  SC-002    exists      tools/measure.sh
 
 Every success criterion names a verifier that exists and is executable, or says why none does.
