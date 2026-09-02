@@ -1,0 +1,126 @@
+# Trigger for the seidroid review, whose logic lives in sei-protocol/uci and whose
+# reviewer binary lives in sei-protocol/sei-internal-skills. This file is only the
+# wiring: the triggers, the permissions, the three secrets, and which of the three
+# dispatches an event is.
+#
+# MANUAL REVIEWS ONLY. There is no `pull_request` trigger for reviewing,
+# deliberately: a review costs model spend and holds a sandbox for minutes, so it
+# happens because a person asked for it. `ai-review.yml` is the automatic path and
+# keeps running unchanged. The one `pull_request` trigger here reclaims a session and
+# never reviews.
+#
+# Comment on a pull request with a line reading:
+#
+#   @seidroid review                     review this pull request
+#   @seidroid review owner/name#123      review a pull request elsewhere
+#   @seidroid review close               destroy this pull request's session now
+#
+# The reusable workflow re-parses the body as a whole anchored line and gates on team
+# membership, so the `contains()` filters below are a cheap pre-filter and not the
+# access control. They do decide the MODE, though, which is why the review filter
+# excludes the close phrase: the reusable workflow takes `mode` from this file and
+# does not second-guess it.
+#
+# Three GitHub behaviours to know before expecting this to run:
+#
+#   1. `issue_comment` workflows are always taken from the DEFAULT BRANCH. A copy of
+#      this file on a feature branch never fires, whatever is commented on that
+#      branch's pull request. It has to be on the default branch first -- and only
+#      then does commenting on any open pull request work, including the one that
+#      added it. The pull request that adds this file therefore cannot test it.
+#
+#   2. `issue_comment` fires for issues as well as pull requests, which is why every
+#      job below tests `github.event.issue.pull_request != null`.
+#
+#   3. An `issue_comment` run is attached to the default branch, not to the pull
+#      request. The job-level check runs from this file land on the default branch's
+#      commit list; the review's own verdict check lands on the reviewed head. The
+#      job ids below are deliberately not `review`, so that neither list ends up
+#      holding two differently-sourced entries under one name.
+name: seidroid review
+
+on:
+  issue_comment:
+    types: [created]
+  # Reclamation, not review. The session is keyed on the pull request and outlives
+  # every run, which is what lets a second review say what changed -- and nothing else
+  # reclaims it. The launcher sets no lifetime cap and the server runs no sweep, so a
+  # close that never arrives leaves a pod holding its reserved cpu and memory
+  # indefinitely. This event fires only for pull requests in THIS repository, so a
+  # cross-repository review still needs `@seidroid review close`.
+  pull_request:
+    types: [closed]
+
+permissions: {}
+
+jobs:
+  seidroid-review:
+    # `@seidroid review` present and `@seidroid review close` absent. Both are
+    # substrings of the close command, so the exclusion is what keeps a close from
+    # also starting a review. Matched with the leading `@` so a body merely
+    # containing the words does not route.
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      contains(github.event.comment.body, '@seidroid review') &&
+      !contains(github.event.comment.body, '@seidroid review close')
+    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@feat/seidroid-review
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    # Named, not `secrets: inherit`. Two reasons, and the first is why this would not
+    # have worked at all: inherit matches by NAME, and the reviewing App's credentials
+    # are org secrets named for the app rather than for the bot, so SEIDROID_APP_ID
+    # would arrive empty, the reviewer identity would be unavailable, and the team
+    # check -- which fails closed -- would deny every request.
+    #
+    # The second is the trust boundary. The reusable workflow lives in another
+    # repository, on a branch, so inherit would hand every secret this repository can
+    # see -- AWS keys included -- across that boundary for no reason.
+    secrets:
+      OMNIGENT_MACHINE_CLIENT_SECRET: ${{ secrets.OMNIGENT_MACHINE_CLIENT_SECRET }}
+      SEIDROID_APP_ID: ${{ secrets.PLATFORM_CODE_AGENT_APP_ID }}
+      SEIDROID_APP_PRIVATE_KEY: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
+    with:
+      mode: review
+      # A revision of sei-protocol/sei-internal-skills, not of uci. Verified to
+      # resolve from an empty module cache to
+      # v0.10.5-0.20260901214354-09ee41de6769.
+      driver-version: 09ee41de67699839b35f91b45f0f635a009ffa07
+      allowed-team: 'sei-protocol/sei-core'
+
+  seidroid-review-close:
+    if: >-
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      contains(github.event.comment.body, '@seidroid review close')
+    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@feat/seidroid-review
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    secrets:
+      OMNIGENT_MACHINE_CLIENT_SECRET: ${{ secrets.OMNIGENT_MACHINE_CLIENT_SECRET }}
+      SEIDROID_APP_ID: ${{ secrets.PLATFORM_CODE_AGENT_APP_ID }}
+      SEIDROID_APP_PRIVATE_KEY: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
+    with:
+      mode: close
+      driver-version: 09ee41de67699839b35f91b45f0f635a009ffa07
+      allowed-team: 'sei-protocol/sei-core'
+
+  # The only thing that reclaims a sandbox without a person remembering to ask.
+  seidroid-review-reclaim:
+    if: github.event_name == 'pull_request'
+    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@feat/seidroid-review
+    permissions:
+      contents: read
+      pull-requests: write
+      checks: write
+    secrets:
+      OMNIGENT_MACHINE_CLIENT_SECRET: ${{ secrets.OMNIGENT_MACHINE_CLIENT_SECRET }}
+      SEIDROID_APP_ID: ${{ secrets.PLATFORM_CODE_AGENT_APP_ID }}
+      SEIDROID_APP_PRIVATE_KEY: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
+    with:
+      mode: close
+      driver-version: 09ee41de67699839b35f91b45f0f635a009ffa07
