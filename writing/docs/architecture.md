@@ -2,7 +2,7 @@
 
 This document follows arc42 and omits an empty section.
 
-## 1. Goals
+## 1. Introduction and goals
 
 Give any AI model the smallest context that makes its written output better, and make the
 improvement explainable and measurable by a third party.
@@ -19,7 +19,7 @@ Three quality goals, in priority order:
 ## 2. Constraints
 
 - ASD owns the copyright in ASD-STE100. The repository MUST NOT contain the
-  specification or its dictionary. See `NOTICE.md`.
+  specification or its dictionary. See `writing/NOTICE.md`.
 - Vale checks patterns. It has no model of meaning, so a rule that needs judgement
   cannot exist.
 - Model behaviour changes between versions. Anchor recognition is therefore a test
@@ -85,7 +85,7 @@ rule.
 
 ## 9. Decisions
 
-See `docs/adr/`.
+See `writing/docs/adr/`.
 
 ## 10. Quality requirements
 
@@ -96,7 +96,7 @@ See `docs/adr/`.
 - IF a rule needs judgement, THEN the registry SHALL list it under `not_checkable`
   instead.
 
-## 11. Risks
+## 11. Risks and technical debt
 
 | Risk | Mitigation |
 |---|---|

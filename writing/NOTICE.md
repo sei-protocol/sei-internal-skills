@@ -28,9 +28,9 @@ Consequences for this repository:
    hand-written seed of plain-language substitutions today.
    `writing/scripts/sync-openste.sh` will replace that seed from the separately
    licensed OpenSTE wordset (MIT). PR #364 brings the script.
-4. Disclaimer, which must stay in the README of any fork: this work is an
-   approximation of ASD-STE100. It is not certified. It is not affiliated with or
-   endorsed by ASD or STEMG. A passing Vale run is not a certificate of compliance.
+4. `writing/README.md` carries the disclaimer, which states that this work approximates
+   ASD-STE100 and that no Vale run certifies it. A fork keeps that section. The
+   words live there and not here, because two copies of a disclaimer drift.
 
 ## OpenSTE wordset
 

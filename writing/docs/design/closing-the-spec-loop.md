@@ -226,9 +226,9 @@ failure mode is quiet.
 
 ## References
 
-- `docs/design/v2-artifact-pipeline.md` — the artifact shape this extends
-- `docs/adr/0001-anchors-plus-linter-not-prompts.md` — why both, and the seam
-- `docs/architecture.md` — goals, constraints, and the registry as source of truth
+- `writing/docs/design/v2-artifact-pipeline.md` — the artifact shape this extends
+- `writing/docs/adr/0001-anchors-plus-linter-not-prompts.md` — why both, and the seam
+- `writing/docs/architecture.md` — goals, constraints, and the registry as source of truth
 - `writing/anchors/registry.yaml` — the schema any new anchor must fit
 - Semantic Anchors catalogue: https://llm-coding.github.io/Semantic-Anchors/ —
   Mutation Testing, Red/Green TDD, and the contracts-not-anchors rule for thin

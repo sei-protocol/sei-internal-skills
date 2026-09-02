@@ -145,8 +145,8 @@ glossary, no boundary statement, and no task traceability. Every one of those ga
 place an implementer invents something.
 
 **Flat specs with a domain field.** Rejected as the primary encoding. A field needs a
-script to validate; the glob that gates a path validates it. A later change may still want
-added later as redundancy.
+script to validate; the glob that gates a path validates it. A later change may still add
+the field as redundancy.
 
 **Clean Architecture as the layering inside a sub-domain.** Not adopted as a default. Its
 own anchor page carries the criticism: Bogard and Comartin argue the indirection does not
@@ -190,7 +190,7 @@ decide who acts before writing the sentence. That is the cost, and it is also th
 ## References
 
 - `writing/specs/001-anchored-agentic-tooling/spec.md` — the four channels this shape fills.
-- `docs/writing-modes.md` — the existing three gates and how to add a fourth.
+- `writing/docs/writing-modes.md` — the existing three gates and how to add a fourth.
 - `writing/anchors/registry.yaml` — steward, licence and recognition status per anchor.
 - Semantic Anchors — <https://llm-coding.github.io/Semantic-Anchors/>
 - Kiro documentation — <https://kiro.dev/docs/cli/>

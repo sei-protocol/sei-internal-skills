@@ -144,3 +144,12 @@ rule fix reaches it when it raises the pin.
 Every rule file opens with the clause it enforces and the standard that clause
 comes from. A rule that cannot express a constraint says so rather than
 approximating it.
+
+## Disclaimer
+
+This work is an approximation of ASD-STE100. It is not certified. It is not
+affiliated with or endorsed by ASD or STEMG. A passing Vale run is not a
+certificate of compliance.
+
+Keep this section in a fork. `writing/NOTICE.md` holds the licensing boundary
+for every standard this repository names.
