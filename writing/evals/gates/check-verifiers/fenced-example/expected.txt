@@ -1,0 +1,5 @@
+exit: 0
+  criterion kind        verifier
+  SC-001    exists      tools/measure.sh
+
+Every success criterion names a verifier that exists and is executable, or says why none does.
