@@ -64,7 +64,12 @@ jobs:
       github.event.issue.pull_request != null &&
       contains(github.event.comment.body, '@seidroid review') &&
       !contains(github.event.comment.body, '@seidroid review close')
-    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@feat/seidroid-review
+    # PINNED TO A COMMIT, NOT THE BRANCH. The branch is where the pilot iterates,
+    # but a mutable ref means a later push to it changes what runs here, with this
+    # repository's secrets, without a change here to review. A sha is what stops
+    # that, and it is the property ai-review.yml already has by pinning eb65d6d.
+    # This is the branch tip; advancing it is a one-line change and a reviewed one.
+    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@c99714ab6435f321ab674e7c94b03960edaabcfa
     permissions:
       contents: read
       pull-requests: write
@@ -95,7 +100,7 @@ jobs:
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request != null &&
       contains(github.event.comment.body, '@seidroid review close')
-    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@feat/seidroid-review
+    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@c99714ab6435f321ab674e7c94b03960edaabcfa
     permissions:
       contents: read
       pull-requests: write
@@ -109,10 +114,23 @@ jobs:
       driver-version: 09ee41de67699839b35f91b45f0f635a009ffa07
       allowed-team: 'sei-protocol/sei-core'
 
-  # The only thing that reclaims a sandbox without a person remembering to ask.
+  # The only thing that reclaims a sandbox without a person remembering to ask --
+  # AND IT DOES NOT COVER A FORK. GitHub withholds repository secrets from a
+  # `pull_request` run whose head is a fork, so all three arrive empty here, the
+  # driver cannot mint, and the close fails. There is no lifetime cap and no
+  # server-side sweep, so that pod holds its reserved cpu and memory until somebody
+  # asks. ON A FORK PULL REQUEST, COMMENT `@seidroid review close` BEFORE MERGING --
+  # an issue_comment run does receive secrets.
+  #
+  # The durable fix is `pull_request_target: [closed]`, which runs in the base
+  # repository's context and does receive secrets. It is safe here for a reason
+  # worth stating rather than assuming: this workflow checks nothing out, so no fork
+  # code runs on the runner. It still needs a change inside the reusable workflow,
+  # whose condition tests `github.event_name == 'pull_request'` and would not match,
+  # so it goes through its own review rather than riding in a caller.
   seidroid-review-reclaim:
     if: github.event_name == 'pull_request'
-    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@feat/seidroid-review
+    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@c99714ab6435f321ab674e7c94b03960edaabcfa
     permissions:
       contents: read
       pull-requests: write
