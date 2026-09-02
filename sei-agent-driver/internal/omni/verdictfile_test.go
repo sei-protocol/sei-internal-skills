@@ -39,7 +39,7 @@ func TestVerdictFileIsWrittenOnlyForAStructuredVerdict(t *testing.T) {
 	}
 	t.Parallel()
 
-	bin := filepath.Join(t.TempDir(), "xreview")
+	bin := filepath.Join(t.TempDir(), "review")
 	if out, err := exec.Command("go", "build", "-o", bin, "../../cmd/sei-agent-driver").
 		CombinedOutput(); err != nil {
 		t.Fatalf("building the binary: %v\n%s", err, out)
@@ -104,12 +104,12 @@ func TestVerdictFileIsWrittenOnlyForAStructuredVerdict(t *testing.T) {
 			})
 
 			out := filepath.Join(t.TempDir(), "verdict.md")
-			cmd := exec.Command(bin, "xreview", "sei-protocol/sandbox", "70", "--out", out)
+			cmd := exec.Command(bin, "review", "sei-protocol/sandbox", "70", "--out", out)
 			cmd.Env = append(os.Environ(),
 				"OMNIGENT_BASE_URL="+fs.URL,
 				"OMNIGENT_API_TOKEN=test-token",
 				"SEIDROID_AGENT_ID="+verdictFileAgent,
-				"XREVIEW_RUN_DEADLINE_S=60",
+				"SEIDROID_RUN_DEADLINE_S=60",
 				"GITHUB_RUN_ID=verdictfile",
 				"GITHUB_RUN_ATTEMPT="+string(rune('a'+i)),
 			)

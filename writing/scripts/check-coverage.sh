@@ -97,6 +97,27 @@ for aid, fname in sorted(declared.items()):
     if fname != f'{aid}.yml':
         bad.append(f"{fname}: owns anchor '{aid}' — the admission gate reads coverage/{aid}.yml and will not find it")
 
+# A COVERAGE WORD IS A CLAIM, AND THE MANIFEST IS THE EVIDENCE. Comparing rule
+# names alone let an anchor say `coverage: full` with `not_checkable: []` while
+# its own coverage file recorded a topic as `false`. The registry is the single
+# source of truth, so a disagreement about how complete it is matters more than
+# a disagreement about which rules it names.
+for a in reg['anchors']:
+    cov_file = declared.get(a['id'])
+    if cov_file:
+        doc = yaml.safe_load((cov_dir / cov_file).read_text()) or {}
+        gaps = [k for k, v in (doc.get('topics') or {}).items() if v is False]
+        word = a['verifier'].get('coverage')
+        if word == 'full' and gaps:
+            bad.append(f"registry says '{a['id']}' has coverage: full, and {cov_file} "
+                       f"records {len(gaps)} unchecked topic(s): {', '.join(sorted(gaps))}")
+        if word == 'full' and (a['verifier'].get('not_checkable') or []):
+            bad.append(f"registry says '{a['id']}' has coverage: full and then lists "
+                       f"what it cannot check. One of the two is wrong")
+        if word == 'partial' and not gaps and not (a['verifier'].get('not_checkable') or []):
+            bad.append(f"registry says '{a['id']}' has coverage: partial and names no gap, "
+                       f"in {cov_file} or in not_checkable. Say what is missing, or say full")
+
 for a in reg['anchors']:
     want = {x.split('.', 1)[1] for x in (a['verifier'].get('rules') or [])}
     got = cov_by_anchor.get(a['id'], set())

@@ -10,9 +10,10 @@
 #       permissions:
 #         contents: read
 #         pull-requests: write
+#         checks: write
 #
 # The rules come from the same ref the caller pinned. This workflow reads its own
-# ref out of github.workflow_ref, so the rules and the job can never disagree
+# ref out of github.job_workflow_ref, so the rules and the job can never disagree
 # about which version they are.
 #
 # NOT github.workflow_ref. That is the ENTRY workflow — the caller's file, at the
@@ -23,7 +24,7 @@
 #
 #     fatal: couldn't find remote ref refs/pull/352/merge
 #
-# github.workflow_ref is the reusable workflow's own ref, which is what the
+# github.job_workflow_ref is the reusable workflow's own ref, which is what the
 # comment above always claimed this read. Only a real cross-repository call can
 # tell the two apart, so no local test found it.
 name: writing contract
@@ -40,7 +41,10 @@ on:
         required: false
         default: ''
       fail_level:
-        description: 'Severity that fails the job: error, warning or suggestion.'
+        description: |
+          Severity that fails the job: none, any, info, warning or error.
+          These are reviewdog's levels, not Vale's -- a Vale suggestion arrives
+          as info, and the literal 'suggestion' is rejected with a usage dump.
         type: string
         required: false
         default: error
@@ -48,18 +52,30 @@ on:
 jobs:
   vale:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
+      # The token is not needed after any checkout here: nothing pushes, and the
+      # rules are fetched over the same API. Left at its default it is written
+      # into .git/config, where the code fetched below can read it -- and that
+      # token carries the write permissions this workflow documents.
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Resolve the rules ref
         id: rules
         env:
           # owner/repo/.github/workflows/file.yml@refs/tags/v1
           WORKFLOW_REF: ${{ github.job_workflow_ref }}
-          REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          ref="${WORKFLOW_REF##*@}"
+          # Split on the FIRST `@`. A Git ref may contain one -- only `@{` and a
+          # bare `@` are excluded -- so a caller pinned to `release@2024` made
+          # the last-match form yield `2024`, and a ref of that name existing
+          # here would have fetched a different rule set without failing. The
+          # prefix is owner/repo/.github/workflows/<file>.yml, and neither an
+          # owner nor a repository name can contain `@`.
+          ref="${WORKFLOW_REF#*@}"
           if [ -z "$ref" ] || [ "$ref" = "$WORKFLOW_REF" ]; then
             echo "could not read a ref out of '$WORKFLOW_REF'" >&2
             echo "job_workflow_ref should look like owner/repo/.github/workflows/f.yml@ref" >&2
@@ -69,32 +85,54 @@ jobs:
             refs/pull/*)
               echo "resolved '$ref', which is a pull-request ref in the calling" >&2
               echo "repository, not a ref of the rules. That is what reading" >&2
-              echo "github.workflow_ref instead of github.workflow_ref does." >&2
+              echo "github.workflow_ref instead of github.job_workflow_ref does." >&2
               exit 1 ;;
           esac
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "Rules ref: $ref"
 
+      # No token is passed, and none is needed: sei-protocol/sei-internal-skills is
+      # public. A cross-repository checkout runs with the caller's default
+      # GITHUB_TOKEN, scoped to the calling repository, so if this repository ever
+      # goes private a consumer granted workflow_call access would still fail to
+      # authenticate here -- and so would the unauthenticated clone in install.sh.
+      # Going private means adding an optional token input to this workflow, not
+      # just changing a setting.
       - name: Fetch the writing rules
         uses: actions/checkout@v4
         with:
           repository: sei-protocol/sei-internal-skills
           ref: ${{ steps.rules.outputs.ref }}
           path: .vale/src
+          # This tree holds the scripts the next step executes. Persisting the
+          # caller's token here would leave it readable on disk to code that
+          # arrived with this checkout.
+          persist-credentials: false
           # The rules are one directory of a large repository. Fetching the rest
           # costs every consumer a full checkout on every lint run.
+          # Cone mode, which is what selects a subtree. In non-cone mode the
+          # pattern is gitignore-style: `writing` names an entry, not the tree
+          # beneath it, so the checkout arrived without consumer-lint-setup.sh or
+          # the styles and every consumer's lint failed on the fetch rather than
+          # on a finding.
           sparse-checkout: writing
-          sparse-checkout-cone-mode: false
 
       # vale-action brings its own Vale, but the setup below runs `vale sync`
       # before it, so one has to be on PATH first. Pinned to the floor this
       # repository's rules need: on 3.14.0 a sequence of tag: tokens matches
       # nothing and a rule silently stops firing.
+      # Checksummed, because this runs in every consuming repository with
+      # pull-requests: write. Piping a release tarball straight into tar puts
+      # whatever that URL serves on the PATH of a job holding the consumer's token.
+      # This repository's own job already records the digest.
       - name: Install Vale
         run: |
           VALE_VERSION=3.17.1
-          curl -sfL "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" \
-            | tar -xz -C /usr/local/bin vale
+          VALE_SHA256=db947f89f2292e6a0381a61de155f6a5f5cb4cb460ca178ea412ef605559cefd
+          curl -sfL --retry 3 --retry-all-errors --max-time 120 -o /tmp/vale.tgz \
+            "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
+          echo "${VALE_SHA256}  /tmp/vale.tgz" | sha256sum -c -
+          tar -xz -C /usr/local/bin -f /tmp/vale.tgz vale
           vale --version
 
       # Both steps live in a script so this workflow can be tested. Inline
@@ -112,9 +150,21 @@ jobs:
       # files, which are not this repository's prose to fix.
       - name: Lint prose against the writing contract
         if: steps.paths.outputs.files != ''
-        uses: vale-cli/vale-action@reviewdog
+        # Pinned to a commit, not the mutable `reviewdog` branch. A force-push to
+        # that branch runs its author's code against every consumer's token, since
+        # the caller is documented to grant pull-requests: write. Same pin this
+        # repository's own job uses.
+        uses: vale-cli/vale-action@518a9136acc6e6668ce7c00d367051e0941e87ff # reviewdog
         with:
-          reporter: github-pr-review
+          # The Vale installed above is the one that lints. Left unset, this input
+          # defaults to latest and the action downloads its own, so the version
+          # floor and the checksum would govern only vale sync -- and every
+          # consumer would lint on whatever Vale shipped that morning.
+          version: none
+          # github-pr-review reports nothing when there is no pull request:
+          # reviewdog logs "this is not PullRequest build." and exits 0. A push to
+          # main would pass silently rather than report, so it takes github-check.
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
           fail_level: ${{ inputs.fail_level }}
           files: ${{ steps.paths.outputs.files }}
           vale_flags: '--no-global --glob=!.vale/**'

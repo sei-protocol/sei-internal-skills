@@ -57,6 +57,7 @@ inside the sub-domain it implements. The path is the relationship.
 
 ### The artifacts and their anchors
 
+<!-- vale AgenticWriting.STE-NounCluster = NO -->
 | Artifact | Semantic Anchors | Stated in text, no anchor |
 |---|---|---|
 | `hld.md` | arc42 · C4 model · Domain-Driven Design | the sub-domain declaration |
@@ -64,6 +65,7 @@ inside the sub-domain it implements. The path is the relationship.
 | `plan.md` | arc42 · Clean Architecture · ADR (Nygard) | revalidation triggers |
 | `tasks.md` | TDD · Property-Based Testing · ISO/IEC/IEEE 29148 traceability | the task annotations |
 | implementation | Effective Go · Go Code Review Comments · Google Go Style Guide · Code Smells | the step-structure rule, stated in the contract |
+<!-- vale AgenticWriting.STE-NounCluster = YES -->
 
 Effective Go carries one documented gap: it predates modules and generics, so it says
 nothing about either.
@@ -79,9 +81,9 @@ something the upstream template leaves to the author.
 | `## Boundary Context` — what this spec is inside | `spec.md` | A spec with no stated boundary grows while it is open. |
 | `**Objective:** As a <role>, I want <X>, so that <Y>` | each requirement | Names the beneficiary. Spec Kit separates stories from requirements and permits an orphan requirement. |
 | Acceptance criteria in EARS **with a named actor** | each requirement | `THE Controller SHALL...` names who acts. `System MUST` does not. |
-| `## Boundary Commitments` — Owns · Out of Boundary · Allowed Dependencies | `plan.md` | Makes the Clean Architecture dependency rule explicit and reviewable. |
+| `## Boundary Commitments` — Owns · Out of Boundary · Allowed Dependencies | `plan.md` | Makes the dependency rule of Clean Architecture explicit and reviewable. |
 | `### Revalidation Triggers` | `plan.md` | The escalation mechanism. See below. |
-| `### Existing Architecture Analysis` | `plan.md` | Forces the as-is to be read before the to-be is written. This is the section that prevents a confident description of a system nobody looked at. |
+| `### Existing Architecture Analysis` | `plan.md` | Forces the author to read the as-is before writing the to-be. This is the section that prevents a confident description of a system nobody looked at. |
 
 ### The task annotations
 
@@ -104,7 +106,7 @@ The strongest borrow. Every task carries five things:
 | `_Depends:_` | Ordering constraint | — |
 | `(P)` | Safe to run in parallel | — |
 
-Test-first is written into the task text, not assumed from a policy elsewhere.
+The task text states test-first, rather than leaving it to a policy elsewhere.
 
 ### Escalation
 
@@ -127,7 +129,7 @@ Each level gets a Vale mode, scoped by its path. Three modes exist. Two are new.
 | HLD (new) | `docs/design/*/hld.md` | Sub-domains declared |
 | Plan (new) | `**/plan.md` | Boundary Commitments · Revalidation Triggers · Existing Architecture Analysis |
 
-Traceability needs a script rather than a lint rule. A Vale rule cannot confirm that
+Traceability needs a script rather than a lint rule. A Vale rule has no way to confirm that
 every task's `_Requirements:_` resolves to a real acceptance criterion, because it cannot
 compare two token sets.
 
@@ -138,26 +140,26 @@ and upstream tracking, in exchange for filenames. The internals carry the value 
 port without the runtime.
 
 **Keep Spec Kit unchanged.** Rejected. Its template writes `System MUST [capability]`,
-separates stories from requirements so an orphan requirement is permitted, and has no
+separates stories from requirements, so it allows an orphan requirement, and has no
 glossary, no boundary statement, and no task traceability. Every one of those gaps is a
 place an implementer invents something.
 
 **Flat specs with a domain field.** Rejected as the primary encoding. A field needs a
-script to validate; a path is validated by the glob that gates it. The field may still be
-added later as redundancy.
+script to validate; the glob that gates a path validates it. A later change may still add
+the field as redundancy.
 
 **Clean Architecture as the layering inside a sub-domain.** Not adopted as a default. Its
 own anchor page carries the criticism: Bogard and Comartin argue the indirection does not
 pay because most changes traverse every layer, and Bogard offers Vertical Slice
 Architecture instead. It also collides with this team's own Go idiom rule that three
-similar lines beat a premature helper. Clean Architecture is used for the dependency
+similar lines beat a premature helper. The design takes Clean Architecture for the dependency
 direction between sub-domains, and it is not imposed within one.
 
 ## Trade-offs
 
 **Seven deltas is a maintenance surface.** Every delta is a place where the vendored
 template and our contract can diverge when Spec Kit ships a new version. The mitigation
-is that each delta is stated once, in one reference file, and gated by a rule that fails
+is that one reference file states each delta once, and a rule that fails
 when the section disappears.
 
 **A directory hierarchy is rigid.** Moving a spec between sub-domains is a directory
@@ -167,9 +169,9 @@ relationship checkable without a script.
 **Excalidraw is not verifiable.** C4's named tooling is Structurizr, and diagram-as-code
 stays true because it is text. An Excalidraw scene drifts from the system silently, which
 is the failure this repository exists to prevent. The C4 levels that must stay true are
-therefore Mermaid, which is text, diffable, and renders in the places we read. Excalidraw is
+therefore Mermaid, which is text, diffable, and renders in the places we read. Excalidraw stays
 reserved for the one genuinely complex subsystem where expressiveness wins and the drift
-is accepted knowingly.
+we accept knowingly.
 
 **Actor-named EARS is more work to write.** `THE Controller SHALL` requires the author to
 decide who acts before writing the sentence. That is the cost, and it is also the benefit.
@@ -178,17 +180,17 @@ decide who acts before writing the sentence. That is the cost, and it is also th
 
 1. **Does `state.json` belong in this repository or in the harness?** A phase-and-approval
    file is state, and this repository has held no state until now.
-2. **Who validates `_Requirements:_` resolution?** A script is needed. Whether it lives in
+2. **Who validates `_Requirements:_` resolution?** This needs a script. Whether it lives in
    CI here or in the consuming repository is undecided.
 3. **Does the HLD need `## Sub-domains` as a heading, or is the directory listing the
    declaration?** A heading is checkable; a directory listing cannot drift.
 4. **Glossary and Boundary Context are separate sections in different Kiro generations.**
-   Whether both are required, or one subsumes the other, needs a worked example.
+   Whether the design needs both, or one subsumes the other, needs a worked example.
 
 ## References
 
 - `writing/specs/001-anchored-agentic-tooling/spec.md` — the four channels this shape fills.
-- `docs/writing-modes.md` — the existing three gates and how to add a fourth.
+- `writing/docs/writing-modes.md` — the existing three gates and how to add a fourth.
 - `writing/anchors/registry.yaml` — steward, licence and recognition status per anchor.
 - Semantic Anchors — <https://llm-coding.github.io/Semantic-Anchors/>
 - Kiro documentation — <https://kiro.dev/docs/cli/>

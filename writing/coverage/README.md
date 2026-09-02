@@ -58,12 +58,19 @@ than assumed away:
   covered by the registry cross-check.
 - **A duplicate topic key.** PyYAML keeps the last one silently, so a recorded
   gap can vanish and the count still passes.
-- **A coverage file for an anchor that does not exist**, an anchor with no
-  coverage file, and two files claiming the same anchor. The last also
-  overwrites a row in the report, so the human-readable output can be wrong
-  while the machine check passes.
-- **A file that parses to a list** fails by traceback rather than through the
-  `FAIL` channel.
+- **An anchor with no coverage file.** The cross-check reads the registry's
+  rules, so an anchor that credits none is never missed.
+- **Two files claiming the same anchor.** The filename must match the anchor id,
+  so the collision is hard to reach. A second file still overwrites a row in the
+  printed report while the machine check passes.
+
+Two entries used to sit in this list and the script that landed beside it catches
+both. Leaving them here understated the gate:
+
+- a coverage file naming an anchor the registry does not list fails with
+  `claims anchor '<id>', which the registry does not list`
+- a file that parses to a list fails through the `FAIL` channel with
+  `does not parse to a mapping`, not by traceback
 
 ## On copyright
 
