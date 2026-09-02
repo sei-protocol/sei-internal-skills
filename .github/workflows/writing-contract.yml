@@ -10,6 +10,7 @@
 #       permissions:
 #         contents: read
 #         pull-requests: write
+#         checks: write
 #
 # The rules come from the same ref the caller pinned. This workflow reads its own
 # ref out of github.job_workflow_ref, so the rules and the job can never disagree

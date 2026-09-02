@@ -3,11 +3,14 @@
 #
 #   curl -fsSL https://raw.githubusercontent.com/sei-protocol/sei-internal-skills/main/writing/scripts/install.sh | bash
 #
-# That is the whole setup. After it, `vale` works in any directory, with no
-# per-project configuration and nothing to commit.
+# That links the rules into your user Vale directory. A user-level .vale.ini has
+# to select them, and this script does not write one: the reference config it used
+# to copy lives in the standalone repository and was not carried across. Until it
+# is, machine mode gets you the rules and you supply the configuration -- or use
+# repo mode below, which installs a working one.
 #
-# WHICH RULES RUN DEPENDS ON WHERE THE FILE SITS. The contract is a directory
-# convention rather than a config file:
+# WHICH RULES RUN DEPENDS ON WHERE THE FILE SITS, once a configuration selects
+# the rules. The contract is a directory convention rather than a config file:
 #
 #   specs/<feature>/spec.md   spec structure, RFC 2119 casing, prose
 #   docs/adr/NNNN-name.md     the four Nygard sections, prose, no sentence cap
@@ -24,7 +27,8 @@
 #   ~/.agentic-writing              the checkout, holding the rules under
 #                                   writing/ and the templates beside them
 #   <user vale dir>/styles/         symlinks to the rules, so vale finds them
-#   <user vale dir>/.vale.ini       the fallback config, if you have none
+#
+# It writes no .vale.ini. See the note at the top.
 #
 # It is idempotent. Re-run it to pick up new rules.
 #
