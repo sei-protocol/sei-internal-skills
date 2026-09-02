@@ -1,0 +1,5 @@
+exit: 1
+  criterion kind        verifier
+  SC-001    exists      tools/measure.sh
+
+FAIL specs/case/spec.md: mentions SC-002 but never declares it. Write it as '**SC-002**' at the head of a line or list item, or stop naming it as a criterion

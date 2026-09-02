@@ -158,7 +158,7 @@ than restating them, so a finding leads to a clause somebody else published.
 [`writing/CONTEXT.md`](writing/CONTEXT.md) is the short form, generated from the
 registry. Load that one into an agent. Read the long one yourself.
 
-Vale checks the checkable part. Run `vale --no-global writing/` before you push,
+Vale checks the checkable part. Run `./writing/scripts/lint.sh` before you push,
 or read `writing/README.md` for the rest.
 
 The contract sits in its own file rather than in a section here. A sync script

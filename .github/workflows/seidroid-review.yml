@@ -1,0 +1,1046 @@
+name: seidroid review
+run-name: seidroid review / ${{ github.event.issue.number && format('#{0}', github.event.issue.number) || github.ref_name }}
+# Reusable, comment-triggered agentic PR review, driven by the sei-agent-driver
+# binary in this repository. A thin caller in the reviewed repo wires the triggers
+# and calls this with `uses:`. Flow: comment `@seidroid review` on a pull request
+# -> guard gate -> install and run the driver over one managed omnigent session ->
+# post one sticky verdict, the findings it can place, and a check run.
+#
+# MANUAL ONLY, deliberately. There is no `pull_request` trigger and callers must not
+# add one: a review costs model spend and holds a sandbox, so it happens because a
+# person asked for it. The sibling `ai-review.yml` is the automatic path; this is not
+# a second copy of it.
+#
+# The driver is installed with `go install` at `driver-version`, which the caller pins,
+# so a caller updates by bumping one ref and this file never copies driver logic. The session is
+# keyed on the pull request and OUTLIVES the run, which is why `mode: close` exists:
+# it is the only thing that reclaims a sandbox.
+#
+# What changed versus the Python driver's workflow, and why:
+#   - No runtime dependency install of the reviewer itself. The binary comes from
+#     `go install` against the module's committed go.sum, so no package-manager
+#     step runs unpinned code on a runner that is about to hold a live credential.
+#   - No curl mint step, and no bearer token ever appears in a step output.
+#     The driver mints its own session bearer in-process from
+#     OMNIGENT_MACHINE_CLIENT_ID + OMNIGENT_MACHINE_CLIENT_SECRET
+#     (client_credentials). The secret is wired as JOB-level env on the
+#     `review` job below, never as step-level env on a `uses:` step --
+#     step-level env on a `uses:` step does not reach a composite action, and
+#     that exact defect broke every real run of the original Python workflow.
+#   - Every GitHub-supplied value (repo, PR number, comment id) is routed
+#     through env vars and read as "$VAR" in shell -- never interpolated as
+#     ${{ }} directly into a shell or jq command line, so a hostile PR title,
+#     branch name or comment body cannot inject shell/jq syntax.
+#   - The verdict file's ABSENCE means "nothing to post". The posting step
+#     never upserts a placeholder when the driver produced no verdict.
+#   - The outcome is surfaced even when the driver exits non-zero. The
+#     surfacing steps gate on whether a verdict was produced rather than on
+#     the exit code, so a review that reached one still posts it whatever else
+#     went wrong; `!cancelled()` rather than `success()` keeps that true while
+#     still skipping a run superseded by a newer trigger.
+#   - allow-tools is a workflow input, defaulting to Bash,Read because the
+#     prompt's first step is a shell command and a declined prompt therefore
+#     produces a turn that reports it could not read the diff. Its access
+#     control is the trigger gate above, not the allowlist -- see
+#     sei-agent-driver/cmd/sei-agent-driver/README.md.
+on:
+  workflow_call:
+    inputs:
+      mode:
+        description: >-
+          "review" (default) drives a review turn on the pull request's session,
+          keeping the conversation so the next invocation can say what changed.
+          "close" deletes that session instead — the end of the unit of work, and
+          the only thing that reclaims its sandbox.
+        required: false
+        type: string
+        default: 'review'
+      driver-version:
+        description: >-
+          sei-agent-driver version to install: a commit sha of this repository, or a
+          module tag once one is cut. No release yet contains the driver -- the newest
+          predates it -- so pass a sha, which `go install` resolves to a pseudo-version.
+          Verify it from an empty module cache: a warm one is a false green, because it
+          resolves a pin the proxy may never have served.
+
+          Required, with no default. A default ages silently against the subcommands and
+          inputs this file uses, and the caller finds out at run time. Pinning is the
+          caller's decision, so it is the caller's to state.
+        required: true
+        type: string
+      allowed-team:
+        description: >-
+          org/team-slug whose active members may ask for a review. Empty keeps the
+          author-association check below as the only gate, which admits any
+          collaborator on the repository the request was made in — set this to
+          narrow that to a team.
+        required: false
+        type: string
+        default: ''
+      approve-on-success:
+        description: >-
+          Approve the pull request when the review concludes clean. Off by
+          default: ai-review is the automation of record and this one is asked for
+          by hand, so a run should not clear a review requirement until it is the
+          one being relied on. A blocking conclusion requests changes either way.
+        required: false
+        type: boolean
+        default: false
+      skip-review-label:
+        description: >-
+          A label on the reviewed pull request that stops the review. Empty
+          disables the check.
+        required: false
+        type: string
+        default: 'ai: skip-review'
+      guidelines-file:
+        description: >-
+          The repository's own review standards, read from the base branch and
+          outranking the driver's checklist. Empty reads REVIEW.md, which is what
+          ai-review reads and what these repositories keep. Checked before it
+          reaches a command, so a name carrying a shell metacharacter, an absolute
+          path or a parent reference falls back to the default.
+        required: false
+        type: string
+        default: ''
+      extra-instructions:
+        description: >-
+          Guidance this repository adds to every review, alongside the standards
+          above. The one input the review does not treat as data: it comes from
+          this workflow rather than from the pull request.
+        required: false
+        type: string
+        default: ''
+      timeout-minutes:
+        description: >-
+          Cap on the review job. Keep it comfortably above the driver's own
+          SEIDROID_RUN_DEADLINE_S: the driver reports a timeout and the reason it
+          hit one, where the runner killing the job leaves an annotation saying
+          only that the job was cancelled.
+        required: false
+        type: number
+        default: 45
+      runs-on:
+        description: >-
+          Runner label for the review job. Defaults to a GitHub-hosted runner,
+          which pairs with the https base URL below: the two have to describe one
+          topology. An in-cluster group instead would reach an internet-facing
+          NLB from inside its own VPC, which does not hairpin, and would also
+          queue forever on any repository not in that runner group.
+        required: false
+        type: string
+        default: 'ubuntu-latest'
+      omnigent-base-url:
+        description: >-
+          omnigent base URL. The https ingress by default. It cannot be the
+          in-cluster ClusterIP Service, which is plain http on port 80: a
+          credentialed client refuses to be built against it, and the token mint
+          refuses to send the client secret over it.
+        required: false
+        type: string
+        default: 'https://seigent.dev.platform.sei.io'
+      agent-id:
+        description: >-
+          The agent NAME to resolve on the server, as SEIDROID_AGENT_ID. Deployment
+          specific: the driver compiles a default, and a server that calls its agent
+          something else makes that default unresolvable -- a live run against the dev
+          deployment failed with `no agent named "seidroid" on this server`, which
+          nothing in the caller could correct because this input did not exist.
+
+          Empty leaves the driver's own default in place, so a deployment that matches
+          it needs nothing here. There is no lookup by alias: the name must match what
+          the server's agent bundle is called, exactly.
+
+          A mismatch does not present as a configuration error. The name is a join key
+          with the omnigent.ai/agent label the server stamps on the runner Pod and the
+          admission policy that mounts the git credential from it, so a runner that
+          does not match attracts no credential and the review reports that it could
+          not read the repository.
+        required: false
+        type: string
+        default: ''
+
+      machine-client-id:
+        description: "OMNIGENT_MACHINE_CLIENT_ID for the in-process client_credentials mint. Mirrors the server's own OMNIGENT_MACHINE_CLIENT_ID. Not secret on its own -- the id alone cannot mint a token."
+        required: false
+        type: string
+        default: 'seidroid'
+      scouts:
+        description: >-
+          Independent readings to gather before the review, as `name=agent`,
+          comma-separated. Empty runs the review alone, which is what it did
+          before scouts existed. Each scout reads the same pull request in its own
+          session on its own agent bundle, seeing neither the review nor another
+          scout; the review then verifies their claims against the diff and merges
+          what holds. A scout naming the review's own agent is refused, as are two
+          scouts sharing one — neither would be a second opinion. Passed to the driver as
+          SEIDROID_SCOUTS.
+
+          Set this on the CLOSE job too. Scouts hold sessions of their own, and
+          close derives which to delete from this value: unset there, every scout
+          sandbox is left running with nothing able to reclaim it.
+        required: false
+        type: string
+        default: ''
+      claude-model:
+        description: >-
+          Model to answer the review on, substituting for the one the agent's spec
+          names. Empty leaves the spec's own, which is the default. Passed to the driver as
+          SEIDROID_MODEL.
+
+          The server forwards the value as-is and enumerates nothing, so an
+          unrecognised name is not rejected here or at configuration time -- it
+          fails at turn start, and the review is the thing that does not happen.
+
+          It applies to the review's own agent only. A scout runs on another agent,
+          so another harness and another provider, and it keeps its spec's model.
+        required: false
+        type: string
+        default: ''
+      allow-policies:
+        description: >-
+          Comma-separated policy_name values the driver's permission policy
+          accepts automatically (see Policy.Decide in internal/driver/policy.go).
+          Prefer allow-tools: policy_name is claude_native_permission for
+          every native prompt (measured), so any value here accepts every tool
+          call rather than a class of them. Passed to the driver as
+          SEIDROID_ALLOW_POLICIES.
+        required: false
+        type: string
+        default: ''
+      allow-tools:
+        description: >-
+          Comma-separated tool_name values to accept. This deployment does stamp
+          tool_name (measured), so this is the allowlist to prefer: it
+          discriminates per tool. Passed to the driver as
+          SEIDROID_ALLOW_TOOLS.
+
+          Defaults to `Bash,Read` because the review cannot happen without them.
+          The prompt's first step is a `gh pr diff` command, so an empty allowlist
+          does not yield a shallower review -- it yields a turn that reports it
+          could not read the diff. The shell runs inside the agent's own sandbox
+          against its own gh credentials, and the access control on it is the
+          trigger: only a sei-protocol developer can write the line that starts a
+          review.
+
+          `Read` is measured, not assumed. A read inside the agent's working
+          directory raises no prompt, so the staged diff needs no grant; a read
+          outside one does, and a recorded run had exactly that refused and spent
+          three extra tool calls recovering. The diff now stages into the working
+          directory, so this grant is the belt to that braces.
+        required: false
+        type: string
+        default: 'Bash,Read'
+    secrets:
+      OMNIGENT_MACHINE_CLIENT_SECRET:
+        description: "omnigent machine-client secret, exchanged in-process for a session bearer. Mirrors the server's OMNIGENT_MACHINE_CLIENT_SECRET_HASH -- the server stores only a digest of this value. The one secret an operator must configure to use this workflow."
+        required: true
+      SEIDROID_APP_ID:
+        description: "seidroid GitHub App id. Optional: without it the review posts as the workflow's own identity, which is correct but reads as github-actions rather than the bot."
+        required: false
+      SEIDROID_APP_PRIVATE_KEY:
+        description: "seidroid GitHub App private key, exchanged for an installation token scoped to the reviewed repository. Never written to an output; the action masks it."
+        required: false
+
+permissions: {}
+
+jobs:
+  guard:
+    # Cheap allowlist + command parse on a hosted runner, no secrets, before any
+    # in-cluster work spins up and before any credential is minted. The
+    # author_association gate is the trust boundary: only OWNER/MEMBER/
+    # COLLABORATOR can fire it -- an untrusted PR author cannot.
+    #
+    # Bots are excluded separately, because association does not exclude them: a
+    # bot with write access to the calling repository carries MEMBER or
+    # COLLABORATOR like anyone else. Without this, a bot that quotes the command
+    # -- one of ours echoing an earlier comment, say -- starts a real review, and
+    # a bot that echoes its own trigger does so repeatedly.
+    name: Guard
+    runs-on: ubuntu-latest
+    # A step condition cannot read `secrets`, so its presence is tested here and
+    # read back as `env` below — the same shape the review job uses.
+    env:
+      HAS_REVIEWER_IDENTITY: ${{ secrets.SEIDROID_APP_ID != '' }}
+    # Set at all because the account default is six hours. The guard only reads
+    # API state, so a minute is generous.
+    timeout-minutes: 5
+    permissions: {}
+    # Runs for any comment-triggered dispatch, review or close, because what it
+    # decides is whether the commenter may command this workflow at all. Routing is
+    # the caller's: it reads the body and passes the mode. A close arriving as a
+    # pull_request event skips the guard, since GitHub's own event is the authority.
+    if: >-
+      ${{ github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request != null &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association) }}
+    outputs:
+      should_run: ${{ steps.parse.outputs.should_run == 'true' && steps.admit.outputs.admit == 'true' }}
+      pr_number: ${{ steps.parse.outputs.pr_number }}
+      comment_id: ${{ steps.parse.outputs.comment_id }}
+      review_repo: ${{ steps.parse.outputs.review_repo }}
+      review_repo_name: ${{ steps.parse.outputs.review_repo_name }}
+      review_pr: ${{ steps.parse.outputs.review_pr }}
+    steps:
+      - id: parse
+        # Every GitHub-supplied value (the comment body, the PR number, the
+        # comment id) comes in through env and is read back as "$VAR" below --
+        # never interpolated as ${{ }} directly into the shell script, even for
+        # the two fields (issue number, comment id) that GitHub happens to
+        # always populate with integers. Routing all three the same way means
+        # there is one pattern to audit, not one safe-looking exception.
+        env:
+          BODY: ${{ github.event.comment.body }}
+          REPO_OWNER: ${{ github.repository_owner }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+        run: |
+          set -euo pipefail
+          cmd="$(printf '%s' "$BODY" | tr -d '\r')"
+          # Require a LINE reading `@seidroid review`, optionally `close`, optionally
+          # followed by one `owner/name#number` naming a pull request ELSEWHERE.
+          # Anchoring to a whole line is what keeps a comment that merely quotes or
+          # discusses the command from triggering a review, and the target's shape
+          # is pinned tightly enough that nothing else can ride in on it.
+          #
+          # The @ is optional so `@seidroid review` -- the documented form, and what
+          # the mention actually notifies -- and a bare `seidroid review` both work.
+          # Whole-line anchoring is what keeps that safe: a comment discussing the
+          # command has other words on the line and does not match.
+          #
+          # The target exists because the two credentials in play cover different
+          # repositories. This workflow posts with the caller's GITHUB_TOKEN, so it
+          # can only comment here; the agent reads with its own App installation,
+          # so it can only review where that App is installed. Where those sets do
+          # not overlap, the only way to exercise a real review is to ask here and
+          # read there.
+          # A segment cannot begin with a dot, which is what GitHub allows and what
+          # makes the claim above true: the looser form matched `..`, so `../..#1`
+          # parsed as a target and flowed into an api path as a dot segment.
+          target_re='[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*#[0-9]+'
+          cmdline="$(printf '%s\n' "$cmd" \
+            | grep -m1 -E "^[[:space:]]*@?seidroid[[:space:]]+review([[:space:]]+close)?([[:space:]]+${target_re})?[[:space:]]*$" || true)"
+          if [ -z "$cmdline" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "should_run=true" >> "$GITHUB_OUTPUT"
+          echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          # Which of the two was asked for. The caller routes on the body as well and
+          # passes the mode, but the guard has to know too: a close is teardown, and
+          # some checks below stop a review without having any business stopping a
+          # reclaim.
+          # Anchored on the word the grammar accepts, immediately after `review`, not
+          # a substring of the line: a target whose owner or repository contains
+          # "close" -- owner/closed-loop#12 -- is a review, and a glob called it
+          # teardown.
+          if printf '%s' "$cmdline" \
+            | grep -qE '^[[:space:]]*@?seidroid[[:space:]]+review[[:space:]]+close([[:space:]]|$)'; then
+            echo "command=close" >> "$GITHUB_OUTPUT"
+          else
+            echo "command=review" >> "$GITHUB_OUTPUT"
+          fi
+          # Re-extracted from the matched line rather than from the raw body, so
+          # what is passed on is only ever a substring the anchored pattern
+          # already accepted.
+          target="$(printf '%s' "$cmdline" | grep -oE "$target_re" || true)"
+          if [ -n "$target" ]; then
+            repo="${target%%#*}"
+            # Same owner only, and refused here so the refusal says what is wrong.
+            # The reviewing App is installed per owner and the mint takes the owner
+            # separately from the repository, so a foreign owner either fails the
+            # mint with an opaque error or -- where a same-named repo exists under
+            # this owner -- mints for the WRONG repository and every later call 404s.
+            #
+            # The target exists for a different repository under the same owner,
+            # which is the case the two credentials actually create. Un-defer when
+            # the App is installed somewhere else and a review there is wanted: the
+            # fix is to derive the mint's owner from this value, not to drop the
+            # check.
+            if [ "${repo%%/*}" != "$REPO_OWNER" ]; then
+              echo "::error::review target $repo is under a different owner; \
+                only repositories under $REPO_OWNER can be reviewed from here"
+              echo "should_run=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            echo "review_repo=$repo" >> "$GITHUB_OUTPUT"
+            # The bare name as well: an app-token mint names repositories without
+            # their owner, which it takes separately.
+            echo "review_repo_name=${repo##*/}" >> "$GITHUB_OUTPUT"
+            echo "review_pr=${target##*#}" >> "$GITHUB_OUTPUT"
+            echo "::notice::reviewing $target and reporting back on this pull request"
+          fi
+          # The comment id is passed as --trigger-id, which only labels this
+          # dispatch in the logs. The pull request, not the comment, is the
+          # session key — so any dispatch adopts that PR's session and drives a
+          # fresh review turn on the current tree.
+          echo "comment_id=$COMMENT_ID" >> "$GITHUB_OUTPUT"
+
+      # Only reached once the command itself parsed, so a comment that says
+      # nothing does not mint a token or call the API.
+      - name: Mint an identity to ask about the team and the labels
+        id: identity
+        if: ${{ steps.parse.outputs.should_run == 'true' && env.HAS_REVIEWER_IDENTITY == 'true' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.SEIDROID_APP_ID }}
+          private-key: ${{ secrets.SEIDROID_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ steps.parse.outputs.review_repo_name || github.event.repository.name }}
+
+      - name: Admit the request
+        id: admit
+        env:
+          GH_TOKEN: ${{ steps.identity.outputs.token }}
+          ALLOWED_TEAM: ${{ inputs.allowed-team }}
+          SKIP_LABEL: ${{ inputs.skip-review-label }}
+          ACTOR: ${{ github.event.comment.user.login }}
+          REPO: ${{ steps.parse.outputs.review_repo || github.repository }}
+          PR: ${{ steps.parse.outputs.review_pr || github.event.issue.number }}
+          PARSED: ${{ steps.parse.outputs.should_run }}
+          COMMAND: ${{ steps.parse.outputs.command }}
+        run: |
+          set -uo pipefail
+          deny() { echo "::notice::$1"; echo "admit=false" >> "$GITHUB_OUTPUT"; exit 0; }
+          if [ "$PARSED" != "true" ]; then
+            echo "admit=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Membership is a security control, so it fails closed: asked for and
+          # unanswerable means denied. The job condition has already required an
+          # OWNER/MEMBER/COLLABORATOR association, which admits any collaborator on
+          # the repository the request was made in; a team narrows that.
+          if [ -n "$ALLOWED_TEAM" ]; then
+            case "$ALLOWED_TEAM" in
+              */*) ;;
+              *) deny "allowed-team is not org/team-slug; denying" ;;
+            esac
+            [ -n "${GH_TOKEN:-}" ] || deny "no identity to check ${ALLOWED_TEAM} with; denying"
+            state="$(gh api "orgs/${ALLOWED_TEAM%%/*}/teams/${ALLOWED_TEAM##*/}/memberships/${ACTOR}"               --jq .state 2>/dev/null || true)"
+            [ "$state" = "active" ] || deny "$ACTOR is not an active member of $ALLOWED_TEAM; denying"
+          fi
+
+          # The label is a convenience rather than a control, so it fails open: it
+          # stops a review someone did not want, and being unable to read it must
+          # not stop every review when no identity is configured.
+          # ...and it stops a REVIEW, not a teardown. A pull request that gains the
+          # label after a session exists must still be able to reclaim its sandbox,
+          # and nothing else will: no lifetime cap, no sweep.
+          if [ "$COMMAND" != "close" ] && [ -n "$SKIP_LABEL" ] && [ -n "${GH_TOKEN:-}" ]; then
+            if gh api "repos/$REPO/pulls/$PR" --jq '.labels[].name' 2>/dev/null                  | grep -qxF "$SKIP_LABEL"; then
+              deny "$REPO#$PR carries $SKIP_LABEL; not reviewing"
+            fi
+          fi
+
+          echo "admit=true" >> "$GITHUB_OUTPUT"
+
+      # Fail here rather than after the in-cluster job is scheduled. A caller that
+      # forgot the secret is the most likely misconfiguration, and `required: true`
+      # does not catch it: a caller passing an unset secret satisfies "provided"
+      # with an empty string. Without this the driver would spin a runner, mint
+      # nothing, and report a credential error several minutes later.
+      #
+      # Only ever tests emptiness -- the value is never echoed, compared against a
+      # literal, or written to an output.
+      - name: Require the machine-client secret
+        if: steps.parse.outputs.should_run == 'true'
+        env:
+          SECRET_PRESENT: ${{ secrets.OMNIGENT_MACHINE_CLIENT_SECRET != '' }}
+        run: |
+          if [ "$SECRET_PRESENT" != "true" ]; then
+            echo "::error::OMNIGENT_MACHINE_CLIENT_SECRET is not set on the calling repository; configure it as a repository or organization secret and pass it to this workflow" >&2
+            exit 1
+          fi
+
+  review:
+    name: Review
+    needs: guard
+    # A close arriving as a pull_request event needs no guard verdict — GitHub's own
+    # event is the trigger — so it runs even though the guard was skipped. always()
+    # is required: a skipped dependency would otherwise skip this too.
+    #
+    # A close asked for in a COMMENT is a different thing and does need one. It is a
+    # person destroying a session, so it goes through the same team gate the review
+    # does; the only ungated close is the one the platform itself reports.
+    # !cancelled() rather than always(), and the guard's RESULT rather than only its
+    # output. always() started this job when the guard had failed -- the secret check
+    # is the last thing the guard does, so should_run is already set by then and the
+    # fast-fail bought nothing -- and started it on a cancelled run, which spends
+    # model quota and holds a sandbox for a review nobody is waiting for.
+    #
+    # !cancelled() is still needed because the close path SKIPS the guard, and a
+    # skipped dependency would otherwise skip this too. Each path names the guard
+    # result it expects, so neither admits the other's.
+    if: >-
+      ${{ !cancelled() && (
+      (github.event_name == 'issue_comment' &&
+        needs.guard.result == 'success' &&
+        needs.guard.outputs.should_run == 'true') ||
+      (github.event_name == 'pull_request' &&
+        inputs.mode == 'close' &&
+        needs.guard.result == 'skipped')) }}
+    # Exactly one review per PR: a newer `seidroid review` cancels an in-flight one
+    # (latest wins, never two posters); the driver traps cancellation and STOPS its
+    # session, keeping the conversation. Only the close event deletes it, so a rapid
+    # re-trigger does not reclaim the sandbox. Job-level so the group is entered only
+    # when a real command runs.
+    concurrency:
+      # The mode is in the group: without it a review dispatch and a close dispatch
+      # for one pull request share a group under cancel-in-progress, so commenting on
+      # a just-closed pull request cancels the in-flight close -- and close is the
+      # only thing that reclaims a sandbox.
+      #
+      # Keyed on the REVIEWED pull request, not the asking one, because that is what
+      # the session is keyed on: two pull requests here both naming owner/name#9
+      # would otherwise drive one target session at once.
+      group: >-
+        seidroid-review-${{ inputs.mode }}-${{ needs.guard.outputs.review_repo || github.repository }}-${{ needs.guard.outputs.review_pr || needs.guard.outputs.pr_number || github.event.pull_request.number }}
+      cancel-in-progress: true
+    # The reviewed repo's runner label, GitHub-hosted by default. The default pairs
+    # with the https base URL: the mint refuses to send the client secret over plain
+    # http, so the in-cluster ClusterIP Service is not a usable target however the
+    # runner is hosted.
+    runs-on: ${{ inputs.runs-on }}
+    # The outer bound on a wedged review. Without it the account default is six
+    # hours, and the managed sandbox stays up for the whole of it. Comfortably
+    # above the driver's own SEIDROID_RUN_DEADLINE_S so the driver reports the
+    # timeout, with its reason, before the runner kills the job.
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    permissions:
+      pull-requests: write   # upsert the one sticky verdict comment
+      contents: read         # read PR metadata
+      checks: write          # publish the review check run
+    # The credential lives ONLY here, at job level. It must never be re-declared
+    # as step-level env on a `uses:` step (composite/action steps do not receive
+    # step-level env at all) -- that is the exact defect that broke every real
+    # run of the Python driver's workflow. Every step in this job inherits it.
+    env:
+      # Empty is not the same as unset for this one: an empty SEIDROID_AGENT_ID would
+      # override the driver's default with nothing. envOr treats empty as absent, so
+      # passing it through empty is safe and keeps one place deciding the default.
+      SEIDROID_AGENT_ID: ${{ inputs.agent-id }}
+      OMNIGENT_MACHINE_CLIENT_ID: ${{ inputs.machine-client-id }}
+      OMNIGENT_MACHINE_CLIENT_SECRET: ${{ secrets.OMNIGENT_MACHINE_CLIENT_SECRET }}
+      # Whether the bot's identity is available, as a value a step condition can
+      # read. The secrets context is not one of those -- a step `if` that touches
+      # it is a workflow-file error, not a false condition -- so the presence test
+      # happens here, the same way the machine-client check below does it.
+      HAS_REVIEWER_IDENTITY: ${{ secrets.SEIDROID_APP_ID != '' }}
+    steps:
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e  # v7.0.0
+        with:
+          # At or above what the driver's own go.mod requires. A live run proved why
+          # this cannot lag: pinned at 1.24 while the module declared go 1.25.0, the
+          # install died with
+          #   requires go >= 1.25.0 (running go 1.24.13; GOTOOLCHAIN=local)
+          # because setup-go exports GOTOOLCHAIN=local, so the go command may not
+          # fetch the toolchain the module asks for. The step that installs the driver
+          # sets GOTOOLCHAIN=auto for that reason and would have recovered this on its
+          # own -- but a version resolved here rather than downloaded there is one
+          # fewer network dependency on the path, so both are set.
+          #
+          # go-version-file is not usable: this workflow checks nothing out, so there
+          # is no go.mod on disk to read. Bump this when the driver's does.
+          go-version: '1.25'
+
+      - name: Install the review driver
+        id: build
+        shell: bash
+        env:
+          DRIVER_VERSION: ${{ inputs.driver-version }}
+        run: |
+          set -euo pipefail
+          # This repository is public, so there is no credential and no GOPRIVATE.
+          # The driver is a NESTED module, so what resolution consumes is the
+          # path-prefixed tag or a sha, not a bare repo tag typed by hand.
+          #
+          # A sha is a legitimate pin here and currently the only one: no release
+          # contains the driver yet. go install turns it into a pseudo-version, which
+          # --version then prints, so the log names exactly what reviewed.
+          out="$RUNNER_TEMP/bin"
+          GOBIN="$out" go install \
+            "github.com/sei-protocol/sei-internal-skills/sei-agent-driver/cmd/sei-agent-driver@${DRIVER_VERSION}"
+          "$out/sei-agent-driver" --version
+          echo "bin=$out/sei-agent-driver" >> "$GITHUB_OUTPUT"
+
+      - name: Mint the reviewing identity
+        # A review is the bot's work, and the identity on it is what a reader
+        # trusts. Scoped to the REVIEWED repository rather than this one, which is
+        # also what lets a review triggered from elsewhere comment where the code
+        # actually lives.
+        #
+        # Optional on purpose. Without the app credentials every step below falls
+        # back to the workflow's own token, which cannot leave this repository --
+        # correct, just attributed to github-actions and unable to place inline
+        # comments on another repository's pull request.
+        id: identity
+        # Minted before the review rather than after it: the step below reads the
+        # threads this reviewer left last time, and that read needs the same identity
+        # that wrote them. Gating on a verdict is no longer possible here and no
+        # longer needed -- an unused token costs one API call, and every step that
+        # consumes it still carries its own condition.
+        if: ${{ inputs.mode == 'review' && !cancelled()
+          && env.HAS_REVIEWER_IDENTITY == 'true' }}
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1  # v3.2.0
+        with:
+          app-id: ${{ secrets.SEIDROID_APP_ID }}
+          private-key: ${{ secrets.SEIDROID_APP_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: ${{ needs.guard.outputs.review_repo_name || github.event.repository.name }}
+
+      - name: Read the threads this review left before
+        id: threads
+        # What this reviewer said last time, and what the author said back. Read
+        # here rather than by the agent for the reason the diff is: a step the agent
+        # must perform is a step it can skip, and prose the author controls should
+        # not travel through a shell to get here.
+        #
+        # Its own threads only. ai-review posts under the same bot identity, so the
+        # marker every inline comment carries is what tells the two apart.
+        #
+        # continue-on-error, and the driver reads an absent file as a first review:
+        # a history that cannot be fetched must cost the recall, not the review.
+        if: ${{ inputs.mode == 'review' && !cancelled() }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.identity.outputs.token || github.token }}
+          REPO: ${{ needs.guard.outputs.review_repo || github.repository }}
+          PR: ${{ needs.guard.outputs.review_pr || needs.guard.outputs.pr_number }}
+          THREADS: ${{ runner.temp }}/review-prior-threads.json
+        run: |
+          set -euo pipefail
+          echo "threads_path=$THREADS" >> "$GITHUB_OUTPUT"
+          owner="${REPO%%/*}"; name="${REPO##*/}"
+          # $owner and friends are GraphQL variables, so the query stays literal.
+          # shellcheck disable=SC2016
+          gh api graphql -f query='
+            query($owner: String!, $name: String!, $number: Int!) {
+              repository(owner: $owner, name: $name) {
+                pullRequest(number: $number) {
+                  reviewThreads(first: 100) {
+                    nodes {
+                      isResolved
+                      path
+                      line
+                      originalLine
+                      comments(first: 20) { nodes { body author { login } } }
+                    }
+                  }
+                }
+              }
+            }' -F owner="$owner" -F name="$name" -F number="$PR" > "$THREADS.raw"
+
+          # line goes null once a thread is stale against the head commit, and
+          # originalLine still says where it was written -- which is what makes a
+          # thread on since-rewritten code readable rather than a finding at line 0.
+          jq '[ .data.repository.pullRequest.reviewThreads.nodes[]
+                | select((.comments.nodes[0].body // "") | contains("<!-- seidroid-review:finding -->"))
+                | { file: (.path // ""),
+                    line: (.line // .originalLine // 0),
+                    body: ((.comments.nodes[0].body // "") | sub("<!-- seidroid-review:finding -->\n*"; "")),
+                    replies: [ .comments.nodes[1:][] | "\(.author.login // "someone"): \(.body)" ],
+                    resolved: .isResolved } ]' "$THREADS.raw" > "$THREADS"
+          echo "carrying $(jq length "$THREADS") prior finding(s) into this review"
+
+      - name: Record the commit under review
+        id: head
+        if: ${{ inputs.mode == 'review' && !cancelled() }}
+        # Tolerated, because this is a step that improves publishing and must not be
+        # able to prevent reviewing. Failing it hard would let a transient api error
+        # -- or a cross-repository target with no App identity -- abort a review
+        # that would otherwise have run, since the drive step that follows carries no
+        # condition of its own. The publishers fall back to reading the head
+        # themselves and say so when this produced nothing.
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.identity.outputs.token || github.token }}
+          REPO: ${{ needs.guard.outputs.review_repo || github.repository }}
+          PR: ${{ needs.guard.outputs.review_pr || needs.guard.outputs.pr_number }}
+        run: |
+          set -euo pipefail
+          # Resolved once, here, because everything published later is published
+          # AGAINST a commit and the review takes minutes. Reading it in each posting
+          # step reads it after the review, so a push mid-review attaches this
+          # verdict -- and a green check -- to code the driver never saw, and the
+          # three reads can disagree with each other inside one run.
+          #
+          # This is the commit the driver is about to review. Whether it is still the
+          # head when the review ends is a separate question, asked at publish time.
+          sha="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "reviewing $REPO#$PR at $sha"
+
+      - name: Drive session + collect verdict
+        id: drive
+        shell: bash
+        env:
+          BIN: ${{ steps.build.outputs.bin }}
+          OMNIGENT_BASE_URL: ${{ inputs.omnigent-base-url }}
+          SEIDROID_SCOUTS: ${{ inputs.scouts }}
+          SEIDROID_MODEL: ${{ inputs.claude-model }}
+          SEIDROID_ALLOW_POLICIES: ${{ inputs.allow-policies }}
+          SEIDROID_ALLOW_TOOLS: ${{ inputs.allow-tools }}
+          MODE: ${{ inputs.mode }}
+          # The reviewed pull request, which is this repository's unless the
+          # trigger named another. The session is keyed on this pair, so a
+          # cross-repository review adopts the target's conversation rather than
+          # opening a second one under the asking repository's name.
+          REPO: ${{ needs.guard.outputs.review_repo || github.repository }}
+          # The guard supplies this for a review; a close event carries its own
+          # number and skips the guard entirely.
+          PR: ${{ needs.guard.outputs.review_pr || needs.guard.outputs.pr_number || github.event.pull_request.number }}
+          TRIGGER_ID: ${{ needs.guard.outputs.comment_id }}
+          # The findings this reviewer left before, so it drops what the author has
+          # addressed and keeps what the diff still shows. No token rides with it:
+          # this step reaches GitHub through nothing, which is the boundary that
+          # keeps the driver's credentials to omnigent alone.
+          THREADS: ${{ steps.threads.outputs.threads_path }}
+          GUIDELINES_FILE: ${{ inputs.guidelines-file }}
+          EXTRA_INSTRUCTIONS: ${{ inputs.extra-instructions }}
+        run: |
+          set -euo pipefail
+          # OMNIGENT_MACHINE_CLIENT_ID/SECRET are already in the job env (see
+          # above) -- the driver mints its own bearer in-process from them and
+          # that token never transits a workflow step output.
+          #
+          # The verdict is written to a directory this run owns and clears first,
+          # never to the workspace. actions/checkout cleans .driver and nothing
+          # else, so a workspace-relative verdict.md left by an earlier run --
+          # attempt 2 of this one, or any run on a non-ephemeral self-hosted
+          # runner, which is the steady state here -- satisfies the non-empty
+          # check below and gets posted as this review.
+          out_dir="$RUNNER_TEMP/review-out/$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT"
+          rm -rf "$out_dir"
+          mkdir -p "$out_dir"
+          verdict="$out_dir/verdict.md"
+          echo "verdict_path=$verdict" >> "$GITHUB_OUTPUT"
+          # Written only when the review has observations that name a file and a
+          # line, so its absence means "summary only" rather than a failure.
+          findings="$out_dir/findings.json"
+          echo "findings_path=$findings" >> "$GITHUB_OUTPUT"
+          # Written whenever the review reached a verdict, including a clean one:
+          # a checks list with no review entry reads as a review that did not run.
+          check="$out_dir/check.json"
+          echo "check_path=$check" >> "$GITHUB_OUTPUT"
+
+          if [ "$MODE" = "close" ]; then
+            args=(review "$REPO" "$PR" --close)
+          else
+            args=(review "$REPO" "$PR" --out "$verdict" --findings-out "$findings"
+                  --check-out "$check")
+            # Absent when the read above failed, and the driver reads that as a
+            # first review rather than an error.
+            if [ -s "${THREADS:-}" ]; then args+=(--conversation-context "$THREADS"); fi
+            # Passed only when set, so the driver's own defaults stay the one
+            # place either is decided.
+            if [ -n "${GUIDELINES_FILE:-}" ]; then
+              args+=(--guidelines-file "$GUIDELINES_FILE")
+            fi
+            if [ -n "${EXTRA_INSTRUCTIONS:-}" ]; then
+              args+=(--extra-instructions "$EXTRA_INSTRUCTIONS")
+            fi
+            if [ -n "${TRIGGER_ID:-}" ]; then args+=(--trigger-id "$TRIGGER_ID"); fi
+          fi
+          set +e
+          "$BIN" "${args[@]}"
+          rc=$?
+          set -e
+          # Downstream gates on whether a verdict was PRODUCED (verdict.md
+          # non-empty), not on the exit code, so a review that reached one still
+          # publishes whatever else failed, and a no-verdict run never posts a
+          # placeholder.
+          if [ "$MODE" = "close" ]; then
+            # A close deletes a session; it has no verdict to produce, so the
+            # check below does not apply to it. Its own failure is the exit code,
+            # and it matters: this is the only thing that reclaims a sandbox, and
+            # nothing downstream notices when it does not.
+            echo "verdict_produced=false" >> "$GITHUB_OUTPUT"
+            if [ "$rc" -ne 0 ]; then
+              echo "::error::close failed (exit $rc) — the session and its sandbox are still running"
+            fi
+          elif [ -s "$verdict" ]; then
+            echo "verdict_produced=true" >> "$GITHUB_OUTPUT"
+            if [ "$rc" -ne 0 ]; then
+              echo "::warning::review exited $rc but produced a verdict (e.g. a teardown leak); see logs"
+            fi
+          else
+            echo "verdict_produced=false" >> "$GITHUB_OUTPUT"
+            echo "::error::review produced no verdict (exit $rc)"
+          fi
+          exit "$rc"
+
+      - name: Place findings on the code
+        id: place
+        # Inline comments go on the REVIEWED pull request, which is the one that
+        # contains the lines. That makes this step conditional in a way the
+        # summary is not: a cross-repository review has nowhere to place them,
+        # because the token below only reaches this repository.
+        #
+        # Placement degrades in two steps rather than dropping a finding. The API
+        # accepts a line only where the diff covers it, and a review that reads the
+        # files around the diff -- which the prompt asks for, because a change can
+        # be locally correct and globally wrong -- cites both lines outside the
+        # hunks and files the pull request never touches. An uncovered line goes on
+        # its file; an untouched file has nowhere to go and is named in the summary.
+        # So the cost of a review that sees past the hunks is paid in placement,
+        # not in lost findings.
+        if: ${{ inputs.mode == 'review' && !cancelled()
+          && steps.drive.outputs.verdict_produced == 'true'
+          && (steps.identity.outputs.token != ''
+              || needs.guard.outputs.review_repo == ''
+              || needs.guard.outputs.review_repo == github.repository) }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.identity.outputs.token || github.token }}
+          REPO: ${{ needs.guard.outputs.review_repo || github.repository }}
+          PR: ${{ needs.guard.outputs.review_pr || needs.guard.outputs.pr_number }}
+          REVIEWED_SHA: ${{ steps.head.outputs.sha }}
+          FINDINGS: ${{ steps.drive.outputs.findings_path }}
+          # Marks every inline comment as this tool's, so a reader can tell an
+          # review note from ai-review's and a later run can find its own.
+          MARKER: "<!-- seidroid-review:finding -->"
+          # Findings that reached neither a line nor a file, collected for the
+          # summary. Declared here so the step below can read it by output.
+          NOTE: ${{ runner.temp }}/review-unplaced.md
+        run: |
+          set -euo pipefail
+          echo "note_path=$NOTE" >> "$GITHUB_OUTPUT"
+          : > "$NOTE"
+          if [ ! -s "$FINDINGS" ]; then
+            echo "no findings to place; the summary carries the review"
+            exit 0
+          fi
+          # The commit the review actually read, recorded before it started. Absent
+          # only when that read failed, in which case this falls back to the head now
+          # -- the weaker guarantee, announced rather than assumed.
+          head_sha="${REVIEWED_SHA:-}"
+          now="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
+          if [ -z "$head_sha" ]; then
+            echo "::warning::the reviewed commit was not recorded; publishing against \
+              the current head $now, which the review may not have read"
+            head_sha="$now"
+          elif [ "$now" != "$head_sha" ]; then
+            echo "::warning::head moved from $head_sha to $now during the review; \
+              publishing against the reviewed commit"
+          fi
+          on_line=0 on_file=0 unplaced=0
+          # The detail is base64 per record, not @tsv. Finding.Detail is raw model
+          # prose with no line constraint on it, and @tsv escapes a newline, a tab or
+          # a backslash into a literal \n, \t or \\ -- so a multi-line detail reached
+          # the pull request showing its escape sequences instead of its text. The
+          # four fields that cannot contain a tab stay plain.
+          while IFS=$'\t' read -r path line side severity detail_b64; do
+            [ -z "$path" ] && continue
+            detail="$(printf '%s' "$detail_b64" | base64 --decode)"
+            body="$MARKER"$'\n'"**review · ${severity}** — ${detail}"
+            if gh api -X POST "repos/$REPO/pulls/$PR/comments" \
+                 -f body="$body" -f commit_id="$head_sha" -f path="$path" \
+                 -F line="$line" -f side="$side" >/dev/null 2>&1; then
+              on_line=$((on_line+1))
+              continue
+            fi
+            # The line is outside the hunks. The file can still be in the pull
+            # request, and a comment on it reaches the reviewer in the file they
+            # are already reading, so the cited line rides in the body instead.
+            if gh api -X POST "repos/$REPO/pulls/$PR/comments" \
+                 -f body="$body"$'\n\n'"_Cited at \`$path:$line\`, outside this diff's changed lines._" \
+                 -f commit_id="$head_sha" -f path="$path" \
+                 -f subject_type=file >/dev/null 2>&1; then
+              on_file=$((on_file+1))
+              continue
+            fi
+            # shellcheck disable=SC2016  # the backticks are markdown, not a substitution
+            printf -- '- `%s:%s` (%s) — %s\n' "$path" "$line" "$severity" "$detail" >> "$NOTE"
+            unplaced=$((unplaced+1))
+          done < <(jq -r '.[] | [.file, .line, .side, .severity, (.detail | @base64)] | @tsv' "$FINDINGS")
+          if [ -s "$NOTE" ]; then
+            { printf -- '---\n\n**Observations off the changed lines.** These are about code this pull request does not touch, so there is nowhere in the diff to attach them:\n\n'
+              cat "$NOTE"
+            } > "$NOTE.tmp"
+            mv "$NOTE.tmp" "$NOTE"
+          fi
+          echo "findings: $on_line on a line, $on_file on a file, $unplaced in the summary"
+
+      - name: Publish the review check run
+        # The half of a review a reader sees without opening it. Named review
+        # rather than "AI Review": both systems run during the transition and both
+        # post as seidroid[bot], so two checks under one name would be unreadable,
+        # where a green AI Review beside a red review is not.
+        #
+        # continue-on-error like the other publish steps: a check run that fails to
+        # post must not bury a review that was produced.
+        if: ${{ inputs.mode == 'review' && !cancelled()
+          && steps.drive.outputs.verdict_produced == 'true' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.identity.outputs.token || github.token }}
+          REPO: ${{ needs.guard.outputs.review_repo || github.repository }}
+          PR: ${{ needs.guard.outputs.review_pr || needs.guard.outputs.pr_number }}
+          REVIEWED_SHA: ${{ steps.head.outputs.sha }}
+          CHECK: ${{ steps.drive.outputs.check_path }}
+        run: |
+          set -euo pipefail
+          if [ ! -s "$CHECK" ]; then
+            echo "no check run to publish"
+            exit 0
+          fi
+          # Against the commit the review actually read. A check on any other commit
+          # attaches this verdict to code it never saw.
+          # The commit the review actually read, recorded before it started. Absent
+          # only when that read failed, in which case this falls back to the head now
+          # -- the weaker guarantee, announced rather than assumed.
+          head_sha="${REVIEWED_SHA:-}"
+          now="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
+          if [ -z "$head_sha" ]; then
+            echo "::warning::the reviewed commit was not recorded; publishing against \
+              the current head $now, which the review may not have read"
+            head_sha="$now"
+          elif [ "$now" != "$head_sha" ]; then
+            echo "::warning::head moved from $head_sha to $now during the review; \
+              publishing against the reviewed commit"
+          fi
+          gh api -X POST "repos/$REPO/check-runs" \
+            -f name=review \
+            -f head_sha="$head_sha" \
+            -f status=completed \
+            -f conclusion="$(jq -r .conclusion "$CHECK")" \
+            -f output[title]="$(jq -r .title "$CHECK")" \
+            -f output[summary]="$(jq -r .summary "$CHECK")" >/dev/null
+          echo "published review check: $(jq -r .conclusion "$CHECK") — $(jq -r .title "$CHECK")"
+
+      - name: State the review's position on the pull request
+        # The check run is the gate a merge reads; this is the one a person reads,
+        # and the one that shows in the reviewers list. Both come from the same
+        # conclusion the driver derived from the findings.
+        #
+        # Only when there is a position to take. A clean run with approval off, or
+        # a run that concluded neutral, adds nothing a reader does not already have
+        # from the comment above — and a review cannot be edited later the way that
+        # comment is upserted, so an opinionless one is permanent clutter.
+        if: ${{ inputs.mode == 'review' && !cancelled()
+          && steps.drive.outputs.verdict_produced == 'true'
+          && steps.identity.outputs.token != '' }}
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.identity.outputs.token }}
+          REPO: ${{ needs.guard.outputs.review_repo || github.repository }}
+          PR: ${{ needs.guard.outputs.review_pr || needs.guard.outputs.pr_number }}
+          REVIEWED_SHA: ${{ steps.head.outputs.sha }}
+          CHECK: ${{ steps.drive.outputs.check_path }}
+          APPROVE_ON_SUCCESS: ${{ inputs.approve-on-success }}
+          # Scopes the withdrawal below to this tool's own blocks. ai-review posts
+          # under the same bot identity and marks its reviews differently; its
+          # position is not this one's to change.
+          #
+          # Changing this value strands every blocking review posted under the old one:
+          # the withdrawal matches on startswith, so a later clean run approves and
+          # retracts nothing, the pull request stays red for a finding that is gone, and
+          # only a human can then clear it. Before changing it, confirm no open pull
+          # request carries a CHANGES_REQUESTED review whose body starts with the old
+          # value.
+          MARKER: "<!-- seidroid-review -->"
+        run: |
+          set -euo pipefail
+          if [ ! -s "$CHECK" ]; then
+            echo "no conclusion to take a position from"
+            exit 0
+          fi
+          conclusion="$(jq -r .conclusion "$CHECK")"
+          # Against the head the review read, so the position cannot attach to code
+          # it never saw.
+          # The commit the review actually read, recorded before it started. Absent
+          # only when that read failed, in which case this falls back to the head now
+          # -- the weaker guarantee, announced rather than assumed.
+          head_sha="${REVIEWED_SHA:-}"
+          now="$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)"
+          if [ -z "$head_sha" ]; then
+            echo "::warning::the reviewed commit was not recorded; publishing against \
+              the current head $now, which the review may not have read"
+            head_sha="$now"
+          elif [ "$now" != "$head_sha" ]; then
+            echo "::warning::head moved from $head_sha to $now during the review; \
+              publishing against the reviewed commit"
+          fi
+
+          event=""
+          note=""
+          if [ "$conclusion" = "failure" ]; then
+            event=REQUEST_CHANGES
+            note="review found something blocking. The findings are on the lines they are about, and the summary is in this tool's comment on this pull request."
+          elif [ "$conclusion" = "success" ] && [ "$APPROVE_ON_SUCCESS" = "true" ]; then
+            event=APPROVE
+            note="review found nothing blocking."
+          fi
+
+          if [ -n "$event" ]; then
+            gh api -X POST "repos/$REPO/pulls/$PR/reviews" \
+              -f event="$event" -f commit_id="$head_sha" \
+              -f body="$MARKER"$'\n'"$note" >/dev/null
+            echo "recorded $event on $REPO#$PR"
+          else
+            echo "no position to record for a $conclusion conclusion"
+          fi
+
+          # An earlier block this run no longer stands behind. Left standing it
+          # keeps a pull request red for a finding that is gone, and only a human
+          # can clear it.
+          if [ "$conclusion" = "failure" ]; then
+            exit 0
+          fi
+          gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq "[.[] | select(.state == \"CHANGES_REQUESTED\" and ((.body // \"\") | startswith(\"$MARKER\")))] | .[].id" \
+          | while read -r id; do
+              [ -n "$id" ] || continue
+              gh api -X PUT "repos/$REPO/pulls/$PR/reviews/$id/dismissals" \
+                -f message="Superseded: the latest review found nothing blocking." \
+                -f event=DISMISS >/dev/null && echo "withdrew review $id"
+            done
+
+      - name: Post verdict (sticky upsert)
+        # Post only when a real verdict was produced, and even when the drive
+        # step above exited non-zero -- `!cancelled()` runs on any outcome
+        # except the job itself being cancelled (e.g. superseded by a newer
+        # `seidroid review`), which is the one case with nothing to post.
+        # Keying on verdict_produced, not the exit code, so a teardown-only
+        # failure still posts a valid verdict and a no-verdict run never
+        # upserts a placeholder.
+        if: ${{ inputs.mode == 'review' && (!cancelled() && steps.drive.outputs.verdict_produced == 'true') }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ steps.identity.outputs.token || github.token }}
+          MARKER: "<!-- seidroid-review -->"
+          # The reviewed pull request, which is where a reader looks for a review.
+          # Reachable because the identity above is minted for that repository; the
+          # fallback token is not, so without the app credentials a cross-repository
+          # review reports back where it was asked for instead.
+          REPO: ${{ steps.identity.outputs.token != '' && (needs.guard.outputs.review_repo || github.repository) || github.repository }}
+          PR: ${{ steps.identity.outputs.token != '' && (needs.guard.outputs.review_pr || needs.guard.outputs.pr_number) || needs.guard.outputs.pr_number }}
+          VERDICT: ${{ steps.drive.outputs.verdict_path }}
+          # Findings the step above could place nowhere on the diff. Empty when it
+          # placed them all, and when it was skipped for a cross-repository review.
+          NOTE: ${{ steps.place.outputs.note_path }}
+        run: |
+          set -euo pipefail
+          body="$MARKER"$'\n'"$(cat "$VERDICT")"
+          # A reader who sees no inline comment for an observation would otherwise
+          # have to guess whether it was dropped.
+          if [ -n "$NOTE" ] && [ -s "$NOTE" ]; then
+            body="$body"$'\n\n'"$(cat "$NOTE")"
+          fi
+          # One bot comment per PR: find by marker -> PATCH, else POST. repo/pr from env,
+          # not template-interpolated into the script.
+          id="$(gh api "repos/$REPO/issues/$PR/comments" --paginate \
+                --jq "map(select(.body | startswith(\"$MARKER\"))) | .[0].id // empty")"
+          if [ -n "$id" ]; then
+            gh api -X PATCH "repos/$REPO/issues/comments/$id" -f body="$body" >/dev/null
+          else
+            gh api -X POST "repos/$REPO/issues/$PR/comments" -f body="$body" >/dev/null
+          fi

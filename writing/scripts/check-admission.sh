@@ -166,7 +166,7 @@ for aid in sorted(baseline - set(exempt)):
     bad.append(f"anchors/grandfathered.txt still lists '{aid}', which is no longer grandfathered. "
                f"Delete the line in the commit that promotes it")
 
-grew = git_grew(root, 'anchors/grandfathered.txt', baseline)
+grew = git_grew(root, 'writing/anchors/grandfathered.txt', baseline)
 
 print(f"\ngrandfathered: {len(exempt)} of {len(anchors)} — {', '.join(sorted(exempt)) or 'none'}")
 print(f"monotonicity: {grew['how']}")

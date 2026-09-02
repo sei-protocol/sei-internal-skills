@@ -16,13 +16,29 @@
 # coverage manifest. Prose elsewhere may reference a skill freely; the contract
 # does that itself.
 set -euo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-REPO="$(cd "$ROOT/.." && pwd)"
+# Two anchors, because the question has two halves and they do not move together.
+#
+# REPO is the repository holding this script, always, and it is where the denylist
+# comes from: which skills and agents this repository ships is a fact about the
+# repository, not about the tree under test. Deriving it from ROOT left a fixture
+# root pointing at a directory with no .claude, so the denylist came back empty and
+# the gate refused before it read anything.
+#
+# ROOT is the anchor layer to scan, and takes an optional argument so evals/gates
+# can point it at a fixture tree. Scanning a fixed path under REPO instead made
+# every case read the same directory and none read its own.
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+ROOT="${1:-$REPO/writing}"
+ROOT="$(cd "$ROOT" && pwd)"
 cd "$REPO"
 
-# Every skill and agent this repository ships, by directory name.
+# The hyphenated skill and agent names this repository ships. The filter is
+# deliberate: a single common word like `platform` or `systems` would match
+# ordinary prose on an anchor page, and this gate reads whole files. So the
+# denylist is the hyphenated subset, and the success line says so rather than
+# claiming to have checked every name.
 names="$( { ls -d .claude/skills/*/ experimental/skills/*/ 2>/dev/null | xargs -n1 basename
-            ls .claude/agents/*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//'
+            ls .claude/agents/*.md experimental/agents/*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//'
           } | sort -u | grep -e '-' || true )"
 
 if [ -z "$names" ]; then
@@ -37,15 +53,38 @@ scanned=0 fail=0
 while IFS= read -r f; do
   [ -f "$f" ] || continue
   scanned=$((scanned + 1))
-  if grep -nIE "(^|[^A-Za-z0-9/-])($pattern)([^A-Za-z0-9-]|$)" "$f" >/dev/null 2>&1; then
-    echo "AN ANCHOR CITES A SKILL in $f:"
-    grep -nIE "(^|[^A-Za-z0-9/-])($pattern)([^A-Za-z0-9-]|$)" "$f" | sed 's/^/    /'
+  if grep -nIE "(^|[^A-Za-z0-9-])($pattern)([^A-Za-z0-9-]|$)" "$f" >/dev/null 2>&1; then
+    echo "AN ANCHOR CITES A SKILL in ${f#$ROOT/}:"
+    grep -nIE "(^|[^A-Za-z0-9-])($pattern)([^A-Za-z0-9-]|$)" "$f" | sed 's/^/    /'
     echo "    An anchor names a standard a reader can follow outside this repository."
     fail=1
   fi
-done < <(find writing/anchors writing/coverage -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' \) 2>/dev/null)
+# .txt included: unregistered.txt and grandfathered.txt hold anchor ids, and the
+# first holds precisely the ids with no registry entry -- the ones that appear
+# nowhere else in this set, which is where a skill-named anchor would sit unseen.
+done < <(find "$ROOT/anchors" "$ROOT/coverage" -type f \( -name '*.md' -o -name '*.yaml' -o -name '*.yml' -o -name '*.txt' \) 2>/dev/null)
+
+# Checked before the count, because a count cannot tell them apart. find takes both
+# roots at once: given a missing one it reports on stderr, keeps walking the other,
+# and exits 1 -- and a process substitution discards that status. So losing
+# writing/coverage left four files from writing/anchors and a clean run over half
+# the scope this script's header declares.
+
+# The sibling arms refuse an empty denylist and an empty spec set; this one is the
+# last place that could report success over nothing. If the directories move, find
+# writes to /dev/null and the loop never runs.
+for d in "$ROOT/anchors" "$ROOT/coverage"; do
+  [ -d "$d" ] || { echo "no directory at ${d#$ROOT/} under $ROOT — refusing to report"; \
+                   echo "  success over part of the scope. Did it move?"; exit 1; }
+done
+
+if [ "$scanned" -eq 0 ]; then
+  echo "scanned no files under $ROOT/anchors or $ROOT/coverage — refusing to"
+  echo "  report success on an empty set. Did either directory move?"
+  exit 1
+fi
 
 if [ "$fail" -eq 0 ]; then
-  echo "No anchor cites a skill. Checked $scanned files against $(printf '%s' "$names" | wc -l | tr -d ' ') names."
+  echo "No anchor cites a skill. Checked $scanned files against $(printf '%s\n' "$names" | wc -l | tr -d ' ') hyphenated names."
 fi
 exit "$fail"
