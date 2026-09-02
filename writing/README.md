@@ -54,7 +54,7 @@ vale sync                  # fetch write-good, which is not committed
 ./writing/scripts/check-admission.sh         # an anchor carries its artifacts
 ./writing/evals/gates/run.sh                 # the gates that have a case are tested
 ./writing/scripts/check-anchor-authorities.sh  # no anchor cites a skill
-./writing/scripts/check-consumer-scoping.sh  # both configs scope the same rules
+./writing/scripts/check-consumer-scoping.sh  # all three configs scope the same rules
 ./writing/scripts/check-verifiers.sh         # every criterion names a verifier
 ./writing/evals/consumer/run.sh              # another repository can install it
 ```
@@ -144,3 +144,12 @@ rule fix reaches it when it raises the pin.
 Every rule file opens with the clause it enforces and the standard that clause
 comes from. A rule that cannot express a constraint says so rather than
 approximating it.
+
+## Disclaimer
+
+This work is an approximation of ASD-STE100. It is not certified. It is not
+affiliated with or endorsed by ASD or STEMG. A passing Vale run is not a
+certificate of compliance.
+
+Keep this section in a fork. `writing/NOTICE.md` holds the licensing boundary
+for every standard this repository names.
