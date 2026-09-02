@@ -63,8 +63,8 @@ done
 # The pin is the whole update story. A workflow pinned to a ref that is not the
 # one the rules came from fetches a different set on the consumer's next run.
 check "workflow pins the installed ref" \
-  "uses: bdchatham/agentic-writing/.github/workflows/writing-contract.yml@$ref" \
-  "$(grep -o 'uses: bdchatham/agentic-writing/.github/workflows/writing-contract.yml@.*' .github/workflows/writing.yml)"
+  "uses: sei-protocol/sei-internal-skills/.github/workflows/writing-contract.yml@$ref" \
+  "$(grep -o 'uses: sei-protocol/sei-internal-skills/.github/workflows/writing-contract.yml@.*' .github/workflows/writing.yml)"
 check "config records the same ref" "$ref" \
   "$(grep -o 'pinned to: .*' .vale.ini | sed 's/pinned to: //')"
 check "fetched rules are gitignored" "yes" \

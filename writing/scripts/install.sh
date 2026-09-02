@@ -119,6 +119,11 @@ install_machine() {
     run git clone --quiet --branch "$REF" "$REPO_URL" "$HOME_DIR"
   fi
 
+  # The rules live under writing/ here. This installer began in a repository whose
+  # root was the toolkit, so every path that still assumes that layout points at
+  # nothing -- and a symlink to a missing directory fails at lint time, in the
+  # consumer's repository, not here.
+
   # macOS and Linux put the user Vale directory in different places.
   case "$(uname -s)" in
     Darwin) vale_dir="$HOME/Library/Application Support/vale" ;;
@@ -128,7 +133,7 @@ install_machine() {
 
   for style in AgenticWriting config; do
     say "  linking $style into the user styles directory"
-    run ln -sfn "$HOME_DIR/styles/$style" "$vale_dir/styles/$style"
+    run ln -sfn "$HOME_DIR/writing/styles/$style" "$vale_dir/styles/$style"
   done
 
   if [ -f "$vale_dir/.vale.ini" ]; then
@@ -164,7 +169,7 @@ install_machine() {
   say "  $HOME_DIR/scripts/build-spec-artifact.sh --help"
   say ""
   say "CI for a whole team is a separate, optional step:"
-  say "  cd <repo> && curl -fsSL $RAW/main/scripts/install.sh | bash -s -- repo"
+  say "  cd <repo> && curl -fsSL $RAW/main/writing/scripts/install.sh | bash -s -- repo"
 }
 
 install_repo() {
@@ -210,7 +215,7 @@ install_repo() {
 
   if [ -f "$root/.vale.ini" ]; then
     say "  .vale.ini exists, leaving it alone"
-    say "    compare against $src/templates/consumer.vale.ini"
+    say "    compare against $src/writing/templates/consumer.vale.ini"
   else
     say "  writing .vale.ini"
     render "$src/writing/templates/consumer.vale.ini" "$root/.vale.ini"

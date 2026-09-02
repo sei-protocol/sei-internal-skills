@@ -68,6 +68,9 @@ jobs:
       # Running the Spec Kit CLI rewrites its bundled assets, which would take
       # the fork's deltas with it. The fork lives away from those paths and this
       # asserts each delta is still present.
+      - name: Spec template still carries its deltas
+        run: ./writing/scripts/check-template-deltas.sh
+
       # A rule that stops firing is a silent failure. Fixtures catch it.
       - name: Run fixture expectations
         run: ./writing/evals/run.sh
@@ -82,12 +85,6 @@ jobs:
       - name: Every admitted anchor carries its four artifacts
         run: ./writing/scripts/check-admission.sh
 
-      - name: Spec template still carries its deltas
-        run: ./writing/scripts/check-template-deltas.sh
-
-      # The coverage manifest says what each anchor actually checks. A claim
-      # nobody verifies is how one anchor came to credit rules that check
-      # something else, so the manifest is enforced rather than trusted.
       # The rules had golden files and the gates had none, so a gate could
       # reject a correct document and nothing would notice. One did.
       - name: Run gate golden fixtures
@@ -98,6 +95,9 @@ jobs:
       - name: No anchor cites a skill as its authority
         run: ./writing/scripts/check-anchor-authorities.sh
 
+      # The coverage manifest says what each anchor actually checks. A claim
+      # nobody verifies is how one anchor came to credit rules that check
+      # something else, so the manifest is enforced rather than trusted.
       # install.sh and writing-contract.yml carry every consuming repository and
       # neither used to run. This repository's own job is a different file that
       # installs the rules differently, so green here said nothing about either.
@@ -147,10 +147,12 @@ jobs:
           # action: it splits vale_flags itself on whitespace, honouring quotes
           # and nothing else, then spawns Vale with an argv array.
           #
-          # write-good is a fetched package. evals/ holds fixtures that are
-          # deliberately non-conforming, which is their job. spec-template.upstream.md
+          # write-good is a fetched package. evals/fixtures, evals/rules and the
+          # consumer tree hold inputs that are deliberately non-conforming, which is
+          # their job -- the consumer eval lints that tree itself, against a golden.
+          # The rest of evals/ is ordinary prose and stays inside the contract. spec-template.upstream.md
           # is Spec Kit's own text, carried unedited so check-template-deltas.sh can
           # compare the fork's body against it.
           vale_flags: >-
             --no-global
-            --glob=!{writing/styles/write-good/**,writing/evals/**,writing/templates/spec-template.upstream.md}
+            --glob=!{writing/styles/write-good/**,writing/evals/fixtures/**,writing/evals/rules/**,writing/evals/consumer/tree/**,writing/templates/spec-template.upstream.md}

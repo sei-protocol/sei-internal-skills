@@ -37,7 +37,7 @@ which disables `STE-NounCluster` in silence.
 
 ```sh
 vale sync                  # fetch write-good, which is not committed
-vale --no-global --glob='!{writing/styles/write-good/**,writing/templates/spec-template.upstream.md}' writing
+vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/**,writing/evals/rules/**,writing/evals/consumer/tree/**,writing/templates/spec-template.upstream.md}' writing
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
@@ -46,7 +46,7 @@ vale --no-global --glob='!{writing/styles/write-good/**,writing/templates/spec-t
 ./writing/evals/run.sh                       # every rule still fires
 ./writing/evals/rules/run.sh                 # goldens pin line, column, message
 ./writing/scripts/check-admission.sh         # an anchor carries its artifacts
-./writing/evals/gates/run.sh                 # the gates themselves are tested
+./writing/evals/gates/run.sh                 # the gates that have a case are tested
 ./writing/scripts/check-anchor-authorities.sh  # no anchor cites a skill
 ./writing/evals/consumer/run.sh              # another repository can install it
 ```
@@ -118,7 +118,7 @@ somebody deleted its fixture.
 ## An anchor is not a skill
 
 An anchor earns its place by being a standard somebody else published and
-maintains. A reader can follow the name to a clause this repository does not
+maintains. A reader can then follow the name to a clause this repository does not
 control. A skill here is not that. Citing one as an anchor's authority makes the
 catalogue circular: the rule is right because our skill says so.
 
@@ -130,16 +130,6 @@ pages and the coverage manifest. Prose elsewhere may reference a skill freely.
 `templates/` and `scripts/install.sh` wire a different repository into the same
 checks. Its CI calls `writing-contract.yml` here rather than copying it, so a
 rule fix reaches it when it raises the pin.
-
-```sh
-curl -fsSL https://raw.githubusercontent.com/sei-protocol/sei-internal-skills/main/writing/scripts/install.sh | bash
-```
-
-That is the per-engineer install and it writes nothing into a repository. Add
-`-s -- repo` to wire a repository into CI.
-
-`evals/consumer/run.sh` runs that path end to end against a scratch repository,
-because the two links it depends on used to run nowhere.
 
 ## Reading a finding
 
