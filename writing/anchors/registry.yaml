@@ -45,7 +45,7 @@ anchors:
       order: 1
       label: ASD-STE100 Simplified Technical English
       text: >-
-        approved words in their approved part of speech, active voice, simple tenses, one
+        approved words in their approved part of speech. Active voice, simple tenses, one
         instruction per sentence, no more than three nouns in a noun cluster. Procedures: 20
         words per sentence. Descriptions: 25 words.
     verifier:

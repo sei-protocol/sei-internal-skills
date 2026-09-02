@@ -57,7 +57,7 @@ def agents(reg):
 
     Prose lives here because it describes the contract as a whole. Per-anchor text
     lives in the registry under `context`. An anchor with no `context` block is not
-    part of the contract and is omitted — arc42 is the current example.
+    part of the contract, and this omits it.
     """
     listed = sorted(
         (a for a in reg["anchors"] if a.get("context")),

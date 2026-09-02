@@ -23,16 +23,23 @@
 # caller makes, with the artifact's existing URL so the link stays stable.
 #
 # Usage:
-#   scripts/build-spec-artifact.sh --repo PATH --ref GITREF --out DIR FEATURE...
+#   writing/scripts/build-spec-artifact.sh --repo PATH --ref GITREF --out DIR FEATURE...
 #
 # Example:
-#   scripts/build-spec-artifact.sh \
+#   writing/scripts/build-spec-artifact.sh \
 #     --repo ~/sei-load --ref brandon2/spec-contract-deployment-registry \
 #     --out /tmp/artifacts contract-deployment-registry transaction-outcome-tracking
 set -euo pipefail
 
+# DERIVED, NOT RESTATED. The header comment above is the one copy of the usage,
+# so --help cannot drift from what a reader of this file sees.
+usage() {
+  awk 'NR==1 {next} /^set -euo pipefail$/ {exit} {sub(/^# ?/, ""); print}' \
+    "${BASH_SOURCE[0]}"
+}
+
 STYLE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-CSS="$STYLE_DIR/writing/styles/artifact/heading-hierarchy.css"
+CSS="$STYLE_DIR/styles/artifact/heading-hierarchy.css"
 
 repo="" ref="" out=""
 while [ $# -gt 0 ]; do
@@ -40,15 +47,16 @@ while [ $# -gt 0 ]; do
     --repo) repo="${2:?--repo needs a path}"; shift 2 ;;
     --ref)  ref="${2:?--ref needs a git ref}"; shift 2 ;;
     --out)  out="${2:?--out needs a directory}"; shift 2 ;;
+    --help|-h) usage; exit 0 ;;
     --) shift; break ;;
-    -*) echo "unknown flag: $1" >&2; exit 2 ;;
+    -*) echo "unknown flag: $1. Run --help." >&2; exit 2 ;;
     *) break ;;
   esac
 done
 
 for required in repo ref out; do
   if [ -z "${!required}" ]; then
-    echo "missing --$required. See the usage comment in this file." >&2
+    echo "missing --$required. Run --help." >&2
     exit 2
   fi
 done

@@ -106,17 +106,13 @@ there.
 
 ## Publishing a mode as an artifact
 
-**Not in the tree yet.** This section states the design. PR #364 adds the two
-files it names, and PR #365 revises the script again. Until #364 lands, the
-invocation below fails with `No such file or directory`.
-
 A specification or a design document published to claude.ai renders through the
 platform's own Markdown stylesheet. That stylesheet sets a section heading below
 the contrast of the body text it heads.
-`writing/styles/artifact/heading-hierarchy.css` will hold the canonical
-correction, and that file states why each rule exists.
+`writing/styles/artifact/heading-hierarchy.css` holds the canonical correction,
+and that file states why each rule exists.
 
-`writing/scripts/build-spec-artifact.sh` will perform the step. It reads the
+`writing/scripts/build-spec-artifact.sh` performs the step. It reads the
 specification from git, prepends the canonical style, and writes a file the
 caller publishes:
 
@@ -126,11 +122,11 @@ writing/scripts/build-spec-artifact.sh --repo ~/sei-load \
   --out /tmp/artifacts contract-deployment-registry
 ```
 
-Once it lands, use the script rather than assembling the file by hand. It reads
-from git, so an uncommitted edit cannot reach a published artifact. It reads the
-style from the canonical file, so an artifact cannot drift from it. Prepending
-at publish time also keeps the presentation out of the specification source, and
-one file then holds the style for every artifact.
+Use the script rather than assembling the file by hand. It reads from git, so an
+uncommitted edit cannot reach a published artifact. It reads the style from the
+canonical file, so an artifact cannot drift from it. Prepending at publish time
+also keeps the presentation out of the specification source, and one file then
+holds the style for every artifact.
 
 Two things follow from prepending rather than committing. The published artifact
 stops being a byte-for-byte render of its source file. The export therefore

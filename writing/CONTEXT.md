@@ -7,7 +7,7 @@ resolve it from the name alone. A more specific instruction from the user or fro
 you edit takes precedence on whatever it addresses.
 
 - **ASD-STE100 Simplified Technical English** — approved words in their approved part of
-  speech, active voice, simple tenses, one instruction per sentence, no more than three
+  speech. Active voice, simple tenses, one instruction per sentence, no more than three
   nouns in a noun cluster. Procedures: 20 words per sentence. Descriptions: 25 words.
 - **RFC 2119** — in a specification, write MUST, SHOULD, and MAY in uppercase. Do not use
   them for a statement that is not a requirement.
@@ -18,6 +18,8 @@ you edit takes precedence on whatever it addresses.
 - **ADR (Nygard)** — a decision goes in `docs/adr/` with Status, Context, Decision,
   Consequences.
 - **Conventional Commits 1.0.0** — `type(scope)!: description`.
+- **arc42** — a design document follows the arc42 section order. Omit a section rather
+  than pad it.
 
 ## Verify before you claim compliance
 
