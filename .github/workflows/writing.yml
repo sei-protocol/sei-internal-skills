@@ -142,7 +142,19 @@ jobs:
 
       - name: Read the lint flags from the script that defines them
         id: lintflags
-        run: echo "flags=$(./writing/scripts/lint.sh --print-flags)" >> "$GITHUB_OUTPUT"
+        # Split, not inlined. Under `bash -e` the exit status of a command
+        # substitution used in a word does not trip errexit -- `echo` returns 0
+        # regardless -- so a lint.sh that failed wrote `flags=` and the step
+        # passed. Vale then ran with no --no-global and no --glob, and the
+        # reporter filters to touched lines, so the excluded trees produced
+        # findings nobody saw and the check stayed green.
+        run: |
+          flags="$(./writing/scripts/lint.sh --print-flags)"
+          if [ -z "$flags" ]; then
+            echo "lint.sh --print-flags produced nothing" >&2
+            exit 1
+          fi
+          echo "flags=$flags" >> "$GITHUB_OUTPUT"
 
       - name: Lint prose against the writing contract
         # Pinned to a commit, not the mutable `reviewdog` branch. Every other

@@ -63,13 +63,24 @@ for spec in specs:
     # rather than declaring one, and raw text cannot tell them apart: a spec that
     # showed the required shape gained a phantom criterion and then failed on it.
     # writing/README.md records this same fix for the Vale rules.
-    _prose, _fenced = [], False
+    # Markdown closes a fence only on the SAME marker at the same length or
+    # longer. A toggle that flipped on any ``` or ~~~ broke on the one shape
+    # this repository writes most: a snippet showing the criterion convention
+    # has to sit in a longer fence, because the snippet itself holds one. The
+    # outer ```` opened, the inner ``` closed, and the snippet's criterion lines
+    # survived as declarations -- the phantom criterion this strip exists to
+    # stop. The mismatch the other way round hides a real criterion instead.
+    _prose, _open = [], None
     for _l in lines:
-        if re.match(r'^[ \t]*(```|~~~)', _l):
-            _fenced = not _fenced
-            _prose.append('')
+        _m = re.match(r'^[ \t]*(`{3,}|~{3,})', _l)
+        if _m and _open is None:
+            _open = _m.group(1)
+        elif _m and _open and _m.group(1)[0] == _open[0] and len(_m.group(1)) >= len(_open):
+            _open = None
+        elif _open is None:
+            _prose.append(_l)
             continue
-        _prose.append('' if _fenced else _l)
+        _prose.append('')
     lines = _prose
     rel = spec.relative_to(root)
     criteria = [(i, m) for i, l in enumerate(lines) if (m := SC_LINE.match(l))]
