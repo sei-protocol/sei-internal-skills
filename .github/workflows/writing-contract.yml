@@ -12,7 +12,7 @@
 #         pull-requests: write
 #
 # The rules come from the same ref the caller pinned. This workflow reads its own
-# ref out of github.workflow_ref, so the rules and the job can never disagree
+# ref out of github.job_workflow_ref, so the rules and the job can never disagree
 # about which version they are.
 #
 # NOT github.workflow_ref. That is the ENTRY workflow — the caller's file, at the
@@ -23,7 +23,7 @@
 #
 #     fatal: couldn't find remote ref refs/pull/352/merge
 #
-# github.workflow_ref is the reusable workflow's own ref, which is what the
+# github.job_workflow_ref is the reusable workflow's own ref, which is what the
 # comment above always claimed this read. Only a real cross-repository call can
 # tell the two apart, so no local test found it.
 name: writing contract
@@ -69,7 +69,7 @@ jobs:
             refs/pull/*)
               echo "resolved '$ref', which is a pull-request ref in the calling" >&2
               echo "repository, not a ref of the rules. That is what reading" >&2
-              echo "github.workflow_ref instead of github.workflow_ref does." >&2
+              echo "github.workflow_ref instead of github.job_workflow_ref does." >&2
               exit 1 ;;
           esac
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
@@ -90,11 +90,18 @@ jobs:
       # before it, so one has to be on PATH first. Pinned to the floor this
       # repository's rules need: on 3.14.0 a sequence of tag: tokens matches
       # nothing and a rule silently stops firing.
+      # Checksummed, because this runs in every consuming repository with
+      # pull-requests: write. Piping a release tarball straight into tar puts
+      # whatever that URL serves on the PATH of a job holding the consumer's token.
+      # This repository's own job already records the digest.
       - name: Install Vale
         run: |
           VALE_VERSION=3.17.1
-          curl -sfL "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" \
-            | tar -xz -C /usr/local/bin vale
+          VALE_SHA256=db947f89f2292e6a0381a61de155f6a5f5cb4cb460ca178ea412ef605559cefd
+          curl -sfL -o /tmp/vale.tgz \
+            "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz"
+          echo "${VALE_SHA256}  /tmp/vale.tgz" | sha256sum -c -
+          tar -xz -C /usr/local/bin -f /tmp/vale.tgz vale
           vale --version
 
       # Both steps live in a script so this workflow can be tested. Inline
@@ -112,9 +119,16 @@ jobs:
       # files, which are not this repository's prose to fix.
       - name: Lint prose against the writing contract
         if: steps.paths.outputs.files != ''
-        uses: vale-cli/vale-action@reviewdog
+        # Pinned to a commit, not the mutable `reviewdog` branch. A force-push to
+        # that branch runs its author's code against every consumer's token, since
+        # the caller is documented to grant pull-requests: write. Same pin this
+        # repository's own job uses.
+        uses: vale-cli/vale-action@518a9136acc6e6668ce7c00d367051e0941e87ff # reviewdog
         with:
-          reporter: github-pr-review
+          # github-pr-review needs a pull request. The installed caller also runs
+          # on push to main, where that reporter fails in reporting rather than on
+          # a finding -- a consumer's main-branch run red for no finding at all.
+          reporter: ${{ github.event_name == 'pull_request' && 'github-pr-review' || 'github-check' }}
           fail_level: ${{ inputs.fail_level }}
           files: ${{ steps.paths.outputs.files }}
           vale_flags: '--no-global --glob=!.vale/**'
