@@ -141,4 +141,10 @@ jobs:
       SEIDROID_APP_PRIVATE_KEY: ${{ secrets.PLATFORM_CODE_AGENT_APP_PK }}
     with:
       mode: close
+      # NO allowed-team here, and the asymmetry is deliberate rather than an
+      # oversight. A merge-triggered close has no commenting actor to authorize.
+      # The input is read only by the reusable workflow's guard job, which runs
+      # `if github.event_name == 'issue_comment'` and is therefore skipped on
+      # this path, and it is optional there (default ''), so an absent value
+      # cannot fail the call either.
       driver-version: 09ee41de67699839b35f91b45f0f635a009ffa07
