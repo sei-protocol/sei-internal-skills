@@ -75,6 +75,13 @@ jobs:
           echo "ref=$ref" >> "$GITHUB_OUTPUT"
           echo "Rules ref: $ref"
 
+      # No token is passed, and none is needed: sei-protocol/sei-internal-skills is
+      # public. A cross-repository checkout runs with the caller's default
+      # GITHUB_TOKEN, scoped to the calling repository, so if this repository ever
+      # goes private a consumer granted workflow_call access would still fail to
+      # authenticate here -- and so would the unauthenticated clone in install.sh.
+      # Going private means adding an optional token input to this workflow, not
+      # just changing a setting.
       - name: Fetch the writing rules
         uses: actions/checkout@v4
         with:
