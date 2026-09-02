@@ -115,7 +115,7 @@ jobs:
 
       # A structure rule left unscoped for consumers runs on every Markdown file
       # they have. Three rules had drifted between the two configurations.
-      - name: The consumer configuration scopes the same rules
+      - name: All three configurations scope the same rules
         run: ./writing/scripts/check-consumer-scoping.sh
 
       # Three of seven criteria once cited a check nobody had built. A

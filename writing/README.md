@@ -54,7 +54,7 @@ vale sync                  # fetch write-good, which is not committed
 ./writing/scripts/check-admission.sh         # an anchor carries its artifacts
 ./writing/evals/gates/run.sh                 # the gates that have a case are tested
 ./writing/scripts/check-anchor-authorities.sh  # no anchor cites a skill
-./writing/scripts/check-consumer-scoping.sh  # both configs scope the same rules
+./writing/scripts/check-consumer-scoping.sh  # all three configs scope the same rules
 ./writing/scripts/check-verifiers.sh         # every criterion names a verifier
 ./writing/evals/consumer/run.sh              # another repository can install it
 ```
