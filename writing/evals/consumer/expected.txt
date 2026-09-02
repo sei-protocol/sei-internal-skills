@@ -1,0 +1,5 @@
+docs/adr/0002-frontmatter.md:2:7:Vale.Terms:Use 'ConfigMap' instead of 'configmap'.
+specs/001-example/spec.md:1:1:AgenticWriting.Spec-AcceptanceCriteria:Spec has no '#### Acceptance Criteria' heading, so EARS conformance was never checked.
+specs/001-example/spec.md:1:1:AgenticWriting.Spec-Anchors:Spec is missing the '## Semantic Anchors' block. Name the methods once so the body does not restate them.
+specs/001-example/spec.md:1:1:AgenticWriting.Spec-IndependentTest:Spec has no '**Independent Test**'. A user story without one becomes a ticket whose acceptance bar its implementer invents.
+specs/001-example/spec.md:1:1:AgenticWriting.Spec-SuccessCriteria:Spec is missing '## Success Criteria'. A spec without measurable outcomes cannot be closed.

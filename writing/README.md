@@ -37,7 +37,7 @@ which disables `STE-NounCluster` in silence.
 
 ```sh
 vale sync                  # fetch write-good, which is not committed
-vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/**,writing/evals/rules/**,writing/templates/spec-template.upstream.md}' writing
+vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/**,writing/evals/rules/**,writing/evals/consumer/tree/**,writing/templates/spec-template.upstream.md}' writing
 ./writing/scripts/check-generated-rules.sh   # the rules match their manifest
 ./writing/scripts/check-coverage.sh          # the manifest tells the truth
 ./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
@@ -48,6 +48,7 @@ vale --no-global --glob='!{writing/styles/write-good/**,writing/evals/fixtures/*
 ./writing/scripts/check-admission.sh         # an anchor carries its artifacts
 ./writing/evals/gates/run.sh                 # the gates that have a case are tested
 ./writing/scripts/check-anchor-authorities.sh  # no anchor cites a skill
+./writing/evals/consumer/run.sh              # another repository can install it
 ```
 
 That second command is what CI runs. `--no-global` matters: Vale merges a
@@ -123,6 +124,12 @@ catalogue circular: the rule is right because our skill says so.
 
 `check-anchor-authorities.sh` holds that line across the registry, the anchor
 pages and the coverage manifest. Prose elsewhere may reference a skill freely.
+
+## Another repository can use this
+
+`templates/` and `scripts/install.sh` wire a different repository into the same
+checks. Its CI calls `writing-contract.yml` here rather than copying it, so a
+rule fix reaches it when it raises the pin.
 
 ## Reading a finding
 
