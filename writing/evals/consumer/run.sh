@@ -1,18 +1,20 @@
 #!/usr/bin/env bash
-# End-to-end test of the consumer path.
+# End-to-end test of every path a user installs on.
 #
-# Two links carried every consumer and neither had ever run:
+# Three of them carried every user and none had ever run:
 #
+#   scripts/install.sh machine     the documented one-line install
 #   scripts/install.sh repo        writes the config, the workflow and the rules
 #   writing-contract.yml           the reusable workflow their CI calls
 #
 # Everything this repository verifies about itself goes through .github/workflows
 # /writing.yml, which is a different file that installs rules differently. Green
-# there said nothing about either link.
+# there said nothing about any of the three.
 #
-# This builds a scratch repository from evals/consumer/tree, installs into it,
-# asserts what the installer claims it wrote, then runs the same setup script the
-# reusable workflow runs and compares the lint output against a golden file.
+# Machine mode runs first, into a home of its own. Then this builds a scratch
+# repository from evals/consumer/tree, installs into it, asserts what the
+# installer claims it wrote, and runs the same setup script the reusable workflow
+# runs, comparing the lint output against a golden file.
 #
 # NOT COVERED, and worth saying: the vale-action step, reviewdog's reporting, and
 # the cross-repository checkout that fetches the rules. Those need real GitHub,
@@ -38,6 +40,63 @@ check() {  # check <description> <expected> <actual>
     fail=1
   fi
 }
+
+# MACHINE MODE FIRST. It is the documented one-line install and nothing ran it,
+# so the directory move broke it in silence: two symlinks pointing at the
+# pre-move path. `ln -sfn` replaces an existing link, so re-running it on a
+# working machine destroyed that install too.
+#
+# XDG_CONFIG_HOME TRAVELS WITH HOME, and off Darwin it decides alone. install.sh
+# resolves the user Vale directory as "${XDG_CONFIG_HOME:-$HOME/.config}/vale"
+# there, so overriding HOME by itself left the installer writing into the
+# developer's own directory: their styles/AgenticWriting and styles/config links
+# replaced by links into $fake_home, which the rm below then leaves dangling.
+# Measured with the variable set -- both links clobbered, and the check still
+# reported zero, because find under $fake_home never saw them. That is the
+# destruction this test exists to catch, inflicted by the test.
+fake_home="$(mktemp -d)"
+# Clone first so the installer finds an existing checkout and skips its own
+# `git clone --branch`, which needs a branch name and gets handed a commit.
+git clone --quiet "$root" "$fake_home/.agentic-writing"
+git -C "$fake_home/.agentic-writing" checkout --quiet "$ref"
+if env HOME="$fake_home" XDG_CONFIG_HOME="$fake_home/.config" \
+       AGENTIC_WRITING_HOME="$fake_home/.agentic-writing" \
+       AGENTIC_WRITING_REPO="$root" AGENTIC_WRITING_REF="$ref" \
+       "$root/writing/scripts/install.sh" machine >"$fake_home/log" 2>&1; then
+  note "ok   machine mode installs"
+else
+  note "FAIL machine mode installs"; sed 's/^/       /' "$fake_home/log"; fail=1
+fi
+# COUNTED, NOT ONLY INSPECTED. A dangling count over an empty set is zero, so the
+# assertion below reported success on an install that had written somewhere else
+# entirely. Containment is worth having only if something fails when it breaks,
+# and nothing here could until this counted what it had to look at.
+links=0 dangling=0
+while IFS= read -r l; do
+  links=$((links + 1))
+  [ -e "$l" ] || dangling=$((dangling + 1))
+done < <(find "$fake_home" -type l 2>/dev/null)
+# NAME THE PATH, DO NOT COUNT. A count is green on any one symlink anywhere under
+# $fake_home, so it survives the installer dropping `config`, and -- the defect
+# this block exists for -- it survives the destination moving: a link that
+# resolves somewhere Vale never reads is still live and still counted. These
+# assert where Vale actually looks, which is what broke.
+#
+# RESOLVED THE WAY install.sh RESOLVES IT, not written out. The two platforms put
+# the user Vale directory in different places, so a literal path passes on one and
+# fails on the other -- which is how this assertion was first written, green on
+# Linux and red on a developer's Mac.
+case "$(uname -s)" in
+  Darwin) want_vale_dir="$fake_home/Library/Application Support/vale" ;;
+  *)      want_vale_dir="$fake_home/.config/vale" ;;
+esac
+for style in AgenticWriting config; do
+  check "machine mode links $style where Vale reads it" "yes" \
+    "$(if [ -L "$want_vale_dir/styles/$style" ] \
+        && [ -e "$want_vale_dir/styles/$style" ]; then echo yes; else echo no; fi)"
+done
+check "machine mode leaves no dangling symlink" "0" "$dangling"
+rm -rf "$fake_home"
 
 cp -R "$root/writing/evals/consumer/tree/." "$work/"
 git -C "$work" init -q .
