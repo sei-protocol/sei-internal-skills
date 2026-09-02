@@ -124,6 +124,34 @@ named = set().union(*off.values())
 for r in sorted(k for k in named - rules if k.startswith('AgenticWriting.')):
     bad.append(f"'{r}' is named in a configuration but is not a rule file")
 
+# WHICH CONFIGURATION MAY NAME THE Local VOCABULARY. AgenticWriting travels with
+# the rules; Local holds the names of whichever repository owns it. A repository
+# configuration reads its own Local and is right to name it. The reference is a
+# user-level global, and the machine install links this repository's whole
+# styles/config into the user styles directory -- Local with it. Naming Local
+# there points every repository on the machine with no .vale.ini of its own at
+# THIS repository's agent and skill names, and Vale.Terms then reports every
+# other casing of them as an error in prose that has nothing to do with us.
+def vocabularies(path):
+    for line in pathlib.Path(path).read_text().splitlines():
+        m = re.match(r'^\s*Vocab\s*=\s*(.+?)\s*$', line)
+        if m:
+            return {v.strip() for v in m.group(1).split(',') if v.strip()}
+    return set()
+
+VOCAB_LOCAL = {'.vale.ini': True,
+               'templates/consumer.vale.ini': True,
+               'docs/vale-global-config.reference.ini': False}
+for label, path, _ in CONFIGS:
+    has = 'Local' in vocabularies(path)
+    want = VOCAB_LOCAL[label]
+    if has and not want:
+        bad.append(f"{label} names the Local vocabulary, so a machine install "
+                   f"applies this repository's own names to every repository on it")
+    if want and not has:
+        bad.append(f"{label} does not name the Local vocabulary, so the repository "
+                   f"it configures has nowhere to put a name of its own")
+
 print(f"rules: {len(rules)}")
 for label in labels:
     print(f"  off in [*.md]: {len(off[label]):3}   {label}")

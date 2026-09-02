@@ -70,6 +70,27 @@ check "config records the same ref" "$ref" \
 check "fetched rules are gitignored" "yes" \
   "$(grep -qxF '.vale/styles/' .gitignore && echo yes || echo no)"
 
+# THE RULES REPOSITORY'S OWN NAMES MUST NOT ARRIVE. Vale reads a vocabulary only
+# from StylesPath/config/vocabularies, so the rules repository keeps its agent
+# and skill identifiers in styles/config/vocabularies/Local -- and both install
+# paths copy styles/config whole. A leak here puts another repository's names
+# under Vale.Terms in this one, which reports every other casing of them as an
+# error in prose that has nothing to do with them.
+#
+# Reads the entries rather than a count, so adding one to the rules repository
+# extends this check instead of dating it. The file listing is the half an
+# overwritten accept.txt cannot cover: a second file beside it survives the copy.
+theirs="$root/writing/styles/config/vocabularies/Local/accept.txt"
+leaked() {  # leaked <installed-Local-dir>
+  find "$1" -mindepth 1 ! -name accept.txt -exec basename {} \; | tr '\n' ' '
+  grep -v -e '^[[:space:]]*#' -e '^[[:space:]]*$' "$theirs" \
+    | while IFS= read -r term; do
+        grep -qxF "$term" "$1/accept.txt" 2>/dev/null && printf '%s ' "$term"
+      done
+}
+check "install.sh grafts a Local the rules repository does not own" "" \
+  "$(leaked .vale/styles/config/vocabularies/Local)"
+
 # The one thing a local test can say about the cross-repository checkout.
 # Read off the WORKFLOW_REF binding, not the file. Scanning the whole workflow
 # matched the header comment first, so reverting the binding to
@@ -101,6 +122,13 @@ mkdir -p .vale/src
 ( cd "$root" && git ls-files -z writing/styles writing/scripts | tar -cf - --null -T - ) | tar -xf - -C .vale/src
 files="$(./.vale/src/writing/scripts/consumer-lint-setup.sh .vale/src/writing 2>/dev/null)"
 check "path selection skips what does not exist" '["README.md","docs","specs"]' "$files"
+
+# The same boundary on the CI path. This one is the load-bearing half: a
+# consumer's runner executes the reusable workflow and nothing else, so
+# install.sh never runs there and this script is the only thing between the
+# fetched tree and the lint.
+check "the reusable workflow grafts a Local the rules repository does not own" "" \
+  "$(leaked .vale/styles/config/vocabularies/Local)"
 
 # The caller's own list is filtered too. Naming a tree the repository plans to
 # have used to be a fatal Vale argument error rather than a no-op.

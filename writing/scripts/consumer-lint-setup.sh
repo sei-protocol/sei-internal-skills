@@ -61,6 +61,15 @@ cp -R "$SRC/styles/AgenticWriting" .vale/styles/
 cp -R "$SRC/styles/config" .vale/styles/
 
 # The caller's own accepted terms, committed outside the fetched tree.
+#
+# THE DELETE IS THE BOUNDARY, NOT THE COPY BELOW. The fetched tree carries a
+# Local vocabulary of its own, because Vale reads a vocabulary only from
+# StylesPath/config/vocabularies and the rules repository has to keep its own
+# names somewhere Vale looks. Those names are that repository's agent and skill
+# identifiers, and Vale.Terms would impose their casing on this repository's
+# prose. Overwriting accept.txt alone left that to statement order and to the
+# fetched tree holding no second file: a reject.txt beside it would survive.
+rm -rf .vale/styles/config/vocabularies/Local
 mkdir -p .vale/styles/config/vocabularies/Local
 if [ -f .vale/vocab/accept.txt ]; then
   cp .vale/vocab/accept.txt .vale/styles/config/vocabularies/Local/accept.txt

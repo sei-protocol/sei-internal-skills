@@ -156,6 +156,11 @@ install_machine() {
   # <StylesPath>/config/vocabularies itself, so the user this collides with is
   # the one the next branch supports: the one who already has a Vale config.
   # `rm -rf` is too blunt against a directory they may own.
+  #
+  # `config` links the rules repository's Local vocabulary too, and this mode
+  # grafts nothing over it. What keeps those names off every repository on the
+  # machine is the user-level Vocab, which names AgenticWriting alone --
+  # check-consumer-scoping.sh holds the reference configuration to that.
   for style in AgenticWriting config; do
     dest="$vale_dir/styles/$style"
     if [ -d "$dest" ] && [ ! -L "$dest" ]; then
@@ -333,6 +338,12 @@ install_repo() {
 # `evm` wrong wherever you wrote `EVM`. A hyphenated name collides with nothing.
 VOCAB
   fi
+  # THE DELETE IS THE BOUNDARY, NOT THE COPY. The fetched tree carries a Local
+  # vocabulary of its own -- the rules repository's agent and skill identifiers,
+  # which Vale reads only from StylesPath/config/vocabularies and so cannot keep
+  # anywhere else. Vale.Terms would impose their casing on this repository's
+  # prose. Overwriting accept.txt alone left that to statement order.
+  run rm -rf "$root/.vale/styles/config/vocabularies/Local"
   run mkdir -p "$root/.vale/styles/config/vocabularies/Local"
   run cp "$root/.vale/vocab/accept.txt" \
         "$root/.vale/styles/config/vocabularies/Local/accept.txt"
