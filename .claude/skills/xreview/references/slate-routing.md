@@ -36,7 +36,7 @@ doc-only  <  mechanical  <  component  <  cross-component  <  shared-stack  <  s
 - `skill-package` sits **strictly above** `shared-stack` in the order (the tie already resolves to
   `skill-package`, so the order states it as a strict `<` — no scan contradiction). A change
   touching both **resolves to `skill-package`**.
-  `skill-package` is the strict-superset wiring — it adds the unconditional audit+author+prose
+  `skill-package` is the strict-superset wiring — it adds the unconditional prose + rubric-lens
   pin (§4), so picking it never under-pins. A diff touching both a shared library *and* a
   `.claude/` skill is `skill-package`.
 
@@ -65,11 +65,11 @@ reviewer who can judge it). When in doubt, **T2**.
 
 **The mechanical-equivalent carve-out is `doc-only` ONLY.** A `skill-package` change has **no
 triviality exemption** — it routes by **file-type-present, not change-size**: a one-line typo in
-a `.claude/` skill body is still `skill-package` (T3, floor T2, audit+author+prose pinned). "It's
-just a typo in a skill" does **not** demote it to `mechanical`. The *classification* keys off
+a `.claude/` skill body is still `skill-package` (T3, floor T2, prose + rubric pinned). <!-- vale off -->"It's
+just a typo in a skill"<!-- vale on --> does **not** demote it to `mechanical`. The *classification* keys off
 *what kind of file changed* (a `.claude/` skill body present → `skill-package`), not how many
-lines; the audit+author+prose pin then follows from that class **unconditionally** — a skill is
-prose + discipline + an authored artifact whether the diff is one line or a hundred. Dropping the
+lines; the prose + rubric-lens pin then follows from that class **unconditionally** — a skill is
+prose and an authored artifact whether the diff is one line or a hundred. Dropping the
 pin requires an **operator override with a stated reason, never a size judgment**.
 
 ## 4. Auto-wired standards-stewards
@@ -82,43 +82,59 @@ change can pull a steward without that steward owning a boundary):
 |---|---|---|
 | `prose-steward` | any prose artifact — a design doc, a skill body, a README, a runbook | reads-native-for-its-reader (the prose-steward doctrine) |
 | `idiomatic-reviewer` | any code diff / implementation | reads-native to language/framework/package patterns |
-| `audit-skill` | a `.claude/` **skill** body or its references | does the skill hold its discipline under pressure (RED) |
-| `author-skill` | a `.claude/` **skill** body (RED/GREEN authoring) | is the skill authored correctly — triggers, anti-triggers, guardrails, evals |
+| the rubric lens | a `.claude/` **skill** body or its references | is the skill authored correctly, and does its discipline survive pressure — triggers, anti-triggers, guardrails, evals |
 
 **The load-bearing wiring rule (state it in the citing skill):**
 
-> A **`skill-package` change auto-pulls `audit-skill` + `author-skill` + `prose-steward`** —
+> A **`skill-package` change auto-pulls `prose-steward` + the rubric lens** —
 > always (T3 by default; the pin survives a tier override down to the T2 floor, see §5), not
-> subject to silent omission. A skill *is* prose (→ prose-steward), it *is*
-> a discipline that must survive pressure (→ audit-skill), and it *is* an authored artifact
-> with triggers/guardrails/evals (→ author-skill). Dropping any of the three on a skill change
-> requires an **operator override with a stated reason**.
+> subject to silent omission. A skill *is* prose (→ prose-steward), and it *is* an authored
+> artifact whose discipline must survive pressure (→ the rubric lens). Dropping either on a
+> skill change requires an **operator override with a stated reason**.
 
-### Steward dispatch — two kinds (agent-stewards vs skill-stewards)
+### Steward dispatch — two kinds (registry stewards vs the rubric lens)
 
-The four stewards are **not all the same kind of artifact**, and the availability check keys off
-the right registry per steward:
+The stewards are **not all the same kind of artifact**. Two are registry entries that can be
+missing. The third is not a registry entry at all:
 
-| Steward | Kind | Registry | How it's dispatched |
-|---|---|---|---|
-| `prose-steward` | **agent** (self-contained) | `.claude/agents/` | dispatched as a subagent |
-| `idiomatic-reviewer` | **agent** (backed by `/idiomatic`) | `.claude/agents/` | dispatched as a subagent |
-| `audit-skill` | **skill** | `.claude/skills/` | a dispatched reviewer **loads the skill as its review rubric** |
-| `author-skill` | **skill** | `.claude/skills/` | a dispatched reviewer **loads the skill as its review rubric** |
+| Steward | Kind | Where it comes from | How it is dispatched | Can it be absent? |
+|---|---|---|---|---|
+| `prose-steward` | **agent** (self-contained) | `.claude/agents/` | dispatched as a subagent | yes → HALT |
+| `idiomatic-reviewer` | **agent** (backed by `/idiomatic`) | `.claude/agents/` | dispatched as a subagent | yes → HALT when pinned |
+| the rubric lens | **a brief, not an entry** | `references/skill-package-rubric.md` in this skill | any dispatched reviewer, briefed to load the rubric and cite rule ids | the **lens**, no — the **rubric file**, yes → HALT |
 
-A **pinned** steward (audit/author/prose) absent from **its own registry** is a **HALT, not a
-silent drop** — same posture as dropping the pin. A skill-steward (`audit-skill`/`author-skill`)
-is checked against `.claude/skills/`; the agent-steward (`prose-steward`) against `.claude/agents/`.
-The skill cannot quietly run a `skill-package` review with two of three stewards because the third
-is absent from its registry; it halts and asks the operator (who may then override with a stated
-reason). (`audit-skill`/`author-skill` will **never** appear in `.claude/agents/` — they are
-skills, not agents — so checking them against the agent roster is the bug this rule forecloses.)
+**The rubric lens has no registry, so the *lens* has no absence check.** It is a brief:
+the orchestrator picks any capable reviewer and tells it to load this skill's own
+`references/skill-package-rubric.md`, **run** `scripts/skill-package-checks.sh` for the
+static rules, and return findings that **name rule ids**. The rubric ships with `/xreview`, so
+it cannot go missing the way a separate installed skill could — that dependency is exactly what
+the pre-cut wiring had, and it halted the review whenever an install lacked one.
+
+**The rubric *file* is a different object, and it can still be missing or truncated in a broken
+install.** If the lens cannot read `references/skill-package-rubric.md`, **HALT** (`SKILL.md`
+Halt Conditions). The rule ids are short and schematic — `D1`, `B2`, `S2` — so an unread rubric
+yields plausible ids emitted from memory: a review that looks cited and is not. Distinguish the
+two: the lens cannot be absent because it is not a thing that installs; the file it reads can.
+
+Losing the absence check means the pin needs a different guarantee, and this is it:
+
+> **A rubric-lens verdict that cites no rule id is not a rubric review.** Re-dispatch it. The
+> rule id is what makes the verdict falsifiable — a reader can look it up and disagree. An
+> uncited "the skill looks fine" is the bare approval Rule 3 already rejects, wearing a
+> steward's name.
+
+Do **not** look for the rubric lens in `.claude/agents/` or `.claude/skills/` and halt on its
+absence. It was never going to be there.
+
+An agent-steward absent from `.claude/agents/` **is** a HALT, not a silent drop — same posture
+as dropping the pin. The skill cannot quietly run a `skill-package` review without
+`prose-steward`; it halts and asks the operator, who may override with a stated reason.
 
 `idiomatic-reviewer` stays wired to **code presence**. `shared-stack` pulls stewards
-**by file-type-present** (idiom if code, prose if prose, audit/author only if a `.claude/`
-skill body is in the diff); `skill-package` **pins audit + author + prose unconditionally**,
-because a skill is prose + discipline + an authored artifact regardless of which files the diff
-happens to touch. This is why the two classes stay separate (§2 tie-break picks `skill-package`,
+**by file-type-present** (idiom if code, prose if prose, the rubric lens only if a `.claude/`
+skill body is in the diff); `skill-package` **pins `prose-steward` + the rubric lens
+unconditionally**, because a skill is prose *and* an authored artifact regardless of which files
+the diff happens to touch. This is why the two classes stay separate (§2 tie-break picks `skill-package`,
 the strict superset).
 
 The stewards report on their **own axes**, not the boundary table:
@@ -126,9 +142,9 @@ The stewards report on their **own axes**, not the boundary table:
 - `prose-steward` → a **Prose addendum** (parallel structure: clarity/audience findings;
   correctness-grade — e.g. an ambiguous guardrail an agent would misread — blocks; style is
   advisory).
-- `audit-skill` / `author-skill` → **per-lens verdicts in the ledger** (RATIFY/DISSENT on
-  "does this skill hold / is it authored correctly"), carrying their evidence. A DISSENT here
-  blocks the same as a MISMATCH.
+- the rubric lens → a **per-lens verdict in the ledger** (RATIFY/DISSENT on "is this skill
+  authored correctly and does its discipline hold"), carrying **rule ids** as its evidence. A
+  DISSENT here blocks the same as a MISMATCH.
 
 ## 4a. Cross-cutting risk lenses (mandatory by concern)
 
@@ -144,8 +160,8 @@ The stewards report on their **own axes**, not the boundary table:
 menu an engineer picks from. It is also the discovery scope of a headless bundle that
 approves its own tool calls, seeded there by the runner image, and the agents it can
 reach carry their own tool grants. A change to that surface is a change to what an
-auto-approving agent can be told to do. A `skill-package` change pins the prose, audit
-and authoring stewards unconditionally and did **not** pin security — so the
+auto-approving agent can be told to do. A `skill-package` change pins the prose steward
+and the rubric lens unconditionally and did **not** pin security — so the
 highest-consequence review in this repository, of this repository, did not mandate the
 lens that found this.
 
@@ -167,8 +183,7 @@ concern-lens is such an override — allowed, but recorded with the reason like 
 recorded with the operator's stated reason.
 
 **The `skill-package` steward pin survives a tier override.** Lowering a `skill-package` change
-from T3 to its T2 floor does **not** drop the unconditional `audit-skill` + `author-skill` +
-`prose-steward` pin (§4) — the pin keys off the **class** (`skill-package`) and is unconditional
+from T3 to its T2 floor does **not** drop the unconditional `prose-steward` + rubric-lens pin (§4) — the pin keys off the **class** (`skill-package`) and is unconditional
 regardless of which file-types the diff touches, so it is orthogonal to tier. Dropping any pinned
 steward is a **separate, explicit override with its own stated reason** (mirrors the skill's
 "explicitly accepted by the user with the risk named" guardrail) — never a side effect of lowering

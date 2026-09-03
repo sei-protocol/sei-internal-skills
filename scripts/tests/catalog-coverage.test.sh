@@ -9,6 +9,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILLS_SH="$SCRIPT_DIR/../sync-skills.sh"
 AGENTS_SH="$SCRIPT_DIR/../sync-agents.sh"
 SKILLS_DIR="$SCRIPT_DIR/../../.claude/skills"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 PASS=0
 FAIL=0
@@ -17,6 +18,7 @@ no() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 silent() { "$@" >/dev/null 2>&1; }
 check()      { local d="$1"; shift; if silent "$@"; then ok "$d"; else no "$d"; fi; }   # PASS when cmd exits 0
 check_fail() { local d="$1"; shift; if silent "$@"; then no "$d"; else ok "$d"; fi; }   # PASS when cmd exits non-zero
+check_eq()   { local d="$1" want="$2" got="$3"; if [ "$want" = "$got" ]; then ok "$d"; else no "$d (want '$want', got '$got')"; fi; }
 # PASS when cmd exits non-zero AND its combined output contains <pat> — guards
 # against a silent crash satisfying a bare exit-code assertion (the D1/D2 trap).
 check_fail_msg() {
@@ -66,6 +68,32 @@ printf -- '---\nname: cov-test2\n---\n' > "$tmpskill2/SKILL.md"
 # crash silently under set -e/pipefail (which would satisfy a bare exit check).
 check_fail_msg "skills --verify FAILS + reports the missing category" "no 'category:'" "$SKILLS_SH" --verify
 rm -rf "$tmpskill2"
+
+# The README's headline counts drifted three times during the 2026-08/09 slim,
+# each time because the number was transcribed rather than measured. Assert it.
+echo "README's declared core counts match the tree"
+declared_skills=$(sed -n 's/.*the core | \([0-9]*\) skills, \([0-9]*\) agents.*/\1/p' "$REPO_ROOT/README.md")
+declared_agents=$(sed -n 's/.*the core | \([0-9]*\) skills, \([0-9]*\) agents.*/\2/p' "$REPO_ROOT/README.md")
+actual_skills=$(find "$REPO_ROOT/.claude/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
+actual_agents=$(find "$REPO_ROOT/.claude/agents" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')
+# An empty declared_* means the README row moved or was reworded, which needs a
+# different repair than a stale number. Separate the two messages.
+if [ -z "$declared_skills" ] || [ -z "$declared_agents" ]; then
+  no "README core-count row not found (the sed pattern no longer matches — did the row move?)"
+else
+check_eq "README skill count ($declared_skills) == tree ($actual_skills)" "$actual_skills" "$declared_skills"
+check_eq "README agent count ($declared_agents) == tree ($actual_agents)" "$actual_agents" "$declared_agents"
+fi
+
+# The README states the skill count in more than one place, and the guard above
+# reads one of them. A stale "13 skills" survived in a second sentence because of
+# exactly that. Assert every count claim in the file, not just the table row.
+# Only lines that name `.claude/` — the experimental row (12) and the sentence
+# about the prior 33-skill generation are both correct and must not trip this.
+bad_counts=$(grep -F '.claude/' "$REPO_ROOT/README.md" \
+  | grep -oE '[0-9]+ (self-contained Claude Code )?skills' \
+  | grep -oE '^[0-9]+' | sort -u | grep -v "^${actual_skills}$" | tr '\n' ' ')
+check_eq "every README skill-count claim reads $actual_skills" "" "$bad_counts"
 
 echo ""
 echo "catalog-coverage: $PASS passed, $FAIL failed"

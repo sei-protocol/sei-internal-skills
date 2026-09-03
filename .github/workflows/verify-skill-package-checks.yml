@@ -1,0 +1,46 @@
+name: verify skill-package checks
+
+# The rubric checker had no gate, and that is why two crashes reached review: it
+# died mid-sweep on validate-release and dropped two block rules with no trace,
+# and a description with no quoted trigger killed it under pipefail. Both were
+# found by a reviewer running it by hand. A sweep asserting rc=0 and parseable
+# output catches that class before it ships.
+#
+# The block-failure check is DIFFERENTIAL, against
+# .claude/skills/xreview/scripts/block-baseline.txt. A new block failure fails
+# here, and so does a fixed one — the baseline shrinks deliberately rather than
+# drifting.
+on:
+  pull_request:
+    paths:
+      - '.claude/skills/**'
+      - 'scripts/tests/skill-package-checks.test.sh'
+      - 'scripts/tests/block-baseline.txt'
+      # T1 (block) reads .gitignore and C3 reads sync-skills.sh, so an edit to
+      # either can move block findings across all 11 skills. Without these the
+      # differential gate would not run on the change that moved it.
+      - '.gitignore'
+      - 'scripts/sync-skills.sh'
+      - 'docs/xreview/**'
+      - 'scripts/verify-ledger.sh'
+      - 'scripts/tests/verify-ledger.test.sh'
+      - '.xreview/**'
+      - '.github/workflows/verify-skill-package-checks.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  skill-package-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Sweep every core skill, then diff against the baseline
+        run: ./scripts/tests/skill-package-checks.test.sh
+      - name: Check every review ledger against the schema xreview ships
+        run: ./scripts/verify-ledger.sh
+      - name: Regression suite for the ledger linter
+        run: ./scripts/tests/verify-ledger.test.sh

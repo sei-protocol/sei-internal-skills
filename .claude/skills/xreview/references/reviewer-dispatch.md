@@ -32,11 +32,50 @@ cite what you checked. If you cannot assess a boundary from the artifact given,
 say so and name what you'd need.
 ```
 
+## The rubric lens brief (`skill-package` changes only)
+
+The rubric lens is **not** a `subagent_type` and not a roster entry. Dispatch any capable
+reviewer with this brief in place of the boundary-table one:
+
+> Load the rubric at the path the orchestrator gives you — normally
+> `.claude/skills/xreview/references/skill-package-rubric.md`, but a **merge-base copy** when the
+> diff under review edits the rubric. 52 rules, each with an id,
+> a severity (`block`/`warn`/`info`), and a `[static]`/`[semantic]`/`[pressure]` tag. Run
+> `.claude/skills/xreview/scripts/skill-package-checks.sh --skill-dir <abs-path>` for the static
+> subset and report every `block` failure. Judge the `[semantic]` rules by reading the skill.
+> Run P7 by the method in `references/pressure-testing.md` — P7 is `block`, so do not skip it
+> and return RATIFY on the static rules alone. **Every finding names its rule id.** Return a
+> per-lens verdict: RATIFY or DISSENT.
+
+**When the diff edits the rubric**, the orchestrator materializes the merge-base revision to disk
+first and briefs *that* path (Reachability, above) — a reviewer with no Bash cannot run a
+`git show`. The edit is itself a finding in the ledger's routing section. Otherwise a change can
+weaken a rule and be reviewed under the weakened rule in the same pass.
+
+**When the target under review is `/xreview` itself**, the lens has read the skill it is judging
+— it loaded the rubric out of that skill. `pressure-testing.md` states this for P7 ("you cannot be
+your own subject"), and the argument is not specific to P7: it covers every `[semantic]` rule,
+B5–B8 and D4/D6/D7 included. Record those judgments in the ledger as **reduced-confidence**, and
+where a fresh subagent can carry the judgment instead, dispatch one.
+
+Three conditions on what comes back:
+
+- **A verdict citing no rule id is not a rubric review.** Re-dispatch it. The rubric lens has no
+  absence check, so an uncited verdict is the only way its pin fails silently.
+- **A rule the lens could not evaluate is reported `skipped`,** never dropped. An unrun rule that
+  leaves no trace reads as a rule that passed. The checker splits two cases and so should you:
+  `skip_reason: unavailable` means the rule had a subject you could not reach — follow it up, and
+  a `block` one is an open finding. `skip_reason: inapplicable` means the rule had no subject at
+  all (`S1` on a skill with no `scripts/`) — nothing is unknown, and it is not a finding.
+- **If the lens cannot read the rubric file, HALT.** The ids are short and schematic, so an
+  unread rubric yields plausible ids emitted from memory — a review that looks cited and is not.
+
 ## Anti-patterns
 
 - **Summarizing peers into the brief.** "The platform-engineer thinks X — do you agree?" destroys independence. Don't.
 - **One brief, all reviewers, shared thread.** They'll anchor on whoever answers first.
 - **Skipping the dissenter** because "everyone will probably agree." That's the prediction the dissenter exists to test.
 - **Briefing "take a look"** instead of the structured, evidence-demanding brief above. Vague briefs produce vague approvals.
+- **Accepting a rubric-lens verdict with no rule ids.** <!-- vale off -->"It read the rubric and it's fine"<!-- vale on --> is the bare approval this contract rejects, wearing a steward's name.
 - **Manufacturing reviewers** to look thorough. If one specialist genuinely covers the surface, run a single-reviewer pass and label it as such.
 - **A `gh`/`git`/shell pointer handed to a Read-only reviewer.** `prose-steward` (Read/Grep/Glob, no Bash) can't run it — the review halts or fabricates. Materialize the artifact to disk and brief the path.

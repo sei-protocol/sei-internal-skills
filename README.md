@@ -114,7 +114,7 @@ The boundary between them is the point.
 
 | | What it is | Who gets it |
 |---|---|---|
-| **`.claude/`** — the core | 13 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
+| **`.claude/`** — the core | 11 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
 | **[`experimental/`](./experimental/README.md)** | 12 skills, 1 agent. Still forming, narrow audience, or exploratory. | Only on `make sync-experimental` |
 
 The core is what every teammate installs, so anything added there costs everyone the
@@ -163,11 +163,10 @@ private snapshot rather than deleted outright.
 
 ## What's in here
 
-- **Skills** (`.claude/skills/`) — 13 self-contained Claude Code skills, grouped by domain:
+- **Skills** (`.claude/skills/`) — 11 self-contained Claude Code skills, grouped by domain:
   - **Workflow** — `/xreview`
   - **Investigation** — `/root-cause`
   - **Code quality** — `/idiomatic`, `/systems`
-  - **Skill authoring** — `/author-skill`, `/audit-skill`
   - **Platform infra** — `/platform`, `/kubernetes`
   - **Blockchain** — `/evm`
   - **Release operations** — `/validate-release`, `/gov-ops`, `/validator-platform`
@@ -244,9 +243,9 @@ despite the name — those are omnigent server bundles, not Claude Code agent pe
 | If you're... | Start here |
 |---|---|
 | **Using the skills day to day** | `.claude/skills/README.md` (the catalog) |
-| **Authoring a new skill** | Pick the tier first ([`experimental/README.md`](experimental/README.md) — it is the default), then `.claude/skills/SKILL-TEMPLATE.md`, then `/author-skill` |
+| **Authoring a new skill** | Pick the tier first ([`experimental/README.md`](experimental/README.md) — it is the default), then `.claude/skills/SKILL-TEMPLATE.md`, then the skill-package rubric |
 | **Looking for a skill that isn't installed** | [`experimental/README.md`](experimental/README.md), then `make sync-experimental` |
-| **Auditing an existing skill** | `/audit-skill <name>` → report in the DRI's `<engineer>-designs` repo under `designs/<arc>/audits/` (Design 13) |
+| **Auditing an existing skill** | `/xreview` on the skill directory — it runs `.claude/skills/xreview/scripts/skill-package-checks.sh`, then reads the 52-rule rubric beside it |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
 | **Wanting exactly one thing** | [Just one piece](#just-one-piece) — the same installer, with a target |
 | **Wiring a sibling repo to use these** | `scripts/sync-agents.sh --target <path>` and `scripts/sync-skills.sh --target <path>` |

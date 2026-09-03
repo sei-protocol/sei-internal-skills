@@ -42,7 +42,7 @@ means complete, not long.
 
 ## Testing
 
-Built with `/author-skill`. Three max-pressure scenarios were run against subagents
+Built with the since-cut `/author-skill`. Three max-pressure scenarios were run against subagents
 without the skill (deadline + authority; sunk-cost spec + social proof; dual-audience
 parser pressure), and every rationalization in the skill's table is quoted from what
 those agents actually said. The same three scenarios were re-run with the skill

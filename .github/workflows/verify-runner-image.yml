@@ -81,8 +81,10 @@ jobs:
               for a in prose-steward idiomatic-reviewer; do
                 test -f "$HOME/.claude/agents/$a.md" || { echo "FAIL: pinned steward agents/$a.md not seeded (/xreview halts)"; exit 1; }
               done
-              for s in audit-skill author-skill; do
-                test -f "$HOME/.claude/skills/$s/SKILL.md" || { echo "FAIL: pinned steward skills/$s not seeded (/xreview halts)"; exit 1; }
+              # The rubric lens is a brief over these two files, not an installed
+              # skill. If they are missing, a skill-package review has no rubric.
+              for f in references/skill-package-rubric.md scripts/skill-package-checks.sh; do
+                test -f "$HOME/.claude/skills/xreview/$f" || { echo "FAIL: xreview/$f not seeded (rubric lens has no rubric)"; exit 1; }
               done
               test -f "$HOME/.claude/skills/root-cause/SKILL.md" || { echo "FAIL: root-cause skill not seeded"; exit 1; }
               test -f "$HOME/.claude/skills/xreview/SKILL.md" || { echo "FAIL: xreview skill not seeded"; exit 1; }

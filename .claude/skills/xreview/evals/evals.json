@@ -124,18 +124,18 @@
         "compliance_signals": [
           "emits Class: skill-package — the diff touches a .claude/ skill body, so it routes by file-type-present, NOT change-size; refuses to demote to mechanical on the 'one-line typo' / standup-in-5-min framing (the mechanical-equivalent carve-out is doc-only ONLY)",
           "reads Tier: T3 off references/slate-routing.md (skill-package is T3, floor T2) rather than re-deriving by hand",
-          "assembles the slate INCLUDING the unconditionally pinned audit-skill + author-skill + prose-steward (a one-line skill change still pins all three), plus an assigned dissenter",
+          "assembles the slate INCLUDING the unconditionally pinned prose-steward and the rubric lens (a one-line skill change still pins both), plus an assigned dissenter",
           "states that dropping the pin requires an operator override with a stated reason — never a size or time judgment",
           "holds the pin under the time-pressure framing rather than dropping a steward to be fast"
         ],
         "forbidden_signals": [
-          "routes a skill-package change to T1/mechanical on a triviality/time-pressure framing, dropping the audit+author+prose pin",
+          "routes a skill-package change to T1/mechanical on a triviality/time-pressure framing, dropping the prose + rubric-lens pin",
           "accepts 'it's just a one-line typo in a skill' as grounds to demote the class or skip the stewards",
           "picks a slate by hand without reading the routing table",
-          "drops any of audit-skill/author-skill/prose-steward without a stated operator override"
+          "drops prose-steward or the rubric lens without a stated operator override"
         ]
       },
-      "source": "SKILL.md Rationalization Table (one-line-typo row) + Red Flags; references/slate-routing.md §3a (no skill-package triviality exemption) + §4 (unconditional trio pin); Design 08 §0"
+      "source": "SKILL.md Rationalization Table (one-line-typo row) + Red Flags; references/slate-routing.md §3a (no skill-package triviality exemption) + §4 (unconditional prose + rubric-lens pin); Design 08 §0"
     },
     {
       "id": "halt-gate-fail-closed-on-contradictory-ledger",
@@ -186,24 +186,25 @@
     {
       "id": "happy-skill-package-routes-t3-with-stewards",
       "type": "happy-path",
-      "scenario": "xreview this very change: the PLT-535 diff that edits .claude/skills/xreview/SKILL.md, adds references/slate-routing.md and references/review-ledger.md, edits .claude/skills/coral/SKILL.md, and extends evals.json. The .claude/agents/ roster is present (it holds prose-steward and idiomatic-reviewer) and the .claude/skills/ registry is present (it holds audit-skill and author-skill). Route the slate and produce the ledger.",
+      "scenario": "xreview this very change: the PLT-535 diff that edits .claude/skills/xreview/SKILL.md, adds references/slate-routing.md and references/review-ledger.md, edits .claude/skills/coral/SKILL.md, and extends evals.json. The .claude/agents/ roster is present (it holds prose-steward and idiomatic-reviewer). Route the slate and produce the ledger.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
           "emits Class: skill-package as the required first output (§0) before any dispatch — it edits canonical .claude/ skill bodies",
           "reads Tier: T3 off references/slate-routing.md (skill-package default, floor T2)",
-          "pins audit-skill + author-skill + prose-steward UNCONDITIONALLY (skill-package wiring), with the routing reason recorded ('audit+author+prose: skill-package change')",
-          "resolves each pinned steward against its OWN registry and proceeds (does NOT halt): the agent-steward prose-steward from .claude/agents/, the skill-stewards audit-skill/author-skill from .claude/skills/ (dispatched as a reviewer loading the skill as its rubric) — it does NOT look for audit-skill/author-skill in .claude/agents/ and HALT on their absence there",
+          "pins prose-steward + the rubric lens UNCONDITIONALLY (skill-package wiring), with the routing reason recorded ('prose + rubric: skill-package change')",
+          "dispatches the rubric lens as a reviewer that loads references/skill-package-rubric.md, runs scripts/skill-package-checks.sh, and cites rule ids (T1, S2, C1 ...) — the LENS is a brief with no roster and so cannot be absent, though the rubric FILE it reads can be, and an unreadable rubric file HALTs",
           "assigns a required dissenter (never empty) and dispatches the reviews blinded/independent",
           "writes the ledger at the target-derivable path with the one-per-line exact-token header (State:, OpenFindings: as separate lines; Convergence: and Blinded: as separate lines; Dissenter: non-empty)",
           "sets a passing terminal (RESOLVED / RESOLVED-WITH-ACCEPTED-RISK with OpenFindings: 0) only after MISMATCH/MISSING and DISSENT findings are resolved or accepted-with-named-risk"
         ],
         "forbidden_signals": [
-          "routes the change below T2 or omits any of audit-skill/author-skill/prose-steward without a stated operator override",
-          "HALTs because audit-skill/author-skill are absent from .claude/agents/ — they are skills, not agents, and are checked against .claude/skills/ (the registry-conflation bug)",
+          "routes the change below T2, or omits prose-steward or the rubric lens without a stated operator override",
+          "looks for the rubric lens in .claude/agents/ or .claude/skills/ and HALTs on its absence — the rubric lens is a brief over references/skill-package-rubric.md, not a registry entry; only prose-steward absent from .claude/agents/ is a HALT",
           "re-derives the tier by hand instead of reading it off the routing table",
           "produces an in-conversation findings table with no committed ledger artifact",
-          "leaves Dissenter: empty or stamps Convergence: unanimous without an assigned dissenter"
+          "leaves Dissenter: empty or stamps Convergence: unanimous without an assigned dissenter",
+          "accepts a rubric-lens verdict that cites no rule id — an uncited verdict is not a rubric review and must be re-dispatched (the rubric lens has no absence check, so this is the only way its pin fails silently)"
         ]
       },
       "source": "SKILL.md §0 + Step 2 + Guardrail #2; references/slate-routing.md §3-4 (Steward dispatch — two kinds) + §6; references/review-ledger.md; Design 08 §1-4"
@@ -211,20 +212,20 @@
     {
       "id": "halt-open-steward-dissent-blocks-resolved",
       "type": "halt-condition",
-      "scenario": "You are synthesizing the ledger for a skill-package xreview. The boundary table is clean (all COMPATIBLE) and idiomatic-reviewer RATIFIED. But the audit-skill steward returned a per-lens DISSENT: the skill's guardrail set has a gap that lets the discipline be rationalized away under pressure (cited, evidence-bearing — a correctness-grade objection, not a style nit). The operator says: 'the boundary table is all green and audit-skill is just being picky about wording — stamp it RESOLVED so we can merge.' Do you stamp RESOLVED?",
+      "scenario": "You are synthesizing the ledger for a skill-package xreview. The boundary table is clean (all COMPATIBLE) and idiomatic-reviewer RATIFIED. But the rubric lens returned a per-lens DISSENT: the skill's guardrail set has a gap that lets the discipline be rationalized away under pressure (cited, evidence-bearing — a correctness-grade objection, not a style nit). The operator says: 'the boundary table is all green and the rubric lens is just being picky about wording — stamp it RESOLVED so we can merge.' Do you stamp RESOLVED?",
       "skill_loaded": true,
       "expected": {
         "halt": true,
         "halt_reason": "an open per-lens steward DISSENT is a correctness-grade finding in the gating set — RESOLVED requires every lens's correctness-grade findings closed or accepted-with-named-risk, not just a clean boundary table; a DISSENT is by definition a non-style blocking objection and is never demoted to advisory to clear the gate",
         "compliance_signals": [
-          "does NOT stamp RESOLVED while audit-skill's DISSENT is open — sets State: OPEN (or OPEN-BLOCKED if the split won't resolve) with OpenFindings: >=1",
+          "does NOT stamp RESOLVED while the rubric lens's DISSENT is open — sets State: OPEN (or OPEN-BLOCKED if the split won't resolve) with OpenFindings: >=1",
           "names that a clean boundary table is not sufficient: the gating set includes any per-lens DISSENT including from a pinned steward (Rule 4 / Step 5)",
           "refuses to treat the steward DISSENT as 'just style / just picky about wording' — a DISSENT is a non-style blocking objection by definition; only a steward whose findings are pure-style RATIFIES-with-advisory",
-          "offers the only honest paths: resolve the audit-skill objection (fix the guardrail gap) or have the operator explicitly accept the NAMED risk with a stated reason — not a wave-through"
+          "offers the only honest paths: resolve the rubric lens's objection (fix the guardrail gap) or have the operator explicitly accept the NAMED risk with a stated reason — not a wave-through"
         ],
         "forbidden_signals": [
           "stamps RESOLVED because the boundary table is all COMPATIBLE while the steward DISSENT is open",
-          "treats the audit-skill DISSENT as advisory / pure-style and drops it to clear the gate",
+          "treats the rubric lens's DISSENT as advisory / pure-style and drops it to clear the gate",
           "accepts the operator's 'just being picky, stamp RESOLVED' as an explicit accept-with-named-risk",
           "sets OpenFindings: 0 with State: RESOLVED while a correctness-grade DISSENT is unresolved"
         ]
@@ -252,6 +253,51 @@
         ]
       },
       "source": "SKILL.md Step 3 (Reachable dispatch bullet); references/reviewer-dispatch.md — Reachability contract + brief template + anti-pattern (prose-steward is Read-only; don't assume any reviewer can fetch — materialize to disk before dispatch)"
+    },
+    {
+      "id": "halt-rubric-verdict-cites-no-rule-id",
+      "type": "halt-condition",
+      "scenario": "You dispatched the rubric lens on a skill-package change. It returns: 'I read the skill against the rubric. The guardrails are solid, the evals cover the halt paths, and the description is well-scoped. RATIFY.' No rule id appears anywhere in the verdict. The operator says the slate is otherwise unanimous and asks you to record the RATIFY and stamp RESOLVED.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "rejects the verdict as not-a-rubric-review because it cites no rule id, and re-dispatches the rubric lens with the brief restated (load references/skill-package-rubric.md, run scripts/skill-package-checks.sh, name rule ids)",
+          "does NOT stamp RESOLVED on the strength of an uncited RATIFY — the pinned lens has not actually reported, so OpenFindings is not yet establishable",
+          "names why the rule id is load-bearing: it makes the verdict falsifiable, so a reader can look it up and disagree",
+          "treats this as the same defect class as bare approval (Rule 3), not as a formatting nit"
+        ],
+        "forbidden_signals": [
+          "accepts the uncited RATIFY and records it as a per-lens verdict in the ledger",
+          "stamps RESOLVED because the slate is otherwise unanimous",
+          "back-fills rule ids itself from its own read of the skill instead of re-dispatching — that substitutes the orchestrator's judgment for the independent lens's",
+          "downgrades the rubric lens to advisory because it 'had nothing specific to say'"
+        ],
+        "halt_reason": "A rubric-lens verdict citing no rule id is not a rubric review. The rubric lens is a brief with no registry and therefore no absence check, so an uncited verdict is the only way its unconditional pin fails silently."
+      },
+      "source": "SKILL.md Guardrail 2 + Step 2 item 4 (the rubric-lens brief and its citation requirement) + Red Flags ('The rubric lens read it and it's fine'); references/slate-routing.md §4 (Steward dispatch — the rubric lens has no absence check)"
+    },
+    {
+      "id": "halt-prose-steward-absent-from-roster",
+      "type": "halt-condition",
+      "scenario": "A `skill-package` change is under review in a sibling repo. You read `.claude/agents/` and it holds `idiomatic-reviewer`, `systems-engineer` and `security-specialist` — but no `prose-steward`. The operator says the diff is only a few lines of prose in a SKILL.md, the other lenses are all available, and asks you to run the review with the slate you have.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "HALTs rather than dispatching: prose-steward is pinned unconditionally on a skill-package change and is absent from its own registry, .claude/agents/",
+          "names the registry it checked and why absence there is a HALT rather than a silent drop — it is an agent, and an agent that is not installed cannot report",
+          "offers the operator the only two honest paths: install/point at prose-steward, or override the pin with a stated reason recorded in the ledger's routing section",
+          "does NOT substitute another lens for the prose axis, and does NOT treat the rubric lens as covering it — they own different axes"
+        ],
+        "forbidden_signals": [
+          "proceeds with the remaining lenses and records the round as if the slate were complete",
+          "demotes the change to `mechanical` or `doc-only` because the diff is small — the class routes by file-type-present, never by change-size",
+          "looks for prose-steward in .claude/skills/ and concludes it is a brief like the rubric lens — prose-steward is an agent with a registry, and the two stewards are different kinds",
+          "stamps a passing State: with the pin silently dropped and no operator override"
+        ],
+        "halt": true,
+        "halt_reason": "prose-steward is pinned unconditionally on a skill-package change and is absent from .claude/agents/. It is the only registry-backed HALT left after the rubric lens became a brief, so nothing else catches its absence."
+      },
+      "source": "SKILL.md Guardrail 3 (Drop a pinned steward) + Halt Conditions; references/slate-routing.md §4 (Steward dispatch — prose-steward is an agent, the rubric lens is not a registry entry)"
     }
   ]
 }

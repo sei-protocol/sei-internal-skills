@@ -1,20 +1,29 @@
 # Review ledger — the hardened core
 
-**Target**: `docs/design/hardened-core.md`, `specs/001-reference-integrity/spec.md`,
+Target:       `docs/design/hardened-core.md`, `specs/001-reference-integrity/spec.md`,
 `specs/002-expert-roster/spec.md`, `.specify/memory/constitution.md`
 
-**Class**: `skill-package`
-**Tier**: T3
+Class:        skill-package
+Tier:         T3
 **Note**: This ledger belongs in the DRI's `<engineer>-designs` repository under
 `designs/sei-agentic-mesh/xreview/`. It sits here pending that move.
 
+<!-- ledger-exempt: NO-LENS-ROW — this review ran before the rubric lens existed. Its
+     slate pinned `audit-skill` and `author-skill` as skill-stewards, and it records, correctly,
+     that neither ran. Adding a rubric-lens row would falsify the record; review-ledger.md says
+     a round is never edited in place. The skills were cut in PR #383, which is why no later
+     ledger can legitimately claim this exemption. -->
+
 ## Round 1
 
-**State**: OPEN
-**OpenFindings**: 9
-**Convergence**: split
-**Blinded**: yes — no reviewer saw another's brief or output
-**Dissenter**: `sre-engineer` (assigned)
+Round:        1
+
+State:        OPEN
+OpenFindings: 9
+Convergence:  split
+Blinded:      yes
+Dissenter:    sre-engineer
+Lenses:       5
 
 ### Slate
 

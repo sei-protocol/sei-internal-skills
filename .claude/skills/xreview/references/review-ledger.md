@@ -73,13 +73,17 @@ Tier:         <T1 | T2 | T3>   (+ override note if the operator changed it)
 Round:        1                (incremented per re-review of the same target)
 State:        <OPEN | RESOLVED | RESOLVED-WITH-ACCEPTED-RISK | OPEN-BLOCKED>
 OpenFindings: <integer>        (count of still-open findings)
-Convergence:  <unanimous | split>   (this round only, tokens only — a prior-round split that this round resolved + re-ratified is `unanimous`; never free prose)
+Convergence:  <unanimous | split | degenerate>  (this round only, tokens only — a prior-round split that this round resolved + re-ratified is `unanimous`; a single-lens round is `degenerate`, never `unanimous`; never free prose)
 Blinded:      <yes | no>       (no downgrades confidence — say so in the Verdict)
 Dissenter:    <which lens held assigned dissent this round — required, never empty>
+Lenses:       <integer>        (how many lenses reported this round — 1 means a degenerate
+                                single-reviewer pass, and `Convergence: unanimous` over one
+                                lens corroborates nothing; the count makes that legible to a
+                                consumer that reads only the header)
 
 ## Routing
 - Slate: <lenses dispatched, each tagged domain / steward / dissenter (a lens may hold more than one — e.g. a steward also assigned the dissent)>
-- Auto-wired stewards: <which, and why — e.g. "audit+author+prose: skill-package change">
+- Auto-wired stewards: <which, and why — e.g. "prose + rubric lens: skill-package change">
 - Overrides: <none | operator lowered T3→T2, reason: "…", risk accepted: yes>
 
 ## Per-lens verdicts
@@ -87,7 +91,7 @@ Dissenter:    <which lens held assigned dissent this round — required, never e
 |---|---|---|---|
 | security-specialist | RATIFY | … cites contract/field/line … | n/a |
 | network-specialist  | DISSENT | … the strongest objection … | artifact updated @ <commit/section> OR accepted-risk: <stated> |
-| author-skill        | RATIFY | triggers/guardrails/evals present, cited | n/a |
+| rubric lens         | RATIFY | rubric ids cited: T1 pass, S2 pass, C1 pass, D3 fail (warn), S4 skipped/inapplicable, **P7 pass (4 scenarios)** | n/a |
 
 ## Boundary findings  (the COMPATIBLE / MISMATCH / MISSING table — unchanged schema)
 | Interface / Boundary | Provider | Consumer | Status | Evidence | Raised by |
@@ -108,9 +112,10 @@ Dissenter:    <which lens held assigned dissent this round — required, never e
 Round:        2
 State:        <OPEN | RESOLVED | RESOLVED-WITH-ACCEPTED-RISK | OPEN-BLOCKED>
 OpenFindings: <integer>
-Convergence:  <unanimous | split>
+Convergence:  <unanimous | split | degenerate>
 Blinded:      <yes | no>
 Dissenter:    <lens — this round, required, never empty>
+Lenses:       <integer>
 
 ### Routing / Per-lens verdicts / Boundary findings / … (this round's sections)
 <the round's own Routing, Per-lens, Boundary, addenda, Rejected — parallel to Round 1>
@@ -159,6 +164,30 @@ as raised, who raised it, why it was rejected, and how that was verified (read t
 back if the finding is wrong — now recorded rather than transient).
 
 ## Convergence and dissenter
+
+`Lenses:` is **required**, and `Lenses: 1` **must** carry `Convergence: degenerate`. Unanimity
+across a single reviewer is the consensus theater the assigned-dissent rule exists to catch, with
+the field filled in — the lens agreeing with itself. `SKILL.md` already requires a single-reviewer
+pass be labelled "a degenerate xreview, not dressed up as a full one"; the token puts that
+obligation in the contract instead of in prose no gate reads.
+
+**Three ways a round with a `DISSENT` reaches a passing `State:`** — and only three:
+
+1. **Re-dispatch.** The lens sees the fix and issues a new verdict. The new verdict belongs to
+   a new round; it never overwrites the old one.
+2. **Accept-with-risk.** The operator names the risk and accepts it. `State:`
+   is `RESOLVED-WITH-ACCEPTED-RISK`, never plain `RESOLVED`.
+3. **Every finding that DISSENT raised is closed.** `State: RESOLVED`, `OpenFindings: 0` — and
+   `Convergence:` stays `split` or `degenerate`, because the *verdict* did not change. This is
+   the common case, and the one most easily mistaken for the substitution below.
+
+`Convergence:` is read off the per-lens verdicts **as the lenses issued them**. An orchestrator
+never restates a lens's verdict: a resolved finding is recorded against the standing `DISSENT`,
+and the verdict changes only when that lens is re-dispatched and says so itself. A round holding
+any `DISSENT` row is `split`, never `unanimous`.
+
+`Lenses:` is measured against the round's slate table, not self-reported: a round declaring N
+lenses must list N of them, and a round with no slate table can only honestly be one lens.
 
 `Convergence: unanimous | split` and `Blinded: yes | no` are **two separate lines** (two
 independent facts). A split is a finding, not a rounding error. An un-blinded review

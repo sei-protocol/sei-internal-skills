@@ -100,6 +100,18 @@ test-install: ## Run the installer regression suite — targeted mode (scripts/t
 test-prune: ## Run the prune-retired regression suite (never deletes core or user-authored resources)
 	@./scripts/tests/prune-retired.test.sh
 
+.PHONY: test-skill-package-checks
+test-skill-package-checks: ## Sweep the rubric checker over every core skill; diff block failures against the baseline (CI)
+	@./scripts/tests/skill-package-checks.test.sh
+
+.PHONY: verify-ledger
+verify-ledger: ## Fail if an /xreview ledger violates the schema /xreview ships (CI)
+	@./scripts/verify-ledger.sh
+
+.PHONY: test-ledger
+test-ledger: ## Run the ledger-linter regression suite (scripts/tests/verify-ledger.test.sh)
+	@./scripts/tests/verify-ledger.test.sh
+
 .PHONY: update-agent-permissions
 update-agent-permissions: ## Install canonical read-only allow-list into ./.claude/settings.json (DRY_RUN=1 to preview)
 	@./scripts/update-agent-permissions.sh

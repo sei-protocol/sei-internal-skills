@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# static-checks.sh — Run the deterministic subset of the conventions catalog.
+# skill-package-checks.sh — Run the deterministic subset of the conventions catalog.
 #
 # Usage:
-#   static-checks.sh --skill-dir <abs-path> [--output <file.jsonl>]
+#   skill-package-checks.sh --skill-dir <abs-path> [--output <file.jsonl>]
 #
 # Output: JSONL — one finding per line — to stdout or to the file given by --output.
 # Exit code: 0 on success (regardless of findings), non-zero on tool errors.
@@ -12,12 +12,12 @@ set -euo pipefail
 SKILL_DIR=""
 OUTPUT=""
 
-die() { printf 'static-checks.sh: %s\n' "$1" >&2; exit "${2:-1}"; }
+die() { printf 'skill-package-checks.sh: %s\n' "$1" >&2; exit "${2:-1}"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --skill-dir) SKILL_DIR="$2"; shift 2 ;;
-    --output)    OUTPUT="$2"; shift 2 ;;
+    --skill-dir) [[ $# -ge 2 ]] || die "--skill-dir needs a value" 1; SKILL_DIR="$2"; shift 2 ;;
+    --output)    [[ $# -ge 2 ]] || die "--output needs a file path" 1; OUTPUT="$2"; shift 2 ;;
     *) die "unknown flag: $1" 1 ;;
   esac
 done
@@ -36,16 +36,28 @@ fi
 
 # Emit a JSONL finding.
 emit() {
-  # Args: id severity title result evidence catalog_ref
-  local id="$1" severity="$2" title="$3" result="$4" evidence="$5" catalog_ref="$6"
+  # Args: id severity title result evidence catalog_ref [skip_reason]
+  #
+  # skip_reason is set only when result is `skipped`, and it separates two cases a
+  # bare `skipped` conflates:
+  #   inapplicable — the rule has no subject (S1 on a skill with no scripts/).
+  #                  Nothing is unknown; a reviewer does nothing.
+  #   unavailable  — the rule has a subject the checker could not reach (C1 with no
+  #                  catalog README). Something IS unknown; a reviewer follows up.
+  # Without the split, nine of eleven core skills report two skipped `block` rules
+  # forever, and the "a skipped block rule is an open finding" doctrine over-fires
+  # until a reviewer learns to ignore it.
+  local id="$1" severity="$2" title="$3" result="$4" evidence="$5" catalog_ref="$6" skip_reason="${7:-}"
   # Escape JSON-special chars in evidence: backslash, double-quote, newline, tab, CR.
   local esc_evidence="${evidence//\\/\\\\}"
   esc_evidence="${esc_evidence//\"/\\\"}"
   esc_evidence="${esc_evidence//$'\n'/\\n}"
   esc_evidence="${esc_evidence//$'\t'/\\t}"
   esc_evidence="${esc_evidence//$'\r'/\\r}"
-  printf '{"id":"%s","severity":"%s","title":"%s","result":"%s","evidence":"%s","catalog_ref":"%s","source":"static"}\n' \
-    "$id" "$severity" "$title" "$result" "$esc_evidence" "$catalog_ref" >&3
+  local skip_field=""
+  [[ -n "$skip_reason" ]] && skip_field=",\"skip_reason\":\"$skip_reason\""
+  printf '{"id":"%s","severity":"%s","title":"%s","result":"%s","evidence":"%s","catalog_ref":"%s","source":"static"%s}\n' \
+    "$id" "$severity" "$title" "$result" "$esc_evidence" "$catalog_ref" "$skip_field" >&3
 }
 
 SKILL_NAME="$(basename "$SKILL_DIR")"
@@ -100,10 +112,10 @@ else
 fi
 
 # D2 — under 1024 chars
-if (( DESC_LEN <= 1024 )); then
+if (( DESC_LEN < 1024 )); then
   emit "D2" "block" "Description under 1024 chars" "pass" "$DESC_LEN chars" "D2"
 else
-  emit "D2" "block" "Description under 1024 chars" "fail" "$DESC_LEN chars (over by $((DESC_LEN - 1024)))" "D2"
+  emit "D2" "block" "Description under 1024 chars" "fail" "$DESC_LEN chars; the rubric states strictly-under 1024" "D2"
 fi
 
 # D3 — anti-triggers present
@@ -122,7 +134,9 @@ else
 fi
 
 # D8 — ≥3 trigger phrases (heuristic: count single-quoted phrases)
-TRIGGER_COUNT=$(printf '%s' "$DESC_STRIPPED" | grep -oE "'[^']+'" | wc -l | tr -d ' ')
+# `|| true`: no quoted phrase means grep exits 1, and under `set -euo pipefail`
+# that kills the run — dropping every check after D8, block rules included.
+TRIGGER_COUNT=$(printf '%s' "$DESC_STRIPPED" | { grep -oE "'[^']+'" || true; } | wc -l | tr -d ' ')
 if (( TRIGGER_COUNT >= 3 )); then
   emit "D8" "warn" "Description includes ≥3 concrete trigger phrases" "pass" "$TRIGGER_COUNT quoted phrases" "D8"
 else
@@ -133,10 +147,10 @@ fi
 SKILL_MD_LINES=$(wc -l < "$SKILL_MD" | tr -d ' ')
 
 # B1 — under 500 lines
-if (( SKILL_MD_LINES <= 500 )); then
+if (( SKILL_MD_LINES < 500 )); then
   emit "B1" "block" "SKILL.md under 500 lines" "pass" "$SKILL_MD_LINES lines" "B1"
 else
-  emit "B1" "block" "SKILL.md under 500 lines" "fail" "$SKILL_MD_LINES lines (over by $((SKILL_MD_LINES - 500)))" "B1"
+  emit "B1" "block" "SKILL.md under 500 lines" "fail" "$SKILL_MD_LINES lines; the rubric states strictly-under 500" "B1"
 fi
 
 # B2, B3 — Guardrails / Halt sections (warn-level since some shapes legitimately omit;
@@ -199,6 +213,10 @@ if [[ -d "$SKILL_DIR/references" ]]; then
   else
     emit "R3" "info" "No @skills force-load syntax" "fail" "found in: $(rel "$force_loads")" "R3"
   fi
+else
+  for r in R1:block R2:warn R3:info; do
+    emit "${r%%:*}" "${r##*:}" "references/ checks" "skipped" "no references/ directory" "${r%%:*}" "inapplicable"
+  done
 fi
 
 # --- Scripts checks (only if scripts/ exists — procedural shape) ---
@@ -229,26 +247,68 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
     fi
   done
 
-  # S4 — scripts/README.md exists
-  if [[ -f "$SKILL_DIR/scripts/README.md" ]]; then
+  # S4 — scripts/README.md exists AND documents exit codes. The existence half
+  # alone passed green on a README that documented no exit code, which is the
+  # rule's whole point: a caller cannot tell a failed check from a failed run.
+  if [[ ! -f "$SKILL_DIR/scripts/README.md" ]]; then
+    emit "S4" "warn" "scripts/README.md documents the scripts" "fail" "missing scripts/README.md" "S4"
+  elif grep -qiE 'exit code|exit status|exits? [0-9]' "$SKILL_DIR/scripts/README.md"; then
     emit "S4" "warn" "scripts/README.md documents the scripts" "pass" "" "S4"
   else
-    emit "S4" "warn" "scripts/README.md documents the scripts" "fail" "missing scripts/README.md" "S4"
+    emit "S4" "warn" "scripts/README.md documents the scripts" "fail" "scripts/README.md documents no exit codes" "S4"
   fi
+else
+  for r in S1:block S2:block S4:warn S6:warn; do
+    emit "${r%%:*}" "${r##*:}" "scripts/ checks" "skipped" "no scripts/ directory" "${r%%:*}" "inapplicable"
+  done
 fi
 
 # --- Evals checks ---
 EVALS_JSON="$SKILL_DIR/evals/evals.json"
 if [[ -f "$EVALS_JSON" ]]; then
-  # E1 — parseable JSON
-  if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$EVALS_JSON" 2>/dev/null; then
+  # E1 — parseable JSON. Distinguish "the file is bad" from "we cannot read it":
+  # without python3 the old form reported a parse error on a valid file and
+  # silently dropped E2-E4 with it.
+  E1_RC=0
+  python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$EVALS_JSON" >/dev/null 2>&1 || E1_RC=$?
+  # 126/127 mean the interpreter could not run, not that the JSON is bad. Reporting
+  # a parse error there would blame a valid file and drop E2-E4 with it.
+  if (( E1_RC == 126 || E1_RC == 127 )); then
+    for r in E1:block E2:block E3:warn E4:warn; do
+      emit "${r%%:*}" "${r##*:}" "evals.json checks" "skipped" "python3 unavailable (exit $E1_RC)" "${r%%:*}" "unavailable"
+    done
+  elif (( E1_RC == 0 )); then
     emit "E1" "block" "evals.json is parseable" "pass" "" "E1"
 
-    # E2, E3, E4 — counts and source field
-    HAPPY=$(python3 -c "import json; d=json.load(open('$EVALS_JSON')); print(sum(1 for e in d.get('evals',[]) if e.get('type')=='happy-path'))")
-    HALT=$(python3 -c "import json; d=json.load(open('$EVALS_JSON')); print(sum(1 for e in d.get('evals',[]) if e.get('type')=='halt-condition'))")
-    TOTAL=$(python3 -c "import json; d=json.load(open('$EVALS_JSON')); print(len(d.get('evals',[])))")
-    NO_SOURCE=$(python3 -c "import json; d=json.load(open('$EVALS_JSON')); print(sum(1 for e in d.get('evals',[]) if not e.get('source')))")
+    # E2, E3, E4 — counts and source field. One pass, path via argv (not
+    # interpolated), and both eval shapes: a top-level list and {"evals": [...]}.
+    # A skill using the list form used to raise AttributeError here and kill the
+    # run mid-stream, dropping T1 and C1 — two block rules — with no trace.
+    EVAL_COUNTS=$(python3 - "$EVALS_JSON" <<'PY' 2>/dev/null || true
+import json,sys
+d=json.load(open(sys.argv[1]))
+evals = d if isinstance(d,list) else d.get('evals',[])
+evals = [e for e in evals if isinstance(e,dict)]
+print(sum(1 for e in evals if e.get('type')=='happy-path'),
+      sum(1 for e in evals if e.get('type')=='halt-condition'),
+      len(evals),
+      sum(1 for e in evals if not e.get('source')))
+PY
+)
+    if [[ -z "$EVAL_COUNTS" ]]; then
+      # Visibly skipped, never silently dropped: a check that could not run is
+      # a finding, not an absence.
+      emit "E2" "block" "evals.json has ≥1 happy-path + ≥1 halt-condition" "skipped" "could not read eval entries" "E2" "unavailable"
+      emit "E3" "warn" "evals.json has ≥3 entries (Obra ideal)" "skipped" "could not read eval entries" "E3" "unavailable"
+      emit "E4" "warn" "Every eval has a source field" "skipped" "could not read eval entries" "E4" "unavailable"
+      HAPPY=0; HALT=0; TOTAL=0; NO_SOURCE=0
+      EVAL_SKIP=1
+    else
+      read -r HAPPY HALT TOTAL NO_SOURCE <<< "$EVAL_COUNTS"
+      EVAL_SKIP=0
+    fi
+
+    if (( EVAL_SKIP == 0 )); then
 
     if (( HAPPY >= 1 && HALT >= 1 )); then
       emit "E2" "block" "evals.json has ≥1 happy-path + ≥1 halt-condition" "pass" "happy-path=$HAPPY, halt-condition=$HALT" "E2"
@@ -267,11 +327,18 @@ if [[ -f "$EVALS_JSON" ]]; then
     else
       emit "E4" "warn" "Every eval has a source field" "fail" "$NO_SOURCE entries missing source" "E4"
     fi
+    fi
   else
     emit "E1" "block" "evals.json is parseable" "fail" "JSON parse error" "E1"
+    for r in E2:block E3:warn E4:warn; do
+      emit "${r%%:*}" "${r##*:}" "evals.json checks" "skipped" "evals.json does not parse" "${r%%:*}" "unavailable"
+    done
   fi
 else
   emit "E1" "block" "evals.json exists" "fail" "missing $(rel "$EVALS_JSON")" "E1"
+  for r in E2:block E3:warn E4:warn; do
+    emit "${r%%:*}" "${r##*:}" "evals.json checks" "skipped" "no evals.json to read" "${r%%:*}" "unavailable"
+  done
 fi
 
 # --- State checks ---
@@ -287,8 +354,16 @@ if [[ -f "$SKILL_DIR/.gitignore" ]]; then
   fi
 fi
 
+GITIGNORE_READABLE=0
+[[ -n "$REPO_ROOT" && -f "$REPO_ROOT/.gitignore" ]] && GITIGNORE_READABLE=1
+[[ -f "$SKILL_DIR/.gitignore" ]] && GITIGNORE_READABLE=1
+
 if (( GITIGNORE_OK == 1 )); then
   emit "T1" "block" "state/ is gitignored" "pass" "" "T1"
+elif (( GITIGNORE_READABLE == 0 )); then
+  # No .gitignore was read, so nothing was violated — the rule had no subject to
+  # check. Reporting `fail` here asserts a defect the checker never observed.
+  emit "T1" "block" "state/ is gitignored" "skipped" "no repo or local .gitignore to read" "T1" "unavailable"
 else
   emit "T1" "block" "state/ is gitignored" "fail" "no matching pattern in repo or local .gitignore" "T1"
 fi
@@ -307,15 +382,33 @@ if [[ -f "$CATALOG" ]]; then
   else
     emit "C1" "block" "Skill listed in catalog README" "fail" "no entry for ${SKILL_NAME}/ in $(rel "$CATALOG")" "C1"
   fi
+else
+  # Guarded on the input, not on REPO_ROOT: a skill synced into a sibling git repo
+  # has a repo root and no catalog, and C1 is `block`.
+  emit "C1" "block" "Skill listed in catalog README" "skipped" "no catalog README at $CATALOG" "C1" "unavailable"
 fi
 
+# C3 resolves the skill's `category:` against the three domain lists in
+# sync-skills.sh, using that script's own whole-word semantics. An earlier form
+# grepped the file unanchored, which passed `portable`, `sei`, `all`, `work` and
+# `cp` — every one of them rejected by `sync-skills.sh --verify`. A checker that
+# passes wrongly ships; one that fails loudly gets fixed.
 SYNC="$REPO_ROOT/scripts/sync-skills.sh"
 if [[ -f "$SYNC" ]]; then
-  if grep -qE "^  ${SKILL_NAME}\$" "$SYNC"; then
-    emit "C3" "info" "Skill in sync-skills.sh PORTABLE or SEI" "pass" "" "C3"
+  CAT="$(sed -n 's/^category:[[:space:]]*//p' "$SKILL_MD" | head -1 | tr -d '"'"'"'\r' | awk '{$1=$1;print}')"
+  DOMAINS=""
+  for v in PORTABLE_DOMAINS SEI_DOMAINS SEI_INTERNAL_SKILLS_LOCAL_DOMAINS; do
+    DOMAINS="$DOMAINS $(sed -n "s/^${v}=\"\(.*\)\"$/\1/p" "$SYNC")"
+  done
+  # A literal case-glob, matching sync-skills.sh's in_list(). `grep " $CAT "`
+  # treated the category as a regex, so `wo.kflow` matched `workflow`.
+  if [[ -n "$CAT" ]] && case " $DOMAINS " in *" $CAT "*) true ;; *) false ;; esac; then
+    emit "C3" "warn" "Skill category resolves to a sync alias" "pass" "$CAT" "C3"
   else
-    emit "C3" "info" "Skill in sync-skills.sh PORTABLE or SEI" "fail" "not in any sync array" "C3"
+    emit "C3" "warn" "Skill category resolves to a sync alias" "fail" "category '$CAT' is in no domain list" "C3"
   fi
+else
+  emit "C3" "warn" "Skill category resolves to a sync alias" "skipped" "no sync-skills.sh at $SYNC" "C3" "unavailable"
 fi
 
 # A1 — no time-sensitive content. Skips two false-positive shapes:
@@ -332,7 +425,10 @@ for f in "$SKILL_MD" "$SKILL_DIR/references"/*.md; do
   if awk '
     /^```/ { in_code = !in_code; next }
     in_code { next }
-    /\[[a-z][^]]*\]/ { next }   # bracket placeholder, e.g. [phase]
+    # A placeholder is a whole bracketed word — no spaces, and not a markdown
+    # link. The old form also swallowed [static]/[semantic]/[pressure] and every
+    # lowercase-text link, which made A1 near-vacuous on reference files.
+    /^[[:space:]]*\[[a-z][a-z0-9_-]*\][[:space:]]*$/ { next }
     /<[a-z][^>]*>/ { next }      # angle placeholder, e.g. <alias>
     { low = tolower($0) }
     low ~ /as of [0-9][0-9][0-9][0-9]/         { print; exit }
@@ -349,8 +445,17 @@ else
   emit "A1" "warn" "No time-sensitive content" "pass" "" "A1"
 fi
 
-if grep -qE '\\\\\w+\\\\' "$SKILL_MD" 2>/dev/null; then
-  emit "A2" "warn" "No Windows-style paths" "fail" "backslash-separated path patterns found" "A2"
+# A single literal backslash before a path word. The old form required DOUBLED
+# backslashes, which a real Windows path never has, so A2 passed on `C:\Users\dev`.
+# References are scanned too — that is where a path example actually lands.
+A2_SCAN=("$SKILL_MD")
+if [[ -d "$SKILL_DIR/references" ]]; then
+  while IFS= read -r a2f; do A2_SCAN+=("$a2f"); done < <(
+    { find "$SKILL_DIR/references" -name '*.md' 2>/dev/null || true; })
+fi
+if grep -qE '[A-Za-z]:\\[A-Za-z]|\\[A-Za-z][A-Za-z0-9_.-]{2,}\\[A-Za-z]' "${A2_SCAN[@]}" 2>/dev/null; then
+  a2_hits=$(grep -lE '[A-Za-z]:\\[A-Za-z]|\\[A-Za-z][A-Za-z0-9_.-]{2,}\\[A-Za-z]' "${A2_SCAN[@]}" 2>/dev/null | head -3 | tr '\n' ' ')
+  emit "A2" "warn" "No Windows-style paths" "fail" "found in: $(rel "$a2_hits")" "A2"
 else
   emit "A2" "warn" "No Windows-style paths" "pass" "" "A2"
 fi

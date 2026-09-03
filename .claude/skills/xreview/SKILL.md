@@ -20,14 +20,14 @@ The skill refuses that path. It enforces independent (blinded) review, evidence-
 xreview operates on **a concrete artifact, reviewed by independent specialists**. Before any verdict:
 
 1. **Artifact required.** Read the actual work under review — the design doc, the spec, the diff, the specialist outputs. If it can't be located or pasted, halt and ask for it. Never review from a summary, from memory, or from "what a spec like this usually contains." A synthesized verdict over an artifact you never read is fabrication.
-2. **Roster required.** xreview selects its domain lenses and **agent-stewards** (`prose-steward`, `idiomatic-reviewer`) from a `.claude/agents/` roster, so the calling repo must have one. Without it, halt and ask the user to point at a roster or invoke from a repo that has it. The **skill-stewards** (`audit-skill`, `author-skill`) are *skills* under `.claude/skills/`, not agents — a reviewer loads the skill as its review rubric (see `references/slate-routing.md` §4 *Steward dispatch — two kinds*). The slate is usually several specialists; when exactly one is genuinely relevant, run a single-reviewer pass but label it as such — a degenerate xreview, not dressed up as a full one.
+2. **Roster required.** xreview selects its domain lenses and **agent-stewards** (`prose-steward`, `idiomatic-reviewer`) from a `.claude/agents/` roster, so the calling repo must have one. Without it, halt and ask the user to point at a roster or invoke from a repo that has it. On a `skill-package` change one reviewer is additionally briefed as the **rubric lens**: it loads **this skill's own rubric**, `references/skill-package-rubric.md` (rules with ids and severities), runs `scripts/skill-package-checks.sh` for the static subset, and returns findings that **name rule ids**. The rubric is a file this skill owns, not a registry entry — so the *lens* has no absence check and cannot be dropped for being uninstalled, which is why it lives here rather than in a separate skill. The rubric *file* is a different object: a broken install can still truncate or omit it, and a lens that cannot read it **HALTs** (Halt Conditions). A rubric-lens verdict citing no rule id is not a rubric review; re-dispatch it. The slate is usually several specialists; when exactly one is genuinely relevant, run a single-reviewer pass but label it as such — a degenerate xreview, not dressed up as a full one.
 3. **Refusal conditions** — this skill will refuse to:
    - **Equate prior per-specialist dispatch with xreview.** "The specialists already gave input during design" describes the *production* of the work, not a review of the integrated whole. The seams between their contributions are exactly what no one has reviewed. Re-dispatch them against the final, combined artifact.
    - **Accept convergence as corroboration when reviewers were not blinded.** If reviewers saw each other's assessments before committing (a shared thread, a summarized peer view in the brief), their agreement is anchoring, not independent confirmation — consensus theater. Re-run with independent briefs.
    - **Accept bare approval.** "LGTM" / "looks good" is not a finding. Every COMPATIBLE, MISMATCH, or MISSING must cite the specific contract, field, signature, or line it is about. A finding with no evidence is noise.
    - **Launder a sign-off through wording.** Phrasing it "their input was incorporated" instead of "they approved" does not convert production into review. If the specialists did not review the final artifact, the xreview did not happen.
    - **Declare COMPATIBLE / stamp a passing `State:` while *any* correctness-grade finding is open** — a MISMATCH/MISSING, a correctness-grade idiom *or* prose finding, or a per-lens DISSENT (including a pinned steward). All are resolved (artifact updated, provider/consumer reconciled) or explicitly accepted-with-risk by the user — never silently dropped. (This is the gating set, stated identically in Rule 4 and Halt Conditions, and enforced bullet-by-bullet in Step 5.)
-   - **Drop a pinned steward, or proceed without one.** A `skill-package` change pins `audit-skill` + `author-skill` + `prose-steward` *unconditionally* — all three, **regardless of which file-types the diff touches** and never demoted by change-size (per `references/slate-routing.md` §4). (This is distinct from `shared-stack`, whose stewards *are* wired by file-type-present.) If a pinned steward is absent from **its own registry** — the agent-steward `prose-steward` from `.claude/agents/`; the skill-stewards `audit-skill`/`author-skill` from `.claude/skills/` — **HALT** — never silently proceed pin-less; the operator may override only with a stated reason. (Also a Halt Condition.)
+   - **Drop a pinned steward, or proceed without one.** A `skill-package` change pins `prose-steward` *unconditionally* — **regardless of which file-types the diff touches** and never demoted by change-size (per `references/slate-routing.md` §4) — and requires one reviewer to hold the **rubric lens**, citing rule ids from `references/skill-package-rubric.md`. A verdict that cites no rule id is not a rubric review: presence of a file was never evidence that anyone read it. If `prose-steward` is absent from `.claude/agents/`, **HALT** — never silently proceed pin-less; the operator may override only with a stated reason. (Also a Halt Condition.)
 
 See `references/reviewer-dispatch.md` for the blinded dispatch contract, `references/findings-protocol.md` for the findings schema, `references/slate-routing.md` for the change-type → slate routing rule (shared with `/coral`), and `references/review-ledger.md` for the durable synthesis record.
 
@@ -105,15 +105,32 @@ The slate is **routed, not re-derived by hand.** Apply the shared routing table
    here. The orchestrator's remaining judgment is *which domain specialists* cover the boundaries;
    the depth, the §4a concern-lenses, and the steward wiring are mechanical.
 4. **Auto-wire the stewards** by file-type-present (table §4) — the rule for `shared-stack` and
-   every other class: `prose-steward` on any prose; `idiomatic-reviewer` on any code diff;
-   `audit-skill`+`author-skill` on a `.claude/` skill body. **`skill-package` is the exception:
-   it pins `audit-skill` + `author-skill` + `prose-steward` *unconditionally* — regardless of
-   which file-types the diff touches** — and dropping any of the three requires an operator
-   override with a stated reason. **Dispatch differs by steward kind:** `prose-steward` and
-   `idiomatic-reviewer` are **agents** (dispatched from `.claude/agents/`); `audit-skill` and
-   `author-skill` are **skills** (under `.claude/skills/`), run by a dispatched reviewer that
-   loads the skill as its review rubric. A pinned steward absent from *its own* registry is a
-   HALT (§4), not a silent drop.
+   every other class: `prose-steward` on any prose; `idiomatic-reviewer` on any code diff.
+   **`skill-package` is the exception: it pins `prose-steward` *unconditionally* — regardless
+   of which file-types the diff touches** — and adds the **rubric lens**. Dropping either
+   requires an operator override with a stated reason.
+   The two are **different kinds of thing** (§4's dispatch table):
+   `prose-steward` is an **agent** from `.claude/agents/`, and its absence there is a HALT,
+   not a silent drop. The rubric lens is **a brief, not a registry entry** — any dispatched
+   reviewer told to load `references/skill-package-rubric.md`, run
+   `scripts/skill-package-checks.sh`, and cite rule ids. Do not look for it in
+   `.claude/agents/` or `.claude/skills/`; it was never going to be there, and it cannot go
+   missing. What replaces its absence check: **a verdict citing no rule id is not a rubric
+   review — re-dispatch it.** Two conditions ride with that:
+   - **The rubric file itself can still be missing or truncated in a broken install.** If the
+     lens cannot read `references/skill-package-rubric.md`, **HALT** — do not let it emit
+     plausible-looking ids from memory. The ids are short and schematic (`D1`, `B2`, `S2`), so
+     an unread rubric produces a review that looks cited and is not.
+   - **The rubric governs at the merge base.** When the diff under review edits the rubric or
+     the checker, the **orchestrator** materializes the merge-base revision of
+     `references/skill-package-rubric.md` and `scripts/skill-package-checks.sh` to disk and
+     briefs those paths; the lens cites ids from that copy. Never hand it a `git show` pointer —
+     Reachability (`references/reviewer-dispatch.md`) applies, and some lenses have no Bash.
+     The checker is in scope because it decides 26 of the 52 rules, so a diff that loosens a
+     static check would otherwise be reviewed by running the loosened check. The edit is
+     **itself a finding**, recorded in the ledger's routing section with a named justification
+     and treated as correctness-grade until it has one. Without this, a change can weaken a
+     rule and be reviewed under the weakened rule in the same pass.
 5. **Assign the dissenter** (see The Four Rules / Step 3) and record it.
 
 The stewards report on their own axes (Idiom addendum / Prose addendum / per-lens RATIFY-DISSENT
@@ -165,12 +182,26 @@ Merge the independent reviews into one de-duplicated boundary table inside the l
 
 - Every **MISMATCH** and **MISSING** is resolved (artifact updated; provider/consumer reconciled — provider definition wins, consumer adapts) or **explicitly accepted by the user** with the risk stated. Nothing is silently dropped.
 - **Correctness-grade idiom findings block too.** A runtime-consequence idiom finding (e.g. a status patch missing the optimistic lock, an always-present condition removed) is resolved or explicitly accepted before a COMPATIBLE verdict — the same bar as a MISMATCH. Pure-style idiom findings are **advisory**: surfaced in the Idiom addendum, never gating.
-- **Per-lens DISSENT and correctness-grade prose findings block too.** `RESOLVED` means *every* lens's correctness-grade findings are closed — not just the boundary table. Any unresolved per-lens `DISSENT` (including from a pinned steward — `audit-skill`/`author-skill`/`prose-steward`) and any correctness-grade prose-addendum finding (a misleading or ambiguous load-bearing instruction, not pure style) must be resolved or explicitly accepted-with-risk before `RESOLVED`, the same bar as a MISMATCH. Pure-style prose findings are advisory.
+- **Per-lens DISSENT and correctness-grade prose findings block too.** `RESOLVED` means *every* lens's correctness-grade findings are closed — not just the boundary table. Any unresolved per-lens `DISSENT` (including from a pinned steward) and any correctness-grade prose-addendum finding (a misleading or ambiguous load-bearing instruction, not pure style) must be resolved or explicitly accepted-with-risk before `RESOLVED`, the same bar as a MISMATCH. Pure-style prose findings are advisory.
+- **A per-lens verdict is the lens's to give — the orchestrator never issues one on its behalf.**
+  Fixing what a lens objected to closes the *finding*; it does not convert that lens's `DISSENT`
+  into a `RATIFY`. Record the resolution **against the standing DISSENT**, then either
+  **re-dispatch** the lens for an updated verdict, or **accept-with-risk** with the operator's
+  stated reason. `Convergence:` reads off the verdicts as issued, never as revised — a round is
+  not `unanimous` because the orchestrator decided the objection no longer applies. This is the
+  same substitution `evals.json` already forbids one step earlier (back-filling rule ids from
+  your own read instead of re-dispatching), and it is more tempting here, because by this point
+  the fix is real and the objection genuinely looks closed.
 - **A steward's per-lens verdict and its advisory nits are different things — don't conflate them.** A steward whose *only* findings are pure-style **RATIFIES** (the nits ride advisory in its addendum, never gating). A per-lens **DISSENT** is, by definition, a non-style blocking objection — so a DISSENT is never "just style" and is never demoted to advisory to clear the gate. "The steward only had style nits" ⇒ RATIFY-with-advisory; "the steward DISSENTed" ⇒ blocks until resolved or accepted-with-risk. The advisory/blocking line is the *severity* of the finding, not the identity of the lens.
 - Output: the committed ledger with its typed header `State:`, the verdict, the resolved items with what changed, and any accepted-with-risk items. Set `State:` per the enum in `references/review-ledger.md` — `RESOLVED` / `RESOLVED-WITH-ACCEPTED-RISK` are the only passing terminals; `OpenFindings:` is `0` for those.
 - If xreview can't reach a clean verdict — reviewers split, an artifact gap nobody can close — say so explicitly and set `State: OPEN-BLOCKED` with `OpenFindings: ≥1`: it **fails the gate to a human**. A split must **never** be relabeled `RESOLVED-WITH-ACCEPTED-RISK` to make the loop terminate (accepted-risk needs an operator decision on a *named* risk, not mere disagreement). A labeled open state beats a fabricated COMPATIBLE.
 
 ## Rationalization Table
+
+<!-- vale off -->
+<!-- The left column and the Red Flags below are verbatim phrasings — what the
+     rationalization actually sounds like. An agent matches its own wording against
+     them, so normalizing the contractions would blunt the recognition. -->
 
 Documented failure modes during xreview. When your own reasoning aligns with the left column, **stop**. The right column is the reframe. (Citations in `references/findings-protocol.md`.)
 
@@ -185,7 +216,7 @@ Documented failure modes during xreview. When your own reasoning aligns with the
 | "The demo's in an hour — a quick 'looks consistent' is the helpful move." | Speed is a reason to be efficient, not to skip the check or fake the result. A 10-minute boundary review is cheap insurance; a fabricated green light just moves the failure to the demo. |
 | "I don't have the doc, but I can write a plausible findings table from what such designs usually contain." | That's fabrication, not review. No artifact, no xreview — halt and get it. |
 | "'Looks good' from two senior people is enough." | Absence of objection is not presence of review. A finding with no cited contract is not a finding. Require evidence. |
-| "The skill change is a one-line typo / obviously small — it's mechanical, skip the steward pin." | A `skill-package` change routes by **file-type-present, not change-size** (`references/slate-routing.md` §3a). The mechanical-equivalent carve-out is `doc-only` only. A one-line typo in a `.claude/` skill body is still `skill-package` (T3, floor T2, audit+author+prose pinned). "It's just a typo in a skill" does not demote it to `mechanical`; dropping the pin needs an operator override with a stated reason, never a size judgment. |
+| "The skill change is a one-line typo / obviously small — it's mechanical, skip the steward pin." | A `skill-package` change routes by **file-type-present, not change-size** (`references/slate-routing.md` §3a). The mechanical-equivalent carve-out is `doc-only` only. A one-line typo in a `.claude/` skill body is still `skill-package` (T3, floor T2, `prose-steward` + the rubric lens pinned). "It's just a typo in a skill" does not demote it to `mechanical`; dropping the pin needs an operator override with a stated reason, never a size judgment. |
 
 ## Red Flags — STOP and Reset
 
@@ -200,8 +231,12 @@ Phrases that signal a rationalization is firing — in your reasoning or the use
 - "It's just synthesis" / "I'm only writing it up"
 - "I'll review from the summary" / "I don't need the actual doc"
 - "It's just a typo in the skill" / "we've done dozens of these" — offered to demote a `skill-package` change to `mechanical` and drop the steward pin
+- "The rubric lens read it and it's fine" — a rubric verdict that names no rule id. The lens has no absence check, so an uncited verdict is the only way its pin fails silently. Re-dispatch it.
+- "P7 doesn't really apply here" / "the static rules all passed" — P7 is `block`. A `block` rule that could not run is an open finding, not a pass: report it `skipped` and DISSENT (`references/pressure-testing.md`). This is about a rule whose subject exists and could not be reached (`skip_reason: unavailable`) — not one with no subject at all (`inapplicable`, e.g. `S1` on a skill with no `scripts/`), which is simply not a finding.
 
 **All of these mean: read the artifact, dispatch independent reviewers, require evidence per finding, or label the verdict honestly.**
+
+<!-- vale on -->
 
 ## Halt Conditions
 
@@ -210,7 +245,8 @@ Stop and report to the user if:
 - `Class:` was not emitted before dispatch (§0) — no classification ⇒ no review. HALT and classify before dispatching any reviewer.
 - The artifact under review can't be located or pasted — never synthesize a review of work you haven't read.
 - The calling repo has no `.claude/agents/` roster and the user can't point at one.
-- A **pinned** steward (audit/author/prose on a `skill-package` change) is absent from **its own registry** — the agent-steward `prose-steward` from `.claude/agents/`, the skill-stewards `audit-skill`/`author-skill` from `.claude/skills/` — HALT, not a silent drop (same posture as dropping the pin). Ask the operator, who may override with a stated reason.
+- The rubric lens cannot read `references/skill-package-rubric.md` — HALT. An unread rubric yields ids emitted from memory, which reads as a cited review and is not one.
+- `prose-steward` is absent from `.claude/agents/` on a `skill-package` change — HALT, not a silent drop (same posture as dropping the pin). Ask the operator, who may override with a stated reason.
 - A reviewer returns bare approval with no cited evidence — re-dispatch with the evidence requirement.
 - Reviewers were not blinded (saw each other's assessments first) — the convergence is invalid; re-run with independent briefs.
 - Reviewers split on a boundary and the provider-owns tie-break doesn't resolve it — surface the disagreement and ask the user / provider for the call.
