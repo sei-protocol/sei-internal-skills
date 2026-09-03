@@ -1,10 +1,13 @@
 # Base image for Dockerfile.runner: the omnigent host image the fleet deploys,
 # built from the fork at deploy/docker/Dockerfile.sei --target host.
 #
-# Single source of truth, read by both .github/workflows/verify-runner-image.yml
-# and ecr-runner.yml, so bumping the base is one reviewable line. Digest-pinned
-# rather than tag-pinned: the tag is mutable and a silent base change is exactly
-# how the .claude overlay went missing in the first place.
+# Single source of truth, read by verify-runner-image.yml and ecr-runner.yml, so
+# bumping the base is one reviewable line. Digest-pinned, not tag-pinned: a tag
+# is mutable, and a base that changes under a stale claim is not detectable here.
 #
-# Current: tag runner-e6216fc7-credbridge (fork commit e6216fc7).
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:4b9b2f0caee662732730eb4d31c1e878b8c7ddda2298c7a680aac568d587c9a5
+# Current: tag runner-536581c6-credbridge, fork commit 536581c6.
+#
+# Build this from the SAME fork ref as the server base. The host dials the server
+# over a tunnel neither side version-negotiates, so a split between them is the
+# combination upstream never tests.
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:dc94cd5df1ce15c2ffdb5a849f3ad6ddc5a72255c5da1017cbd2462b8f1c0d67
