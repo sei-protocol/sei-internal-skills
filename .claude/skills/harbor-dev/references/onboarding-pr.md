@@ -2,13 +2,15 @@
 
 A new engineer's onboarding is one PR against `sei-protocol/platform` touching four files plus a sibling PR against `sei-protocol/harbor-engineering-workspace` adding one file. After both PRs merge, run a targeted `terraform apply`. Both pieces complete in under five minutes.
 
-**Canonical reference PR:** [sei-protocol/platform#587](https://github.com/sei-protocol/platform/pull/587) — the fromtherain re-onboard.
+**Partial reference PR:** [sei-protocol/platform#587](https://github.com/sei-protocol/platform/pull/587) — the fromtherain re-onboard.
 
 Read that PR for the shape of File 1 only. It is a two-file diff, and it predates both the per-engineer terraform (File 3) and the seiload PodMonitor roster (File 4). It is not a complete onboarding diff. Take the full file list from the table below, and the literal shapes from [`onboarding-pr-template.md`](./onboarding-pr-template.md).
 
 The base template it renders against is still current, including the templated rbac-proxy ClusterRoleBinding and the controller `node-configmaps-writer` Role + `controller-configmaps-writer` RoleBinding. Copying the most recently onboarded engineer's files gives the same result with less reading.
 
-Literal file shapes live in [`onboarding-pr-template.md`](./onboarding-pr-template.md). Substitute `fromtherain` → `<alias>` throughout.
+Literal file shapes live in [`onboarding-pr-template.md`](./onboarding-pr-template.md).
+
+Substitute `fromtherain` → `<alias>` throughout Files 1, 3 and 5. Files 2 and 4 work differently: they are **append-only** edits to rosters that already list every onboarded engineer. Add the new entry and leave every existing one alone. A blanket replace on those two files renames another engineer's entry instead of adding yours.
 
 ## Files in the PR
 
@@ -131,7 +133,9 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
 ## The agent's job
 
 1. **Prompt for the alias.** Default the prompt to `$USER` lowercased — don't silently use it. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias> --context harbor`: if the namespace already exists, the alias is taken — halt with "pick another, or contact the platform team if it's yours." Don't attempt partial-state recovery (separate runbook). Continue only when the alias is free.
-2. **Render the four platform-repo files** from [`onboarding-pr-template.md`](./onboarding-pr-template.md) (Files 1–4) in a fresh clone of `sei-protocol/platform`, branched from `main` — never from a local working branch. Substring-replace `fromtherain` → `<alias>` throughout. Branch: `feat/engineers-<alias>-onboard`.
+2. **Render the four platform-repo files** from [`onboarding-pr-template.md`](./onboarding-pr-template.md) (Files 1–4) in a fresh clone of `sei-protocol/platform`, branched from `main` — never from a local working branch. Branch: `feat/engineers-<alias>-onboard`.
+
+   Substring-replace `fromtherain` → `<alias>` in **Files 1 and 3** only. **Files 2 and 4 are append-only**: both are rosters that already name every onboarded engineer, so add one entry and leave the rest untouched. File 4's block shows `- eng-fromtherain` as a live entry, not a placeholder. Replace it and you drop that engineer's seiload scraping. That is the same failure this roster exists to prevent.
 
    Then **verify the render before opening the PR**, because every alias substitution in File 1 is index-based string surgery on the base template:
 
@@ -140,7 +144,19 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
    terraform fmt -check -recursive terraform/aws/189176372795/eu-central-1/harbor
    ```
 
-   Confirm the rendered cell carries the `eng-` prefix in its subzone — `*.eng-<alias>.harbor.platform.sei.io`, not `*.<alias>.harbor...`. The Gateway listener hostname and the Certificate `dnsNames[0]` chain off `Namespace.metadata.name`, not the bare alias. Source the alias instead and the render drops `eng-`. The cell then claims hostnames outside its own subzone, and the `eng-tenant-hostname-guardrail` VAP rejects them at admission.
+   No pre-flight gate covers the standalone `kustomize` binary. Where it is absent, `kubectl kustomize clusters/harbor` renders the same output.
+
+   Then confirm the new cell's hostnames sit under its own subzone:
+
+   ```sh
+   kustomize build clusters/harbor \
+     | grep -oE '[*.a-z0-9-]+\.harbor\.platform\.sei\.io' \
+     | sort -u | grep "<alias>"
+   ```
+
+   Every line must read `*.eng-<alias>.harbor.platform.sei.io`. A line reading `*.<alias>.harbor.platform.sei.io` means the render dropped the `eng-` prefix, and an empty result means File 1 did not render at all.
+
+   That prefix is the specific thing to check. The Gateway listener hostname and the Certificate `dnsNames[0]` chain off `Namespace.metadata.name`, not the bare alias. Source the alias instead and the render drops `eng-`. The cell then claims hostnames outside its own subzone, and the `eng-tenant-hostname-guardrail` VAP rejects them at admission.
 3. **Open the platform-repo PR.** Title: `feat(harbor/engineers): onboard <alias>`. Body: see template below. `gh pr create --repo sei-protocol/platform --base main`.
 4. **Open the workspace-repo scaffolding PR (sibling).** Render [`onboarding-pr-template.md`](./onboarding-pr-template.md) File 5 in a fresh clone of `sei-protocol/harbor-engineering-workspace`. Branch: `feat/onboard-<alias>`. Without this, the engineer's per-engineer Flux Kustomization fails reconcile post-merge with `kustomization path not found: ./engineers/<alias>`. Both PRs land independently, but do not merge the platform-repo PR before the workspace-repo PR is open. Surface both URLs.
 5. **Surface and halt:**
