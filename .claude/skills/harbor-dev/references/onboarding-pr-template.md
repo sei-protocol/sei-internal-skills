@@ -2,7 +2,9 @@
 
 Concrete file contents for the platform-repo and workspace-repo onboarding PRs, taken from the canonical fromtherain onboarding.
 
-**Substitute `fromtherain` → `<alias>` throughout** when rendering for a new engineer (lowercase, regex `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`). No other edits required.
+**Substitute `fromtherain` → `<alias>`** when rendering for a new engineer (lowercase, regex `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`).
+
+That substitution is file-wide for Files 1, 3 and 5, which are new files. Files 2 and 4 are **append-only** edits to existing rosters: each already lists every onboarded engineer, including `fromtherain`. Add one entry there and change nothing else. A blanket replace on a roster renames another engineer's entry instead of adding yours.
 
 ## File 1: `clusters/harbor/engineers/<alias>/kustomization.yaml` (platform repo, new)
 
@@ -217,7 +219,32 @@ module "eng_fromtherain_engineer_pod_identity" {
 }
 ```
 
-## File 4: `engineers/<alias>/kustomization.yaml` (workspace repo: `sei-protocol/harbor-engineering-workspace`, new)
+## File 4: `clusters/harbor/monitoring/podmonitor-seiload-eng.yaml` (platform repo, modified)
+
+Append `eng-<alias>` to `namespaceSelector.matchNames`, keeping the list
+alphabetical. Only that list changes; leave the comment and the rest of the
+spec alone.
+
+Unlike Files 1, 3 and 5, this block is not the whole file. It shows one edit
+inside a much larger document. This doc elides the existing entries on purpose.
+Write the roster back from a snapshot here, and you drop every engineer who
+joined after that snapshot.
+
+```yaml
+  namespaceSelector:
+    matchNames:
+      # ... every existing eng-* entry, unchanged ...
+      - eng-<alias>          # <- the only line you add, in alphabetical position
+```
+
+The selector enumerates `matchNames` because the PodMonitor CRD accepts only
+`any` or `matchNames`. It matches no label and no glob. `any: true` also selects
+the nightly namespace's seiload and scrapes it twice.
+
+Prometheus scrapes a cell only after this list names its namespace. Onboard a
+cell without this edit and seiload runs, but no loadgen metrics arrive.
+
+## File 5: `engineers/<alias>/kustomization.yaml` (workspace repo: `sei-protocol/harbor-engineering-workspace`, new)
 
 ```yaml
 # fromtherain's Harbor workspace.

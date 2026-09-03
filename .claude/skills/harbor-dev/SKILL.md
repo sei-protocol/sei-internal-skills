@@ -88,21 +88,22 @@ The chosen profile is the session's profile — every downstream `aws ...` invoc
 
 When pre-flight gate 5 fails (`eng-<alias>` namespace doesn't exist), enter First Run. Gates 1–4 have passed — seictl, SSO, kubeconfig, and cluster reach are in place.
 
-Onboarding is one PR against `sei-protocol/platform` adding three files. After merge, run a targeted `terraform apply`. Both pieces complete in under five minutes.
+Onboarding is one PR against `sei-protocol/platform` touching four files. After merge, run a targeted `terraform apply`. Both pieces complete in under five minutes.
 
-**Files the PR adds:**
+**Files the PR touches:**
 
 | Path | Action |
 |---|---|
 | `clusters/harbor/engineers/<alias>/kustomization.yaml` | New. Per-engineer overlay. Mirrors the most recent prior onboarding PR; only the `alias=<alias>` literal differs. |
 | `clusters/harbor/engineers/kustomization.yaml` | Modified. Adds `- <alias>` to `resources`. |
 | `terraform/aws/189176372795/eu-central-1/harbor/engineers/<alias>.tf` | New. Two `eks-pod-identity` module instances for the engineer's `seid-node` and `engineer-service-account` SAs. Mirror the prior engineer's file with substring replacement of the alias. |
+| `clusters/harbor/monitoring/podmonitor-seiload-eng.yaml` | Modified. Appends `eng-<alias>` to `namespaceSelector.matchNames`. Nothing fails without it, and the cell's seiload goes unscraped. |
 
 **Procedure:**
 
 1. **Prompt for the alias** — don't silently use `$USER`. Default the prompt to `$USER` lowercased. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias>` — if it returns 0, the alias is taken; halt with "this alias is taken; pick another or contact the platform team if it's yours." Don't attempt partial-state recovery (that's a separate runbook). Continue only when the alias is free.
-2. Use [sei-protocol/platform#587](https://github.com/sei-protocol/platform/pull/587) (the fromtherain re-onboard) as the diff template — `gh pr diff 587 --repo sei-protocol/platform`. Branch: `feat/engineers-<alias>-onboard`.
-3. Render the three platform-repo files (`gh pr diff` on the prior PR + substring replace on the alias).
+2. Take the file list from the table above, not from a prior PR. [platform#587](https://github.com/sei-protocol/platform/pull/587) (the fromtherain re-onboard) is a two-file diff. It predates both the per-engineer terraform and the PodMonitor roster, so `gh pr diff 587` renders an incomplete onboarding. Read it for the shape of the cell overlay only, or copy the most recently onboarded engineer's files. Branch: `feat/engineers-<alias>-onboard`, cut from `main`.
+3. Render the four platform-repo files. Literal shapes live in [`references/onboarding-pr-template.md`](./references/onboarding-pr-template.md); the full procedure is in [`references/onboarding-pr.md`](./references/onboarding-pr.md). Substring-replace the alias in the two new files; the two rosters are **append-only** — add one entry and leave every existing engineer's alone. Verify with `kustomize build clusters/harbor` (or `kubectl kustomize`) before opening the PR, and confirm the rendered hostnames read `*.eng-<alias>.harbor.platform.sei.io`.
 4. Open the **platform-repo PR**. Title: `feat(harbor/engineers): onboard <alias>`.
 5. Open the **workspace-repo sibling PR** against `sei-protocol/harbor-engineering-workspace`: branch `feat/onboard-<alias>`, scaffold `engineers/<alias>/kustomization.yaml` with `resources: []`. Without this, the per-engineer Flux Kustomization fails reconcile post-merge with `path not found: ./engineers/<alias>`.
 6. Surface both PR URLs and halt:
