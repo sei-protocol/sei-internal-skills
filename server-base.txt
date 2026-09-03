@@ -1,44 +1,24 @@
 # Base image for Dockerfile.server: the omnigent server image the fleet deploys.
+# Read by ecr-server.yml; built by ecr-server-base.yml from the omnigent fork.
+# Digest-pinned, not tag-pinned: a tag is mutable, and a base that changed under
+# a stale claim would not be detectable from this file.
 #
-# Read by ecr-server.yml, so bumping the base is one reviewable line.
-# Digest-pinned rather than tag-pinned: the tag is mutable, and a silent base
-# change under a stale claim is how the runner roster went missing.
+# Current: tag agents-main-536581c6-k8s, server 0.13.0.dev0, from
+# bdchatham/omnigent@feat/sei-base -- upstream 951ef519e plus three carried
+# commits (machine-auth grant, runner recipe, the COPY that ships integrations/).
+# OMNIGENT_EXTRAS=kubernetes,slack -- the slack extra is what lets an image run
+# `python -m omnigent_slack`, and omnigent-slack is on no index, so it resolves
+# only from integrations/ via [tool.uv.sources].
 #
-# Built by ecr-server-base.yml from the omnigent fork. Before that workflow the
-# base was built by hand and this line was the only record of it, which is how the
-# fork reached 812 commits behind upstream without anyone noticing.
+# Platform's vendored Kustomize tree MUST come from this same upstream commit.
+# The launcher creates batch/v1 Jobs: its RBAC lives in that tree, its API calls
+# live in this image, and a split between them 403s every managed sandbox launch
+# while the server reports healthy.
 #
-# Current: tag agents-main-536581c6-k8s, from bdchatham/omnigent@feat/sei-base --
-# upstream main at 951ef519e plus the same three carried commits. This is the
-# REBASE: the fork moved 669 commits, from fork point 84d1753c to current
-# upstream, taking the server 0.10.0.dev0 -> 0.13.0.dev0.
-#
-# The machine-auth grant was redesigned, not replayed. Upstream now always owns
-# POST /oauth/token, so the grant is a third grant_type branch inside its
-# router rather than a competing mount; and the delegated-token check lost its
-# scope leg, so the token now carries a synthetic machine:<client_id> grant_id.
-# Re-applying the old patch would have produced a server that passes every
-# health check and answers unsupported_grant_type to every driver run.
-#
-# The vendored Kustomize tree in platform must come from the SAME upstream
-# commit: the launcher moved to batch/v1 Jobs, so its RBAC lives there and its
-# API calls live here.
-#
-# Built with OMNIGENT_EXTRAS=kubernetes,slack. The slack extra is what lets an
-# image run `python -m omnigent_slack`, which the omnigent-slack Deployment in
-# platform's dev cell needs; omnigent-slack is on no index, so it resolves only
-# from integrations/slack via [tool.uv.sources] -- hence the COPY, without which
-# the build dies at resolve rather than producing an image missing the bot.
-#
-# Four Alembic migrations separate this base from the previous one, all
-# additive: three nullable ADD COLUMNs and the connections table. They run
-# automatically at boot. The point of no return is when that transaction
-# commits -- the PREVIOUS image cannot boot against the new schema, because it
-# has no newer-revision guard and dies trying to resolve a revision it does not
-# carry. Reverting the digest alone crash-loops; downgrade from the new image
-# first, or restore the dump.
-#
-# The OMNIGENT_MACHINE_* env names are already deployed and unchanged by this
-# bump. That rename was the previous base's migration, and platform's
-# configmap-patch.yaml plus oidc-secret.yaml already carry all four.
+# ROLLBACK. Migrations run at boot; the point of no return is that transaction
+# committing. An older image cannot boot against a newer schema -- no
+# newer-revision guard, so it fails to resolve a revision it does not carry and
+# crash-loops. Reverting this digest alone is therefore not a rollback.
+# Downgrade first, FROM THE NEW IMAGE (only it carries the scripts; no
+# db-downgrade CLI, drive alembic directly) to d5e9f1a2b3c4, then revert.
 189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:48bb34d44d01fd709e52c93ccd68696763edf37f45799e7813cb2fb47f7f4b10
