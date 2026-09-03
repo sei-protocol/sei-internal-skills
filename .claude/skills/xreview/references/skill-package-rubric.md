@@ -42,9 +42,9 @@ next lens does not rediscover them and file the nearest ill-fitting id:
   `## Halt Conditions` bullet to an eval id — add a `halt_ref` field to `references/eval-format.md`
   first, then the rule can be `[static]` rather than a judgment nobody can reproduce.
 - **A description's coverage of an inherited capability.** When a skill absorbs another's job, its
-  `description:` should route the vocabulary that used to reach the absorbed skill. There is no
-  rule, and the term is undefined — define "inherited capability" before writing one, or the rule
-  produces findings a reader cannot look up and disagree with.
+  `description:` should route the vocabulary that used to reach the absorbed skill. No rule covers this, and the term
+  is undefined — define "inherited capability" before writing one, or the rule produces findings a
+  reader cannot look up and disagree with.
 
 ---
 
