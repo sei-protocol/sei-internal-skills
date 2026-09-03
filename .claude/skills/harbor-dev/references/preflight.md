@@ -33,24 +33,52 @@ Two-part check:
 
 **Recovery (out-of-band):**
 
-Recommended path: `go install`. The same command installs a missing binary and upgrades a stale one.
+Recommended path: `go install`, from seictl v0.0.71 on.
 
 ```sh
 go install github.com/sei-protocol/seictl@latest
 ```
 
+**On an upgrade, the install is only half the job.** `go install` writes to the Go bin directory, but every engineer who followed an earlier version of this runbook has `seictl` in `/usr/local/bin`. On a stock `PATH`, `/usr/local/bin` precedes `~/go/bin`. The install then succeeds while `command -v seictl` still resolves the old binary, so gate 1 keeps failing its `--network` probe. Do not re-run the install; it will keep succeeding.
+
+The pass condition is capability, not location: whichever copy `command -v seictl` resolves must satisfy the `--network` probe. A binary in `/usr/local/bin` is perfectly fine when it is a current one — the tarball and build-from-source paths below put it there on purpose.
+
+Re-run the probe first, and look at paths only when it fails:
+
+```sh
+seictl node apply --help | grep -- --network    # the actual gate; passing here ends it
+command -v seictl                               # which copy won
+go env GOBIN GOPATH                             # where go install put the new one
+```
+
+When the probe fails and those last two disagree, a stale copy is shadowing the new one. Remove the stale copy and re-run the probe:
+
+```sh
+sudo rm /usr/local/bin/seictl
+```
+
+Do not try `GOBIN=/usr/local/bin go install …` instead. That directory is root-owned on Linux and on Apple Silicon macOS, so the install fails with `permission denied`. Prefixing `sudo` does not help either: `sudo GOBIN=… go install …` builds against root's `GOPATH` and module cache, not the engineer's. That is a second confusing failure inside the section meant to end one.
+
 Three things to know about it:
 
-- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` or check 1 still fails. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@latest`.
+- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` at all, or check 1 still fails — separate from the shadowing case above. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@latest`.
 - seictl's `go.mod` declares `go 1.26.0`. On an older toolchain `go install` prints `switching to go1.26.8` and downloads it. Treat that line as normal output, not an error.
 - A plain `go install` leaves the `seictl.sei.io/version` provenance annotation reading `dev` on every resource seictl applies. The version comes from an `-ldflags` stamp the Makefile passes, and `go install` does not pass it. Nothing breaks; the applied resources just do not record which seictl produced them.
 
-To keep the provenance stamp, pass the flag and pin the same version twice:
+To keep the provenance stamp, pass the flag. The version appears twice, so set it once — and set it to the release you mean to install, not the example value:
 
 ```sh
-go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=v0.0.71'" \
-  github.com/sei-protocol/seictl@v0.0.71
+# Set V to the release you are installing. Where gh is available,
+# `gh release view --repo sei-protocol/seictl --json tagName --jq .tagName`
+# prints the latest tag.
+V=v0.0.71
+go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=${V:?set V to the release tag}'" \
+  "github.com/sei-protocol/seictl@${V:?set V to the release tag}"
 ```
+
+`${V:?…}` matters here. An unset or empty `V` would otherwise expand to
+`…/seictl@`, and Go reports that as an invalid version with nothing pointing
+back at the tag.
 
 Alternative — prebuilt binary from the GitHub releases page. These carry the version stamp already and need no Go toolchain. Per-platform tarballs at `https://github.com/sei-protocol/seictl/releases/latest`:
 
