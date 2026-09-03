@@ -97,7 +97,7 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 | E1 | block | static | `evals/evals.json` exists and is parseable |
 | E2 | block | static | evals.json has at least 1 happy-path and 1 halt-condition entry (sei-internal-skills minimum) |
 | E3 | warn | static | evals.json has at least 3 entries (Obra ideal) |
-| E4 | warn | static | Each eval has a `source` field tracing to a RED scenario, halt condition, or production incident |
+| E4 | warn | static | Each eval has a `source` field tracing to a pressure scenario, a halt condition, or a production incident |
 | E5 | info | semantic | Eval compliance signals are observable (not subjective) |
 
 ## State
@@ -152,9 +152,9 @@ When the team identifies a new convention:
 
 ## Rules that don't appear here
 
-Things deliberately *not* audited:
+Things deliberately *not* checked:
 
 - **Specific prose style.** Tone, voice, sentence length — these are author choices, not conventions.
-- **Subjective "is this useful."** The audit measures conformance, not value. Worthwhile-ness is a `/coral` or `/council` question.
-- **Domain-specific correctness.** A terraform-review skill that gives bad terraform advice is failing a domain check, not a conventions check. Audit doesn't validate the *content*, only the *form*.
+- **Subjective "is this useful."** The rubric lens measures conformance, not value. Worthwhile-ness is a `/coral` or `/council` question.
+- **Domain-specific correctness.** A terraform-review skill that gives bad terraform advice is failing a domain check, not a conventions check. It does not validate the *content*, only the *form*.
 - **Performance.** Skill load latency, script execution time. Not in scope.

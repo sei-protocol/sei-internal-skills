@@ -5,7 +5,7 @@
 > `source` — and a rule whose terms are defined nowhere cannot be applied. The authoring
 > workflow around it did not survive; this is the schema alone.
 
-Every skill ships with at least two evals: one happy-path and one halt-condition. The pressure scenarios from RED-GREEN-REFACTOR convert directly — they're already the test cases.
+Every skill ships with at least two evals: one happy-path and one halt-condition. A pressure scenario from `references/pressure-testing.md` converts directly — they're already the test cases.
 
 ## File location
 
@@ -35,7 +35,7 @@ Every skill ships with at least two evals: one happy-path and one halt-condition
           "agent applies any of the rationalizations from the table"
         ]
       },
-      "source": "RED scenario 1 — survived REFACTOR cycle 2"
+      "source": "pressure scenario discipline-A"
     },
     {
       "id": "halt-condition-1",
@@ -81,7 +81,7 @@ Compliance signals:
 
 ### `adversarial` (optional, the Obra 3-eval ideal)
 
-A scenario specifically designed to *break* the skill. Combines maximum pressure with edge-case ambiguity. Used to find loopholes that survived REFACTOR.
+A scenario specifically designed to *break* the skill. Combines maximum pressure with edge-case ambiguity. Used to find loopholes the skill failed to close.
 
 Compliance signals:
 
@@ -119,9 +119,9 @@ After shipping the skill:
 
 - New rationalization observed in production → add an eval for it.
 - New halt condition added → add a halt-condition eval.
-- Model upgrade → re-run all evals; if any newly fail, REFACTOR.
+- Model upgrade → re-run all evals; a new failure is a finding against the skill.
 
-Each new eval is the test for the next REFACTOR cycle. The skill grows by the evals it accumulates over time.
+Each new eval is the test the next review runs. The skill grows by the evals it accumulates over time.
 
 ## Minimum bar (sei-internal-skills)
 

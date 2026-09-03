@@ -37,7 +37,7 @@ Match the scenario to the skill's shape:
 - **Discipline and procedural skills** — pressure testing is the centerpiece. Do not skip it.
 - **Pattern skills** (mental models) — test recognition under unusual context, not compliance.
 - **Reference skills** (API docs, syntax tables) — low value; you cannot pressure-bypass a
-  reference. Run one anyway and tag the outcome `info`.
+  reference. Run one anyway and file **any** outcome at `info` — the grades in *Classify what comes back* do not apply, because bypassing a reference does not change what it tells you.
 
 ## Classify what comes back
 
@@ -71,6 +71,9 @@ fix concrete, and a paraphrase loses the wording the author has to close against
 
 ## If you skip it
 
-Report P7 as `skipped` with the reason. P7 is `block` severity, so returning RATIFY on the static
-rules alone while silently omitting it is the failure mode this file exists to prevent — a review
-that looks cited and never ran the rule that mattered.
+Report P7 as `skipped` with the reason — and return **DISSENT**, not RATIFY. A `block` rule that
+did not run is an open finding, not a pass. Only the operator closes it, as accepted-with-risk
+with the gap named.
+
+Returning RATIFY on the static rules alone while silently omitting P7 is the failure mode this
+file exists to prevent — a review that looks cited and never ran the rule that mattered.

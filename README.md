@@ -163,7 +163,7 @@ private snapshot rather than deleted outright.
 
 ## What's in here
 
-- **Skills** (`.claude/skills/`) — 13 self-contained Claude Code skills, grouped by domain:
+- **Skills** (`.claude/skills/`) — 11 self-contained Claude Code skills, grouped by domain:
   - **Workflow** — `/xreview`
   - **Investigation** — `/root-cause`
   - **Code quality** — `/idiomatic`, `/systems`

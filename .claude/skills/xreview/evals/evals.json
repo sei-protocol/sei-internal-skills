@@ -193,7 +193,7 @@
           "emits Class: skill-package as the required first output (§0) before any dispatch — it edits canonical .claude/ skill bodies",
           "reads Tier: T3 off references/slate-routing.md (skill-package default, floor T2)",
           "pins prose-steward + the rubric lens UNCONDITIONALLY (skill-package wiring), with the routing reason recorded ('prose + rubric: skill-package change')",
-          "dispatches the rubric lens as a reviewer that loads references/skill-package-rubric.md and cites rule ids (T1, S2, C1 ...), optionally running scripts/skill-package-checks.sh first — the rubric is a file xreview owns, so the lens cannot be absent and cannot halt the review",
+          "dispatches the rubric lens as a reviewer that loads references/skill-package-rubric.md, runs scripts/skill-package-checks.sh, and cites rule ids (T1, S2, C1 ...) — the LENS is a brief with no roster and so cannot be absent, though the rubric FILE it reads can be, and an unreadable rubric file HALTs",
           "assigns a required dissenter (never empty) and dispatches the reviews blinded/independent",
           "writes the ledger at the target-derivable path with the one-per-line exact-token header (State:, OpenFindings: as separate lines; Convergence: and Blinded: as separate lines; Dissenter: non-empty)",
           "sets a passing terminal (RESOLVED / RESOLVED-WITH-ACCEPTED-RISK with OpenFindings: 0) only after MISMATCH/MISSING and DISSENT findings are resolved or accepted-with-named-risk"

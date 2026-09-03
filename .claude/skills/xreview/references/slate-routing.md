@@ -101,14 +101,20 @@ missing. The third is not a registry entry at all:
 |---|---|---|---|---|
 | `prose-steward` | **agent** (self-contained) | `.claude/agents/` | dispatched as a subagent | yes → HALT |
 | `idiomatic-reviewer` | **agent** (backed by `/idiomatic`) | `.claude/agents/` | dispatched as a subagent | yes → HALT when pinned |
-| the rubric lens | **a brief, not an entry** | `references/skill-package-rubric.md` in this skill | any dispatched reviewer, briefed to load the rubric and cite rule ids | **no** |
+| the rubric lens | **a brief, not an entry** | `references/skill-package-rubric.md` in this skill | any dispatched reviewer, briefed to load the rubric and cite rule ids | the **lens**, no — the **rubric file**, yes → HALT |
 
-**The rubric lens has no registry, so it has no absence check and no HALT.** It is a brief:
+**The rubric lens has no registry, so the *lens* has no absence check.** It is a brief:
 the orchestrator picks any capable reviewer and tells it to load this skill's own
 `references/skill-package-rubric.md`, optionally run `scripts/skill-package-checks.sh` for the
 static rules, and return findings that **name rule ids**. The rubric ships with `/xreview`, so
 it cannot go missing the way a separate installed skill could — that dependency is exactly what
 the pre-cut wiring had, and it halted the review whenever an install lacked one.
+
+**The rubric *file* is a different object, and it can still be missing or truncated in a broken
+install.** If the lens cannot read `references/skill-package-rubric.md`, **HALT** (`SKILL.md`
+Halt Conditions). The rule ids are short and schematic — `D1`, `B2`, `S2` — so an unread rubric
+yields plausible ids emitted from memory: a review that looks cited and is not. Distinguish the
+two: the lens cannot be absent because it is not a thing that installs; the file it reads can.
 
 Losing the absence check means the pin needs a different guarantee, and this is it:
 
@@ -177,8 +183,7 @@ concern-lens is such an override — allowed, but recorded with the reason like 
 recorded with the operator's stated reason.
 
 **The `skill-package` steward pin survives a tier override.** Lowering a `skill-package` change
-from T3 to its T2 floor does **not** drop the unconditional `prose-steward` + rubric-lens
-`prose-steward` pin (§4) — the pin keys off the **class** (`skill-package`) and is unconditional
+from T3 to its T2 floor does **not** drop the unconditional `prose-steward` + rubric-lens pin (§4) — the pin keys off the **class** (`skill-package`) and is unconditional
 regardless of which file-types the diff touches, so it is orthogonal to tier. Dropping any pinned
 steward is a **separate, explicit override with its own stated reason** (mirrors the skill's
 "explicitly accepted by the user with the risk named" guardrail) — never a side effect of lowering

@@ -20,7 +20,7 @@ The skill refuses that path. It enforces independent (blinded) review, evidence-
 xreview operates on **a concrete artifact, reviewed by independent specialists**. Before any verdict:
 
 1. **Artifact required.** Read the actual work under review — the design doc, the spec, the diff, the specialist outputs. If it can't be located or pasted, halt and ask for it. Never review from a summary, from memory, or from "what a spec like this usually contains." A synthesized verdict over an artifact you never read is fabrication.
-2. **Roster required.** xreview selects its domain lenses and **agent-stewards** (`prose-steward`, `idiomatic-reviewer`) from a `.claude/agents/` roster, so the calling repo must have one. Without it, halt and ask the user to point at a roster or invoke from a repo that has it. On a `skill-package` change one reviewer is additionally briefed as the **rubric lens**: it loads **this skill's own rubric**, `references/skill-package-rubric.md` (rules with ids and severities), runs `scripts/skill-package-checks.sh` for the static subset, and returns findings that **name rule ids**. The rubric is a file this skill owns, not a registry entry — so it has no absence check and cannot halt the review, which is why it lives here rather than in a separate skill. A rubric-lens verdict citing no rule id is not a rubric review; re-dispatch it. The slate is usually several specialists; when exactly one is genuinely relevant, run a single-reviewer pass but label it as such — a degenerate xreview, not dressed up as a full one.
+2. **Roster required.** xreview selects its domain lenses and **agent-stewards** (`prose-steward`, `idiomatic-reviewer`) from a `.claude/agents/` roster, so the calling repo must have one. Without it, halt and ask the user to point at a roster or invoke from a repo that has it. On a `skill-package` change one reviewer is additionally briefed as the **rubric lens**: it loads **this skill's own rubric**, `references/skill-package-rubric.md` (rules with ids and severities), runs `scripts/skill-package-checks.sh` for the static subset, and returns findings that **name rule ids**. The rubric is a file this skill owns, not a registry entry — so the *lens* has no absence check and cannot be dropped for being uninstalled, which is why it lives here rather than in a separate skill. The rubric *file* is a different object: a broken install can still truncate or omit it, and a lens that cannot read it **HALTs** (Halt Conditions). A rubric-lens verdict citing no rule id is not a rubric review; re-dispatch it. The slate is usually several specialists; when exactly one is genuinely relevant, run a single-reviewer pass but label it as such — a degenerate xreview, not dressed up as a full one.
 3. **Refusal conditions** — this skill will refuse to:
    - **Equate prior per-specialist dispatch with xreview.** "The specialists already gave input during design" describes the *production* of the work, not a review of the integrated whole. The seams between their contributions are exactly what no one has reviewed. Re-dispatch them against the final, combined artifact.
    - **Accept convergence as corroboration when reviewers were not blinded.** If reviewers saw each other's assessments before committing (a shared thread, a summarized peer view in the brief), their agreement is anchoring, not independent confirmation — consensus theater. Re-run with independent briefs.
@@ -122,8 +122,12 @@ The slate is **routed, not re-derived by hand.** Apply the shared routing table
      plausible-looking ids from memory. The ids are short and schematic (`D1`, `B2`, `S2`), so
      an unread rubric produces a review that looks cited and is not.
    - **The rubric governs at the merge base.** When the diff under review edits the rubric, the
-     lens loads the merge-base revision, and the edit is **itself a finding** requiring a named
-     justification in the ledger. Otherwise a change can weaken a rule and be reviewed under the
+     **orchestrator** materializes the merge-base revision of
+     `references/skill-package-rubric.md` to disk and briefs that path — never a `git show`
+     pointer, per Reachability in `references/reviewer-dispatch.md`; some lenses have no Bash.
+     The lens cites ids from that copy. The edit is **itself a finding**, recorded in the
+     ledger's routing section with a named justification and treated as correctness-grade until
+     it has one. Otherwise a change can weaken a rule and be reviewed under the
      weakened rule in the same pass. This skill owning its own rubric is what makes that
      reachable, so the rule is stated here rather than assumed.
 5. **Assign the dissenter** (see The Four Rules / Step 3) and record it.
@@ -212,7 +216,8 @@ Phrases that signal a rationalization is firing — in your reasoning or the use
 - "It's just synthesis" / "I'm only writing it up"
 - "I'll review from the summary" / "I don't need the actual doc"
 - "It's just a typo in the skill" / "we've done dozens of these" — offered to demote a `skill-package` change to `mechanical` and drop the steward pin
-- "The rubric lens read it and it's fine" — a rubric verdict that names no rule id. The rubric lens has no absence check, so an uncited verdict is the only way its pin fails silently. Re-dispatch it.
+- "The rubric lens read it and it's fine" — a rubric verdict that names no rule id. The lens has no absence check, so an uncited verdict is the only way its pin fails silently. Re-dispatch it.
+- "P7 doesn't really apply here" / "the static rules all passed" — P7 is `block`. A `block` rule that did not run is an open finding, not a pass: report it `skipped` and DISSENT (`references/pressure-testing.md`).
 
 **All of these mean: read the artifact, dispatch independent reviewers, require evidence per finding, or label the verdict honestly.**
 
