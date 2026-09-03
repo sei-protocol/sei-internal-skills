@@ -68,10 +68,17 @@ Three things to know about it:
 To keep the provenance stamp, pass the flag. The version appears twice, so set it once — and set it to the release you mean to install, not the example value:
 
 ```sh
-V=$(gh release view --repo sei-protocol/seictl --json tagName --jq .tagName)
-go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=$V'" \
-  "github.com/sei-protocol/seictl@$V"
+# Set V to the release you are installing. Where gh is available,
+# `gh release view --repo sei-protocol/seictl --json tagName --jq .tagName`
+# prints the latest tag.
+V=v0.0.71
+go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=${V:?set V to the release tag}'" \
+  "github.com/sei-protocol/seictl@${V:?set V to the release tag}"
 ```
+
+`${V:?…}` matters here. An unset or empty `V` would otherwise expand to
+`…/seictl@`, and Go reports that as an invalid version with nothing pointing
+back at the tag.
 
 Alternative — prebuilt binary from the GitHub releases page. These carry the version stamp already and need no Go toolchain. Per-platform tarballs at `https://github.com/sei-protocol/seictl/releases/latest`:
 
