@@ -111,7 +111,7 @@ Onboarding is one PR against `sei-protocol/platform` touching four files. After 
    > - Platform: `<platform-url>`
    > - Workspace: `<workspace-url>`
    >
-   > Merge the workspace PR first (or both within seconds). After the platform PR merges, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then run `AWS_PROFILE=<chosen> terraform apply -target=module.engineers` from `terraform/aws/189176372795/eu-central-1/harbor/` to land the Pod Identity associations. (`<chosen>` = the AWS profile resolved at gate 2.)
+   > Merge the workspace PR first (or both within seconds). After the platform PR merges, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then from `terraform/aws/189176372795/eu-central-1/harbor/` run `export AWS_PROFILE=<chosen>`, then `terraform init && terraform plan -target=module.engineers -out=tfplan && terraform apply tfplan` to land the Pod Identity associations. Never apply without a reviewed plan. (`<chosen>` = the AWS profile resolved at gate 2.)
 7. After merge, poll `kubectl get namespace eng-<alias>` until it returns 0.
 8. Run `terraform plan -target=module.engineers -out=tfplan` and confirm `Plan: 6 to add, 0 to change, 0 to destroy`. Apply with `terraform apply tfplan`. `Resources: 6 added` confirms.
 9. Gate 5 passes. Chain-spinup requests render via the skill, land in `harbor-engineering-workspace` PRs, and reconcile via Flux on merge. Pods running as `engineer-service-account` get S3 write to their own namespace prefix; SeiNode pods running as `seid-node` get snapshot read + peer discovery.
