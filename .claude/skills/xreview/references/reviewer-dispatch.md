@@ -39,7 +39,7 @@ reviewer with this brief in place of the boundary-table one:
 
 > Load the rubric at the path the orchestrator gives you — normally
 > `.claude/skills/xreview/references/skill-package-rubric.md`, but a **merge-base copy** when the
-> diff under review edits the rubric. 51 rules, each with an id,
+> diff under review edits the rubric. 52 rules, each with an id,
 > a severity (`block`/`warn`/`info`), and a `[static]`/`[semantic]`/`[pressure]` tag. Run
 > `.claude/skills/xreview/scripts/skill-package-checks.sh --skill-dir <abs-path>` for the static
 > subset and report every `block` failure. Judge the `[semantic]` rules by reading the skill.

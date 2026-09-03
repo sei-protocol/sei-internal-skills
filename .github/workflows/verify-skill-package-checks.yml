@@ -23,6 +23,7 @@ on:
       - 'scripts/sync-skills.sh'
       - 'docs/xreview/**'
       - 'scripts/verify-ledger.sh'
+      - 'scripts/tests/verify-ledger.test.sh'
       - '.xreview/**'
       - '.github/workflows/verify-skill-package-checks.yml'
 

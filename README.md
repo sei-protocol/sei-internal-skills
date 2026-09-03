@@ -245,7 +245,7 @@ despite the name — those are omnigent server bundles, not Claude Code agent pe
 | **Using the skills day to day** | `.claude/skills/README.md` (the catalog) |
 | **Authoring a new skill** | Pick the tier first ([`experimental/README.md`](experimental/README.md) — it is the default), then `.claude/skills/SKILL-TEMPLATE.md`, then the skill-package rubric |
 | **Looking for a skill that isn't installed** | [`experimental/README.md`](experimental/README.md), then `make sync-experimental` |
-| **Auditing an existing skill** | `/xreview` on the skill directory — it runs `.claude/skills/xreview/scripts/skill-package-checks.sh`, then reads the 51-rule rubric beside it |
+| **Auditing an existing skill** | `/xreview` on the skill directory — it runs `.claude/skills/xreview/scripts/skill-package-checks.sh`, then reads the 52-rule rubric beside it |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
 | **Wanting exactly one thing** | [Just one piece](#just-one-piece) — the same installer, with a target |
 | **Wiring a sibling repo to use these** | `scripts/sync-agents.sh --target <path>` and `scripts/sync-skills.sh --target <path>` |

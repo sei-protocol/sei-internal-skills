@@ -181,6 +181,57 @@ good | sed 's/^Lenses:       4/Lenses:       1/' | sed 's/^Convergence:  unanimo
      | sed '/^| prose-steward/d;/^| systems-engineer/d;/^| security-specialist/d' > "$TMP/l.md"
 check "Lenses: 1 with Convergence: degenerate passes" CLEAN
 
+echo "a degenerate round is not exempt from the rubric-lens pin"
+# Convergence: degenerate is MANDATORY for Lenses: 1, so guarding the pin on it made
+# every one-lens skill-package round structurally exempt — an opt-out keyed off a
+# field the ledger author writes. A one-lens round done right has the rubric lens as
+# its one lens, because the lens is pinned.
+good | sed 's/^Lenses:       4/Lenses:       1/' | sed 's/^Convergence:  unanimous/Convergence:  degenerate/' \
+     | sed '/^| rubric lens/d;/^| prose-steward/d;/^| security-specialist/d' > "$TMP/l.md"
+check "a degenerate round whose one lens is not the rubric lens is caught" NO-LENS-ROW
+
+echo "a malformed ledger does not abort the sweep"
+# Under pipefail a ledger with no Round: line killed the run after NO-ROUND printed,
+# so every later ledger went unchecked and no summary printed — the round-1 crash,
+# reproduced inside the linter written to prevent that class.
+printf 'Target:       t\nClass:        doc-only\n' > "$TMP/first.md"
+good > "$TMP/second.md"
+out="$("$LINT" "$TMP/first.md" "$TMP/second.md" 2>&1)"
+printf '%s' "$out" | grep -q 'ledger(s)' \
+  && ok "the summary line still prints after a malformed ledger" \
+  || no "the sweep aborted: no summary line. Output: $out"
+printf '%s' "$out" | grep -q '2 ledger(s)' \
+  && ok "the second ledger is still counted" \
+  || no "the second ledger was not reached"
+
+echo "dropping the round headings fails closed, not open"
+# Rounds open on a `## Round N` heading while NO-ROUND counts `Round:` typed lines.
+# With the headings gone every per-round check evaluates nothing and the script
+# used to report conformance — the opposite of the schema's stated posture.
+good | sed 's/^## Round 1$//' > "$TMP/l.md"
+check "a ledger with typed blocks but no round heading is caught" NO-ROUND-HEADING
+
+echo "a verdict is a column, and the lens set is append-only"
+# Row deletion beats any row-text regex: drop the dissenting lens and decrement
+# Lenses:, and every substring check passes because the row is gone.
+{ printf 'Target: t\nClass:        doc-only\nTier: T3\n\n'
+  printf '## Round 1\n\nRound:        1\nState:        RESOLVED\nOpenFindings: 0\nConvergence:  split\nBlinded:      yes\nDissenter:    x\nLenses:       2\n\n'
+  printf '| Lens | Role | Verdict |\n|---|---|---|\n| alpha | l | RATIFY |\n| beta | l | DISSENT |\n\n'
+  printf '## Round 2\n\nRound:        2\nState:        RESOLVED\nOpenFindings: 0\nConvergence:  degenerate\nBlinded:      yes\nDissenter:    x\nLenses:       1\n\n'
+  printf '| Lens | Role | Verdict |\n|---|---|---|\n| alpha | l | RATIFY |\n'; } > "$TMP/l.md"
+check "deleting a dissenting lens's row is caught" LENS-DROPPED
+# The schema puts Verdict second and the fixtures put it third, so the column is
+# located by the header. A DISSENT in a Resolution cell is not a verdict.
+{ printf 'Target: t\nClass:        doc-only\nTier: T3\n\n## Round 1\n\nRound:        1\nState:        RESOLVED\nOpenFindings: 0\nConvergence:  unanimous\nBlinded:      yes\nDissenter:    x\nLenses:       1\n\n'
+  printf '| Lens | Verdict | Resolution |\n|---|---|---|\n| alpha | RATIFY | DISSENT in an earlier round, closed |\n'; } > "$TMP/l.md"
+out="$("$LINT" "$TMP/l.md" 2>&1)"
+printf '%s' "$out" | grep -q REVISED-VERDICT \
+  && no "a DISSENT in the Resolution cell was read as a verdict" \
+  || ok "a DISSENT outside the Verdict column is not a verdict"
+{ printf 'Target: t\nClass:        doc-only\nTier: T3\n\n## Round 1\n\nRound:        1\nState:        RESOLVED\nOpenFindings: 0\nConvergence:  unanimous\nBlinded:      yes\nDissenter:    x\nLenses:       1\n\n'
+  printf '| Lens | Verdict | Finding |\n|---|---|---|\n| alpha | DISSENT | cited `T1` |\n'; } > "$TMP/l.md"
+check "a DISSENT in the Verdict column with Convergence: unanimous is caught" REVISED-VERDICT
+
 echo "the live ledgers conform"
 if "$LINT" >/dev/null 2>&1; then ok "every ledger in the tree conforms"
 else no "the tree's own ledgers do not conform: $("$LINT" 2>&1 | tail -3)"; fi

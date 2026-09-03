@@ -106,7 +106,7 @@ OpenFindings: 0
 Convergence:  unanimous
 Blinded:      yes
 Dissenter:    security-specialist
-Lenses:       3
+Lenses:       4
 ```
 
 Unanimous this round: all three round-1 dissenters re-checked and RATIFIED. Blinded: three
@@ -120,6 +120,7 @@ recorded here rather than edited into round 1.
 | `prose-steward` | 16 | 13, then 4 new blocking | RATIFY after `ed3301c` |
 | `security-specialist` | 10 | 9, B3 open as major | RATIFY after `243f00b` |
 | `systems-engineer` | 8 | 8, verified by execution | RATIFY, 4 new non-blocking |
+| rubric lens | — | — | **not re-dispatched** — the pin was dropped this round without an operator override. Closed in round 5. |
 
 ### What the re-check caught that round 1 did not
 
@@ -270,20 +271,30 @@ the exemption, because the skills it names were cut here.
 Round:        5
 State:        RESOLVED
 OpenFindings: 0
-Convergence:  degenerate
+Convergence:  split
 Blinded:      no
 Dissenter:    rubric lens
-Lenses:       1
+Lenses:       4
 
 The rubric lens, dispatched against the current tree. It was **not** re-dispatched in
-rounds 2-4 — the pin was dropped for three rounds without an operator override, which
-the new per-round `NO-LENS-ROW` check caught in this ledger. This round closes that.
+rounds 2-4 — the pin was dropped for three rounds without an operator override. This round
+closes that.
+
+**Correction.** An earlier draft of this round credited the per-round `NO-LENS-ROW` check
+with catching the dropped pin. It could not have: that check runs only on the latest round,
+and round 4 read `Convergence: degenerate`, which then exempted it. I noticed the gap while
+reading the checker's per-round output, not from a gate firing. The exemption was itself a
+finding (`J1`) and is now removed, so the check would catch it today — but it did not then,
+and a verification claim in a ledger has to say what actually happened.
 
 `Blinded: no`: the lens read the committed rounds. `Convergence: degenerate`: one lens.
 
 | Lens | Role | Verdict |
 |---|---|---|
 | rubric lens | pinned, `skill-package` | DISSENT — cited `R4`, `A2`, `B1`, `D2`, `A1`, `P7`, `E5`, `D7`, `C2`, `R5` |
+| `prose-steward` | pinned | **not re-dispatched** — round 2 RATIFY stands; this round dispatched only the pin that had been dropped |
+| `security-specialist` | §4a, dissenter | **not re-dispatched** — round 2 RATIFY stands |
+| `systems-engineer` | §4a | **not re-dispatched** — round 2 RATIFY stands |
 
 ### P7 — pass
 
@@ -317,3 +328,55 @@ no rule fits "a reference contradicts SKILL.md" (finding 1, the highest-conseque
 this review, filed at `warn` for want of a better id), no rule traces a halt condition to an
 eval, and no rule covers a description's coverage of an inherited capability. Recorded, not
 closed.
+
+## Round 6
+
+Round:        6
+State:        RESOLVED
+OpenFindings: 0
+Convergence:  split
+Blinded:      no
+Dissenter:    seidroid
+Lenses:       5
+
+| Lens | Role | Verdict |
+|---|---|---|
+| seidroid | agentic reviewer, assigned dissent | CHANGES_REQUESTED — cited `R7`, `A2`, `D2` |
+| rubric lens | pinned, `skill-package` | **not re-dispatched** — its round 5 DISSENT stands, cited `R4`, `A2`, `B1`, `D2`, `P7`. Every finding it raised is closed; the verdict is its to change. |
+| `prose-steward` | pinned | **not re-dispatched** — round 2 RATIFY stands |
+| `security-specialist` | §4a, dissenter | **not re-dispatched** — round 2 RATIFY stands |
+| `systems-engineer` | §4a | **not re-dispatched** — round 2 RATIFY stands |
+
+`State: RESOLVED` over a standing DISSENT is the third exit stated in `review-ledger.md`:
+every finding that DISSENT raised is closed, and `Convergence:` stays `split` because the
+verdict did not change. The rubric lens changes its own verdict or it does not change.
+
+Eight findings, four named pre-merge. Two are the same defect recurring under a new name.
+
+| # | Finding | Resolution |
+|---|---|---|
+| J1 | `Convergence: degenerate` was a blanket exemption from the rubric-lens pin — and `degenerate` is **mandatory** for `Lenses: 1`, so every one-lens `skill-package` round was structurally exempt, keyed off a field the ledger author writes. That is round 4's Q1 recurring: the writable-side opt-out I had just moved onto the verifier, under a different name, a hundred lines below the comment recording why. | Guard removed. It was never needed for the honest case: a one-lens round done right has the rubric lens as its one lens. Fixture added. |
+| J2 | Round 5 credited the per-round `NO-LENS-ROW` check with catching the dropped pin. It could not have — the check runs only on the latest round, and round 4 read `degenerate`, which exempted it. | Corrected in place with the reason stated. A verification claim has to say what happened. |
+| J3 | `SKILL.md` Step 5 left only two exits from a `DISSENT`, but the common case is a third — every finding closed while the verdict stands. Round 5 took that path and stamped `RESOLVED` with nothing saying it was allowed. And the gate guarded `Convergence:` while `State:` is what a consumer branches on. | The three exits are stated in `review-ledger.md`. `UNSTATED-ACCEPTED-RISK` now guards `State:`. |
+| J4 | `last_round=$(...)` had no `\|\| true` under `pipefail`, so a ledger with no `Round:` line killed the sweep after `NO-ROUND` printed — later ledgers unchecked, no summary. The round-1 crash reproduced inside the linter written to prevent that class. **The first fix guarded only the pipeline's first stage**, which is the same `list_dirs()` bug from Slice A. | The whole pipeline is guarded. Two-file fixture asserts the summary prints and the second ledger is reached. |
+| J5 | Rounds open on a `## Round N` heading while `NO-ROUND` counts `Round:` typed lines. Strip the headings and every per-round check evaluated nothing, then the script reported conformance — failing **open**, against the schema's own stated posture. | Heading count is asserted against the `Round:` count. |
+| J6 | A deleted row beats any row-text regex: drop the dissenting lens and decrement `Lenses:`. | The verdict is read from the **column**, located by the header (the schema puts it second, the fixtures third). The lens set is append-only: a lens leaves only by being recorded as not re-dispatched. Both fired immediately on this ledger — rounds 2 and 5 had dropped lenses, now recorded as rows. |
+| J7 | `A2`'s widened scan named no file, so the finding pointed at a defect the reader could not locate. `D2` got the strictness fix without `B1`'s boundary test. `over by 0` at the ceiling reads as an off-by-one. | Evidence names the files; the message states the rule; `D2`'s boundary is covered. |
+| J8 | My own `R4` fix garbled the sentence it fixed — `load` / **`runs`** / `return`, three coordinated verbs in three forms, in the file that wins on divergence. | One imperative throughout. |
+
+### Q1 — the rubric gaps
+
+`R7` lands: **a `references/` file does not contradict `SKILL.md`.** It is `block` and `[semantic]`.
+The reviewer's case was the empirical one — the same file produced this defect in rounds 1, 2 and
+5, and the lens filed the round-5 instance at `warn` *"for want of a better id"*. A defect that
+inverts the authoritative file's instruction was being rated by the rubric's vocabulary instead of
+by its consequence.
+
+The other two are deferred **in the rubric**, under a `Known gaps` stanza, so the next lens meets
+them where it reads rules rather than rediscovering them: halt-condition→eval traceability needs a
+`halt_ref` field in `eval-format.md` first; the inherited-capability rule needs its term defined
+before a rule can cite it.
+
+Adding `R7` exposed a defect of its own: an `R6` already existed, so the first insert produced a
+**duplicate id** — the exact ambiguity rule ids exist to prevent. Renumbered, and the suite now
+asserts id uniqueness and that every rule-count claim matches the table. Both mutation-tested.

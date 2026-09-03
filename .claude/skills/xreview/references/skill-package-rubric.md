@@ -34,6 +34,18 @@ the rule id either way.
 
 When a rule applies only to certain shapes, the shape is noted (e.g., `[procedural only]`).
 
+**Known gaps.** Two things a reviewer will want to cite and cannot. They are recorded here so the
+next lens does not rediscover them and file the nearest ill-fitting id:
+
+- **Halt-condition → eval traceability.** `E2` requires at least one halt-condition eval; nothing
+  requires *each* halt condition to have one. Closing it needs a machine-readable link from a
+  `## Halt Conditions` bullet to an eval id — add a `halt_ref` field to `references/eval-format.md`
+  first, then the rule can be `[static]` rather than a judgment nobody can reproduce.
+- **A description's coverage of an inherited capability.** When a skill absorbs another's job, its
+  `description:` should route the vocabulary that used to reach the absorbed skill. There is no
+  rule, and the term is undefined — define "inherited capability" before writing one, or the rule
+  produces findings a reader cannot look up and disagree with.
+
 ---
 
 ## Description (frontmatter)
@@ -79,6 +91,7 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 | R5 | info | semantic | Cross-skill references using `../../<sibling-skill>/references/<file>.md` (relative — note the double `../`: from inside a `references/` dir, a single `../` resolves to the skill root, not `.claude/skills/`, so it links to a path that does not exist) or `.claude/skills/<sibling>/references/<file>.md` (repo-root form) are permitted between skills in the same `.claude/skills/` directory when they encode a handoff contract or shared methodology (e.g. coral's handoff points at design/issue's coral-integration refs). These are documentation links, not force-loads — they do not violate R1. Surfaced as info-only so reviewers see the cross-skill coupling. |
 | R6 | info | semantic | A skill that declares a **cite/exemplar contract** in its references (a corpus directory whose paths are load-bearing cite targets, e.g. language's `references/exemplars/<vertical>/` per its `sources.md` cite vocabulary) may nest those corpus files one extra level. The contract file must document the path scheme. Scope: corpus/exemplar content only — the skill's own method/reference docs still obey R1. |
 
+| R7 | block | semantic | A `references/` file does not contradict `SKILL.md`. Where they diverge the divergence **is** the finding; where the reference declares itself authoritative on divergence, it is correctness-grade. |
 ## Scripts [procedural only]
 
 | ID | Severity | Source | Rule |

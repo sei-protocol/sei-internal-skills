@@ -55,6 +55,16 @@ while read -r id; do
 done < "$TMP/refs"
 [ -z "$orphans" ] && ok "no orphan catalog_ref" || no "orphan catalog_ref:$orphans"
 
+echo "every rubric id is unique and every count claim matches the table"
+dupes=$(grep -oE '^\| [A-Z][0-9]+ ' "$RUBRIC" | tr -d '| ' | sort | uniq -d | tr '\n' ' ')
+[ -z "$dupes" ] && ok "no duplicate rule id" || no "duplicate rule id(s):$dupes — a citation to one is ambiguous"
+n_rules=$(grep -cE '^\| [A-Z][0-9]+ ' "$RUBRIC")
+bad_counts=$(grep -rhoE '[0-9]+ (of the )?(rubric.s )?(-)?rules|[0-9]+-rule' \
+  "$REPO_ROOT/.claude/skills/xreview" "$REPO_ROOT/README.md" 2>/dev/null \
+  | grep -oE '^[0-9]+' | sort -u | grep -vE "^(26|$n_rules)$" | tr '\n' ' ')
+[ -z "$bad_counts" ] && ok "every rule-count claim reads $n_rules (or 26, the static subset)" \
+  || no "rule-count claim(s) disagreeing with the $n_rules-row table:$bad_counts"
+
 echo "no rule tagged [static] is left unimplemented"
 unimpl=""
 for id in $(grep -oE '^\| [A-Z][0-9]+ \| [a-z]+ \| static ' "$RUBRIC" | grep -oE '[A-Z][0-9]+'); do

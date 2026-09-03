@@ -30,7 +30,7 @@ carries **`skip_reason`**, and the two values want opposite responses:
   and a `block` rule here is an open finding. A `block` severity that
 fails is a finding. An `info` or `warn` is advisory.
 
-The script checks 26 of the rubric's 51 rules. Of the other 25, 24 are `[semantic]` — a reviewer
+The script checks 26 of the rubric's 52 rules. Of the other 26, 25 are `[semantic]` — a reviewer
 judges them by reading the skill — and one is `[pressure]`: **P7**, `block` severity, run by the
 method in `../references/pressure-testing.md`. Do not judge P7 by reading; that is the skip the
 method exists to prevent.

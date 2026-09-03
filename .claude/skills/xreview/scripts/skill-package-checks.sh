@@ -115,7 +115,7 @@ fi
 if (( DESC_LEN < 1024 )); then
   emit "D2" "block" "Description under 1024 chars" "pass" "$DESC_LEN chars" "D2"
 else
-  emit "D2" "block" "Description under 1024 chars" "fail" "$DESC_LEN chars (over by $((DESC_LEN - 1024)))" "D2"
+  emit "D2" "block" "Description under 1024 chars" "fail" "$DESC_LEN chars; the rubric states strictly-under 1024" "D2"
 fi
 
 # D3 — anti-triggers present
@@ -150,7 +150,7 @@ SKILL_MD_LINES=$(wc -l < "$SKILL_MD" | tr -d ' ')
 if (( SKILL_MD_LINES < 500 )); then
   emit "B1" "block" "SKILL.md under 500 lines" "pass" "$SKILL_MD_LINES lines" "B1"
 else
-  emit "B1" "block" "SKILL.md under 500 lines" "fail" "$SKILL_MD_LINES lines (over by $((SKILL_MD_LINES - 500)))" "B1"
+  emit "B1" "block" "SKILL.md under 500 lines" "fail" "$SKILL_MD_LINES lines; the rubric states strictly-under 500" "B1"
 fi
 
 # B2, B3 — Guardrails / Halt sections (warn-level since some shapes legitimately omit;
@@ -454,7 +454,8 @@ if [[ -d "$SKILL_DIR/references" ]]; then
     { find "$SKILL_DIR/references" -name '*.md' 2>/dev/null || true; })
 fi
 if grep -qE '[A-Za-z]:\\[A-Za-z]|\\[A-Za-z][A-Za-z0-9_.-]{2,}\\[A-Za-z]' "${A2_SCAN[@]}" 2>/dev/null; then
-  emit "A2" "warn" "No Windows-style paths" "fail" "backslash-separated path patterns found" "A2"
+  a2_hits=$(grep -lE '[A-Za-z]:\\[A-Za-z]|\\[A-Za-z][A-Za-z0-9_.-]{2,}\\[A-Za-z]' "${A2_SCAN[@]}" 2>/dev/null | head -3 | tr '\n' ' ')
+  emit "A2" "warn" "No Windows-style paths" "fail" "found in: $(rel "$a2_hits")" "A2"
 else
   emit "A2" "warn" "No Windows-style paths" "pass" "" "A2"
 fi

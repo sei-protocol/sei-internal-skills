@@ -171,6 +171,16 @@ the field filled in — the lens agreeing with itself. `SKILL.md` already requir
 pass be labelled "a degenerate xreview, not dressed up as a full one"; the token puts that
 obligation in the contract instead of in prose no gate reads.
 
+**Three ways a round with a `DISSENT` reaches a passing `State:`** — and only three:
+
+1. **Re-dispatch.** The lens sees the fix and issues a new verdict. The new verdict belongs to
+   a new round; it never overwrites the old one.
+2. **Accept-with-risk.** The operator names the risk and accepts it. `State:`
+   is `RESOLVED-WITH-ACCEPTED-RISK`, never plain `RESOLVED`.
+3. **Every finding that DISSENT raised is closed.** `State: RESOLVED`, `OpenFindings: 0` — and
+   `Convergence:` stays `split` or `degenerate`, because the *verdict* did not change. This is
+   the common case, and the one most easily mistaken for the substitution below.
+
 `Convergence:` is read off the per-lens verdicts **as the lenses issued them**. An orchestrator
 never restates a lens's verdict: a resolved finding is recorded against the standing `DISSENT`,
 and the verdict changes only when that lens is re-dispatched and says so itself. A round holding

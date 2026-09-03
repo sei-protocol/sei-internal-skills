@@ -126,7 +126,7 @@ The slate is **routed, not re-derived by hand.** Apply the shared routing table
      `references/skill-package-rubric.md` and `scripts/skill-package-checks.sh` to disk and
      briefs those paths; the lens cites ids from that copy. Never hand it a `git show` pointer —
      Reachability (`references/reviewer-dispatch.md`) applies, and some lenses have no Bash.
-     The checker is in scope because it decides 26 of the 51 rules, so a diff that loosens a
+     The checker is in scope because it decides 26 of the 52 rules, so a diff that loosens a
      static check would otherwise be reviewed by running the loosened check. The edit is
      **itself a finding**, recorded in the ledger's routing section with a named justification
      and treated as correctness-grade until it has one. Without this, a change can weaken a
