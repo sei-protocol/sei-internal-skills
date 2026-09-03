@@ -179,7 +179,7 @@ aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>
 kubectl config use-context harbor
 ```
 
-`<chosen>` is the profile resolved at gate 3 — never literal `sei` (engineers configure their own). The first command is idempotent; the second sets the active context. Re-check both — `current-context` must return `harbor` (or the ARN form) before continuing.
+`<chosen>` is the profile resolved at gate 3, whatever its name — engineers configure their own, so never guess it. The first command is idempotent; the second sets the active context. Re-check both — `current-context` must return `harbor` (or the ARN form) before continuing.
 
 **Edge case — engineer prefers a non-default kubeconfig path:** respect `$KUBECONFIG`. The `update-kubeconfig` command writes to whichever file `$KUBECONFIG` points at (or `~/.kube/config` if unset). Don't override.
 

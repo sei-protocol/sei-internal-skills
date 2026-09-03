@@ -119,9 +119,28 @@ AWS_PROFILE=<chosen> terraform plan -target=module.engineers -out=tfplan
 AWS_PROFILE=<chosen> terraform apply tfplan
 ```
 
-`<chosen>` is the engineer's AWS profile (resolved by pre-flight gate 3 — never literal `sei`; engineers configure their own).
+`<chosen>` is the engineer's AWS profile, resolved by pre-flight gate 3. Never guess the name — engineers configure their own, and the value varies. Do not reject a resolved profile over its name: gate 3 may legitimately return `sei`.
 
-Run `terraform init` (no `-upgrade` flag) to fetch providers and modules; `-upgrade` would silently bump the provider lockfile and is not what this flow wants. Always `plan -out=tfplan` then `apply tfplan` — never direct `terraform apply` (skips plan review). Run from a single worktree at the platform repo's main branch — terraform state lives in S3 (`sei-platform-terraform-state`); concurrent worktrees on different commits won't corrupt state but can produce confusing plan diffs.
+Run `terraform init` to fetch providers and modules. Do not reach for `-upgrade` by default: it rewrites the committed `.terraform.lock.hcl`, and that belongs in its own PR rather than in an onboarding.
+
+Plain `init` does fail periodically, like this:
+
+```
+Error: Failed to query available provider packages
+  locked provider registry.terraform.io/hashicorp/aws <locked> does not match
+  configured version constraint ...; must use terraform init -upgrade to allow
+  selection of new versions
+```
+
+That is lock drift, and no onboarding causes it. Every engineer's `.tf` file constrains `eks-pod-identity` as `>= 2.4`, so `init` resolves the newest module. A newer module can raise the transitive AWS provider floor above the committed lock. It has happened twice: platform#758 and platform#1624.
+
+When you see it, run `terraform init -upgrade`, then land the resulting `.terraform.lock.hcl` as a **separate one-file PR** (`chore(terraform/harbor): bump provider lock to satisfy module constraints`).
+
+After an `-upgrade`, you are applying under provider versions nobody has reviewed, so **the plan shape is the guard**. It must read exactly `Plan: 6 to add, 0 to change, 0 to destroy` — 6 per engineer, so 18 for a batch of three. Any `change` or `destroy` line means the provider bump is moving more than this onboarding: stop, and land the lock PR before you apply anything. Say in that PR which provider versions moved and that the lock bump enabled `init` rather than creating resources. Do not fold the lock into the onboarding PR. The release checker expects an onboarding to touch only its own four files.
+
+Always `plan -out=tfplan` then `apply tfplan`. Never run `terraform apply` directly, because it skips plan review.
+
+Run from a single worktree at the platform repo's main branch. Terraform state lives in S3 (`sei-platform-terraform-state`). Concurrent worktrees on different commits do not corrupt that state, but they do produce confusing plan diffs.
 
 `Plan: 6 to add, 0 to change, 0 to destroy`. Apply confirms `Resources: 6 added`. The six resources:
 
@@ -164,9 +183,13 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
    > - Platform: `<platform-pr-url>`
    > - Workspace: `<workspace-pr-url>`
    >
-   > Merge the workspace PR first (or merge both within seconds of each other). After merge of the platform PR, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then from `terraform/aws/189176372795/eu-central-1/harbor/` run `AWS_PROFILE=<chosen> terraform init && terraform plan -target=module.engineers -out=tfplan && terraform apply tfplan` to land the Pod Identity associations. (`<chosen>` is the AWS profile resolved at pre-flight gate 3 — never literal `sei`.)
+   > Merge the workspace PR first (or merge both within seconds of each other). After merge of the platform PR, Flux reconciles namespace + RBAC + Flux watcher in ~60s. Then from `terraform/aws/189176372795/eu-central-1/harbor/` run `export AWS_PROFILE=<chosen>` and then `terraform init && terraform plan -target=module.engineers -out=tfplan && terraform apply tfplan` to land the Pod Identity associations. Export it rather than prefixing the chain: a `VAR=x a && b` prefix binds only to `a`, so `plan` and `apply` would run under the default profile. (`<chosen>` is the AWS profile resolved at pre-flight gate 3, whatever its name.)
 6. **After merge,** poll `kubectl get namespace eng-<alias>` until it returns 0.
-7. **Run terraform.** From `terraform/aws/189176372795/eu-central-1/harbor/` at the platform repo's main branch: `AWS_PROFILE=<chosen> terraform init` (no `-upgrade` flag), then `AWS_PROFILE=<chosen> terraform plan -target=module.engineers -out=tfplan`, then `AWS_PROFILE=<chosen> terraform apply tfplan`. Confirm `Resources: 6 added`.
+7. **Run terraform.** From `terraform/aws/189176372795/eu-central-1/harbor/` at the platform repo's main branch: `AWS_PROFILE=<chosen> terraform init`, then `AWS_PROFILE=<chosen> terraform plan -target=module.engineers -out=tfplan`, then `AWS_PROFILE=<chosen> terraform apply tfplan`. Confirm `Resources: 6 added`.
+
+   If `init` fails on a locked-provider-version mismatch, that is lock drift and not your change. Re-run with `-upgrade`, finish the onboarding, and open the lock bump as a separate one-file PR — see **What reconciles on terraform apply** above.
+
+   After an `-upgrade`, check the plan shape before applying: exactly `6 to add, 0 to change, 0 to destroy` per engineer. A `change` or `destroy` line means the provider bump reaches past this onboarding — stop and land the lock PR first.
 8. **Verify** `aws eks list-pod-identity-associations --cluster-name harbor --query 'associations[?namespace==`eng-<alias>`]' --region eu-central-1 --profile <chosen>` returns two associations (one for `seid-node`, one for `engineer-service-account`). Verify the engineer's Flux Kustomization is Ready: `kubectl get kustomization <alias> -n eng-<alias> -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'` returns `True`.
 
 ## PR body template
@@ -193,7 +216,7 @@ Onboards `<alias>` as a tenant on harbor.
 
 ## What reconciles on terraform apply
 
-`AWS_PROFILE=<chosen> terraform init && terraform plan -target=module.engineers -out=tfplan && terraform apply tfplan` (`<chosen>` = the AWS profile resolved at pre-flight gate 3)
+`export AWS_PROFILE=<chosen>` then `terraform init && terraform plan -target=module.engineers -out=tfplan && terraform apply tfplan` (`<chosen>` = the AWS profile resolved at pre-flight gate 3; export it, since a `VAR=x` prefix on an `&&` chain binds only to the first command)
 
 Plan: 6 to add, 0 to change, 0 to destroy. Six resources binding `eng-<alias>/seid-node` and `eng-<alias>/engineer-service-account` to their respective IAM policies via Pod Identity.
 
