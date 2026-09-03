@@ -66,3 +66,76 @@ Three of three dissented. That is the review working.
 None. Every finding above was reproduced before it was accepted.
 
 One claim was **checked and did not hold as I first read it**: my own `grep` for `brevity|pr-quality` returned 2, which looked like it refuted the dissenter's headline objection. Both matches were file *paths* containing `pr-quality`, not citations of it. The dissenter was right; my check was sloppy. Recorded because the near-miss is the finding.
+
+## Round 2
+
+**State**: OPEN
+**OpenFindings**: 3
+**Convergence**: unanimous dissent
+**Blinded**: yes
+**Dissenter**: `security-specialist` (assigned)
+
+### Routing
+
+Class is `skill-package` now that the diff touches `.claude/` and `agents/`, so
+`audit-skill` + `author-skill` + `prose-steward` are pinned unconditionally. §4a — the row
+this change adds — pinned `security-specialist` on the agent-instruction surface. The rule
+was dogfooded on the change that introduced it.
+
+| Lens | Kind | Verdict |
+|---|---|---|
+| `prose-steward` | agent-steward, pinned | **DISSENT** |
+| `audit-skill` | skill-steward, loaded as rubric | **DISSENT** |
+| `author-skill` | skill-steward, loaded as rubric | **DISSENT** |
+| `security-specialist` | §4a, assigned dissenter | **DISSENT** |
+| `seidroid` | the repository's own agentic reviewer, on the PR | **CHANGES_REQUESTED** |
+
+Five for five. Four ran blinded and in parallel; `seidroid` ran independently on the pull
+request. Three of the five reached the headline finding separately, which makes it
+corroboration rather than one opinion.
+
+### The headline finding
+
+**The gate reported clean on the defect its own header names.** It matched a backticked
+`/name` only, and every `description:` in this repository writes the bare form. So
+`idiomatic/SKILL.md:5` carried "(use /pr-quality)" — a retired skill, on the surface that
+routes invocation — while `verify-references` exited 0.
+
+This is Round 1's finding recurring in a new form: a fail-closed gate that fails open, whose
+green run then gets cited as evidence. The fix adds a bare-name pass with a boundary on each
+side, skips a token carrying a digit, strips trailing punctuation, and stops scanning a
+marker line as content. It also widens the scan to `README.md`, `AGENTS.md` and `CLAUDE.md`
+— the two documents a new engineer reads first, and the reason a stale skill count survived
+a sweep.
+
+### Findings closed
+
+| Finding | Lens | Closed by |
+|---|---|---|
+| Gate blind to bare slash-names on the routing surface | prose, audit, author, seidroid | Third scan pass; scan set widened to the root documents |
+| `platform-release-manager`'s exhaustive `tools:` list had no `Skill`, severing its path to `/gov-ops` — the skill this change keeps in the core *because* that agent depends on it | security | `Skill` added. `Agent` and `Task` stay off. |
+| `prose-steward` never gained the PR body, which the design calls the condition for an honest dissolution | prose, author | Scope extended |
+| The marker harvested every name in a 400-character window, so a rationale could hide citations or trip a false stale | security | Names precede the em-dash; rationale exempts nothing |
+| The design claimed `vale` runs nowhere in CI, twice, in a file this change adds | prose | Corrected. It runs on `.claude/**` at error level. |
+| The suite counted a known gap as a pass, so its headline said 13 passed when twelve ran a check | author | Third bucket; headline reports the gap |
+| Markers duplicated, orphaned, or sat between table rows where an HTML comment terminates the table | audit, author | De-duplicated; table rows reworded instead |
+| A phantom pack dimension `D10` cited after its row was removed | audit, author | Citation dropped |
+| `/chaos-suite` residue FR-010b required, including an eval asserting a list a correct agent could no longer name truthfully | audit, author, seidroid | All seven sites closed |
+| A roster line describing `prose-steward` with a framing the agent says it dropped | prose | Corrected |
+| The replacement stanza ran 36 words in 14 agents | seidroid | Split to three sentences |
+
+### Findings open, and accepted with the reason recorded
+
+| # | Finding | Lens | Why it stands |
+|---|---|---|---|
+| 1 | The `idiomatic-reviewer` / `prose-steward` boundary table lived only in the deleted file and went with it | prose | The contract states the standard but not which lens owns which half. Recorded in the design's R7 at its real size. If the two lenses begin to overlap, restoring a boundary line to the contract is the fix. |
+| 2 | `skills: none` narrows the headless chain but does not close it — the agent roster is not governed by that filter, and 14 of 16 agents grant unrestricted `Bash` | security | Pre-existing, and the change is a net improvement. Closing it needs an `agents:`-side control the harness may not expose. |
+| 3 | §4a's new row pins the artifacts and not the machinery that writes them, and an absent concern-lens degrades rather than halts | security | The path expansion is a follow-up. The un-defer condition is the second time an instruction-surface change lands without the lens. |
+
+### Rejected findings
+
+One, and the rejection is recorded because the reviewers split on it. `audit-skill` called the
+`chaos-suite` protected-list entry a stale assertion that blocks authoring a real chaos skill;
+`security-specialist` called it harmless over-protection that fails safe. The audit reading
+won on evidence: an eval asserted the agent surfaces a list containing `chaos-suite`, and a
+correct agent reading the live tree cannot say that truthfully. The entry is removed.

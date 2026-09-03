@@ -218,6 +218,7 @@ scan=$(
     # The two documents a new engineer reads first were outside this scan, which
     # is how a stale skill count and five dangling citations survived a sweep.
     for root in README.md AGENTS.md CLAUDE.md; do [ -f "$root" ] && echo "$root"; done
+
     # `|| true`: with an empty DOCTRINE this test is the group's last command, so
     # the group exits 1, pipefail fails the pipeline, and set -e kills the script
     # before it prints anything.

@@ -9,8 +9,12 @@ on:
   pull_request:
     paths:
       - '.claude/**'
-      - 'experimental/**'
       - 'scripts/sei-internal-skills-doctrine.md'
+      # The gate reads these three. Without them a README-only pull request
+      # reintroduces the defect with a green check.
+      - 'README.md'
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
       - 'scripts/verify-references.sh'
       - '.github/workflows/verify-references.yml'
 

@@ -47,7 +47,7 @@ Stop and escalate rather than proceeding when:
 | Building/designing the controller, CRD, or system | dispatch the language specialist (e.g. `kubernetes-specialist`) |
 
 <!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
-A correct-but-unidiomatic function passes `/code-review` and is exactly what `/idiomatic` is for. A non-idiomatic finding that proves durable and mechanical should **graduate** into a lint rule or the contract — this skill is the *discovery* surface, pr-quality is the *locked gate*.
+A correct-but-unidiomatic function passes `/code-review` and is exactly what `/idiomatic` is for. A non-idiomatic finding that proves durable and mechanical should **graduate** into a lint rule or the contract — this skill is the *discovery* surface, not a gate.
 
 ## The method (four steps)
 
