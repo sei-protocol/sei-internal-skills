@@ -104,9 +104,15 @@ jobs:
         timeout-minutes: 5
         run: |
           set -euo pipefail
+          # NOT -e SEI_RUNNER_REQUIRE_GIT_TOKEN=1 on the container: the image runs
+          # the readiness check from /etc/profile.d on EVERY login shell, so it
+          # fires before this script body can write the fake token. With REQUIRE
+          # set, that first firing fails the shell and no assertion below ever
+          # runs. Unset, the same firing exits 0 (nothing mounted, nothing to
+          # assert) and the checks proceed -- which is also the behaviour the
+          # workspace-prep init container depends on, since it gets no mount.
           docker run --rm --user 0 \
             -e SEI_RUNNER_CREDENTIAL_CHECK_SKIP_NETWORK=1 \
-            -e SEI_RUNNER_REQUIRE_GIT_TOKEN=1 \
             --entrypoint bash sei-omnigent-runner-base:candidate -lc '
               set -euo pipefail
               mkdir -p /mnt/secrets/git
@@ -131,9 +137,18 @@ jobs:
 
               command -v sei-runner-credential-check >/dev/null \
                 || { echo "FAIL: sei-runner-credential-check absent"; exit 1; }
-              sei-runner-credential-check >/dev/null \
+              sei-runner-credential-check >/dev/null 2>&1 \
                 || { echo "FAIL: the readiness gate rejected a mounted token"; exit 1; }
-              echo "  ok readiness gate"
+              echo "  ok readiness gate accepts a mounted token"
+
+              # And that it FAILS closed when a token is required but absent --
+              # the assertion that makes the gate mean something. Set per-call,
+              # since setting it on the container breaks the profile.d firing above.
+              rm -f /mnt/secrets/git/token
+              if SEI_RUNNER_REQUIRE_GIT_TOKEN=1 sei-runner-credential-check >/dev/null 2>&1; then
+                echo "FAIL: the readiness gate passed with no token and REQUIRE set"; exit 1
+              fi
+              echo "  ok readiness gate fails closed"
 
               echo "runner-base-ok"
             '
