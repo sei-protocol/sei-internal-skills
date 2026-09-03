@@ -41,14 +41,23 @@ go install github.com/sei-protocol/seictl@latest
 
 **On an upgrade, the install is only half the job.** `go install` writes to the Go bin directory, but every engineer who followed an earlier version of this runbook has `seictl` in `/usr/local/bin`. On a stock `PATH`, `/usr/local/bin` precedes `~/go/bin`. The install then succeeds while `command -v seictl` still resolves the old binary, so gate 1 keeps failing its `--network` probe. Do not re-run the install; it will keep succeeding.
 
-Confirm which copy wins, and clear the shadow if there is one:
+The pass condition is capability, not location: whichever copy `command -v seictl` resolves must satisfy the `--network` probe. A binary in `/usr/local/bin` is perfectly fine when it is a current one — the tarball and build-from-source paths below put it there on purpose.
+
+Re-run the probe first, and look at paths only when it fails:
 
 ```sh
-command -v seictl                 # must be the Go bin dir, not /usr/local/bin
-go env GOBIN GOPATH               # GOBIN, else GOPATH/bin, is where it landed
+seictl node apply --help | grep -- --network    # the actual gate; passing here ends it
+command -v seictl                               # which copy won
+go env GOBIN GOPATH                             # where go install put the new one
 ```
 
-If `command -v seictl` points at `/usr/local/bin/seictl`, either remove that copy (`sudo rm /usr/local/bin/seictl`) or install over it (`GOBIN=/usr/local/bin go install github.com/sei-protocol/seictl@latest`). Re-run the gate afterwards.
+When the probe fails and those last two disagree, a stale copy is shadowing the new one. Remove the stale copy and re-run the probe:
+
+```sh
+sudo rm /usr/local/bin/seictl
+```
+
+Do not try `GOBIN=/usr/local/bin go install …` instead. That directory is root-owned on Linux and on Apple Silicon macOS, so the install fails with `permission denied`. Prefixing `sudo` does not help either: `sudo GOBIN=… go install …` builds against root's `GOPATH` and module cache, not the engineer's. That is a second confusing failure inside the section meant to end one.
 
 Three things to know about it:
 
