@@ -73,7 +73,7 @@ Tier:         <T1 | T2 | T3>   (+ override note if the operator changed it)
 Round:        1                (incremented per re-review of the same target)
 State:        <OPEN | RESOLVED | RESOLVED-WITH-ACCEPTED-RISK | OPEN-BLOCKED>
 OpenFindings: <integer>        (count of still-open findings)
-Convergence:  <unanimous | split>   (this round only, tokens only — a prior-round split that this round resolved + re-ratified is `unanimous`; never free prose)
+Convergence:  <unanimous | split | degenerate>  (this round only, tokens only — a prior-round split that this round resolved + re-ratified is `unanimous`; a single-lens round is `degenerate`, never `unanimous`; never free prose)
 Blinded:      <yes | no>       (no downgrades confidence — say so in the Verdict)
 Dissenter:    <which lens held assigned dissent this round — required, never empty>
 Lenses:       <integer>        (how many lenses reported this round — 1 means a degenerate
@@ -112,7 +112,7 @@ Lenses:       <integer>        (how many lenses reported this round — 1 means 
 Round:        2
 State:        <OPEN | RESOLVED | RESOLVED-WITH-ACCEPTED-RISK | OPEN-BLOCKED>
 OpenFindings: <integer>
-Convergence:  <unanimous | split>
+Convergence:  <unanimous | split | degenerate>
 Blinded:      <yes | no>
 Dissenter:    <lens — this round, required, never empty>
 Lenses:       <integer>
@@ -165,9 +165,14 @@ back if the finding is wrong — now recorded rather than transient).
 
 ## Convergence and dissenter
 
-`Lenses:` is **required**. `Convergence: unanimous` over `Lenses: 1` is a degenerate
-single-reviewer pass, which `SKILL.md` requires be labelled as such — the count puts that
+`Lenses:` is **required**, and `Lenses: 1` **must** carry `Convergence: degenerate`. Unanimity
+across a single reviewer is the consensus theater the assigned-dissent rule exists to catch, with
+the field filled in — the lens agreeing with itself. `SKILL.md` already requires a single-reviewer
+pass be labelled "a degenerate xreview, not dressed up as a full one"; the token puts that
 obligation in the contract instead of in prose no gate reads.
+
+`Lenses:` is measured against the round's slate table, not self-reported: a round declaring N
+lenses must list N of them, and a round with no slate table can only honestly be one lens.
 
 `Convergence: unanimous | split` and `Blinded: yes | no` are **two separate lines** (two
 independent facts). A split is a finding, not a rounding error. An un-blinded review

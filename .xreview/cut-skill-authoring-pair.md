@@ -173,7 +173,7 @@ directions mutation-tested.
 Round:        3
 State:        RESOLVED
 OpenFindings: 0
-Convergence:  unanimous
+Convergence:  degenerate
 Blinded:      no
 Dissenter:    seidroid
 Lenses:       1
@@ -225,7 +225,7 @@ states the backlog does not block.
 Round:        4
 State:        RESOLVED
 OpenFindings: 0
-Convergence:  unanimous
+Convergence:  degenerate
 Blinded:      no
 Dissenter:    seidroid
 Lenses:       1

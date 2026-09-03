@@ -9,6 +9,7 @@
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LINT="$SCRIPT_DIR/../verify-ledger.sh"
 
 PASS=0; FAIL=0
@@ -37,6 +38,9 @@ Lenses:       4
 | Lens | Role | Verdict |
 |---|---|---|
 | rubric lens | pinned | RATIFY — cited `T1`, `S2` |
+| prose-steward | pinned | RATIFY |
+| systems-engineer | §4a | RATIFY |
+| security-specialist | dissenter | RATIFY |
 EOF
 }
 
@@ -83,7 +87,7 @@ check "a missing Class: is caught" NO-CLASS
 echo "the rubric-lens pin"
 good | sed 's/| rubric lens | pinned | RATIFY — cited `T1`, `S2` |/| rubric lens | pinned | RATIFY, read it and it is fine |/' > "$TMP/l.md"
 check "a rubric-lens row citing no rule id is caught" NO-RULE-ID
-good | grep -v 'rubric lens' > "$TMP/l.md"
+good | grep -v 'rubric lens' | sed 's/^Lenses:       4/Lenses:       3/' > "$TMP/l.md"
 check "a skill-package ledger with no rubric-lens row is caught" NO-LENS-ROW
 # An id cited outside the lens row must not satisfy it: the assertion is about
 # what the lens said, not what the document contains.
@@ -104,13 +108,78 @@ check "an empty Dissenter: is caught" EMPTY-DISSENTER
 good | sed 's/^Blinded:      yes/Blinded:      partially/' > "$TMP/l.md"
 check "a Blinded: outside yes|no is caught" BAD-BLINDED
 
-echo "the exemption marker is explicit and narrow"
-good | grep -v 'rubric lens' > "$TMP/l.md"
-printf '<!-- ledger-exempt: NO-LENS-ROW — predates the rubric lens -->\n' >> "$TMP/l.md"
-check "a marked exemption is honored" CLEAN
+echo "Lenses: is measured against the slate, not self-reported"
+good | sed 's/^Lenses:       4/Lenses:       6/' > "$TMP/l.md"
+check "a Lenses: count above the slate rows is caught" LENSES-MISMATCH
+good | sed 's/^Lenses:       4/Lenses:       2/' > "$TMP/l.md"
+check "a Lenses: count below the slate rows is caught" LENSES-MISMATCH
+# Claiming lenses without listing them is the transcription failure this repo has
+# hit three times; a round with no slate table can only honestly be one lens.
+good | sed '/^| Lens | Role | Verdict |/,$d' > "$TMP/l.md"
+printf '<!-- ledger-exempt: NO-LENS-ROW — no slate table in this fixture at all -->\n' >> "$TMP/l.md"
+check "declaring 4 lenses with no slate table is caught" LENSES-UNLISTED
+
+echo "exemptions live on the verifier, not in the ledger"
+# The old design read a `<!-- ledger-exempt: -->` marker out of the file, which put
+# the opt-out on the writable side of the gate: any ledger could grant itself one.
+good | grep -v 'rubric lens' | sed 's/^Lenses:       4/Lenses:       3/' > "$TMP/l.md"
+printf '<!-- ledger-exempt: NO-LENS-ROW — I would like this to pass -->\n' >> "$TMP/l.md"
+check "a ledger cannot exempt itself with an in-file marker" NO-LENS-ROW
 good | sed 's/^State:        RESOLVED/State:        DONE/' > "$TMP/l.md"
-printf '<!-- ledger-exempt: NO-LENS-ROW — predates the rubric lens -->\n' >> "$TMP/l.md"
-check "an exemption does not silence an unrelated rule" BAD-STATE
+printf '<!-- ledger-exempt: BAD-STATE — please -->\n' >> "$TMP/l.md"
+check "an in-file marker cannot silence an unrelated rule either" BAD-STATE
+# The one allowlisted path is exempt, and only for the one rule.
+if "$LINT" "$REPO_ROOT/docs/xreview/hardened-core.md" >/dev/null 2>&1; then
+  ok "the allowlisted historical ledger is exempt"
+else
+  no "the allowlisted ledger fails: $("$LINT" "$REPO_ROOT/docs/xreview/hardened-core.md" 2>&1 | head -2)"
+fi
+# Differential: the allowlist must name a path that exists and still needs it.
+grep -q 'EXEMPT_NO_LENS_ROW="docs/xreview/hardened-core.md"' "$LINT" \
+  && [ -f "$REPO_ROOT/docs/xreview/hardened-core.md" ] \
+  && ok "the allowlist names a path that exists" \
+  || no "the allowlist names a path that is not in the tree"
+
+echo "semantic checks are per round, not file-wide"
+# A file-wide scan let round 1's citation satisfy every later round. Two rounds,
+# the second with a lens row citing nothing.
+{ good; cat <<'EOF'
+
+## Round 2
+
+Round:        2
+State:        RESOLVED
+OpenFindings: 0
+Convergence:  unanimous
+Blinded:      yes
+Dissenter:    security-specialist
+Lenses:       4
+
+| Lens | Role | Verdict |
+|---|---|---|
+| rubric lens | pinned | RATIFY, read it and it is fine |
+| prose-steward | pinned | RATIFY |
+| systems-engineer | §4a | RATIFY |
+| security-specialist | dissenter | RATIFY |
+EOF
+} > "$TMP/l.md"
+check "round 1's cited ids do not satisfy round 2" NO-RULE-ID
+# A per-round Class: overrides the file default; a round that changed class mid
+# review must still be checked.
+{ printf 'Target:       t\nClass:        shared-stack\nTier:         T3\n\n## Round 1\n\n'
+  printf 'Round:        1\nState:        RESOLVED\nOpenFindings: 0\nConvergence:  unanimous\n'
+  printf 'Blinded:      yes\nDissenter:    x\nLenses:       2\nClass:        skill-package\n\n'
+  printf '| Lens | Role | Verdict |\n|---|---|---|\n| prose-steward | pinned | RATIFY |\n| systems-engineer | lens | RATIFY |\n'
+} > "$TMP/l.md"
+check "a round that declares its own Class: is checked on that class" NO-LENS-ROW
+
+echo "a one-lens round is degenerate, not unanimous"
+good | sed 's/^Lenses:       4/Lenses:       1/' \
+     | sed '/^| prose-steward/d;/^| systems-engineer/d;/^| security-specialist/d' > "$TMP/l.md"
+check "Lenses: 1 with Convergence: unanimous is caught" UNDECLARED-DEGENERATE
+good | sed 's/^Lenses:       4/Lenses:       1/' | sed 's/^Convergence:  unanimous/Convergence:  degenerate/' \
+     | sed '/^| prose-steward/d;/^| systems-engineer/d;/^| security-specialist/d' > "$TMP/l.md"
+check "Lenses: 1 with Convergence: degenerate passes" CLEAN
 
 echo "the live ledgers conform"
 if "$LINT" >/dev/null 2>&1; then ok "every ledger in the tree conforms"

@@ -87,6 +87,92 @@ while read -r n _; do
 done < <(grep -vE '^[[:space:]]*#' "$BASELINE")
 [ "$stale" -eq 0 ] && ok "baseline has no stale entry"
 
+echo "every skipped finding carries a skip_reason, and the two values are distinct"
+# G6 split `skipped` into inapplicable (no subject) and unavailable (subject
+# unreachable) because SKILL.md now branches on the field. A `skipped` with neither
+# value matches no branch, so a block rule that could not run reads as nothing.
+missing=0
+for d in "$REPO_ROOT"/.claude/skills/*/; do
+  n="$("$CHECKS" --skill-dir "$d" 2>/dev/null | grep '^{' | python3 -c "
+import sys,json
+b=[json.loads(l) for l in sys.stdin]
+print(sum(1 for x in b if x['result']=='skipped' and not x.get('skip_reason')))")"
+  [ "$n" -ne 0 ] && { no "$(basename "$d"): $n skipped finding(s) with no skip_reason"; missing=1; }
+done
+[ "$missing" -eq 0 ] && ok "no skipped finding is missing skip_reason"
+
+echo "a rule with no subject is inapplicable, not an alarm"
+probe="$TMP/inapplicable"; mkdir -p "$probe/state" "$probe/evals"
+printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\ncategory: workflow\n---\n# x\n' > "$probe/SKILL.md"
+printf '{"evals":[]}\n' > "$probe/evals/evals.json"
+out="$("$CHECKS" --skill-dir "$probe" 2>/dev/null | grep '^{')"
+r="$(printf '%s' "$out" | python3 -c "
+import sys,json
+b=[json.loads(l) for l in sys.stdin]
+s1=[x for x in b if x['catalog_ref']=='S1']
+print(s1[0]['result'], s1[0].get('skip_reason')) if s1 else print('absent none')")"
+[ "$r" = "skipped inapplicable" ] && ok "S1 on a skill with no scripts/ is skipped/inapplicable" \
+  || no "S1 with no scripts/: got '$r', wanted 'skipped inapplicable'"
+
+echo "an unreadable evals.json does not drop the three rules that read it"
+printf 'not json\n' > "$probe/evals/evals.json"
+n="$("$CHECKS" --skill-dir "$probe" 2>/dev/null | grep -c '^{')"
+[ "$n" -eq 26 ] && ok "unparseable evals.json still emits 26 findings" \
+  || no "unparseable evals.json emitted $n findings, wanted 26 (E2/E3/E4 dropped?)"
+rm -f "$probe/evals/evals.json"
+n="$("$CHECKS" --skill-dir "$probe" 2>/dev/null | grep -c '^{')"
+[ "$n" -eq 26 ] && ok "a missing evals.json still emits 26 findings" \
+  || no "missing evals.json emitted $n findings, wanted 26"
+
+# The core skills all have a parseable evals.json, so the sweep above never
+# exercises the E2/E3/E4 skip path. Assert skip_reason where it actually fires.
+printf 'not json\n' > "$probe/evals/evals.json"
+for id in E2 E3 E4; do
+  r="$("$CHECKS" --skill-dir "$probe" 2>/dev/null | grep '^{' | python3 -c "
+import sys,json
+b=[json.loads(l) for l in sys.stdin]
+m=[x for x in b if x['catalog_ref']=='$id']
+print(m[0]['result'], m[0].get('skip_reason')) if m else print('ABSENT none')")"
+  [ "$r" = "skipped unavailable" ] && ok "$id on an unreadable evals.json is skipped/unavailable" \
+    || no "$id on an unreadable evals.json: got '$r', wanted 'skipped unavailable'"
+done
+# The counter-breakage path (a working evals.json the counter cannot read) is the
+# other producer of these three, and it must carry the reason too.
+printf '{"evals":[]}\n' > "$probe/evals/evals.json"
+pydir="$TMP/nopy"; mkdir -p "$pydir"; printf '#!/bin/sh\nexit 127\n' > "$pydir/python3"; chmod +x "$pydir/python3"
+# Parse the JSON; do not pattern-match field adjacency. skip_reason is emitted
+# last, so a positional grep silently matches nothing and the case reads as green.
+r="$(PATH="$pydir:/usr/bin:/bin" "$CHECKS" --skill-dir "$probe" 2>/dev/null | grep '^{' \
+     | python3 -c "
+import sys,json
+b=[json.loads(l) for l in sys.stdin]
+print(sum(1 for x in b if x['result']=='skipped' and x.get('skip_reason')=='unavailable'
+          and x['catalog_ref'].startswith('E')))")"
+[ "${r:-0}" -ge 4 ] && ok "a broken interpreter yields 4 skipped/unavailable E-rules" \
+  || no "broken interpreter: $r skipped/unavailable E-rules, wanted >= 4"
+rm -f "$probe/evals/evals.json"
+
+echo "the sibling-repo case: a rule whose subject is unreachable says so"
+# sync-skills.sh --target <repo> is a supported flow. That repo is a git repo with
+# no catalog README and no sync-skills.sh, so REPO_ROOT is non-empty and C1's input
+# is absent — the case where guarding the skip on REPO_ROOT dropped C1 silently.
+sib="$TMP/sibling"; mkdir -p "$sib/.claude/skills"
+( cd "$sib" && git init -q . )
+cp -R "$REPO_ROOT/.claude/skills/root-cause" "$sib/.claude/skills/"
+out="$("$CHECKS" --skill-dir "$sib/.claude/skills/root-cause" 2>/dev/null | grep '^{')"
+n="$(printf '%s' "$out" | grep -c '^{')"
+[ "$n" -eq 26 ] && ok "a skill in a sibling repo still emits 26 findings" \
+  || no "sibling repo emitted $n findings, wanted 26"
+for id in C1 C3 T1; do
+  r="$(printf '%s' "$out" | python3 -c "
+import sys,json
+b=[json.loads(l) for l in sys.stdin]
+m=[x for x in b if x['catalog_ref']=='$id']
+print(m[0]['result'], m[0].get('skip_reason')) if m else print('ABSENT none')")"
+  [ "$r" = "skipped unavailable" ] && ok "$id is skipped/unavailable, not dropped or failed" \
+    || no "$id in a sibling repo: got '$r', wanted 'skipped unavailable'"
+done
+
 echo "a flag with no value is a usage error, not a crash"
 out="$("$CHECKS" --skill-dir 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'needs a value'; then

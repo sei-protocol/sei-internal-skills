@@ -298,9 +298,9 @@ PY
     if [[ -z "$EVAL_COUNTS" ]]; then
       # Visibly skipped, never silently dropped: a check that could not run is
       # a finding, not an absence.
-      emit "E2" "block" "evals.json has ≥1 happy-path + ≥1 halt-condition" "skipped" "could not read eval entries" "E2"
-      emit "E3" "warn" "evals.json has ≥3 entries (Obra ideal)" "skipped" "could not read eval entries" "E3"
-      emit "E4" "warn" "Every eval has a source field" "skipped" "could not read eval entries" "E4"
+      emit "E2" "block" "evals.json has ≥1 happy-path + ≥1 halt-condition" "skipped" "could not read eval entries" "E2" "unavailable"
+      emit "E3" "warn" "evals.json has ≥3 entries (Obra ideal)" "skipped" "could not read eval entries" "E3" "unavailable"
+      emit "E4" "warn" "Every eval has a source field" "skipped" "could not read eval entries" "E4" "unavailable"
       HAPPY=0; HALT=0; TOTAL=0; NO_SOURCE=0
       EVAL_SKIP=1
     else
@@ -330,9 +330,15 @@ PY
     fi
   else
     emit "E1" "block" "evals.json is parseable" "fail" "JSON parse error" "E1"
+    for r in E2:block E3:warn E4:warn; do
+      emit "${r%%:*}" "${r##*:}" "evals.json checks" "skipped" "evals.json does not parse" "${r%%:*}" "unavailable"
+    done
   fi
 else
   emit "E1" "block" "evals.json exists" "fail" "missing $(rel "$EVALS_JSON")" "E1"
+  for r in E2:block E3:warn E4:warn; do
+    emit "${r%%:*}" "${r##*:}" "evals.json checks" "skipped" "no evals.json to read" "${r%%:*}" "unavailable"
+  done
 fi
 
 # --- State checks ---
@@ -348,8 +354,16 @@ if [[ -f "$SKILL_DIR/.gitignore" ]]; then
   fi
 fi
 
+GITIGNORE_READABLE=0
+[[ -n "$REPO_ROOT" && -f "$REPO_ROOT/.gitignore" ]] && GITIGNORE_READABLE=1
+[[ -f "$SKILL_DIR/.gitignore" ]] && GITIGNORE_READABLE=1
+
 if (( GITIGNORE_OK == 1 )); then
   emit "T1" "block" "state/ is gitignored" "pass" "" "T1"
+elif (( GITIGNORE_READABLE == 0 )); then
+  # No .gitignore was read, so nothing was violated — the rule had no subject to
+  # check. Reporting `fail` here asserts a defect the checker never observed.
+  emit "T1" "block" "state/ is gitignored" "skipped" "no repo or local .gitignore to read" "T1" "unavailable"
 else
   emit "T1" "block" "state/ is gitignored" "fail" "no matching pattern in repo or local .gitignore" "T1"
 fi
