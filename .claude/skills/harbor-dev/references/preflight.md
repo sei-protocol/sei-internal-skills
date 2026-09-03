@@ -33,7 +33,26 @@ Two-part check:
 
 **Recovery (out-of-band):**
 
-Recommended path: prebuilt binary from the GitHub releases page. Per-platform tarballs at `https://github.com/sei-protocol/seictl/releases/latest`. Pick the right asset:
+Recommended path: `go install`. The same command installs a missing binary and upgrades a stale one.
+
+```sh
+go install github.com/sei-protocol/seictl@latest
+```
+
+Three things to know about it:
+
+- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` or check 1 still fails. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@latest`.
+- seictl's `go.mod` declares `go 1.26.0`. On an older toolchain `go install` prints `switching to go1.26.8` and downloads it. Treat that line as normal output, not an error.
+- A plain `go install` leaves the `seictl.sei.io/version` provenance annotation reading `dev` on every resource seictl applies. The version comes from an `-ldflags` stamp the Makefile passes, and `go install` does not pass it. Nothing breaks; the applied resources just do not record which seictl produced them.
+
+To keep the provenance stamp, pass the flag and pin the same version twice:
+
+```sh
+go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=v0.0.71'" \
+  github.com/sei-protocol/seictl@v0.0.71
+```
+
+Alternative — prebuilt binary from the GitHub releases page. These carry the version stamp already and need no Go toolchain. Per-platform tarballs at `https://github.com/sei-protocol/seictl/releases/latest`:
 
 ```sh
 # macOS (Apple Silicon)
@@ -41,17 +60,8 @@ curl -LO https://github.com/sei-protocol/seictl/releases/latest/download/seictl_
 tar -xzf seictl_Darwin_arm64.tar.gz
 sudo mv seictl /usr/local/bin/
 
-# macOS (Intel)
-curl -LO https://github.com/sei-protocol/seictl/releases/latest/download/seictl_Darwin_x86_64.tar.gz
-tar -xzf seictl_Darwin_x86_64.tar.gz
-sudo mv seictl /usr/local/bin/
-
-# Linux (x86_64)
-curl -LO https://github.com/sei-protocol/seictl/releases/latest/download/seictl_Linux_x86_64.tar.gz
-tar -xzf seictl_Linux_x86_64.tar.gz
-sudo mv seictl /usr/local/bin/
-
-# Linux — same shape with seictl_Linux_arm64.tar.gz / seictl_Linux_x86_64.tar.gz
+# macOS (Intel) — seictl_Darwin_x86_64.tar.gz
+# Linux — seictl_Linux_x86_64.tar.gz / seictl_Linux_arm64.tar.gz
 ```
 
 Build-from-source fallback — needed when the engineer requires a commit newer than the latest release:
@@ -63,7 +73,9 @@ make build
 sudo mv build/seictl /usr/local/bin/
 ```
 
-**Don't** use `brew` (no tap exists for `sei-protocol/seictl`). **Don't** use `go install` directly — seictl's go.mod requires source-tree build-args that bare `go install` doesn't pass. `make install` is also `go install` under the hood; same caveat. Use `make build` then move the binary.
+**Do not** use `brew` — no tap exists for `sei-protocol/seictl`.
+
+`go install` was unusable before seictl v0.0.71 and the runbook forbade it. Eleven `replace` directives in `go.mod`, inherited from sei-chain, made Go reject any module-aware install. seictl#246 removed them, and v0.0.71 is the first release that installs this way. The old prohibition no longer applies. If `go install` ever fails again with `contains ... replace directives`, a new one has crept back into `go.mod` — that is a seictl bug, not an install-method problem.
 
 Halt until both checks (PATH + `node apply --help` lists `--network`) pass.
 
