@@ -144,7 +144,7 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
    terraform fmt -check -recursive terraform/aws/189176372795/eu-central-1/harbor
    ```
 
-   No pre-flight gate covers the standalone `kustomize` binary. Where it is absent, `kubectl kustomize clusters/harbor` renders the same output.
+   No pre-flight gate covers the standalone `kustomize` binary. Where it is absent, substitute `kubectl kustomize` for `kustomize` in this command and in the one below. Both render the same output.
 
    Then confirm the new cell's hostnames sit under its own subzone:
 

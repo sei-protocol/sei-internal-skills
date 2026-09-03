@@ -225,16 +225,16 @@ Append `eng-<alias>` to `namespaceSelector.matchNames`, keeping the list
 alphabetical. Only that list changes; leave the comment and the rest of the
 spec alone.
 
+Unlike Files 1, 3 and 5, this block is not the whole file. It shows one edit
+inside a much larger document. This doc elides the existing entries on purpose.
+Write the roster back from a snapshot here, and you drop every engineer who
+joined after that snapshot.
+
 ```yaml
   namespaceSelector:
     matchNames:
-      - eng-amir
-      - eng-brandon
-      - eng-dakai
-      - eng-fromtherain
-      - eng-<alias>          # <- added
-      - eng-yiming
-      - eng-yiren
+      # ... every existing eng-* entry, unchanged ...
+      - eng-<alias>          # <- the only line you add, in alphabetical position
 ```
 
 The selector enumerates `matchNames` because the PodMonitor CRD accepts only
