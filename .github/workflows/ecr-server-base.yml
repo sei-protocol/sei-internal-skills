@@ -124,12 +124,27 @@ jobs:
               print(f"  FAIL kubernetes extra missing: {exc}"); bad = True
 
           try:
+              # Two assertions, because the symbol alone proves too little. The
+              # grant is no longer its own router: it is a grant_type branch
+              # inside upstream create_oauth_token_router, injected through
+              # handle_client_credentials. A base carrying the handler but built
+              # against an upstream that dropped that parameter would import
+              # clean and never route -- /oauth/token would answer
+              # unsupported_grant_type on a green /health, and every driver run
+              # would die at token exchange. Check the seam, not just the module.
+              import inspect
               from omnigent.server.routes.client_credentials import (  # noqa: F401
-                  create_client_credentials_router,
+                  create_client_credentials_handler,
               )
-              print("  ok client_credentials grant present")
+              from omnigent.server.routes.device_auth import create_oauth_token_router
+              params = inspect.signature(create_oauth_token_router).parameters
+              assert "handle_client_credentials" in params, (
+                  "create_oauth_token_router takes no handle_client_credentials "
+                  "parameter -- the machine grant has nothing to mount into"
+              )
+              print("  ok client_credentials grant present and wired")
           except Exception as exc:
-              print(f"  FAIL client_credentials grant missing: {exc}"); bad = True
+              print(f"  FAIL client_credentials grant missing or unwired: {exc}"); bad = True
 
           try:
               # Unlike the kubernetes extra, `slack` installs a SEPARATE
