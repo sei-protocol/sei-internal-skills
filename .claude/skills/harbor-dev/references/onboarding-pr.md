@@ -4,7 +4,7 @@ A new engineer's onboarding is one PR against `sei-protocol/platform` touching f
 
 **Canonical reference PR:** [sei-protocol/platform#587](https://github.com/sei-protocol/platform/pull/587) — the fromtherain re-onboard.
 
-Read that PR for the shape of File 1 only. It is a two-file diff and predates both the per-engineer terraform (File 3) and the seiload PodMonitor roster (File 4), so it is not a complete onboarding diff. Take the full file list from the table below, and the literal shapes from [`onboarding-pr-template.md`](./onboarding-pr-template.md).
+Read that PR for the shape of File 1 only. It is a two-file diff, and it predates both the per-engineer terraform (File 3) and the seiload PodMonitor roster (File 4). It is not a complete onboarding diff. Take the full file list from the table below, and the literal shapes from [`onboarding-pr-template.md`](./onboarding-pr-template.md).
 
 The base template it renders against is still current, including the templated rbac-proxy ClusterRoleBinding and the controller `node-configmaps-writer` Role + `controller-configmaps-writer` RoleBinding. Copying the most recently onboarded engineer's files gives the same result with less reading.
 
@@ -142,7 +142,7 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
 
    Confirm the rendered cell carries the `eng-` prefix in its subzone — `*.eng-<alias>.harbor.platform.sei.io`, not `*.<alias>.harbor...`. The Gateway listener hostname and the Certificate `dnsNames[0]` chain off `Namespace.metadata.name`, not the bare alias. Source the alias instead and the render drops `eng-`. The cell then claims hostnames outside its own subzone, and the `eng-tenant-hostname-guardrail` VAP rejects them at admission.
 3. **Open the platform-repo PR.** Title: `feat(harbor/engineers): onboard <alias>`. Body: see template below. `gh pr create --repo sei-protocol/platform --base main`.
-4. **Open the workspace-repo scaffolding PR (sibling).** Render [`onboarding-pr-template.md`](./onboarding-pr-template.md) File 5 in a fresh clone of `sei-protocol/harbor-engineering-workspace`. Branch: `feat/onboard-<alias>`. Without this, the engineer's per-engineer Flux Kustomization fails reconcile post-merge with `kustomization path not found: ./engineers/<alias>`. Both PRs land independently; the platform-repo PR shouldn't merge before the workspace-repo PR is at least open. Surface both URLs.
+4. **Open the workspace-repo scaffolding PR (sibling).** Render [`onboarding-pr-template.md`](./onboarding-pr-template.md) File 5 in a fresh clone of `sei-protocol/harbor-engineering-workspace`. Branch: `feat/onboard-<alias>`. Without this, the engineer's per-engineer Flux Kustomization fails reconcile post-merge with `kustomization path not found: ./engineers/<alias>`. Both PRs land independently, but do not merge the platform-repo PR before the workspace-repo PR is open. Surface both URLs.
 5. **Surface and halt:**
    > Onboarding opened in two PRs:
    > - Platform: `<platform-pr-url>`
