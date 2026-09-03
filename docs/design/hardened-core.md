@@ -101,7 +101,7 @@ than implying a number it cannot reach. The end state is ten, with a named path 
 | `/root-cause` | Skill + bundle | Named as high value. The bundle already exists and a PagerDuty route resolves it. |
 | `/harbor-dev` | Skill | Daily self-service. Real side effects: it creates and destroys chains on a live cluster. |
 | `/validate-release` | Skill | Real side effects: it reads a live harness and writes a report to Notion. |
-| `/author-skill`, `/audit-skill` | Skills | Load-bearing. `/xreview` HALTs when either is absent on a `skill-package` change. See §7.6 — the pin is currently a presence check. |
+| ~~`/author-skill`, `/audit-skill`~~ | Skills | **Cut.** Superseded by §7.6a — both deleted, their rubric moved into `/xreview`. The row stood because `/xreview` HALTed when either was absent; that HALT is gone. |
 | `/gov-ops`, `/validator-platform` | Skills | Forced by review. `platform-release-manager` ships and depends on both. §5.3. |
 | 16 specialist agents | Agents | The surface that works. See §5.3. |
 | `asd-ste100` | Output style | One file. Shipped, opt-in, already installed. |
@@ -644,6 +644,27 @@ duplicates, so one source of truth pays twice. Then `/evm`, the one true 1:1 cas
 `kubernetes-specialist` cite each of them, and `/validator-platform` cites both, so they
 need a four-way de-duplication pass first. `/idiomatic` last. It is 62% of the corpus and the
 highest-frequency dispatch, so it is where a wrong answer costs most.
+
+### 7.6a Supersedes 7.6: the two skills are cut, not just unpinned
+
+§7.6 scoped the change to about 10 lines — unpin the filename, cite a rule id, and leave the
+authoring and audit workflow in place as unpinned skills. The operator authorized the larger cut
+instead: delete both skills outright and move the rubric into `/xreview`.
+
+What changed the answer: §7.6 assumed the remaining 1,770 lines of workflow had users. They did
+not. The authoring flow scaffolded a skill and the audit flow produced a report format, and
+neither ran outside the pin that forced them. Once the pin is a rubric rather than a filename,
+nothing reaches the workflow at all — so it is dead weight the core installs for everyone.
+
+What survived the cut, because a rule at `block` severity depends on it:
+`references/skill-package-rubric.md` (the 51 rules), `scripts/skill-package-checks.sh` (the
+static subset), `references/eval-format.md` (the vocabulary E4/E5 cite), and
+`references/pressure-testing.md` (the method P7 needs). What did not: the scaffolding, the
+report format, the RED-GREEN-REFACTOR authoring cycle, and the `PROTECTED` skill list — that
+last one is restated as policy in `CLAUDE.md` rather than as an array in a deleted script.
+
+§7.6 is not deleted. It records the smaller change that was considered first, and the reasoning
+in it still holds — this decision only widens the scope, it does not reverse the direction.
 
 ### 7.6 Decision: make the steward pin verify a rubric, not a filename
 

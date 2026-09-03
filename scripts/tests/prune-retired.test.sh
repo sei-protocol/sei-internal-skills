@@ -31,7 +31,7 @@ seed_env() {
   silent "$REPO/scripts/sync-agents.sh" --target "$t" --categories all --force
   silent "$REPO/scripts/sync-experimental.sh" --target "$t" --force
   local s
-  for s in data-mesh prfaq tee diagram lingua; do
+  for s in data-mesh prfaq tee diagram lingua audit-skill author-skill; do
     mkdir -p "$t/.claude/skills/$s"; echo stale > "$t/.claude/skills/$s/SKILL.md"
   done
   for s in data-platform-architect tee-specialist diagram-architect; do
@@ -54,7 +54,7 @@ check "dry run says nothing was deleted" bash -c "'$PRUNE' --target '$t' | grep 
 echo "--apply removes the retired set"
 t="$scratch/apply"; seed_env "$t"
 check "apply exits 0" "$PRUNE" --target "$t" --apply
-for s in data-mesh prfaq tee diagram lingua; do
+for s in data-mesh prfaq tee diagram lingua audit-skill author-skill; do
   check_fail "retired skill removed: $s" test -d "$t/.claude/skills/$s"
 done
 for a in data-platform-architect tee-specialist diagram-architect; do

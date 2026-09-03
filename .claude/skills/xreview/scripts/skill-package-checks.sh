@@ -122,7 +122,9 @@ else
 fi
 
 # D8 — ≥3 trigger phrases (heuristic: count single-quoted phrases)
-TRIGGER_COUNT=$(printf '%s' "$DESC_STRIPPED" | grep -oE "'[^']+'" | wc -l | tr -d ' ')
+# `|| true`: no quoted phrase means grep exits 1, and under `set -euo pipefail`
+# that kills the run — dropping every check after D8, block rules included.
+TRIGGER_COUNT=$(printf '%s' "$DESC_STRIPPED" | { grep -oE "'[^']+'" || true; } | wc -l | tr -d ' ')
 if (( TRIGGER_COUNT >= 3 )); then
   emit "D8" "warn" "Description includes ≥3 concrete trigger phrases" "pass" "$TRIGGER_COUNT quoted phrases" "D8"
 else
@@ -244,11 +246,35 @@ if [[ -f "$EVALS_JSON" ]]; then
   if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$EVALS_JSON" 2>/dev/null; then
     emit "E1" "block" "evals.json is parseable" "pass" "" "E1"
 
-    # E2, E3, E4 — counts and source field
-    HAPPY=$(python3 -c "import json; d=json.load(open('$EVALS_JSON')); print(sum(1 for e in d.get('evals',[]) if e.get('type')=='happy-path'))")
-    HALT=$(python3 -c "import json; d=json.load(open('$EVALS_JSON')); print(sum(1 for e in d.get('evals',[]) if e.get('type')=='halt-condition'))")
-    TOTAL=$(python3 -c "import json; d=json.load(open('$EVALS_JSON')); print(len(d.get('evals',[])))")
-    NO_SOURCE=$(python3 -c "import json; d=json.load(open('$EVALS_JSON')); print(sum(1 for e in d.get('evals',[]) if not e.get('source')))")
+    # E2, E3, E4 — counts and source field. One pass, path via argv (not
+    # interpolated), and both eval shapes: a top-level list and {"evals": [...]}.
+    # A skill using the list form used to raise AttributeError here and kill the
+    # run mid-stream, dropping T1 and C1 — two block rules — with no trace.
+    EVAL_COUNTS=$(python3 - "$EVALS_JSON" <<'PY' 2>/dev/null || true
+import json,sys
+d=json.load(open(sys.argv[1]))
+evals = d if isinstance(d,list) else d.get('evals',[])
+evals = [e for e in evals if isinstance(e,dict)]
+print(sum(1 for e in evals if e.get('type')=='happy-path'),
+      sum(1 for e in evals if e.get('type')=='halt-condition'),
+      len(evals),
+      sum(1 for e in evals if not e.get('source')))
+PY
+)
+    if [[ -z "$EVAL_COUNTS" ]]; then
+      # Visibly skipped, never silently dropped: a check that could not run is
+      # a finding, not an absence.
+      emit "E2" "block" "evals.json has ≥1 happy-path + ≥1 halt-condition" "skipped" "could not read eval entries" "E2"
+      emit "E3" "warn" "evals.json has ≥5 evals" "skipped" "could not read eval entries" "E3"
+      emit "E4" "warn" "every eval carries a source field" "skipped" "could not read eval entries" "E4"
+      HAPPY=0; HALT=0; TOTAL=0; NO_SOURCE=0
+      EVAL_SKIP=1
+    else
+      read -r HAPPY HALT TOTAL NO_SOURCE <<< "$EVAL_COUNTS"
+      EVAL_SKIP=0
+    fi
+
+    if (( EVAL_SKIP == 0 )); then
 
     if (( HAPPY >= 1 && HALT >= 1 )); then
       emit "E2" "block" "evals.json has ≥1 happy-path + ≥1 halt-condition" "pass" "happy-path=$HAPPY, halt-condition=$HALT" "E2"
@@ -266,6 +292,7 @@ if [[ -f "$EVALS_JSON" ]]; then
       emit "E4" "warn" "Every eval has a source field" "pass" "" "E4"
     else
       emit "E4" "warn" "Every eval has a source field" "fail" "$NO_SOURCE entries missing source" "E4"
+    fi
     fi
   else
     emit "E1" "block" "evals.json is parseable" "fail" "JSON parse error" "E1"
@@ -309,16 +336,22 @@ if [[ -f "$CATALOG" ]]; then
   fi
 fi
 
-# C3 checks the skill's category resolves to a sync alias. It used to grep for the
-# name in PORTABLE=() / SEI=() arrays; sync-skills.sh derives membership from each
-# skill's `category:` frontmatter now, so the array form failed every core skill.
+# C3 resolves the skill's `category:` against the three domain lists in
+# sync-skills.sh, using that script's own whole-word semantics. An earlier form
+# grepped the file unanchored, which passed `portable`, `sei`, `all`, `work` and
+# `cp` — every one of them rejected by `sync-skills.sh --verify`. A checker that
+# passes wrongly ships; one that fails loudly gets fixed.
 SYNC="$REPO_ROOT/scripts/sync-skills.sh"
 if [[ -f "$SYNC" ]]; then
-  CAT="$(sed -n 's/^category:[[:space:]]*//p' "$SKILL_MD" | head -1)"
-  if [[ -n "$CAT" ]] && grep -q "$CAT" "$SYNC"; then
-    emit "C3" "info" "Skill category resolves to a sync alias" "pass" "$CAT" "C3"
+  CAT="$(sed -n 's/^category:[[:space:]]*//p' "$SKILL_MD" | head -1 | tr -d '"'"'"'\r' | awk '{$1=$1;print}')"
+  DOMAINS=""
+  for v in PORTABLE_DOMAINS SEI_DOMAINS SEI_INTERNAL_SKILLS_LOCAL_DOMAINS; do
+    DOMAINS="$DOMAINS $(sed -n "s/^${v}=\"\(.*\)\"$/\1/p" "$SYNC")"
+  done
+  if [[ -n "$CAT" ]] && printf ' %s ' "$DOMAINS" | grep -q " $CAT "; then
+    emit "C3" "warn" "Skill category resolves to a sync alias" "pass" "$CAT" "C3"
   else
-    emit "C3" "warn" "Skill category resolves to a sync alias" "fail" "category '"'"'$CAT'"'"' maps to no alias" "C3"
+    emit "C3" "warn" "Skill category resolves to a sync alias" "fail" "category '$CAT' is in no domain list" "C3"
   fi
 fi
 

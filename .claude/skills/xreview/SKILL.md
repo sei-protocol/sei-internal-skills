@@ -20,7 +20,7 @@ The skill refuses that path. It enforces independent (blinded) review, evidence-
 xreview operates on **a concrete artifact, reviewed by independent specialists**. Before any verdict:
 
 1. **Artifact required.** Read the actual work under review — the design doc, the spec, the diff, the specialist outputs. If it can't be located or pasted, halt and ask for it. Never review from a summary, from memory, or from "what a spec like this usually contains." A synthesized verdict over an artifact you never read is fabrication.
-2. **Roster required.** xreview selects its domain lenses and **agent-stewards** (`prose-steward`, `idiomatic-reviewer`) from a `.claude/agents/` roster, so the calling repo must have one. Without it, halt and ask the user to point at a roster or invoke from a repo that has it. On a `skill-package` change the reviewer also loads **this skill's own rubric**, `references/skill-package-rubric.md` — 51 rules with ids and severities, plus `scripts/skill-package-checks.sh` for the static half. It lives here rather than in a separate skill so the review cannot halt on an install that lacks one. The slate is usually several specialists; when exactly one is genuinely relevant, run a single-reviewer pass but label it as such — a degenerate xreview, not dressed up as a full one.
+2. **Roster required.** xreview selects its domain lenses and **agent-stewards** (`prose-steward`, `idiomatic-reviewer`) from a `.claude/agents/` roster, so the calling repo must have one. Without it, halt and ask the user to point at a roster or invoke from a repo that has it. On a `skill-package` change one reviewer is additionally briefed as the **rubric lens**: it loads **this skill's own rubric**, `references/skill-package-rubric.md` (rules with ids and severities), runs `scripts/skill-package-checks.sh` for the static subset, and returns findings that **name rule ids**. The rubric is a file this skill owns, not a registry entry — so it has no absence check and cannot halt the review, which is why it lives here rather than in a separate skill. A rubric-lens verdict citing no rule id is not a rubric review; re-dispatch it. The slate is usually several specialists; when exactly one is genuinely relevant, run a single-reviewer pass but label it as such — a degenerate xreview, not dressed up as a full one.
 3. **Refusal conditions** — this skill will refuse to:
    - **Equate prior per-specialist dispatch with xreview.** "The specialists already gave input during design" describes the *production* of the work, not a review of the integrated whole. The seams between their contributions are exactly what no one has reviewed. Re-dispatch them against the final, combined artifact.
    - **Accept convergence as corroboration when reviewers were not blinded.** If reviewers saw each other's assessments before committing (a shared thread, a summarized peer view in the brief), their agreement is anchoring, not independent confirmation — consensus theater. Re-run with independent briefs.
@@ -107,12 +107,25 @@ The slate is **routed, not re-derived by hand.** Apply the shared routing table
 4. **Auto-wire the stewards** by file-type-present (table §4) — the rule for `shared-stack` and
    every other class: `prose-steward` on any prose; `idiomatic-reviewer` on any code diff.
    **`skill-package` is the exception: it pins `prose-steward` *unconditionally* — regardless
-   of which file-types the diff touches** — and adds the **rubric lens**: one reviewer loads
-   `references/skill-package-rubric.md` and cites its rule ids. Dropping either requires an
-   operator override with a stated reason. Both stewards are **agents**, dispatched from
-   `.claude/agents/`; the rubric is this skill's own reference, so it cannot go missing the
-   way a separate skill could. `prose-steward` absent from `.claude/agents/` is a HALT (§4),
-   not a silent drop.
+   of which file-types the diff touches** — and adds the **rubric lens**. Dropping either
+   requires an operator override with a stated reason.
+   The two are **different kinds of thing** (§4's dispatch table):
+   `prose-steward` is an **agent** from `.claude/agents/`, and its absence there is a HALT,
+   not a silent drop. The rubric lens is **a brief, not a registry entry** — any dispatched
+   reviewer told to load `references/skill-package-rubric.md`, run
+   `scripts/skill-package-checks.sh`, and cite rule ids. Do not look for it in
+   `.claude/agents/` or `.claude/skills/`; it was never going to be there, and it cannot go
+   missing. What replaces its absence check: **a verdict citing no rule id is not a rubric
+   review — re-dispatch it.** Two conditions ride with that:
+   - **The rubric file itself can still be missing or truncated in a broken install.** If the
+     lens cannot read `references/skill-package-rubric.md`, **HALT** — do not let it emit
+     plausible-looking ids from memory. The ids are short and schematic (`D1`, `B2`, `S2`), so
+     an unread rubric produces a review that looks cited and is not.
+   - **The rubric governs at the merge base.** When the diff under review edits the rubric, the
+     lens loads the merge-base revision, and the edit is **itself a finding** requiring a named
+     justification in the ledger. Otherwise a change can weaken a rule and be reviewed under the
+     weakened rule in the same pass. This skill owning its own rubric is what makes that
+     reachable, so the rule is stated here rather than assumed.
 5. **Assign the dissenter** (see The Four Rules / Step 3) and record it.
 
 The stewards report on their own axes (Idiom addendum / Prose addendum / per-lens RATIFY-DISSENT
@@ -184,7 +197,7 @@ Documented failure modes during xreview. When your own reasoning aligns with the
 | "The demo's in an hour — a quick 'looks consistent' is the helpful move." | Speed is a reason to be efficient, not to skip the check or fake the result. A 10-minute boundary review is cheap insurance; a fabricated green light just moves the failure to the demo. |
 | "I don't have the doc, but I can write a plausible findings table from what such designs usually contain." | That's fabrication, not review. No artifact, no xreview — halt and get it. |
 | "'Looks good' from two senior people is enough." | Absence of objection is not presence of review. A finding with no cited contract is not a finding. Require evidence. |
-| "The skill change is a one-line typo / obviously small — it's mechanical, skip the steward pin." | A `skill-package` change routes by **file-type-present, not change-size** (`references/slate-routing.md` §3a). The mechanical-equivalent carve-out is `doc-only` only. A one-line typo in a `.claude/` skill body is still `skill-package` (T3, floor T2, audit+author+prose pinned). "It's just a typo in a skill" does not demote it to `mechanical`; dropping the pin needs an operator override with a stated reason, never a size judgment. |
+| "The skill change is a one-line typo / obviously small — it's mechanical, skip the steward pin." | A `skill-package` change routes by **file-type-present, not change-size** (`references/slate-routing.md` §3a). The mechanical-equivalent carve-out is `doc-only` only. A one-line typo in a `.claude/` skill body is still `skill-package` (T3, floor T2, `prose-steward` + the rubric lens pinned). "It's just a typo in a skill" does not demote it to `mechanical`; dropping the pin needs an operator override with a stated reason, never a size judgment. |
 
 ## Red Flags — STOP and Reset
 
@@ -199,6 +212,7 @@ Phrases that signal a rationalization is firing — in your reasoning or the use
 - "It's just synthesis" / "I'm only writing it up"
 - "I'll review from the summary" / "I don't need the actual doc"
 - "It's just a typo in the skill" / "we've done dozens of these" — offered to demote a `skill-package` change to `mechanical` and drop the steward pin
+- "The rubric lens read it and it's fine" — a rubric verdict that names no rule id. The rubric lens has no absence check, so an uncited verdict is the only way its pin fails silently. Re-dispatch it.
 
 **All of these mean: read the artifact, dispatch independent reviewers, require evidence per finding, or label the verdict honestly.**
 
@@ -209,6 +223,7 @@ Stop and report to the user if:
 - `Class:` was not emitted before dispatch (§0) — no classification ⇒ no review. HALT and classify before dispatching any reviewer.
 - The artifact under review can't be located or pasted — never synthesize a review of work you haven't read.
 - The calling repo has no `.claude/agents/` roster and the user can't point at one.
+- The rubric lens cannot read `references/skill-package-rubric.md` — HALT. An unread rubric yields ids emitted from memory, which reads as a cited review and is not one.
 - `prose-steward` is absent from `.claude/agents/` on a `skill-package` change — HALT, not a silent drop (same posture as dropping the pin). Ask the operator, who may override with a stated reason.
 - A reviewer returns bare approval with no cited evidence — re-dispatch with the evidence requirement.
 - Reviewers were not blinded (saw each other's assessments first) — the convergence is invalid; re-run with independent briefs.

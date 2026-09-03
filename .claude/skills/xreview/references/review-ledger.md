@@ -79,7 +79,7 @@ Dissenter:    <which lens held assigned dissent this round — required, never e
 
 ## Routing
 - Slate: <lenses dispatched, each tagged domain / steward / dissenter (a lens may hold more than one — e.g. a steward also assigned the dissent)>
-- Auto-wired stewards: <which, and why — e.g. "audit+author+prose: skill-package change">
+- Auto-wired stewards: <which, and why — e.g. "prose + rubric lens: skill-package change">
 - Overrides: <none | operator lowered T3→T2, reason: "…", risk accepted: yes>
 
 ## Per-lens verdicts

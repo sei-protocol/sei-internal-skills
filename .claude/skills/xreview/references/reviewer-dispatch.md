@@ -32,11 +32,34 @@ cite what you checked. If you cannot assess a boundary from the artifact given,
 say so and name what you'd need.
 ```
 
+## The rubric lens brief (`skill-package` changes only)
+
+The rubric lens is **not** a `subagent_type` and not a roster entry. Dispatch any capable
+reviewer with this brief in place of the boundary-table one:
+
+> Load `.claude/skills/xreview/references/skill-package-rubric.md` — 51 rules, each with an id,
+> a severity (`block`/`warn`/`info`), and a `[static]`/`[semantic]`/`[pressure]` tag. Run
+> `.claude/skills/xreview/scripts/skill-package-checks.sh --skill-dir <abs-path>` for the static
+> subset and report every `block` failure. Judge the `[semantic]` rules by reading the skill.
+> Run P7 by the method in `references/pressure-testing.md` — P7 is `block`, so do not skip it
+> and return RATIFY on the static rules alone. **Every finding names its rule id.** Return a
+> per-lens verdict: RATIFY or DISSENT.
+
+Three conditions on what comes back:
+
+- **A verdict citing no rule id is not a rubric review.** Re-dispatch it. The rubric lens has no
+  absence check, so an uncited verdict is the only way its pin fails silently.
+- **A rule the lens could not evaluate is reported `skipped`,** never dropped. An unrun rule that
+  leaves no trace reads as a rule that passed.
+- **If the lens cannot read the rubric file, HALT.** The ids are short and schematic, so an
+  unread rubric yields plausible ids emitted from memory — a review that looks cited and is not.
+
 ## Anti-patterns
 
 - **Summarizing peers into the brief.** "The platform-engineer thinks X — do you agree?" destroys independence. Don't.
 - **One brief, all reviewers, shared thread.** They'll anchor on whoever answers first.
 - **Skipping the dissenter** because "everyone will probably agree." That's the prediction the dissenter exists to test.
 - **Briefing "take a look"** instead of the structured, evidence-demanding brief above. Vague briefs produce vague approvals.
+- **Accepting a rubric-lens verdict with no rule ids.** "It read the rubric and it's fine" is the bare approval this contract rejects, wearing a steward's name.
 - **Manufacturing reviewers** to look thorough. If one specialist genuinely covers the surface, run a single-reviewer pass and label it as such.
 - **A `gh`/`git`/shell pointer handed to a Read-only reviewer.** `prose-steward` (Read/Grep/Glob, no Bash) can't run it — the review halts or fabricates. Materialize the artifact to disk and brief the path.

@@ -76,8 +76,14 @@ declared_skills=$(sed -n 's/.*the core | \([0-9]*\) skills, \([0-9]*\) agents.*/
 declared_agents=$(sed -n 's/.*the core | \([0-9]*\) skills, \([0-9]*\) agents.*/\2/p' "$REPO_ROOT/README.md")
 actual_skills=$(find "$REPO_ROOT/.claude/skills" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')
 actual_agents=$(find "$REPO_ROOT/.claude/agents" -maxdepth 1 -name '*.md' | wc -l | tr -d ' ')
+# An empty declared_* means the README row moved or was reworded, which needs a
+# different repair than a stale number. Separate the two messages.
+if [ -z "$declared_skills" ] || [ -z "$declared_agents" ]; then
+  no "README core-count row not found (the sed pattern no longer matches — did the row move?)"
+else
 check_eq "README skill count ($declared_skills) == tree ($actual_skills)" "$actual_skills" "$declared_skills"
 check_eq "README agent count ($declared_agents) == tree ($actual_agents)" "$actual_agents" "$declared_agents"
+fi
 
 echo ""
 echo "catalog-coverage: $PASS passed, $FAIL failed"

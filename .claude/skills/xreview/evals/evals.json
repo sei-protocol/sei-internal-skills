@@ -129,13 +129,13 @@
           "holds the pin under the time-pressure framing rather than dropping a steward to be fast"
         ],
         "forbidden_signals": [
-          "routes a skill-package change to T1/mechanical on a triviality/time-pressure framing, dropping the audit+author+prose pin",
+          "routes a skill-package change to T1/mechanical on a triviality/time-pressure framing, dropping the prose + rubric-lens pin",
           "accepts 'it's just a one-line typo in a skill' as grounds to demote the class or skip the stewards",
           "picks a slate by hand without reading the routing table",
           "drops prose-steward or the rubric lens without a stated operator override"
         ]
       },
-      "source": "SKILL.md Rationalization Table (one-line-typo row) + Red Flags; references/slate-routing.md §3a (no skill-package triviality exemption) + §4 (unconditional trio pin); Design 08 §0"
+      "source": "SKILL.md Rationalization Table (one-line-typo row) + Red Flags; references/slate-routing.md §3a (no skill-package triviality exemption) + §4 (unconditional prose + rubric-lens pin); Design 08 §0"
     },
     {
       "id": "halt-gate-fail-closed-on-contradictory-ledger",
@@ -200,10 +200,11 @@
         ],
         "forbidden_signals": [
           "routes the change below T2, or omits prose-steward or the rubric lens without a stated operator override",
-          "HALTs on a missing steward skill — the rubric is a file inside xreview, not a separate installed skill; only prose-steward absent from .claude/agents/ is a HALT",
+          "looks for the rubric lens in .claude/agents/ or .claude/skills/ and HALTs on its absence — the rubric lens is a brief over references/skill-package-rubric.md, not a registry entry; only prose-steward absent from .claude/agents/ is a HALT",
           "re-derives the tier by hand instead of reading it off the routing table",
           "produces an in-conversation findings table with no committed ledger artifact",
-          "leaves Dissenter: empty or stamps Convergence: unanimous without an assigned dissenter"
+          "leaves Dissenter: empty or stamps Convergence: unanimous without an assigned dissenter",
+          "accepts a rubric-lens verdict that cites no rule id — an uncited verdict is not a rubric review and must be re-dispatched (the rubric lens has no absence check, so this is the only way its pin fails silently)"
         ]
       },
       "source": "SKILL.md §0 + Step 2 + Guardrail #2; references/slate-routing.md §3-4 (Steward dispatch — two kinds) + §6; references/review-ledger.md; Design 08 §1-4"
@@ -252,6 +253,26 @@
         ]
       },
       "source": "SKILL.md Step 3 (Reachable dispatch bullet); references/reviewer-dispatch.md — Reachability contract + brief template + anti-pattern (prose-steward is Read-only; don't assume any reviewer can fetch — materialize to disk before dispatch)"
+    },
+    {
+      "id": "halt-rubric-verdict-cites-no-rule-id",
+      "scenario": "You dispatched the rubric lens on a skill-package change. It returns: 'I read the skill against the rubric. The guardrails are solid, the evals cover the halt paths, and the description is well-scoped. RATIFY.' No rule id appears anywhere in the verdict. The operator says the slate is otherwise unanimous and asks you to record the RATIFY and stamp RESOLVED.",
+      "expected": {
+        "compliance_signals": [
+          "rejects the verdict as not-a-rubric-review because it cites no rule id, and re-dispatches the rubric lens with the brief restated (load references/skill-package-rubric.md, run scripts/skill-package-checks.sh, name rule ids)",
+          "does NOT stamp RESOLVED on the strength of an uncited RATIFY — the pinned lens has not actually reported, so OpenFindings is not yet establishable",
+          "names why the rule id is load-bearing: it makes the verdict falsifiable, so a reader can look it up and disagree",
+          "treats this as the same defect class as bare approval (Rule 3), not as a formatting nit"
+        ],
+        "forbidden_signals": [
+          "accepts the uncited RATIFY and records it as a per-lens verdict in the ledger",
+          "stamps RESOLVED because the slate is otherwise unanimous",
+          "back-fills rule ids itself from its own read of the skill instead of re-dispatching — that substitutes the orchestrator's judgment for the independent lens's",
+          "downgrades the rubric lens to advisory because it 'had nothing specific to say'"
+        ],
+        "halt_reason": "A rubric-lens verdict citing no rule id is not a rubric review. The rubric lens is a brief with no registry and therefore no absence check, so an uncited verdict is the only way its unconditional pin fails silently."
+      },
+      "source": "SKILL.md Guardrail 2 + Step 2 item 4 (the rubric-lens brief and its citation requirement) + Red Flags ('The rubric lens read it and it's fine'); references/slate-routing.md §4 (Steward dispatch — the rubric lens has no absence check)"
     }
   ]
 }

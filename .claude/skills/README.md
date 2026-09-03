@@ -25,7 +25,7 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
 
 Claude Code discovers skills as **flat** direct subdirectories of `skills/` — nested folders and custom roots (e.g. `~/.claude/sei-internal-skills/`) are NOT discovered. So domain grouping is **metadata, not directories**. The **single source of truth** is each skill's `category:` SKILL.md frontmatter: the sync scripts *derive* alias membership from it (no hand-maintained per-skill list), and `make verify-catalog` (CI) fails closed if any skill's category maps to no alias. The catalog sections below are descriptive — keep them in step with the skills present, but they are not what the sync reads.
 
-**Domains in the core:** `workflow` · `investigation` · `skill-authoring` · `code-quality` · `platform-infra` · `blockchain` · `release-operations` · `engineer-self-service`. The small domain→alias map at the top of `sync-skills.sh` assigns each domain to a sync alias: `portable`, `sei`, or sei-internal-skills-local (never synced). The map still carries the domains used only by `experimental/` skills, so parking and promoting a skill needs no map change.
+**Domains in the core:** `workflow` · `investigation` · `code-quality` · `platform-infra` · `blockchain` · `release-operations` · `engineer-self-service`. The small domain→alias map at the top of `sync-skills.sh` assigns each domain to a sync alias: `portable`, `sei`, or sei-internal-skills-local (never synced). The map still carries the domains used only by `experimental/` skills, so parking and promoting a skill needs no map change.
 
 ## Catalog
 

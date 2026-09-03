@@ -1,6 +1,6 @@
 # Skill-package review rubric
 
-The rules a reviewer cites when a `skill-package` change is under review. It moved here from the audit skill when that skill was cut: `/xreview` is the only consumer, and a pin on
+The rules a reviewer cites when a `skill-package` change is under review. It moved here from `audit-skill` when that skill was cut (recorded in `scripts/prune-retired.sh`): `/xreview` is the only consumer, and a pin on
 a separate skill meant the review halted whenever that skill was absent from an install.
 Owning the rubric removes the cross-skill dependency.
 
@@ -8,7 +8,9 @@ Owning the rubric removes the cross-skill dependency.
 names its rule id, which is what makes a steward verdict falsifiable — presence of a file
 is not evidence that a rubric was read.
 
-Every rule the audit checks. Each rule has an ID (used in findings), severity, and a one-line statement. The catalog is the single source of truth for what "passing an audit" means.
+Every rule the rubric lens checks. Each rule has an ID (used in findings), a severity, and a
+one-line statement. This file is the single source of truth for what a skill package must hold;
+a finding that cites a rule id resolves here or it resolves nowhere.
 
 **Severities:**
 
@@ -19,8 +21,16 @@ Every rule the audit checks. Each rule has an ID (used in findings), severity, a
 **Source legend:**
 
 - **[static]** — checkable by `scripts/skill-package-checks.sh` (deterministic).
-- **[semantic]** — requires the semantic-checks subagent (judgment call).
-- **[pressure]** — surfaces via pressure-scenario subagent dispatch.
+- **[semantic]** — the rubric lens judges it by reading the skill. No script decides it.
+- **[pressure]** — the rubric lens judges it by running a shape-appropriate pressure scenario.
+  `references/pressure-testing.md` carries the method and the fail-classification table. P7 is
+  the load-bearing one and it is `block`, so do not skip it and return RATIFY on the static
+  rules alone.
+
+The `[semantic]` and `[pressure]` rules were previously dispatched by two separate skills. Those
+were cut; the rubric lens judges them directly now, using `references/pressure-testing.md` for
+the pressure method and `references/eval-format.md` for the eval vocabulary E4/E5 cite. It cites
+the rule id either way.
 
 When a rule applies only to certain shapes, the shape is noted (e.g., `[procedural only]`).
 
@@ -33,7 +43,7 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 | D1 | block | static | Description starts with "Use when" (third person) |
 | D2 | block | static | Description is under 1024 characters total |
 | D3 | warn | static | Description includes anti-triggers ("NOT for X", "do NOT use", "SKIP if", "Anti-triggers:") |
-| D4 | warn | static | Description includes ≥1 sibling-skill redirect ("For X, use /other") when adjacent skills exist |
+| D4 | warn | semantic | Description includes ≥1 sibling-skill redirect ("For X, use /other") when adjacent skills exist |
 | D5 | block | static | Description is third person (no "I ", "I'm", "I'd", "I can") |
 | D6 | warn | semantic | Description does NOT summarize workflow (the Obra CSO trap — workflow summary makes Claude skip the body) |
 | D7 | info | semantic | Description keywords match user vocabulary, not synonyms |
@@ -46,6 +56,12 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 | B1 | block | static | SKILL.md is under 500 lines (Obra ceiling) |
 | B2 | block | static | SKILL.md has a `## Guardrails` stanza [procedural, discipline] |
 | B3 | block | static | SKILL.md has a `## Halt Conditions` (or "Halt Conditions") section [procedural, discipline] |
+
+> **B2 and B3 are `block` here and `warn` in the script.** The script cannot tell a procedural or
+> discipline skill from a reference skill, and these two rules only block for the former. Read the
+> script's `warn` on B2/B3 as "block if this skill is procedural or discipline" and make that call
+> yourself. This is the one place the script deliberately under-reports.
+
 | B4 | warn | static | SKILL.md has a numbered procedure (`^[0-9]+\. \*\*`) [procedural] |
 | B5 | warn | semantic | Each procedure step has a clear success criterion (judgment call) [procedural] |
 | B6 | warn | semantic | Body uses one consistent term per concept (no synonyms drifting) |
@@ -97,6 +113,7 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 |----|----------|--------|------|
 | C1 | block | static | Skill is listed in `.claude/skills/README.md` catalog |
 | C2 | warn | semantic | Catalog entry is in an appropriate section (judgment based on skill purpose) |
+| C3 | warn | static | Skill's `category:` frontmatter resolves to a sync alias in `scripts/sync-skills.sh` — a skill with no alias never syncs anywhere |
 
 ## Persuasion stack (shape-dependent)
 
@@ -116,7 +133,7 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 |----|----------|--------|------|
 | A1 | warn | static | No time-sensitive content ("as of 2025", "in the latest version", "currently") |
 | A2 | warn | static | No Windows-style paths (backslashes in path-like strings) |
-| A3 | warn | static | No `@skills/...` force-load syntax (force-loads burn context) |
+| A3 | warn | semantic | No `@skills/...` force-load syntax (force-loads burn context) |
 | A4 | warn | semantic | No multi-language code examples for one technique (one excellent example beats many mediocre ones) |
 | A5 | warn | semantic | No fill-in-the-blank templates (use concrete examples instead) |
 | A6 | warn | semantic | No deeply-nested file references (refs are one level deep) — overlaps R1, surfaces from prose context |
@@ -130,8 +147,8 @@ When the team identifies a new convention:
 1. Add a row to the appropriate section in this table.
 2. Assign an ID (next free number in the section's prefix; e.g., next description rule = D9).
 3. Pick a severity honestly. New rules default to `warn` — promote to `block` after one cycle of real audits shows the rule is load-bearing.
-4. Update `scripts/skill-package-checks.sh` if the rule is checkable; otherwise extend the semantic-checks prompt in `references/semantic-checks.md`.
-5. Add an eval to `evals/evals.json` that exercises the new rule (one happy-path skill that passes, one minimal skill that fails on this rule alone).
+4. Update `scripts/skill-package-checks.sh` if the rule is checkable. If it is not, tag it `[semantic]` or `[pressure]` and say in the row what the rubric lens should look for — there is no separate checker to extend.
+5. State the rule so a reviewer can cite it and be wrong. A rule nobody can fail is not a rule.
 
 ## Rules that don't appear here
 

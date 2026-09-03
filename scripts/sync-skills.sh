@@ -58,7 +58,7 @@ SKILLS_DIR="$(cd "$SCRIPT_DIR/../.claude/skills" && pwd)"
 # the three lists below. The coverage guard enforces this. `all` = PORTABLE+SEI
 # (sei-internal-skills-local domains are deliberately never synced outward).
 
-PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation skill-authoring code-quality performance writing-quality product-management security platform-infra blockchain data-architecture"
+PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation code-quality performance writing-quality product-management security platform-infra blockchain data-architecture"
 SEI_DOMAINS="project-management release-operations engineer-self-service recruiting"
 # sei-internal-skills-local — deliberately NOT synced outward:
 #   output-quality (brevity, pr-quality) — sei-internal-skills-development meta-skills.
