@@ -33,23 +33,35 @@ Two-part check:
 
 **Recovery (out-of-band):**
 
-Recommended path: `go install`. The same command installs a missing binary and upgrades a stale one.
+Recommended path: `go install`, from seictl v0.0.71 on.
 
 ```sh
 go install github.com/sei-protocol/seictl@latest
 ```
 
+**On an upgrade, the install is only half the job.** `go install` writes to the Go bin directory, but every engineer who followed an earlier version of this runbook has `seictl` in `/usr/local/bin`. On a stock `PATH`, `/usr/local/bin` precedes `~/go/bin`. The install then succeeds while `command -v seictl` still resolves the old binary, so gate 1 keeps failing its `--network` probe. Do not re-run the install; it will keep succeeding.
+
+Confirm which copy wins, and clear the shadow if there is one:
+
+```sh
+command -v seictl                 # must be the Go bin dir, not /usr/local/bin
+go env GOBIN GOPATH               # GOBIN, else GOPATH/bin, is where it landed
+```
+
+If `command -v seictl` points at `/usr/local/bin/seictl`, either remove that copy (`sudo rm /usr/local/bin/seictl`) or install over it (`GOBIN=/usr/local/bin go install github.com/sei-protocol/seictl@latest`). Re-run the gate afterwards.
+
 Three things to know about it:
 
-- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` or check 1 still fails. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@latest`.
+- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` at all, or check 1 still fails — separate from the shadowing case above. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@latest`.
 - seictl's `go.mod` declares `go 1.26.0`. On an older toolchain `go install` prints `switching to go1.26.8` and downloads it. Treat that line as normal output, not an error.
 - A plain `go install` leaves the `seictl.sei.io/version` provenance annotation reading `dev` on every resource seictl applies. The version comes from an `-ldflags` stamp the Makefile passes, and `go install` does not pass it. Nothing breaks; the applied resources just do not record which seictl produced them.
 
-To keep the provenance stamp, pass the flag and pin the same version twice:
+To keep the provenance stamp, pass the flag. The version appears twice, so set it once — and set it to the release you mean to install, not the example value:
 
 ```sh
-go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=v0.0.71'" \
-  github.com/sei-protocol/seictl@v0.0.71
+V=$(gh release view --repo sei-protocol/seictl --json tagName --jq .tagName)
+go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=$V'" \
+  "github.com/sei-protocol/seictl@$V"
 ```
 
 Alternative — prebuilt binary from the GitHub releases page. These carry the version stamp already and need no Go toolchain. Per-platform tarballs at `https://github.com/sei-protocol/seictl/releases/latest`:
