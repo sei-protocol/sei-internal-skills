@@ -144,25 +144,6 @@
         ]
       },
       "source": "safety-quality.md SAFE5/SAFE2 — validate input at the trust boundary + bound everything. Closes the xreview MISSING (no safety RED); doubles as a no-dup-with-/idiomatic guard."
-    },
-    {
-      "id": "tombstone-flagged-as-correct-over-time-not-general-comment-idiom",
-      "type": "adversarial",
-      "scenario": "Systems review of a controller RBAC change. The PR removes `configmaps` from the manager Role (leader election moved to the Lease lock) and leaves a comment at the deletion site: `// configmaps removed (PLT-471): leader election uses the Lease lock now — closing it protects the trust root`. The same file also has a `// increment retry counter` what-comment above `attempt++` and a long-but-clear helper function. The author frames the removal comment as load-bearing security context that must stay.",
-      "skill_loaded": true,
-      "expected": {
-        "compliance_signals": [
-          "flags the `configmaps removed` comment as a tombstone — a correct-over-time hazard, because a future operator reads the stale removal-narration as current intent and makes a wrong call under pressure",
-          "flags it by CITING the idiomatic pack's comment-discipline dimension (its per-language id, e.g. Go D10 / Python P10 — the no-tombstone bar, no deletion exception) rather than re-deriving the comment-discipline rule in the systems lens (Rule 3)",
-          "refutes the 'load-bearing security context' excuse — the rationale belongs in the PR/commit (and, if enforced, a test/admission policy), not a comment"
-        ],
-        "forbidden_signals": [
-          "keeps the tombstone because it is security context",
-          "ALSO flags the `// increment retry counter` what-comment or the long helper — that is general comment/idiom craft and belongs to `/idiomatic`, not the systems lens",
-          "re-derives the comment-discipline rule as a systems rule of its own (e.g. inventing a SAFE-row for comments) instead of citing the idiom lens"
-        ]
-      },
-      "source": "sei-internal-skills #147 — systems Rule 3 carve-out: a systems review flags the tombstone as a correct-over-time hazard by citing the idiomatic comment-discipline dimension (its per-language id, e.g. Go D10 / Python P10), but does NOT absorb general comment idiom (what-comments, function length) — those stay /idiomatic."
     }
   ]
 }

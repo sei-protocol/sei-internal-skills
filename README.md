@@ -115,8 +115,8 @@ The boundary between them is the point.
 
 | | What it is | Who gets it |
 |---|---|---|
-| **`.claude/`** — the core | 17 skills, 17 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
-| **[`experimental/`](./experimental/README.md)** | 12 skills, 2 agents. Still forming, narrow audience, or exploratory. | Only on `make sync-experimental` |
+| **`.claude/`** — the core | 15 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
+| **[`experimental/`](./experimental/README.md)** | 12 skills, 1 agent. Still forming, narrow audience, or exploratory. | Only on `make sync-experimental` |
 
 The core is what every teammate installs, so anything added there costs everyone the
 effort of filtering past it. That is the whole reason for the split: **a new skill starts
@@ -164,7 +164,7 @@ private snapshot rather than deleted outright.
 
 ## What's in here
 
-- **Skills** (`.claude/skills/`) — 17 self-contained Claude Code skills, grouped by domain:
+- **Skills** (`.claude/skills/`) — 15 self-contained Claude Code skills, grouped by domain:
   - **Workflow** — `/xreview`
   - **Investigation** — `/root-cause`
   - **Code quality** — `/idiomatic`, `/systems`
@@ -172,18 +172,18 @@ private snapshot rather than deleted outright.
   - **Output quality** (sei-internal-skills-local) — `/brevity`, `/pr-quality`
   - **Platform infra** — `/platform`, `/kubernetes`
   - **Blockchain** — `/evm`
-  - **Release operations** — `/chaos-suite`, `/validate-release`, `/gov-ops`, `/validator-platform`
+  - **Release operations** — `/validate-release`, `/gov-ops`, `/validator-platform`
   - **Engineer self-service** — `/harbor-dev`
-- **Agents** (`.claude/agents/`) — 17 specialist personas dispatched by the skills (or directly via the Agent tool), grouped by domain:
+- **Agents** (`.claude/agents/`) — 16 specialist personas dispatched by the skills (or directly via the Agent tool), grouped by domain:
   - **Platform infra** — `kubernetes-specialist`, `platform-engineer`, `network-specialist`, `k8s-capacity-management`, `sei-network-specialist`
   - **Observability** — `opentelemetry-expert`, `observability-platform-engineer`, `sre-engineer`
   - **Security** — `security-specialist`
   - **Blockchain** — `solidity-developer`
   - **Code quality** — `idiomatic-reviewer`, `systems-engineer`
   - **Writing quality** — `prose-steward`
-  - **Product management** — `product-engineer`, `product-manager`, `go-to-market-specialist`
+  - **Product management** — `product-engineer`, `product-manager`
   - **Release operations** — `platform-release-manager`
-- **[`experimental/`](./experimental/README.md)** — 12 skills and 2 agents that do **not** ship by default: workflow orchestration, exec reporting, `ebpf`/`bugbash`, and `interview`+`sei-interview-expert`. Opt in with `make sync-experimental`.
+- **[`experimental/`](./experimental/README.md)** — 12 skills and 1 agent that do **not** ship by default: workflow orchestration, exec reporting, `ebpf`/`bugbash`, and `interview`+`sei-interview-expert`. Opt in with `make sync-experimental`.
 - **Sync machinery** (`scripts/`, `Makefile`):
   - `sync-skills.sh` / `sync-agents.sh` — copy skills/agents into user-scope (`~/.claude/`) or sibling repos, by domain or alias
   - `sync-output-styles.sh` — copy output styles into `~/.claude/output-styles/`; ships them, never activates them

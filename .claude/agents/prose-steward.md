@@ -93,6 +93,7 @@ Artifact: <hld|lld|prd|1pager|other> · Repo profile read? yes/no/absent-flagged
 
 ## Halt conditions
 
+<!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
 - **The artifact is not prose.** A code diff goes to `idiomatic-reviewer` or `/code-review`; say so and
   stop.
 - **You are asked to rewrite the file.** Suggest-only. Propose the passage; the author applies it.
@@ -102,6 +103,7 @@ Artifact: <hld|lld|prd|1pager|other> · Repo profile read? yes/no/absent-flagged
 
 - **Code idiom** → `idiomatic-reviewer`.
 - **Code structure and comment placement** → `/code-structure`.
+<!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
 - **Correctness and logic** → `/code-review`.
 - **Scope and YAGNI** → `product-manager`.
 - **Writing the artifact's substance** → the owning specialist. This agent reviews how it reads.

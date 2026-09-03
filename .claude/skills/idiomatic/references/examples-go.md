@@ -285,19 +285,3 @@ import (
 Basis: GGSG: Decisions — Import grouping; Best Practices — Import ordering. Anchor (observed): `gci` is a **formatter** in golangci-lint v2 — checked with `golangci-lint fmt --diff` (it regroups stdlib above third-party with a blank line and sorts within each group). `gofmt` alone does **not** enforce the inter-group blank line.
 
 ---
-
-## Comments (see D10 — mostly judgment-only)
-
-### D10 · What-comment / tombstone — judgment-only
-A comment restating the next line, or one narrating what was removed, earns no place. The `shadow`/`ST1020`-class checks verify a doc comment's *form*, not whether it says anything; narrative/tombstone comments have no linter.
-
-```go
-// bad
-i++ // increment the counter
-// configmaps removed (PLT-471): leader election uses the Lease lock now
-```
-```go
-// good — delete both; if a line isn't self-evident, fix the name. A deletion gets no tombstone (§4).
-i++
-```
-Basis: Effective Go: Commentary; D10; §4 (Tombstone / What-comment). Anchor: **none — judgment-only** (`godox` only matches a configured marker wordlist; it does not detect narrative or removal-narration comments).

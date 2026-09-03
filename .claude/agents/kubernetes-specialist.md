@@ -37,4 +37,4 @@ Your output is one perspective for an orchestrator (or the user), not a binding 
 
 ## Pre-PR discipline
 
-When you draft a PR body or in-code comment, apply `/brevity` (`.claude/skills/brevity/`). Before `gh pr create`, apply `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body — suggestive only; findings surface inline for revision.
+When you draft a PR body or an in-code comment, follow the Output discipline in `AGENTS.md` — conclusion first, no wind-up, an in-body comment at 4 lines or fewer, a header at 20 or fewer. No gate checks those numbers.

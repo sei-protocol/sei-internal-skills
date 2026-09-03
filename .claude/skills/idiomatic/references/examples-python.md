@@ -114,27 +114,6 @@ class Config:
 ```
 Basis: PEP 20 ("Explicit is better than implicit"). Anchor: **none — judgment-only** (no linter flags a `__getattr__` shortcut as "too implicit").
 
-### §1 P10 · What-comment / tombstone (comment discipline)
-Names + types carry intent; the docstring is the sanctioned "above the code" doc. A comment restating the code, or narrating a deletion, is noise — even when pitched as security context.
-
-```python
-# bad
-def charge(total, amount):
-    # increment the total by amount
-    total += amount
-    # removed validate_token() (SEC-12): auth is handled upstream now
-    return total
-```
-```python
-# good
-def charge(total: int, amount: int) -> int:
-    """Add amount to the running total."""
-    return total + amount
-```
-Basis: Google *Comments and Docstrings*; pack P10. Anchor: **none — judgment-only** (`ERA001` catches *commented-out code* only — never a what-comment or a tombstone; the no-"load-bearing-security-context" carve-out is the team rule, not a lint).
-
----
-
 ## Lint-anchored footguns (correctness — lead with these)
 
 ### §1 P7 · Mutable default argument

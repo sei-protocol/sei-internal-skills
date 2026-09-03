@@ -75,9 +75,6 @@ echo "it NEVER removes a core resource"
 missing=0
 for d in "$REPO"/.claude/skills/*/; do
   n="$(basename "$d")"
-  # brevity/pr-quality are sei-internal-skills-local and never synced outward, so
-  # they were never in the target to begin with.
-  case "$n" in brevity|pr-quality) continue ;; esac
   [ -d "$t/.claude/skills/$n" ] || { echo "    core skill deleted: $n"; missing=1; }
 done
 for f in "$REPO"/.claude/agents/*.md; do

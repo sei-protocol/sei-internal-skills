@@ -14,6 +14,33 @@ It is **blind to partial tx-correctness** (e.g. 40% tx rejection while blocks st
 produce). Every report says this; the go/no-go it supports is a **liveness** gate.
 The headline is `LIVENESS GO` / `LIVENESS NO-GO`, never a bare "GO".
 
+## What a PASS cannot tell you: the fault may never have landed
+
+The highest-consequence outcome on this surface is a scenario that reports PASS
+because the chaos never took effect. The chain stayed live because nothing was
+wrong with it. `WaitHeightAdvances(+3)` passes either way, so the verdict is
+indistinguishable from a real recovery.
+
+The harness gates injection, and that gate is what stands between a PASS and a
+false green. When a report asserts a scenario passed, the evidence that the fault
+applied is a separate claim from the evidence that the chain survived it:
+
+| Fault family | What shows the fault actually landed |
+|---|---|
+| packet-loss, bandwidth-limit | `tc -s qdisc` output on the target |
+| time-skew | a log-timestamp delta against a healthy peer |
+| HTTPChaos | tproxy logs showing the reroute |
+| network-partition, pod-failure, container-kill | the pod or peer state change itself |
+
+**Two preconditions this harness does not enforce, and a report must not assume.**
+
+- **A verdict taken on an already-degraded cluster is not a verdict.** If the
+  cluster carried pre-existing issues before the run, report the failing signal
+  and say the scenario is uninterpretable. Do not narrate it as a recovery.
+- **Leaked chaos is a finding, not cleanup.** When a run leaves pods in a bad
+  state, surface exactly what leaked. **Never auto-restart** — a restart destroys
+  the evidence of what the fault did, and the residue is the operator's call.
+
 ## The 10 scenarios
 
 network-partition, packet-loss, network-latency, bandwidth-limit, byzantine,

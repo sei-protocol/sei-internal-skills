@@ -138,6 +138,16 @@ The stewards report on their **own axes**, not the boundary table:
 |---|---|
 | concurrency, shared mutable state, lock/goroutine/async ordering, filesystem or resource lifecycle, back-pressure/timeout/retry | `systems-engineer` |
 | trust boundary, untrusted/external input, credential/secret handling, authn/authz | `security-specialist` |
+| **the agent-instruction surface itself** — `.claude/skills/**`, `.claude/agents/**`, `agents/**`, `scripts/managed-settings.json`, `scripts/agent-permissions.json`, `Dockerfile.runner*`, `.github/workflows/**` | `security-specialist` |
+
+**Why the instruction surface is a trust boundary.** `.claude/skills/` is not only a
+menu an engineer picks from. It is also the discovery scope of a headless bundle that
+approves its own tool calls, seeded there by the runner image, and the agents it can
+reach carry their own tool grants. A change to that surface is a change to what an
+auto-approving agent can be told to do. A `skill-package` change pins the prose, audit
+and authoring stewards unconditionally and did **not** pin security — so the
+highest-consequence review in this repository, of this repository, did not mandate the
+lens that found this.
 
 This table **mandates** these two; it does **not cap** the cross-cutting set — other concerns (capacity/cost → `k8s-capacity-management`; observability; etc.) stay on the §3/T2 discretionary route. A concern-lens here is the mandatory **subset** of §3/T2's "cross-cutting specialist," wired **once** (by this table) — not double-listed.
 

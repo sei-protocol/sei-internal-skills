@@ -31,6 +31,14 @@ sync-all: ## Sync ALL skills+agents (portable+sei) + output styles into ~/.claud
 	@./scripts/prune-retired.sh --target ~/ --check
 	@echo "✓ environment current with sei-internal-skills $$(git rev-parse --short HEAD)"
 
+.PHONY: verify-references
+verify-references: ## Fail if a shipped artifact cites a resource the core does not hold (CI)
+	@./scripts/verify-references.sh
+
+.PHONY: verify-installed-references
+verify-installed-references: ## Diagnostic, not a gate: report citations against ~/.claude (always exits 0)
+	@./scripts/verify-references.sh --installed
+
 .PHONY: verify-catalog
 verify-catalog: ## Fail if any skill/agent declares a category that maps to no sync alias (orphaned-skill guard; CI)
 	@./scripts/sync-skills.sh --verify

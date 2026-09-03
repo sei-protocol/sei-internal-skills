@@ -51,7 +51,7 @@ jobs:
           # carries its method as vendored bodies rather than relying on the host.
           EXPECT = {
               'sei-spec':   {'filter': 'none', 'skills': 8, 'prefix': 'speckit-'},
-              'root-cause': {'filter': 'all',  'skills': 1},
+              'root-cause': {'filter': 'none', 'skills': 1},
               # A scout carries no method and takes none from the host: the driver's
               # per-run prompt is its whole instruction, so a discovered skill would
               # be capability it was never asked to use.

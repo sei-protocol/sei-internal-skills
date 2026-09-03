@@ -2,7 +2,7 @@
 name: gov-ops
 category: release-operations
 model: claude-opus-5
-description: "Orchestrates a Sei governance proposal lifecycle — submit → confirm → vote → verify — on a target chain, GitOps-native, with fail-closed safety gates. Trigger on 'submit a governance proposal', 'run a param-change', 'vote on proposal N across the validators', 'orchestrate the TimeoutParams change', '/gov-ops'. REFUSES on a kube context that hosts a non-target chain (mainnet-adjacency). NOT for chain spin-up (use /harbor-dev); NOT for release validation or chaos (use /validate-release, /chaos-suite); NOT for deciding WHAT to change (the operator/PM authors the proposal); NOT for software-upgrade/text/community-pool proposals (param-change only for now). One proposal lifecycle per invocation."
+description: "Orchestrates a Sei governance proposal lifecycle — submit → confirm → vote → verify — on a target chain, GitOps-native, with fail-closed safety gates. Trigger on 'submit a governance proposal', 'run a param-change', 'vote on proposal N across the validators', 'orchestrate the TimeoutParams change', '/gov-ops'. REFUSES on a kube context that hosts a non-target chain (mainnet-adjacency). NOT for chain spin-up (use /harbor-dev); NOT for release validation or chaos (use /validate-release); NOT for deciding WHAT to change (the operator/PM authors the proposal); NOT for software-upgrade/text/community-pool proposals (param-change only for now). One proposal lifecycle per invocation."
 ---
 
 # Gov-Ops — Governance Proposal Orchestration

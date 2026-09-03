@@ -1,0 +1,31 @@
+name: verify references
+
+# A shipped artifact that cites a resource the core does not hold reads to an
+# engineer as the AGENT misbehaving, not as an incomplete install. No other gate
+# catches it: verify-catalog checks that a category maps to a sync alias, and
+# verify-doctrine-block checks this repo's AGENTS.md against the source file.
+# Neither resolves a cited name.
+on:
+  pull_request:
+    paths:
+      - '.claude/**'
+      - 'experimental/**'
+      - 'scripts/sei-internal-skills-doctrine.md'
+      - 'scripts/verify-references.sh'
+      - '.github/workflows/verify-references.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  references:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Resolve every citation in a shipped artifact
+        run: ./scripts/verify-references.sh
+      - name: Regression suite
+        run: ./scripts/tests/verify-references.test.sh

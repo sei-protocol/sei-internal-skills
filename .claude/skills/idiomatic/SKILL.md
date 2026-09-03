@@ -42,12 +42,14 @@ Stop and escalate rather than proceeding when:
 | Does this read native to the language + this package's patterns? | — |
 | Surfacing a finding's idiom basis (Effective Go rule, CLAUDE.md mandate) | — |
 | Recommending/drafting package data-structure docs to a standard | — |
+<!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
 | Correctness, logic errors, races, nil derefs | `/code-review` |
 | Does component A's output match component B's expectation? | `/xreview` |
-| The locked pre-PR sei-internal-skills rule gate (suggestive, fixed rule set) | `/pr-quality` |
 | Building/designing the controller, CRD, or system | dispatch the language specialist (e.g. `kubernetes-specialist`) |
 
-A correct-but-unidiomatic function passes `/code-review` and is exactly what `/idiomatic` is for. A non-idiomatic finding that proves durable and mechanical should **graduate** into the `/pr-quality` rule registry — this skill is the *discovery* surface, pr-quality is the *locked gate*.
+<!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
+<!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
+A correct-but-unidiomatic function passes `/code-review` and is exactly what `/idiomatic` is for. A non-idiomatic finding that proves durable and mechanical should **graduate** into a lint rule or the contract — this skill is the *discovery* surface, pr-quality is the *locked gate*.
 
 ## The method (four steps)
 
@@ -77,10 +79,6 @@ Every finding names its basis: a language-idiom authority (e.g. "Effective Go: E
 **Machine-checkable anchors come from the pack, not from memory.** When you cite a lint rule (a linter ID or analyzer name — e.g. `staticcheck ST1005`, `go vet shadow`, a Clippy lint), cite it **only** from the language pack's lint-anchor section, and carry the pack's caveat (a check may be off-by-default or version-dependent). Do **not** assert a check ID from training memory — a wrong, falsifiable ID handed to an author destroys the review's credibility. If the pack marks a dimension *judgment-only* (no checkable rule exists), say exactly that and cite the prose authority; never invent an ID to satisfy a "show me a checkable rule" challenge.
 
 **False-positive discipline (the make-or-break gate):** on clean, idiomatic code, the correct output is *"reads native — no findings"* plus, optionally, a short "deliberately not flagging (vetted)" list. A reviewer that manufactures nits to look thorough gets muted, and its real findings get ignored with it. Thoroughness is measured by what you *vetted and rejected*, not by the length of the list.
-
-### Rule 4 — Comment discipline (owned axis)
-
-`idiomatic-reviewer` is the **champion-of-record for the in-source comment axis** (code comments + config annotations): present-state only, sparingly, top-located, no inline change/why/history, no per-line config annotations. Apply it on every diff that touches comments; the full standard + decision procedure live in `references/comment-discipline.md`. The adjacent doc/prose axis (READMEs, design docs, narrative quality) is owned by `prose-steward` — do not adjudicate prose there.
 
 ### Rationalization table
 

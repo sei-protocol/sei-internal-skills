@@ -135,4 +135,5 @@ state/run-<ts>/
 
 End-of-turn summary: one short paragraph. Skill name, path written, shape chosen, REFACTOR cycles consumed, and the followup list (catalog entry status, sync-list status, issue lineage status). Example:
 
+<!-- gap: /terraform-review — a worked example of a past authoring session, not an instruction. -->
 > Authored `terraform-review` at `.claude/skills/terraform-review/SKILL.md` as a **technique** skill. Took 2 REFACTOR cycles to close the "I'll just lint after merge" rationalization. Catalog entry added under **Hardening**. Added to `PORTABLE` in `scripts/sync-skills.sh`. No issue lineage (standalone invocation).

@@ -31,8 +31,8 @@ Two altitudes, **explicitly separated** so a reader can act on the surgical fixe
 Rank every finding:
 
 1. **Correctness** — it is wrong or races (e.g. a stale-write race from a non-optimistic-lock status patch). Always wins.
-2. **Idiom-divergence with runtime consequence** — idiomatically wrong *and* it breaks something observable (removing a condition breaks `kubectl describe` / PromQL `absent()`; a missing `ObservedGeneration` makes staleness undetectable). A comment whose *content* misleads an agent reading the source linearly — history-in-source, a removal tombstone, drift-prone narration — breaks something observable in the same sense (`comment-discipline.md`).
-3. **Style** — idiomatically off with no runtime consequence (naming, import grouping, comment *form/placement*). Lowest. Bundle these; never lead with them. (Comment *content* that misleads a linear reader is tier 2, not style — see `comment-discipline.md`.)
+2. **Idiom-divergence with runtime consequence** — idiomatically wrong *and* it breaks something observable (removing a condition breaks `kubectl describe` / PromQL `absent()`; a missing `ObservedGeneration` makes staleness undetectable). A comment whose *content* misleads an agent reading the source linearly breaks something observable in the same sense (the comment standard is AGENTS.md **Output discipline**).
+3. **Style** — idiomatically off with no runtime consequence (naming, import grouping, comment *form/placement*). Lowest. Bundle these; never lead with them. (Comment *content* that misleads a linear reader is tier 2, not style.)
 
 A language pack's `severity_model` section maps that pack's dimensions onto these three tiers.
 

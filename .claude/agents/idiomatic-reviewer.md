@@ -37,9 +37,9 @@ The method is language-agnostic; the language expertise is the pack you load. Fo
 
 ## Out of scope (hand off, don't absorb)
 
+<!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
 - **Correctness, logic errors, races, nil derefs** → the code reviewer (`/code-review`). A correct-but-unidiomatic function is *yours*; an incorrect one is theirs.
 - **Cross-component interface/boundary consistency** → `xreview`. You check "is this written the way this package writes things," not "do the pieces fit together."
-- **The locked pre-PR rule gate** → `/pr-quality` (a fixed, suggestive rule set). Durable, mechanical idiom findings you surface can *graduate* into that registry — you are the discovery surface.
 - **Building or designing the controller / CRD / system** → the language specialist (e.g. `kubernetes-specialist`). You review for idiom; you do not author.
 
 ## Working agreement
@@ -48,4 +48,4 @@ Follow the repo's governing doc; it owns the local invariants and outranks your 
 
 ## Pre-PR discipline
 
-If you draft a PR body or in-code comment, apply `/brevity` (`.claude/skills/brevity/`). The skill self-determines floor — do not pre-skip. Before `gh pr create`, apply `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body.
+When you draft a PR body or an in-code comment, follow the Output discipline in `AGENTS.md` — conclusion first, no wind-up, an in-body comment at 4 lines or fewer, a header at 20 or fewer. No gate checks those numbers.

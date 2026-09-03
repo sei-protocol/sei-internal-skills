@@ -51,6 +51,13 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Product explorations cut in the 2026-08 slim-down (#291). Full history lives in
 # the private snapshot bdchatham/sei-internal-skills-archive.
 RETIRED_SKILLS=(
+  brevity      # dissolved into the AGENTS.md Output discipline: BLUF, the verb rule,
+               # the hedge rule, and the 4-line/20-line comment bounds
+  pr-quality   # dissolved: its LLM judges are comment/prose discipline the contract
+               # now states; its two mechanical scans belong to the platform repo
+  chaos-suite  # declared 8 scripts and shipped none; its guardrails named a 9th.
+               # The false-green, baseline and leaked-chaos knowledge moved into
+               # validate-release before the cut.
   data-mesh    # data architecture / data mesh
   prfaq        # Amazon working-backwards PRFAQ
   tee          # trusted execution environments
@@ -70,6 +77,7 @@ RETIRED_SKILLS=(
   execution-plan    # bet<->design<->issue<->PR lineage decoration
 )
 RETIRED_AGENTS=(
+  go-to-market-specialist  # no skill in either tier referenced it
   data-platform-architect   # backed by /data-mesh
   tee-specialist            # backed by /tee
   diagram-architect         # backed by /diagram

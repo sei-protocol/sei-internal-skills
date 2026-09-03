@@ -222,6 +222,7 @@ Stop and report to the user if:
 
 - **`/coral`** produces work with specialists, then *offers* `/xreview` at synthesis when outputs touch a shared boundary. Coral builds; xreview checks.
 - **`/council`** runs xreview as a distinct phase of its scope-tier process by invoking this skill — it does not perform xreview itself.
+<!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
 - **`/code-review`** is line-level diff correctness; **`/bugbash`** is adversarial hardening of a running system; **`/root-cause`** is incident investigation. xreview is consistency review of a produced artifact across the specialists who own its boundaries.
 - **`idiomatic-reviewer`** (the `/idiomatic` skill) is the **idiom-conformance** lens — does the code read native to its language, framework, and the package's documented patterns. It's a distinct axis from boundary consistency: xreview dispatches it as part of the slate when code is under review, and its findings ride in the Idiom addendum (correctness-grade blocks; style is advisory). It reviews idiom; it does not author the system or check boundaries.
 

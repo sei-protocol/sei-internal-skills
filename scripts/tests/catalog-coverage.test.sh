@@ -44,7 +44,6 @@ check      "root-cause is in portable (investigation→portable)" bash -c "'$SKI
 # stated where the derivation itself is under test — if `all` ever picks up a
 # skill from experimental/, the tier has silently stopped being a tier.
 check_fail "a parked skill (coral) is in no alias, not even all" bash -c "'$SKILLS_SH' --target /tmp/_cov --categories all --dry-run 2>/dev/null | grep -q '^  - coral$'"
-check_fail "brevity is NOT synced (sei-internal-skills-local output-quality)" bash -c "'$SKILLS_SH' --target /tmp/_cov --categories all --dry-run 2>/dev/null | grep -q '^  - brevity$'"
 check      "sei-network-specialist is in sei (name override)" bash -c "'$AGENTS_SH' --target /tmp/_cov --categories sei --dry-run 2>/dev/null | grep -q '^  - sei-network-specialist$'"
 check_fail "sei-network-specialist is NOT in portable"        bash -c "'$AGENTS_SH' --target /tmp/_cov --categories portable --dry-run 2>/dev/null | grep -q '^  - sei-network-specialist$'"
 

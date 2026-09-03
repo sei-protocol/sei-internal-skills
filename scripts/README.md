@@ -13,6 +13,7 @@ Utility scripts for sei-internal-skills repo maintenance. Most are wrapped by Ma
 | `verify-agent-permissions.sh` | Fail if `.claude/settings.json` contains mutating patterns or has drifted | `make verify-agent-permissions`, CI |
 | `tests/install.test.sh` | Regression suite for `install.sh`'s targeted mode, including the piped invocation | `make test-install`, CI |
 | `prune-retired.sh` | Remove retired/parked resources from a synced `.claude/`. **The only script here that deletes** — dry-run by default, `--apply` to act. Never touches a core or unrecognized resource | `make prune-retired` / `make prune-retired-apply`, manually |
+| `verify-references.sh` | Fail if a shipped artifact cites a resource an engineer cannot reach. Four error classes (ABSENT, UNSHIPPED, STALE-MARKER, MISSING-SCRIPT) and one warning (PARKED). `--installed` reports against `~/.claude` and never gates. | CI + `make verify-references` |
 | `tests/prune-retired.test.sh` | Regression suite for `prune-retired.sh` — asserts what it must NOT remove | `make test-prune`, CI |
 | `tests/experimental-isolation.test.sh` | Regression suite for the `experimental/` tier — nothing in it ships by default | `make test-experimental`, CI |
 | `agent-permissions.json` | Canonical read-only permission set (source of truth) | Read by both agent-permissions scripts |
@@ -67,7 +68,7 @@ Sibling of `sync-agents.sh` — same shape, same flags. Copies skills from `.cla
 # Sync portable skills to user-level (default category)
 ./scripts/sync-skills.sh --target ~/
 
-# Also sync the sei-team skills (chaos-suite, validate-release, gov-ops, validator-platform, harbor-dev)
+# Also sync the sei-team skills (validate-release, gov-ops, validator-platform, harbor-dev)
 ./scripts/sync-skills.sh --target ~/ --categories all
 
 # Or install a single domain

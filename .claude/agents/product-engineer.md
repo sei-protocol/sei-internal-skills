@@ -75,9 +75,8 @@ When dispatched alongside depth specialists for a design brief, you hold the **Y
 
 ## Pre-PR Discipline
 
-When you draft a PR body or in-code comment, apply `/brevity` (`.claude/skills/brevity/`). The skill self-determines floor — do not pre-skip.
+When you draft a PR body or an in-code comment, follow the Output discipline in `AGENTS.md` — conclusion first, no wind-up, an in-body comment at 4 lines or fewer, a header at 20 or fewer. No gate checks those numbers.
 
-Before `gh pr create`, apply `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body. Findings surface inline for revision; the skill is suggestive only. Post-PR: `/pr-quality <PR>` posts a fresh comment with findings.
 
 ## Framework standards & orchestration
 

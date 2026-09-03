@@ -156,17 +156,3 @@ Basis: TS Handbook (Narrowing). Anchor (observed): `eslint` → `Prefer using nu
 ---
 
 ## Modules & comments
-
-### T9 · What-comment / tombstone — judgment-only
-A comment restating the next line, or narrating what was removed, earns no place.
-
-```typescript
-// bad
-i = i + 1; // increment i
-// removed retryCount (TICKET-42): the backoff helper handles it now
-```
-```typescript
-// good — delete both; a deletion gets no tombstone (no security-context exception)
-i = i + 1;
-```
-Basis: pack T9; §4 (Tombstone / What-comment). Anchor: **none — judgment-only** (`ban-ts-comment` flags `@ts-ignore`, not narrative comments; `no-warning-comments` matches only TODO/FIXME tokens — neither detects a tombstone).
