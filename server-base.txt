@@ -8,9 +8,21 @@
 # base was built by hand and this line was the only record of it, which is how the
 # fork reached 812 commits behind upstream without anyone noticing.
 #
-# Current: tag agents-main-f59a611c-k8s, from bdchatham/omnigent@feat/sei-base --
-# upstream main plus three commits: the machine-auth grant, the runner recipe,
-# and a Dockerfile COPY that ships integrations/ into the build context.
+# Current: tag agents-main-536581c6-k8s, from bdchatham/omnigent@feat/sei-base --
+# upstream main at 951ef519e plus the same three carried commits. This is the
+# REBASE: the fork moved 669 commits, from fork point 84d1753c to current
+# upstream, taking the server 0.10.0.dev0 -> 0.13.0.dev0.
+#
+# The machine-auth grant was redesigned, not replayed. Upstream now always owns
+# POST /oauth/token, so the grant is a third grant_type branch inside its
+# router rather than a competing mount; and the delegated-token check lost its
+# scope leg, so the token now carries a synthetic machine:<client_id> grant_id.
+# Re-applying the old patch would have produced a server that passes every
+# health check and answers unsupported_grant_type to every driver run.
+#
+# The vendored Kustomize tree in platform must come from the SAME upstream
+# commit: the launcher moved to batch/v1 Jobs, so its RBAC lives there and its
+# API calls live here.
 #
 # Built with OMNIGENT_EXTRAS=kubernetes,slack. The slack extra is what lets an
 # image run `python -m omnigent_slack`, which the omnigent-slack Deployment in
@@ -18,11 +30,15 @@
 # from integrations/slack via [tool.uv.sources] -- hence the COPY, without which
 # the build dies at resolve rather than producing an image missing the bot.
 #
-# Server version is unchanged at 0.10.0.dev0: the only Python difference from the
-# previous base is the extra. The three commits are the same code.
+# Four Alembic migrations separate this base from the previous one, all
+# additive: three nullable ADD COLUMNs and the connections table. They run
+# automatically at boot. The point of no return is when that transaction
+# commits -- the PREVIOUS image cannot boot against the new schema, because it
+# has no newer-revision guard and dies trying to resolve a revision it does not
+# carry. Reverting the digest alone crash-loops; downgrade from the new image
+# first, or restore the dump.
 #
-# Deploying this needs the env renames that ride with it: the grant reads
-# OMNIGENT_MACHINE_* where the deployed server read OMNIGENT_M2M_*, with no
-# fallback, and its env config is the opt-in -- so with the old names
-# POST /oauth/token is never mounted at all.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:49b6848e1e07c378e20cd9b9496f16a136e90bb93741e7a3bd8f61747b088a39
+# The OMNIGENT_MACHINE_* env names are already deployed and unchanged by this
+# bump. That rename was the previous base's migration, and platform's
+# configmap-patch.yaml plus oidc-secret.yaml already carry all four.
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:48bb34d44d01fd709e52c93ccd68696763edf37f45799e7813cb2fb47f7f4b10
