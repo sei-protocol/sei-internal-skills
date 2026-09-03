@@ -75,7 +75,7 @@ When dispatched alongside depth specialists for a design brief, you hold the **Y
 
 ## Pre-PR Discipline
 
-When you draft a PR body or an in-code comment, follow the Output discipline in `AGENTS.md` — conclusion first, no wind-up, an in-body comment at 4 lines or fewer, a header at 20 or fewer. No gate checks those numbers.
+When you draft a PR body or an in-code comment, follow the Output discipline in `AGENTS.md`. Conclusion first, no wind-up. An in-body comment runs to 4 lines or fewer, a header to 20.
 
 
 ## Framework standards & orchestration
