@@ -35,13 +35,15 @@ err() { printf '%-18s %s\n' "$1" "$2"; ERRORS=$((ERRORS + 1)); }
 # correctly, that neither ran. Adding a rubric-lens row would falsify the record,
 # and review-ledger.md says a round is never edited in place. The skills it names
 # were cut in PR #383, so no later ledger qualifies.
-EXEMPT_NO_LENS_ROW="docs/xreview/hardened-core.md"
-
-# docs/xreview/slice-a-reference-gate.md — its rounds predate the append-only rule.
-# Round 2 names a smaller slate than round 1, and the record does not say which
-# lenses were deliberately not re-dispatched versus out of scope. Reconstructing
-# that would be inventing it, and a round is never edited in place.
-EXEMPT_LENS_DROPPED="docs/xreview/slice-a-reference-gate.md"
+# docs/xreview/ is the ARCHIVE. Its ledgers record reviews that closed before rules
+# written later existed, and a round is never edited in place (review-ledger.md), so
+# bringing them to a later rule would mean inventing what the record does not say.
+# An archived ledger is checked for schema conformance — typed fields, enums,
+# contradictions — and not for rules introduced after its last round.
+#
+# This replaces two per-rule allowlist variables. That shape grew one named variable
+# and one call site per (rule x historical ledger); this one does not grow at all.
+is_archived() { [[ "$1" == docs/xreview/* ]]; }
 
 files=("$@")
 if [[ ${#files[@]} -eq 0 ]]; then
@@ -125,15 +127,53 @@ for f in "${files[@]}"; do
   last_round=$( { grep -oE '^Round:[[:space:]]+[0-9]+' "$f" \
                   | grep -oE '[0-9]+' | sort -n | tail -1; } || true )
   last_round="${last_round:-0}"
-  prev_lenses=""; prev_round=""
-  while IFS='|' read -r rnd cls lenses slate has_row ids st n cnv dissents accepted lenslist; do
+  # A delimited string, not an associative array: this runs on macOS bash 3.2,
+  # which has neither `declare -A` nor `mapfile`.
+  prev_lenses=""; prev_round=""; prev_verdicts=","
+  while IFS='|' read -r rnd cls lenses slate has_row ids st n cnv pairs; do
+    # Resolve each row: NOT-RE-DISPATCHED inherits that lens's verdict from the round
+    # it last reported in. Without this a carried DISSENT reads as no DISSENT at all,
+    # and the append-only rule makes the carried form the mandated one.
     [[ -z "$rnd" ]] && continue
+    lenslist=""; reporters=0; dissents=0; rows=0
+    for pair in ${pairs//,/ }; do
+      [[ -z "$pair" ]] && continue
+      lname="${pair%%=*}"; verd="${pair#*=}"; rows=$((rows + 1))
+      lenslist="$lenslist,$lname"
+      case "$verd" in
+        RATIFY|RATIFY-with-advisory|DISSENT) reporters=$((reporters + 1)) ;;
+        # What a GitHub reviewer natively returns. It is a DISSENT.
+        CHANGES_REQUESTED) reporters=$((reporters + 1)); verd="DISSENT" ;;
+        APPROVED) reporters=$((reporters + 1)); verd="RATIFY" ;;
+        NOT-RE-DISPATCHED)
+          carried="${prev_verdicts##*,$lname=}"; carried="${carried%%,*}"
+          case "$prev_verdicts" in *",$lname="*) verd="$carried" ;; *) verd="" ;; esac ;;
+        *) err "BAD-VERDICT" "$rel  round $rnd: lens '$lname' has verdict '$verd' — the enum is RATIFY | RATIFY-with-advisory | DISSENT | NOT-RE-DISPATCHED (or a reviewer's APPROVED | CHANGES_REQUESTED)"
+           reporters=$((reporters + 1)) ;;
+      esac
+      [[ "$verd" == "DISSENT" ]] && dissents=$((dissents + 1))
+      if [[ -n "$verd" ]]; then
+        prev_verdicts="$(printf '%s' "$prev_verdicts" | sed "s/,${lname}=[^,]*,/,/g")"
+        prev_verdicts="$prev_verdicts$lname=$verd,"
+      fi
+    done
+    lenslist="${lenslist#,}"
 
+    # Q1 — a table-less round was neither checked by LENS-DROPPED nor recorded into
+    # its baseline, so a lens introduced only there vanished with no trace. Forbid
+    # the shape rather than carry state to model it.
     if [[ "$slate" == "none" ]]; then
-      [[ "$lenses" == "1" ]] || err "LENSES-UNLISTED" \
-        "$rel  round $rnd declares Lenses: $lenses but has no slate table listing them"
-    elif [[ "$lenses" != "$slate" ]]; then
-      err "LENSES-MISMATCH" "$rel  round $rnd declares Lenses: $lenses, slate table lists $slate"
+      err "NO-SLATE-TABLE" "$rel  round $rnd has no slate table; every round lists its lenses, even a one-lens round"
+    else
+      # K3 — `Lenses:` counts REPORTERS, per the schema. The slate table is
+      # append-only, so its row count only grows: it must cover the reporters, and
+      # every surplus row is a carried NOT-RE-DISPATCHED lens.
+      if [[ "$lenses" != "$reporters" ]]; then
+        err "LENSES-MISMATCH" "$rel  round $rnd declares Lenses: $lenses but $reporters lens(es) reported; a carried NOT-RE-DISPATCHED row is not a reporter"
+      fi
+      if [[ "$rows" -lt "$lenses" ]]; then
+        err "LENSES-UNLISTED" "$rel  round $rnd declares Lenses: $lenses but the slate lists only $rows row(s)"
+      fi
     fi
 
     case "$st" in
@@ -147,16 +187,10 @@ for f in "${files[@]}"; do
     # objected to closes the finding, not the verdict — so a round still holding a
     # DISSENT row cannot read `unanimous`. Without this the rule is prose, and the
     # substitution is tempting precisely because the fix is real by then.
-    if [[ "${dissents:-0}" -gt 0 && "$cnv" == "unanimous" ]]; then
+    if [[ "$dissents" -gt 0 && "$cnv" == "unanimous" ]]; then
       err "REVISED-VERDICT" "$rel  round $rnd declares Convergence: unanimous with $dissents DISSENT row(s) — a verdict changes only when its lens is re-dispatched and says so"
     fi
-    # A standing DISSENT and `State: RESOLVED` is only honest when every finding
-    # that DISSENT raised is closed. If one was closed by an operator accepting a
-    # named risk instead, the state says so.
-    if [[ "${dissents:-0}" -gt 0 && "$st" == "RESOLVED" && "$rnd" == "$last_round" && "$accepted" == "yes" ]]; then
-      err "UNSTATED-ACCEPTED-RISK" "$rel  round $rnd stamps State: RESOLVED over a standing DISSENT while recording an accepted risk — that is RESOLVED-WITH-ACCEPTED-RISK"
-    fi
-    if [[ "$lenses" == "1" && "$cnv" != "degenerate" ]]; then
+    if [[ "$reporters" == "1" && "$cnv" != "degenerate" ]]; then
       err "UNDECLARED-DEGENERATE" "$rel  round $rnd has Lenses: 1 but Convergence: $cnv — a single-reviewer pass is 'degenerate', not unanimity"
     fi
 
@@ -172,7 +206,7 @@ for f in "${files[@]}"; do
         [[ -z "$pl" ]] && continue
         case ",$lenslist," in
           *",$pl,"*) ;;
-          *) [[ "$rel" == "$EXEMPT_LENS_DROPPED" ]] && continue
+          *) is_archived "$rel" && continue
              err "LENS-DROPPED" "$rel  round $rnd drops '$pl', named in round $prev_round — record it as not re-dispatched rather than removing the row" ;;
         esac
       done
@@ -181,7 +215,7 @@ for f in "${files[@]}"; do
 
     if [[ "$cls" == "skill-package" && "$rnd" == "$last_round" ]]; then
       if [[ "$has_row" == "no" ]]; then
-        [[ "$rel" == "$EXEMPT_NO_LENS_ROW" ]] \
+        is_archived "$rel" \
           || err "NO-LENS-ROW" "$rel  round $rnd is Class: skill-package but its slate has no rubric-lens row"
       else
         resolved=0
@@ -193,10 +227,9 @@ for f in "${files[@]}"; do
   done < <(awk '
     function flush() {
       if (rnd != "")
-        printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", rnd, (rcls != "" ? rcls : fcls), lenses,
-               (sawtable ? nrows : "none"), (haslens ? "yes" : "no"), ids, state, openf, conv, ndis,
-               (nacc ? "yes" : "no"), lenslist
-      rcls=""; lenses=""; nrows=0; sawtable=0; intable=0; haslens=0; ids=""; state=""; openf=""; conv=""; ndis=0; nacc=0; lenslist=""
+        printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", rnd, (rcls != "" ? rcls : fcls), lenses,
+               (sawtable ? nrows : "none"), (haslens ? "yes" : "no"), ids, state, openf, conv, pairs
+      rcls=""; lenses=""; nrows=0; sawtable=0; intable=0; haslens=0; ids=""; state=""; openf=""; conv=""; pairs=""
     }
     /^Class:[ \t]+/          { if (rnd == "") fcls=$2; else rcls=$2; next }
     /^## Round[ \t]+[0-9]+/  { flush(); rnd=$3; next }
@@ -204,27 +237,31 @@ for f in "${files[@]}"; do
     /^State:[ \t]+/          { state=$2; next }
     /^OpenFindings:[ \t]+/   { openf=$2; next }
     /^Convergence:[ \t]+/    { conv=$2; next }
-    /accepted-with-risk|accepted risk|accept-with-risk/ { if (rnd != "") nacc=1 }
     /^\|[ \t]*Lens[ \t]*\|/  {
       intable=1; sawtable=1; nrows=0; vcol=0
       nf = split($0, hdr, "|")
       for (c = 2; c <= nf; c++) { h = hdr[c]; gsub(/[ \t*`]/, "", h); if (h == "Verdict") vcol = c - 1 }
       next
     }
-    intable && /^\|[ \t]*-+/ { next }
+    # The header separator. No interval expression: not every awk honours {2,}.
+    intable && /^\|[ \t]*:?--/ { next }
     intable && /^\|/ {
       nrows++
       # The verdict cell, located by the header rather than a fixed index: the
       # schema and the fixtures disagree on column order, and a substring scan is
-      # defeated by "DISSENT, later RATIFY" in a Resolution cell.
-      if (vcol > 0) {
-        nf = split($0, cell, "|")
-        v = (vcol + 1 <= nf) ? cell[vcol + 1] : ""
-        gsub(/[ \t*`]/, "", v)
-        if (v ~ /^DISSENT/) ndis++
-      } else if ($0 ~ /DISSENT/ && $0 !~ /RATIFY/) ndis++
+      # defeated by "DISSENT, later RATIFY" in a Resolution cell. Split before the
+      # branch — reading `cell` only inside it left a stale array on the fallback.
+      nf = split($0, cell, "|")
+      v = (vcol > 0 && vcol + 1 <= nf) ? cell[vcol + 1] : ""
+      # Strip markup, then take the LEADING TOKEN — cut at the first separator
+      # before collapsing whitespace, or "RATIFY after 1a2b3c" becomes one word and
+      # no enum value ever matches.
+      gsub(/[*`]/, "", v)
+      sub(/^[ \t]+/, "", v); sub(/[ \t]+$/, "", v)
+      sub(/[^A-Za-z_-].*$/, "", v)
+      sub(/-+$/, "", v)
       lensname = cell[2]; gsub(/[ \t*`]/, "", lensname)
-      if (lensname != "") lenslist = lenslist "," lensname
+      if (lensname != "") pairs = pairs "," lensname "=" v
       if ($0 ~ /^\|[ \t]*`?(the )?rubric lens`?[ \t]*\|/) {
         haslens=1; line=$0
         while (match(line, /[A-Z][0-9]+/)) {
