@@ -63,7 +63,10 @@ Three conditions on what comes back:
 - **A verdict citing no rule id is not a rubric review.** Re-dispatch it. The rubric lens has no
   absence check, so an uncited verdict is the only way its pin fails silently.
 - **A rule the lens could not evaluate is reported `skipped`,** never dropped. An unrun rule that
-  leaves no trace reads as a rule that passed.
+  leaves no trace reads as a rule that passed. The checker splits two cases and so should you:
+  `skip_reason: unavailable` means the rule had a subject you could not reach — follow it up, and
+  a `block` one is an open finding. `skip_reason: inapplicable` means the rule had no subject at
+  all (`S1` on a skill with no `scripts/`) — nothing is unknown, and it is not a finding.
 - **If the lens cannot read the rubric file, HALT.** The ids are short and schematic, so an
   unread rubric yields plausible ids emitted from memory — a review that looks cited and is not.
 

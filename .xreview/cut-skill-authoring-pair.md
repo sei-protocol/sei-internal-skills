@@ -1,6 +1,6 @@
 # Review ledger — cutting `author-skill` and `audit-skill`
 
-**Target**: branch `refactor/cut-skill-authoring-pair` (`a9e512e`, `7e9461b`) —
+Target:       branch `refactor/cut-skill-authoring-pair` (`a9e512e`, `7e9461b`) —
 deletes `.claude/skills/author-skill/` and `.claude/skills/audit-skill/`, moves the
 skill-package rubric and its static checker into `/xreview`, rewrites the steward pin.
 
@@ -23,6 +23,7 @@ OpenFindings: 0
 Convergence:  split
 Blinded:      yes
 Dissenter:    security-specialist
+Lenses:       4
 ```
 
 Three of four lenses returned DISSENT; all findings closed in rounds 1-2. Blinded: four
@@ -33,7 +34,7 @@ independent briefs, no reviewer saw another's findings.
 | Lens | Why pinned | Verdict |
 |---|---|---|
 | `prose-steward` | agent-steward, `skill-package` unconditional | DISSENT |
-| rubric lens | `skill-package` unconditional | DISSENT |
+| rubric lens | `skill-package` unconditional | DISSENT — cited `P7`, `E5`, `B6`, `R4`, `D1`, `C3`, `A1`, `R3` |
 | `systems-engineer` | §4a — the diff touches `scripts/` | DISSENT |
 | `security-specialist` | §4a — agent-instruction surface; **assigned dissenter** | DISSENT |
 
@@ -105,6 +106,7 @@ OpenFindings: 0
 Convergence:  unanimous
 Blinded:      yes
 Dissenter:    security-specialist
+Lenses:       3
 ```
 
 Unanimous this round: all three round-1 dissenters re-checked and RATIFIED. Blinded: three
@@ -174,6 +176,7 @@ OpenFindings: 0
 Convergence:  unanimous
 Blinded:      no
 Dissenter:    seidroid
+Lenses:       1
 ```
 
 Automated review is co-equal (`AGENTS.md`, xreview discipline). `seidroid` reviewed the
@@ -216,3 +219,48 @@ states the backlog does not block.
 - **`D1` on `gov-ops` and `validate-release` is rule-design, not debt.** Both open on a deliberate
   authorial choice and `D1` has no carve-out. The baseline now carries a reason column so the
   question cannot hide there indefinitely.
+
+## Round 4
+
+Round:        4
+State:        RESOLVED
+OpenFindings: 0
+Convergence:  unanimous
+Blinded:      no
+Dissenter:    seidroid
+Lenses:       1
+
+Re-review of `2f2f74e`. Nine findings, five named as pre-merge. `Blinded: no` and
+`Lenses: 1` — a degenerate single-reviewer pass, and it had read every prior round.
+
+| # | Finding | Resolution |
+|---|---|---|
+| G1 | `NO-RULE-ID` was satisfied by the schema's own `Tier:` field — `T1` and `T2` are literal rubric rows, so any `skill-package` ledger at the `T2` tier floor passed while citing nothing. Vacuous exactly when review depth had just been trimmed. | Scan scoped to the rubric-lens row of the slate table. The assertion now means what the doctrine says: the lens cited ids, not the document contains an id. |
+| G2 | The gate hung on an unvalidated `Class:`, and `BOLD-FIELD` omitted `Class`/`Target`/`Tier` — **this ledger itself bolded `Target:`**. So `**Class**: skill-package` would silence the only enforcement of the pin and report conformance. | All three fields added to the bold check; `Class:` presence and enum now asserted. |
+| G3 | The linter could not see the two ledgers whose location motivated it. It certified a repo holding ledgers that fail it — the F1 defect again. | Lints `docs/xreview/` too. All three ledgers brought to schema. |
+| G4 | F8 survived. The `skipped` emission was keyed to `REPO_ROOT` while the real guards were two file tests. A skill synced into a sibling git repo has a repo root and neither file, so `C1` (**block**) still dropped silently — the case the checker most often meets in the wild. | Guarded on the input files. Verified: a sibling repo now yields 26 findings with `C1 skipped/unavailable`. |
+| G5 | The reason column misclassified two of five entries in the direction it exists to prevent. `D5` fires on `'how do I call the staking precompile'` — a quoted user utterance the skill advertises, not authoring voice. | `evm` and `validator-platform` reclassified `rule-design`, with the narrowing noted (`D8` already special-cases quoted spans). |
+| G6 | `skipped` conflated *inapplicable* (rule has no subject) with *unavailable* (subject unreachable). Nine of eleven skills report two skipped `block` rules permanently, and the doctrine said DISSENT on any of them — which trains a lens to ignore the line. | `skip_reason` field added; the red flag and dispatch brief narrowed to `unavailable`. |
+| G7 | A read-only verifier wrote `.ledger-contradictions.tmp` into the repo it verifies, ungitignored. | Replaced with the process substitution the script already used five times. |
+| G8 | `Convergence: unanimous` over one lens is indistinguishable from four to any consumer of the header block, and the degenerate-pass obligation lived only in prose no gate reads. | `Lenses:` added to the schema and the linter. Counts for the older ledgers measured against their slate tables, not transcribed. |
+| G9 | The merge-base instruction was interrupted mid-sentence by an aside, then restated. | Rewritten as one bullet. |
+
+### The systemic one, again
+
+`verify-ledger.sh` shipped with no regression test — the one gate in the repo with
+nothing behind it, in the branch whose whole argument is that a checker with no gate
+is where defects reach review. `scripts/tests/verify-ledger.test.sh` (22 cases) pins
+both vacuity paths, all four F1 defect classes, the state/arity contract, and the
+exemption marker's narrowness. Mutation-tested: reverting G1 fails five cases.
+
+The first mutation attempt silently did not apply, and the suite passed anyway. A
+mutation that does not mutate proves nothing; the second attempt was verified to
+change the file before the result was read.
+
+### Not taken
+
+`hardened-core.md` carries `<!-- ledger-exempt: NO-LENS-ROW -->`. That review ran
+before the rubric lens existed and records, correctly, that the two skill-stewards
+it pinned never ran. Adding a lens row would falsify the record, and
+`review-ledger.md` says a round is never edited in place. No later ledger can claim
+the exemption, because the skills it names were cut here.

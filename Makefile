@@ -108,6 +108,10 @@ test-skill-package-checks: ## Sweep the rubric checker over every core skill; di
 verify-ledger: ## Fail if an /xreview ledger violates the schema /xreview ships (CI)
 	@./scripts/verify-ledger.sh
 
+.PHONY: test-ledger
+test-ledger: ## Run the ledger-linter regression suite (scripts/tests/verify-ledger.test.sh)
+	@./scripts/tests/verify-ledger.test.sh
+
 .PHONY: update-agent-permissions
 update-agent-permissions: ## Install canonical read-only allow-list into ./.claude/settings.json (DRY_RUN=1 to preview)
 	@./scripts/update-agent-permissions.sh

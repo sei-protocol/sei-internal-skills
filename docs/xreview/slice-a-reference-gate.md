@@ -1,21 +1,23 @@
 # Review ledger — Slice A, the reference gate
 
-**Target**: `scripts/verify-references.sh`, `scripts/tests/verify-references.test.sh`,
+Target:       `scripts/verify-references.sh`, `scripts/tests/verify-references.test.sh`,
 `.github/workflows/verify-references.yml`, two `Makefile` targets, a `scripts/README.md` row
 
-**Class**: `shared-stack`
-**Tier**: T3
-
+Class:        shared-stack
+Tier:         T3
 **Note**: belongs in the DRI's designs repository under
 `designs/sei-agentic-mesh/xreview/`. It sits here pending that move.
 
 ## Round 1
 
-**State**: OPEN
-**OpenFindings**: 4
-**Convergence**: split
-**Blinded**: yes — no reviewer saw another's brief or output
-**Dissenter**: `platform-engineer` (assigned)
+Round:        1
+
+State:        OPEN
+OpenFindings: 4
+Convergence:  split
+Blinded:      yes
+Dissenter:    platform-engineer
+Lenses:       3
 
 ### Routing
 
@@ -69,11 +71,14 @@ One claim was **checked and did not hold as I first read it**: my own `grep` for
 
 ## Round 2
 
-**State**: OPEN
-**OpenFindings**: 3
-**Convergence**: unanimous dissent
-**Blinded**: yes
-**Dissenter**: `security-specialist` (assigned)
+Round:        2
+
+State:        OPEN
+OpenFindings: 3
+Convergence:  unanimous
+Blinded:      yes
+Dissenter:    security-specialist
+Lenses:       5
 
 ### Routing
 

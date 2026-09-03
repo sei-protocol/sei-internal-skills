@@ -36,16 +36,28 @@ fi
 
 # Emit a JSONL finding.
 emit() {
-  # Args: id severity title result evidence catalog_ref
-  local id="$1" severity="$2" title="$3" result="$4" evidence="$5" catalog_ref="$6"
+  # Args: id severity title result evidence catalog_ref [skip_reason]
+  #
+  # skip_reason is set only when result is `skipped`, and it separates two cases a
+  # bare `skipped` conflates:
+  #   inapplicable — the rule has no subject (S1 on a skill with no scripts/).
+  #                  Nothing is unknown; a reviewer does nothing.
+  #   unavailable  — the rule has a subject the checker could not reach (C1 with no
+  #                  catalog README). Something IS unknown; a reviewer follows up.
+  # Without the split, nine of eleven core skills report two skipped `block` rules
+  # forever, and the "a skipped block rule is an open finding" doctrine over-fires
+  # until a reviewer learns to ignore it.
+  local id="$1" severity="$2" title="$3" result="$4" evidence="$5" catalog_ref="$6" skip_reason="${7:-}"
   # Escape JSON-special chars in evidence: backslash, double-quote, newline, tab, CR.
   local esc_evidence="${evidence//\\/\\\\}"
   esc_evidence="${esc_evidence//\"/\\\"}"
   esc_evidence="${esc_evidence//$'\n'/\\n}"
   esc_evidence="${esc_evidence//$'\t'/\\t}"
   esc_evidence="${esc_evidence//$'\r'/\\r}"
-  printf '{"id":"%s","severity":"%s","title":"%s","result":"%s","evidence":"%s","catalog_ref":"%s","source":"static"}\n' \
-    "$id" "$severity" "$title" "$result" "$esc_evidence" "$catalog_ref" >&3
+  local skip_field=""
+  [[ -n "$skip_reason" ]] && skip_field=",\"skip_reason\":\"$skip_reason\""
+  printf '{"id":"%s","severity":"%s","title":"%s","result":"%s","evidence":"%s","catalog_ref":"%s","source":"static"%s}\n' \
+    "$id" "$severity" "$title" "$result" "$esc_evidence" "$catalog_ref" "$skip_field" >&3
 }
 
 SKILL_NAME="$(basename "$SKILL_DIR")"
@@ -203,7 +215,7 @@ if [[ -d "$SKILL_DIR/references" ]]; then
   fi
 else
   for r in R1:block R2:warn R3:info; do
-    emit "${r%%:*}" "${r##*:}" "references/ checks" "skipped" "no references/ directory" "${r%%:*}"
+    emit "${r%%:*}" "${r##*:}" "references/ checks" "skipped" "no references/ directory" "${r%%:*}" "inapplicable"
   done
 fi
 
@@ -247,7 +259,7 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
   fi
 else
   for r in S1:block S2:block S4:warn S6:warn; do
-    emit "${r%%:*}" "${r##*:}" "scripts/ checks" "skipped" "no scripts/ directory" "${r%%:*}"
+    emit "${r%%:*}" "${r##*:}" "scripts/ checks" "skipped" "no scripts/ directory" "${r%%:*}" "inapplicable"
   done
 fi
 
@@ -263,7 +275,7 @@ if [[ -f "$EVALS_JSON" ]]; then
   # a parse error there would blame a valid file and drop E2-E4 with it.
   if (( E1_RC == 126 || E1_RC == 127 )); then
     for r in E1:block E2:block E3:warn E4:warn; do
-      emit "${r%%:*}" "${r##*:}" "evals.json checks" "skipped" "python3 unavailable (exit $E1_RC)" "${r%%:*}"
+      emit "${r%%:*}" "${r##*:}" "evals.json checks" "skipped" "python3 unavailable (exit $E1_RC)" "${r%%:*}" "unavailable"
     done
   elif (( E1_RC == 0 )); then
     emit "E1" "block" "evals.json is parseable" "pass" "" "E1"
@@ -349,13 +361,6 @@ else
 fi
 
 # --- Catalog & sync checks ---
-if [[ -z "$REPO_ROOT" ]]; then
-  # Running against an installed skill (~/.claude/skills/<name>) resolves no repo
-  # root, so both catalog rules have no input. C1 is `block`; dropping it silently
-  # reads as a pass.
-  emit "C1" "block" "Skill listed in catalog README" "skipped" "no repo root: run from a checkout to check the catalog" "C1"
-  emit "C3" "warn" "Skill category resolves to a sync alias" "skipped" "no repo root: run from a checkout to check sync coverage" "C3"
-fi
 CATALOG="$REPO_ROOT/.claude/skills/README.md"
 if [[ -f "$CATALOG" ]]; then
   if grep -qE "\`${SKILL_NAME}/\`" "$CATALOG"; then
@@ -363,6 +368,10 @@ if [[ -f "$CATALOG" ]]; then
   else
     emit "C1" "block" "Skill listed in catalog README" "fail" "no entry for ${SKILL_NAME}/ in $(rel "$CATALOG")" "C1"
   fi
+else
+  # Guarded on the input, not on REPO_ROOT: a skill synced into a sibling git repo
+  # has a repo root and no catalog, and C1 is `block`.
+  emit "C1" "block" "Skill listed in catalog README" "skipped" "no catalog README at $CATALOG" "C1" "unavailable"
 fi
 
 # C3 resolves the skill's `category:` against the three domain lists in
@@ -384,6 +393,8 @@ if [[ -f "$SYNC" ]]; then
   else
     emit "C3" "warn" "Skill category resolves to a sync alias" "fail" "category '$CAT' is in no domain list" "C3"
   fi
+else
+  emit "C3" "warn" "Skill category resolves to a sync alias" "skipped" "no sync-skills.sh at $SYNC" "C3" "unavailable"
 fi
 
 # A1 — no time-sensitive content. Skips two false-positive shapes:

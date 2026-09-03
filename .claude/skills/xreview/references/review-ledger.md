@@ -76,6 +76,10 @@ OpenFindings: <integer>        (count of still-open findings)
 Convergence:  <unanimous | split>   (this round only, tokens only — a prior-round split that this round resolved + re-ratified is `unanimous`; never free prose)
 Blinded:      <yes | no>       (no downgrades confidence — say so in the Verdict)
 Dissenter:    <which lens held assigned dissent this round — required, never empty>
+Lenses:       <integer>        (how many lenses reported this round — 1 means a degenerate
+                                single-reviewer pass, and `Convergence: unanimous` over one
+                                lens corroborates nothing; the count makes that legible to a
+                                consumer that reads only the header)
 
 ## Routing
 - Slate: <lenses dispatched, each tagged domain / steward / dissenter (a lens may hold more than one — e.g. a steward also assigned the dissent)>
@@ -111,6 +115,7 @@ OpenFindings: <integer>
 Convergence:  <unanimous | split>
 Blinded:      <yes | no>
 Dissenter:    <lens — this round, required, never empty>
+Lenses:       <integer>
 
 ### Routing / Per-lens verdicts / Boundary findings / … (this round's sections)
 <the round's own Routing, Per-lens, Boundary, addenda, Rejected — parallel to Round 1>
@@ -159,6 +164,10 @@ as raised, who raised it, why it was rejected, and how that was verified (read t
 back if the finding is wrong — now recorded rather than transient).
 
 ## Convergence and dissenter
+
+`Lenses:` is **required**. `Convergence: unanimous` over `Lenses: 1` is a degenerate
+single-reviewer pass, which `SKILL.md` requires be labelled as such — the count puts that
+obligation in the contract instead of in prose no gate reads.
 
 `Convergence: unanimous | split` and `Blinded: yes | no` are **two separate lines** (two
 independent facts). A split is a finding, not a rounding error. An un-blinded review

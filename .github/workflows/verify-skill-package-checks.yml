@@ -16,6 +16,12 @@ on:
       - '.claude/skills/**'
       - 'scripts/tests/skill-package-checks.test.sh'
       - 'scripts/tests/block-baseline.txt'
+      # T1 (block) reads .gitignore and C3 reads sync-skills.sh, so an edit to
+      # either can move block findings across all 11 skills. Without these the
+      # differential gate would not run on the change that moved it.
+      - '.gitignore'
+      - 'scripts/sync-skills.sh'
+      - 'docs/xreview/**'
       - 'scripts/verify-ledger.sh'
       - '.xreview/**'
       - '.github/workflows/verify-skill-package-checks.yml'
@@ -35,3 +41,5 @@ jobs:
         run: ./scripts/tests/skill-package-checks.test.sh
       - name: Check every review ledger against the schema xreview ships
         run: ./scripts/verify-ledger.sh
+      - name: Regression suite for the ledger linter
+        run: ./scripts/tests/verify-ledger.test.sh

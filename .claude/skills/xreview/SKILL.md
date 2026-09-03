@@ -121,18 +121,16 @@ The slate is **routed, not re-derived by hand.** Apply the shared routing table
      lens cannot read `references/skill-package-rubric.md`, **HALT** — do not let it emit
      plausible-looking ids from memory. The ids are short and schematic (`D1`, `B2`, `S2`), so
      an unread rubric produces a review that looks cited and is not.
-   - **The rubric governs at the merge base.** When the diff under review edits the rubric, the
-     **orchestrator** materializes the merge-base revision of
-     `references/skill-package-rubric.md` **and `scripts/skill-package-checks.sh`** to disk and
-     briefs those paths — the script decides 26 of the 51 rules, so it is the rubric's other
-     half, and a diff that loosens a static check would otherwise be reviewed by running the
-     loosened check — never a `git show`
-     pointer, per Reachability in `references/reviewer-dispatch.md`; some lenses have no Bash.
-     The lens cites ids from that copy. The edit is **itself a finding**, recorded in the
-     ledger's routing section with a named justification and treated as correctness-grade until
-     it has one. This applies to the checker on the same terms as the rubric. Otherwise a change can weaken a rule and be reviewed under the
-     weakened rule in the same pass. This skill owning its own rubric is what makes that
-     reachable, so the rule is stated here rather than assumed.
+   - **The rubric governs at the merge base.** When the diff under review edits the rubric or
+     the checker, the **orchestrator** materializes the merge-base revision of
+     `references/skill-package-rubric.md` and `scripts/skill-package-checks.sh` to disk and
+     briefs those paths; the lens cites ids from that copy. Never hand it a `git show` pointer —
+     Reachability (`references/reviewer-dispatch.md`) applies, and some lenses have no Bash.
+     The checker is in scope because it decides 26 of the 51 rules, so a diff that loosens a
+     static check would otherwise be reviewed by running the loosened check. The edit is
+     **itself a finding**, recorded in the ledger's routing section with a named justification
+     and treated as correctness-grade until it has one. Without this, a change can weaken a
+     rule and be reviewed under the weakened rule in the same pass.
 5. **Assign the dissenter** (see The Four Rules / Step 3) and record it.
 
 The stewards report on their own axes (Idiom addendum / Prose addendum / per-lens RATIFY-DISSENT
@@ -220,7 +218,7 @@ Phrases that signal a rationalization is firing — in your reasoning or the use
 - "I'll review from the summary" / "I don't need the actual doc"
 - "It's just a typo in the skill" / "we've done dozens of these" — offered to demote a `skill-package` change to `mechanical` and drop the steward pin
 - "The rubric lens read it and it's fine" — a rubric verdict that names no rule id. The lens has no absence check, so an uncited verdict is the only way its pin fails silently. Re-dispatch it.
-- "P7 doesn't really apply here" / "the static rules all passed" — P7 is `block`. A `block` rule that did not run is an open finding, not a pass: report it `skipped` and DISSENT (`references/pressure-testing.md`).
+- "P7 doesn't really apply here" / "the static rules all passed" — P7 is `block`. A `block` rule that could not run is an open finding, not a pass: report it `skipped` and DISSENT (`references/pressure-testing.md`). This is about a rule whose subject exists and could not be reached (`skip_reason: unavailable`) — not one with no subject at all (`inapplicable`, e.g. `S1` on a skill with no `scripts/`), which is simply not a finding.
 
 **All of these mean: read the artifact, dispatch independent reviewers, require evidence per finding, or label the verdict honestly.**
 
