@@ -105,7 +105,7 @@ missing. The third is not a registry entry at all:
 
 **The rubric lens has no registry, so the *lens* has no absence check.** It is a brief:
 the orchestrator picks any capable reviewer and tells it to load this skill's own
-`references/skill-package-rubric.md`, optionally run `scripts/skill-package-checks.sh` for the
+`references/skill-package-rubric.md`, **runs** `scripts/skill-package-checks.sh` for the
 static rules, and return findings that **name rule ids**. The rubric ships with `/xreview`, so
 it cannot go missing the way a separate installed skill could — that dependency is exactly what
 the pre-cut wiring had, and it halted the review whenever an install lacked one.

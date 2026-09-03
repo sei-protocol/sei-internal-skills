@@ -75,7 +75,7 @@ Round:        2
 
 State:        OPEN
 OpenFindings: 3
-Convergence:  unanimous
+Convergence:  split
 Blinded:      yes
 Dissenter:    security-specialist
 Lenses:       5

@@ -91,7 +91,7 @@ Lenses:       <integer>        (how many lenses reported this round — 1 means 
 |---|---|---|---|
 | security-specialist | RATIFY | … cites contract/field/line … | n/a |
 | network-specialist  | DISSENT | … the strongest objection … | artifact updated @ <commit/section> OR accepted-risk: <stated> |
-| rubric lens         | RATIFY | rubric ids cited: T1 pass, S2 pass, C1 pass | n/a |
+| rubric lens         | RATIFY | rubric ids cited: T1 pass, S2 pass, C1 pass, D3 fail (warn), S4 skipped/inapplicable, **P7 pass (4 scenarios)** | n/a |
 
 ## Boundary findings  (the COMPATIBLE / MISMATCH / MISSING table — unchanged schema)
 | Interface / Boundary | Provider | Consumer | Status | Evidence | Raised by |
@@ -170,6 +170,11 @@ across a single reviewer is the consensus theater the assigned-dissent rule exis
 the field filled in — the lens agreeing with itself. `SKILL.md` already requires a single-reviewer
 pass be labelled "a degenerate xreview, not dressed up as a full one"; the token puts that
 obligation in the contract instead of in prose no gate reads.
+
+`Convergence:` is read off the per-lens verdicts **as the lenses issued them**. An orchestrator
+never restates a lens's verdict: a resolved finding is recorded against the standing `DISSENT`,
+and the verdict changes only when that lens is re-dispatched and says so itself. A round holding
+any `DISSENT` row is `split`, never `unanimous`.
 
 `Lenses:` is measured against the round's slate table, not self-reported: a round declaring N
 lenses must list N of them, and a round with no slate table can only honestly be one lens.

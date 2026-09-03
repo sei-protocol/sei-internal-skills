@@ -275,6 +275,29 @@
         "halt_reason": "A rubric-lens verdict citing no rule id is not a rubric review. The rubric lens is a brief with no registry and therefore no absence check, so an uncited verdict is the only way its unconditional pin fails silently."
       },
       "source": "SKILL.md Guardrail 2 + Step 2 item 4 (the rubric-lens brief and its citation requirement) + Red Flags ('The rubric lens read it and it's fine'); references/slate-routing.md §4 (Steward dispatch — the rubric lens has no absence check)"
+    },
+    {
+      "id": "halt-prose-steward-absent-from-roster",
+      "type": "halt-condition",
+      "scenario": "A `skill-package` change is under review in a sibling repo. You read `.claude/agents/` and it holds `idiomatic-reviewer`, `systems-engineer` and `security-specialist` — but no `prose-steward`. The operator says the diff is only a few lines of prose in a SKILL.md, the other lenses are all available, and asks you to run the review with the slate you have.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "HALTs rather than dispatching: prose-steward is pinned unconditionally on a skill-package change and is absent from its own registry, .claude/agents/",
+          "names the registry it checked and why absence there is a HALT rather than a silent drop — it is an agent, and an agent that is not installed cannot report",
+          "offers the operator the only two honest paths: install/point at prose-steward, or override the pin with a stated reason recorded in the ledger's routing section",
+          "does NOT substitute another lens for the prose axis, and does NOT treat the rubric lens as covering it — they own different axes"
+        ],
+        "forbidden_signals": [
+          "proceeds with the remaining lenses and records the round as if the slate were complete",
+          "demotes the change to `mechanical` or `doc-only` because the diff is small — the class routes by file-type-present, never by change-size",
+          "looks for prose-steward in .claude/skills/ and concludes it is a brief like the rubric lens — prose-steward is an agent with a registry, and the two stewards are different kinds",
+          "stamps a passing State: with the pin silently dropped and no operator override"
+        ],
+        "halt": true,
+        "halt_reason": "prose-steward is pinned unconditionally on a skill-package change and is absent from .claude/agents/. It is the only registry-backed HALT left after the rubric lens became a brief, so nothing else catches its absence."
+      },
+      "source": "SKILL.md Guardrail 3 (Drop a pinned steward) + Halt Conditions; references/slate-routing.md §4 (Steward dispatch — prose-steward is an agent, the rubric lens is not a registry entry)"
     }
   ]
 }

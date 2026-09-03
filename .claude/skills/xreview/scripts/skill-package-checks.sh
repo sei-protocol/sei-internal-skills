@@ -112,7 +112,7 @@ else
 fi
 
 # D2 — under 1024 chars
-if (( DESC_LEN <= 1024 )); then
+if (( DESC_LEN < 1024 )); then
   emit "D2" "block" "Description under 1024 chars" "pass" "$DESC_LEN chars" "D2"
 else
   emit "D2" "block" "Description under 1024 chars" "fail" "$DESC_LEN chars (over by $((DESC_LEN - 1024)))" "D2"
@@ -147,7 +147,7 @@ fi
 SKILL_MD_LINES=$(wc -l < "$SKILL_MD" | tr -d ' ')
 
 # B1 — under 500 lines
-if (( SKILL_MD_LINES <= 500 )); then
+if (( SKILL_MD_LINES < 500 )); then
   emit "B1" "block" "SKILL.md under 500 lines" "pass" "$SKILL_MD_LINES lines" "B1"
 else
   emit "B1" "block" "SKILL.md under 500 lines" "fail" "$SKILL_MD_LINES lines (over by $((SKILL_MD_LINES - 500)))" "B1"
@@ -445,7 +445,15 @@ else
   emit "A1" "warn" "No time-sensitive content" "pass" "" "A1"
 fi
 
-if grep -qE '\\\\\w+\\\\' "$SKILL_MD" 2>/dev/null; then
+# A single literal backslash before a path word. The old form required DOUBLED
+# backslashes, which a real Windows path never has, so A2 passed on `C:\Users\dev`.
+# References are scanned too — that is where a path example actually lands.
+A2_SCAN=("$SKILL_MD")
+if [[ -d "$SKILL_DIR/references" ]]; then
+  while IFS= read -r a2f; do A2_SCAN+=("$a2f"); done < <(
+    { find "$SKILL_DIR/references" -name '*.md' 2>/dev/null || true; })
+fi
+if grep -qE '[A-Za-z]:\\[A-Za-z]|\\[A-Za-z][A-Za-z0-9_.-]{2,}\\[A-Za-z]' "${A2_SCAN[@]}" 2>/dev/null; then
   emit "A2" "warn" "No Windows-style paths" "fail" "backslash-separated path patterns found" "A2"
 else
   emit "A2" "warn" "No Windows-style paths" "pass" "" "A2"

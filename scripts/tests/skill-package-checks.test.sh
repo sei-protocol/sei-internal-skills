@@ -173,6 +173,49 @@ print(m[0]['result'], m[0].get('skip_reason')) if m else print('ABSENT none')")"
     || no "$id in a sibling repo: got '$r', wanted 'skipped unavailable'"
 done
 
+echo "rules that could never fail, now can"
+# A2 required DOUBLED backslashes, which a real Windows path never has, so it
+# passed on every skill regardless of content. "A rule nobody can fail is not a rule."
+a2probe="$TMP/a2"; mkdir -p "$a2probe/state" "$a2probe/references"
+printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\ncategory: workflow\n---\n# x\n' > "$a2probe/SKILL.md"
+a2() { "$CHECKS" --skill-dir "$a2probe" 2>/dev/null | grep '^{' | python3 -c "
+import sys,json
+b=[json.loads(l) for l in sys.stdin]
+print([x['result'] for x in b if x['catalog_ref']=='A2'][0])"; }
+printf 'Open C:\\Users\\dev\\project.txt\n' > "$a2probe/references/w.md"
+[ "$(a2)" = "fail" ] && ok "A2 fires on a drive-letter path in references/" || no "A2 missed C:\\Users\\dev"
+printf 'Use \\\\server\\share\\file.txt\n' > "$a2probe/references/w.md"
+[ "$(a2)" = "fail" ] && ok "A2 fires on a UNC path" || no "A2 missed a UNC path"
+# jq format strings are single-char escapes, not paths. A2 must not fire on them.
+printf 'jq -r "\\(.metadata.name)\\t\\(.status)"\n' > "$a2probe/references/w.md"
+[ "$(a2)" = "pass" ] && ok "A2 does not fire on a jq format string" || no "A2 false-positives on jq escapes"
+printf 'A clean a/posix/path and a `--flag`.\n' > "$a2probe/references/w.md"
+[ "$(a2)" = "pass" ] && ok "A2 passes clean prose" || no "A2 false-positives on clean prose"
+
+# B1 and D2 are stated strictly-under in the rubric; the checker admitted equality,
+# so a body at exactly the ceiling passed a block rule stated as "under".
+bprobe="$TMP/b1"; mkdir -p "$bprobe/state"
+{ printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\ncategory: workflow\n---\n'
+  i=1; while [ $i -le 495 ]; do echo "line $i"; i=$((i+1)); done; } > "$bprobe/SKILL.md"
+n_lines=$(wc -l < "$bprobe/SKILL.md" | tr -d ' ')
+b1() { "$CHECKS" --skill-dir "$bprobe" 2>/dev/null | grep '^{' | python3 -c "
+import sys,json
+b=[json.loads(l) for l in sys.stdin]
+print([x['result'] for x in b if x['catalog_ref']=='B1'][0])"; }
+# The fixture must be EXACTLY 500. At 501 the case passes under `<=` too, and the
+# assertion proves nothing — assert the count before asserting the verdict.
+if [ "$n_lines" -ne 500 ]; then
+  no "B1 boundary fixture is $n_lines lines, not 500 — the case cannot test the boundary"
+elif [ "$(b1)" = "fail" ]; then ok "B1 fails at exactly 500 lines (rubric says under 500)"
+else no "B1 passed at exactly 500 lines; the rubric states strictly-under"; fi
+# Rebuild at 499 rather than trimming: wc -l counts newlines, so an in-place
+# delete can leave the count where it was.
+{ printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\ncategory: workflow\n---\n'
+  i=1; while [ $i -le 494 ]; do echo "line $i"; i=$((i+1)); done; } > "$bprobe/SKILL.md"
+n_lines=$(wc -l < "$bprobe/SKILL.md" | tr -d ' ')
+[ "$n_lines" -eq 499 ] && [ "$(b1)" = "pass" ] && ok "B1 passes at 499 lines" \
+  || no "B1 at $n_lines lines: got $(b1), wanted pass at 499"
+
 echo "a flag with no value is a usage error, not a crash"
 out="$("$CHECKS" --skill-dir 2>&1)"; rc=$?
 if [ "$rc" -ne 0 ] && printf '%s' "$out" | grep -q 'needs a value'; then

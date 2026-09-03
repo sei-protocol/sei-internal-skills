@@ -109,7 +109,7 @@ for f in "${files[@]}"; do
   # round boundaries: file-wide, round 1's citation satisfied round 4, and a
   # positional State/OpenFindings pairing named the wrong round's numbers.
   last_round=$(grep -oE '^Round:[[:space:]]+[0-9]+' "$f" | grep -oE '[0-9]+' | sort -n | tail -1)
-  while IFS='|' read -r rnd cls lenses slate has_row ids st n cnv; do
+  while IFS='|' read -r rnd cls lenses slate has_row ids st n cnv dissents; do
     [[ -z "$rnd" ]] && continue
 
     if [[ "$slate" == "none" ]]; then
@@ -126,6 +126,13 @@ for f in "${files[@]}"; do
         { [[ "$n" =~ ^[0-9]+$ ]] && [[ "$n" -ge 1 ]]; } \
           || err "CONTRADICTION" "$rel  round $rnd: State: OPEN-BLOCKED requires OpenFindings >= 1, found '$n'" ;;
     esac
+    # A verdict is the lens's to give. An orchestrator that fixes what a lens
+    # objected to closes the finding, not the verdict — so a round still holding a
+    # DISSENT row cannot read `unanimous`. Without this the rule is prose, and the
+    # substitution is tempting precisely because the fix is real by then.
+    if [[ "${dissents:-0}" -gt 0 && "$cnv" == "unanimous" ]]; then
+      err "REVISED-VERDICT" "$rel  round $rnd declares Convergence: unanimous with $dissents DISSENT row(s) — a verdict changes only when its lens is re-dispatched and says so"
+    fi
     if [[ "$lenses" == "1" && "$cnv" != "degenerate" ]]; then
       err "UNDECLARED-DEGENERATE" "$rel  round $rnd has Lenses: 1 but Convergence: $cnv — a single-reviewer pass is 'degenerate', not unanimity"
     fi
@@ -147,9 +154,9 @@ for f in "${files[@]}"; do
   done < <(awk '
     function flush() {
       if (rnd != "")
-        printf "%s|%s|%s|%s|%s|%s|%s|%s|%s\n", rnd, (rcls != "" ? rcls : fcls), lenses,
-               (sawtable ? nrows : "none"), (haslens ? "yes" : "no"), ids, state, openf, conv
-      rcls=""; lenses=""; nrows=0; sawtable=0; intable=0; haslens=0; ids=""; state=""; openf=""; conv=""
+        printf "%s|%s|%s|%s|%s|%s|%s|%s|%s|%s\n", rnd, (rcls != "" ? rcls : fcls), lenses,
+               (sawtable ? nrows : "none"), (haslens ? "yes" : "no"), ids, state, openf, conv, ndis
+      rcls=""; lenses=""; nrows=0; sawtable=0; intable=0; haslens=0; ids=""; state=""; openf=""; conv=""; ndis=0
     }
     /^Class:[ \t]+/          { if (rnd == "") fcls=$2; else rcls=$2; next }
     /^## Round[ \t]+[0-9]+/  { flush(); rnd=$3; next }
@@ -161,6 +168,7 @@ for f in "${files[@]}"; do
     intable && /^\|[ \t]*-+/ { next }
     intable && /^\|/ {
       nrows++
+      if ($0 ~ /DISSENT/ && $0 !~ /RATIFY/) ndis++
       if ($0 ~ /^\|[ \t]*`?(the )?rubric lens`?[ \t]*\|/) {
         haslens=1; line=$0
         while (match(line, /[A-Z][0-9]+/)) {

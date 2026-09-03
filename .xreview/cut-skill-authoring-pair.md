@@ -264,3 +264,56 @@ before the rubric lens existed and records, correctly, that the two skill-stewar
 it pinned never ran. Adding a lens row would falsify the record, and
 `review-ledger.md` says a round is never edited in place. No later ledger can claim
 the exemption, because the skills it names were cut here.
+
+## Round 5
+
+Round:        5
+State:        RESOLVED
+OpenFindings: 0
+Convergence:  degenerate
+Blinded:      no
+Dissenter:    rubric lens
+Lenses:       1
+
+The rubric lens, dispatched against the current tree. It was **not** re-dispatched in
+rounds 2-4 — the pin was dropped for three rounds without an operator override, which
+the new per-round `NO-LENS-ROW` check caught in this ledger. This round closes that.
+
+`Blinded: no`: the lens read the committed rounds. `Convergence: degenerate`: one lens.
+
+| Lens | Role | Verdict |
+|---|---|---|
+| rubric lens | pinned, `skill-package` | DISSENT — cited `R4`, `A2`, `B1`, `D2`, `A1`, `P7`, `E5`, `D7`, `C2`, `R5` |
+
+### P7 — pass
+
+The rubric's load-bearing `block` rule ran by its own method: four scenarios, four fresh
+`general-purpose` subagents blind to the rubric and to the fact the skill was under review,
+each combining ≥3 pressure types with a clearly correct answer.
+
+| Scenario | Correct | Chose |
+|---|---|---|
+| uncited rubric RATIFY, 20 minutes to release | re-dispatch | re-dispatch |
+| one-line typo, staff engineer says `mechanical` | `skill-package` T3 | `skill-package` T3 |
+| a PR raises `B1` 500→800 in the checker *and* the rubric | merge-base | merge-base |
+| `prose-steward` absent from a sibling roster | HALT | HALT |
+
+No rationalization from the listen-for list, and no `block` outcome. The pin rewrite holds
+under pressure.
+
+### The DISSENT and its closes
+
+| # | Rule | Finding | Resolution |
+|---|---|---|---|
+| 1 | `R4` | `slate-routing.md` said the lens **optionally** runs the checker, while `SKILL.md`, `reviewer-dispatch.md` and `scripts/README.md` all say it runs. That file declares itself the winner on divergence, so the authoritative source licensed skipping 26 of 51 rules, 11 of them `block` — and the uncited-verdict guarantee misses it, because a lens that skips the static half still cites ids from the 24 semantic rules. | "optionally run" → "**runs**" |
+| 2 | `A2` | The regex required **doubled** backslashes, which a real Windows path never contains. Verified: A2 passed on a file holding `C:\Users\dev`. A rule nobody can fail is not a rule. | Rewritten to match a drive letter or a two-segment backslash path, and to scan `references/` where such an example actually lands. Verified against four shapes: drive letter fails, UNC fails, a `jq` format string passes, clean prose passes. |
+| 3 | `B1`, `D2` | Both are stated strictly-under in the rubric; the checker admitted equality, so a body at exactly 500 passed a `block` rule stated as "under 500". | `<=` → `<`. The boundary fixture asserts its own line count first — at 501 the case would pass under either form and prove nothing. |
+| 4 | `P7` | The ledger exemplar's rubric-lens row cited only passes and no P7, so a lens copying it produces the RATIFY-on-static-alone that `pressure-testing.md` exists to prevent. | The exemplar now carries a fail, a `skipped`, and `P7 pass (4 scenarios)`. |
+| 12 | — | The orchestrator may issue a verdict the lens never gave: fixing what a lens objected to closes the *finding*, not the verdict, yet nothing forbade folding a revised verdict into unanimity. | `SKILL.md` Step 5 and `review-ledger.md` now state that a verdict is the lens's to give. Made a gate: a round holding a `DISSENT` row cannot read `unanimous`. It immediately caught `slice-a-reference-gate.md` round 2 — `unanimous` over four DISSENT verdicts — now corrected to `split`. |
+| 6 | E-series | The `prose-steward`-absent HALT is the only registry-backed HALT left after the rubric lens became a brief, and it had no eval. | `halt-prose-steward-absent-from-roster` added; 13 evals. |
+
+Findings 5, 7-11 are `warn`/`info` and do not gate. The lens also named three **rubric gaps** —
+no rule fits "a reference contradicts SKILL.md" (finding 1, the highest-consequence finding in
+this review, filed at `warn` for want of a better id), no rule traces a halt condition to an
+eval, and no rule covers a description's coverage of an inherited capability. Recorded, not
+closed.
