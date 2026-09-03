@@ -5,7 +5,7 @@
 > `source` — and a rule whose terms are defined nowhere cannot be applied. The authoring
 > workflow around it did not survive; this is the schema alone.
 
-Every skill ships with at least two evals: one happy-path and one halt-condition. A pressure scenario from `references/pressure-testing.md` converts directly — they're already the test cases.
+Every skill ships with at least two evals: one happy-path and one halt-condition. A pressure scenario from `references/pressure-testing.md` converts directly — they are already the test cases.
 
 ## File location
 

@@ -14,7 +14,7 @@ The engineering principles, the output discipline (incl. the comment and documen
 
 ## Authoring & Maintaining Skills
 
-- **New skill:** read `.claude/skills/SKILL-TEMPLATE.md`, then the rubric at `.claude/skills/xreview/references/skill-package-rubric.md`. Draft the guardrails stanza first — if you can't articulate what the skill refuses to do, it isn't ready.
+- **New skill:** read `.claude/skills/SKILL-TEMPLATE.md`, then the rubric at `.claude/skills/xreview/references/skill-package-rubric.md`. Draft the guardrails stanza first — if you cannot articulate what the skill refuses to do, it is not ready.
 - **Audit a skill:** review it against `.claude/skills/xreview/references/skill-package-rubric.md` and run `.claude/skills/xreview/scripts/skill-package-checks.sh --skill-dir <path>`. The finding lands in the `/xreview` ledger like any other per-lens verdict — there is no separate audit-report format; that left with the cut skills.
 - **Sync out:** `make sync-skills` / `make sync-agents` push portable updates to user-scope; pass `--target <repo>` for sibling repos.
 - **Output styles:** `.claude/output-styles/` holds response-format styles (currently `asd-ste100.md`). `make update` ships them into `~/.claude/output-styles/` but never activates one — activation is a per-user `outputStyle` setting, deliberately left to the user. A style governs how replies are written; that is a separate layer from a skill (knowledge) or an agent (persona).

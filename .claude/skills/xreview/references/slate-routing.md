@@ -65,8 +65,8 @@ reviewer who can judge it). When in doubt, **T2**.
 
 **The mechanical-equivalent carve-out is `doc-only` ONLY.** A `skill-package` change has **no
 triviality exemption** — it routes by **file-type-present, not change-size**: a one-line typo in
-a `.claude/` skill body is still `skill-package` (T3, floor T2, prose + rubric pinned). "It's
-just a typo in a skill" does **not** demote it to `mechanical`. The *classification* keys off
+a `.claude/` skill body is still `skill-package` (T3, floor T2, prose + rubric pinned). <!-- vale off -->"It's
+just a typo in a skill"<!-- vale on --> does **not** demote it to `mechanical`. The *classification* keys off
 *what kind of file changed* (a `.claude/` skill body present → `skill-package`), not how many
 lines; the prose + rubric-lens pin then follows from that class **unconditionally** — a skill is
 prose and an authored artifact whether the diff is one line or a hundred. Dropping the
@@ -97,7 +97,7 @@ change can pull a steward without that steward owning a boundary):
 The stewards are **not all the same kind of artifact**. Two are registry entries that can be
 missing. The third is not a registry entry at all:
 
-| Steward | Kind | Where it comes from | How it's dispatched | Can it be absent? |
+| Steward | Kind | Where it comes from | How it is dispatched | Can it be absent? |
 |---|---|---|---|---|
 | `prose-steward` | **agent** (self-contained) | `.claude/agents/` | dispatched as a subagent | yes → HALT |
 | `idiomatic-reviewer` | **agent** (backed by `/idiomatic`) | `.claude/agents/` | dispatched as a subagent | yes → HALT when pinned |

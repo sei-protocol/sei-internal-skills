@@ -198,6 +198,11 @@ Merge the independent reviews into one de-duplicated boundary table inside the l
 
 ## Rationalization Table
 
+<!-- vale off -->
+<!-- The left column and the Red Flags below are verbatim phrasings — what the
+     rationalization actually sounds like. An agent matches its own wording against
+     them, so normalizing the contractions would blunt the recognition. -->
+
 Documented failure modes during xreview. When your own reasoning aligns with the left column, **stop**. The right column is the reframe. (Citations in `references/findings-protocol.md`.)
 
 | Excuse | Reality |
@@ -230,6 +235,8 @@ Phrases that signal a rationalization is firing — in your reasoning or the use
 - "P7 doesn't really apply here" / "the static rules all passed" — P7 is `block`. A `block` rule that could not run is an open finding, not a pass: report it `skipped` and DISSENT (`references/pressure-testing.md`). This is about a rule whose subject exists and could not be reached (`skip_reason: unavailable`) — not one with no subject at all (`inapplicable`, e.g. `S1` on a skill with no `scripts/`), which is simply not a finding.
 
 **All of these mean: read the artifact, dispatch independent reviewers, require evidence per finding, or label the verdict honestly.**
+
+<!-- vale on -->
 
 ## Halt Conditions
 

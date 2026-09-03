@@ -76,6 +76,6 @@ Three conditions on what comes back:
 - **One brief, all reviewers, shared thread.** They'll anchor on whoever answers first.
 - **Skipping the dissenter** because "everyone will probably agree." That's the prediction the dissenter exists to test.
 - **Briefing "take a look"** instead of the structured, evidence-demanding brief above. Vague briefs produce vague approvals.
-- **Accepting a rubric-lens verdict with no rule ids.** "It read the rubric and it's fine" is the bare approval this contract rejects, wearing a steward's name.
+- **Accepting a rubric-lens verdict with no rule ids.** <!-- vale off -->"It read the rubric and it's fine"<!-- vale on --> is the bare approval this contract rejects, wearing a steward's name.
 - **Manufacturing reviewers** to look thorough. If one specialist genuinely covers the surface, run a single-reviewer pass and label it as such.
 - **A `gh`/`git`/shell pointer handed to a Read-only reviewer.** `prose-steward` (Read/Grep/Glob, no Bash) can't run it — the review halts or fabricates. Materialize the artifact to disk and brief the path.
