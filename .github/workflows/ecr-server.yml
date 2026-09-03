@@ -93,9 +93,13 @@ jobs:
           # Mirrors verify-agent-bundles.yml. The prefix matters as much as the
           # count: a swap that keeps eight skills would otherwise pass here while
           # breaking the Spec Kit contract, so both gates assert the same thing.
+          # root-cause is skills: none deliberately -- it is auto-approving and
+          # headless, so host-skill discovery would put ~/.claude/skills in its
+          # reach. Do not "fix" this back to "all" when the gate trips; check the
+          # bundle's own comment first.
           EXPECT = {
               "sei-spec":   ("none", 8, "speckit-"),
-              "root-cause": ("all",  1, None),
+              "root-cause": ("none", 1, None),
               "xreview-scout-codex": ("none", 0, None),
           }
           root = Path("/opt/sei-omnigent/agents")
