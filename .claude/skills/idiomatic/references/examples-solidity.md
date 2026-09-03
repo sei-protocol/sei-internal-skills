@@ -193,19 +193,3 @@ mapping(address => uint256) private balances;
 Basis: SWC-108; Style Guide. Anchor (observed): `solhint` → `Explicitly mark visibility of state` (`state-visibility`, recommended/warn).
 
 ---
-
-## Comments (S11 — mostly judgment-only)
-
-### S11 · What-comment / tombstone — judgment-only
-A comment restating the next line, or narrating what was removed, earns no place.
-
-```solidity
-// bad
-total = total + 1; // increment total
-// removed onlyAdmin guard (PR-42): the router enforces it now
-```
-```solidity
-// good — delete both; a deletion gets no tombstone (no security-context exception)
-total = total + 1;
-```
-Basis: pack S11; §4 (Tombstone / What-comment). Anchor: **none — judgment-only** (no Solidity linter detects narrative or tombstone comments; `solhint no-console` only catches leftover `console.log` debug statements).

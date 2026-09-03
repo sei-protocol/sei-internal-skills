@@ -13,14 +13,25 @@ This package consumes portable Claude Code skills and specialist agents authored
 ### Output discipline
 
 - **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the component in scope.
-- **Comments & documentation.** Present-state only — never change/history/why-removed inline (that belongs in the PR/commit); sparingly; top-located (package/file/type doc, not the body); comprehensive context in one centralized doc. Champions: `idiomatic-reviewer` owns in-source comments + config annotations (`/idiomatic`); `prose-steward` owns doc artifacts + header-doc prose. The full rules live in `/idiomatic`; the boundary table between the two is in its `references/comment-discipline.md`.
+- **Comments & documentation.** Present-state only — never change/history/why-removed
+  inline; that belongs in the commit or the pull request. Top-located: package, file or
+  type documentation, not the body. **An in-body comment runs to 4 lines or fewer. A
+  file or package header runs to 20 or fewer.** Those two numbers are the rule; "sparingly"
+  is not checkable and a bound that cannot be violated knowingly is not a bound.
+  *No gate checks either number.* They are stated and recorded as uncheckable rather than
+  implied to be enforced.
+- **PR bodies and in-code prose.** Conclusion first (BLUF). Cut a sentence whose removal
+  changes nothing a reviewer would do next. Open on the load-bearing noun, never a wind-up.
+  Make every verb do work — no "serves to", "aims to", "is responsible for", "allows us
+  to". Collapse hedges. Do not restate a name a signature already carries: delete the
+  comment rather than shorten it. Prefer one concrete example over one paragraph. Treat a
+  heading as a budget, not a structure tax.
 
 ### Using the skills
 
 - **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to producing the work.
 - **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
 - **`/idiomatic`** and **`/systems`** — review code for language/package idiom, then for systems-level quality on top. Idiom ⊂ systems quality; run them in that order.
-- **`/pr-quality`** — the locked pre-PR rule gate. **`/brevity`** — tighten a PR body.
 
 Further workflow skills — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — are **experimental** and ship only on opt-in (`make sync-experimental`). Use them when they are installed; never assume they are.
 

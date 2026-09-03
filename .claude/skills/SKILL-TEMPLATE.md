@@ -51,7 +51,8 @@ Description crafting is the highest-leverage work in a skill — it's the only t
 
 - **Triggers** — exact phrases a user would say. Not synonyms, not intent-level paraphrases. The runtime matches on the text.
 - **Anti-triggers** — "NOT for production clusters", "SKIP if X", "do NOT use when Y". Prevent over-matching.
-- **Redirects** — "for single-test runs, use /chaos-single". Pushes adjacent intents to the right tool.
+<!-- gap: /example-skill — a placeholder in this template, not a citation. -->
+- **Redirects** — "for single-test runs, use /example-skill". Pushes adjacent intents to the right tool.
 
 ### 2. Guardrails Stanza (first section after the title)
 

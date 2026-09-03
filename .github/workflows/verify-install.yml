@@ -12,7 +12,7 @@ on:
       - 'scripts/install.sh'
       - 'scripts/tests/install.test.sh'
       - 'Makefile'
-      # The suite resolves live resources by name — xreview, brevity,
+      # The suite resolves live resources by name — xreview,
       # idiomatic-reviewer, project-brief, sei-interview-expert — to prove the
       # core/experimental lookup works against the real tree. Renaming, parking
       # or retiring one of those breaks the suite, so the gate must run when

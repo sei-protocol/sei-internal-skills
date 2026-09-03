@@ -20,7 +20,7 @@ This skill operates on **`<repo>/.claude/skills/<name>/`** (or `~/.claude/skills
 1. **Audit-only is the default.** No edits are made unless the user passes `--apply` (or confirms after viewing findings).
 2. **Diff-before-write.** When `--apply` is on, every proposed change is shown as a unified diff and requires explicit confirmation. No silent edits.
 3. **Append-only evals.** Refactor pass *appends* surviving pressure scenarios to `evals/evals.json` — it never overwrites existing entries.
-4. **Protected-list policy.** Canonical workflow skills (coral, council, design, issue, bugbash, author-skill, audit-skill itself, chaos-suite, harbor-dev) are auditable freely. Refactor requires `--override-protected` plus a separate confirmation gate.
+4. **Protected-list policy.** Canonical workflow skills (coral, council, design, issue, bugbash, author-skill, audit-skill itself, harbor-dev) are auditable freely. Refactor requires `--override-protected` plus a separate confirmation gate.
 5. **Refusal conditions** — this skill refuses to run if:
    - The target skill directory does not exist or has no `SKILL.md`.
    - `--apply` was passed without a prior audit-only pass on the same skill in this session (no skipping straight to edits).

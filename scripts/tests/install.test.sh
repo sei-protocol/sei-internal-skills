@@ -176,8 +176,8 @@ grep_out "usage explains the default mode" "no arguments" "$scratch/u" -h
 echo "the PIPED invocation works — that is the documented one"
 t="$scratch/pipe"
 piped() { cat "$GET" | SEI_INTERNAL_SKILLS_HOME="$REPO" SEI_SKILLS_TARGET="$t" bash -s -- "$@"; }
-check "piped fetch exits 0"       piped skill brevity
-check "piped fetch landed"        test -f "$t/.claude/skills/brevity/SKILL.md"
+check "piped fetch exits 0"       piped skill xreview
+check "piped fetch landed"        test -f "$t/.claude/skills/xreview/SKILL.md"
 check "piped usage exits 0"       piped -h
 u="$(piped -h 2>&1)"
 if [[ "$u" == *"No such file or directory"* ]]; then no "piped usage does not grep \$0"; else ok "piped usage does not grep \$0"; fi

@@ -2,7 +2,7 @@
 name: xreview
 category: workflow
 model: claude-opus-5
-description: "Use when an orchestrator has produced or gathered engineering work — a design, plan, diff, or set of specialist outputs — and wants the relevant specialists to INDEPENDENTLY review it for consistency, gaps, and interface mismatches — 'xreview this', 'cross review', 'have the experts xreview this', 'check this design for consistency across components', 'review these specialist outputs against each other', '/xreview'. The review counterpart to producing work with /coral; /coral offers it at synthesis and /council invokes it as its review phase. Anti-triggers: NOT for producing or iterating work with experts (use /coral); NOT for full-ceremony multi-component design (use /council — it dispatches this as its review phase); NOT for adversarial pre-launch hardening (use /bugbash); NOT for line-level diff correctness (use /code-review); NOT for capturing a finished design (use /design); NOT for incident investigation (use /root-cause)."
+description: "Use when an orchestrator has produced or gathered engineering work — a design, plan, diff, or set of specialist outputs — and wants the relevant specialists to INDEPENDENTLY review it for consistency, gaps, and interface mismatches — 'xreview this', 'cross review', 'have the experts xreview this', 'check this design for consistency across components', 'review these specialist outputs against each other', '/xreview'. The review counterpart to producing work with /coral; /coral offers it at synthesis and /council invokes it as its review phase. Anti-triggers: NOT for producing or iterating work with experts (use /coral); NOT for full-ceremony multi-component design (use /council — it dispatches this as its review phase); NOT for adversarial pre-launch hardening (use /bugbash); NOT for line-level diff correctness; NOT for capturing a finished design (use /design); NOT for incident investigation (use /root-cause)."
 ---
 
 # xreview
@@ -222,6 +222,7 @@ Stop and report to the user if:
 
 - **`/coral`** produces work with specialists, then *offers* `/xreview` at synthesis when outputs touch a shared boundary. Coral builds; xreview checks.
 - **`/council`** runs xreview as a distinct phase of its scope-tier process by invoking this skill — it does not perform xreview itself.
+<!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
 - **`/code-review`** is line-level diff correctness; **`/bugbash`** is adversarial hardening of a running system; **`/root-cause`** is incident investigation. xreview is consistency review of a produced artifact across the specialists who own its boundaries.
 - **`idiomatic-reviewer`** (the `/idiomatic` skill) is the **idiom-conformance** lens — does the code read native to its language, framework, and the package's documented patterns. It's a distinct axis from boundary consistency: xreview dispatches it as part of the slate when code is under review, and its findings ride in the Idiom addendum (correctness-grade blocks; style is advisory). It reviews idiom; it does not author the system or check boundaries.
 

@@ -25,7 +25,7 @@ carries the "tx-correctness not validated" caveat inline.
   (prod `thanos-query` fans out to harbor). Live-confirmed names:
   `tendermint_consensus_height`, `tendermint_consensus_block_interval_seconds_bucket`,
   `sei_cosmos_throughput_transaction_count`, `tendermint_mempool_size`. Forced to
-  raw resolution (`max_source_resolution=0`). NOT the prod-scoped chaos-suite
+  raw resolution (`max_source_resolution=0`). NOT the prod-scoped chaos
   recording rules (empty for harbor). Series are **ephemeral** — every query is
   time-scoped to the run window, never instant-now. The chaos release signals are
   **halt + block-interval**; `sei_cosmos_throughput_transaction_count` and

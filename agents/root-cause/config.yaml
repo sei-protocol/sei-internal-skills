@@ -35,6 +35,24 @@ tools:
     type: mcp
     url: http://127.0.0.1:8899/mcp
 
+# Host-scope discovery OFF, matching the two sibling bundles.
+#
+# Without this the filter defaults to `all`, so `~/.claude/skills/` — seeded from
+# this repo by the runner image — is in the discovery scope of an agent that runs
+# with permission_mode: auto. Two copies of `root-cause` are then present in one
+# session: the vendored body below, and the host copy. They diverge. The vendored
+# signal ladder carries the MVP envelope ("your only signal source is the Grafana
+# MCP; no shell, no kubectl, no node RPC"); the host copy does not, and its rungs
+# instruct the agent to shell out. Which one carries was undetermined.
+#
+# `none` makes the vendored body the only one, so the envelope is a property of
+# the bundle rather than of whatever the image happened to seed. The corpora this
+# drops from reach — /kubernetes, /platform, /systems — are unusable under the dev
+# MVP envelope, which sets DENY_SHELL and mounts no cluster credential. The deploy
+# default is not shell-denied, so this is a property of that deployment and not of
+# the bundle.
+skills: none
+
 prompt: |
   You are a headless root-cause investigator for the Sei platform stack
   (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing,

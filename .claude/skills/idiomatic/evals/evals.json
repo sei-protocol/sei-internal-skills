@@ -98,27 +98,6 @@
       "source": "audit pressure scenario (profile-skip under exhaustion) \u2014 the reviewer flagged the new \"Degraded\" phase as a one-way door for human sign-off; converted to the halt-condition eval (closes audit finding E2)."
     },
     {
-      "id": "comment-discipline-history-and-what-comments",
-      "type": "adversarial",
-      "scenario": "Idiomatic review of a Go function carrying four comments: (a) `// we used to apply the StatefulSet before the PVC, but that raced on first boot so the order was flipped` above the PVC step; (b) `// increment the retry counter` above `attempt++`; (c) a block of commented-out old code; (d) `// MergeFromWithOptimisticLock: a stale reconcile must not clobber a fresher plan` above the patch base. The package also has a conforming doc.go.",
-      "skill_loaded": true,
-      "expected": {
-        "compliance_signals": [
-          "flags (a) as a changelog/history comment \u2014 the rationale belongs in the PR/commit, not the source (D10)",
-          "flags (b) as a what-comment restating the code (D10)",
-          "flags (c) commented-out code for deletion (version control has it)",
-          "does NOT flag (d) \u2014 a genuine why/invariant comment that names can't convey",
-          "does NOT flag the doc.go \u2014 the sanctioned structural exception"
-        ],
-        "forbidden_signals": [
-          "flags the legitimate why-comment (d) or the doc.go as noise",
-          "treats comment findings as correctness-grade rather than style",
-          "recommends adding explanatory comments to 'improve' self-evident code"
-        ]
-      },
-      "source": "User comment-discipline standard \u2014 comments are a rare exception; names carry intent; no historical reasoning in code. Guards both the catch (history/what-comments) and the false-positive boundary (legitimate why-comment + doc.go)."
-    },
-    {
       "id": "learning-go-shadowed-err-and-slice-aliasing",
       "type": "adversarial",
       "scenario": "Idiomatic review of a Go function: it declares `err` at the top, then inside an `if` block does `if data, err := load(); err != nil { return err }` (a `:=` that shadows the outer err), and it hands a sub-slice `buf[:n]` to a helper that appends to it while the caller keeps using `buf`. Both compile and pass a happy-path test.",
@@ -178,26 +157,6 @@
         ]
       },
       "source": "sei-chain consensus-policy refactor (Masih's review lens) \u2014 RED at the pre-codification pack MISSED the observability-field leak (even recommended keeping the field); PASSED after codifying the concern-layering divergence + observability-field anti-pattern (GREEN)."
-    },
-    {
-      "id": "tombstone-comment-not-excused-as-security-context",
-      "type": "adversarial",
-      "scenario": "Idiomatic review of a controller RBAC change. The PR removes the `configmaps` resource from the manager Role (leader election moved to the coordination.k8s.io Lease lock). At the now-empty site the author left a comment, framing it as security-relevant context:\n\n// configmaps removed (PLT-471): leader election uses the Lease lock, not a configmap lock,\n// so the manager no longer needs configmaps access \u2014 closing it protects the trust root.\n- apiGroups: [\"coordination.k8s.io\"]\n  resources: [\"leases\"]\n  verbs: [\"get\", \"create\", \"update\"]\n\nThe author argues the comment is load-bearing context for a security-relevant deletion and should stay. Is keeping this comment idiomatic?",
-      "skill_loaded": true,
-      "expected": {
-        "compliance_signals": [
-          "flags the comment as a tombstone / removal-narration comment to delete \u2014 its subject is what was removed and why, which belongs in the PR/commit (D10)",
-          "explicitly refutes the 'load-bearing context for a security-relevant deletion' excuse \u2014 the security rationale lives in the PR/commit (and, if it must be enforced, a test or admission policy), not in a comment the next reader mistakes for current intent",
-          "names that there is no deletion exception to D10 \u2014 a deletion gets no tombstone, period, regardless of security framing",
-          "at most blesses a residual comment whose subject is CURRENT intent (e.g. 'leader election uses the Lease lock') only if it independently earns its place \u2014 never one narrating the removal"
-        ],
-        "forbidden_signals": [
-          "keeps the comment because it is 'slightly verbose but load-bearing context for a security-relevant deletion'",
-          "treats the security framing as an exception that exempts the tombstone from D10",
-          "verdicts the comment idiomatic / leaves it as-is"
-        ]
-      },
-      "source": "PLT-471 false-negative \u2014 idiomatic-reviewer excused this exact `configmaps removed` tombstone as 'load-bearing context for a security-relevant deletion, so I'd keep it' (sei-internal-skills #147). The sharpened D10 (no deletion exception) must flag it as a tombstone to delete and refute the context excuse."
     },
     {
       "id": "lint-anchor-cited-from-pack-not-fabricated",
@@ -378,27 +337,6 @@
         ]
       },
       "source": "TS kit \u2014 \u00a77 false-positive guard: judgment-only TS dimensions (type-vs-interface choice, discriminated-union design, default-export dogma, enum-vs-union, naming taste, the no-tombstone rule, Error-taxonomy design) must be flagged on prose and marked as having no built-in checkable rule, never given a fabricated typescript-eslint rule."
-    },
-    {
-      "id": "comment-discipline-own-change-rationale-routed-not-kept",
-      "type": "adversarial",
-      "scenario": "Idiomatic review of a one-line config diff the author just wrote, under pressure to leave a trail: a SeiNode role values file flips `sc-async-commit-buffer: 0` to `100`, and the diff also adds, on the line above, an annotation `# bumped 0\u2192100 to fix the StateChannel-drop stall under sync commit (PLT-537); do not set back to 0`. The author asks the reviewer to keep the note so 'the next person knows why we changed it and doesn't revert it.'",
-      "skill_loaded": true,
-      "expected": {
-        "compliance_signals": [
-          "flags the annotation as change-rationale + history in a config file \u2014 the why-we-changed-it and the PLT-537 ticket belong in the PR/commit, not the rendered config (comment-discipline rule 1: present state only)",
-          "flags the `do not set back to 0` half as a regression-guard-as-comment \u2014 routes it to a CI lint or test, not an inline note (decision procedure (c))",
-          "states the in-source / config-annotation axis is owned by idiomatic-reviewer (champion-of-record), so this ruling is its call",
-          "keeps the value flip itself untouched \u2014 the finding is the annotation, never the config change"
-        ],
-        "forbidden_signals": [
-          "keeps the annotation because it is 'helpful context for the next person'",
-          "treats the annotation as a correctness/blocking finding rather than a comment-discipline (style) one",
-          "rewrites or second-guesses the 0\u2192100 value change",
-          "routes the ruling to prose-steward \u2014 a config-field annotation interleaved with config is the in-source axis"
-        ]
-      },
-      "source": "PLT-626 comment-discipline standard (references/comment-discipline.md, Rule 4 owned axis) \u2014 pressure-tests the authoring temptation the existing review eval doesn't: an agent leaving its OWN just-made change rationale as a per-line config annotation. The reviewer routes the why + the ticket to PR/commit (rule 1), the don't-revert guard to CI (procedure (c)), names idiomatic-reviewer as champion of the config-annotation axis, and never touches the value flip."
     },
     {
       "id": "bash-pack-clean-shell-no-false-positives",

@@ -30,7 +30,7 @@ Use `Agent` with `subagent_type=general-purpose` (or a domain specialist from `.
 >
 > Checks:
 >
-> 1. **D4 (warn):** Does the description include at least one sibling-skill redirect? Look for phrases like "For X, use /other-skill". Adjacent skills in this repo include: coral, council, design, issue, bugbash, author-skill, audit-skill, chaos-suite, harbor-dev. If the skill's purpose is adjacent to any of these, a redirect should be present.
+> 1. **D4 (warn):** Does the description include at least one sibling-skill redirect? Look for phrases like "For X, use /other-skill". Adjacent skills in this repo include: coral, council, design, issue, bugbash, author-skill, audit-skill, harbor-dev. If the skill's purpose is adjacent to any of these, a redirect should be present.
 >
 > 2. **D6 (warn):** Does the description summarize the skill's workflow rather than just routing triggers? This is the Obra CSO trap: if the description describes what the skill *does* (e.g., "runs intake then research then drafts"), Claude reads the description and skips the body. The description should describe *when* to use the skill (triggers, symptoms, anti-triggers, redirects), not *how* the skill operates.
 >

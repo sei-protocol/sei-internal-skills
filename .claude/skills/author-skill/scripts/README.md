@@ -4,7 +4,7 @@ Deterministic steps used by the procedure. Each script is debuggable standalone 
 
 ## `scaffold.sh`
 
-Creates the directory tree for a new skill at the resolved scope (project or user). Refuses to overwrite an existing non-empty directory. Refuses if the name collides with a protected canonical skill (coral, council, design, issue, bugbash, author-skill, audit-skill, chaos-suite, harbor-dev).
+Creates the directory tree for a new skill at the resolved scope (project or user). Refuses to overwrite an existing non-empty directory. Refuses if the name collides with a protected canonical skill (coral, council, design, issue, bugbash, author-skill, audit-skill, harbor-dev).
 
 ```bash
 ./scaffold.sh --name terraform-review \

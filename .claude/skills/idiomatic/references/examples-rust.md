@@ -221,20 +221,3 @@ fn read() -> u8 {
 }
 ```
 Basis: Programming Rust ch. Unsafe Code; API Guidelines C-FAILURE. Anchors (observed): `cargo clippy` (default) → `unsafe function's docs are missing a \`# Safety\` section` (`clippy::missing_safety_doc`, **on by default** — style). And `cargo clippy -- -W clippy::undocumented_unsafe_blocks` → flags the `unsafe {}` block (`clippy::undocumented_unsafe_blocks`, **off by default** — restriction; the crate must opt in).
-
-### R11 · Missing doc / what-comment / tombstone
-The lint catches only the *absence* of a `///`; comment quality is judgment-only.
-
-```rust
-// bad — no /// on the pub item; a what-comment; a tombstone
-pub fn parse(s: &str) -> Config { /* ... */ }
-let n = n + 1; // increment n
-// removed retry_count field (TICKET-42): we use the backoff struct now
-```
-```rust
-// good — a /// doc that states the contract; delete the noise comments
-/// Parses `s` as TOML, returning the typed config. Errors on malformed input.
-pub fn parse(s: &str) -> Result<Config, ConfigError> { /* ... */ }
-let n = n + 1;
-```
-Basis: pack R11; §4 (Tombstone / What-comment). Anchor (observed): `cargo clippy -- -W missing_docs` → `missing documentation for a function` (rustc `missing_docs`, **off by default** — allow). The what-comment and tombstone are **judgment-only** — no comment-quality lint exists; a deletion gets no tombstone (no security-context exception).

@@ -79,6 +79,11 @@ Repeat ×10, ordered by fault family.
 
 **Summary** — one sentence: fault injected + Job-log outcome.
 
+**Independent verification:** `NOT VERIFIED` by default. Replace only with the
+evidence that the fault actually landed — `tc -s qdisc` output, a log-timestamp
+delta, tproxy logs. A scenario whose injection evidence is absent reports
+`NOT VERIFIED`; it does not report a clean run.
+
 **Key Signals** (supporting context — not a second verdict)
 - Halt/liveness: `<ADVANCING|HALTED|NO DATA>` — blocks produced, quorum advanced
 - Block time: `p95 ~ Xs (bucket-bounded); height-derived mean ~ Ys`

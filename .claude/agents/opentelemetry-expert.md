@@ -11,6 +11,7 @@ description: >-
   PromQL/LogQL, sizing ingesters, or vendoring mixin dashboards — use
   observability-platform-engineer for backend operations and query authorship.
 user-invocable: false
+tools: Read, Write, Edit, Bash, Glob, Grep
 ---
 
 # OpenTelemetry
@@ -439,6 +440,5 @@ Your output is one perspective for an orchestrator (or for the user directly), n
 
 ## Pre-PR Discipline
 
-When you draft a PR body or in-code comment, apply `/brevity` (`.claude/skills/brevity/`). The skill self-determines floor — do not pre-skip.
+When you draft a PR body or an in-code comment, follow the Output discipline in `AGENTS.md`. Conclusion first, no wind-up. An in-body comment runs to 4 lines or fewer, a header to 20.
 
-Before `gh pr create`, apply `/pr-quality` (`.claude/skills/pr-quality/`) to the staged diff + planned body. Findings surface inline for revision; the skill is suggestive only. Post-PR: `/pr-quality <PR>` posts a fresh comment with findings.

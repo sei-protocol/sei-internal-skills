@@ -66,7 +66,7 @@ description: Use when tests have race conditions, timing dependencies, or pass/f
 
 ## Code in skills
 
-- **Self-documenting code.** Comments explain *why*, not what. Justify configuration parameters with the reason a specific value was chosen.
+- **Self-documenting code.** The code names its own intent. AGENTS.md "Output discipline" owns what a comment may say. Justify configuration parameters with the reason a specific value was chosen.
 - **Pre-made utility scripts.** When reliability matters, provide a script. Clarify whether Claude should *execute* it or *reference* it as a pattern.
 - **Verifiable outputs.** For complex tasks, use plan-validate-execute: Claude writes a structured intermediate file, a validator checks it, then Claude executes.
 - **Explicit error handling.** Scripts should handle conditions, not defer to Claude. Useful error messages include suggested next steps.

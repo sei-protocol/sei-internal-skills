@@ -30,7 +30,7 @@ SHAPE=""
 DRAFT_DIR=""   # path to state/run-<ts>/draft/ — used to copy the prepared SKILL.md and evals.json into place
 DRY_RUN=0
 
-PROTECTED=("coral" "council" "design" "issue" "bugbash" "author-skill" "audit-skill" "chaos-suite" "harbor-dev")
+PROTECTED=("coral" "council" "design" "issue" "bugbash" "author-skill" "audit-skill" "harbor-dev")
 
 die() { printf 'scaffold.sh: %s\n' "$1" >&2; exit "${2:-1}"; }
 

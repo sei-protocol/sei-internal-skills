@@ -17,7 +17,6 @@
 | D9 | Functions & scope | Declare with `name() { … }`; `local` every function variable; `local` only works inside a function; small composable functions, `return` (not `exit`) for status. | a global mutated as a de-facto return; `local` at file scope; `function` keyword (ksh-ism) | Google Shell §Function Names/§Local Variables; SC2168 |
 | D10 | Naming | `lower_snake_case` for locals/functions, `UPPER_SNAKE` for exported/env/constants (`readonly`/`declare -r`); never `UPPER` for an ordinary local (clobbers env). | an `UPPER` loop var; a `lower` constant; an unexported global that shadows a common env var | Google Shell §Naming Conventions |
 | D11 | Safe file & process ops | Quote all paths; guard destructive vars (`rm -rf "${dir:?}"`); stage-then-atomic-`mv` within one directory; `mktemp` with a template; `trap … EXIT` for cleanup. | `rm -rf "$dir/"` with possibly-unset `dir`; a non-atomic write to a live file; `mktemp` in `$TMPDIR` then `mv` across filesystems | Google Shell §Pipelines; BashFAQ/062; SC2115 |
-| D12 | Comment discipline *(required)* | Comments are an **uncommon exception** — names + structure carry intent; a comment earns its place only for a non-obvious *why* above the code. Top-of-file/function header docs are the sanctioned form; per-line narration is the smell. **No historical/changelog reasoning in source** ("we used to…", "removed because…"); **a deletion gets no tombstone** (no "load-bearing context for the removal" exception); the code states only *current* intent. A sourced library carries a header block, not a shebang. | a `# what` restating the next line; `# we used to …`/`# previously`; a comment naming a removed block or why; commented-out code; a comment a rename would delete | PLT-626 comment-discipline standard (`references/comment-discipline.md`); Google Shell §Comments |
 
 ## 2. authorities[]
 
@@ -33,7 +32,7 @@
 - **"Decompose into many small functions / objects" (Clean Code, OOP).** A straight-line script with a few pipelines is often the *more* idiomatic shape than an over-functioned one; shell has no objects and function call overhead/scoping quirks (`local`, dynamic scope) make deep decomposition cost more than it pays. → Don't flag a cohesive linear script for "lacking abstraction"; flag genuine duplication only.
 - **"Prefer portable POSIX `sh`."** When the shebang is `bash`, `[[ ]]`, arrays, `local`, and `${var/…}` are the idiom — *not* something to "port to `[ ]` for portability." → Don't flag bash features in a bash script. (The reverse holds in a `sh`/`dash` script — there they ARE divergences.)
 - **"`set -e` makes error handling automatic."** Treating `set -e` as a complete safety net is wrong in shell: it is silently disabled for a command in a condition and masked by `local x=$(cmd)`. → Don't bless a script as safe merely because it has `set -e`; check the holes (D4).
-- **"Comments explain the code."** Per the PLT-626 standard, comments are an exception, not a habit; names carry intent. → Don't recommend adding explanatory comments to self-evident shell; flag history/tombstone/what-comments.
+- **"Comments explain the code."** General style adds a comment per step. Shell says names + structure carry intent, so a clear script needs few comments. → Don't recommend adding explanatory comments to self-evident shell. (The comment standard itself lives in `AGENTS.md` → Output discipline.)
 
 ## 4. anti_patterns[]
 
@@ -72,7 +71,7 @@
 
 - **correctness:** unquoted expansion that changes behavior in a path/glob/argv context (D1 / SC2086/SC2046/SC2068); unguarded `rm -rf` (D11 / SC2115); `local x=$(cmd)` masking failure under `set -e` (D3/S3 / SC2155); a `set -e` guard silently disabled in a condition (D4/S2); parsing `ls` where filenames vary (D5/SC2045); a bash-4 feature on the 3.2 target (B1).
 - **idiom-divergence-with-consequence:** backticks (D3/SC2006); `echo` for data / `printf "$var"` (D8/SC2059); `$?` plumbing (D2/SC2181); `arr=($(...))` splitting (D6/SC2207); a GNU-ism on the BSD target (B2); `cd` without a guard (D5/SC2164).
-- **style:** naming (D10); `[[ ]]`-vs-`[ ]` where both are safe; function placement/ordering; comment nits that aren't history/tombstone (D12); parameter-expansion-vs-`sed` for a one-off where clarity is a wash (D7).
+- **style:** naming (D10); `[[ ]]`-vs-`[ ]` where both are safe; function placement/ordering; parameter-expansion-vs-`sed` for a one-off where clarity is a wash (D7).
 
 ## 7. lint_anchors[]
 
@@ -92,13 +91,12 @@ Catalog legend: **SC** = ShellCheck (https://www.shellcheck.net/wiki/SC####). Sh
 | D8 `printf` vs `echo` | `SC2059` | variables in `printf`'s format string | "echo-for-data" generally is partly judgment; `SC2059` catches the dangerous format-string case precisely |
 | D9 Functions & scope | `SC2168` | `local` used outside a function | `function` keyword and decomposition depth are **judgment-only** |
 | D11 Safe file ops | `SC2115` | `rm -rf "$x/"` where `$x` may be empty (`${x:?}` guard) | atomicity / same-dir-`mv` / `mktemp`-template discipline is **judgment-only** — no code; cite Google Shell + BashFAQ/062 |
-| D12 Comment discipline | — | — | **judgment-only** — ShellCheck has no commented-out-code or narrative-comment check (no gocritic `commentedOutCode` equivalent); cite `comment-discipline.md` (PLT-626) + Google Shell §Comments |
 | (hygiene) unused / undefined | `SC2034`; `SC2154` | assigned-but-unused var; referenced-but-never-assigned var | `SC2154` is a strong typo-catcher |
 | (hygiene) grep pipelines | `SC2126` | `grep … \| wc -l` → `grep -c` | style-level |
 | (hygiene) sourced libs | `SC1091`; `SC1090` | a **literal**-path `source`/`.` whose target isn't followed (`SC1091`); a **variable**-path `source "$x"` (`SC1090`) | resolve with `# shellcheck source=path`, not by disabling — see L1 |
 | AP `eval` / dynamic code | — | — | **judgment-only** — ShellCheck warns on some `eval` shapes but won't catch injection generally; cite Google Shell §Eval (avoid) |
 
-**Genuinely judgment-only — never fabricate a code:** the `[[ ]]`-vs-`[ ]` preference; the `set -e` holes (disabled-in-condition, pipefail nuance); function decomposition depth and the `function` keyword; atomic-write / same-dir-`mv` / `mktemp`-template discipline; comment discipline (D12) in full; `eval`/injection; the bash-3.2 / BSD-userland portability rules (B1/B2) — ShellCheck's `# shellcheck shell=` directive catches *some* non-bash constructs but does **not** enforce a bash-version floor or BSD-vs-GNU userland. For all of these, cite the §2 prose authority (Google Shell / BashFAQ / Bash manual / the repo's "bash 3.2 compatible" convention) and state that no machine-checkable rule exists.
+**Genuinely judgment-only — never fabricate a code:** the `[[ ]]`-vs-`[ ]` preference; the `set -e` holes (disabled-in-condition, pipefail nuance); function decomposition depth and the `function` keyword; atomic-write / same-dir-`mv` / `mktemp`-template discipline; `eval`/injection; the bash-3.2 / BSD-userland portability rules (B1/B2) — ShellCheck's `# shellcheck shell=` directive catches *some* non-bash constructs but does **not** enforce a bash-version floor or BSD-vs-GNU userland. For all of these, cite the §2 prose authority (Google Shell / BashFAQ / Bash manual / the repo's "bash 3.2 compatible" convention) and state that no machine-checkable rule exists.
 
 ## Language → specialist agent
 
