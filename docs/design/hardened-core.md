@@ -668,6 +668,9 @@ in it still holds — this decision only widens the scope, it does not reverse t
 
 ### 7.6 Decision: make the steward pin verify a rubric, not a filename
 
+> **Superseded by §7.6a.** The direction below still holds; the scope does not. Both skills were
+> cut outright rather than unpinned. Read §7.6a first.
+
 `/xreview` HALTs when `audit-skill` or `author-skill` is "absent from `.claude/skills/`."
 A directory holding only a stub `SKILL.md` satisfies that. A dispatched reviewer can load
 `audit-skill/SKILL.md` — 154 lines of workflow — never open

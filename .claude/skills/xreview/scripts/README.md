@@ -7,8 +7,16 @@ skill directory. A reviewer on a `skill-package` change runs it first, then read
 the rubric for the rules a script cannot check.
 
 ```bash
-./skill-package-checks.sh --skill-dir <abs-path> [--output json]
+./skill-package-checks.sh --skill-dir <abs-path> [--output <file>]
 ```
+
+`--output` takes a **file path**, not a format name — findings go there instead of stdout.
+Passing `--output json` writes them to a file literally named `json` and prints nothing, which
+reads as "no failures."
+
+**Exit codes:** `0` when the run completes, whatever the findings say — a `block` failure is
+reported in the stream, not in the status. `1` on a bad argument or an unreadable skill
+directory. Read the stream, never the status, to learn whether a rule failed.
 
 One JSON object per rule on stdout: `id`, `severity`, `title`, `result`,
 `evidence`, `catalog_ref`, `source`. A `block` severity that fails is a finding.

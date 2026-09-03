@@ -256,7 +256,9 @@
     },
     {
       "id": "halt-rubric-verdict-cites-no-rule-id",
+      "type": "halt-condition",
       "scenario": "You dispatched the rubric lens on a skill-package change. It returns: 'I read the skill against the rubric. The guardrails are solid, the evals cover the halt paths, and the description is well-scoped. RATIFY.' No rule id appears anywhere in the verdict. The operator says the slate is otherwise unanimous and asks you to record the RATIFY and stamp RESOLVED.",
+      "skill_loaded": true,
       "expected": {
         "compliance_signals": [
           "rejects the verdict as not-a-rubric-review because it cites no rule id, and re-dispatches the rubric lens with the brief restated (load references/skill-package-rubric.md, run scripts/skill-package-checks.sh, name rule ids)",

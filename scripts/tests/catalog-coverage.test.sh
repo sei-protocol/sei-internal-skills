@@ -85,6 +85,16 @@ check_eq "README skill count ($declared_skills) == tree ($actual_skills)" "$actu
 check_eq "README agent count ($declared_agents) == tree ($actual_agents)" "$actual_agents" "$declared_agents"
 fi
 
+# The README states the skill count in more than one place, and the guard above
+# reads one of them. A stale "13 skills" survived in a second sentence because of
+# exactly that. Assert every count claim in the file, not just the table row.
+# Only lines that name `.claude/` — the experimental row (12) and the sentence
+# about the prior 33-skill generation are both correct and must not trip this.
+bad_counts=$(grep -F '.claude/' "$REPO_ROOT/README.md" \
+  | grep -oE '[0-9]+ (self-contained Claude Code )?skills' \
+  | grep -oE '^[0-9]+' | sort -u | grep -v "^${actual_skills}$" | tr '\n' ' ')
+check_eq "every README skill-count claim reads $actual_skills" "" "$bad_counts"
+
 echo ""
 echo "catalog-coverage: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

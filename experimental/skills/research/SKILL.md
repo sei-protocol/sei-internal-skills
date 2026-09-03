@@ -7,7 +7,7 @@ description: "Use when a research question needs a durable, verified, lineage-th
 
 # Research
 
-Answer a research question with a **durable, verified, lineage-threaded** artifact — not a chat reply that evaporates. This is a *technique* skill (a four-stage method you adapt to the question) with a *discipline spine* (no finding ships unverified; a vague question is refused). It generalizes the skill-authoring research recipe (`author-skill/references/research-recipe.md`) into a first-class capability the rest of the stack can use.
+Answer a research question with a **durable, verified, lineage-threaded** artifact — not a chat reply that evaporates. This is a *technique* skill (a four-stage method you adapt to the question) with a *discipline spine* (no finding ships unverified; a vague question is refused). It generalizes the skill-authoring research recipe (the deep-research recipe (cut with `author-skill`; the method is inline below)) into a first-class capability the rest of the stack can use.
 
 It composes the framework rather than reinventing it: it reuses `/xreview`'s **assigned-dissent primitive** for finding-refutation (not the skill — see the spine), and captures like `/design` does.
 

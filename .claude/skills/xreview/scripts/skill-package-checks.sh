@@ -231,11 +231,15 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
     fi
   done
 
-  # S4 — scripts/README.md exists
-  if [[ -f "$SKILL_DIR/scripts/README.md" ]]; then
+  # S4 — scripts/README.md exists AND documents exit codes. The existence half
+  # alone passed green on a README that documented no exit code, which is the
+  # rule's whole point: a caller cannot tell a failed check from a failed run.
+  if [[ ! -f "$SKILL_DIR/scripts/README.md" ]]; then
+    emit "S4" "warn" "scripts/README.md documents the scripts" "fail" "missing scripts/README.md" "S4"
+  elif grep -qiE 'exit code|exit status|exits? [0-9]' "$SKILL_DIR/scripts/README.md"; then
     emit "S4" "warn" "scripts/README.md documents the scripts" "pass" "" "S4"
   else
-    emit "S4" "warn" "scripts/README.md documents the scripts" "fail" "missing scripts/README.md" "S4"
+    emit "S4" "warn" "scripts/README.md documents the scripts" "fail" "scripts/README.md documents no exit codes" "S4"
   fi
 fi
 
@@ -265,8 +269,8 @@ PY
       # Visibly skipped, never silently dropped: a check that could not run is
       # a finding, not an absence.
       emit "E2" "block" "evals.json has ≥1 happy-path + ≥1 halt-condition" "skipped" "could not read eval entries" "E2"
-      emit "E3" "warn" "evals.json has ≥5 evals" "skipped" "could not read eval entries" "E3"
-      emit "E4" "warn" "every eval carries a source field" "skipped" "could not read eval entries" "E4"
+      emit "E3" "warn" "evals.json has ≥3 entries (Obra ideal)" "skipped" "could not read eval entries" "E3"
+      emit "E4" "warn" "Every eval has a source field" "skipped" "could not read eval entries" "E4"
       HAPPY=0; HALT=0; TOTAL=0; NO_SOURCE=0
       EVAL_SKIP=1
     else

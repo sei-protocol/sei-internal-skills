@@ -37,13 +37,20 @@ say so and name what you'd need.
 The rubric lens is **not** a `subagent_type` and not a roster entry. Dispatch any capable
 reviewer with this brief in place of the boundary-table one:
 
-> Load `.claude/skills/xreview/references/skill-package-rubric.md` — 51 rules, each with an id,
+> Load the rubric at the path the orchestrator gives you — normally
+> `.claude/skills/xreview/references/skill-package-rubric.md`, but a **merge-base copy** when the
+> diff under review edits the rubric. 51 rules, each with an id,
 > a severity (`block`/`warn`/`info`), and a `[static]`/`[semantic]`/`[pressure]` tag. Run
 > `.claude/skills/xreview/scripts/skill-package-checks.sh --skill-dir <abs-path>` for the static
 > subset and report every `block` failure. Judge the `[semantic]` rules by reading the skill.
 > Run P7 by the method in `references/pressure-testing.md` — P7 is `block`, so do not skip it
 > and return RATIFY on the static rules alone. **Every finding names its rule id.** Return a
 > per-lens verdict: RATIFY or DISSENT.
+
+**When the diff edits the rubric**, the orchestrator materializes the merge-base revision to disk
+first and briefs *that* path (Reachability, above) — a reviewer with no Bash cannot run a
+`git show`. The edit is itself a finding in the ledger's routing section. Otherwise a change can
+weaken a rule and be reviewed under the weakened rule in the same pass.
 
 Three conditions on what comes back:
 
