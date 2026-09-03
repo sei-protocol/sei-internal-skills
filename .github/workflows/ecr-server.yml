@@ -95,8 +95,8 @@ jobs:
           # breaking the Spec Kit contract, so both gates assert the same thing.
           # root-cause is skills: none deliberately -- it is auto-approving and
           # headless, so host-skill discovery would put ~/.claude/skills in its
-          # reach. Do not "fix" this back to "all" when the gate trips; check the
-          # bundle's own comment first.
+          # reach. Do not "fix" this back to "all" when the gate trips; read the
+          # comment on the bundle before changing this value.
           EXPECT = {
               "sei-spec":   ("none", 8, "speckit-"),
               "root-cause": ("none", 1, None),

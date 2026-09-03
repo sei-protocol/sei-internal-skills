@@ -29,8 +29,10 @@ narrower envelope, and three assumptions differ for it:
 
 - `config.yaml` — the omni agent spec (`spec_version: 1`, `name: root-cause`).
 - `skills/root-cause/` — a copy of sei-internal-skills's `/root-cause` skill (SKILL.md +
-  references), so the runner carries the discipline. Auto-discovered from
-  `<bundle>/skills/`; no `skills:` line in the spec.
+  references), so the runner carries the discipline. Vendored into the bundle and
+  reached through it; the spec sets `skills: none`, so nothing on the host is
+  discovered. The bundle is auto-approving and headless, so host discovery would
+  put `~/.claude/skills` inside its reach.
 
 ## name ↔ `_DEFAULT_PD_BUNDLE_REF` coupling
 
