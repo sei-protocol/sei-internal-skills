@@ -51,6 +51,10 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Product explorations cut in the 2026-08 slim-down (#291). Full history lives in
 # the private snapshot bdchatham/sei-internal-skills-archive.
 RETIRED_SKILLS=(
+  audit-skill  # cut. Its 51-rule conventions catalog and its static checker moved
+               # to xreview, the only consumer — a pin on a separate skill halted
+               # the review whenever that skill was absent from an install.
+  author-skill # cut with it: the authoring workflow around the same rubric
   brevity      # dissolved into the AGENTS.md Output discipline: BLUF, the verb rule,
                # the hedge rule, and the 4-line/20-line comment bounds
   pr-quality   # dissolved: its LLM judges are comment/prose discipline the contract

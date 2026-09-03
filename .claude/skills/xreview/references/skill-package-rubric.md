@@ -1,4 +1,12 @@
-# Conventions Catalog — the load-bearing reference
+# Skill-package review rubric
+
+The rules a reviewer cites when a `skill-package` change is under review. It moved here from the audit skill when that skill was cut: `/xreview` is the only consumer, and a pin on
+a separate skill meant the review halted whenever that skill was absent from an install.
+Owning the rubric removes the cross-skill dependency.
+
+`scripts/skill-package-checks.sh --skill-dir <path>` runs the static half. Every finding
+names its rule id, which is what makes a steward verdict falsifiable — presence of a file
+is not evidence that a rubric was read.
 
 Every rule the audit checks. Each rule has an ID (used in findings), severity, and a one-line statement. The catalog is the single source of truth for what "passing an audit" means.
 
@@ -10,7 +18,7 @@ Every rule the audit checks. Each rule has an ID (used in findings), severity, a
 
 **Source legend:**
 
-- **[static]** — checkable by `scripts/static-checks.sh` (deterministic).
+- **[static]** — checkable by `scripts/skill-package-checks.sh` (deterministic).
 - **[semantic]** — requires the semantic-checks subagent (judgment call).
 - **[pressure]** — surfaces via pressure-scenario subagent dispatch.
 
@@ -52,7 +60,7 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 | R2 | warn | static | Reference files >100 lines have a Table of Contents (heading scan in first 50 lines) |
 | R3 | info | static | Cross-references to other skills use the skill name only (no `@skills/...` force-loads). Plain-markdown relative links to sibling skills are fine — see R5. |
 | R4 | warn | semantic | Reference files don't duplicate SKILL.md content — they extend it |
-| R5 | info | semantic | Cross-skill references using `../../<sibling-skill>/references/<file>.md` (relative — note the double `../`: from inside a `references/` dir, a single `../` resolves to the skill root, not `.claude/skills/`, so it links to a path that doesn't exist) or `.claude/skills/<sibling>/references/<file>.md` (repo-root form) are permitted between skills in the same `.claude/skills/` directory when they encode a handoff contract or shared methodology (e.g., audit-skill's pressure-testing reuses author-skill's RED-GREEN-REFACTOR docs; coral's handoff points at design/issue's coral-integration refs). These are documentation links, not force-loads — they don't violate R1. Surfaced as info-only so reviewers see the cross-skill coupling. |
+| R5 | info | semantic | Cross-skill references using `../../<sibling-skill>/references/<file>.md` (relative — note the double `../`: from inside a `references/` dir, a single `../` resolves to the skill root, not `.claude/skills/`, so it links to a path that doesn't exist) or `.claude/skills/<sibling>/references/<file>.md` (repo-root form) are permitted between skills in the same `.claude/skills/` directory when they encode a handoff contract or shared methodology (e.g. coral's handoff points at design/issue's coral-integration refs). These are documentation links, not force-loads — they don't violate R1. Surfaced as info-only so reviewers see the cross-skill coupling. |
 | R6 | info | semantic | A skill that declares a **cite/exemplar contract** in its references (a corpus directory whose paths are load-bearing cite targets, e.g. language's `references/exemplars/<vertical>/` per its `sources.md` cite vocabulary) may nest those corpus files one extra level. The contract file must document the path scheme. Scope: corpus/exemplar content only — the skill's own method/reference docs still obey R1. |
 
 ## Scripts [procedural only]
@@ -89,7 +97,6 @@ When a rule applies only to certain shapes, the shape is noted (e.g., `[procedur
 |----|----------|--------|------|
 | C1 | block | static | Skill is listed in `.claude/skills/README.md` catalog |
 | C2 | warn | semantic | Catalog entry is in an appropriate section (judgment based on skill purpose) |
-| C3 | info | static | If skill is portable, it appears in `PORTABLE=( ... )` in `scripts/sync-skills.sh`; if Sei-specific, in `SEI=( ... )` |
 
 ## Persuasion stack (shape-dependent)
 
@@ -123,7 +130,7 @@ When the team identifies a new convention:
 1. Add a row to the appropriate section in this table.
 2. Assign an ID (next free number in the section's prefix; e.g., next description rule = D9).
 3. Pick a severity honestly. New rules default to `warn` — promote to `block` after one cycle of real audits shows the rule is load-bearing.
-4. Update `scripts/static-checks.sh` if the rule is checkable; otherwise extend the semantic-checks prompt in `references/semantic-checks.md`.
+4. Update `scripts/skill-package-checks.sh` if the rule is checkable; otherwise extend the semantic-checks prompt in `references/semantic-checks.md`.
 5. Add an eval to `evals/evals.json` that exercises the new rule (one happy-path skill that passes, one minimal skill that fails on this rule alone).
 
 ## Rules that don't appear here

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# static-checks.sh — Run the deterministic subset of the conventions catalog.
+# skill-package-checks.sh — Run the deterministic subset of the conventions catalog.
 #
 # Usage:
-#   static-checks.sh --skill-dir <abs-path> [--output <file.jsonl>]
+#   skill-package-checks.sh --skill-dir <abs-path> [--output <file.jsonl>]
 #
 # Output: JSONL — one finding per line — to stdout or to the file given by --output.
 # Exit code: 0 on success (regardless of findings), non-zero on tool errors.
@@ -12,7 +12,7 @@ set -euo pipefail
 SKILL_DIR=""
 OUTPUT=""
 
-die() { printf 'static-checks.sh: %s\n' "$1" >&2; exit "${2:-1}"; }
+die() { printf 'skill-package-checks.sh: %s\n' "$1" >&2; exit "${2:-1}"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -309,12 +309,16 @@ if [[ -f "$CATALOG" ]]; then
   fi
 fi
 
+# C3 checks the skill's category resolves to a sync alias. It used to grep for the
+# name in PORTABLE=() / SEI=() arrays; sync-skills.sh derives membership from each
+# skill's `category:` frontmatter now, so the array form failed every core skill.
 SYNC="$REPO_ROOT/scripts/sync-skills.sh"
 if [[ -f "$SYNC" ]]; then
-  if grep -qE "^  ${SKILL_NAME}\$" "$SYNC"; then
-    emit "C3" "info" "Skill in sync-skills.sh PORTABLE or SEI" "pass" "" "C3"
+  CAT="$(sed -n 's/^category:[[:space:]]*//p' "$SKILL_MD" | head -1)"
+  if [[ -n "$CAT" ]] && grep -q "$CAT" "$SYNC"; then
+    emit "C3" "info" "Skill category resolves to a sync alias" "pass" "$CAT" "C3"
   else
-    emit "C3" "info" "Skill in sync-skills.sh PORTABLE or SEI" "fail" "not in any sync array" "C3"
+    emit "C3" "warn" "Skill category resolves to a sync alias" "fail" "category '"'"'$CAT'"'"' maps to no alias" "C3"
   fi
 fi
 

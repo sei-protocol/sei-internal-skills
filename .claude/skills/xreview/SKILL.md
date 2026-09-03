@@ -20,14 +20,14 @@ The skill refuses that path. It enforces independent (blinded) review, evidence-
 xreview operates on **a concrete artifact, reviewed by independent specialists**. Before any verdict:
 
 1. **Artifact required.** Read the actual work under review — the design doc, the spec, the diff, the specialist outputs. If it can't be located or pasted, halt and ask for it. Never review from a summary, from memory, or from "what a spec like this usually contains." A synthesized verdict over an artifact you never read is fabrication.
-2. **Roster required.** xreview selects its domain lenses and **agent-stewards** (`prose-steward`, `idiomatic-reviewer`) from a `.claude/agents/` roster, so the calling repo must have one. Without it, halt and ask the user to point at a roster or invoke from a repo that has it. The **skill-stewards** (`audit-skill`, `author-skill`) are *skills* under `.claude/skills/`, not agents — a reviewer loads the skill as its review rubric (see `references/slate-routing.md` §4 *Steward dispatch — two kinds*). The slate is usually several specialists; when exactly one is genuinely relevant, run a single-reviewer pass but label it as such — a degenerate xreview, not dressed up as a full one.
+2. **Roster required.** xreview selects its domain lenses and **agent-stewards** (`prose-steward`, `idiomatic-reviewer`) from a `.claude/agents/` roster, so the calling repo must have one. Without it, halt and ask the user to point at a roster or invoke from a repo that has it. On a `skill-package` change the reviewer also loads **this skill's own rubric**, `references/skill-package-rubric.md` — 51 rules with ids and severities, plus `scripts/skill-package-checks.sh` for the static half. It lives here rather than in a separate skill so the review cannot halt on an install that lacks one. The slate is usually several specialists; when exactly one is genuinely relevant, run a single-reviewer pass but label it as such — a degenerate xreview, not dressed up as a full one.
 3. **Refusal conditions** — this skill will refuse to:
    - **Equate prior per-specialist dispatch with xreview.** "The specialists already gave input during design" describes the *production* of the work, not a review of the integrated whole. The seams between their contributions are exactly what no one has reviewed. Re-dispatch them against the final, combined artifact.
    - **Accept convergence as corroboration when reviewers were not blinded.** If reviewers saw each other's assessments before committing (a shared thread, a summarized peer view in the brief), their agreement is anchoring, not independent confirmation — consensus theater. Re-run with independent briefs.
    - **Accept bare approval.** "LGTM" / "looks good" is not a finding. Every COMPATIBLE, MISMATCH, or MISSING must cite the specific contract, field, signature, or line it is about. A finding with no evidence is noise.
    - **Launder a sign-off through wording.** Phrasing it "their input was incorporated" instead of "they approved" does not convert production into review. If the specialists did not review the final artifact, the xreview did not happen.
    - **Declare COMPATIBLE / stamp a passing `State:` while *any* correctness-grade finding is open** — a MISMATCH/MISSING, a correctness-grade idiom *or* prose finding, or a per-lens DISSENT (including a pinned steward). All are resolved (artifact updated, provider/consumer reconciled) or explicitly accepted-with-risk by the user — never silently dropped. (This is the gating set, stated identically in Rule 4 and Halt Conditions, and enforced bullet-by-bullet in Step 5.)
-   - **Drop a pinned steward, or proceed without one.** A `skill-package` change pins `audit-skill` + `author-skill` + `prose-steward` *unconditionally* — all three, **regardless of which file-types the diff touches** and never demoted by change-size (per `references/slate-routing.md` §4). (This is distinct from `shared-stack`, whose stewards *are* wired by file-type-present.) If a pinned steward is absent from **its own registry** — the agent-steward `prose-steward` from `.claude/agents/`; the skill-stewards `audit-skill`/`author-skill` from `.claude/skills/` — **HALT** — never silently proceed pin-less; the operator may override only with a stated reason. (Also a Halt Condition.)
+   - **Drop a pinned steward, or proceed without one.** A `skill-package` change pins `prose-steward` *unconditionally* — **regardless of which file-types the diff touches** and never demoted by change-size (per `references/slate-routing.md` §4) — and requires one reviewer to hold the **rubric lens**, citing rule ids from `references/skill-package-rubric.md`. A verdict that cites no rule id is not a rubric review: presence of a file was never evidence that anyone read it. If `prose-steward` is absent from `.claude/agents/`, **HALT** — never silently proceed pin-less; the operator may override only with a stated reason. (Also a Halt Condition.)
 
 See `references/reviewer-dispatch.md` for the blinded dispatch contract, `references/findings-protocol.md` for the findings schema, `references/slate-routing.md` for the change-type → slate routing rule (shared with `/coral`), and `references/review-ledger.md` for the durable synthesis record.
 
@@ -105,15 +105,14 @@ The slate is **routed, not re-derived by hand.** Apply the shared routing table
    here. The orchestrator's remaining judgment is *which domain specialists* cover the boundaries;
    the depth, the §4a concern-lenses, and the steward wiring are mechanical.
 4. **Auto-wire the stewards** by file-type-present (table §4) — the rule for `shared-stack` and
-   every other class: `prose-steward` on any prose; `idiomatic-reviewer` on any code diff;
-   `audit-skill`+`author-skill` on a `.claude/` skill body. **`skill-package` is the exception:
-   it pins `audit-skill` + `author-skill` + `prose-steward` *unconditionally* — regardless of
-   which file-types the diff touches** — and dropping any of the three requires an operator
-   override with a stated reason. **Dispatch differs by steward kind:** `prose-steward` and
-   `idiomatic-reviewer` are **agents** (dispatched from `.claude/agents/`); `audit-skill` and
-   `author-skill` are **skills** (under `.claude/skills/`), run by a dispatched reviewer that
-   loads the skill as its review rubric. A pinned steward absent from *its own* registry is a
-   HALT (§4), not a silent drop.
+   every other class: `prose-steward` on any prose; `idiomatic-reviewer` on any code diff.
+   **`skill-package` is the exception: it pins `prose-steward` *unconditionally* — regardless
+   of which file-types the diff touches** — and adds the **rubric lens**: one reviewer loads
+   `references/skill-package-rubric.md` and cites its rule ids. Dropping either requires an
+   operator override with a stated reason. Both stewards are **agents**, dispatched from
+   `.claude/agents/`; the rubric is this skill's own reference, so it cannot go missing the
+   way a separate skill could. `prose-steward` absent from `.claude/agents/` is a HALT (§4),
+   not a silent drop.
 5. **Assign the dissenter** (see The Four Rules / Step 3) and record it.
 
 The stewards report on their own axes (Idiom addendum / Prose addendum / per-lens RATIFY-DISSENT
@@ -165,7 +164,7 @@ Merge the independent reviews into one de-duplicated boundary table inside the l
 
 - Every **MISMATCH** and **MISSING** is resolved (artifact updated; provider/consumer reconciled — provider definition wins, consumer adapts) or **explicitly accepted by the user** with the risk stated. Nothing is silently dropped.
 - **Correctness-grade idiom findings block too.** A runtime-consequence idiom finding (e.g. a status patch missing the optimistic lock, an always-present condition removed) is resolved or explicitly accepted before a COMPATIBLE verdict — the same bar as a MISMATCH. Pure-style idiom findings are **advisory**: surfaced in the Idiom addendum, never gating.
-- **Per-lens DISSENT and correctness-grade prose findings block too.** `RESOLVED` means *every* lens's correctness-grade findings are closed — not just the boundary table. Any unresolved per-lens `DISSENT` (including from a pinned steward — `audit-skill`/`author-skill`/`prose-steward`) and any correctness-grade prose-addendum finding (a misleading or ambiguous load-bearing instruction, not pure style) must be resolved or explicitly accepted-with-risk before `RESOLVED`, the same bar as a MISMATCH. Pure-style prose findings are advisory.
+- **Per-lens DISSENT and correctness-grade prose findings block too.** `RESOLVED` means *every* lens's correctness-grade findings are closed — not just the boundary table. Any unresolved per-lens `DISSENT` (including from a pinned steward) and any correctness-grade prose-addendum finding (a misleading or ambiguous load-bearing instruction, not pure style) must be resolved or explicitly accepted-with-risk before `RESOLVED`, the same bar as a MISMATCH. Pure-style prose findings are advisory.
 - **A steward's per-lens verdict and its advisory nits are different things — don't conflate them.** A steward whose *only* findings are pure-style **RATIFIES** (the nits ride advisory in its addendum, never gating). A per-lens **DISSENT** is, by definition, a non-style blocking objection — so a DISSENT is never "just style" and is never demoted to advisory to clear the gate. "The steward only had style nits" ⇒ RATIFY-with-advisory; "the steward DISSENTed" ⇒ blocks until resolved or accepted-with-risk. The advisory/blocking line is the *severity* of the finding, not the identity of the lens.
 - Output: the committed ledger with its typed header `State:`, the verdict, the resolved items with what changed, and any accepted-with-risk items. Set `State:` per the enum in `references/review-ledger.md` — `RESOLVED` / `RESOLVED-WITH-ACCEPTED-RISK` are the only passing terminals; `OpenFindings:` is `0` for those.
 - If xreview can't reach a clean verdict — reviewers split, an artifact gap nobody can close — say so explicitly and set `State: OPEN-BLOCKED` with `OpenFindings: ≥1`: it **fails the gate to a human**. A split must **never** be relabeled `RESOLVED-WITH-ACCEPTED-RISK` to make the loop terminate (accepted-risk needs an operator decision on a *named* risk, not mere disagreement). A labeled open state beats a fabricated COMPATIBLE.
@@ -210,7 +209,7 @@ Stop and report to the user if:
 - `Class:` was not emitted before dispatch (§0) — no classification ⇒ no review. HALT and classify before dispatching any reviewer.
 - The artifact under review can't be located or pasted — never synthesize a review of work you haven't read.
 - The calling repo has no `.claude/agents/` roster and the user can't point at one.
-- A **pinned** steward (audit/author/prose on a `skill-package` change) is absent from **its own registry** — the agent-steward `prose-steward` from `.claude/agents/`, the skill-stewards `audit-skill`/`author-skill` from `.claude/skills/` — HALT, not a silent drop (same posture as dropping the pin). Ask the operator, who may override with a stated reason.
+- `prose-steward` is absent from `.claude/agents/` on a `skill-package` change — HALT, not a silent drop (same posture as dropping the pin). Ask the operator, who may override with a stated reason.
 - A reviewer returns bare approval with no cited evidence — re-dispatch with the evidence requirement.
 - Reviewers were not blinded (saw each other's assessments first) — the convergence is invalid; re-run with independent briefs.
 - Reviewers split on a boundary and the provider-owns tie-break doesn't resolve it — surface the disagreement and ask the user / provider for the call.

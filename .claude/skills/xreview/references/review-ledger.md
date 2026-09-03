@@ -87,7 +87,7 @@ Dissenter:    <which lens held assigned dissent this round — required, never e
 |---|---|---|---|
 | security-specialist | RATIFY | … cites contract/field/line … | n/a |
 | network-specialist  | DISSENT | … the strongest objection … | artifact updated @ <commit/section> OR accepted-risk: <stated> |
-| author-skill        | RATIFY | triggers/guardrails/evals present, cited | n/a |
+| rubric lens         | RATIFY | rubric ids cited: T1 pass, S2 pass, C1 pass | n/a |
 
 ## Boundary findings  (the COMPATIBLE / MISMATCH / MISSING table — unchanged schema)
 | Interface / Boundary | Provider | Consumer | Status | Evidence | Raised by |
