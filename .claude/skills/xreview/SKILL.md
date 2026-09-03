@@ -182,12 +182,16 @@ Merge the independent reviews into one de-duplicated boundary table inside the l
 
 - Every **MISMATCH** and **MISSING** is resolved (artifact updated; provider/consumer reconciled — provider definition wins, consumer adapts) or **explicitly accepted by the user** with the risk stated. Nothing is silently dropped.
 - **Correctness-grade idiom findings block too.** A runtime-consequence idiom finding (e.g. a status patch missing the optimistic lock, an always-present condition removed) is resolved or explicitly accepted before a COMPATIBLE verdict — the same bar as a MISMATCH. Pure-style idiom findings are **advisory**: surfaced in the Idiom addendum, never gating.
-- **Per-lens DISSENT and correctness-grade prose findings block too.** `RESOLVED` means *every* lens's correctness-grade findings are closed — not just the boundary table. Any unresolved per-lens `DISSENT` (including from a pinned steward) and any correctness-grade prose-addendum finding (a misleading or ambiguous load-bearing instruction, not pure style) must be resolved or explicitly accepted-with-risk before `RESOLVED`, the same bar as a MISMATCH. Pure-style prose findings are advisory.
+- **Per-lens DISSENT and correctness-grade prose findings block too.** `RESOLVED` means *every* lens's correctness-grade findings are closed — not just the boundary table. Any unresolved per-lens `DISSENT` (including from a pinned steward) and any correctness-grade prose-addendum finding (a misleading or ambiguous load-bearing instruction, not pure style) must be resolved, closed finding-by-finding, or explicitly accepted-with-risk before `RESOLVED`, the same bar as a MISMATCH. Pure-style prose findings are advisory.
 - **A per-lens verdict is the lens's to give — the orchestrator never issues one on its behalf.**
   Fixing what a lens objected to closes the *finding*; it does not convert that lens's `DISSENT`
-  into a `RATIFY`. Record the resolution **against the standing DISSENT**, then either
-  **re-dispatch** the lens for an updated verdict, or **accept-with-risk** with the operator's
-  stated reason. `Convergence:` reads off the verdicts as issued, never as revised — a round is
+  into a `RATIFY`. Record the resolution **against the standing DISSENT**. Three exits reach a
+  passing `State:`, and only three: **re-dispatch** the lens for an updated verdict;
+  **accept-with-risk** with the operator's stated reason, which is
+  `RESOLVED-WITH-ACCEPTED-RISK` and never plain `RESOLVED`; or **close every finding that
+  DISSENT raised**, which reaches `RESOLVED` while `Convergence:` stays `split` — the verdict
+  did not change, the findings did. The third is the common case and the one most easily
+  mistaken for the substitution below. `Convergence:` reads off the verdicts as issued, never as revised — a round is
   not `unanimous` because the orchestrator decided the objection no longer applies. This is the
   same substitution `evals.json` already forbids one step earlier (back-filling rule ids from
   your own read instead of re-dispatching), and it is more tempting here, because by this point

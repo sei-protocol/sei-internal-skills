@@ -8,11 +8,11 @@ Tier:         T3
 **Note**: This ledger belongs in the DRI's `<engineer>-designs` repository under
 `designs/sei-agentic-mesh/xreview/`. It sits here pending that move.
 
-<!-- ledger-exempt: NO-LENS-ROW — this review ran before the rubric lens existed. Its
-     slate pinned `audit-skill` and `author-skill` as skill-stewards, and it records, correctly,
-     that neither ran. Adding a rubric-lens row would falsify the record; review-ledger.md says
-     a round is never edited in place. The skills were cut in PR #383, which is why no later
-     ledger can legitimately claim this exemption. -->
+> **Archived.** This review ran before the rubric lens existed. Its slate pinned `audit-skill`
+> and `author-skill` as skill-stewards and records, correctly, that neither ran. `verify-ledger.sh`
+> treats `docs/xreview/` as the archive: schema conformance is checked, rules written later are
+> not. A round is never edited in place, so bringing this one forward would mean inventing what
+> the record does not say.
 
 ## Round 1
 

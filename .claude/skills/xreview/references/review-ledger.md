@@ -55,8 +55,8 @@ reads the count as an integer, not by parsing a parenthetical); `Convergence:` a
 are **separate lines** (two independent facts).
 
 **Per-round headers (so the gate never reads a stale header).** Each `## Round <N>` section
-carries **its own typed header block** — the five round-scoped fields (`State:`, `OpenFindings:`,
-`Convergence:`, `Blinded:`, `Dissenter:`). The top-of-file block below *is round 1's header*; a
+carries **its own typed header block** — the six round-scoped fields (`State:`, `OpenFindings:`,
+`Convergence:`, `Blinded:`, `Dissenter:`, `Lenses:`). The top-of-file block below *is round 1's header*; a
 re-review appends a `## Round 2` section with a fresh header block of its own, and so on. The
 target-scoped fields (`Target:`/`Class:`/`Tier:`) sit once at the top — they don't change across
 rounds. The gate reads the **latest round's** header block (see *Gate-read contract*), never the
@@ -121,7 +121,7 @@ Lenses:       <integer>
 <the round's own Routing, Per-lens, Boundary, addenda, Rejected — parallel to Round 1>
 ```
 
-Each appended `## Round <N>` repeats its **own** header block (the five round-scoped fields)
+Each appended `## Round <N>` repeats its **own** header block (the six round-scoped fields)
 followed by that round's sections. The gate reads the **latest** round's header — for a one-round
 ledger that is the top block (Round 1); once Round 2 exists, Round 2's block is authoritative and
 the top block is stale-by-design (it is Round 1's record, kept verbatim, not the current state).
@@ -171,6 +171,19 @@ the field filled in — the lens agreeing with itself. `SKILL.md` already requir
 pass be labelled "a degenerate xreview, not dressed up as a full one"; the token puts that
 obligation in the contract instead of in prose no gate reads.
 
+**Verdict vocabulary (exact tokens).** A slate row's verdict cell opens with one of:
+`RATIFY` · `RATIFY-with-advisory` · `DISSENT` · `NOT-RE-DISPATCHED`. An automated reviewer's
+native `APPROVED` / `CHANGES_REQUESTED` also resolve, to `RATIFY` and `DISSENT`. Commentary follows the
+token; the token is what a gate reads.
+
+`NOT-RE-DISPATCHED` is the append-only rule's carried row: the lens did not report this round, and
+its verdict is **whatever it last issued**. A carried `DISSENT` is still a `DISSENT` — writing it
+as prose ("not re-dispatched, its round 5 DISSENT stands") makes it invisible to every check that
+reads verdicts, which is the substitution the append-only rule exists to stop, one step later.
+
+`Lenses:` counts **reporters** — rows carrying one of the first three tokens. The slate table is
+append-only so its row count only grows; the surplus is carried rows.
+
 **Three ways a round with a `DISSENT` reaches a passing `State:`** — and only three:
 
 1. **Re-dispatch.** The lens sees the fix and issues a new verdict. The new verdict belongs to
@@ -199,8 +212,8 @@ still concluded RATIFY (unanimity without an assigned dissenter is consensus the
 
 MVP is a **single-round committed ledger**. A re-review **appends a new `## Round <N>` section**
 (or a sibling file) — **never an in-place edit of a prior round's rows.** Each appended round
-**carries its own typed header block** (the five round-scoped fields: `State:`/`OpenFindings:`/
-`Convergence:`/`Blinded:`/`Dissenter:`) so the latest round's state is self-contained and the gate
+**carries its own typed header block** (the six round-scoped fields: `State:`/`OpenFindings:`/
+`Convergence:`/`Blinded:`/`Dissenter:`/`Lenses:`) so the latest round's state is self-contained and the gate
 never reads a stale top header. There is **no cross-round dedup engine** (no matching a round-2
 re-raise to a round-1 row to merge them) — this is **per-round headers, not row-merging**. The
 prior round stays verbatim as append-only history; the new round stands beside it with its own
@@ -251,8 +264,9 @@ MVP* above — a duplicate `## Round <N>` is out of MVP scope.)
 |---|---|---|
 | `State:` | `RESOLVED` or `RESOLVED-WITH-ACCEPTED-RISK` (exact token) | `OPEN`, `OPEN-BLOCKED`, any other/missing token |
 | `OpenFindings:` | parses to integer `0` | non-zero, non-integer, or absent |
-| `Convergence:` | `unanimous` or `split` (present, parseable, **latest round only, tokens only — never free prose**) | absent, unparseable, or **any token other than `unanimous`\|`split`** (out-of-enum fails identical to absent) |
+| `Convergence:` | `unanimous`, `split` or `degenerate` (present, parseable, **latest round only, tokens only — never free prose**) | absent, unparseable, or **any token other than `unanimous`\|`split`\|`degenerate`** (out-of-enum fails identical to absent) |
 | `Blinded:` | `yes` or `no` (advisory — `no` downgrades confidence, does not fail) | — |
+| `Lenses:` | a positive integer, counting the lenses that **reported** this round (a `NOT-RE-DISPATCHED` row is not a reporter) | absent, non-integer, or `< 1` |
 | `Dissenter:` | non-empty (a dissenter was assigned) | empty / absent |
 | **Cross-field consistency** | `State` and `OpenFindings` agree | `State: RESOLVED`\|`RESOLVED-WITH-ACCEPTED-RISK` with `OpenFindings ≠ 0`, **OR** `OPEN-BLOCKED` with `OpenFindings: 0` — a contradictory-but-parseable header **fails closed identical to an absent one**. (`OPEN` fails on the `State:` row regardless of count — it is not a cross-field case; per the enum, `OPEN` may carry either count.) |
 

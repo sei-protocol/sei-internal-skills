@@ -117,7 +117,7 @@ check "a Lenses: count below the slate rows is caught" LENSES-MISMATCH
 # hit three times; a round with no slate table can only honestly be one lens.
 good | sed '/^| Lens | Role | Verdict |/,$d' > "$TMP/l.md"
 printf '<!-- ledger-exempt: NO-LENS-ROW — no slate table in this fixture at all -->\n' >> "$TMP/l.md"
-check "declaring 4 lenses with no slate table is caught" LENSES-UNLISTED
+check "a round with no slate table is caught" NO-SLATE-TABLE
 
 echo "exemptions live on the verifier, not in the ledger"
 # The old design read a `<!-- ledger-exempt: -->` marker out of the file, which put
@@ -134,11 +134,24 @@ if "$LINT" "$REPO_ROOT/docs/xreview/hardened-core.md" >/dev/null 2>&1; then
 else
   no "the allowlisted ledger fails: $("$LINT" "$REPO_ROOT/docs/xreview/hardened-core.md" 2>&1 | head -2)"
 fi
-# Differential: the allowlist must name a path that exists and still needs it.
-grep -q 'EXEMPT_NO_LENS_ROW="docs/xreview/hardened-core.md"' "$LINT" \
-  && [ -f "$REPO_ROOT/docs/xreview/hardened-core.md" ] \
-  && ok "the allowlist names a path that exists" \
-  || no "the allowlist names a path that is not in the tree"
+# The archive rule is a boundary, not a list: it must exempt a docs/xreview/ ledger
+# and must NOT exempt the same content outside that directory. Both directions.
+good | grep -v 'rubric lens' | sed 's/^Lenses:       4/Lenses:       3/' > "$TMP/l.md"
+check "the same content outside the archive is not exempt" NO-LENS-ROW
+# The live archived case: hardened-core.md is Class: skill-package with no
+# rubric-lens row, because that review predates the lens. It must pass.
+arch="$REPO_ROOT/docs/xreview/hardened-core.md"
+if [ ! -f "$arch" ]; then
+  no "the archived ledger is gone; the archive rule now covers nothing"
+elif grep -q '^Class:[[:space:]]*skill-package' "$arch" && ! grep -qE '^\|[[:space:]]*`?(the )?rubric lens' "$arch"; then
+  if "$LINT" "$arch" >/dev/null 2>&1; then
+    ok "the archived skill-package ledger with no lens row is exempt"
+  else
+    no "the archived ledger fails: $("$LINT" "$arch" 2>&1 | head -1)"
+  fi
+else
+  no "hardened-core.md no longer needs the exemption — remove the archive carve-out or move the file"
+fi
 
 echo "semantic checks are per round, not file-wide"
 # A file-wide scan let round 1's citation satisfy every later round. Two rounds,
