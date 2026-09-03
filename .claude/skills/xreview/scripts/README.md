@@ -19,8 +19,9 @@ reported in the stream, not in the status. `1` on a bad argument or an unreadabl
 directory. Read the stream, never the status, to learn whether a rule failed.
 
 One JSON object per rule on stdout: `id`, `severity`, `title`, `result`,
-`evidence`, `catalog_ref`, `source`. A `block` severity that fails is a finding.
-An `info` or `warn` is advisory.
+`evidence`, `catalog_ref`, `source`. `result` is `pass`, `fail`, or **`skipped`** — a check that could not run, which a consumer must
+handle: an unrun rule that leaves no trace reads as a rule that passed. A `block` severity that
+fails is a finding. An `info` or `warn` is advisory.
 
 The script checks 26 of the rubric's 51 rules. Of the other 25, 24 are `[semantic]` — a reviewer
 judges them by reading the skill — and one is `[pressure]`: **P7**, `block` severity, run by the

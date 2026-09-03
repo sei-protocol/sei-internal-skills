@@ -1,0 +1,20 @@
+# Known block-severity failures, one line per core skill: <skill> <rule-ids|->
+#
+# Pre-existing content debt, not a gate on this file's own correctness. The gate
+# is DIFFERENTIAL: a NEW block failure fails CI, and a FIXED one fails too so the
+# baseline shrinks rather than drifts. Update it in the same commit that changes
+# a skill's findings, and say in the message which direction it moved.
+#
+# D1 = description too long. D5 = description missing anti-triggers.
+# E2 = evals.json lacks a happy-path or a halt-condition entry.
+evm D5
+gov-ops D1,E2
+harbor-dev -
+idiomatic -
+kubernetes -
+platform -
+root-cause E2
+systems -
+validate-release D1,E2
+validator-platform D5
+xreview -

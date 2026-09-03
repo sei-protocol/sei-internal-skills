@@ -85,3 +85,66 @@ schematic enough to be emitted from memory.
 - **The agent-shaped rubric gap.** `skill-package` covers a change to a canonical skill
   *or agent*, but every rubric rule is skill-shaped. Pre-existing, named in
   `specs/002-expert-roster`, and out of scope here.
+
+## Round 2
+
+**State**: RESOLVED
+**OpenFindings**: 0
+**Convergence**: unanimous — 3 RATIFY, after 3 DISSENT in round 1
+**Blinded**: yes — three independent re-check briefs, no peer views
+**Dissenter**: `security-specialist` (assigned, carried from round 1)
+
+Each dissenting lens re-checked its own findings against `7e9461b`. The round is
+recorded here rather than edited into round 1.
+
+| Lens | Prior findings | Closed | Verdict |
+|---|---|---|---|
+| `prose-steward` | 16 | 13, then 4 new blocking | RATIFY after `ed3301c` |
+| `security-specialist` | 10 | 9, B3 open as major | RATIFY after `243f00b` |
+| `systems-engineer` | 8 | 8, verified by execution | RATIFY, 4 new non-blocking |
+
+### What the re-check caught that round 1 did not
+
+- **The round-1 defect recurring.** I added a HALT for an unreadable rubric file to
+  `SKILL.md` and left "no absence check and no HALT" standing in `slate-routing.md` —
+  the file that declares itself the tie-break — and in the eval that grades routing.
+  Same divergence class, one edit later. The lens and the file are now distinguished
+  in every passage: the lens cannot be absent because it does not install; the file
+  it reads can, and that HALTs.
+- **My merge-base rule violated this skill's own Reachability clause.** "The lens loads
+  the merge-base revision" is a `git show`, and `reviewer-dispatch.md` forbids handing a
+  shell pointer to a reviewer because some have no Bash. The orchestrator materializes
+  it now.
+- **P7 could be classified but not produced.** The rubric lens has read the skill and the
+  rubric, so it knows the answer and cannot be its own blinded subject. `pressure-testing.md`
+  now requires a fresh subagent, three scenarios run separately, and a clearly correct
+  answer under the skill.
+- **Four defects in code this change introduced**: `S4` checked only that
+  `scripts/README.md` exists, passing green on a README documenting no exit codes; that
+  README advertised an `--output json` form the script does not accept; the new eval
+  carried no `type`, so `E2`'s counter never saw it; the count guard read one README
+  line while the README states the count twice.
+- **`E1` was outside its own invariant.** With a broken interpreter it reported a parse
+  error on a valid file and dropped `E2`–`E4` with it. It now branches on exit 126/127.
+
+### The systemic finding
+
+`systems-engineer` named the gap that let two crashes reach review: **nothing in CI ran
+the checker.** It died mid-sweep on `validate-release` and dropped two `block` rules with
+no trace, and a description with no quoted trigger killed it under `pipefail`. Both were
+found by a reviewer running it by hand.
+
+Closed by `scripts/tests/skill-package-checks.test.sh` (27 cases) and
+`.github/workflows/verify-skill-package-checks.yml`. The block-failure check is
+**differential** against a committed baseline: a new block failure fails, and so does a
+fixed one, so the baseline shrinks deliberately rather than drifting. All three
+directions mutation-tested.
+
+### Deferred, named
+
+- `RuleIds:` as a ledger header field, so the "cite a rule id" rule gates rather than
+  asserts. The dissenter's own judgment: what it replaced was equally unenforced and
+  checked the wrong registry, so this is not a regression. Un-defer the first time a
+  `skill-package` ledger ships a rubric-lens RATIFY with no ids.
+- Seven of eleven core skills carry a pre-existing `block` failure (`D1`, `D5`, `E2`).
+  Content debt, unchanged by this diff, now pinned by the baseline so it cannot grow.

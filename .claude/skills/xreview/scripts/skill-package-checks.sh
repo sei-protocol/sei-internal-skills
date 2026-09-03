@@ -16,8 +16,8 @@ die() { printf 'skill-package-checks.sh: %s\n' "$1" >&2; exit "${2:-1}"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --skill-dir) SKILL_DIR="$2"; shift 2 ;;
-    --output)    OUTPUT="$2"; shift 2 ;;
+    --skill-dir) [[ $# -ge 2 ]] || die "--skill-dir needs a value" 1; SKILL_DIR="$2"; shift 2 ;;
+    --output)    [[ $# -ge 2 ]] || die "--output needs a file path" 1; OUTPUT="$2"; shift 2 ;;
     *) die "unknown flag: $1" 1 ;;
   esac
 done
@@ -246,8 +246,18 @@ fi
 # --- Evals checks ---
 EVALS_JSON="$SKILL_DIR/evals/evals.json"
 if [[ -f "$EVALS_JSON" ]]; then
-  # E1 — parseable JSON
-  if python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$EVALS_JSON" 2>/dev/null; then
+  # E1 — parseable JSON. Distinguish "the file is bad" from "we cannot read it":
+  # without python3 the old form reported a parse error on a valid file and
+  # silently dropped E2-E4 with it.
+  E1_RC=0
+  python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$EVALS_JSON" >/dev/null 2>&1 || E1_RC=$?
+  # 126/127 mean the interpreter could not run, not that the JSON is bad. Reporting
+  # a parse error there would blame a valid file and drop E2-E4 with it.
+  if (( E1_RC == 126 || E1_RC == 127 )); then
+    for r in E1:block E2:block E3:warn E4:warn; do
+      emit "${r%%:*}" "${r##*:}" "evals.json checks" "skipped" "python3 unavailable (exit $E1_RC)" "${r%%:*}"
+    done
+  elif (( E1_RC == 0 )); then
     emit "E1" "block" "evals.json is parseable" "pass" "" "E1"
 
     # E2, E3, E4 — counts and source field. One pass, path via argv (not
@@ -352,7 +362,9 @@ if [[ -f "$SYNC" ]]; then
   for v in PORTABLE_DOMAINS SEI_DOMAINS SEI_INTERNAL_SKILLS_LOCAL_DOMAINS; do
     DOMAINS="$DOMAINS $(sed -n "s/^${v}=\"\(.*\)\"$/\1/p" "$SYNC")"
   done
-  if [[ -n "$CAT" ]] && printf ' %s ' "$DOMAINS" | grep -q " $CAT "; then
+  # A literal case-glob, matching sync-skills.sh's in_list(). `grep " $CAT "`
+  # treated the category as a regex, so `wo.kflow` matched `workflow`.
+  if [[ -n "$CAT" ]] && case " $DOMAINS " in *" $CAT "*) true ;; *) false ;; esac; then
     emit "C3" "warn" "Skill category resolves to a sync alias" "pass" "$CAT" "C3"
   else
     emit "C3" "warn" "Skill category resolves to a sync alias" "fail" "category '$CAT' is in no domain list" "C3"
