@@ -8,7 +8,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VERIFY="$SCRIPT_DIR/../verify-references.sh"
-pass=0; fail=0
+pass=0; fail=0; known=0
 
 check() {
   local name="$1"; shift
@@ -70,7 +70,7 @@ printf 'category: workflow\n\nUse `/status`.\n' > "$t/.claude/skills/alpha/SKILL
 if "$VERIFY" --target "$t" 2>&1 | grep -q 'status'; then
   printf '  ok   a stop-listed name that is also a real resource is reported\n'; pass=$((pass+1))
 else
-  printf '  KNOWN a stop-listed name collides silently — see NON_SKILL_NAMES\n'; pass=$((pass+1))
+  printf '  KNOWN a stop-listed name collides silently — see NON_SKILL_NAMES\n'; known=$((known+1))
 fi
 
 # UNSHIPPED is the class that closed the defect this gate was written for, and it
@@ -96,5 +96,6 @@ check      "--installed on a machine with nothing synced still exits 0" \
   bash -c 'HOME="$(mktemp -d)" "$1" --installed --quiet' _ "$VERIFY"
 check_fail "--target with no value is a usage error" "$VERIFY" --target
 
-echo "  $pass passed, $fail failed"
+if [ "$known" -gt 0 ]; then echo "  $pass passed, $fail failed, $known known gap(s)"
+else echo "  $pass passed, $fail failed"; fi
 [ "$fail" -eq 0 ]

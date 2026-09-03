@@ -245,10 +245,12 @@ repository. `/pr-quality` was their *distribution mechanism* into repositories t
 run this library's CI, so dissolving the coordinator dissolves the distribution. **Feature
 003 files them against the platform repository with a named owner, or they are lost.**
 
-**The precondition, and it blocks.** `vale` runs nowhere in this repository's CI — no
-workflow, no `Makefile` target, no script. Feature 003 stands it up before either skill
-dissolves. Until that lands, this design MUST NOT be read as claiming a `vale` gate:
-Spec 001 FR-010 forbids exactly that, and §9 marks Q8 accordingly.
+**The precondition is satisfied, and an earlier draft of this section said otherwise.**
+It claimed `vale` runs nowhere in this repository's CI. `writing.yml` and
+`writing-contract.yml` run it at `fail_level: error`, and `writing/scripts/lint.sh` scopes
+it to `README.md`, `AGENTS.md`, `CLAUDE.md`, `agents`, `.claude`, `experimental`,
+`scripts` and `writing` — so skill prose is gated. Only the "no `Makefile` target" half
+held. The gate the dissolution waited on already runs.
 
 ### 5.5 What parks
 
@@ -736,7 +738,7 @@ Each requirement names the command that checks it, or the word `judgement`.
 | Q5 | No agent body exceeds its line ceiling. | `make verify-agent-size` |
 | Q6 | Every anchor named in a core artifact resolves to the constitution's table. | a registry check in CI |
 | Q7 | Every anchor in the table carries a probe verdict for the current default model. | the probe suite |
-| Q8 | Every governed artifact passes the prose gate at error level. | `vale` — **not running in CI today.** Feature 003 stands it up. Until then this row records a gap, not a check. |
+| Q8 | Every governed artifact passes the prose gate at error level. | `vale`, via `writing.yml` at `fail_level: error`. It runs on `.claude/**`. The tree carries ~1500 pre-existing findings, so this is a live check against a debt this change reduces rather than clears. |
 | Q9 | A cut resource has a `prune-retired.sh` entry in the same change. | `make verify-prune` |
 | Q10 | A restructured agent scores no worse than its skill-backed predecessor. | the eval A/B in §10 |
 

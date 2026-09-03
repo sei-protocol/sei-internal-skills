@@ -35,7 +35,7 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 ### writing-quality
 | Agent | Scope |
 |-------|-------|
-| `prose-steward` | Dual-audience prose steward — reviews org artifacts (design docs/HLDs, PRDs, 1-pagers) so they read correctly for **both** the human reviewer who scans and the consuming AI agent that ingests linearly and acts on the text. Profile-first (repo `CLAUDE.md` writing conventions outrank its own doctrine), citation-tier honest (Cited findings carry `Basis:`; Stated-opinion is advisory-only, never blocking), suggest-only. Pinned unconditionally by `/xreview` on any `skill-package` change. NOT code idiom (`idiomatic-reviewer`), NOT scope (`product-manager`). |
+| `prose-steward` | Prose steward — reviews org artifacts (design docs/HLDs, PRDs, 1-pagers, pull-request bodies) so they read correctly for the human who has to act on them. Profile-first (repo `CLAUDE.md` writing conventions outrank its own doctrine), citation-tier honest (Cited findings carry `Basis:`; Stated-opinion is advisory-only, never blocking), suggest-only. Pinned unconditionally by `/xreview` on any `skill-package` change. NOT code idiom (`idiomatic-reviewer`), NOT scope (`product-manager`). |
 
 ### code-quality
 | Agent | Scope |

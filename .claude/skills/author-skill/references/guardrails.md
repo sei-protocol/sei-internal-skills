@@ -20,7 +20,7 @@ Before scaffolding (Step 11 in the procedure):
 1. `git rev-parse --show-toplevel` succeeds and matches the user's expected repo. If not, halt.
 2. Target path `<repo>/.claude/skills/<name>/` does not exist OR exists and is empty. If non-empty, halt with the contents listed and ask for resume / archive / abort.
 3. `<name>` is kebab-case, ≤32 chars, does not collide with the protected list:
-   - `coral`, `council`, `design`, `issue`, `bugbash`, `author-skill`, `chaos-suite`, `harbor-dev`
+   - `coral`, `council`, `design`, `issue`, `bugbash`, `author-skill`, `harbor-dev`
    - Any other entry already in `<repo>/.claude/skills/*/` — collision is always halt.
 4. If `--user` is set, the user has explicitly opted into writing under their home directory (one-time confirmation per invocation).
 5. The pressure scenarios from RED converted cleanly into evals (Step 10). If evals.json is empty, halt — every skill ships with at least one happy-path and one halt-condition eval.

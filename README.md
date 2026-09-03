@@ -105,7 +105,6 @@ Most work starts with one of these:
 - **`/root-cause`** — disciplined, multi-expert investigation of a complex problem. Signals before hypotheses; falsification before conclusion.
 - **`/idiomatic`** then **`/systems`** — review code for language and package idiom, then for systems-level quality on top.
 - **`/harbor-dev`** — spin up an ephemeral chain, attach an RPC fleet, run a bench, tear it down.
-- **`/pr-quality`** — the locked pre-PR gate. **`/brevity`** — tighten the PR body.
 
 Heavier orchestration — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — is [experimental](./experimental/README.md) and installs only on opt-in.
 
@@ -115,7 +114,7 @@ The boundary between them is the point.
 
 | | What it is | Who gets it |
 |---|---|---|
-| **`.claude/`** — the core | 15 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
+| **`.claude/`** — the core | 13 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
 | **[`experimental/`](./experimental/README.md)** | 12 skills, 1 agent. Still forming, narrow audience, or exploratory. | Only on `make sync-experimental` |
 
 The core is what every teammate installs, so anything added there costs everyone the
@@ -164,12 +163,11 @@ private snapshot rather than deleted outright.
 
 ## What's in here
 
-- **Skills** (`.claude/skills/`) — 15 self-contained Claude Code skills, grouped by domain:
+- **Skills** (`.claude/skills/`) — 13 self-contained Claude Code skills, grouped by domain:
   - **Workflow** — `/xreview`
   - **Investigation** — `/root-cause`
   - **Code quality** — `/idiomatic`, `/systems`
   - **Skill authoring** — `/author-skill`, `/audit-skill`
-  - **Output quality** (sei-internal-skills-local) — `/brevity`, `/pr-quality`
   - **Platform infra** — `/platform`, `/kubernetes`
   - **Blockchain** — `/evm`
   - **Release operations** — `/validate-release`, `/gov-ops`, `/validator-platform`
@@ -217,7 +215,7 @@ make sync-skills                                            # the `portable` set
 ./scripts/sync-skills.sh --categories all                   # everything syncable
 ```
 
-Claude Code discovers skills/agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/sei-internal-skills/` are **not** discovered. So the install is always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. (`output-quality` — `/brevity`, `/pr-quality` — is sei-internal-skills-local and intentionally not synced.)
+Claude Code discovers skills and agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/sei-internal-skills/` are **not** discovered. So the install is always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. (`output-quality` — the Output discipline, the Output discipline — is sei-internal-skills-local and intentionally not synced.)
 
 ## Repository structure
 
@@ -256,8 +254,8 @@ despite the name — those are omnigent server bundles, not Claude Code agent pe
 ## Contributing & conventions
 
 - **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the skill or component in scope (e.g. `feat(xreview): ...`, `docs(readme): ...`).
-- **Brevity discipline.** Apply `/brevity` before writing PR bodies or WHY-style in-code comments.
-- **PR-quality discipline.** Before `gh pr create`, apply `/pr-quality` to the staged diff + planned body.
+- **Output discipline.** Follow the Output discipline in `AGENTS.md` for PR bodies and in-code comments — conclusion first, an in-body comment at 4 lines or fewer, a header at 20 or fewer.
+- **Pre-PR discipline.** Before `gh pr create`, re-read the diff and the planned body against the Output discipline in `AGENTS.md`.
 - **Edit skills here, not in `~/.claude/`.** User-scope copies are overwritten on the next sync. Change a skill in sei-internal-skills and PR it.
 
 ## Documentation map

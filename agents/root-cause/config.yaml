@@ -47,8 +47,10 @@ tools:
 #
 # `none` makes the vendored body the only one, so the envelope is a property of
 # the bundle rather than of whatever the image happened to seed. The corpora this
-# drops from reach — /kubernetes, /platform, /systems — are unusable inside the
-# MVP envelope anyway: it is shell-denied and credential-absent.
+# drops from reach — /kubernetes, /platform, /systems — are unusable under the dev
+# MVP envelope, which sets DENY_SHELL and mounts no cluster credential. The deploy
+# default is not shell-denied, so this is a property of that deployment and not of
+# the bundle.
 skills: none
 
 prompt: |

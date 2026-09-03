@@ -9,9 +9,12 @@ description: "Specialist agent for release validation reporting. Produces a trut
 # governance through /gov-ops against mainnet-adjacent contexts. The list below
 # is what the documented path uses and nothing more: no further dispatch.
 #
-# The Notion tool is named because an explicit list is exhaustive, and the
-# release report is written with it (validate-release scripts/push-notion.py).
-tools: Read, Write, Edit, Bash, Glob, Grep, mcp__claude_ai_Notion__notion-create-pages
+# An explicit list is exhaustive, so every tool the documented path needs is named.
+# `Skill` is on it because this agent's governance mode is defined by skill loading:
+# its manual says to run every lifecycle through `/gov-ops` and never hand-roll it,
+# and `/gov-ops` holds the mainnet-adjacency allowlist and the confirm gates. The
+# Notion tool writes the release report (validate-release scripts/push-notion.py).
+tools: Read, Write, Edit, Bash, Glob, Grep, Skill, mcp__claude_ai_Notion__notion-create-pages
 ---
 
 # Platform Release Manager

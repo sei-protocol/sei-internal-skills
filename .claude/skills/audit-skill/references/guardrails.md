@@ -32,7 +32,7 @@ Before entering Phase 2 (refactor):
 
 The protected list:
 
-- `coral`, `council`, `design`, `issue`, `bugbash`, `author-skill`, `audit-skill`, `chaos-suite`, `harbor-dev`
+- `coral`, `council`, `design`, `issue`, `bugbash`, `author-skill`, `audit-skill`, `harbor-dev`
 
 **Audit is always allowed on protected skills.** That's the whole point — these are the most important skills to audit.
 

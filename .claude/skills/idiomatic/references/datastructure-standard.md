@@ -4,7 +4,7 @@ A concrete standard for documenting a package's **data-structure patterns** — 
 
 This standard is language-general in spirit; the worked form below is Go (`doc.go`). For other languages, the equivalent is the package/module-level doc comment.
 
-**This is the sanctioned exception to comment discipline (pack dimension D10), not a contradiction of it.** A package-pattern `doc.go` is the case the discipline names explicitly: something *above* the code (a lifecycle, an ownership boundary, a cross-package invariant) that names alone cannot convey. It describes the structure's *contract and current invariants*. Hold it to AGENTS.md **Output discipline** like any other comment.
+**This is the sanctioned exception to comment discipline, not a contradiction of it.** A package-pattern `doc.go` is the case the discipline names explicitly: something *above* the code (a lifecycle, an ownership boundary, a cross-package invariant) that names alone cannot convey. It describes the structure's *contract and current invariants*. Hold it to AGENTS.md **Output discipline** like any other comment.
 
 ## When it applies
 

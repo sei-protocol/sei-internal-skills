@@ -10,7 +10,7 @@ The skills help engineers review code, investigate failures, operate releases, r
 
 > Operating doctrine for the sei-internal-skills-synced skills and agents lives in [AGENTS.md](./AGENTS.md).
 
-The engineering principles, the output discipline (incl. the comment/documentation standard and its champions), the workflow skills and when each applies (`/xreview`, `/root-cause`, `/idiomatic`, `/systems`, `/pr-quality`), the xreview discipline, and the key rules are maintained **once** in `scripts/sei-internal-skills-doctrine.md` and distributed — to this repo and to every consuming package — as the `sei-internal-skills-managed` block in [AGENTS.md](./AGENTS.md). Edit the doctrine there, then run `make sync-doctrine-self`. The specialist roster also lives in `AGENTS.md`; the full skill catalog lives in `.claude/skills/README.md`.
+The engineering principles, the output discipline (incl. the comment and documentation standard, with its numeric bounds), the workflow skills and when each applies (`/xreview`, `/root-cause`, `/idiomatic`, `/systems`), the xreview discipline, and the key rules are maintained **once** in `scripts/sei-internal-skills-doctrine.md` and distributed — to this repo and to every consuming package — as the `sei-internal-skills-managed` block in [AGENTS.md](./AGENTS.md). Edit the doctrine there, then run `make sync-doctrine-self`. The specialist roster also lives in `AGENTS.md`; the full skill catalog lives in `.claude/skills/README.md`.
 
 ## Authoring & Maintaining Skills
 

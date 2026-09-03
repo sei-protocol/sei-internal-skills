@@ -2,7 +2,7 @@
 name: idiomatic
 category: code-quality
 model: claude-opus-5
-description: "Use when reviewing or refining code to make it idiomatic to its language, framework, and the package's own established patterns — 'is this idiomatic', 'review this for idioms', '/idiomatic', 'make this read native to the package', 'idiomatic review of <pkg>', 'does this follow our conventions', 'review my Go for idioms'. Pluggable across languages; backs the idiomatic-reviewer agent. Anti-triggers: NOT for correctness/logic bugs (use /code-review); NOT for cross-component interface or boundary consistency (use /xreview); NOT for the locked pre-PR sei-internal-skills rule gate (use /pr-quality); NOT for building or designing controllers/CRDs/systems (dispatch the language specialist, e.g. kubernetes-specialist — this skill reviews for idiom, it does not author the system). Standalone today; /coral + /council dispatch deferred."
+description: "Use when reviewing or refining code to make it idiomatic to its language, framework, and the package's own established patterns — 'is this idiomatic', 'review this for idioms', '/idiomatic', 'make this read native to the package', 'idiomatic review of <pkg>', 'does this follow our conventions', 'review my Go for idioms'. Pluggable across languages; backs the idiomatic-reviewer agent. Anti-triggers: NOT for correctness/logic bugs; NOT for cross-component interface or boundary consistency (use /xreview); NOT for building or designing controllers/CRDs/systems (dispatch the language specialist, e.g. kubernetes-specialist — this skill reviews for idiom, it does not author the system). Standalone today; /coral + /council dispatch deferred."
 ---
 
 # Idiomatic
@@ -42,12 +42,10 @@ Stop and escalate rather than proceeding when:
 | Does this read native to the language + this package's patterns? | — |
 | Surfacing a finding's idiom basis (Effective Go rule, CLAUDE.md mandate) | — |
 | Recommending/drafting package data-structure docs to a standard | — |
-<!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
-| Correctness, logic errors, races, nil derefs | `/code-review` |
+| Correctness, logic errors, races, nil derefs | not this lens — no correctness skill ships today |
 | Does component A's output match component B's expectation? | `/xreview` |
 | Building/designing the controller, CRD, or system | dispatch the language specialist (e.g. `kubernetes-specialist`) |
 
-<!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
 <!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
 A correct-but-unidiomatic function passes `/code-review` and is exactly what `/idiomatic` is for. A non-idiomatic finding that proves durable and mechanical should **graduate** into a lint rule or the contract — this skill is the *discovery* surface, pr-quality is the *locked gate*.
 

@@ -10,6 +10,10 @@
 #
 # Citation forms:
 #   `/name`                a backticked slash-name in prose
+#   /name                  a bare slash-name, which is what `description:`
+#                          frontmatter uses — and frontmatter is the surface that
+#                          routes invocation, so a scanner blind to it fails open
+#                          on the highest-consequence citation in the repository
 #   .claude/skills/<name>  a path form
 #
 # Error classes — any one fails the run:
@@ -37,8 +41,8 @@
 #
 #   <!-- gap: /code-review — deferred; un-defer on the first correctness defect -->
 #
-# It exempts one name. A line citing several unresolved names needs one marker
-# line per name, or a rewrite.
+# It exempts every name listed BEFORE the em-dash. Text after the dash is
+# rationale and exempts nothing, so naming a live skill there is safe.
 #
 # Usage:
 #   verify-references.sh [--target <path>] [--installed] [--quiet]
@@ -106,11 +110,12 @@ fi
 # it. The list stays short on purpose: growing it is the easy way to make this
 # gate pass rather than to make it correct, so an addition is a reviewed act.
 #
+#   clear config compact init help  Claude Code built-ins, not skills
 #   proc metrics status health   HTTP and probe endpoints
 #   websocket block block_results lag_status genesis   CometBFT RPC routes
-#   oauth token v1 auth          server routes this repo documents
+#   oauth token auth          server routes this repo documents
 #   opt home tmp usr etc var dev bin mnt   absolute paths in image and deploy prose
-NON_SKILL_NAMES=" proc metrics status health genesis websocket block block_results lag_status oauth token v1 auth opt home tmp usr etc var dev bin mnt "
+NON_SKILL_NAMES=" clear config compact init help loop schedule other other-skill name eip proc metrics status health genesis websocket block block_results lag_status oauth token auth opt home tmp usr etc var dev bin mnt "
 
 cd "$TARGET"
 
@@ -161,6 +166,10 @@ AWK_PROG='
       marker = " "
       if (match(prev, /<!--[ \t]*gap:/)) {
         tail = substr(prev, RSTART, RLENGTH + 400)
+        # Names precede the em-dash; everything after it is rationale prose and
+        # must not exempt anything or trip the stale check.
+        sep = index(tail, " — ")
+        if (sep > 0) tail = substr(tail, 1, sep - 1)
         while (match(tail, /\/[a-z][a-z0-9-]{2,30}/)) {
           nm = substr(tail, RSTART + 1, RLENGTH - 1); tail = substr(tail, RSTART + RLENGTH)
           marker = marker nm " "
@@ -168,13 +177,26 @@ AWK_PROG='
             printf "STALE-MARKER   %s:%d  marks /%s as a gap, but the core holds it\n", FILENAME, FNR-1, nm
         }
       }
+      # A gap marker is metadata about the next line, not a citation itself. The
+      # bare-name pass would otherwise report the names inside a marker as findings.
+      if ($0 ~ /<!--[ \t]*gap:/) { prev = $0; next }
+
       line = $0
-      for (pass = 1; pass <= 2; pass++) {
+      for (pass = 1; pass <= 3; pass++) {
         rest = line
-        re = (pass == 1) ? "`\\/[a-z][a-z0-9-]{2,30}`" : "\\.claude\\/skills\\/[a-z][a-z0-9-]{2,30}"
+        # Pass 3 is the bare form. It requires a boundary on the left and a
+        # non-slash on the right, so a path segment (/opt/agents, .claude/skills/x)
+        # does not match and only a standalone slash-name does.
+        if (pass == 1)      re = "`\\/[a-z][a-z0-9-]{2,30}`"
+        else if (pass == 2) re = "\\.claude\\/skills\\/[a-z][a-z0-9-]{2,30}"
+        else                re = "(^|[ (,;\"])\\/[a-z][a-z0-9-]{2,30}([ ),.;:\"]|$)"
         while (match(rest, re)) {
           tok = substr(rest, RSTART, RLENGTH); rest = substr(rest, RSTART + RLENGTH)
-          gsub(/[`]/, "", tok); sub(/^.*\//, "", tok)
+          gsub(/[`(),;:"]/, "", tok); gsub(/^[ ]+|[ ]+$/, "", tok)
+          sub(/^.*\//, "", tok); sub(/[.,;:)"]+$/, "", tok); sub(/-+$/, "", tok)
+          # No skill in this repository carries a digit. An EIP or RFC number in
+          # a shorthand list is not a citation.
+          if (tok ~ /[0-9]/) continue
           if (index(stop, " " tok " ")) continue
           if (index(marker, " " tok " ")) continue
           if (seen[FILENAME ":" FNR ":" tok]++) continue
@@ -193,6 +215,9 @@ AWK_PROG='
 scan=$(
   { find "$AGENT_ROOT" -type f -name '*.md' 2>/dev/null || true
     find "$SKILL_ROOT" -type f -name '*.md'
+    # The two documents a new engineer reads first were outside this scan, which
+    # is how a stale skill count and five dangling citations survived a sweep.
+    for root in README.md AGENTS.md CLAUDE.md; do [ -f "$root" ] && echo "$root"; done
     # `|| true`: with an empty DOCTRINE this test is the group's last command, so
     # the group exits 1, pipefail fails the pipeline, and set -e kills the script
     # before it prints anything.
