@@ -103,10 +103,10 @@ schematic enough to be emitted from memory.
 Round:        2
 State:        RESOLVED
 OpenFindings: 0
-Convergence:  unanimous
+Convergence:  split
 Blinded:      yes
 Dissenter:    security-specialist
-Lenses:       4
+Lenses:       3
 ```
 
 Unanimous this round: all three round-1 dissenters re-checked and RATIFIED. Blinded: three
@@ -120,7 +120,7 @@ recorded here rather than edited into round 1.
 | `prose-steward` | 16 | 13, then 4 new blocking | RATIFY after `ed3301c` |
 | `security-specialist` | 10 | 9, B3 open as major | RATIFY after `243f00b` |
 | `systems-engineer` | 8 | 8, verified by execution | RATIFY, 4 new non-blocking |
-| rubric lens | — | — | **not re-dispatched** — the pin was dropped this round without an operator override. Closed in round 5. |
+| rubric lens | — | — | NOT-RE-DISPATCHED — the pin was dropped this round without an operator override. Closed in round 5. |
 
 ### What the re-check caught that round 1 did not
 
@@ -180,6 +180,14 @@ Dissenter:    seidroid
 Lenses:       1
 ```
 
+| Lens | Role | Verdict |
+|---|---|---|
+| seidroid | agentic reviewer, assigned dissent | DISSENT — eight CONFIRMED findings |
+| `prose-steward` | pinned | NOT-RE-DISPATCHED |
+| `security-specialist` | §4a, dissenter | NOT-RE-DISPATCHED |
+| `systems-engineer` | §4a | NOT-RE-DISPATCHED |
+| rubric lens | pinned, `skill-package` | NOT-RE-DISPATCHED |
+
 Automated review is co-equal (`AGENTS.md`, xreview discipline). `seidroid` reviewed the
 pushed branch and returned eight CONFIRMED findings plus substantive answers to the three
 questions posed. Blinded: **no** — it reviewed after rounds 1-2 were committed and could
@@ -231,6 +239,14 @@ Blinded:      no
 Dissenter:    seidroid
 Lenses:       1
 
+| Lens | Role | Verdict |
+|---|---|---|
+| seidroid | agentic reviewer, assigned dissent | DISSENT — nine findings |
+| `prose-steward` | pinned | NOT-RE-DISPATCHED |
+| `security-specialist` | §4a, dissenter | NOT-RE-DISPATCHED |
+| `systems-engineer` | §4a | NOT-RE-DISPATCHED |
+| rubric lens | pinned, `skill-package` | NOT-RE-DISPATCHED |
+
 Re-review of `2f2f74e`. Nine findings, five named as pre-merge. `Blinded: no` and
 `Lenses: 1` — a degenerate single-reviewer pass, and it had read every prior round.
 
@@ -271,10 +287,10 @@ the exemption, because the skills it names were cut here.
 Round:        5
 State:        RESOLVED
 OpenFindings: 0
-Convergence:  split
+Convergence:  degenerate
 Blinded:      no
 Dissenter:    rubric lens
-Lenses:       4
+Lenses:       1
 
 The rubric lens, dispatched against the current tree. It was **not** re-dispatched in
 rounds 2-4 — the pin was dropped for three rounds without an operator override. This round
@@ -291,10 +307,11 @@ and a verification claim in a ledger has to say what actually happened.
 
 | Lens | Role | Verdict |
 |---|---|---|
+| seidroid | agentic reviewer | NOT-RE-DISPATCHED |
 | rubric lens | pinned, `skill-package` | DISSENT — cited `R4`, `A2`, `B1`, `D2`, `A1`, `P7`, `E5`, `D7`, `C2`, `R5` |
-| `prose-steward` | pinned | **not re-dispatched** — round 2 RATIFY stands; this round dispatched only the pin that had been dropped |
-| `security-specialist` | §4a, dissenter | **not re-dispatched** — round 2 RATIFY stands |
-| `systems-engineer` | §4a | **not re-dispatched** — round 2 RATIFY stands |
+| `prose-steward` | pinned | NOT-RE-DISPATCHED — round 2 RATIFY stands; this round dispatched only the pin that had been dropped |
+| `security-specialist` | §4a, dissenter | NOT-RE-DISPATCHED — round 2 RATIFY stands |
+| `systems-engineer` | §4a | NOT-RE-DISPATCHED — round 2 RATIFY stands |
 
 ### P7 — pass
 
@@ -334,18 +351,18 @@ closed.
 Round:        6
 State:        RESOLVED
 OpenFindings: 0
-Convergence:  split
+Convergence:  degenerate
 Blinded:      no
 Dissenter:    seidroid
-Lenses:       5
+Lenses:       1
 
 | Lens | Role | Verdict |
 |---|---|---|
-| seidroid | agentic reviewer, assigned dissent | CHANGES_REQUESTED — cited `R7`, `A2`, `D2` |
-| rubric lens | pinned, `skill-package` | **not re-dispatched** — its round 5 DISSENT stands, cited `R4`, `A2`, `B1`, `D2`, `P7`. Every finding it raised is closed; the verdict is its to change. |
-| `prose-steward` | pinned | **not re-dispatched** — round 2 RATIFY stands |
-| `security-specialist` | §4a, dissenter | **not re-dispatched** — round 2 RATIFY stands |
-| `systems-engineer` | §4a | **not re-dispatched** — round 2 RATIFY stands |
+| seidroid | agentic reviewer, assigned dissent | DISSENT — cited `R7`, `A2`, `D2` |
+| rubric lens | pinned, `skill-package` | NOT-RE-DISPATCHED — its round 5 DISSENT stands, cited `R4`, `A2`, `B1`, `D2`, `P7`. Every finding it raised is closed; the verdict is its to change. |
+| `prose-steward` | pinned | NOT-RE-DISPATCHED — round 2 RATIFY stands |
+| `security-specialist` | §4a, dissenter | NOT-RE-DISPATCHED — round 2 RATIFY stands |
+| `systems-engineer` | §4a | NOT-RE-DISPATCHED — round 2 RATIFY stands |
 
 `State: RESOLVED` over a standing DISSENT is the third exit stated in `review-ledger.md`:
 every finding that DISSENT raised is closed, and `Convergence:` stays `split` because the
