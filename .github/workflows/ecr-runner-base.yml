@@ -1,0 +1,174 @@
+name: ECR Runner Base
+
+# Build + push the runner BASE image -- the omnigent host image Dockerfile.runner
+# then layers the .claude overlay onto.
+#
+# This exists because the base had no pipeline. The deployed base
+# (runner-e6216fc7-credbridge) was pushed by hand and pinned by digest in
+# runner-base.txt, so nothing recorded how to reproduce it. A base you cannot
+# rebuild is a base you cannot patch -- the same reasoning as ecr-server-base.yml,
+# which this mirrors.
+#
+# Source is the fork, not this repo: the host binary and the .claude overlay have
+# different owners, which is why the image has two layers. A fork commit cannot
+# trigger this -- the ref is an explicit input, which suits something bumped
+# deliberately alongside the server base.
+#
+# Build the runner base from the SAME fork ref as the server base. The host
+# dials the server over a tunnel whose protocol is versioned by neither side;
+# mixed versions are the combination upstream never tests.
+#
+# amd64 only, matching the sandbox NodePool's default selector.
+#
+# Publishing does not roll anything. Deploying is three deliberate steps: the
+# digest here into runner-base.txt, then ecr-runner.yml for the overlay, then the
+# overlay digest into platform's sandbox-config-patch.yaml with a
+# config-revision bump.
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "omnigent fork ref to build (branch, tag or sha)"
+        required: true
+        default: feat/sei-base
+      tag:
+        description: "Image tag (defaults to runner-<short ref sha>-credbridge)"
+        required: false
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Check out the fork at the requested ref
+        uses: actions/checkout@v4
+        with:
+          repository: bdchatham/omnigent
+          ref: ${{ inputs.ref }}
+          # The fork is public, so the job's own token reads it. Setting
+          # OMNIGENT_FORK_TOKEN repairs this if it is ever made private, without
+          # touching this file -- otherwise the failure reads as "repository not
+          # found", which names neither the cause nor the fix.
+          token: ${{ secrets.OMNIGENT_FORK_TOKEN || github.token }}
+          # The build reads the git history for its version string.
+          fetch-depth: 0
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::189176372795:role/common/gha
+          role-duration-seconds: 3600
+          aws-region: us-east-2
+
+      - id: ecr-login
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - uses: docker/setup-buildx-action@v3
+
+      - id: vars
+        name: Resolve the target tag
+        env:
+          INPUT_TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse --short=8 HEAD)"
+          echo "tag=${INPUT_TAG:-runner-${sha}-credbridge}" >> "$GITHUB_OUTPUT"
+          echo "built ${sha} ($(git log -1 --format=%s | cut -c1-60))"
+
+      - name: Build the host target
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.sei
+          target: host
+          push: false
+          load: true
+          platforms: linux/amd64
+          tags: sei-omnigent-runner-base:candidate
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-base
+          cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-base,mode=max
+
+      - name: Gate — the credential bridge resolves a mounted token
+        # The bridge is the whole reason this base is a fork build rather than
+        # upstream's host image. It is also invisible at runtime when broken: a
+        # runner with no credential clones nothing and reports it read nothing,
+        # which reads as the agent failing rather than the image failing.
+        #
+        # Asserted against a FAKE token on a fake mount, so the gate needs no
+        # secret and proves the wiring rather than the credential. The check
+        # script's own network probe is skipped for the same reason.
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          docker run --rm --user 0 \
+            -e SEI_RUNNER_CREDENTIAL_CHECK_SKIP_NETWORK=1 \
+            -e SEI_RUNNER_REQUIRE_GIT_TOKEN=1 \
+            --entrypoint bash sei-omnigent-runner-base:candidate -lc '
+              set -euo pipefail
+              mkdir -p /mnt/secrets/git
+              printf "ghp_fakefakefakefakefakefakefakefake" > /mnt/secrets/git/token
+
+              # gh must resolve the mounted token via the PATH wrapper. A
+              # non-login shell is what the agent tools actually get.
+              bash -c "gh auth token --hostname github.com" | grep -q "^ghp_fake" \
+                || { echo "FAIL: gh wrapper did not export GH_TOKEN from the mount"; exit 1; }
+              echo "  ok gh bridge"
+
+              # git must answer credential fill for github.com, and ONLY github.com.
+              printf "protocol=https\nhost=github.com\n\n" \
+                | GIT_TERMINAL_PROMPT=0 git credential fill | grep -q "^password=ghp_fake" \
+                || { echo "FAIL: git helper returned no password for github.com"; exit 1; }
+              echo "  ok git bridge"
+
+              printf "protocol=https\nhost=evil.com\n\n" \
+                | GIT_TERMINAL_PROMPT=0 git credential fill 2>/dev/null | grep -q "^password=ghp_fake" \
+                && { echo "FAIL: the token leaked to a non-github host"; exit 1; }
+              echo "  ok host scoping"
+
+              command -v sei-runner-credential-check >/dev/null \
+                || { echo "FAIL: sei-runner-credential-check absent"; exit 1; }
+              sei-runner-credential-check >/dev/null \
+                || { echo "FAIL: the readiness gate rejected a mounted token"; exit 1; }
+              echo "  ok readiness gate"
+
+              echo "runner-base-ok"
+            '
+
+      - name: Push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/docker/Dockerfile.sei
+          target: host
+          push: true
+          platforms: linux/amd64
+          tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
+          cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-base
+
+      - name: Report the digest to pin in runner-base.txt
+        env:
+          REF: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
+          # Through the environment, not interpolated into the script: a dispatch
+          # input reaching a shell as text is an injection, and this step runs
+          # after the AWS credentials are configured.
+          TAG: ${{ steps.vars.outputs.tag }}
+          SOURCE_REF: ${{ inputs.ref }}
+        run: |
+          set -euo pipefail
+          digest="$(docker buildx imagetools inspect "$REF" --format '{{.Manifest.Digest}}' 2>/dev/null || true)"
+          [ -n "$digest" ] || { echo "could not resolve the pushed digest" >&2; exit 1; }
+          {
+            echo "### Runner base published"
+            echo
+            echo "Pin this in \`runner-base.txt\`, then run **ECR Runner** to rebuild the overlay:"
+            echo
+            echo '```'
+            echo "189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@${digest}"
+            echo '```'
+            echo
+            echo "Tag: \`$TAG\` — built from \`$SOURCE_REF\`."
+          } >> "$GITHUB_STEP_SUMMARY"
