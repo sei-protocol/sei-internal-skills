@@ -87,7 +87,13 @@ if $INSTALLED; then
 fi
 
 if $INSTALLED; then
-  [[ -d "$TARGET/skills" ]] || { echo "no skills/ under $TARGET — nothing synced here" >&2; exit 2; }
+  # No installed tree is information, not a usage error. A CI runner has none,
+  # and this mode is a diagnostic that must never gate — exiting 2 here made it
+  # neither a pass nor a fail on exactly the machine that runs it most.
+  if [[ ! -d "$TARGET/skills" ]]; then
+    $QUIET || echo "verify-references --installed: nothing synced under $TARGET. Diagnostic only; never gates."
+    exit 0
+  fi
 else
   [[ -d "$TARGET/.claude/skills" ]] || { echo "no .claude/skills under $TARGET" >&2; exit 2; }
 fi

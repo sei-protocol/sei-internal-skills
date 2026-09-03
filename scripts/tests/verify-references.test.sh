@@ -90,6 +90,10 @@ printf 'category: workflow\n\nRun `scripts/ghost.sh`.\n' > "$t/.claude/skills/al
 check_fail "a named script that exists nowhere fails" "$VERIFY" --target "$t"
 
 check      "--installed never gates" bash -c '"$1" --installed --quiet' _ "$VERIFY"
+# A CI runner has no installed tree. Exiting 2 there made this mode neither a
+# pass nor a fail on the machine that runs it most.
+check      "--installed on a machine with nothing synced still exits 0" \
+  bash -c 'HOME="$(mktemp -d)" "$1" --installed --quiet' _ "$VERIFY"
 check_fail "--target with no value is a usage error" "$VERIFY" --target
 
 echo "  $pass passed, $fail failed"
