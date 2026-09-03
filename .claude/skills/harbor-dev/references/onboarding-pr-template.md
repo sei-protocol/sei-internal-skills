@@ -217,7 +217,32 @@ module "eng_fromtherain_engineer_pod_identity" {
 }
 ```
 
-## File 4: `engineers/<alias>/kustomization.yaml` (workspace repo: `sei-protocol/harbor-engineering-workspace`, new)
+## File 4: `clusters/harbor/monitoring/podmonitor-seiload-eng.yaml` (platform repo, modified)
+
+Append `eng-<alias>` to `namespaceSelector.matchNames`, keeping the list
+alphabetical. Only that list changes; leave the comment and the rest of the
+spec alone.
+
+```yaml
+  namespaceSelector:
+    matchNames:
+      - eng-amir
+      - eng-brandon
+      - eng-dakai
+      - eng-fromtherain
+      - eng-<alias>          # <- added
+      - eng-yiming
+      - eng-yiren
+```
+
+The selector enumerates `matchNames` because the PodMonitor CRD accepts only
+`any` or `matchNames`. It matches no label and no glob. `any: true` also selects
+the nightly namespace's seiload and scrapes it twice.
+
+Prometheus scrapes a cell only after this list names its namespace. Onboard a
+cell without this edit and seiload runs, but no loadgen metrics arrive.
+
+## File 5: `engineers/<alias>/kustomization.yaml` (workspace repo: `sei-protocol/harbor-engineering-workspace`, new)
 
 ```yaml
 # fromtherain's Harbor workspace.
