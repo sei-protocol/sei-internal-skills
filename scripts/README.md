@@ -15,6 +15,7 @@ Utility scripts for sei-internal-skills repo maintenance. Most are wrapped by Ma
 | `prune-retired.sh` | Remove retired/parked resources from a synced `.claude/`. **The only script here that deletes** — dry-run by default, `--apply` to act. Never touches a core or unrecognized resource | `make prune-retired` / `make prune-retired-apply`, manually |
 | `verify-references.sh` | Fail if a shipped artifact cites a resource an engineer cannot reach. Four error classes (ABSENT, UNSHIPPED, STALE-MARKER, MISSING-SCRIPT) and one warning (PARKED). `--installed` reports against `~/.claude` and never gates. | CI + `make verify-references` |
 | `tests/prune-retired.test.sh` | Regression suite for `prune-retired.sh` — asserts what it must NOT remove | `make test-prune`, CI |
+| `verify-ledger.sh` | Fail if an `/xreview` review ledger violates the schema `/xreview` ships — typed header fields, and a cited rule id on a `skill-package` ledger | `make verify-ledger`, CI |
 | `tests/skill-package-checks.test.sh` | Sweeps `/xreview`'s rubric checker over every core skill; asserts it completes and emits parseable JSON, and diffs block failures against `block-baseline.txt` | `make test-skill-package-checks`, CI |
 | `tests/experimental-isolation.test.sh` | Regression suite for the `experimental/` tier — nothing in it ships by default | `make test-experimental`, CI |
 | `agent-permissions.json` | Canonical read-only permission set (source of truth) | Read by both agent-permissions scripts |

@@ -104,6 +104,10 @@ test-prune: ## Run the prune-retired regression suite (never deletes core or use
 test-skill-package-checks: ## Sweep the rubric checker over every core skill; diff block failures against the baseline (CI)
 	@./scripts/tests/skill-package-checks.test.sh
 
+.PHONY: verify-ledger
+verify-ledger: ## Fail if an /xreview ledger violates the schema /xreview ships (CI)
+	@./scripts/verify-ledger.sh
+
 .PHONY: update-agent-permissions
 update-agent-permissions: ## Install canonical read-only allow-list into ./.claude/settings.json (DRY_RUN=1 to preview)
 	@./scripts/update-agent-permissions.sh

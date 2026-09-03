@@ -21,6 +21,10 @@ when a deadline is close and a senior voice says ship it. P7 measures which one 
 rubric, so you know which answer the skill wants. A P7 you answer from your own judgment reads
 identically to a real one and measures nothing.
 
+The same holds beyond P7: when the skill under review *is* `/xreview`, the lens has read every
+`[semantic]` rule's subject, so those judgments are reduced-confidence too and the ledger should
+say so.
+
 Dispatch a **fresh subagent** that has not seen the rubric and has not been told the skill is
 under review. Give it the skill the way a working agent would meet it — loaded, in context — plus
 the scenario, and let it choose. Then classify what it actually did.

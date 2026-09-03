@@ -4,19 +4,29 @@
 deletes `.claude/skills/author-skill/` and `.claude/skills/audit-skill/`, moves the
 skill-package rubric and its static checker into `/xreview`, rewrites the steward pin.
 
-**Class**: `skill-package`
-**Tier**: T3
+```
+Class:        skill-package
+Tier:         T3
+```
 
-**Note**: belongs in the DRI's designs repository under
-`designs/sei-agentic-mesh/xreview/`. It sits here beside its sibling pending that move.
+**Path**: this is the documented in-repo fallback, `.xreview/<slug>.md` — one of the two
+locations the consumer gate checks. It belongs in the DRI's designs repository under
+`designs/sei-internal-skills-stack/xreview/`; that move is pending for this ledger and for the
+two older ones still under `docs/xreview/`, which is a third location no gate can find.
 
 ## Round 1
 
-**State**: RESOLVED
-**OpenFindings**: 0
-**Convergence**: split — 3 DISSENT, 1 RATIFY-with-advisory
-**Blinded**: yes — four independent briefs, no peer views
-**Dissenter**: `security-specialist` (assigned)
+```
+Round:        1
+State:        RESOLVED
+OpenFindings: 0
+Convergence:  split
+Blinded:      yes
+Dissenter:    security-specialist
+```
+
+Three of four lenses returned DISSENT; all findings closed in rounds 1-2. Blinded: four
+independent briefs, no reviewer saw another's findings.
 
 ### Slate
 
@@ -88,11 +98,17 @@ schematic enough to be emitted from memory.
 
 ## Round 2
 
-**State**: RESOLVED
-**OpenFindings**: 0
-**Convergence**: unanimous — 3 RATIFY, after 3 DISSENT in round 1
-**Blinded**: yes — three independent re-check briefs, no peer views
-**Dissenter**: `security-specialist` (assigned, carried from round 1)
+```
+Round:        2
+State:        RESOLVED
+OpenFindings: 0
+Convergence:  unanimous
+Blinded:      yes
+Dissenter:    security-specialist
+```
+
+Unanimous this round: all three round-1 dissenters re-checked and RATIFIED. Blinded: three
+independent re-check briefs, no peer views. The dissenter carried over from round 1.
 
 Each dissenting lens re-checked its own findings against `7e9461b`. The round is
 recorded here rather than edited into round 1.
@@ -148,3 +164,55 @@ directions mutation-tested.
   `skill-package` ledger ships a rubric-lens RATIFY with no ids.
 - Seven of eleven core skills carry a pre-existing `block` failure (`D1`, `D5`, `E2`).
   Content debt, unchanged by this diff, now pinned by the baseline so it cannot grow.
+
+## Round 3
+
+```
+Round:        3
+State:        RESOLVED
+OpenFindings: 0
+Convergence:  unanimous
+Blinded:      no
+Dissenter:    seidroid
+```
+
+Automated review is co-equal (`AGENTS.md`, xreview discipline). `seidroid` reviewed the
+pushed branch and returned eight CONFIRMED findings plus substantive answers to the three
+questions posed. Blinded: **no** — it reviewed after rounds 1-2 were committed and could
+read the ledger, so its agreement corroborates nothing the earlier rounds established. It
+was assigned the dissent for this round, and its findings are treated as blocking.
+
+`Cursor Bugbot` returned a summary with no findings. The `vale` check is red on this branch
+and on every recent `main` commit, including this branch's merge base; the workflow header
+states the backlog does not block.
+
+### Findings
+
+| # | Finding | Evidence | Resolution |
+|---|---|---|---|
+| F1 | The ledger this change ships fails the ledger schema this change ships | bolded fields, prose after a tokens-only `Convergence:`, no `Round:` line, and `docs/xreview/` is a third path neither consumer candidate checks | Rewritten to schema, moved to the documented `.xreview/` fallback, and now gated by `scripts/verify-ledger.sh` |
+| F2 | `block-baseline.txt` legend maps the wrong rules | wrote "D1 = too long, D5 = missing anti-triggers"; those are `D2` and `D3`. `D1` = starts with "Use when", `D5` = third person | Legend corrected against the rubric |
+| F3 | The baseline ships to every install | `sync-skills.sh:267` is `cp -R "$src/."`, so repo-state debt lands in every `~/.claude/` and every sibling repo | Moved to `scripts/tests/block-baseline.txt` |
+| F4 | The differential gate cannot see rubric-`block` rules the script rates `warn` | filtered the *emitted* severity, so a skill deleting its `## Guardrails` stanza (`B2`) never entered the baseline | Severity now mapped through the rubric. Verified: renaming `harbor-dev`'s stanza now fails the gate as `B2` |
+| F5 | `A1`'s placeholder carve-out swallows every markdown link and shape tag | `/\[[a-z][^]]*\]/` matched `[static]`, `[semantic]`, `[pressure]` — 19 lines of the rubric, its own legend included | Tightened to a whole-line bracketed word |
+| F6 | The `[static]`-completeness assertion derives from one skill's shape | `S`/`R` rules only emit when those directories exist; it passed because `xreview` happens to have both | Unions `catalog_ref` across all 11 skills |
+| F7 | The stale-baseline check reports a pass unconditionally | `ok` called after the loop regardless of outcome | Guarded on a flag |
+| F8 | The checker drops checks silently, exactly as it did for `E1`–`E4` | `C1` (`block`), `C3`, and the whole `R`/`S` blocks emitted nothing when their input was absent. Against an installed skill `REPO_ROOT` is empty, so `C1` vanished with no trace | All now emit `skipped` with the reason. Every skill emits a uniform 26 findings |
+
+### On the three questions
+
+- **`RuleIds:` as a ledger header field** — not taken, and the reviewer's argument is why: the
+  schema already had five typed fields nothing validated, and this change's own first instance
+  violated four of them. A sixth unenforced slot fixes nothing. `scripts/verify-ledger.sh` gates
+  the existing five instead, and gates the uncited-verdict rule directly: a `skill-package` ledger
+  citing no rule id that resolves to a rubric row now fails. That turns "stated in eleven places,
+  gates in none" into one place that gates.
+- **The merge-base rule was one file short.** It named the rubric and not
+  `scripts/skill-package-checks.sh`, which decides 26 of the 51 rules. A diff loosening a static
+  check would have been reviewed by running the loosened check. Both are materialized now.
+- **The self-subject caveat generalizes.** Round 2 found it for `P7`; it holds for every
+  `[semantic]` rule when the target under review is `/xreview` itself. Recorded in the dispatch
+  brief and in `pressure-testing.md` as a reduced-confidence obligation.
+- **`D1` on `gov-ops` and `validate-release` is rule-design, not debt.** Both open on a deliberate
+  authorial choice and `D1` has no carve-out. The baseline now carries a reason column so the
+  question cannot hide there indefinitely.

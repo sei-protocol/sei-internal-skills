@@ -52,6 +52,12 @@ first and briefs *that* path (Reachability, above) — a reviewer with no Bash c
 `git show`. The edit is itself a finding in the ledger's routing section. Otherwise a change can
 weaken a rule and be reviewed under the weakened rule in the same pass.
 
+**When the target under review is `/xreview` itself**, the lens has read the skill it is judging
+— it loaded the rubric out of that skill. `pressure-testing.md` states this for P7 ("you cannot be
+your own subject"), and the argument is not specific to P7: it covers every `[semantic]` rule,
+B5–B8 and D4/D6/D7 included. Record those judgments in the ledger as **reduced-confidence**, and
+where a fresh subagent can carry the judgment instead, dispatch one.
+
 Three conditions on what comes back:
 
 - **A verdict citing no rule id is not a rubric review.** Re-dispatch it. The rubric lens has no

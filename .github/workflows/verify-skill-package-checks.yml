@@ -15,6 +15,9 @@ on:
     paths:
       - '.claude/skills/**'
       - 'scripts/tests/skill-package-checks.test.sh'
+      - 'scripts/tests/block-baseline.txt'
+      - 'scripts/verify-ledger.sh'
+      - '.xreview/**'
       - '.github/workflows/verify-skill-package-checks.yml'
 
 permissions:
@@ -30,3 +33,5 @@ jobs:
           persist-credentials: false
       - name: Sweep every core skill, then diff against the baseline
         run: ./scripts/tests/skill-package-checks.test.sh
+      - name: Check every review ledger against the schema xreview ships
+        run: ./scripts/verify-ledger.sh

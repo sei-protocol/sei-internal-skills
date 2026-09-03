@@ -123,11 +123,14 @@ The slate is **routed, not re-derived by hand.** Apply the shared routing table
      an unread rubric produces a review that looks cited and is not.
    - **The rubric governs at the merge base.** When the diff under review edits the rubric, the
      **orchestrator** materializes the merge-base revision of
-     `references/skill-package-rubric.md` to disk and briefs that path — never a `git show`
+     `references/skill-package-rubric.md` **and `scripts/skill-package-checks.sh`** to disk and
+     briefs those paths — the script decides 26 of the 51 rules, so it is the rubric's other
+     half, and a diff that loosens a static check would otherwise be reviewed by running the
+     loosened check — never a `git show`
      pointer, per Reachability in `references/reviewer-dispatch.md`; some lenses have no Bash.
      The lens cites ids from that copy. The edit is **itself a finding**, recorded in the
      ledger's routing section with a named justification and treated as correctness-grade until
-     it has one. Otherwise a change can weaken a rule and be reviewed under the
+     it has one. This applies to the checker on the same terms as the rubric. Otherwise a change can weaken a rule and be reviewed under the
      weakened rule in the same pass. This skill owning its own rubric is what makes that
      reachable, so the rule is stated here rather than assumed.
 5. **Assign the dissenter** (see The Four Rules / Step 3) and record it.

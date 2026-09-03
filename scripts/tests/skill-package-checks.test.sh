@@ -11,13 +11,21 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 CHECKS="$REPO_ROOT/.claude/skills/xreview/scripts/skill-package-checks.sh"
 RUBRIC="$REPO_ROOT/.claude/skills/xreview/references/skill-package-rubric.md"
-BASELINE="$REPO_ROOT/.claude/skills/xreview/scripts/block-baseline.txt"
+# Beside the test, not inside the skill package: sync-skills.sh copies a skill
+# directory wholesale, so a baseline parked there ships to every install.
+BASELINE="$SCRIPT_DIR/block-baseline.txt"
+
+# Severity comes from the RUBRIC, not the emitted finding. B2/B3 are `block` in the
+# rubric and `warn` in the script on purpose, so filtering the emitted severity would
+# hide a skill that deleted its `## Guardrails` stanza.
+RUBRIC_SEV="$(mktemp)"
+grep -oE '^\| [A-Z][0-9]+ \| [a-z]+ ' "$RUBRIC" | tr -d '|' | awk '{print $1, $2}' > "$RUBRIC_SEV"
 
 PASS=0; FAIL=0
 ok() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 no() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
-TMP="$(mktemp -d)"; trap 'rm -rf "$TMP"' EXIT
+TMP="$(mktemp -d)"; trap 'rm -rf "$TMP" "${RUBRIC_SEV:-}"' EXIT
 
 echo "the sweep completes on every core skill"
 for d in "$REPO_ROOT"/.claude/skills/*/; do
@@ -31,10 +39,16 @@ import sys,json
 done
 
 echo "every emitted rule id resolves to a rubric row"
-"$CHECKS" --skill-dir "$REPO_ROOT/.claude/skills/xreview" 2>/dev/null | grep '^{' \
-  | python3 -c "
+# Union across every skill. Deriving this from one skill made it depend on that
+# skill happening to have references/ and scripts/ — a false FAIL waiting to happen.
+: > "$TMP/refs.raw"
+for d in "$REPO_ROOT"/.claude/skills/*/; do
+  "$CHECKS" --skill-dir "$d" 2>/dev/null | grep '^{' \
+    | python3 -c "
 import sys,json
-print('\n'.join(sorted({json.loads(l)['catalog_ref'] for l in sys.stdin})))" > "$TMP/refs"
+print('\n'.join(json.loads(l)['catalog_ref'] for l in sys.stdin))" >> "$TMP/refs.raw"
+done
+sort -u "$TMP/refs.raw" > "$TMP/refs"
 orphans=""
 while read -r id; do
   grep -qE "^\| $id " "$RUBRIC" || orphans="$orphans $id"
@@ -53,10 +67,12 @@ for d in "$REPO_ROOT"/.claude/skills/*/; do
   n="$(basename "$d")"
   got="$("$CHECKS" --skill-dir "$d" 2>/dev/null | grep '^{' | python3 -c "
 import sys,json
+sev=dict(l.split() for l in open('$RUBRIC_SEV') if l.split())
 b=[json.loads(l) for l in sys.stdin]
-f=sorted({x['catalog_ref'] for x in b if x['result']=='fail' and x['severity']=='block'})
+f=sorted({x['catalog_ref'] for x in b
+          if x['result']=='fail' and sev.get(x['catalog_ref'])=='block'})
 print(','.join(f) if f else '-')")"
-  want="$(grep -E "^$n " "$BASELINE" | awk '{print $2}')"
+  want="$(awk -v n="$n" '$0 !~ /^[[:space:]]*#/ && $1==n {print $2}' "$BASELINE")"
   if [ -z "$want" ]; then
     no "$n: not in the baseline — add it (a new skill needs a baseline line)"
   elif [ "$got" = "$want" ]; then ok "$n: $got"
@@ -64,11 +80,12 @@ print(','.join(f) if f else '-')")"
 done
 
 echo "the baseline names no skill that no longer exists"
+stale=0
 while read -r n _; do
   case "$n" in \#*|"") continue ;; esac
-  [ -d "$REPO_ROOT/.claude/skills/$n" ] || no "baseline names $n, which is not in the tree"
-done < "$BASELINE"
-ok "baseline has no stale entry"
+  [ -d "$REPO_ROOT/.claude/skills/$n" ] || { no "baseline names $n, which is not in the tree"; stale=1; }
+done < <(grep -vE '^[[:space:]]*#' "$BASELINE")
+[ "$stale" -eq 0 ] && ok "baseline has no stale entry"
 
 echo "a flag with no value is a usage error, not a crash"
 out="$("$CHECKS" --skill-dir 2>&1)"; rc=$?

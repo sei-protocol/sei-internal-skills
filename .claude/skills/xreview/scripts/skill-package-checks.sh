@@ -201,6 +201,10 @@ if [[ -d "$SKILL_DIR/references" ]]; then
   else
     emit "R3" "info" "No @skills force-load syntax" "fail" "found in: $(rel "$force_loads")" "R3"
   fi
+else
+  for r in R1:block R2:warn R3:info; do
+    emit "${r%%:*}" "${r##*:}" "references/ checks" "skipped" "no references/ directory" "${r%%:*}"
+  done
 fi
 
 # --- Scripts checks (only if scripts/ exists — procedural shape) ---
@@ -241,6 +245,10 @@ if [[ -d "$SKILL_DIR/scripts" ]]; then
   else
     emit "S4" "warn" "scripts/README.md documents the scripts" "fail" "scripts/README.md documents no exit codes" "S4"
   fi
+else
+  for r in S1:block S2:block S4:warn S6:warn; do
+    emit "${r%%:*}" "${r##*:}" "scripts/ checks" "skipped" "no scripts/ directory" "${r%%:*}"
+  done
 fi
 
 # --- Evals checks ---
@@ -341,6 +349,13 @@ else
 fi
 
 # --- Catalog & sync checks ---
+if [[ -z "$REPO_ROOT" ]]; then
+  # Running against an installed skill (~/.claude/skills/<name>) resolves no repo
+  # root, so both catalog rules have no input. C1 is `block`; dropping it silently
+  # reads as a pass.
+  emit "C1" "block" "Skill listed in catalog README" "skipped" "no repo root: run from a checkout to check the catalog" "C1"
+  emit "C3" "warn" "Skill category resolves to a sync alias" "skipped" "no repo root: run from a checkout to check sync coverage" "C3"
+fi
 CATALOG="$REPO_ROOT/.claude/skills/README.md"
 if [[ -f "$CATALOG" ]]; then
   if grep -qE "\`${SKILL_NAME}/\`" "$CATALOG"; then
@@ -385,7 +400,10 @@ for f in "$SKILL_MD" "$SKILL_DIR/references"/*.md; do
   if awk '
     /^```/ { in_code = !in_code; next }
     in_code { next }
-    /\[[a-z][^]]*\]/ { next }   # bracket placeholder, e.g. [phase]
+    # A placeholder is a whole bracketed word — no spaces, and not a markdown
+    # link. The old form also swallowed [static]/[semantic]/[pressure] and every
+    # lowercase-text link, which made A1 near-vacuous on reference files.
+    /^[[:space:]]*\[[a-z][a-z0-9_-]*\][[:space:]]*$/ { next }
     /<[a-z][^>]*>/ { next }      # angle placeholder, e.g. <alias>
     { low = tolower($0) }
     low ~ /as of [0-9][0-9][0-9][0-9]/         { print; exit }
