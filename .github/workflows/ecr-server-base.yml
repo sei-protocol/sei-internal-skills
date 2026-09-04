@@ -111,14 +111,17 @@ jobs:
         timeout-minutes: 5
         run: |
           set -euo pipefail
-          # AWS_REGION: the running pod gets this for free from EKS Pod Identity
-          # (confirmed live: AWS_REGION=us-east-2 in the server container's own
-          # env). This bare `docker run` doesn't inherit it, and
+          # AWS_REGION + AWS_DEFAULT_REGION: the running pod gets BOTH for free
+          # from EKS Pod Identity (confirmed live in the server container's own
+          # env). This bare `docker run` doesn't inherit either, and
           # boto3.client("kms") needs a region to construct at all -- no
           # network call, no real credentials, just to build the endpoint URL.
-          # Without it the kms check below fails on "You must specify a
-          # region", not on the thing it is meant to catch.
-          docker run --rm -e AWS_REGION=us-east-2 --entrypoint python sei-omnigent-base:candidate -c '
+          # AWS_REGION alone was not enough here (this botocore's client
+          # construction still fell back past it) -- match production exactly
+          # rather than guess which var wins, since without both the kms check
+          # below fails on "You must specify a region", not on the thing it is
+          # meant to catch.
+          docker run --rm -e AWS_REGION=us-east-2 -e AWS_DEFAULT_REGION=us-east-2 --entrypoint python sei-omnigent-base:candidate -c '
           import sys
           from importlib.metadata import version
           bad = False
