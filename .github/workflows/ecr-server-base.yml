@@ -88,7 +88,12 @@ jobs:
           file: deploy/docker/Dockerfile
           # The kubernetes extra is what lets the server launch managed sandboxes.
           # Without it the server starts and then cannot create a single Pod.
-          build-args: OMNIGENT_EXTRAS=kubernetes,slack
+          # The kms extra installs boto3, which the AWS KMS credential-store
+          # backend needs — omnigent-config already sets
+          # OMNIGENT_CREDENTIAL_CIPHER=kms, so a base built without this extra
+          # starts clean and 500s the first time anything tries to persist a
+          # credential through it (e.g. the GitHub per-user connect callback).
+          build-args: OMNIGENT_EXTRAS=kubernetes,slack,kms
           push: false
           load: true
           platforms: linux/amd64
@@ -162,6 +167,23 @@ jobs:
           except Exception as exc:
               print(f"  FAIL slack extra missing: {exc}"); bad = True
 
+          try:
+              # boto3 alone would prove the dependency landed, not that the
+              # server can reach it: KmsSecretCipher imports clean either way --
+              # importing this module never requires boto3, only constructing
+              # the cipher and touching ._kms does (the lazy import guard at
+              # its use site). omnigent-config sets OMNIGENT_CREDENTIAL_CIPHER=
+              # kms unconditionally, so a base missing this extra passes an
+              # import check and only 500s on the first credential write -- the
+              # GitHub per-user connect callback, in production, not a build
+              # error here. Touch the same property the server does.
+              print("  boto3", version("boto3"))
+              from omnigent.stores.credential_store.secret_cipher import KmsSecretCipher
+              KmsSecretCipher("alias/gate-check-only")._kms  # noqa: B018
+              print("  ok kms extra present")
+          except Exception as exc:
+              print(f"  FAIL kms extra missing: {exc}"); bad = True
+
           print("server-base-ok" if not bad else "server-base-FAILED")
           sys.exit(1 if bad else 0)
           '
@@ -171,7 +193,7 @@ jobs:
         with:
           context: .
           file: deploy/docker/Dockerfile
-          build-args: OMNIGENT_EXTRAS=kubernetes,slack
+          build-args: OMNIGENT_EXTRAS=kubernetes,slack,kms
           push: true
           platforms: linux/amd64
           tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
