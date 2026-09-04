@@ -333,25 +333,22 @@ func intField(m map[string]any, key string) int {
 // filter afterwards. An adopted session that writes one observation under both
 // vocabularies would otherwise have it counted twice.
 //
-// One walk rather than two, because the two numbers partition one set. Counted apart they
-// can drift on the dedupe, on the nit gate, or on what this package calls a blocker, and
-// a findings line whose halves came from two definitions is the defect [Counts] exists to
-// remove.
+// The two numbers partition one set. Counted apart they can drift on the dedupe, on the
+// nit gate, or on what this package calls a blocker, and a findings line whose halves
+// came from two definitions is the defect [Counts] exists to remove.
 //
-// Placeability is deliberately not a term. A blocker that names no line is still
-// blocking -- that is what [Verdict.hasBlockingFinding] reads and what fails the check --
-// so counting only what can be pinned to a line would report nothing blocking beside a
-// failing check.
+// Placeability is not a term. A blocker that names no line is still blocking -- that is
+// what [Verdict.hasBlockingFinding] reads and what fails the check -- so counting only
+// what can be pinned to a line would report nothing blocking beside a failing check.
 //
 // The nit gate is a term, and it runs before the dedupe key is claimed, for the reason
 // [PlaceableFindings] states: the key carries no severity, so a dropped nit that claimed
 // it would suppress a blocker reported about the same line in the same words. A nit this
 // run will not post reaches the reader through no inline comment and appears in no
 // section, so counting it would put a number on the check that nothing underneath
-// accounts for. Only here: [RenderComment] publishes the reply's closing block whole, so
-// the published comment still carries the entry -- these counts and that block disagree
-// by the nits taken out here, and closing that would mean editing model output rather
-// than counting it.
+// accounts for. [RenderComment] publishes the reply's closing block whole, so the
+// published comment still carries the entry: these counts and that block disagree by the
+// nits gated out here.
 //
 // One observation written twice under two severities is one observation, and the heavier
 // word wins. [Finding.dedupeKey] carries no severity, so without that the entry that
