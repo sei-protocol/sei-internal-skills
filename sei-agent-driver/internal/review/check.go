@@ -41,13 +41,7 @@ type CheckRun struct {
 // PreExisting. The exception is a nit this run does not admit, which lands in none: it
 // reaches the reader through no inline comment and appears in no section, so counting it
 // would put a number on the comment that nothing underneath accounts for. [checkTitle]
-// has counted it that way since the nit gate landed, and these must not disagree with it.
-//
-// They are not ai-review's numbers. That workflow counts a pre-existing blocker as
-// blocking, beside a gate that deliberately does not fail on one, and counts its
-// non-blocking inline comments as the anchored ones alone, so a suggestion whose line
-// fell outside the diff is dropped from the total while still being printed below it.
-// Both are corrected here rather than reproduced.
+// counts it the same way, and these must not disagree with it.
 type Counts struct {
 	// Blocking is the blockers bucket plus every line-tied finding that calls itself a
 	// blocker, whether or not it named a line.
@@ -60,11 +54,9 @@ type Counts struct {
 	// The converse holds for every reply that sorted its observations as the prompt
 	// asks, and fails for one shape: decision request_changes naming nothing blocking.
 	// CheckConclusion honours that word, because the decision escalates and cannot
-	// clear, and there is no entry here to count. Nothing is invented for it -- a number
-	// with no bullet under it is the defect these counts exist to remove, seen from the
-	// other side -- so a reader who finds zero blocking beside a red check is reading a
-	// true statement about a malformed reply. Closing it needs a prompt clause, which
-	// this change withholds.
+	// clear, and there is no entry here to count. Nothing is invented to fill it: a
+	// reader who finds zero blocking beside a red check is reading a true statement
+	// about a malformed reply.
 	//
 	// Pre-existing blockers are not in it, for the reason CheckConclusion gives: a
 	// blocker already on the base branch would fail every pull request that touches the

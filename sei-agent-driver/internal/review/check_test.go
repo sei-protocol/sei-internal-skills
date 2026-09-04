@@ -964,9 +964,9 @@ func TestTheBlockingCountAgreesWithTheConclusion(t *testing.T) {
 // A reply that says request_changes and then names nothing blocking. [Verdict.Decision]
 // escalates and cannot clear, so the conclusion is failure; there is no entry to count,
 // so the number is zero. Nothing is invented for it. A number with no bullet under it is
-// the defect these counts remove, seen from the other side, and the conclusion travels in
-// the same file for a reader to see. Closing it takes a prompt clause telling a reply
-// that a request_changes must name what blocks, which this change withholds.
+// a number with no bullet under it, and the conclusion travels in the same file for a
+// reader to see. A prompt clause requiring a request_changes to name what blocks would
+// close it.
 func TestTheOneShapeWhereTheCountAndTheConclusionPartCompany(t *testing.T) {
 	t.Parallel()
 
@@ -986,7 +986,7 @@ func TestTheOneShapeWhereTheCountAndTheConclusionPartCompany(t *testing.T) {
 	}
 }
 
-// TestAPreExistingBlockerIsNotCountedBlocking states ai-review's first defect as a test.
+// TestAPreExistingBlockerIsNotCountedBlocking pins a pre-existing blocker out of the blocking total.
 //
 // Its blocking total includes a pre-existing blocker, beside a gate that excludes one on
 // purpose: a blocker already on the base branch would fail every pull request that
@@ -1010,7 +1010,7 @@ func TestAPreExistingBlockerIsNotCountedBlocking(t *testing.T) {
 	}
 }
 
-// TestAnUnanchoredNonBlockerIsStillCounted states ai-review's second defect as a test.
+// TestAnUnanchoredNonBlockerIsStillCounted pins that a non-blocker counts whether or not it anchored.
 //
 // It derives its non-blocking total as the anchored comments minus the blocking ones, so
 // a suggestion whose line fell outside the diff is dropped from the number while still
