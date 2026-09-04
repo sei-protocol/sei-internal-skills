@@ -3,19 +3,13 @@
 # Digest-pinned, not tag-pinned: a tag is mutable, and a base that changed under
 # a stale claim would not be detectable from this file.
 #
-# Current: tag agents-main-6df3fcf0-k8s, server 0.13.0.dev0, from
-# bdchatham/omnigent@feat/sei-base -- upstream 951ef519e plus three carried
-# commits (machine-auth grant, runner recipe, the COPY that ships integrations/,
-# and the entrypoint fix below).
+# Current: tag agents-main-c4e613dd-k8s, server 0.13.0.dev0, from
+# bdchatham/omnigent@feat/sei-base c4e613dd -- upstream 1ddfed019 plus three
+# carried commits: the machine-auth grant, the runner recipe, and the COPY that
+# ships integrations/.
 # OMNIGENT_EXTRAS=kubernetes,slack -- the slack extra is what lets an image run
 # `python -m omnigent_slack`, and omnigent-slack is on no index, so it resolves
 # only from integrations/ via [tool.uv.sources].
-#
-# Carries a fix for an upstream defect: entrypoint.py's capabilities log line
-# read sandbox_config.provider, which ManagedSandboxDeployment does not have
-# since it began wrapping one config per provider. It raises at boot, and only
-# when a sandbox block is configured and launch-capable -- so an image without
-# it starts fine everywhere except here.
 #
 # Platform's vendored Kustomize tree MUST come from this same upstream commit.
 # The launcher creates batch/v1 Jobs: its RBAC lives in that tree, its API calls
@@ -28,4 +22,4 @@
 # crash-loops. Reverting this digest alone is therefore not a rollback.
 # Downgrade first, FROM THE NEW IMAGE (only it carries the scripts; no
 # db-downgrade CLI, drive alembic directly) to d5e9f1a2b3c4, then revert.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:7f02505d58f0504fec8702c9ce34e92fcbd68d45b4aa4483d1f38853d8eb8148
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:1cbc8f0e3726056e8a20eabd36dd7c0d2fbc041b6e59ceef3b4cd30649747223

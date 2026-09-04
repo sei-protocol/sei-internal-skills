@@ -5,9 +5,9 @@
 # bumping the base is one reviewable line. Digest-pinned, not tag-pinned: a tag
 # is mutable, and a base that changes under a stale claim is not detectable here.
 #
-# Current: tag runner-536581c6-credbridge, fork commit 536581c6.
+# Current: tag runner-c4e613dd-credbridge, fork commit c4e613dd.
 #
 # Build this from the SAME fork ref as the server base. The host dials the server
 # over a tunnel neither side version-negotiates, so a split between them is the
 # combination upstream never tests.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:dc94cd5df1ce15c2ffdb5a849f3ad6ddc5a72255c5da1017cbd2462b8f1c0d67
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:3160161d93d86aba88c4eaca2d1a251e3aed5ae63b5f219a292667373d5c769a
