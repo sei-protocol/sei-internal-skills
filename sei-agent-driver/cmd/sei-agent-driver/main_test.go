@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"os/exec"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
+	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/review"
 )
 
 // TestParseScouts guards the two ways a scout list goes wrong quietly.
@@ -295,4 +297,82 @@ func TestBothCallersActOnARefusedClear(t *testing.T) {
 			t.Errorf("stderr does not say the clear failed:\n%s", stderr.String())
 		}
 	})
+}
+
+// TestCheckJSONCarriesTheCounts covers the file the workflow actually reads.
+//
+// The counts are derived in the driver and consumed by whatever composes the pull
+// request comment, and nothing between the two is Go. So the assertion that matters is
+// on the bytes: the key is present, it is nested under counts, and its four integers are
+// the ones [review.BuildCheckRun] derived. Testing the struct alone would pass on a field
+// the marshaller drops.
+//
+// The findings file is checked against counts.placeable in the same pass, because that is
+// the number's whole definition: what the caller was handed to attempt.
+func TestCheckJSONCarriesTheCounts(t *testing.T) {
+	dir := t.TempDir()
+	check := filepath.Join(dir, "check.json")
+	findings := filepath.Join(dir, "findings.json")
+
+	block := `{"read":120,"decision":"request_changes","summary":"Two problems.",` +
+		`"inline_comments":[` +
+		`{"path":"a.go","line":9,"side":"RIGHT","severity":"blocker","body":"nil deref"},` +
+		`{"path":"b.go","line":0,"severity":"suggestion","body":"nowhere to put this"}],` +
+		`"blockers":["the new path has no test"],` +
+		`"non_blockers":["naming could be clearer"],` +
+		`"pre_existing_issues":[{"severity":"blocker","body":"b.go:4 leaks a handle"}]}`
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text:   "A review.\n\n```json\n" + block + "\n```",
+		TurnID: "t1", ItemID: "i1",
+	}}
+	if err := report("", findings, check, result, true); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	blob, err := os.ReadFile(check)
+	if err != nil {
+		t.Fatalf("reading the check run: %v", err)
+	}
+	var got review.CheckRun
+	if err := json.Unmarshal(blob, &got); err != nil {
+		t.Fatalf("decoding %s: %v", check, err)
+	}
+	if got.Counts == nil {
+		t.Fatalf("check.json carries no counts:\n%s", blob)
+	}
+	// Two blocking: the one on a line and the one tied to none. The pre-existing
+	// blocker is neither, which is the whole point of the fourth integer.
+	want := review.Counts{Blocking: 2, NonBlocking: 2, Placeable: 1, PreExisting: 1}
+	if *got.Counts != want {
+		t.Errorf("counts = %+v, want %+v", *got.Counts, want)
+	}
+	if !strings.Contains(string(blob), `"counts"`) {
+		t.Errorf("counts is not nested under its own key, so a caller reading "+
+			"'.counts | ...' finds nothing:\n%s", blob)
+	}
+
+	// The three fields the workflow already reads keep their names and their values, so
+	// nothing about this is a schema break for an existing consumer.
+	built, ok := review.BuildCheckRun(review.ParseVerdict(result.Reply.Text), true)
+	if !ok {
+		t.Fatal("no check run for a verdict that decided")
+	}
+	if got.Conclusion != built.Conclusion || got.Title != built.Title {
+		t.Errorf("check.json = %q/%q, want %q/%q",
+			got.Conclusion, got.Title, built.Conclusion, built.Title)
+	}
+
+	placed, err := os.ReadFile(findings)
+	if err != nil {
+		t.Fatalf("reading the findings: %v", err)
+	}
+	var entries []review.Finding
+	if err := json.Unmarshal(placed, &entries); err != nil {
+		t.Fatalf("decoding %s: %v", findings, err)
+	}
+	if len(entries) != got.Counts.Placeable {
+		t.Errorf("findings.json holds %d entries beside counts.placeable = %d; the "+
+			"number is defined as the length of that file", len(entries),
+			got.Counts.Placeable)
+	}
 }

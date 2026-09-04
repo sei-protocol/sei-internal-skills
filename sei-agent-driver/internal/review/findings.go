@@ -326,33 +326,57 @@ func intField(m map[string]any, key string) int {
 	}
 }
 
-// distinctReported counts the findings a reply reported, once each.
+// reportedBySeverity counts the line-tied findings a reply reported, once each, split
+// into the ones that block and the ones that do not.
 //
-// reportedFindings concatenates both schema keys without deduping, because its
-// callers filter afterwards. An adopted session that writes one observation under
-// both vocabularies would otherwise have it counted twice in the check's title.
-func distinctReported(v Verdict, includeNits bool) int {
-	seen := make(map[string]bool)
+// reportedFindings concatenates both schema keys without deduping, because its callers
+// filter afterwards. An adopted session that writes one observation under both
+// vocabularies would otherwise have it counted twice.
+//
+// One walk rather than two, because the two numbers partition one set. Counted apart they
+// can drift on the dedupe, on the nit gate, or on what this package calls a blocker, and
+// a findings line whose halves came from two definitions is the defect [Counts] exists to
+// remove.
+//
+// Placeability is deliberately not a term. A blocker that names no line is still
+// blocking -- that is what [Verdict.hasBlockingFinding] reads and what fails the check --
+// so counting only what can be pinned to a line would report nothing blocking beside a
+// failing check.
+//
+// The nit gate is a term, and it runs before the dedupe key is claimed, for the reason
+// [PlaceableFindings] states: the key carries no severity, so a dropped nit that claimed
+// it would suppress a blocker reported about the same line in the same words. A nit this
+// run will not post reaches the reader through no inline comment and appears in no
+// section, so counting it would put a number on the check that nothing underneath
+// accounts for. Only here: [RenderComment] publishes the reply's closing block whole, so
+// the published comment still carries the entry -- these counts and that block disagree
+// by the nits taken out here, and closing that would mean editing model output rather
+// than counting it.
+//
+// One observation written twice under two severities is one observation, and the heavier
+// word wins. [Finding.dedupeKey] carries no severity, so without that the entry that
+// arrived second is simply dropped: a blocker deduped against an earlier suggestion would
+// count as non-blocking while hasBlockingFinding still failed the check over it.
+func reportedBySeverity(v Verdict, includeNits bool) (blocking, other int) {
+	blocks := make(map[string]bool)
 	for _, entry := range reportedFindings(v) {
 		fields, ok := entry.(map[string]any)
 		if !ok {
 			continue
 		}
 		f := findingFrom(fields)
-		// The same gate [PlaceableFindings] applies, and before the key for the same
-		// reason. A nit this run will not post appears nowhere in this check: no inline
-		// comment is written for it, and [checkSummary] leaves out every line-tied
-		// finding by design. Counting it puts a number on the title that nothing
-		// underneath accounts for.
-		//
-		// Only this check. [RenderComment] publishes the reply's closing block whole, so
-		// the published comment still carries the entry -- the count and that block
-		// disagree by the nits taken out here, and closing that would mean editing model
-		// output rather than counting it.
 		if f.Severity == "nit" && !includeNits {
 			continue
 		}
-		seen[f.dedupeKey()] = true
+		key := f.dedupeKey()
+		blocks[key] = blocks[key] || f.Severity == "blocker"
 	}
-	return len(seen)
+	for _, blocked := range blocks {
+		if blocked {
+			blocking++
+			continue
+		}
+		other++
+	}
+	return blocking, other
 }
