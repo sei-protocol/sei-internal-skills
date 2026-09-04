@@ -3,10 +3,11 @@
 # Digest-pinned, not tag-pinned: a tag is mutable, and a base that changed under
 # a stale claim would not be detectable from this file.
 #
-# Current: tag agents-main-c4e613dd-k8s, server 0.13.0.dev0, from
-# bdchatham/omnigent@feat/sei-base c4e613dd -- upstream 1ddfed019 plus three
-# carried commits: the machine-auth grant, the runner recipe, and the COPY that
-# ships integrations/.
+# Current: tag agents-main-09d94b0f-k8s, server 0.13.0.dev0, from
+# bdchatham/omnigent@feat/sei-base 09d94b0f -- upstream 1ddfed019 plus four
+# carried commits: the machine-auth grant, the runner recipe, the COPY that
+# ships integrations/, and the paginated agent/host listing the Slack picker
+# needs (GET /v1/agents serves 20 rows a page; the roster is already 22).
 # OMNIGENT_EXTRAS=kubernetes,slack -- the slack extra is what lets an image run
 # `python -m omnigent_slack`, and omnigent-slack is on no index, so it resolves
 # only from integrations/ via [tool.uv.sources].
@@ -22,4 +23,4 @@
 # crash-loops. Reverting this digest alone is therefore not a rollback.
 # Downgrade first, FROM THE NEW IMAGE (only it carries the scripts; no
 # db-downgrade CLI, drive alembic directly) to d5e9f1a2b3c4, then revert.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:1cbc8f0e3726056e8a20eabd36dd7c0d2fbc041b6e59ceef3b4cd30649747223
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:0fd0e8fb3d21e0f9013e505667b4a658e3f1fd0886c8c24bfe530e764bd109b5
