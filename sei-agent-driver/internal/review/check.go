@@ -22,6 +22,85 @@ type CheckRun struct {
 
 	// Summary is the body, in markdown.
 	Summary string `json:"summary"`
+
+	// Counts are this review's totals, for the pull request comment the caller composes
+	// beside the check run. They are not part of the check run GitHub publishes. They
+	// ride here because this is the file the caller already reads, and because they and
+	// Conclusion are two readings of one reply that must not disagree.
+	//
+	// Nil when there is nothing to count; see [BuildFailureCheck]. A pointer so that
+	// absent stays distinguishable from counted-and-zero. A caller that read a zero off
+	// a review this driver could not read would report nothing blocking over it, and an
+	// older driver binary writes the same absent key, so one branch covers both.
+	Counts *Counts `json:"counts,omitempty"`
+}
+
+// Counts are the integers a published comment's findings line is composed from.
+//
+// Every observation the reply wrote lands in exactly one of Blocking, NonBlocking and
+// PreExisting. The exception is a nit this run does not admit, which lands in none: it
+// reaches the reader through no inline comment and appears in no section, so counting it
+// would put a number on the comment that nothing underneath accounts for. [checkTitle]
+// has counted it that way since the nit gate landed, and these must not disagree with it.
+//
+// They are not ai-review's numbers. That workflow counts a pre-existing blocker as
+// blocking, beside a gate that deliberately does not fail on one, and counts its
+// non-blocking inline comments as the anchored ones alone, so a suggestion whose line
+// fell outside the diff is dropped from the total while still being printed below it.
+// Both are corrected here rather than reproduced.
+type Counts struct {
+	// Blocking is the blockers bucket plus every line-tied finding that calls itself a
+	// blocker, whether or not it named a line.
+	//
+	// Greater than zero implies Conclusion is failure, termwise:
+	// [Verdict.CheckConclusion] fails on a non-empty blockers bucket, and on
+	// [Verdict.hasBlockingFinding], which reads the same entries this does under the
+	// same guard.
+	//
+	// The converse holds for every reply that sorted its observations as the prompt
+	// asks, and fails for one shape: decision request_changes naming nothing blocking.
+	// CheckConclusion honours that word, because the decision escalates and cannot
+	// clear, and there is no entry here to count. Nothing is invented for it -- a number
+	// with no bullet under it is the defect these counts exist to remove, seen from the
+	// other side -- so a reader who finds zero blocking beside a red check is reading a
+	// true statement about a malformed reply. Closing it needs a prompt clause, which
+	// this change withholds.
+	//
+	// Pre-existing blockers are not in it, for the reason CheckConclusion gives: a
+	// blocker already on the base branch would fail every pull request that touches the
+	// file, and the author who has to clear it is the one person who did not cause it.
+	Blocking int `json:"blocking"`
+
+	// NonBlocking is everything else the review wrote down about this change: the
+	// non_blockers bucket whole, and every other line-tied finding, placed or not.
+	//
+	// A finding whose severity the reply did not state is in it. Every other rule here
+	// already treats an unrecognised severity as non-blocking -- hasBlockingFinding,
+	// [PlaceableFindings], [Verdict.hasNotes] -- and a count that broke with them would
+	// be a fourth answer to one question.
+	NonBlocking int `json:"non_blocking"`
+
+	// Placeable is how many findings were handed to the caller to post against a line,
+	// which is the length of the findings file.
+	//
+	// What the caller can attempt, not what it managed. A line outside the diff's hunks
+	// lands on the file instead, and one that lands nowhere goes in the summary. The
+	// caller knows which happened and this does not, so a comment that says how many
+	// reached a line says it from the caller's own tally and uses this as the
+	// denominator.
+	//
+	// Bounded by maxPlaceableFindings where Blocking and NonBlocking are not, so it is
+	// not a subset of their sum on a reply that ran away: a reply reporting sixty
+	// findings yields fifty here and sixty across the two above.
+	Placeable int `json:"placeable"`
+
+	// PreExisting is how many problems the review said the change did not introduce.
+	//
+	// Its own number rather than a share of the two above. It answers a different
+	// question -- it is about the code the change landed in, not about the change -- and
+	// the gate excludes it deliberately. A caller rendering it beside the other two says
+	// so, or a reader sums the sections and gets a total no number here reports.
+	PreExisting int `json:"pre_existing"`
 }
 
 // BuildCheckRun renders a verdict as a check run, and reports whether there is
@@ -30,26 +109,43 @@ func BuildCheckRun(v Verdict, includeNits bool) (CheckRun, bool) {
 	if !v.HasVerdict() {
 		return CheckRun{}, false
 	}
+	counts := countFindings(v, includeNits)
 	return CheckRun{
 		Conclusion: v.CheckConclusion(),
-		Title:      checkTitle(v, includeNits),
+		Title:      checkTitle(counts),
 		Summary:    checkSummary(v),
+		Counts:     &counts,
 	}, true
+}
+
+// countFindings derives every total from one reading of the reply.
+//
+// One derivation, so the check's title and the comment's findings line cannot drift.
+// They are read side by side on the same pull request, and two numbers about one review
+// that disagree leave a reader no way to tell which is meant.
+func countFindings(v Verdict, includeNits bool) Counts {
+	blocking, other := reportedBySeverity(v, includeNits)
+	return Counts{
+		Blocking:    blocking + len(Blockers(v)),
+		NonBlocking: other + len(NonBlockers(v)),
+		Placeable:   len(PlaceableFindings(v, includeNits)),
+		PreExisting: len(PreExisting(v)),
+	}
 }
 
 // checkTitle counts what the review found, because the count is what a reader
 // scanning the checks list is deciding on.
-func checkTitle(v Verdict, includeNits bool) string {
-	// Every finding the reply reported, not only the placeable ones. A finding dropped for
-	// naming no line is still something the review said. A title that counts only what could
-	// be pinned to a line reads as "found nothing" over a review that found something.
-	counts := []string{
-		plural(distinctReported(v, includeNits)+len(Blockers(v))+len(NonBlockers(v)), "finding"),
+//
+// Rendered from [Counts] rather than derived again. Every finding the reply reported, not
+// only the placeable ones: a finding dropped for naming no line is still something the
+// review said, and a title that counts only what could be pinned to a line reads as
+// "found nothing" over a review that found something.
+func checkTitle(c Counts) string {
+	parts := []string{plural(c.Blocking+c.NonBlocking, "finding")}
+	if c.PreExisting > 0 {
+		parts = append(parts, plural(c.PreExisting, "pre-existing issue"))
 	}
-	if n := len(PreExisting(v)); n > 0 {
-		counts = append(counts, plural(n, "pre-existing issue"))
-	}
-	return strings.Join(counts, ", ")
+	return strings.Join(parts, ", ")
 }
 
 // maxCheckSummary bounds the check run's summary.

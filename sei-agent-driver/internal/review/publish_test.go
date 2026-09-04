@@ -153,6 +153,6 @@ func TestPublishedCommentKeepsASuppressedNitInItsBlock(t *testing.T) {
 	if !strings.Contains(body, "polish") {
 		t.Errorf("the published comment dropped the suppressed nit from its block; the "+
 			"gate is not supposed to edit model output, and the comment on "+
-			"distinctReported says so:\n%s", body)
+			"reportedBySeverity says so:\n%s", body)
 	}
 }

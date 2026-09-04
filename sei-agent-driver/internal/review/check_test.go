@@ -906,3 +906,266 @@ func TestSuppressedNitIsNotCountedInTheCheckTitle(t *testing.T) {
 		t.Errorf("with nits on, Title = %q; want it to count 2 — both are posted", on.Title)
 	}
 }
+
+// TestTheBlockingCountAgreesWithTheConclusion is what [Counts] exists to hold.
+//
+// The count and the conclusion are two readings of one reply, published side by side on
+// the same pull request. A comment reading "0 blocking" beside a red check leaves a
+// reader no way to tell which is meant, and that is exactly what ai-review prints: its
+// blocking total includes pre-existing blockers, which its gate deliberately does not
+// fail on.
+//
+// Asserted in both directions, because a counter wired to a constant passes a one-sided
+// test. Both nit settings, because the gate is a term in one of the two numbers.
+func TestTheBlockingCountAgreesWithTheConclusion(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct{ name, block string }{
+		{"clean approve", `{"read":40,"decision":"approve","summary":"s",
+		  "inline_comments":[],"blockers":[],"non_blockers":[],"pre_existing_issues":[]}`},
+		{"approve over non-blockers", `{"read":40,"decision":"approve","summary":"s",
+		  "non_blockers":["a","b"]}`},
+		{"a blocker tied to no line", `{"read":40,"decision":"comment","summary":"s",
+		  "blockers":["the new path has no test"]}`},
+		{"a blocker on a line", `{"read":40,"decision":"comment","summary":"s",
+		  "inline_comments":[{"path":"a.go","line":4,"side":"RIGHT","severity":"blocker",
+		    "body":"nil deref"}]}`},
+		{"a blocker naming no line", `{"read":40,"decision":"approve","summary":"s",
+		  "inline_comments":[{"path":"a.go","severity":"blocker","body":"nil deref"}]}`},
+		{"a pre-existing blocker alone", `{"read":40,"decision":"approve","summary":"s",
+		  "pre_existing_issues":[{"severity":"blocker","body":"b.go:4 leaks a handle"}]}`},
+		{"a nit alone", `{"read":40,"decision":"approve","summary":"s",
+		  "inline_comments":[{"path":"a.go","line":2,"side":"RIGHT","severity":"nit",
+		    "body":"naming"}]}`},
+		{"a suggestion the reply did not weigh", `{"read":40,"decision":"comment","summary":"s",
+		  "inline_comments":[{"path":"a.go","line":2,"side":"RIGHT","body":"unweighed"}]}`},
+	} {
+		for _, includeNits := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/nits=%v", c.name, includeNits), func(t *testing.T) {
+				t.Parallel()
+				v := verdictFrom(t, c.block)
+				run, ok := BuildCheckRun(v, includeNits)
+				if !ok {
+					t.Fatal("no check run for a verdict that decided")
+				}
+				failing := run.Conclusion == "failure"
+				if blocking := run.Counts.Blocking > 0; blocking != failing {
+					t.Errorf("Counts.Blocking = %d beside conclusion %q; the count and "+
+						"the gate are two readings of one reply and must not disagree",
+						run.Counts.Blocking, run.Conclusion)
+				}
+			})
+		}
+	}
+}
+
+// TestTheOneShapeWhereTheCountAndTheConclusionPartCompany pins the documented residual.
+//
+// A reply that says request_changes and then names nothing blocking. [Verdict.Decision]
+// escalates and cannot clear, so the conclusion is failure; there is no entry to count,
+// so the number is zero. Nothing is invented for it. A number with no bullet under it is
+// the defect these counts remove, seen from the other side, and the conclusion travels in
+// the same file for a reader to see. Closing it takes a prompt clause telling a reply
+// that a request_changes must name what blocks, which this change withholds.
+func TestTheOneShapeWhereTheCountAndTheConclusionPartCompany(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"s",
+	  "inline_comments":[],"blockers":[],"non_blockers":[],"pre_existing_issues":[]}`)
+	run, ok := BuildCheckRun(v, true)
+	if !ok {
+		t.Fatal("no check run for a verdict that decided")
+	}
+	if run.Conclusion != "failure" {
+		t.Errorf("Conclusion = %q, want failure: the decision escalates", run.Conclusion)
+	}
+	if run.Counts.Blocking != 0 {
+		t.Errorf("Counts.Blocking = %d, want 0: the reply named nothing blocking, and a "+
+			"count that invented one would put a number on the comment that nothing "+
+			"underneath accounts for", run.Counts.Blocking)
+	}
+}
+
+// TestAPreExistingBlockerIsNotCountedBlocking states ai-review's first defect as a test.
+//
+// Its blocking total includes a pre-existing blocker, beside a gate that excludes one on
+// purpose: a blocker already on the base branch would fail every pull request that
+// touches the file. Copying the total would print blocking beside a neutral check.
+func TestAPreExistingBlockerIsNotCountedBlocking(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":40,"decision":"approve","summary":"s",
+	  "pre_existing_issues":[{"severity":"blocker","body":"b.go:4 leaks a handle"}]}`)
+	run, ok := BuildCheckRun(v, true)
+	if !ok {
+		t.Fatal("no check run for a verdict that decided")
+	}
+	if run.Conclusion != "neutral" {
+		t.Errorf("Conclusion = %q, want neutral", run.Conclusion)
+	}
+	want := Counts{Blocking: 0, NonBlocking: 0, Placeable: 0, PreExisting: 1}
+	if *run.Counts != want {
+		t.Errorf("Counts = %+v, want %+v: a problem the change did not introduce is "+
+			"counted on its own, in neither total", *run.Counts, want)
+	}
+}
+
+// TestAnUnanchoredNonBlockerIsStillCounted states ai-review's second defect as a test.
+//
+// It derives its non-blocking total as the anchored comments minus the blocking ones, so
+// a suggestion whose line fell outside the diff is dropped from the number while still
+// being printed below it. Nothing the reply wrote down is dropped from these.
+func TestAnUnanchoredNonBlockerIsStillCounted(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":40,"decision":"comment","summary":"s",
+	  "inline_comments":[
+	    {"path":"a.go","line":0,"severity":"suggestion","body":"nowhere to put this"},
+	    {"path":"b.go","line":7,"side":"RIGHT","severity":"suggestion","body":"on a line"}]}`)
+	run, ok := BuildCheckRun(v, true)
+	if !ok {
+		t.Fatal("no check run for a verdict that decided")
+	}
+	if run.Counts.NonBlocking != 2 {
+		t.Errorf("Counts.NonBlocking = %d, want 2: both were reported, and only one of "+
+			"them can be pinned to a line", run.Counts.NonBlocking)
+	}
+	if run.Counts.Placeable != 1 {
+		t.Errorf("Counts.Placeable = %d, want 1: it is what the caller was handed to "+
+			"attempt, not what the review found", run.Counts.Placeable)
+	}
+}
+
+// TestOneObservationUnderTwoSeveritiesCountsAsBlocking covers the dedupe.
+//
+// [Finding.dedupeKey] carries no severity, so an adopted session that wrote one
+// observation under both schema keys and weighed it differently in each has the second
+// entry dropped. Dropped without care, a blocker deduped against an earlier suggestion
+// counts as non-blocking while [Verdict.hasBlockingFinding] still fails the check over
+// it -- the disagreement this whole derivation exists to prevent, reached by the back
+// door. Asserted both ways round, because the map is walked in the order the reply wrote.
+func TestOneObservationUnderTwoSeveritiesCountsAsBlocking(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct{ name, block string }{
+		{"the lighter word first", `{"read":40,"decision":"comment","summary":"s",
+		  "inline_comments":[{"path":"a.go","line":4,"side":"RIGHT","severity":"suggestion",
+		    "body":"same words"}],
+		  "findings":[{"file":"a.go","line":4,"side":"RIGHT","severity":"blocker",
+		    "detail":"same words"}]}`},
+		{"the heavier word first", `{"read":40,"decision":"comment","summary":"s",
+		  "inline_comments":[{"path":"a.go","line":4,"side":"RIGHT","severity":"blocker",
+		    "body":"same words"}],
+		  "findings":[{"file":"a.go","line":4,"side":"RIGHT","severity":"suggestion",
+		    "detail":"same words"}]}`},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+			v := verdictFrom(t, c.block)
+			run, ok := BuildCheckRun(v, true)
+			if !ok {
+				t.Fatal("no check run for a verdict that decided")
+			}
+			if run.Conclusion != "failure" {
+				t.Fatalf("Conclusion = %q, want failure", run.Conclusion)
+			}
+			if run.Counts.Blocking != 1 || run.Counts.NonBlocking != 0 {
+				t.Errorf("Counts = %+v; want one blocking and nothing else: it is one "+
+					"observation, and the heavier word is the one the gate reads",
+					*run.Counts)
+			}
+		})
+	}
+}
+
+// TestTheCountsAndTheTitleCountTheSameFindings keeps the two from drifting.
+//
+// The check's title and the published comment's findings line are read side by side on
+// one pull request. They come from one derivation now; this is what stops a later edit
+// from splitting it again.
+func TestTheCountsAndTheTitleCountTheSameFindings(t *testing.T) {
+	t.Parallel()
+
+	for _, block := range []string{
+		`{"read":40,"decision":"approve","summary":"s"}`,
+		`{"read":40,"decision":"request_changes","summary":"s","blockers":["no test"],
+		  "non_blockers":["naming"],
+		  "inline_comments":[{"path":"a.go","line":1,"side":"RIGHT","severity":"blocker",
+		    "body":"x"},
+		    {"path":"b.go","line":2,"side":"RIGHT","severity":"nit","body":"y"}],
+		  "pre_existing_issues":[{"severity":"suggestion","body":"old"}]}`,
+		`{"read":40,"decision":"comment","summary":"s",
+		  "findings":[{"file":"a.go","line":3,"severity":"medium","detail":"z"}]}`,
+	} {
+		for _, includeNits := range []bool{false, true} {
+			v := verdictFrom(t, block)
+			run, ok := BuildCheckRun(v, includeNits)
+			if !ok {
+				t.Fatal("no check run for a verdict that decided")
+			}
+			total := run.Counts.Blocking + run.Counts.NonBlocking
+			if !strings.HasPrefix(run.Title, plural(total, "finding")) {
+				t.Errorf("Title = %q beside Counts %+v (nits=%v); the title and the "+
+					"comment's findings line must count the same findings",
+					run.Title, *run.Counts, includeNits)
+			}
+		}
+	}
+}
+
+// TestASuppressedNitIsCountedNowhere extends the title's rule to the counts.
+//
+// A nit this run will not post is written as no inline comment, and [checkSummary] omits
+// every line-tied finding by design. So it reaches the reader nowhere, and a number that
+// counted it would describe something no reader can find. Both directions on one fixture,
+// because a gate wired to a constant passes a one-sided test.
+func TestASuppressedNitIsCountedNowhere(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"s",
+	  "inline_comments":[
+	    {"path":"a.go","line":1,"side":"RIGHT","severity":"blocker","body":"real"},
+	    {"path":"b.go","line":2,"side":"RIGHT","severity":"nit","body":"polish"}]}`)
+
+	off, ok := BuildCheckRun(v, false)
+	if !ok {
+		t.Fatal("no check run for a verdict that decided")
+	}
+	want := Counts{Blocking: 1, NonBlocking: 0, Placeable: 1, PreExisting: 0}
+	if *off.Counts != want {
+		t.Errorf("with nits off, Counts = %+v, want %+v", *off.Counts, want)
+	}
+
+	on, ok := BuildCheckRun(v, true)
+	if !ok {
+		t.Fatal("no check run for a verdict that decided")
+	}
+	want = Counts{Blocking: 1, NonBlocking: 1, Placeable: 2, PreExisting: 0}
+	if *on.Counts != want {
+		t.Errorf("with nits on, Counts = %+v, want %+v: the nit is posted, so it counts",
+			*on.Counts, want)
+	}
+}
+
+// TestAReviewThatCouldNotBeReadCountsNothing pins the absent key.
+//
+// [BuildFailureCheck] has nothing to count, and a caller that read a zero off it would
+// report nothing blocking over a review this driver could not read at all. An older
+// driver binary writes the same absent key, so one branch in the caller covers both.
+func TestAReviewThatCouldNotBeReadCountsNothing(t *testing.T) {
+	t.Parallel()
+
+	run := BuildFailureCheck(ParseVerdict("I could not read the diff."))
+	if run.Counts != nil {
+		t.Errorf("Counts = %+v, want nil", *run.Counts)
+	}
+	blob, err := json.Marshal(run)
+	if err != nil {
+		t.Fatalf("marshalling the check run: %v", err)
+	}
+	if strings.Contains(string(blob), "counts") {
+		t.Errorf("check run JSON carries a counts key over a review that could not be "+
+			"read; a caller reading .counts.blocking must get null, not a zero it "+
+			"would print as nothing blocking:\n%s", blob)
+	}
+}
