@@ -3,14 +3,28 @@
 # Digest-pinned, not tag-pinned: a tag is mutable, and a base that changed under
 # a stale claim would not be detectable from this file.
 #
-# Current: tag agents-main-09d94b0f-k8s, server 0.13.0.dev0, from
-# bdchatham/omnigent@feat/sei-base 09d94b0f -- upstream 1ddfed019 plus four
-# carried commits: the machine-auth grant, the runner recipe, the COPY that
-# ships integrations/, and the paginated agent/host listing the Slack picker
-# needs (GET /v1/agents serves 20 rows a page; the roster is already 22).
-# OMNIGENT_EXTRAS=kubernetes,slack -- the slack extra is what lets an image run
-# `python -m omnigent_slack`, and omnigent-slack is on no index, so it resolves
-# only from integrations/ via [tool.uv.sources].
+# Current: tag agents-main-09d94b0f-kms-k8s, server 0.13.0.dev0, from
+# bdchatham/omnigent@feat/sei-base 09d94b0f -- the SAME source commit as the
+# prior build (agents-main-09d94b0f-k8s), rebuilt with one more extra. Still
+# upstream 1ddfed019 plus the same four carried commits: the machine-auth
+# grant, the runner recipe, the COPY that ships integrations/, and the
+# paginated agent/host listing the Slack picker needs.
+#
+# OMNIGENT_EXTRAS=kubernetes,slack,kms -- kms is the addition. omnigent-config
+# sets OMNIGENT_CREDENTIAL_CIPHER=kms and OMNIGENT_CREDENTIAL_KMS_KEY_ID
+# unconditionally, but the prior build never carried the extra that backs it
+# (boto3/botocore). The server started clean regardless -- KmsSecretCipher's
+# boto3 import is lazy -- and only failed the first time anything WROTE a
+# credential through it. Reproduced live: the GitHub per-user connect
+# callback completed the OAuth exchange, then 500'd persisting the token
+# (`ImportError: The AWS KMS credential backend needs boto3`). ecr-server-
+# base.yml's gate now gets this too, having failed to catch it: the earlier
+# push had no assertion for this extra at all.
+#
+# Note the tag: agents-main-09d94b0f-kms-k8s, not -k8s. Same ref, so the
+# git-sha-derived tag collided with the prior push -- ECR tags here are
+# immutable, so it needed an explicit distinguishing suffix rather than
+# overwriting a tag whose content this changes.
 #
 # Platform's vendored Kustomize tree MUST come from this same upstream commit.
 # The launcher creates batch/v1 Jobs: its RBAC lives in that tree, its API calls
@@ -20,7 +34,8 @@
 # ROLLBACK. Migrations run at boot; the point of no return is that transaction
 # committing. An older image cannot boot against a newer schema -- no
 # newer-revision guard, so it fails to resolve a revision it does not carry and
-# crash-loops. Reverting this digest alone is therefore not a rollback.
-# Downgrade first, FROM THE NEW IMAGE (only it carries the scripts; no
-# db-downgrade CLI, drive alembic directly) to d5e9f1a2b3c4, then revert.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:0fd0e8fb3d21e0f9013e505667b4a658e3f1fd0886c8c24bfe530e764bd109b5
+# crash-loops. That warning does not bind THIS bump specifically: the source
+# commit is unchanged from the prior digest, so no migration exists between
+# them -- reverting this one digest is a valid rollback, on its own, with
+# nothing else to downgrade first.
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:94f7c133e225035b2a94053a17d6d7ec59200c03872cc45724e15ceda2a6771e
