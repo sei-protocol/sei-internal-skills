@@ -27,8 +27,8 @@ var decisions = map[string]bool{
 // Verdict is what the review turn produced.
 type Verdict struct {
 	// Text is the agent's final message verbatim. [Verdict.proseWithoutBlock] cuts the
-	// published comment out of these bytes, so the cut is a removal and never a
-	// re-rendering.
+	// published comment out of these bytes, so the cut is a removal rather than a
+	// re-rendering — except on the block-only fallback that method documents.
 	Text string
 
 	// Structured is the decoded closing block, set only when that block carried
@@ -38,7 +38,7 @@ type Verdict struct {
 
 	// Block is the closing block's bytes as the agent wrote them, fences included.
 	// [Verdict.proseWithoutBlock] cuts exactly these bytes out of the published
-	// comment, so the cut needs no re-rendering of what the agent wrote.
+	// comment, which needs no re-rendering of the prose that remains.
 	Block string
 
 	// TurnID and ItemID are where this text came from, carried so a published

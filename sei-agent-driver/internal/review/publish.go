@@ -75,9 +75,8 @@ const proseSeparator = "\n\n---\n\n"
 //
 // Both call sites need it, for different reasons. On the uncut path the footer follows the
 // prose, so an unclosed fence renders the provenance record as code and an unclosed
-// comment hides it outright. On the cut path the notice, the decision and the footer are
-// already ahead of the text, so what is at stake there is only that the tail itself
-// renders. See [RenderComment] for why the order, not this function, is the guard.
+// comment hides it outright. On the cut path the notice and the footer are already ahead
+// of the text, so what is at stake there is only that the tail itself renders. See [RenderComment] for why the order, not this function, is the guard.
 //
 // Counts only a fence at the start of a line, after any indentation. Counting every
 // occurrence lets a fence named in prose, or one inside a code span, flip the parity and
