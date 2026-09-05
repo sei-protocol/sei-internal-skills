@@ -298,9 +298,9 @@ func lastOpenerIsBare(line string) bool {
 
 // TestMarkupReserveHoldsBackEnoughForItsOwnCloser pins the budget side of the same rule.
 //
-// Tested directly rather than through RenderComment. A verdict's text always carries the
-// closing block, so its fence alone reserves five bytes and hides whether the comment
-// term is there at all -- an end-to-end fixture cannot tell the two apart.
+// Tested directly rather than through RenderComment. The reserve is one term of a budget
+// the body never shows, so an end-to-end fixture cannot tell which term produced the
+// bytes it held back.
 func TestMarkupReserveHoldsBackEnoughForItsOwnCloser(t *testing.T) {
 	t.Parallel()
 
@@ -482,10 +482,10 @@ func TestTheUncutBoundCountsTheCloseItWillAppend(t *testing.T) {
 // TestABalancedReplyThatFitsIsNotTruncated pins the difference between the close a reply
 // needs and the close a cut might need.
 //
-// Every verdict carries a balanced ```json block, so a worst-case reserve charges every
-// reply for a close none of them uses. Bounding the uncut path that way truncated replies
-// that fitted -- and a truncation notice on an untruncated review tells a reader to go
-// find text that is already in front of them.
+// A balanced fence needs no close, so a worst-case reserve charges a reply that fits for
+// a close it does not use. Bounding the uncut path that way cuts a reply that fitted --
+// and a truncation notice on an untruncated review tells a reader to go find text that is
+// already in front of them.
 func TestABalancedReplyThatFitsIsNotTruncated(t *testing.T) {
 	t.Parallel()
 
@@ -494,8 +494,9 @@ func TestABalancedReplyThatFitsIsNotTruncated(t *testing.T) {
 		{"a balanced fence in the prose", "Here:\n```go\nx()\n```\nThat is the issue."},
 		{"a closed HTML comment", "Quoting:\n<!-- BUGBOT_BUG_ID: abc -->\nSame finding."},
 		{"a closed raw block", "Output:\n<pre>\nx()\n</pre>\nSo it passes."},
-		// Sized to sit just inside the limit with its footer, where a worst-case
-		// reserve is the difference between publishing whole and being cut.
+		// Padded inside a balanced fence until the published prose and its footer fill
+		// the limit exactly, where a worst-case reserve is the difference between
+		// publishing whole and being cut.
 		{"balanced and just inside the limit", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -504,7 +505,7 @@ func TestABalancedReplyThatFitsIsNotTruncated(t *testing.T) {
 			mk := func(pad int) Verdict {
 				body := tc.prose
 				if tc.name == "balanced and just inside the limit" {
-					body = strings.Repeat("x", pad)
+					body = "```text\n" + strings.Repeat("x", pad) + "\n```"
 				}
 				v := ParseVerdict(body +
 					"\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
@@ -513,7 +514,8 @@ func TestABalancedReplyThatFitsIsNotTruncated(t *testing.T) {
 			}
 			v := mk(0)
 			if tc.name == "balanced and just inside the limit" {
-				base := len(strings.TrimRight(v.Text, "\n")) + len(v.footer("conv_1"))
+				base := len(strings.TrimRight(v.proseWithoutBlock(), "\n")) +
+					len(v.footer("conv_1"))
 				v = mk(MaxBodyBytes - base)
 			}
 
@@ -524,7 +526,7 @@ func TestABalancedReplyThatFitsIsNotTruncated(t *testing.T) {
 			if strings.Contains(body, "Review truncated by the publisher") {
 				t.Errorf("a reply of %d bytes that fits in %d was truncated; the uncut "+
 					"bound charged it for a close it does not need",
-					len(strings.TrimRight(v.Text, "\n")), MaxBodyBytes)
+					len(strings.TrimRight(v.proseWithoutBlock(), "\n")), MaxBodyBytes)
 			}
 			// Nothing was cut, so the reply's prose is published whole. The closing
 			// block is removed on every path, so prose is the invariant, not text.

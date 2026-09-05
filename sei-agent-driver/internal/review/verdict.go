@@ -35,8 +35,9 @@ type Verdict struct {
 	// in prose, and the caller decides whether that counts.
 	Structured map[string]any
 
-	// Block is the closing block's bytes as the agent wrote them. Kept so a truncated
-	// comment can carry the decision verbatim, rather than a re-rendering of it.
+	// Block is the closing block's bytes as the agent wrote them, fences included.
+	// [Verdict.proseWithoutBlock] cuts exactly these bytes out of the published
+	// comment, so the cut needs no re-rendering of what the agent wrote.
 	Block string
 
 	// TurnID and ItemID are where this text came from, carried so a published
@@ -170,7 +171,14 @@ func (v Verdict) proseWithoutBlock() string {
 	if v.Block == "" {
 		return v.Text
 	}
-	prose := strings.TrimRight(strings.Replace(v.Text, v.Block, "", 1), " \t\n")
+	// The last occurrence, and everything after it: ParseVerdict takes Block from the
+	// final fenced match and allows only whitespace behind it. A reply that quotes
+	// those same bytes earlier keeps the quote.
+	i := strings.LastIndex(v.Text, v.Block)
+	if i < 0 {
+		return v.Text
+	}
+	prose := strings.TrimRight(v.Text[:i], " \t\n")
 	if strings.TrimSpace(prose) == "" {
 		return v.Summary()
 	}

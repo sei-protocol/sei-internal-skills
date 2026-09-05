@@ -1,18 +1,23 @@
 package review
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 )
 
-// TestRenderCommentPassesAShortReviewThrough checks the ordinary case: the agent's
-// words verbatim, plus the provenance footer.
+// TestRenderCommentPassesAShortReviewThrough checks the ordinary case: the agent's own
+// prose, its closing block dropped, plus the provenance footer.
 func TestRenderCommentPassesAShortReviewThrough(t *testing.T) {
 	t.Parallel()
 
-	v := ParseVerdict("Two findings, both minor.\n\n```json\n{\"decision\": \"comment\"}\n```")
+	v := ParseVerdict("Two findings, both minor.\n\n```json\n" +
+		`{"decision": "comment", "summary": "two minor findings"}` + "\n```")
 	v.TurnID = "resp_claude_a"
 	v.ItemID = "item_reply"
+	if !v.HasVerdict() {
+		t.Fatalf("fixture did not parse: %s", v.Reason)
+	}
 
 	body := RenderComment(v, "conv_1")
 
@@ -21,6 +26,9 @@ func TestRenderCommentPassesAShortReviewThrough(t *testing.T) {
 	}
 	if strings.Contains(body, "truncated") {
 		t.Error("a short review must not be marked truncated")
+	}
+	if strings.Contains(body, v.Block) {
+		t.Errorf("the closing block reached the comment:\n%s", body)
 	}
 	for _, want := range []string{"conv_1", "resp_claude_a", "item_reply", "comment"} {
 		if !strings.Contains(body, want) {
@@ -36,21 +44,28 @@ func TestRenderCommentPassesAShortReviewThrough(t *testing.T) {
 // discarded over a formatting limit. So this truncates and publishes.
 //
 // What it must still guarantee: the body fits GitHub's cap, the elision is declared, the
-// closing block survives so the decision stays machine-readable, and the fences balance
-// so the notice cannot be swallowed into a code block.
+// notice sizes the whole reply so the reader knows what the fetch costs, the footer
+// carries the decision past the cut, and the fences balance so the notice cannot be
+// swallowed into a code block.
 func TestRenderCommentTruncatesRatherThanRefusing(t *testing.T) {
 	t.Parallel()
 
 	// Opens a fence and never closes it, so the cut necessarily lands inside a
 	// code block.
 	prose := "```text\n" + strings.Repeat("a very long finding line\n", 4000)
-	v := ParseVerdict(prose + "\n```json\n{\"decision\": \"request_changes\"}\n```")
+	v := ParseVerdict(prose + "\n```json\n" +
+		`{"decision": "request_changes", "summary": "one blocker"}` + "\n```")
 	v.TurnID = "resp_claude_a"
 	v.ItemID = "item_reply"
 
-	if len(v.Text) <= MaxBodyBytes {
-		t.Fatalf("fixture is only %d bytes, want more than MaxBodyBytes (%d)",
-			len(v.Text), MaxBodyBytes)
+	if !v.HasVerdict() {
+		t.Fatalf("fixture did not parse: %s", v.Reason)
+	}
+	// Measured on what gets published, which is the prose. A fixture oversize only by
+	// its block is cut nowhere.
+	if published := len(v.proseWithoutBlock()); published <= MaxBodyBytes {
+		t.Fatalf("fixture publishes %d bytes, want more than MaxBodyBytes (%d)",
+			published, MaxBodyBytes)
 	}
 
 	body := RenderComment(v, "conv_1")
@@ -61,9 +76,17 @@ func TestRenderCommentTruncatesRatherThanRefusing(t *testing.T) {
 	if !strings.Contains(body, "Review truncated by the publisher") {
 		t.Errorf("the elision is not declared:\n%s", body[max(0, len(body)-400):])
 	}
-	if !strings.Contains(body, v.Block) {
-		t.Error("the closing block did not survive truncation, so the decision is not " +
-			"machine-readable")
+	if strings.Contains(body, v.Block) {
+		t.Error("the closing block reached a truncated comment; the callers that read a " +
+			"decision take it from check.json")
+	}
+	if !strings.Contains(body, "decision `request_changes`") {
+		t.Error("a truncated body does not state its decision; the footer is what carries " +
+			"it past the cut")
+	}
+	if !strings.Contains(body, fmt.Sprintf("%d bytes", len(v.Text))) {
+		t.Errorf("the notice does not size the whole reply (%d bytes), so a reader cannot "+
+			"tell what is waiting at the item", len(v.Text))
 	}
 	if n := strings.Count(body, "```"); n%2 != 0 {
 		t.Errorf("fence count = %d, want even: an unbalanced fence renders the notice and the "+
@@ -74,10 +97,13 @@ func TestRenderCommentTruncatesRatherThanRefusing(t *testing.T) {
 	}
 }
 
-// TestRenderCommentHandlesABlockLargerThanTheBudget is the pathological case: the
-// closing block alone does not fit. It still publishes something bounded rather
-// than refusing.
-func TestRenderCommentHandlesABlockLargerThanTheBudget(t *testing.T) {
+// TestABlockLargerThanTheBudgetCostsTheCommentNothing pins what the budget is spent on.
+//
+// The comment publishes the reply's prose, so the budget is the prose's. Measuring the
+// whole reply instead would cut a five-byte review over a block nobody reads there, and
+// a truncation notice on an untruncated review sends the reader after text that is
+// already in front of them.
+func TestABlockLargerThanTheBudgetCostsTheCommentNothing(t *testing.T) {
 	t.Parallel()
 
 	huge := strings.Repeat("x", MaxBodyBytes*2)
@@ -91,8 +117,15 @@ func TestRenderCommentHandlesABlockLargerThanTheBudget(t *testing.T) {
 	if len(body) > MaxBodyBytes {
 		t.Errorf("body = %d bytes, want at most MaxBodyBytes (%d)", len(body), MaxBodyBytes)
 	}
-	if body == "" {
-		t.Error("body is empty; an oversize verdict must still publish something")
+	if !strings.HasPrefix(body, "prose") {
+		t.Errorf("body does not open with the agent's own words:\n%s", body[:min(len(body), 400)])
+	}
+	if strings.Contains(body, "truncated") {
+		t.Error("a five-byte review was marked truncated; the block it drops is not part " +
+			"of the budget")
+	}
+	if strings.Contains(body, huge) {
+		t.Error("the oversize block reached the comment")
 	}
 }
 
@@ -140,13 +173,45 @@ func TestABlockOnlyReplyStillSaysSomething(t *testing.T) {
 	}
 }
 
+// TestAQuotedCopyOfTheBlockDoesNotStandInForIt covers a reply whose prose already carries
+// the bytes its closing block carries.
+//
+// The diff under review can hold a fenced json block, and a reply that quotes one and
+// then closes with its own carries those bytes twice. Only the last copy is the verdict.
+// Cutting an earlier one publishes the closing block, which is the whole point of cutting.
+func TestAQuotedCopyOfTheBlockDoesNotStandInForIt(t *testing.T) {
+	t.Parallel()
+
+	block := "```json\n" +
+		`{"read":40,"decision":"approve","summary":"nothing blocks here"}` + "\n```"
+	quoted := "```json\n" + `{"quoted":"from the diff"}` + "\n"
+	v := ParseVerdict(quoted + block + "\n\n" + block + "\n")
+	if !v.HasVerdict() {
+		t.Fatalf("fixture did not parse: %s", v.Reason)
+	}
+	if v.Block != block {
+		t.Fatalf("Block = %q, want the closing block", v.Block)
+	}
+	if n := strings.Count(v.Text, block); n != 2 {
+		t.Fatalf("the fixture carries the block %d times, want 2: the earlier copy is what "+
+			"this test is about", n)
+	}
+
+	body := RenderComment(v, "conv_1")
+	if !strings.HasPrefix(body, quoted+block) {
+		t.Errorf("the comment cut the quoted copy and kept the closing block:\n%s", body)
+	}
+	if n := strings.Count(body, block); n != 1 {
+		t.Errorf("the block appears %d times in the comment, want the quoted copy alone:\n%s",
+			n, body)
+	}
+}
+
 // TestPublishedCommentDropsASuppressedNit pins the nit gate across every surface it
 // governs: the placements, the check run's count, and the comment.
 //
-// The comment is the one that used to disagree. It carried the reply's closing block
-// whole, so a deployment with nits off still published them there while the check said
-// one finding. [Verdict.proseWithoutBlock] leaves the block unpublished, so the three
-// now say the same thing.
+// [Verdict.proseWithoutBlock] leaves the reply's closing block unpublished, so the comment
+// restates no entry the gate drops. All three surfaces say the same thing.
 func TestPublishedCommentDropsASuppressedNit(t *testing.T) {
 	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"s",
 	  "inline_comments":[

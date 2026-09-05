@@ -57,7 +57,7 @@ func RenderComment(v Verdict, sessionID string) string {
 	notice := fmt.Sprintf(
 		"> **Review truncated by the publisher.** The whole reply is %d bytes and the "+
 			"text below is cut. Read the rest at item `%s` of session `%s`.\n\n",
-		len(prose), v.ItemID, sessionID)
+		len(v.Text), v.ItemID, sessionID)
 
 	// Here the reserve is right: the cut point is not known until the budget is, so
 	// the bound has to hold for whichever construct the cut leaves open.
