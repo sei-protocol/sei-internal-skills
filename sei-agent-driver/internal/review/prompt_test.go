@@ -43,10 +43,42 @@ func TestPromptsNameTheDiffCommand(t *testing.T) {
 	// and the verification gate, so a check for those would pass with the report
 	// contract deleted.
 	for _, heading := range []string{
-		"1. Blocking", "2. Security", "3. Non-blocking", "4. Summary",
+		"1. Blocking", "2. Non-blocking", "3. Summary",
 	} {
 		if !strings.Contains(BuildPrompt(req), heading) {
 			t.Errorf("BuildPrompt does not require a %q section", heading)
+		}
+	}
+	// There is no Security heading, deliberately. A heading of its own invites the
+	// reply to enumerate what it looked for, and the review is published on the pull
+	// request while the code is still unfixed.
+	if strings.Contains(BuildPrompt(req), "Security —") {
+		t.Error("BuildPrompt asks for a Security section; a findings inventory does " +
+			"not belong in a comment on unfixed code")
+	}
+}
+
+// TestThePromptRefusesExploitDetail pins the disclosure boundary.
+//
+// A security risk still has to be reported -- it is blocking, and an author who
+// cannot see it cannot fix it. What must not travel with it is the exploit: the
+// review is published on the pull request, where the code is unfixed and the
+// audience is wider than the author. The class and the location are what get it
+// fixed; the recipe only arms whoever reads it first.
+func TestThePromptRefusesExploitDetail(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "sei-protocol/sei-chain", PR: 3861}
+	for _, p := range []struct {
+		name string
+		text string
+	}{
+		{"BuildPrompt", BuildPrompt(req)},
+		{"AdoptedPrompt", AdoptedPrompt(req)},
+	} {
+		if !strings.Contains(p.text, "Do not write the exploit") {
+			t.Errorf("%s does not refuse exploit detail; a security finding would "+
+				"publish a working attack against unfixed code", p.name)
 		}
 	}
 }

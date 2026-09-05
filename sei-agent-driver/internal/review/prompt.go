@@ -359,10 +359,8 @@ func BuildPrompt(req Request) string {
 		"Step 3 — report, under these headings in this order:",
 		"",
 		"1. Blocking — what breaks, with the file and line where there is one.",
-		"2. Security — the same, or that you found none, having looked for the classes",
-		"   above.",
-		"3. Non-blocking — design concerns and edge cases, one line each.",
-		"4. Summary — one paragraph.",
+		"2. Non-blocking — design concerns and edge cases, one line each.",
+		"3. Summary — one paragraph.",
 		"",
 		"Write only the review. No narration about what you are about to do, what you",
 		"read, or how you went about it.",
@@ -433,6 +431,18 @@ func bucketRules(includeNits bool) []string {
 // produce the sentinel.
 func verdictShape(includeNits bool) []string {
 	shape := []string{
+		// Rides here rather than in the report contract, for the reason nitRule does:
+		// this is the one block both [BuildPrompt] and [AdoptedPrompt] send, so no
+		// dispatch can omit it. The session outlives the run, so every review after the
+		// first takes the adopted path -- a disclosure rule reaching only the first
+		// dispatch would be absent from almost every review that runs.
+		"A security risk is blocking, and is reported as one: the class of problem, and",
+		"where it is. Do not write the exploit, the payload, or the steps to reproduce",
+		"it, and do not add a heading that invites you to inventory what you looked for.",
+		"This review is published on the pull request, where the code is still unfixed",
+		"and the audience is wider than the author. The person who has to fix it needs",
+		"the class and the location; nobody reading needs the recipe.",
+		"",
 		"read is the line count the diff command printed, and 0 if you never got the",
 		"diff. It is how this tool tells a review of the change from a review of",
 		"nothing, so it is not optional and not an estimate. The placeholder below is",
