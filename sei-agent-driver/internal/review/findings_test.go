@@ -123,8 +123,13 @@ func TestCheckConclusion(t *testing.T) {
 
 	for decision, want := range map[string]string{
 		"request_changes": "failure",
-		"comment":         "neutral",
-		"approve":         "success",
+		// comment over EMPTY buckets, which is what this block carries. The prompt tells
+		// the reply to say comment when it could not read the diff or the tree, and the
+		// tree read has no count of its own -- so nothing written down beside that word
+		// is a review that did not happen. comment WITH notes reaches success; that case
+		// is in TestCheckConclusionFollowsTheFindings.
+		"comment": "neutral",
+		"approve": "success",
 	} {
 		v := verdictFrom(t, `{"read": 120, "decision": "`+decision+`","summary":"s"}`)
 		if got := v.CheckConclusion(); got != want {
