@@ -26,8 +26,9 @@ var decisions = map[string]bool{
 
 // Verdict is what the review turn produced.
 type Verdict struct {
-	// Text is the agent's final message verbatim. This is what gets posted, so
-	// it is the agent's words and not this package's paraphrase.
+	// Text is the agent's final message verbatim. [Verdict.proseWithoutBlock] cuts the
+	// published comment out of these bytes, so the cut is a removal rather than a
+	// re-rendering — except on the block-only fallback that method documents.
 	Text string
 
 	// Structured is the decoded closing block, set only when that block carried
@@ -35,8 +36,9 @@ type Verdict struct {
 	// in prose, and the caller decides whether that counts.
 	Structured map[string]any
 
-	// Block is the closing block's bytes as the agent wrote them. Kept so a truncated
-	// comment can carry the decision verbatim, rather than a re-rendering of it.
+	// Block is the closing block's bytes as the agent wrote them, fences included.
+	// [Verdict.proseWithoutBlock] cuts exactly these bytes out of the published
+	// comment, which needs no re-rendering of the prose that remains.
 	Block string
 
 	// TurnID and ItemID are where this text came from, carried so a published
@@ -156,6 +158,32 @@ func (v Verdict) wroteAnythingDown() bool {
 	return len(reportedFindings(v)) > 0 ||
 		len(NonBlockers(v)) > 0 ||
 		len(PreExisting(v)) > 0
+}
+
+// proseWithoutBlock returns the reply with its closing decision block removed.
+//
+// The block is the machine half of the reply; callers read it from check.json and the
+// findings file, never from a published comment. The whole text when there is no block:
+// a reply that never closed one still has a review in it.
+//
+// A reply that is ONLY its block falls back to the summary the block carries. Stripping
+// to nothing would publish a comment that is a provenance footer and no review.
+func (v Verdict) proseWithoutBlock() string {
+	if v.Block == "" {
+		return v.Text
+	}
+	// The last occurrence, and everything after it: ParseVerdict takes Block from the
+	// final fenced match and allows only whitespace behind it. A reply that quotes
+	// those same bytes earlier keeps the quote.
+	i := strings.LastIndex(v.Text, v.Block)
+	if i < 0 {
+		return v.Text
+	}
+	prose := strings.TrimRight(v.Text[:i], " \t\n")
+	if strings.TrimSpace(prose) == "" {
+		return v.Summary()
+	}
+	return prose
 }
 
 // readTheDiff reports whether the reply affirms it read the change under review.

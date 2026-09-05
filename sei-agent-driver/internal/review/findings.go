@@ -346,9 +346,9 @@ func intField(m map[string]any, key string) int {
 // it would suppress a blocker reported about the same line in the same words. A nit this
 // run will not post reaches the reader through no inline comment and appears in no
 // section, so counting it would put a number on the check that nothing underneath
-// accounts for. [RenderComment] publishes the reply's closing block whole, so the
-// published comment still carries the entry: these counts and that block disagree by the
-// nits gated out here.
+// accounts for. [RenderComment] leaves the reply's closing block unpublished, so the
+// comment restates no block entry these counts drop. It publishes the reply's prose
+// whole, so a note the reply also wrote there reaches the reader anyway.
 //
 // One observation written twice under two severities is one observation, and the heavier
 // word wins. [Finding.dedupeKey] carries no severity, so without that the entry that

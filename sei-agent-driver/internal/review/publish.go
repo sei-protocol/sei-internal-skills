@@ -26,11 +26,10 @@ const MaxBodyBytes = 60_000
 //
 // Every published byte is still the agent's own. What truncation costs is contiguity.
 // The notice says so, names the whole reply's size, and points at the item the rest can
-// be read from. The decision block rides with it, so a truncated review is still
-// machine-readable. That is what matters the moment anything acts on the decision.
+// be read from. The footer carries the decision, so a truncated review still states one.
 //
-// On the truncated path the notice, the decision and the provenance all come before the
-// cut text, and that order is the whole guard. A cut can leave a code fence, an HTML
+// On the truncated path the notice and the footer both come before the cut text, and
+// that order is the whole guard. A cut can leave a code fence, an HTML
 // comment or a raw <pre> open, and each of those hides or garbles whatever follows it --
 // including nested inside each other, where closing correctly needs a model of HTML
 // nesting rather than of markdown. Putting them ahead of the cut needs no model at all.
@@ -38,7 +37,7 @@ const MaxBodyBytes = 60_000
 // notice does not depend on it.
 func RenderComment(v Verdict, sessionID string) string {
 	footer := v.footer(sessionID)
-	prose := strings.TrimRight(v.Text, "\n")
+	prose := strings.TrimRight(v.proseWithoutBlock(), "\n")
 
 	// Closed even when nothing was cut: a reply that ends inside its own fence would
 	// otherwise render the footer as code and lose the provenance record.
@@ -58,20 +57,13 @@ func RenderComment(v Verdict, sessionID string) string {
 	notice := fmt.Sprintf(
 		"> **Review truncated by the publisher.** The whole reply is %d bytes and the "+
 			"text below is cut. Read the rest at item `%s` of session `%s`.\n\n",
-		len(prose), v.ItemID, sessionID)
+		len(v.Text), v.ItemID, sessionID)
 
 	// Here the reserve is right: the cut point is not known until the budget is, so
 	// the bound has to hold for whichever construct the cut leaves open.
 	reserve := markupReserve(prose)
 
-	lead := notice + v.Block + footer + proseSeparator
-	if MaxBodyBytes-len(lead)-reserve < minProseBytes {
-		// The closing block alone crowds out the review, which takes a findings array
-		// of a few thousand entries. The decision still travels in the footer, and the
-		// notice still says where to read the rest. Both beat refusing to publish a
-		// review that ran.
-		lead = notice + footer + proseSeparator
-	}
+	lead := notice + footer + proseSeparator
 
 	return lead + closeDanglingMarkup(truncateBytes(prose, MaxBodyBytes-len(lead)-reserve))
 }
@@ -83,9 +75,8 @@ const proseSeparator = "\n\n---\n\n"
 //
 // Both call sites need it, for different reasons. On the uncut path the footer follows the
 // prose, so an unclosed fence renders the provenance record as code and an unclosed
-// comment hides it outright. On the cut path the notice, the decision and the footer are
-// already ahead of the text, so what is at stake there is only that the tail itself
-// renders. See [RenderComment] for why the order, not this function, is the guard.
+// comment hides it outright. On the cut path the notice and the footer are already ahead
+// of the text, so what is at stake there is only that the tail itself renders. See [RenderComment] for why the order, not this function, is the guard.
 //
 // Counts only a fence at the start of a line, after any indentation. Counting every
 // occurrence lets a fence named in prose, or one inside a code span, flip the parity and
@@ -280,11 +271,6 @@ func fenceRun(trimmed string) int {
 	}
 	return 0
 }
-
-// minProseBytes is the least review text worth publishing alongside a closing
-// block. Below it, the block is so large that carrying it would crowd out the
-// review itself, and [RenderComment] drops the block instead.
-const minProseBytes = 4096
 
 // footer names the comment's own provenance.
 //

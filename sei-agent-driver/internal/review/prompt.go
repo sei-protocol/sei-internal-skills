@@ -268,8 +268,8 @@ func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
 // The required sections do the same job from the other side. A schema whose findings array
 // may be empty, and whose summary can be written from the title, is satisfiable with no
 // evidence at all. So the report asks for sections that cannot be filled honestly without
-// having read the changed lines. They ride in the reply text, which [RenderComment]
-// publishes verbatim.
+// having read the changed lines. They ride in the reply's prose, which [RenderComment]
+// publishes as the agent wrote it.
 //
 // The untrusted-content instruction is load-bearing rather than decorative. The diff is
 // attacker-influenced input in the general case, and one of the three controls the
