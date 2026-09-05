@@ -66,8 +66,8 @@ func RenderComment(v Verdict, sessionID string) string {
 
 	lead := notice + footer + proseSeparator
 	if MaxBodyBytes-len(lead)-reserve < minProseBytes {
-		// The decision still travels in the footer, and the notice still says where to
-		// read the rest. Both beat refusing to publish a review that ran.
+		// The footer carries the decision and the notice says where to read the rest,
+		// which beats refusing to publish a review that ran.
 		lead = notice + footer + proseSeparator
 	}
 

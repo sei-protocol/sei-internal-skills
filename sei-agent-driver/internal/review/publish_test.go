@@ -148,11 +148,7 @@ func TestPublishedCommentKeepsASuppressedNitInItsBlock(t *testing.T) {
 		t.Fatalf("check Title = %q; want 1 finding", check.Title)
 	}
 
-	// And the surface that used to leak it. With nits suppressed the gate drops this one
-	// from the placements AND the counts, but the closing block carried it verbatim into
-	// every comment regardless -- so a deployment that turned nits off still published
-	// them. Removing the block from the comment is what makes the suppression mean
-	// something.
+	// And the comment, which carries neither the block nor the nit the gate suppressed.
 	body := RenderComment(v, "sess_1")
 	if strings.Contains(body, "```json") {
 		t.Errorf("the published comment still carries the decision block:\n%s", body)
