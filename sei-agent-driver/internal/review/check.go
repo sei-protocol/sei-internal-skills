@@ -66,10 +66,16 @@ type Counts struct {
 	// NonBlocking is everything else the review wrote down about this change: the
 	// non_blockers bucket whole, and every other line-tied finding, placed or not.
 	//
-	// A finding whose severity the reply did not state is in it. Every other rule here
-	// already treats an unrecognised severity as non-blocking -- hasBlockingFinding,
-	// [PlaceableFindings] -- and a count that broke with them would
-	// be a fourth answer to one question.
+	// A finding whose severity the reply did not state is in it. The other rules that
+	// COUNT treat an unrecognised severity as non-blocking -- hasBlockingFinding,
+	// [PlaceableFindings] -- and a count that broke with them would be a third answer
+	// to one question.
+	//
+	// [Verdict.hasPreExistingBlocker] is the deliberate exception, and reads the same
+	// severity the other way: an unrecognised word withholds a clean conclusion there.
+	// It is not counting, it is deciding whether a caller may approve, so the unknown
+	// has to fail the other way. A reader taking the convention from here should not
+	// read it as absolute.
 	NonBlocking int `json:"non_blocking"`
 
 	// Placeable is how many findings were handed to the caller to post against a line,
