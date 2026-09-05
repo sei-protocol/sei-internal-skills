@@ -89,6 +89,18 @@ func (v Verdict) CheckConclusion() string {
 	if v.Decision() == "request_changes" || len(Blockers(v)) > 0 || v.hasBlockingFinding() {
 		return "failure"
 	}
+	// A comment decision with EMPTY buckets is the prompt's own read-failure signal: it
+	// tells the reply to say comment when the diff OR THE TREE could not be read, and a
+	// failed tree read arrives here with a truthful diff count and nothing written down.
+	// readTheDiff below cannot see it, because the count it reads is the diff's.
+	//
+	// A notes-only review says comment too, by the same prompt, and that one must stay
+	// clean -- it is the whole point of gating on blockers. The buckets separate the two
+	// meanings the one word carries: something written down is a review, nothing written
+	// down beside a soft decision is a review that did not happen.
+	if v.Decision() == "comment" && !v.wroteAnythingDown() {
+		return "neutral"
+	}
 	// Deliberately not failing on pre_existing_issues, whatever severity they carry. A
 	// blocker the change did not introduce is already on the base branch, so failing
 	// this check would fail every pull request that touches the file until someone
@@ -123,11 +135,27 @@ func (v Verdict) CheckConclusion() string {
 // not introduce.
 func (v Verdict) hasPreExistingBlocker() bool {
 	for _, issue := range PreExisting(v) {
-		if issue.Severity == "blocker" {
+		// Only an explicit suggestion clears. normalizeSeverity returns "" for a word it
+		// does not recognise -- critical, P0, or an absent field -- and every other rule
+		// reading a severity is rendering a COUNT, where treating the unknown as
+		// non-blocking is right. This one withholds an approval, so it has to fail the
+		// other way: an unrecognised severity beside "exploitable rce" must not read as
+		// harmless.
+		if issue.Severity != "suggestion" {
 			return true
 		}
 	}
 	return false
+}
+
+// wroteAnythingDown reports whether the review recorded anything at all, in any bucket.
+//
+// Every finding the reply reported, not only the ones that carry a usable line: a note
+// dropped for naming no line is still something the review wrote down.
+func (v Verdict) wroteAnythingDown() bool {
+	return len(reportedFindings(v)) > 0 ||
+		len(NonBlockers(v)) > 0 ||
+		len(PreExisting(v)) > 0
 }
 
 // readTheDiff reports whether the reply affirms it read the change under review.

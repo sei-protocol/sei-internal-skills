@@ -101,8 +101,11 @@ func TestBuildCheckRunWithoutAVerdict(t *testing.T) {
 //
 // The decision word still escalates and still cannot clear: request_changes fails on its
 // own, and a blocker fails past any softer word. What it no longer does is escalate a
-// notes-only review away from clean -- the reply says comment there by its own prompt, so
-// honouring that word would put the gate back where it started.
+// review that wrote a note down -- the gate is the blocker, not the writing.
+//
+// A comment decision over EMPTY buckets is the exception, and a different thing entirely:
+// the prompt tells the reply to say comment when it could not read the diff or the tree.
+// Nothing written down beside that word is a review that did not happen, not a clean one.
 func TestCheckConclusionFollowsTheFindings(t *testing.T) {
 	t.Parallel()
 
@@ -130,6 +133,21 @@ func TestCheckConclusionFollowsTheFindings(t *testing.T) {
 		},
 		"a review that cannot show it read the diff is never clean": {
 			`{"read": 0, "decision": "approve","summary":"s"}`, "neutral",
+		},
+		// The tree read has no count of its own, so a failed one arrives with a truthful
+		// diff count. The empty buckets are the only thing separating it from a review.
+		"a comment decision over nothing written down is a failed read, not a clean review": {
+			`{"read": 400, "decision": "comment","summary":"the tree clone failed"}`, "neutral",
+		},
+		// Fails safe: normalizeSeverity returns "" for a word it does not know, and this
+		// gate withholds an approval rather than rendering a count.
+		"an unrecognised pre-existing severity is treated as blocking": {
+			`{"read": 120, "decision": "approve","summary":"s",
+			  "pre_existing_issues":[{"severity":"critical","body":"exploitable rce"}]}`, "neutral",
+		},
+		"a pre-existing issue with no severity at all is treated as blocking": {
+			`{"read": 120, "decision": "approve","summary":"s",
+			  "pre_existing_issues":[{"body":"b.go leaks a handle"}]}`, "neutral",
 		},
 		"blockers outrank a soft decision": {
 			`{"read": 120, "decision": "comment","summary":"s","blockers":["needs a test"]}`, "failure",
