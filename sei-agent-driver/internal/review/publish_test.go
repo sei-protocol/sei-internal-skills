@@ -119,18 +119,35 @@ func TestTruncateBytesNeverSplitsARune(t *testing.T) {
 	}
 }
 
-// TestPublishedCommentKeepsASuppressedNitInItsBlock records the residue the nit gate
-// deliberately leaves, so the next reader does not take it for a bug.
+// TestABlockOnlyReplyStillSaysSomething covers a reply that is all block and no prose.
 //
-// The gate governs placement and the check run's count. It does not reach the published
-// summary comment, because [RenderComment] carries the reply's closing block whole and
-// that block is model output. So the check can say one finding over a comment whose block
-// lists two.
+// Stripping it leaves nothing, and a comment that is a provenance footer alone tells the
+// reader less than the block did. The summary the block carries is the fallback.
+func TestABlockOnlyReplyStillSaysSomething(t *testing.T) {
+	// Built without verdictFrom, which prepends prose and so cannot express this shape.
+	v := ParseVerdict("```json\n" +
+		`{"read":40,"decision":"approve","summary":"nothing blocks here"}` + "\n```\n")
+	if !v.HasVerdict() {
+		t.Fatal("no verdict parsed")
+	}
+
+	body := RenderComment(v, "sess_1")
+	if !strings.Contains(body, "nothing blocks here") {
+		t.Errorf("a block-only reply published no review at all:\n%s", body)
+	}
+	if strings.Contains(body, "```json") {
+		t.Errorf("the fallback published the block:\n%s", body)
+	}
+}
+
+// TestPublishedCommentDropsASuppressedNit pins the nit gate across every surface it
+// governs: the placements, the check run's count, and the comment.
 //
-// Closing that would mean rewriting what the agent said before publishing it, which is a
-// larger decision than a severity gate: the block is the record of the reply, and a
-// publisher that edits it makes the transcript and the comment disagree instead.
-func TestPublishedCommentKeepsASuppressedNitInItsBlock(t *testing.T) {
+// The comment is the one that used to disagree. It carried the reply's closing block
+// whole, so a deployment with nits off still published them there while the check said
+// one finding. [Verdict.proseWithoutBlock] leaves the block unpublished, so the three
+// now say the same thing.
+func TestPublishedCommentDropsASuppressedNit(t *testing.T) {
 	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"s",
 	  "inline_comments":[
 	    {"path":"a.go","line":1,"side":"RIGHT","severity":"blocker","body":"real"},

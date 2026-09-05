@@ -26,11 +26,10 @@ const MaxBodyBytes = 60_000
 //
 // Every published byte is still the agent's own. What truncation costs is contiguity.
 // The notice says so, names the whole reply's size, and points at the item the rest can
-// be read from. The decision block rides with it, so a truncated review is still
-// machine-readable. That is what matters the moment anything acts on the decision.
+// be read from. The footer carries the decision, so a truncated review still states one.
 //
-// On the truncated path the notice, the decision and the provenance all come before the
-// cut text, and that order is the whole guard. A cut can leave a code fence, an HTML
+// On the truncated path the notice and the footer both come before the cut text, and
+// that order is the whole guard. A cut can leave a code fence, an HTML
 // comment or a raw <pre> open, and each of those hides or garbles whatever follows it --
 // including nested inside each other, where closing correctly needs a model of HTML
 // nesting rather than of markdown. Putting them ahead of the cut needs no model at all.
@@ -65,11 +64,6 @@ func RenderComment(v Verdict, sessionID string) string {
 	reserve := markupReserve(prose)
 
 	lead := notice + footer + proseSeparator
-	if MaxBodyBytes-len(lead)-reserve < minProseBytes {
-		// The footer carries the decision and the notice says where to read the rest,
-		// which beats refusing to publish a review that ran.
-		lead = notice + footer + proseSeparator
-	}
 
 	return lead + closeDanglingMarkup(truncateBytes(prose, MaxBodyBytes-len(lead)-reserve))
 }
@@ -278,11 +272,6 @@ func fenceRun(trimmed string) int {
 	}
 	return 0
 }
-
-// minProseBytes is the least review text worth publishing alongside a closing
-// block. Below it, the block is so large that carrying it would crowd out the
-// review itself, and [RenderComment] drops the block instead.
-const minProseBytes = 4096
 
 // footer names the comment's own provenance.
 //

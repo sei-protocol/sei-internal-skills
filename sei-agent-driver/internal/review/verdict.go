@@ -163,11 +163,18 @@ func (v Verdict) wroteAnythingDown() bool {
 // The block is the machine half of the reply; callers read it from check.json and the
 // findings file, never from a published comment. The whole text when there is no block:
 // a reply that never closed one still has a review in it.
+//
+// A reply that is ONLY its block falls back to the summary the block carries. Stripping
+// to nothing would publish a comment that is a provenance footer and no review.
 func (v Verdict) proseWithoutBlock() string {
 	if v.Block == "" {
 		return v.Text
 	}
-	return strings.TrimRight(strings.Replace(v.Text, v.Block, "", 1), " \t\n")
+	prose := strings.TrimRight(strings.Replace(v.Text, v.Block, "", 1), " \t\n")
+	if strings.TrimSpace(prose) == "" {
+		return v.Summary()
+	}
+	return prose
 }
 
 // readTheDiff reports whether the reply affirms it read the change under review.
