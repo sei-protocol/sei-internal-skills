@@ -158,6 +158,26 @@ func (v Verdict) wroteAnythingDown() bool {
 		len(PreExisting(v)) > 0
 }
 
+// proseWithoutBlock returns the reply with its closing decision block removed.
+//
+// The block is the machine half of the reply and the prose above it says the same thing
+// for a person. Publishing both put a findings array, verbatim, at the bottom of every
+// review comment -- every finding restated in a form built for a parser, on a pull
+// request whose code is not fixed yet.
+//
+// Nothing reads it from there. The workflow consumes the driver's own check.json and
+// findings file, and the decision a reader needs travels in the footer. So the block is
+// duplication in the ordinary case and disclosure in the worst one.
+//
+// Falls back to the whole text when no block was found: a reply that never closed
+// properly has no block to strip, and losing its prose would lose the review.
+func (v Verdict) proseWithoutBlock() string {
+	if v.Block == "" {
+		return v.Text
+	}
+	return strings.TrimRight(strings.Replace(v.Text, v.Block, "", 1), " \t\n")
+}
+
 // readTheDiff reports whether the reply affirms it read the change under review.
 func (v Verdict) readTheDiff() bool {
 	return intField(v.Structured, "read") > 0
