@@ -38,7 +38,7 @@ const MaxBodyBytes = 60_000
 // notice does not depend on it.
 func RenderComment(v Verdict, sessionID string) string {
 	footer := v.footer(sessionID)
-	prose := strings.TrimRight(v.Text, "\n")
+	prose := strings.TrimRight(v.proseWithoutBlock(), "\n")
 
 	// Closed even when nothing was cut: a reply that ends inside its own fence would
 	// otherwise render the footer as code and lose the provenance record.
@@ -64,12 +64,10 @@ func RenderComment(v Verdict, sessionID string) string {
 	// the bound has to hold for whichever construct the cut leaves open.
 	reserve := markupReserve(prose)
 
-	lead := notice + v.Block + footer + proseSeparator
+	lead := notice + footer + proseSeparator
 	if MaxBodyBytes-len(lead)-reserve < minProseBytes {
-		// The closing block alone crowds out the review, which takes a findings array
-		// of a few thousand entries. The decision still travels in the footer, and the
-		// notice still says where to read the rest. Both beat refusing to publish a
-		// review that ran.
+		// The decision still travels in the footer, and the notice still says where to
+		// read the rest. Both beat refusing to publish a review that ran.
 		lead = notice + footer + proseSeparator
 	}
 

@@ -382,7 +382,10 @@ func TestTheNoticeSurvivesMarkupNoCloserCanFix(t *testing.T) {
 			lead := body[:cut]
 			for _, want := range []string{
 				"Review truncated by the publisher",
-				v.Block,
+				// The decision block is no longer published, so the footer is what has to
+				// carry the decision past a cut -- and it is what must sit ahead of the
+				// text a hostile reply could use to hide it.
+				//
 				// From the footer only. "conv_1" and "item_reply" also appear in the
 				// notice, so neither shows whether the footer survived.
 				"turn `resp_claude_a`",
@@ -526,9 +529,12 @@ func TestABalancedReplyThatFitsIsNotTruncated(t *testing.T) {
 					"bound charged it for a close it does not need",
 					len(strings.TrimRight(v.Text, "\n")), MaxBodyBytes)
 			}
-			// Nothing was cut, so the reply's own text is published whole.
-			if !strings.HasPrefix(body, strings.TrimRight(v.Text, "\n")) {
-				t.Error("the reply's text was altered on a path that cut nothing")
+			// Nothing was cut, so the reply's own PROSE is published whole. The closing
+			// block is removed on every path -- it is the machine half of the reply, and
+			// nothing reads it from a comment -- so the prose, not the text, is the
+			// invariant here.
+			if !strings.HasPrefix(body, strings.TrimRight(v.proseWithoutBlock(), "\n")) {
+				t.Error("the reply's prose was altered on a path that cut nothing")
 			}
 		})
 	}
