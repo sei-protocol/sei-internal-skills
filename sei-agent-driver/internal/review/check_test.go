@@ -91,9 +91,18 @@ func TestBuildCheckRunWithoutAVerdict(t *testing.T) {
 	}
 }
 
-// TestCheckConclusionFollowsTheFindings covers a reply that contradicts itself.
-// Observed on sei-chain#3899: decision approve beside three non_blockers, which
-// published a green check over a review that had three things to say.
+// TestCheckConclusionFollowsTheFindings pins the gate to BLOCKERS, not to whether the
+// review wrote anything down.
+//
+// A review with three suggestions and nothing blocking is a review that says the change
+// is fine, and a reader is told about the three by the counts published beside the
+// conclusion. Gating on "found anything at all" made a clean conclusion unreachable for
+// real work, because a nit is the normal outcome of reading a change carefully.
+//
+// The decision word still escalates and still cannot clear: request_changes fails on its
+// own, and a blocker fails past any softer word. What it no longer does is escalate a
+// notes-only review away from clean -- the reply says comment there by its own prompt, so
+// honouring that word would put the gate back where it started.
 func TestCheckConclusionFollowsTheFindings(t *testing.T) {
 	t.Parallel()
 
@@ -101,16 +110,26 @@ func TestCheckConclusionFollowsTheFindings(t *testing.T) {
 		block string
 		want  string
 	}{
-		"approve with non-blocking notes is not clean": {
-			`{"read": 120, "decision": "approve","summary":"s","non_blockers":["a","b","c"]}`, "neutral",
+		"non-blocking notes do not stop a clean conclusion": {
+			`{"read": 120, "decision": "approve","summary":"s","non_blockers":["a","b","c"]}`, "success",
 		},
-		"approve with a placeable finding is not clean": {
+		"a placeable nit does not stop a clean conclusion": {
 			`{"read": 120, "decision": "approve","summary":"s",
-			  "inline_comments":[{"path":"a.go","line":3,"severity":"nit","body":"x"}]}`, "neutral",
+			  "inline_comments":[{"path":"a.go","line":3,"severity":"nit","body":"x"}]}`, "success",
 		},
-		"approve over a pre-existing issue is not clean": {
+		"a pre-existing suggestion does not stop a clean conclusion": {
 			`{"read": 120, "decision": "approve","summary":"s",
-			  "pre_existing_issues":[{"severity":"suggestion","body":"old"}]}`, "neutral",
+			  "pre_existing_issues":[{"severity":"suggestion","body":"old"}]}`, "success",
+		},
+		"a notes-only review reaches clean under its own comment decision": {
+			`{"read": 120, "decision": "comment","summary":"s","non_blockers":["a"]}`, "success",
+		},
+		"a pre-existing BLOCKER stops short of clean without failing": {
+			`{"read": 120, "decision": "approve","summary":"s",
+			  "pre_existing_issues":[{"severity":"blocker","body":"b.go:4 leaks a handle"}]}`, "neutral",
+		},
+		"a review that cannot show it read the diff is never clean": {
+			`{"read": 0, "decision": "approve","summary":"s"}`, "neutral",
 		},
 		"blockers outrank a soft decision": {
 			`{"read": 120, "decision": "comment","summary":"s","blockers":["needs a test"]}`, "failure",
@@ -154,7 +173,7 @@ func TestABlockerWithNoLineStillFailsTheCheck(t *testing.T) {
 		{"a nit is still not blocking", "```json\n" +
 			`{"read": 120, "decision": "approve","summary":"s","inline_comments":[` +
 			`{"path":"a.go","line":4,"side":"RIGHT","severity":"nit","body":"naming"}]}` +
-			"\n```", "neutral"},
+			"\n```", "success"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
@@ -225,9 +244,12 @@ func TestUnplaceableNotesStillMarkTheCheck(t *testing.T) {
 	v := ParseVerdict("```json\n" +
 		`{"read": 9, "decision": "approve", "summary": "s", "inline_comments":[` +
 		`{"path":"a.go","severity":"suggestion","body":"worth a look"}]}` + "\n```")
-	if got := v.CheckConclusion(); got != "neutral" {
-		t.Errorf("CheckConclusion = %q, want neutral: the review wrote a note down", got)
+	if got := v.CheckConclusion(); got != "success" {
+		t.Errorf("CheckConclusion = %q, want success: a note that blocks nothing blocks nothing", got)
 	}
+	// The counting is what carries the note now that the conclusion does not. A note
+	// dropped for naming no line is still something the review wrote down, and a title
+	// reading "0 findings" over it would tell the reader the review found nothing.
 	if run, _ := buildCheck(v); strings.HasPrefix(run.Title, "0 finding") {
 		t.Errorf("Title = %q, want it to count the note", run.Title)
 	}

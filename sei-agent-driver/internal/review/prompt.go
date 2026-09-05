@@ -404,9 +404,11 @@ func bucketRules(includeNits bool) []string {
 		"Severity for an inline comment is blocker, suggestion or nit. Do not prefix",
 		"the body with it; it is a field, and it gets rendered once.",
 		"",
-		"decision is request_changes if anything blocks, comment if there are only",
-		"non-blocking notes, and approve if you found nothing at all. Use [] for a",
-		"bucket with nothing in it:",
+		"decision is request_changes if anything blocks, and approve if nothing does.",
+		"Non-blocking notes do not change that: a change you would sign off with three",
+		"suggestions is one you approve, and the suggestions still go in their bucket",
+		"where the reader is told about them. Use comment only when you cannot decide.",
+		"Use [] for a bucket with nothing in it:",
 		"",
 	}, verdictShape(includeNits)...)
 }

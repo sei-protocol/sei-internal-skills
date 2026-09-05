@@ -123,8 +123,11 @@ func TestCheckConclusion(t *testing.T) {
 
 	for decision, want := range map[string]string{
 		"request_changes": "failure",
-		"comment":         "neutral",
-		"approve":         "success",
+		// comment no longer escalates. By its own prompt the reply says comment when it
+		// has only non-blocking notes, so honouring the word would gate every review
+		// that found a nit -- which is the gate this mapping exists to have removed.
+		"comment": "success",
+		"approve": "success",
 	} {
 		v := verdictFrom(t, `{"read": 120, "decision": "`+decision+`","summary":"s"}`)
 		if got := v.CheckConclusion(); got != want {

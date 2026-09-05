@@ -68,7 +68,7 @@ type Counts struct {
 	//
 	// A finding whose severity the reply did not state is in it. Every other rule here
 	// already treats an unrecognised severity as non-blocking -- hasBlockingFinding,
-	// [PlaceableFindings], [Verdict.hasNotes] -- and a count that broke with them would
+	// [PlaceableFindings] -- and a count that broke with them would
 	// be a fourth answer to one question.
 	NonBlocking int `json:"non_blocking"`
 

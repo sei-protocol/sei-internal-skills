@@ -74,10 +74,14 @@ func (v Verdict) Summary() string {
 // check -- leaves a reader no way to tell which is meant.
 //
 // What it derives from is the findings, with the decision able to escalate but not to
-// clear. A review that reported three non-blocking notes and still said approve published
-// a green check. That tells a reader the review found nothing, on a pull request it had
-// three things to say about. Both readings came from the same reply, so the one backed by
-// what it actually wrote wins.
+// clear. A reply that says approve while it lists a blocker still fails: both readings
+// came from the same reply, so the one backed by what it actually wrote wins.
+//
+// Only a BLOCKER decides it. Non-blocking notes -- suggestions, nits, pre-existing
+// issues -- do not, because a review that has three suggestions and nothing blocking is
+// a review that says the change is fine. Gating on "found anything at all" made approval
+// unreachable for real work: the counts published beside the conclusion already tell the
+// reader there were three things to say, so the conclusion does not also have to.
 func (v Verdict) CheckConclusion() string {
 	if !v.HasVerdict() {
 		return ""
@@ -85,19 +89,16 @@ func (v Verdict) CheckConclusion() string {
 	if v.Decision() == "request_changes" || len(Blockers(v)) > 0 || v.hasBlockingFinding() {
 		return "failure"
 	}
-	// Deliberately not reading pre_existing_issues, whatever severity they carry. A
+	// Deliberately not failing on pre_existing_issues, whatever severity they carry. A
 	// blocker the change did not introduce is already on the base branch, so failing
 	// this check would fail every pull request that touches the file until someone
 	// fixes it -- and the author who has to clear the check is the one person who did
-	// not cause it. PreExisting keeps the severity so the reader can see it; the gate
-	// stops at neutral by way of hasNotes.
-	if v.Decision() == "comment" || v.hasNotes() {
-		return "neutral"
-	}
-	// A review that never got the diff has no findings either, so the derivation above reads
-	// it as clean. A credential failure would then report a green check on every pull request
-	// at once. The scout contract carries a line count for exactly this reason; the review's
-	// did not.
+	// not cause it. PreExisting keeps the severity so the reader can see it.
+	//
+	// A review that never got the diff has no findings either, so the blocker gate above
+	// reads it as clean. A credential failure would then report a green check on every
+	// pull request at once -- and, where the caller approves on success, approve every one
+	// of them. This is the whole reason the reply carries a line count.
 	//
 	// Degraded to neutral rather than failed. A missing count means this tool cannot tell a
 	// clean review from a review of nothing, which is not the same as knowing the change is
@@ -106,7 +107,27 @@ func (v Verdict) CheckConclusion() string {
 	if !v.readTheDiff() {
 		return "neutral"
 	}
+	// A pre-existing BLOCKER stops short of success without failing. The check does not
+	// go red, for the reason above -- the author did not cause it. But a caller that
+	// approves on success would otherwise sign off a pull request while the review is
+	// saying a blocker sits in the file it touched. Neutral records no position either
+	// way, which is the honest one: nothing here blocks the change, and something in
+	// the file blocks a reader.
+	if v.hasPreExistingBlocker() {
+		return "neutral"
+	}
 	return "success"
+}
+
+// hasPreExistingBlocker reports whether the review named a blocker that the change did
+// not introduce.
+func (v Verdict) hasPreExistingBlocker() bool {
+	for _, issue := range PreExisting(v) {
+		if issue.Severity == "blocker" {
+			return true
+		}
+	}
+	return false
 }
 
 // readTheDiff reports whether the reply affirms it read the change under review.
@@ -137,20 +158,6 @@ func (v Verdict) hasBlockingFinding() bool {
 		}
 	}
 	return false
-}
-
-// hasNotes reports whether the review wrote anything down at all.
-//
-// Pre-existing issues count. They are not this change's fault, which is why they are kept
-// out of the other buckets. But a check that says "nothing to see" over a review naming
-// one is still wrong about what the review said.
-func (v Verdict) hasNotes() bool {
-	// Every finding the reply reported, not only the ones that carry a usable line. A note
-	// dropped for naming no line is still something the review wrote down. Counting only the
-	// placeable ones let an approve over unplaceable notes publish a clean check.
-	return len(reportedFindings(v)) > 0 ||
-		len(NonBlockers(v)) > 0 ||
-		len(PreExisting(v)) > 0
 }
 
 // HasVerdict reports whether the turn produced a decision this driver can act
