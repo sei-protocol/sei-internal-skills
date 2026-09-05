@@ -97,7 +97,8 @@ signal, so a caller never posts a stale file from a previous run.
   The check run's finding count applies the same gate as the placement. Its body omits
   every line-tied finding by design, so counting a suppressed nit would name a finding
   the check cannot show. The published summary comment drops the reply's closing block,
-  so it lists no suppressed nit either.
+  so no suppressed nit reaches the reader from there. That comment carries the reply's
+  prose whole, so a nit the reply also wrote into its prose still appears.
 
   Naming the destination is load-bearing. The sorting rules say every observation belongs
   in the block. They also say a note missing from the block is one the author never sees.

@@ -38,8 +38,8 @@ func TestACutBodyIsBoundedAndClosed(t *testing.T) {
 	}{
 		{"the ordinary cut", inFence,
 			"```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
-		// A block larger than the budget takes the fallback, which drops the block.
-		{"the oversized-block fallback", inFence,
+		// An oversize block, which the comment never carries: the cut is the prose's.
+		{"an oversized block the comment never carries", inFence,
 			"```json\n{\"decision\":\"approve\",\"summary\":\"" +
 				strings.Repeat("x", MaxBodyBytes) + "\"}\n```"},
 		{"a tilde block the cut lands in", inTildes,
@@ -438,30 +438,32 @@ func TestAnUncutReplyThatEndsOpenStillShowsItsFooter(t *testing.T) {
 	}
 }
 
-// TestTheUncutBoundCountsTheCloseItWillAppend sits the reply exactly on the limit.
+// TestTheUncutBoundCountsTheCloseItWillAppend sits the published prose exactly on the
+// limit.
 //
 // The uncut path appends a close, so its own bound has to count it or the body overruns
 // by those bytes. The window is the width of one close, so the size is computed rather
 // than guessed.
 //
-// The fence is four backticks on purpose. A three-backtick fence is closed by the verdict
-// block's own closing fence, which leaves nothing open and nothing to append; four is
-// longer than the block's three, so the block cannot close it.
+// The measure is the prose, which is what the comment carries. The padding ends on a line
+// of text, so the trim takes the same bytes from a padded fixture as from an empty one,
+// and the fence stays open to the end so a close is appended.
 func TestTheUncutBoundCountsTheCloseItWillAppend(t *testing.T) {
 	t.Parallel()
 
 	mk := func(pad int) Verdict {
 		v := ParseVerdict("````go\n" + strings.Repeat("x", pad) +
-			"\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
+			"\nend\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
 		v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
 		return v
 	}
 
 	empty := mk(0)
-	base := len(strings.TrimRight(empty.Text, "\n")) + len(empty.footer("conv_1"))
+	base := len(strings.TrimRight(empty.proseWithoutBlock(), "\n")) +
+		len(empty.footer("conv_1"))
 	v := mk(MaxBodyBytes - base)
 
-	prose := strings.TrimRight(v.Text, "\n")
+	prose := strings.TrimRight(v.proseWithoutBlock(), "\n")
 	if got := len(prose) + len(v.footer("conv_1")); got != MaxBodyBytes {
 		t.Fatalf("fixture is %d bytes with its footer, want exactly %d", got, MaxBodyBytes)
 	}

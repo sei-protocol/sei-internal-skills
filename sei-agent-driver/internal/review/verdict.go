@@ -26,8 +26,9 @@ var decisions = map[string]bool{
 
 // Verdict is what the review turn produced.
 type Verdict struct {
-	// Text is the agent's final message verbatim. This is what gets posted, so
-	// it is the agent's words and not this package's paraphrase.
+	// Text is the agent's final message verbatim. [Verdict.proseWithoutBlock] cuts the
+	// published comment out of these bytes, so the cut is a removal and never a
+	// re-rendering.
 	Text string
 
 	// Structured is the decoded closing block, set only when that block carried

@@ -207,11 +207,13 @@ func TestAQuotedCopyOfTheBlockDoesNotStandInForIt(t *testing.T) {
 	}
 }
 
-// TestPublishedCommentDropsASuppressedNit pins the nit gate across every surface it
-// governs: the placements, the check run's count, and the comment.
+// TestPublishedCommentDropsASuppressedNit pins the nit gate across the surfaces it
+// reaches: the placements, the check run's count, and the block.
 //
 // [Verdict.proseWithoutBlock] leaves the reply's closing block unpublished, so the comment
-// restates no entry the gate drops. All three surfaces say the same thing.
+// restates no block entry the gate drops. The reply's own prose is published whole and no
+// gate reads it: a reply that writes the nit into its Non-blocking section publishes it
+// beside a check count that omits it.
 func TestPublishedCommentDropsASuppressedNit(t *testing.T) {
 	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"s",
 	  "inline_comments":[
@@ -230,7 +232,9 @@ func TestPublishedCommentDropsASuppressedNit(t *testing.T) {
 		t.Fatalf("check Title = %q; want 1 finding", check.Title)
 	}
 
-	// And the comment, which carries neither the block nor the nit the gate suppressed.
+	// And the comment. "polish" sits only inside the block here, so the assertion
+	// catches a block entry re-rendered as prose as well as the block itself. It says
+	// nothing about a reply that wrote the nit into its own prose.
 	body := RenderComment(v, "sess_1")
 	if strings.Contains(body, "```json") {
 		t.Errorf("the published comment still carries the decision block:\n%s", body)
