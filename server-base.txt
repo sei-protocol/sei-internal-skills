@@ -3,28 +3,32 @@
 # Digest-pinned, not tag-pinned: a tag is mutable, and a base that changed under
 # a stale claim would not be detectable from this file.
 #
-# Current: tag agents-main-09d94b0f-kms-k8s, server 0.13.0.dev0, from
-# bdchatham/omnigent@feat/sei-base 09d94b0f -- the SAME source commit as the
-# prior build (agents-main-09d94b0f-k8s), rebuilt with one more extra. Still
-# upstream 1ddfed019 plus the same four carried commits: the machine-auth
-# grant, the runner recipe, the COPY that ships integrations/, and the
-# paginated agent/host listing the Slack picker needs.
+# Current: tag agents-main-d5cce212-k8s, server 0.13.0.dev0, from
+# bdchatham/omnigent@feat/sei-base d5cce212 -- upstream 1ddfed019 plus FIVE
+# carried commits: the machine-auth grant, the runner recipe, the COPY that
+# ships integrations/, the paginated agent/host listing the Slack picker
+# needs, and now the Slack integration's host_type="managed" support
+# (bdchatham/omnigent#3, merging feat/slack-managed-hosts).
 #
-# OMNIGENT_EXTRAS=kubernetes,slack,kms -- kms is the addition. omnigent-config
-# sets OMNIGENT_CREDENTIAL_CIPHER=kms and OMNIGENT_CREDENTIAL_KMS_KEY_ID
-# unconditionally, but the prior build never carried the extra that backs it
-# (boto3/botocore). The server started clean regardless -- KmsSecretCipher's
-# boto3 import is lazy -- and only failed the first time anything WROTE a
-# credential through it. Reproduced live: the GitHub per-user connect
-# callback completed the OAuth exchange, then 500'd persisting the token
-# (`ImportError: The AWS KMS credential backend needs boto3`). ecr-server-
-# base.yml's gate now gets this too, having failed to catch it: the earlier
-# push had no assertion for this extra at all.
+# What #3 fixes: the Slack integration never requested a managed sandbox --
+# every session needed a host the caller already owned and had online, either
+# a saved host_id or `omni host --server <url>` kept running in a foreground
+# terminal. Filed upstream: omnigent-ai/omnigent#6601. Host<->session is
+# effectively 1:1, and neither a saved host_id nor the random-online-host
+# fallback checked whether a host already had a runner bound -- only whether
+# it was online -- so landing a new session on an already-busy host risked
+# replacing that session's live connection (launch_runner's own 409 comment:
+# "host offline / connection replaced"). Now the setup flow offers a managed
+# sandbox in the host picker (gated on a GET /v1/info capability probe) instead
+# of hard-failing to "bring your own machine."
 #
-# Note the tag: agents-main-09d94b0f-kms-k8s, not -k8s. Same ref, so the
-# git-sha-derived tag collided with the prior push -- ECR tags here are
-# immutable, so it needed an explicit distinguishing suffix rather than
-# overwriting a tag whose content this changes.
+# This is a no-op for the SERVER's own runtime: the fix lives entirely in
+# integrations/slack/, which only the BOT container executes
+# (`python -m omnigent_slack`) -- the server never imports omnigent_slack.
+# Rebuilding the base is still required for the bot to pick it up; see
+# slack-deployment.yaml in platform for that pin.
+#
+# OMNIGENT_EXTRAS unchanged: kubernetes,slack,kms.
 #
 # Platform's vendored Kustomize tree MUST come from this same upstream commit.
 # The launcher creates batch/v1 Jobs: its RBAC lives in that tree, its API calls
@@ -34,8 +38,8 @@
 # ROLLBACK. Migrations run at boot; the point of no return is that transaction
 # committing. An older image cannot boot against a newer schema -- no
 # newer-revision guard, so it fails to resolve a revision it does not carry and
-# crash-loops. That warning does not bind THIS bump specifically: the source
-# commit is unchanged from the prior digest, so no migration exists between
-# them -- reverting this one digest is a valid rollback, on its own, with
-# nothing else to downgrade first.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:94f7c133e225035b2a94053a17d6d7ec59200c03872cc45724e15ceda2a6771e
+# crash-loops. That warning does not bind THIS bump specifically: PR #3 touches
+# only integrations/slack/ and its own local SQLite (with its own additive,
+# non-Alembic migration) -- no server-side schema moved, so reverting this one
+# digest is a valid rollback, on its own, with nothing else to downgrade first.
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:e27cb084eedde89a907f4a9d13a3c0c698d6931c83c1b320c62dddc9a31015f6
