@@ -722,7 +722,7 @@ func intentCommand(req Request) string {
 // reviewer wrote are all in the conversation it is answering in. Re-sending them is paying
 // for a session twice: once to hold the context and again to replace it.
 //
-// Three things are sent anyway, each because the session cannot hold them:
+// Four things are sent anyway, each because the session cannot hold them:
 //
 //   - the diff and the tree, which moved. Memory of them is now wrong, not merely stale.
 //   - the repository's standards, re-read because the tree they live in was re-cloned and
