@@ -931,11 +931,29 @@ func TestHistoryFitBoundsTheDelta(t *testing.T) {
 	if dropped == 0 {
 		t.Fatal("nothing was dropped; this fixture is meant to overrun the full history")
 	}
-	if got := carried - countRendered(threadUpdateStep(req), "  ["); got > dropped {
+	// Read from the line the block renders about itself, not derived from a count of
+	// what it rendered. An earlier version of this subtracted the rendered entries from
+	// HistoryFit's collapsed total, which mixes two populations: uncollapse the delta and
+	// that difference SHRINKS, so the assertion moved away from failing exactly when the
+	// bound broke. The block's own number is about the block's own set.
+	if got := droppedCount(threadUpdateStep(req)); got > dropped {
 		t.Errorf("threadUpdateStep dropped %d against HistoryFit's %d; the log reports a "+
 			"bound the delta exceeds, so an operator reading zero could still be losing "+
 			"history", got, dropped)
 	}
+}
+
+// droppedCount reads the number a history block says it left out, and 0 when it says
+// nothing. It is the same number the review is told, which is what makes it the right
+// one to compare bounds on.
+func droppedCount(lines []string) int {
+	for _, line := range lines {
+		var n int
+		if _, err := fmt.Sscanf(line, "%d older finding(s) are not shown here", &n); err == nil {
+			return n
+		}
+	}
+	return 0
 }
 
 // TestHandleFitMatchesWhatTheStepLists keeps the reported number and the rendered list
