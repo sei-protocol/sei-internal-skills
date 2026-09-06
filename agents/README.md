@@ -8,6 +8,11 @@ the in-image path) and registered as built-in agents on boot.
 - `root-cause/` — the headless root-cause investigator.
 - `sei-spec/` — spec-driven development, running GitHub Spec Kit for a human who
   selects it from the agent dropdown.
+- `xreview-scout-codex/` — one independent reading of a pull request, on the
+  codex harness, gathered before the review that merges it.
+- `xreview-scout-cursor/` — the same contract on the cursor harness. Baked, not
+  registered: its README lists the four prerequisites that stand between it and a
+  live session.
 
 `root-cause` is headless: a route resolves it by name and consumes
 a returned verdict, so their bundle name is a machine contract. `sei-spec` is

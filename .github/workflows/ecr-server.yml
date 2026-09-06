@@ -101,6 +101,7 @@ jobs:
               "sei-spec":   ("none", 8, "speckit-"),
               "root-cause": ("none", 1, None),
               "xreview-scout-codex": ("none", 0, None),
+              "xreview-scout-cursor": ("none", 0, None),
           }
           root = Path("/opt/sei-omnigent/agents")
           dirs = sorted(p for p in root.iterdir() if p.is_dir())
@@ -157,5 +158,6 @@ jobs:
             echo '```'
             echo "/opt/sei-omnigent/agents/xreview-scout-codex:/opt/sei-omnigent/agents/root-cause:/opt/sei-omnigent/agents/sei-spec:/opt/agents/sei-droid"
             echo '```'
+            echo "\`xreview-scout-cursor\` is baked but deliberately absent from that list: its harness is not reachable yet. See its README before adding it."
             echo "Registration runs only at lifespan startup, so bump \`sei.io/config-revision\` in the same commit."
           } >> "$GITHUB_STEP_SUMMARY"
