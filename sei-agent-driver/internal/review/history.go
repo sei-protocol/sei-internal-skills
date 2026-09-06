@@ -56,13 +56,15 @@ type PriorThread struct {
 // identical threads has not resolved the finding.
 //
 // Its handle follows that state. The survivor carries the id of the most recent copy
-// that is still open, and of the most recent copy of any state only when every copy is
-// resolved. The id is what a review names to close the thread, so a survivor that
-// reports open while handing over a resolved copy's id spends the review's one move on a
-// thread that is already shut and leaves the live one standing — the outcome this whole
-// path exists to prevent. Taking the first copy's id, or the last one whatever its
-// state, each produces that on a pull request where a finding was raised, resolved, and
-// raised again.
+// that is still open AND carries a usable one, the id of the most recent such copy of
+// any state when every copy is resolved, and no id at all when the survivor is open and
+// no open copy gave one.
+//
+// The id is what a review names to close the thread, so a survivor that reports open
+// while handing over a resolved copy's id spends the review's one move on a thread that
+// is already shut and leaves the live one standing — the outcome this whole path exists
+// to prevent. Taking the first copy's id, or the last one whatever its state, each
+// produces that on a pull request where a finding was raised, resolved and raised again.
 func collapseRepeats(threads []PriorThread) []PriorThread {
 	type finding struct {
 		thread PriorThread
@@ -79,7 +81,10 @@ func collapseRepeats(threads []PriorThread) []PriorThread {
 		key := fmt.Sprintf("%s\x00%d\x00%s", t.File, t.Line, t.Body)
 		f, seen := at[key]
 		if !seen {
-			f = &finding{thread: t, last: i, openHandle: !t.Resolved}
+			f = &finding{
+				thread: t, last: i,
+				openHandle: !t.Resolved && wellFormedThreadID(t.ID),
+			}
 			at[key] = f
 			found = append(found, f)
 			continue
@@ -87,7 +92,11 @@ func collapseRepeats(threads []PriorThread) []PriorThread {
 		f.thread.Resolved = f.thread.Resolved && t.Resolved
 		f.thread.Replies = withNewReplies(f.thread.Replies, t.Replies)
 		f.last = i
-		if !t.Resolved || !f.openHandle {
+		// The newest USABLE handle, preferring an open copy. Guarded on the id as well
+		// as on the state, because a copy with no handle to give must not take one
+		// away: a history carrying ids for some threads and not others would otherwise
+		// leave the survivor open and unnameable.
+		if wellFormedThreadID(t.ID) && (!t.Resolved || !f.openHandle) {
 			f.thread.ID = t.ID
 			f.openHandle = !t.Resolved
 		}
@@ -101,6 +110,15 @@ func collapseRepeats(threads []PriorThread) []PriorThread {
 
 	out := make([]PriorThread, len(found))
 	for i, f := range found {
+		// An open survivor hands over nothing rather than a resolved copy's handle.
+		// Naming a thread that is already closed spends the review's one move on it and
+		// leaves the open copy standing, which is the defect this rule exists for;
+		// naming nothing says truthfully that no open copy came with a handle. The
+		// adopted prompt lists the open threads uncollapsed, so a handle withheld here
+		// is not one lost.
+		if !f.thread.Resolved && !f.openHandle {
+			f.thread.ID = ""
+		}
 		out[i] = f.thread
 	}
 	return out

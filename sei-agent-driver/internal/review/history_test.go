@@ -635,6 +635,24 @@ func TestACollapsedFindingHandsOverAnOpenThread(t *testing.T) {
 			{ID: "PRRT_older", File: "a.go", Line: 9, Body: "unbounded retry", Resolved: true},
 			{ID: "PRRT_newest", File: "a.go", Line: 9, Body: "unbounded retry", Resolved: true},
 		}, "PRRT_newest"},
+		// A copy with no handle to give must not take one away. A history carrying ids
+		// for some threads and not others reaches this, and the survivor would be open
+		// and unnameable — the same failure from the other direction.
+		{"the newest open copy carries no handle", []PriorThread{
+			{ID: "PRRT_live", File: "a.go", Line: 9, Body: "unbounded retry"},
+			{File: "a.go", Line: 9, Body: "unbounded retry"},
+		}, "PRRT_live"},
+		{"the newest open copy's handle is malformed", []PriorThread{
+			{ID: "PRRT_live", File: "a.go", Line: 9, Body: "unbounded retry"},
+			{ID: "not a node id", File: "a.go", Line: 9, Body: "unbounded retry"},
+		}, "PRRT_live"},
+		// Nothing usable names an open copy, so the survivor hands over nothing. A
+		// resolved copy's id here would have the review close a thread that is already
+		// shut and leave the open one standing.
+		{"only the resolved copy has a handle", []PriorThread{
+			{ID: "PRRT_closed", File: "a.go", Line: 9, Body: "unbounded retry", Resolved: true},
+			{File: "a.go", Line: 9, Body: "unbounded retry"},
+		}, ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -651,6 +669,14 @@ func TestACollapsedFindingHandsOverAnOpenThread(t *testing.T) {
 			// reaches a prompt rather than staying in a struct.
 			rendered := strings.Join(historyStep(
 				Request{Repo: "o/r", PR: 42, PriorThreads: tc.threads}), "\n")
+			if tc.want == "" {
+				if strings.Contains(rendered, "thread_id") {
+					t.Errorf("the history hands over a handle though no open copy gave "+
+						"one, so the review closes a thread that is already shut:\n%s",
+						rendered)
+				}
+				return
+			}
 			if !strings.Contains(rendered, "[thread_id: "+tc.want+"]") {
 				t.Errorf("the history hands over something other than %q:\n%s",
 					tc.want, rendered)

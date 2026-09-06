@@ -342,7 +342,8 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 // caller has a check run to publish and a reason to quote. Without it a review
 // that ran and could not be read publishes nothing at all, which reads on the
 // pull request like a review that never ran.
-func report(outPath, findingsPath, checkPath string, result driver.Result, req review.Request) error {
+func report(outPath, findingsPath, checkPath string, result driver.Result,
+	req review.Request) error {
 	payload := map[string]any{
 		"session_id":  result.SessionID,
 		"exit_code":   result.ExitCode,
