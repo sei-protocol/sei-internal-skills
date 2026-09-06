@@ -219,8 +219,11 @@ func TestBuildFailureCheckNamesWhyThereIsNoVerdict(t *testing.T) {
 		t.Fatal("BuildCheckRun accepted a reply with no verdict")
 	}
 	run := BuildFailureCheck(v)
-	if run.Conclusion != "neutral" {
-		t.Errorf("Conclusion = %q, want neutral", run.Conclusion)
+	// failure, so a repository requiring this check holds the merge until a run reads
+	// the change. Neutral reads as a pass, which would satisfy that requirement on a
+	// run that read nothing.
+	if run.Conclusion != "failure" {
+		t.Errorf("Conclusion = %q, want failure", run.Conclusion)
 	}
 	if !strings.Contains(run.Summary, "fenced json block") {
 		t.Errorf("Summary = %q, want it to carry the parser's own reason", run.Summary)
