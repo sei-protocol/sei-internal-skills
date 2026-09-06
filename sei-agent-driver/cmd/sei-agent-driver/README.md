@@ -84,6 +84,22 @@ signal, so a caller never posts a stale file from a previous run.
   could read is the one wrong answer here. The `failure` holds a merge wherever the
   check is required, and it reports a change this tool could not read rather than a
   bad one.
+
+  The file also carries a `threads` object, on the same reasoning as `counts`: it is
+  no part of the check run GitHub publishes, and it rides here because this is the
+  file a caller already reads.
+
+  ```json
+  "threads": { "addressed": [], "superseded": [], "refused": [] }
+  ```
+
+  `addressed` are the threads whose finding the change fixed — resolve them whenever
+  the review publishes. `superseded` are the threads a new inline comment restates —
+  resolve them only once those comments are on the code, because a thread closed
+  behind a comment that never posted takes a live finding off the pull request.
+  `refused` are the ids the reply named that match no thread supplied through
+  `--conversation-context`; report them and resolve nothing. An older binary writes no
+  `threads` key, and a caller reading its absence resolves nothing.
 - `--guidelines-file PATH` — a path *inside the reviewed repository* holding the
   guidance that repository adds to every review. Defaults to `REVIEW.md`, which is
   read whether or not this is passed; a repository without that file is reviewed
@@ -130,6 +146,14 @@ signal, so a caller never posts a stale file from a previous run.
   json, so a re-review can say what changed instead of repeating itself. A file that
   cannot be read is a warning rather than a refusal: the review is still correct
   without it.
+
+  Each entry takes `thread_id`, `file`, `line`, `body`, `replies` and `resolved`. The
+  `thread_id` is the GraphQL node id of the review thread, and this file is the
+  allowlist that decides which threads a review may close: an id the reply names is
+  admitted only when it matches one here, and every other lands in `refused`. So a
+  caller supplies the threads it has already established are this tool's own — on this
+  pull request, written by this identity — and nothing else. Omitting `thread_id`
+  leaves the history working and closes nothing.
 
 ## Environment variables
 
