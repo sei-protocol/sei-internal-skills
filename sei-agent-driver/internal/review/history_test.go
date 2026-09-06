@@ -150,23 +150,67 @@ func TestHistoryStepSaysNothingAboutTruncationWhenNothingIsDropped(t *testing.T)
 	}
 }
 
-// TestASingleOversizeThreadIsStillCarried covers the entry larger than the whole budget.
+// TestWithinBudgetKeepsAnOversizeFirstEntry covers the entry larger than the whole
+// budget, which is [withinBudget]'s only special case.
 //
-// Every field inside one is already clipped, so this means the budget is too small for
-// one finding. Answering that by carrying no history at all would lose the review its
-// memory of the pull request entirely.
-func TestASingleOversizeThreadIsStillCarried(t *testing.T) {
+// Driven through withinBudget directly, because that is where the branch is and the only
+// place it can be reached. An earlier version of this test built a thread with four
+// hundred replies and asserted through historyStep; that entry rendered to 5,210 bytes
+// against a 60,000 budget, so it never took the branch and passed for the wrong reason.
+// [TestNoSingleThreadCanOverrunTheBudget] is the assertion that fixture was reaching for.
+func TestWithinBudgetKeepsAnOversizeFirstEntry(t *testing.T) {
 	t.Parallel()
 
-	huge := make([]string, 400)
-	for i := range huge {
-		huge[i] = strings.Repeat("reply text ", 60)
+	oversize := []string{strings.Repeat("x", 200)}
+	second := []string{"a later entry"}
+
+	kept, dropped := withinBudget([][]string{oversize, second}, 50)
+	if len(kept) != 1 || kept[0][0] != oversize[0] {
+		t.Fatalf("kept = %v, want the oversize first entry", kept)
 	}
-	out := strings.Join(historyStep(Request{Repo: "o/r", PR: 1, PriorThreads: []PriorThread{
-		{File: "a.go", Line: 9, Body: "a finding", Replies: huge},
-	}}), "\n")
-	if !strings.Contains(out, "a finding") {
-		t.Errorf("an oversize thread was dropped, leaving no history at all:\n%s", out)
+	if dropped != 1 {
+		t.Errorf("dropped = %d, want 1", dropped)
+	}
+}
+
+// TestNoSingleThreadCanOverrunTheBudget is why the case above is a backstop rather than a
+// path a review reaches.
+//
+// Every field in an entry is clipped before it is rendered: the finding to maxScoutDetail,
+// each reply to the same, and the replies themselves to maxPriorReplies. So the largest
+// entry historyEntry can produce is far inside the budget, and a history is only ever
+// truncated between threads, never inside one.
+//
+// Removing any ONE of the three fails this, and the fixture is sized so that each is
+// pinned independently rather than by whichever binds first. An earlier version used a
+// merely large thread and pinned only maxPriorReplies: with either maxScoutDetail clip
+// deleted it still landed under the budget and stayed green, which is the same defect as
+// a test named for a branch it cannot reach.
+func TestNoSingleThreadCanOverrunTheBudget(t *testing.T) {
+	t.Parallel()
+
+	// Each field is sized so that removing its own clip alone overruns the budget:
+	// the finding on its own, ten replies on their own, and — since each is still
+	// clipped — the reply count on its own. A fixture merely "large" pins only whichever
+	// clip happens to bind first, which is how the earlier version of this pinned
+	// maxPriorReplies and neither maxScoutDetail.
+	const overBudget = maxHistoryBytes + 10_000
+	replies := make([]string, 400)
+	for i := range replies {
+		replies[i] = strings.Repeat("r", overBudget/maxPriorReplies+1)
+	}
+	entry := historyEntry(Request{Repo: "o/r", PR: 1}, PriorThread{
+		ID:   strings.Repeat("A", maxThreadID),
+		File: strings.Repeat("d/", 60) + "a.go", Line: 9,
+		Body: strings.Repeat("f", overBudget), Replies: replies,
+	})
+	size := 0
+	for _, line := range entry {
+		size += len(line) + 1
+	}
+	if size >= maxHistoryBytes {
+		t.Errorf("one thread renders to %d bytes against a %d budget; a history can now "+
+			"be cut inside a finding rather than between two", size, maxHistoryBytes)
 	}
 }
 
@@ -820,4 +864,148 @@ func TestACollapsedFindingHandsOverAnOpenThread(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHistoryFitDoesNotBoundTheHandles is the case that falsified the claim this
+// replaced, kept as a test so the broader claim cannot come back.
+//
+// The fixture is one finding restated across four thousand threads — duplicates, which is
+// the only shape where the two disagree, and the shape an all-distinct fixture can never
+// produce. collapseRepeats folds them to a single entry for HistoryFit; openThreadsStep
+// renders them uncollapsed, because each carries an id a review has to be able to name.
+// So HistoryFit reports nothing dropped while the handles overrun the budget.
+//
+// Measured before the fix: carried=1 shown=1 dropped=0 against 4000 threads, 857 listed,
+// 3143 dropped. A log that said "nothing dropped" there was wrong about the population
+// that decides whether a finding can be closed at all.
+func TestHistoryFitDoesNotBoundTheHandles(t *testing.T) {
+	t.Parallel()
+
+	var threads []PriorThread
+	for i := 0; i < 4000; i++ {
+		threads = append(threads, PriorThread{
+			ID: fmt.Sprintf("PRRT_%d", i), File: "a.go", Line: 9,
+			Body: "the retry is unbounded",
+		})
+	}
+	req := Request{Repo: "o/r", PR: 42, PriorThreads: threads}
+
+	carried, _, historyDropped := HistoryFit(req)
+	if carried != 1 {
+		t.Fatalf("carried = %d, want 1; the fixture is meant to collapse to one finding",
+			carried)
+	}
+	if historyDropped != 0 {
+		t.Fatalf("HistoryFit dropped %d; one collapsed finding fits with room to spare",
+			historyDropped)
+	}
+
+	open, listed, handlesDropped := HandleFit(req)
+	if open != len(threads) {
+		t.Errorf("HandleFit saw %d open threads, want %d uncollapsed", open, len(threads))
+	}
+	if handlesDropped == 0 {
+		t.Fatal("HandleFit dropped nothing; the fixture is meant to overrun the handles")
+	}
+	// The point: zero from one is not zero from the other, and a doc claiming otherwise
+	// is claiming something this fixture disproves.
+	t.Logf("HistoryFit dropped %d; HandleFit dropped %d of %d listed %d",
+		historyDropped, handlesDropped, open, listed)
+}
+
+// TestHistoryFitBoundsTheDelta pins what HistoryFit does bound.
+//
+// threadUpdateStep renders a subset of the same collapsed set, with entries no larger
+// than historyEntry's — it omits the handle, and the body unless the location repeats —
+// so it drops no more. The fixture carries duplicates as well, so the collapse runs here
+// too rather than the bound holding only on distinct threads.
+func TestHistoryFitBoundsTheDelta(t *testing.T) {
+	t.Parallel()
+
+	var threads []PriorThread
+	for i := 0; i < 600; i++ {
+		// Every third finding is a restatement of its predecessor, so collapseRepeats
+		// has work to do and the delta is drawn from the collapsed set.
+		body := fmt.Sprintf("finding %d: %s", i/3, strings.Repeat("prose ", 60))
+		threads = append(threads, PriorThread{
+			ID: fmt.Sprintf("PRRT_%d", i), File: fmt.Sprintf("pkg/file%d.go", i/3),
+			Line: i/3 + 1, Body: body,
+			Replies: []string{"author: " + strings.Repeat("argument ", 40)},
+		})
+	}
+	req := Request{Repo: "o/r", PR: 42, PriorThreads: threads}
+
+	carried, _, dropped := HistoryFit(req)
+	if carried == len(threads) {
+		t.Fatal("nothing collapsed; this fixture is meant to carry duplicates")
+	}
+	if dropped == 0 {
+		t.Fatal("nothing was dropped; this fixture is meant to overrun the full history")
+	}
+	// Read from the line the block renders about itself, not derived from a count of
+	// what it rendered. An earlier version of this subtracted the rendered entries from
+	// HistoryFit's collapsed total, which mixes two populations: uncollapse the delta and
+	// that difference SHRINKS, so the assertion moved away from failing exactly when the
+	// bound broke. The block's own number is about the block's own set.
+	if got := droppedCount(threadUpdateStep(req)); got > dropped {
+		t.Errorf("threadUpdateStep dropped %d against HistoryFit's %d; the log reports a "+
+			"bound the delta exceeds, so an operator reading zero could still be losing "+
+			"history", got, dropped)
+	}
+}
+
+// droppedCount reads the number a history block says it left out, and 0 when it says
+// nothing. It is the same number the review is told, which is what makes it the right
+// one to compare bounds on.
+func droppedCount(lines []string) int {
+	for _, line := range lines {
+		var n int
+		if _, err := fmt.Sscanf(line, "%d older finding(s) are not shown here", &n); err == nil {
+			return n
+		}
+	}
+	return 0
+}
+
+// TestHandleFitMatchesWhatTheStepLists keeps the reported number and the rendered list
+// one answer.
+//
+// They come from one selection, and this is what fails if a later change gives either a
+// filter of its own — a log saying eight hundred handles were listed while the prompt
+// carries a different set is worse than no log.
+func TestHandleFitMatchesWhatTheStepLists(t *testing.T) {
+	t.Parallel()
+
+	var threads []PriorThread
+	for i := 0; i < 4000; i++ {
+		threads = append(threads, PriorThread{
+			ID: fmt.Sprintf("PRRT_%d", i), File: "a.go", Line: 9, Body: "restated",
+		})
+	}
+	// Neither of these is nameable, and neither may be counted.
+	threads = append(threads,
+		PriorThread{ID: "PRRT_done", File: "b.go", Line: 1, Resolved: true},
+		PriorThread{File: "c.go", Line: 2, Body: "no handle"},
+	)
+	req := Request{Repo: "o/r", PR: 42, PriorThreads: threads}
+
+	open, listed, _ := HandleFit(req)
+	if open != 4000 {
+		t.Errorf("HandleFit counted %d open threads, want 4000: a resolved thread and one "+
+			"with no usable id are not threads a review can name", open)
+	}
+	if got := countRendered(openThreadsStep(req), "  pr-42-tree/"); got != listed {
+		t.Errorf("HandleFit says %d listed, the step renders %d", listed, got)
+	}
+}
+
+// countRendered counts the lines in a block that open an entry.
+func countRendered(lines []string, prefix string) int {
+	n := 0
+	for _, line := range lines {
+		if strings.HasPrefix(line, prefix) {
+			n++
+		}
+	}
+	return n
 }

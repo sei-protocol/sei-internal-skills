@@ -122,10 +122,11 @@ func collapseRepeats(threads []PriorThread) []PriorThread {
 		}
 	}
 
-	// Ordered by where each finding was last stated, not where it was first. [selectThreads]
-	// drops the oldest when the history will not fit, and a finding restated a moment ago is
-	// not old. Leaving the survivor at its first appearance would drop it, together with the
-	// replies merged from the copies that made it recent.
+	// Ordered by where each finding was last stated, not where it was first.
+	// [orderThreads] ranks the oldest last, so [withinBudget] spends what is left on them
+	// and a finding restated a moment ago is not old. Leaving the survivor at its first
+	// appearance would rank it low, and the replies merged from the copies that made it
+	// recent would go with it.
 	slices.SortStableFunc(found, func(a, b *finding) int { return a.last - b.last })
 
 	out := make([]PriorThread, len(found))
@@ -264,21 +265,72 @@ func droppedLine(dropped int) []string {
 	}
 }
 
-// HistoryFit reports how many prior threads the fullest history rendering carries, and
-// how many it leaves out.
+// HistoryFit reports how many of the collapsed prior findings the full history carries,
+// and how many it leaves out.
 //
-// For the operator, not the prompt. It runs the same order and the same budget
-// [historyStep] renders under, so the number a log states and the number a review is told
-// come from one computation rather than two that can disagree.
+// For the operator, not the prompt. It computes [historyStep]'s rendering exactly -- the
+// same collapse, the same order, the same entries, the same budget -- so on a first
+// dispatch the number a log states and the number a review is told are one computation.
 //
-// The fullest rendering, because that is the one that answers "does this pull request's
-// history still fit". The adopted prompt sends less prose and so drops less; a run whose
-// full history fits has no truncation on either path.
+// It also bounds [threadUpdateStep], which renders a subset of the same collapsed set
+// with entries no larger than [historyEntry]'s, and so drops no more.
+//
+// It says NOTHING about [openThreadsStep], which is the whole of what this used to claim
+// wrongly. That step renders the threads UNCOLLAPSED, because each carries an id a review
+// has to be able to name, so its population is the raw threads rather than the findings
+// they collapse into. One finding restated across four thousand threads collapses to one
+// entry here and stays four thousand there: this reports nothing dropped while that drops
+// three thousand of them. [HandleFit] is the number for that population, and the two are
+// not comparable -- they count different things.
 func HistoryFit(req Request) (carried, shown, dropped int) {
 	threads := collapseRepeats(req.PriorThreads)
 	kept, dropped := fitThreads(threads,
 		func(t PriorThread) []string { return historyEntry(req, t) }, maxHistoryBytes)
 	return len(threads), len(kept), dropped
+}
+
+// HandleFit reports how many open threads a re-review can name, and how many it cannot.
+//
+// The population [HistoryFit] does not cover, and the one that decides whether a finding
+// can be closed at all: an id absent from the prompt is a thread the review cannot resolve
+// or supersede, whatever else it knows. It runs [openThreads], the same selection and the
+// same rendering [openThreadsStep] uses, so the two cannot describe different sets.
+//
+// Uncollapsed, for the reason that step is. So a pull request carrying one finding many
+// times over reports a large number here and a small one from HistoryFit, and both are
+// true about their own question.
+func HandleFit(req Request) (open, listed, dropped int) {
+	threads, entryOf := openThreads(req)
+	kept, dropped := fitThreads(threads, entryOf, maxHistoryBytes)
+	return len(threads), len(kept), dropped
+}
+
+// openThreads returns the threads a re-review can still name, and how one renders.
+//
+// One definition, read by [openThreadsStep] and by [HandleFit]. Two would drift, and the
+// direction they would drift in is a log that reports a different set from the one the
+// prompt carries -- which is the defect [HandleFit] exists to remove.
+//
+// Uncollapsed, unlike every other rendering here. A finding restated across several
+// threads is several threads still open on the pull request, and each has an id a review
+// has to be able to name; [collapseRepeats] answers how much prose one finding is worth,
+// which is a different question.
+func openThreads(req Request) ([]PriorThread, func(PriorThread) []string) {
+	open := make([]PriorThread, 0, len(req.PriorThreads))
+	for _, t := range req.PriorThreads {
+		if !t.Resolved && wellFormedThreadID(t.ID) {
+			open = append(open, t)
+		}
+	}
+	repeats := repeatedLocations(req, open)
+	return open, func(t PriorThread) []string {
+		location := promptLocation(req, t.File, t.Line)
+		line := "  " + location + threadHandle(t)
+		if repeats[location] > 1 {
+			line += " — " + clip(oneLine(t.Body), maxScoutDetail)
+		}
+		return []string{line}
+	}
 }
 
 // historyEntry renders one thread as the full history shows it: the state, the place,
@@ -315,10 +367,10 @@ func threadUpdateStep(req Request) []string {
 	if len(req.PriorThreads) == 0 {
 		return nil
 	}
-	// Filtered before it is capped, in that order. selectThreads orders unresolved-first,
-	// so capping first spends the whole budget on unmoved open threads and then discards
-	// them here -- on a busy pull request that returns nil and the session is never told
-	// about a resolution it has no other way to learn of.
+	// Filtered before it is bounded, in that order. [orderThreads] ranks unresolved
+	// first, so bounding before this filter spends the budget on unmoved open threads
+	// that are then discarded here -- on a busy pull request that returns nil, and a
+	// resolution is the one thing the session has no other way to learn of.
 	all := collapseRepeats(req.PriorThreads)
 	var changed []PriorThread
 	for _, t := range all {
@@ -401,16 +453,10 @@ func repeatedLocations(req Request, threads []PriorThread) map[string]int {
 // on the pull request, so each has to be nameable -- [collapseRepeats] answers a
 // different question, which is how much prose a prompt spends on one finding.
 func openThreadsStep(req Request) []string {
-	open := make([]PriorThread, 0, len(req.PriorThreads))
-	for _, t := range req.PriorThreads {
-		if !t.Resolved && wellFormedThreadID(t.ID) {
-			open = append(open, t)
-		}
-	}
+	open, entryOf := openThreads(req)
 	if len(open) == 0 {
 		return nil
 	}
-	repeats := repeatedLocations(req, open)
 
 	out := []string{
 		"These threads of yours are open on the pull request. Name one in",
@@ -419,14 +465,6 @@ func openThreadsStep(req Request) []string {
 		"process's: two spaces introduces a thread, and nothing inside one can",
 		"introduce anything.",
 		"",
-	}
-	entryOf := func(t PriorThread) []string {
-		location := promptLocation(req, t.File, t.Line)
-		line := "  " + location + threadHandle(t)
-		if repeats[location] > 1 {
-			line += " — " + clip(oneLine(t.Body), maxScoutDetail)
-		}
-		return []string{line}
 	}
 	shown, dropped := fitThreads(open, entryOf, maxHistoryBytes)
 	for _, t := range shown {
