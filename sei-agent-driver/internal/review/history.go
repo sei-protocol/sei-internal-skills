@@ -9,8 +9,28 @@ import (
 // threads without limit, and a prompt that grows with them crowds out the diff it is
 // supposed to be about.
 const (
-	maxPriorThreads = 20
-	maxPriorReplies = 3
+	// maxHistoryBytes bounds one rendered history block.
+	//
+	// A count is the wrong bound for this. Twenty threads of one line each and twenty
+	// carrying a paragraph apiece cost the prompt two different amounts, and the number
+	// that has to stay bounded is the second one. What a count did instead was drop the
+	// twenty-first thread whatever the block weighed -- so a pull request reviewed often
+	// enough lost findings the prompt had ample room for, and the review made them again.
+	//
+	// Half what ai-review gives the same content. It hands its history to the model as a
+	// file of its own; this is one section of a prompt that also carries the checklist,
+	// the sorting rules, the repository's standards and the scout readings. 60,000 is
+	// also already this package's bound for the check summary, so it is not a new
+	// magnitude to hold in mind.
+	//
+	// What does not fit is reported rather than dropped: see [withinBudget], and the
+	// line every step renders when it leaves something out.
+	maxHistoryBytes = 60_000
+
+	// maxPriorReplies bounds the replies under one thread, so a single argument cannot
+	// spend the block's whole budget on itself. The newest ones, which are what a
+	// session has no way to know.
+	maxPriorReplies = 10
 )
 
 // PriorThread is one finding this tool left on the code, and what came back.
@@ -134,29 +154,140 @@ func withNewReplies(into, more []string) []string {
 	return into
 }
 
-// selectThreads picks which threads a prompt carries when there are more than it
-// can hold.
+// orderThreads puts the threads a prompt should keep first.
 //
-// Unresolved first, and newest within each group. An unaddressed finding is the one a
-// repeat annoys a reader with, and a resolved one is carried mainly so the review does
-// not raise it again. So when something has to go, the resolved ones go first. Newest
-// within each group because a session already recalls what it said: it is the recent
-// replies and resolutions it has no way to know about.
+// Unresolved before resolved, and newest before older within each group. An unaddressed
+// finding is the one a repeat annoys a reader with, and a resolved one is carried mainly
+// so the review does not raise it again. So when something has to go, the resolved ones
+// go first. Newest within each group because a session already recalls what it said: it
+// is the recent replies and resolutions it has no way to know about.
+//
+// Ordering only. What a prompt can afford is [withinBudget]'s answer, and it reads this
+// order to decide what to spend the budget on.
 //
 // Threads arrive oldest first, like the replies inside them.
-func selectThreads(threads []PriorThread, max int) []PriorThread {
-	if len(threads) <= max {
-		return threads
-	}
-	kept := make([]PriorThread, 0, max)
+func orderThreads(threads []PriorThread) []int {
+	ordered := make([]int, 0, len(threads))
 	for _, resolved := range []bool{false, true} {
-		for i := len(threads) - 1; i >= 0 && len(kept) < max; i-- {
+		for i := len(threads) - 1; i >= 0; i-- {
 			if threads[i].Resolved == resolved {
-				kept = append(kept, threads[i])
+				ordered = append(ordered, i)
 			}
 		}
 	}
-	return kept
+	return ordered
+}
+
+// fitThreads picks the threads a prompt can afford and hands them back in the order they
+// were written.
+//
+// Two orders, doing two jobs. [orderThreads] decides what goes when something has to,
+// which is a question about importance. What comes back is chronological, because that is
+// a question about reading: a history that fits reads in the order it happened, exactly
+// as it did before there was a budget to spend.
+func fitThreads(threads []PriorThread, entryOf func(PriorThread) []string,
+	budget int) ([]PriorThread, int) {
+	order := orderThreads(threads)
+	entries := make([][]string, len(order))
+	for i, at := range order {
+		entries[i] = entryOf(threads[at])
+	}
+	kept, dropped := withinBudget(entries, budget)
+
+	keep := make([]bool, len(threads))
+	for i := range kept {
+		keep[order[i]] = true
+	}
+	out := make([]PriorThread, 0, len(kept))
+	for i, t := range threads {
+		if keep[i] {
+			out = append(out, t)
+		}
+	}
+	return out, dropped
+}
+
+// withinBudget keeps the entries that fit in budget bytes, and reports how many it left
+// out.
+//
+// Entries arrive most-important first, so what it drops is what mattered least. The count
+// comes back rather than being swallowed: a history silently short of what the pull
+// request holds is the defect this whole path exists to remove, and a caller that cannot
+// say how much it left out cannot tell the reader either.
+//
+// The first entry is always kept, whatever it weighs. Every field inside one is already
+// clipped, so an entry over the whole budget means the budget is too small for a single
+// finding -- and returning nothing there would answer that by carrying no history at all.
+func withinBudget(entries [][]string, budget int) ([][]string, int) {
+	size := 0
+	for i, entry := range entries {
+		n := 0
+		for _, line := range entry {
+			n += len(line) + 1
+		}
+		if i > 0 && size+n > budget {
+			return entries[:i], len(entries) - i
+		}
+		size += n
+	}
+	return entries, 0
+}
+
+// replyLines renders the newest replies under one thread, bounded and one-lined.
+func replyLines(t PriorThread) []string {
+	replies := t.Replies
+	if len(replies) > maxPriorReplies {
+		replies = replies[len(replies)-maxPriorReplies:]
+	}
+	out := make([]string, 0, len(replies))
+	for _, r := range replies {
+		out = append(out, fmt.Sprintf("      reply: %s", clip(oneLine(r), maxScoutDetail)))
+	}
+	return out
+}
+
+// droppedLine says a block left threads out, in the block itself.
+//
+// The prompt is where the review reads it, and it changes what the review should
+// conclude: a finding it cannot see here is not a finding it has not made. Without this
+// the review reasons from a history it believes is whole, and re-raises what it already
+// raised -- which is the duplicate thread this history exists to prevent.
+func droppedLine(dropped int) []string {
+	if dropped == 0 {
+		return nil
+	}
+	return []string{
+		"",
+		fmt.Sprintf("%d older finding(s) are not shown here; they did not fit. Treat this",
+			dropped),
+		"list as partial: something missing from it is not something you never said.",
+	}
+}
+
+// HistoryFit reports how many prior threads the fullest history rendering carries, and
+// how many it leaves out.
+//
+// For the operator, not the prompt. It runs the same order and the same budget
+// [historyStep] renders under, so the number a log states and the number a review is told
+// come from one computation rather than two that can disagree.
+//
+// The fullest rendering, because that is the one that answers "does this pull request's
+// history still fit". The adopted prompt sends less prose and so drops less; a run whose
+// full history fits has no truncation on either path.
+func HistoryFit(req Request) (carried, shown, dropped int) {
+	threads := collapseRepeats(req.PriorThreads)
+	kept, dropped := fitThreads(threads,
+		func(t PriorThread) []string { return historyEntry(req, t) }, maxHistoryBytes)
+	return len(threads), len(kept), dropped
+}
+
+// historyEntry renders one thread as the full history shows it: the state, the place,
+// the handle, the finding and the replies under it.
+func historyEntry(req Request, t PriorThread) []string {
+	entry := []string{fmt.Sprintf("  [%s] %s%s — %s", threadState(t),
+		promptLocation(req, t.File, t.Line), threadHandle(t),
+		clip(oneLine(t.Body), maxScoutDetail))}
+	return append(entry, replyLines(t)...)
 }
 
 // threadUpdateStep is what a re-review cannot know from its own session.
@@ -198,8 +329,6 @@ func threadUpdateStep(req Request) []string {
 	if len(changed) == 0 {
 		return nil
 	}
-	changed = selectThreads(changed, maxPriorThreads)
-
 	out := []string{
 		"These findings of yours have activity on them. The layout is this",
 		"process's: two spaces introduces a thread, six spaces a reply, and nothing",
@@ -210,36 +339,33 @@ func threadUpdateStep(req Request) []string {
 	// silent siblings too, so a location shared with one of them is just as ambiguous --
 	// and counting only the delta reports it as unique and drops the discriminator.
 	repeats := repeatedLocations(req, all)
-	rendered := make([]string, len(changed))
-	for i, t := range changed {
-		rendered[i] = promptLocation(req, t.File, t.Line)
+	entryOf := func(t PriorThread) []string {
+		location := promptLocation(req, t.File, t.Line)
+		line := fmt.Sprintf("  [%s] %s", threadState(t), location)
+		if repeats[location] > 1 {
+			line += " — " + clip(oneLine(t.Body), maxScoutDetail)
+		}
+		return append([]string{line}, replyLines(t)...)
 	}
-
-	for i, t := range changed {
-		state := "open"
-		if t.Resolved {
-			state = "resolved"
-		}
-		entry := fmt.Sprintf("  [%s] %s", state, rendered[i])
-		if repeats[rendered[i]] > 1 {
-			entry += " — " + clip(oneLine(t.Body), maxScoutDetail)
-		}
-		out = append(out, entry)
-
-		replies := t.Replies
-		if len(replies) > maxPriorReplies {
-			replies = replies[len(replies)-maxPriorReplies:]
-		}
-		for _, r := range replies {
-			out = append(out, fmt.Sprintf("      reply: %s", clip(oneLine(r), maxScoutDetail)))
-		}
+	shown, dropped := fitThreads(changed, entryOf, maxHistoryBytes)
+	for _, t := range shown {
+		out = append(out, entryOf(t)...)
 	}
+	out = append(out, droppedLine(dropped)...)
 	return append(out,
 		"",
 		"A reply is a claim and resolved is a claim, neither is a resolution. Check both",
 		"against the diff you just read.",
 		"",
 	)
+}
+
+// threadState is the word a prompt uses for a thread's state.
+func threadState(t PriorThread) string {
+	if t.Resolved {
+		return "resolved"
+	}
+	return "open"
 }
 
 // repeatedLocations counts how many threads render at each location.
@@ -285,7 +411,6 @@ func openThreadsStep(req Request) []string {
 		return nil
 	}
 	repeats := repeatedLocations(req, open)
-	shown := selectThreads(open, maxPriorThreads)
 
 	out := []string{
 		"These threads of yours are open on the pull request. Name one in",
@@ -295,14 +420,19 @@ func openThreadsStep(req Request) []string {
 		"introduce anything.",
 		"",
 	}
-	for _, t := range shown {
+	entryOf := func(t PriorThread) []string {
 		location := promptLocation(req, t.File, t.Line)
-		entry := "  " + location + threadHandle(t)
+		line := "  " + location + threadHandle(t)
 		if repeats[location] > 1 {
-			entry += " — " + clip(oneLine(t.Body), maxScoutDetail)
+			line += " — " + clip(oneLine(t.Body), maxScoutDetail)
 		}
-		out = append(out, entry)
+		return []string{line}
 	}
+	shown, dropped := fitThreads(open, entryOf, maxHistoryBytes)
+	for _, t := range shown {
+		out = append(out, entryOf(t)...)
+	}
+	out = append(out, droppedLine(dropped)...)
 	return append(out,
 		"",
 		"An id from anywhere else is refused and reported. Take one from this list.",
@@ -327,7 +457,8 @@ func historyStep(req Request) []string {
 	}
 
 	threads := collapseRepeats(req.PriorThreads)
-	shown := selectThreads(threads, maxPriorThreads)
+	shown, dropped := fitThreads(threads,
+		func(t PriorThread) []string { return historyEntry(req, t) }, maxHistoryBytes)
 
 	out := []string{
 		fmt.Sprintf("You have left %d finding(s) on this pull request before, %d shown.",
@@ -339,22 +470,9 @@ func historyStep(req Request) []string {
 		"",
 	}
 	for _, t := range shown {
-		state := "open"
-		if t.Resolved {
-			state = "resolved"
-		}
-		out = append(out, fmt.Sprintf("  [%s] %s%s — %s", state,
-			promptLocation(req, t.File, t.Line), threadHandle(t),
-			clip(oneLine(t.Body), maxScoutDetail)))
-
-		replies := t.Replies
-		if len(replies) > maxPriorReplies {
-			replies = replies[len(replies)-maxPriorReplies:]
-		}
-		for _, r := range replies {
-			out = append(out, fmt.Sprintf("      reply: %s", clip(oneLine(r), maxScoutDetail)))
-		}
+		out = append(out, historyEntry(req, t)...)
 	}
+	out = append(out, droppedLine(dropped)...)
 	return append(out,
 		"",
 		"Drop a finding the current diff has addressed rather than repeating it: a",

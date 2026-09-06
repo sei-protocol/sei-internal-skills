@@ -95,21 +95,78 @@ func TestHistoryStepContainsWhatARepliesCanClaim(t *testing.T) {
 	}
 }
 
-// TestHistoryStepBoundsWhatItRenders keeps a long-running pull request from
-// crowding the diff out of its own prompt.
+// TestHistoryStepBoundsWhatItRenders keeps a long-running pull request from crowding the
+// diff out of its own prompt, and holds the bound to bytes rather than to a count.
+//
+// A count is the wrong bound: twenty one-line findings and twenty paragraph-long ones
+// cost the prompt two different amounts, and only the second number has to stay bounded.
+// Under a count, a pull request reviewed often enough lost findings the prompt had ample
+// room for — and a review that cannot see a finding it made will make it again.
 func TestHistoryStepBoundsWhatItRenders(t *testing.T) {
 	t.Parallel()
 
-	many := make([]PriorThread, maxPriorThreads+5)
+	// Each finding is large enough that a few hundred of them cannot fit, so the budget
+	// rather than any count is what decides.
+	many := make([]PriorThread, 400)
 	for i := range many {
-		many[i] = PriorThread{File: "a.go", Line: i + 1, Body: "finding"}
+		many[i] = PriorThread{
+			File: "a.go", Line: i + 1, Body: strings.Repeat("a long finding. ", 30),
+		}
 	}
 	out := strings.Join(historyStep(Request{Repo: "o/r", PR: 1, PriorThreads: many}), "\n")
-	if strings.Count(out, "[open]") != maxPriorThreads {
-		t.Errorf("rendered %d threads, want %d", strings.Count(out, "[open]"), maxPriorThreads)
+
+	if len(out) > maxHistoryBytes+2_000 {
+		t.Errorf("the block is %d bytes against a %d budget", len(out), maxHistoryBytes)
 	}
-	if !strings.Contains(out, "25 finding(s) on this pull request before, 20 shown") {
-		t.Errorf("the count does not say what was withheld:\n%s", out)
+	shown := strings.Count(out, "[open]")
+	if shown == 0 || shown == len(many) {
+		t.Fatalf("rendered %d of %d threads; the budget decided nothing", shown, len(many))
+	}
+	// A count would have stopped at twenty whatever the entries weighed. This carries as
+	// many as fit, which for entries this size is more than that.
+	if shown <= 20 {
+		t.Errorf("rendered %d threads, which is no better than the count this replaced", shown)
+	}
+	if !strings.Contains(out, "400 finding(s) on this pull request before") {
+		t.Errorf("the header does not say how many there were:\n%s", out[:400])
+	}
+	for _, want := range []string{"are not shown here; they did not fit", "list as partial"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the truncation is silent: %q is missing", want)
+		}
+	}
+}
+
+// TestHistoryStepSaysNothingAboutTruncationWhenNothingIsDropped keeps the notice out of
+// the common case, so its presence means something.
+func TestHistoryStepSaysNothingAboutTruncationWhenNothingIsDropped(t *testing.T) {
+	t.Parallel()
+
+	out := strings.Join(historyStep(Request{Repo: "o/r", PR: 1, PriorThreads: []PriorThread{
+		{File: "a.go", Line: 9, Body: "unbounded retry"},
+	}}), "\n")
+	if strings.Contains(out, "did not fit") {
+		t.Errorf("a history that fits reports a truncation:\n%s", out)
+	}
+}
+
+// TestASingleOversizeThreadIsStillCarried covers the entry larger than the whole budget.
+//
+// Every field inside one is already clipped, so this means the budget is too small for
+// one finding. Answering that by carrying no history at all would lose the review its
+// memory of the pull request entirely.
+func TestASingleOversizeThreadIsStillCarried(t *testing.T) {
+	t.Parallel()
+
+	huge := make([]string, 400)
+	for i := range huge {
+		huge[i] = strings.Repeat("reply text ", 60)
+	}
+	out := strings.Join(historyStep(Request{Repo: "o/r", PR: 1, PriorThreads: []PriorThread{
+		{File: "a.go", Line: 9, Body: "a finding", Replies: huge},
+	}}), "\n")
+	if !strings.Contains(out, "a finding") {
+		t.Errorf("an oversize thread was dropped, leaving no history at all:\n%s", out)
 	}
 }
 
@@ -127,17 +184,17 @@ func TestSelectThreadsDropsResolvedBeforeOpen(t *testing.T) {
 		{File: "open1.go"},
 		{File: "open2.go"},
 	}
-	kept := selectThreads(threads, 2)
-	if len(kept) != 2 {
-		t.Fatalf("kept %d, want 2", len(kept))
+	order := orderThreads(threads)
+	if len(order) != 4 {
+		t.Fatalf("ordered %d, want every thread: ordering drops nothing", len(order))
 	}
-	for _, k := range kept {
-		if k.Resolved {
-			t.Errorf("kept a resolved thread over an open one: %+v", kept)
+	for _, at := range order[:2] {
+		if threads[at].Resolved {
+			t.Errorf("a resolved thread sorts above an open one: %+v", order)
 		}
 	}
-	if kept[0].File != "open2.go" {
-		t.Errorf("kept[0] = %s, want the newest open thread open2.go", kept[0].File)
+	if threads[order[0]].File != "open2.go" {
+		t.Errorf("first = %s, want the newest open thread open2.go", threads[order[0]].File)
 	}
 }
 
@@ -152,21 +209,52 @@ func TestSelectThreadsFallsBackToResolved(t *testing.T) {
 		{File: "r2.go", Resolved: true},
 		{File: "open.go"},
 	}
-	kept := selectThreads(threads, 2)
-	if len(kept) != 2 || kept[0].File != "open.go" || !kept[1].Resolved {
-		t.Fatalf("kept = %+v, want the open one then the newest resolved", kept)
+	order := orderThreads(threads)
+	if threads[order[0]].File != "open.go" || !threads[order[1]].Resolved {
+		t.Fatalf("order = %+v, want the open one then the newest resolved", order)
 	}
 }
 
-// TestSelectThreadsKeepsEverythingItCan leaves a short history in the order it
-// arrived, so the common case reads chronologically.
-func TestSelectThreadsKeepsEverythingItCan(t *testing.T) {
+// TestAHistoryThatFitsReadsChronologically pins the property the two orders exist to
+// keep apart.
+//
+// orderThreads answers "what goes when something has to", which is about importance, and
+// it puts the newest open thread first. What a prompt renders is the order the findings
+// were written, because that is about reading. A history that fits must therefore come
+// back untouched — including one whose newest thread is resolved, which the importance
+// order would move.
+func TestAHistoryThatFitsReadsChronologically(t *testing.T) {
 	t.Parallel()
 
 	threads := []PriorThread{{File: "a.go"}, {File: "b.go", Resolved: true}}
-	kept := selectThreads(threads, 20)
+	kept, dropped := fitThreads(threads,
+		func(PriorThread) []string { return []string{"x"} }, maxHistoryBytes)
+	if dropped != 0 {
+		t.Fatalf("dropped %d from a history that fits", dropped)
+	}
 	if len(kept) != 2 || kept[0].File != "a.go" || kept[1].File != "b.go" {
-		t.Fatalf("kept = %+v, want both in arrival order", kept)
+		t.Fatalf("kept = %+v, want both in the order they were written", kept)
+	}
+}
+
+// TestWhatIsDroppedIsTheLeastImportant covers the other half: when the budget bites, the
+// resolved and the older go, and what survives still reads chronologically.
+func TestWhatIsDroppedIsTheLeastImportant(t *testing.T) {
+	t.Parallel()
+
+	threads := []PriorThread{
+		{File: "old-resolved.go", Resolved: true},
+		{File: "old-open.go"},
+		{File: "new-open.go"},
+	}
+	// A budget with room for two entries of ten bytes and a newline.
+	kept, dropped := fitThreads(threads,
+		func(PriorThread) []string { return []string{"0123456789"} }, 22)
+	if dropped != 1 {
+		t.Fatalf("dropped %d, want 1", dropped)
+	}
+	if len(kept) != 2 || kept[0].File != "old-open.go" || kept[1].File != "new-open.go" {
+		t.Fatalf("kept = %+v, want the two open ones in written order", kept)
 	}
 }
 
@@ -267,9 +355,11 @@ func TestCollapsedFindingSurvivesOnItsLatestMention(t *testing.T) {
 
 	const restated = "the default is duplicated"
 	threads := []PriorThread{{File: "a.go", Line: 1, Body: restated}}
-	for i := 0; i < maxPriorThreads+3; i++ {
+	// Enough filler, each large enough, that the budget cannot carry all of it.
+	for i := 0; i < 400; i++ {
 		threads = append(threads, PriorThread{
-			File: "b.go", Line: i + 1, Body: fmt.Sprintf("finding %d", i),
+			File: "b.go", Line: i + 1,
+			Body: fmt.Sprintf("finding %d: %s", i, strings.Repeat("padding ", 40)),
 		})
 	}
 	// Raised again by the newest run, with the reply that argues it.
@@ -277,7 +367,13 @@ func TestCollapsedFindingSurvivesOnItsLatestMention(t *testing.T) {
 		File: "a.go", Line: 1, Body: restated, Replies: []string{"me: still true"},
 	})
 
-	shown := selectThreads(collapseRepeats(threads), maxPriorThreads)
+	req := Request{Repo: "o/r", PR: 1}
+	collapsed := collapseRepeats(threads)
+	shown, dropped := fitThreads(collapsed,
+		func(t PriorThread) []string { return historyEntry(req, t) }, maxHistoryBytes)
+	if dropped == 0 {
+		t.Fatal("nothing was dropped; this fixture is meant to overrun the budget")
+	}
 	var kept *PriorThread
 	for i := range shown {
 		if shown[i].Body == restated {
@@ -293,24 +389,25 @@ func TestCollapsedFindingSurvivesOnItsLatestMention(t *testing.T) {
 	}
 }
 
-// TestTheDeltaIsFilteredBeforeItIsCapped covers the ordering, which is invisible until a
+// TestTheDeltaIsFilteredBeforeItIsBounded covers the ordering, which is invisible until a
 // pull request is busy.
 //
-// selectThreads orders unresolved-first, so capping before filtering spends the whole
-// budget on open threads that carry no activity and are then dropped. On a pull request
-// with more unmoved open findings than the cap, that returns nothing at all — and a
-// resolution is the one thing the session has no other way to learn about, since it
+// The budget is spent on what is left after the filter, not before it. Bounding first
+// spends the whole of it on open threads that carry no activity and then discards them
+// here — on a pull request with enough unmoved open findings that returns nothing at all,
+// and a resolution is the one thing the session has no other way to learn about, since it
 // happened on GitHub rather than in the conversation.
 //
-// The fixture is deliberately past the cap. Under the cap the two orderings agree, which
-// is why this was not visible in the other tests.
-func TestTheDeltaIsFilteredBeforeItIsCapped(t *testing.T) {
+// The fixture is deliberately large enough to overrun the budget. Inside it the two
+// orderings agree, which is why this was not visible in the other tests.
+func TestTheDeltaIsFilteredBeforeItIsBounded(t *testing.T) {
 	t.Parallel()
 
 	var threads []PriorThread
-	for i := 0; i < maxPriorThreads+2; i++ {
+	for i := 0; i < 400; i++ {
 		threads = append(threads, PriorThread{
-			File: fmt.Sprintf("open%d.go", i), Line: i + 1, Body: "an open finding",
+			File: fmt.Sprintf("open%d.go", i), Line: i + 1,
+			Body: "an open finding " + strings.Repeat("padding ", 40),
 		})
 	}
 	threads = append(threads,
@@ -536,17 +633,23 @@ func TestEveryCopyOfARepeatedFindingIsNameable(t *testing.T) {
 }
 
 // TestTheHandlesAreBounded holds the list to what a prompt can carry, like every other
-// thread rendering here.
+// thread rendering here, and says so when it cannot carry all of them.
+//
+// A handle is one short line, so this is the rendering the budget bites last: it takes
+// thousands of open threads to overrun it, where a count of twenty stopped at twenty on
+// every pull request that had twenty-one. That difference is the point — the ids a review
+// cannot see are threads it cannot close.
 func TestTheHandlesAreBounded(t *testing.T) {
 	t.Parallel()
 
 	var threads []PriorThread
-	for i := 0; i < maxPriorThreads*2; i++ {
+	for i := 0; i < 4000; i++ {
 		threads = append(threads, PriorThread{
 			ID: fmt.Sprintf("PRRT_%d", i), File: fmt.Sprintf("a%d.go", i), Line: i + 1,
 		})
 	}
 	out := openThreadsStep(Request{Repo: "o/r", PR: 42, PriorThreads: threads})
+	joined := strings.Join(out, "\n")
 
 	listed := 0
 	for _, line := range out {
@@ -554,8 +657,42 @@ func TestTheHandlesAreBounded(t *testing.T) {
 			listed++
 		}
 	}
-	if listed != maxPriorThreads {
-		t.Errorf("listed %d handles, want the cap of %d", listed, maxPriorThreads)
+	if len(joined) > maxHistoryBytes+2_000 {
+		t.Errorf("the list is %d bytes against a %d budget", len(joined), maxHistoryBytes)
+	}
+	if listed == 0 || listed == len(threads) {
+		t.Fatalf("listed %d of %d handles; the budget decided nothing", listed, len(threads))
+	}
+	// Far more than the count this replaced, because a handle is cheap.
+	if listed <= 20 {
+		t.Errorf("listed %d handles, which is no better than the count this replaced", listed)
+	}
+	if !strings.Contains(joined, "did not fit") {
+		t.Errorf("handles were dropped without saying so:\n%s", joined[len(joined)-300:])
+	}
+}
+
+// TestEveryOpenHandleIsListedWhenTheyFit is the other half, and the one that matters on a
+// real pull request: a hundred open threads is far inside the budget, and under the count
+// this replaced eighty of them were unnameable.
+func TestEveryOpenHandleIsListedWhenTheyFit(t *testing.T) {
+	t.Parallel()
+
+	var threads []PriorThread
+	for i := 0; i < 100; i++ {
+		threads = append(threads, PriorThread{
+			ID: fmt.Sprintf("PRRT_%d", i), File: fmt.Sprintf("a%d.go", i), Line: i + 1,
+		})
+	}
+	out := strings.Join(openThreadsStep(Request{Repo: "o/r", PR: 42, PriorThreads: threads}), "\n")
+
+	for _, i := range []int{0, 42, 99} {
+		if !strings.Contains(out, fmt.Sprintf("PRRT_%d]", i)) {
+			t.Errorf("PRRT_%d is not nameable, so a review cannot close it", i)
+		}
+	}
+	if strings.Contains(out, "did not fit") {
+		t.Errorf("a hundred handles reported a truncation:\n%s", out)
 	}
 }
 
