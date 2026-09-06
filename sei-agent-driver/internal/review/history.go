@@ -122,10 +122,11 @@ func collapseRepeats(threads []PriorThread) []PriorThread {
 		}
 	}
 
-	// Ordered by where each finding was last stated, not where it was first. [selectThreads]
-	// drops the oldest when the history will not fit, and a finding restated a moment ago is
-	// not old. Leaving the survivor at its first appearance would drop it, together with the
-	// replies merged from the copies that made it recent.
+	// Ordered by where each finding was last stated, not where it was first.
+	// [orderThreads] ranks the oldest last, so [withinBudget] spends what is left on them
+	// and a finding restated a moment ago is not old. Leaving the survivor at its first
+	// appearance would rank it low, and the replies merged from the copies that made it
+	// recent would go with it.
 	slices.SortStableFunc(found, func(a, b *finding) int { return a.last - b.last })
 
 	out := make([]PriorThread, len(found))
@@ -267,13 +268,21 @@ func droppedLine(dropped int) []string {
 // HistoryFit reports how many prior threads the fullest history rendering carries, and
 // how many it leaves out.
 //
-// For the operator, not the prompt. It runs the same order and the same budget
-// [historyStep] renders under, so the number a log states and the number a review is told
-// come from one computation rather than two that can disagree.
+// For the operator, not the prompt. What it computes is [historyStep]'s rendering exactly
+// -- the same order, the same entries, the same budget -- so on a first dispatch the
+// number a log states and the number a review is told are one computation.
 //
-// The fullest rendering, because that is the one that answers "does this pull request's
-// history still fit". The adopted prompt sends less prose and so drops less; a run whose
-// full history fits has no truncation on either path.
+// On the adopted path they are not, and the claim has to be the weaker one. [openThreadsStep]
+// and [threadUpdateStep] render different entries over different subsets: the first takes
+// the open threads and writes one short line each, the second takes only the threads with
+// activity. Both produce fewer entries than this does, and every entry is smaller than
+// [historyEntry]'s, which alone carries the finding's prose and the handle together.
+//
+// So this is an upper bound on both paths rather than an equality. Zero dropped here
+// means nothing is dropped on either. A non-zero count is what the first dispatch would
+// lose, and the adopted path loses no more than it. That is the useful direction for an
+// operator asking whether this pull request's history still fits, and stating it as an
+// equality would be wrong on the path almost every review takes.
 func HistoryFit(req Request) (carried, shown, dropped int) {
 	threads := collapseRepeats(req.PriorThreads)
 	kept, dropped := fitThreads(threads,
@@ -315,10 +324,10 @@ func threadUpdateStep(req Request) []string {
 	if len(req.PriorThreads) == 0 {
 		return nil
 	}
-	// Filtered before it is capped, in that order. selectThreads orders unresolved-first,
-	// so capping first spends the whole budget on unmoved open threads and then discards
-	// them here -- on a busy pull request that returns nil and the session is never told
-	// about a resolution it has no other way to learn of.
+	// Filtered before it is bounded, in that order. [orderThreads] ranks unresolved
+	// first, so bounding before this filter spends the budget on unmoved open threads
+	// that are then discarded here -- on a busy pull request that returns nil, and a
+	// resolution is the one thing the session has no other way to learn of.
 	all := collapseRepeats(req.PriorThreads)
 	var changed []PriorThread
 	for _, t := range all {
