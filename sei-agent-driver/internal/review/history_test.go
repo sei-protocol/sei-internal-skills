@@ -179,19 +179,30 @@ func TestWithinBudgetKeepsAnOversizeFirstEntry(t *testing.T) {
 // Every field in an entry is clipped before it is rendered: the finding to maxScoutDetail,
 // each reply to the same, and the replies themselves to maxPriorReplies. So the largest
 // entry historyEntry can produce is far inside the budget, and a history is only ever
-// truncated between threads, never inside one. If a later change removes one of those
-// clips this fails, which is the point.
+// truncated between threads, never inside one.
+//
+// Removing any ONE of the three fails this, and the fixture is sized so that each is
+// pinned independently rather than by whichever binds first. An earlier version used a
+// merely large thread and pinned only maxPriorReplies: with either maxScoutDetail clip
+// deleted it still landed under the budget and stayed green, which is the same defect as
+// a test named for a branch it cannot reach.
 func TestNoSingleThreadCanOverrunTheBudget(t *testing.T) {
 	t.Parallel()
 
+	// Each field is sized so that removing its own clip alone overruns the budget:
+	// the finding on its own, ten replies on their own, and — since each is still
+	// clipped — the reply count on its own. A fixture merely "large" pins only whichever
+	// clip happens to bind first, which is how the earlier version of this pinned
+	// maxPriorReplies and neither maxScoutDetail.
+	const overBudget = maxHistoryBytes + 10_000
 	replies := make([]string, 400)
 	for i := range replies {
-		replies[i] = strings.Repeat("reply text ", 60)
+		replies[i] = strings.Repeat("r", overBudget/maxPriorReplies+1)
 	}
 	entry := historyEntry(Request{Repo: "o/r", PR: 1}, PriorThread{
 		ID:   strings.Repeat("A", maxThreadID),
 		File: strings.Repeat("d/", 60) + "a.go", Line: 9,
-		Body: strings.Repeat("finding prose ", 400), Replies: replies,
+		Body: strings.Repeat("f", overBudget), Replies: replies,
 	})
 	size := 0
 	for _, line := range entry {
