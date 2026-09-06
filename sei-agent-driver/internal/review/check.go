@@ -520,13 +520,17 @@ func plural(n int, noun string) string {
 // operator should look.
 //
 // The conclusion is neutral rather than failure. It says this tool could not read a
-// review, not that the change is bad. A repository that wants that distinction to
-// block can require the check. The reason it carries is the one [Verdict] already
-// computed on every refusal path and nothing published.
+// review, not that the change is bad. What holds a merge on such a run is the driver's
+// own non-zero exit, and only that: branch protection reads a neutral check as a pass,
+// so requiring this one does not turn it into a gate. The reason it carries is the one
+// [Verdict] already computed on every refusal path and nothing published.
 //
 // The reason quotes model text on one path — the decision word a reply wrote that this
 // driver does not accept — so it is defused like every other field. This is the check a
 // planted block produces, which makes it the one an attacker can aim at.
+//
+// The reply itself goes nowhere. A caller publishes this summary, and the reason in it,
+// as the whole of what the run has to say.
 func BuildFailureCheck(v Verdict) CheckRun {
 	reason := v.Reason
 	if reason == "" {
@@ -537,6 +541,8 @@ func BuildFailureCheck(v Verdict) CheckRun {
 		Conclusion: "neutral",
 		Summary: "This review produced no decision that could be read mechanically.\n\n" +
 			defuseMarkup(clip(oneLine(reason), maxCheckBullet)) +
-			"\n\nThe agent's own words, if it wrote any, are in the published comment.",
+			"\n\nThe agent's own reply is not published: a reply this driver cannot " +
+			"attribute to its own turn is one it must not repeat here. This run's log " +
+			"names the session that produced it.",
 	}
 }

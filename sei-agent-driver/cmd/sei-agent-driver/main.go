@@ -326,16 +326,22 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 // Parsing lives here rather than in the driver because what counts as an answer
 // is the workload's. The driver attributes a reply to a turn and stops.
 //
-// The file is written only on a *structured* verdict, and the emphasis is the
-// whole point. Its absence is how the caller tells "ready to post" from "nothing
-// to post" — the calling workflow decides on the file existing, not on the exit
+// --out is written only on a *structured* verdict, and the emphasis is the whole
+// point. Its absence is how the caller tells "ready to post" from "nothing to
+// post" — the calling workflow decides on the file existing, not on the exit
 // code, because a non-zero exit can still carry a good review (a teardown leak,
 // say). So the gate has to be the same thing the driver itself calls a verdict.
 //
 // Gating on non-empty text instead would post the prose from a run that reported
 // [driver.ExitNoVerdict], upserting unparsed prose over a previous good review.
-// That prose is deliberately not published; stdout carries the decision, the
-// structured block and, when there is no verdict, the reason there is none.
+// That prose is not published: a reply this driver cannot attribute to its own
+// turn is a reply it must not repeat on a pull request.
+//
+// --check-out is written on both paths, and the two files are not the same claim.
+// A run that reached no verdict writes [review.BuildFailureCheck] there, so the
+// caller has a check run to publish and a reason to quote. Without it a review
+// that ran and could not be read publishes nothing at all, which reads on the
+// pull request like a review that never ran.
 func report(outPath, findingsPath, checkPath string, result driver.Result, includeNits bool) error {
 	payload := map[string]any{
 		"session_id":  result.SessionID,
@@ -353,8 +359,13 @@ func report(outPath, findingsPath, checkPath string, result driver.Result, inclu
 		// travels in the payload rather than only in the logs. The driver's own
 		// reason wins when it had one: it names a failure the text cannot show,
 		// like a reply refused for carrying a credential.
+		//
+		// Settled onto the verdict, so stdout and the failure check below quote one
+		// string. Two derivations of the same reason are two things that disagree in
+		// front of the operator reading both.
 		if !verdict.HasVerdict() {
-			payload["reason"] = firstNonEmpty(result.Reply.Reason, verdict.Reason)
+			verdict.Reason = firstNonEmpty(result.Reply.Reason, verdict.Reason)
+			payload["reason"] = verdict.Reason
 		}
 	}
 	blob, err := json.MarshalIndent(payload, "", "  ")
@@ -370,7 +381,7 @@ func report(outPath, findingsPath, checkPath string, result driver.Result, inclu
 	}
 
 	if !verdict.HasVerdict() {
-		return nil
+		return writeFailureCheck(checkPath, verdict)
 	}
 
 	// Each output answers to its own flag. An absent check run reads as a review
@@ -423,6 +434,26 @@ func writeCheckRun(path string, verdict review.Verdict, includeNits bool) error 
 	if !ok {
 		return nil
 	}
+	return writeCheck(path, check)
+}
+
+// writeFailureCheck renders the check run for a review that reached no verdict.
+//
+// It takes --check-out, the same path the deciding check run takes, so a caller
+// publishes whatever it finds there and needs no second flag to find this one. The
+// conclusion tells the two apart, and [review.BuildFailureCheck] carries the reason.
+//
+// --out and --findings-out stay empty here. The caller still reads an absent verdict
+// as "no verdict to post", and this check is the only thing such a run publishes.
+func writeFailureCheck(path string, verdict review.Verdict) error {
+	if path == "" {
+		return nil
+	}
+	return writeCheck(path, review.BuildFailureCheck(verdict))
+}
+
+// writeCheck hands the caller one check run as json.
+func writeCheck(path string, check review.CheckRun) error {
 	blob, err := json.MarshalIndent(check, "", "  ")
 	if err != nil {
 		return fmt.Errorf("rendering the check run: %w", err)
