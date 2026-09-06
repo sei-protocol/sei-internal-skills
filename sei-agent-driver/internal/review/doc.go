@@ -49,6 +49,7 @@
 //   - check.go — the check run, whose conclusion follows the findings.
 //   - publish.go — the comment body, and what happens when it will not fit.
 //   - scout.go — an independent reading, its prompt, and its own run key.
+//   - threads.go — which of the threads named in a reply a caller may close.
 //   - history.go, runkey.go — prior threads, and the key a session is found by.
 //
 // # How the package models it
@@ -71,6 +72,13 @@
 // Every prompt-bound string is one-lined and clipped. A finding, a scout note or a
 // filename that carried a newline could otherwise open a heading and attribute
 // itself to someone else.
+//
+// A thread id is admitted against a list, not checked for shape alone. It arrives in the
+// reply and it decides a mutation on somebody's pull request, so the only ids this
+// package hands a caller are the ones matching a thread the caller itself supplied as
+// this tool's own. Everything else is refused and reported. [BuildThreadPlan] owns it,
+// and [wellFormedThreadID] is what makes the list safe to render into a prompt line in
+// the first place.
 //
 // Every part of that summary is bounded before it is assembled, not only the assembled
 // whole. The body is cut from the end and the sections are at the end, so a bound over

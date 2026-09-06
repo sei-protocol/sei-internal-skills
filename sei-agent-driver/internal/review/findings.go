@@ -40,6 +40,13 @@ type Finding struct {
 
 	// Detail is what is wrong and why it matters.
 	Detail string `json:"detail"`
+
+	// Supersedes names the threads this finding restates, as the reply wrote them.
+	//
+	// Unpublished, and that is the point. These are ids out of model output, and a
+	// caller resolves what it is handed, so nothing reaches a file until
+	// [BuildThreadPlan] has checked each one against the threads the caller supplied.
+	Supersedes []string `json:"-"`
 }
 
 // PreExistingIssue is a problem the change did not introduce.
@@ -149,11 +156,12 @@ func reportedFindings(v Verdict) []any {
 // findingFrom decodes one entry, taking either vocabulary's field names.
 func findingFrom(fields map[string]any) Finding {
 	return Finding{
-		File:     firstNonEmpty(fields, "path", "file"),
-		Line:     intField(fields, "line"),
-		Side:     normalizeSide(stringField(fields, "side")),
-		Severity: normalizeSeverity(stringField(fields, "severity")),
-		Detail:   firstNonEmpty(fields, "body", "detail"),
+		File:       firstNonEmpty(fields, "path", "file"),
+		Line:       intField(fields, "line"),
+		Side:       normalizeSide(stringField(fields, "side")),
+		Severity:   normalizeSeverity(stringField(fields, "severity")),
+		Detail:     firstNonEmpty(fields, "body", "detail"),
+		Supersedes: namedThreadIDs(fields, "supersedes_thread_ids"),
 	}
 }
 

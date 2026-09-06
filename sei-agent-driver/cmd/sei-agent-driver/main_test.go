@@ -125,7 +125,7 @@ func TestReportWritesEachOutputOnItsOwnFlag(t *testing.T) {
 		Text:   "A review.\n\n```json\n{\"decision\":\"comment\",\"summary\":\"s\"}\n```",
 		TurnID: "t1", ItemID: "i1",
 	}}
-	if err := report("", "", check, result, false); err != nil {
+	if err := report("", "", check, result, review.Request{}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 	if _, err := os.Stat(check); err != nil {
@@ -144,7 +144,7 @@ func TestReportClearsAnEarlierRunsOutputs(t *testing.T) {
 	}
 
 	// A run that reached no verdict: nothing to publish.
-	if err := report(out, "", "", driver.Result{SessionID: "s2"}, false); err != nil {
+	if err := report(out, "", "", driver.Result{SessionID: "s2"}, review.Request{}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
@@ -256,7 +256,7 @@ func TestBothCallersActOnARefusedClear(t *testing.T) {
 
 	t.Run("report refuses", func(t *testing.T) {
 		out := undeletable(t, "report-out")
-		err := report(out, "", "", driver.Result{SessionID: "s1"}, false)
+		err := report(out, "", "", driver.Result{SessionID: "s1"}, review.Request{})
 		if err == nil {
 			t.Fatal("report returned nil on an output it could not clear; the caller " +
 				"publishes on presence, so an earlier verdict posts as this run's")
@@ -325,7 +325,7 @@ func TestCheckJSONCarriesTheCounts(t *testing.T) {
 		Text:   "A review.\n\n```json\n" + block + "\n```",
 		TurnID: "t1", ItemID: "i1",
 	}}
-	if err := report("", findings, check, result, true); err != nil {
+	if err := report("", findings, check, result, review.Request{IncludeNits: true}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -394,7 +394,7 @@ func TestANoVerdictRunStillHandsTheCallerACheckRun(t *testing.T) {
 		ExitCode:  driver.ExitNoVerdict,
 		Reply:     &driver.Reply{Text: "I read the diff and it looks fine to me.", TurnID: "t1"},
 	}
-	if err := report(out, findings, check, result, true); err != nil {
+	if err := report(out, findings, check, result, review.Request{IncludeNits: true}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -452,7 +452,7 @@ func TestTheFailureCheckQuotesTheDriversOwnReason(t *testing.T) {
 		ExitCode:  driver.ExitNoVerdict,
 		Reply:     &driver.Reply{Text: "here is the diff", Reason: refusal},
 	}
-	if err := report("", "", check, result, true); err != nil {
+	if err := report("", "", check, result, review.Request{IncludeNits: true}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -491,7 +491,7 @@ func TestARunWithNoReplyNamesWhyRatherThanBlamingTheReply(t *testing.T) {
 
 			check := filepath.Join(t.TempDir(), "check.json")
 			result := driver.Result{SessionID: "s1", ExitCode: tc.exitCode}
-			if err := report("", "", check, result, true); err != nil {
+			if err := report("", "", check, result, review.Request{IncludeNits: true}); err != nil {
 				t.Fatalf("report: %v", err)
 			}
 			blob, err := os.ReadFile(check)
@@ -505,5 +505,110 @@ func TestARunWithNoReplyNamesWhyRatherThanBlamingTheReply(t *testing.T) {
 				t.Errorf("summary blames a reply that never arrived:\n%s", blob)
 			}
 		})
+	}
+}
+
+// TestCheckJSONCarriesTheThreadPlan covers the other half of the file the workflow reads.
+//
+// The assertion is on the bytes for the reason the counts test gives: nothing between
+// this driver and the step that resolves a thread is Go, so a field the marshaller
+// dropped would pass a check on the struct and resolve nothing on the pull request.
+//
+// The refusal is the part that matters. The ids come out of a reply the agent wrote
+// after reading a diff whose author is not this tool, and the caller resolves what it is
+// handed — so an id that matches no thread this run was told about must reach that caller
+// in the refused list and nowhere else.
+func TestCheckJSONCarriesTheThreadPlan(t *testing.T) {
+	dir := t.TempDir()
+	check := filepath.Join(dir, "check.json")
+
+	const ours = "PRRT_kwDOABCDEF4Ax1y2"
+	const restated = "PRRT_kwDOABCDEF4Bz3w4"
+	block := `{"read":120,"decision":"request_changes","summary":"One left.",` +
+		`"resolved_thread_ids":["` + ours + `","PRRT_neverOurs"],` +
+		`"inline_comments":[{"path":"a.go","line":9,"side":"RIGHT","severity":"blocker",` +
+		`"body":"still a nil deref","supersedes_thread_ids":["` + restated + `"]}]}`
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text: "A review.\n\n```json\n" + block + "\n```", TurnID: "t1", ItemID: "i1",
+	}}
+	req := review.Request{IncludeNits: true, PriorThreads: []review.PriorThread{
+		{ID: ours, File: "a.go", Line: 4, Body: "a leak"},
+		{ID: restated, File: "a.go", Line: 9, Body: "a nil deref"},
+	}}
+
+	if err := report("", "", check, result, req); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	blob, err := os.ReadFile(check)
+	if err != nil {
+		t.Fatalf("reading the check run: %v", err)
+	}
+	var got review.CheckRun
+	if err := json.Unmarshal(blob, &got); err != nil {
+		t.Fatalf("decoding %s: %v", check, err)
+	}
+	if got.Threads == nil {
+		t.Fatalf("check.json carries no thread plan:\n%s", blob)
+	}
+	if len(got.Threads.Addressed) != 1 || got.Threads.Addressed[0] != ours {
+		t.Errorf("addressed = %v, want [%s]", got.Threads.Addressed, ours)
+	}
+	if len(got.Threads.Superseded) != 1 || got.Threads.Superseded[0] != restated {
+		t.Errorf("superseded = %v, want [%s]", got.Threads.Superseded, restated)
+	}
+	if len(got.Threads.Refused) != 1 || got.Threads.Refused[0] != "PRRT_neverOurs" {
+		t.Errorf("refused = %v, want [PRRT_neverOurs]", got.Threads.Refused)
+	}
+	if strings.Contains(string(blob), `"PRRT_neverOurs"`) &&
+		!strings.Contains(string(blob), `"refused"`) {
+		t.Errorf("an unmatched id reaches the caller outside the refused list:\n%s", blob)
+	}
+}
+
+// TestAnOlderCallersCheckJSONPlansNothing covers the workflow that supplies no thread
+// ids, which is what every caller does before it learns to.
+//
+// The review still runs and still publishes. What it cannot do is close a thread, and
+// the empty allowlist is what turns every id the reply names into a refusal rather than
+// a mutation.
+func TestAnOlderCallersCheckJSONPlansNothing(t *testing.T) {
+	dir := t.TempDir()
+	check := filepath.Join(dir, "check.json")
+
+	block := `{"read":120,"decision":"approve","summary":"Clean.",` +
+		`"resolved_thread_ids":["PRRT_kwDOABCDEF4Ax1y2"]}`
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text: "A review.\n\n```json\n" + block + "\n```", TurnID: "t1",
+	}}
+	req := review.Request{PriorThreads: []review.PriorThread{
+		{File: "a.go", Line: 4, Body: "a leak"},
+	}}
+
+	if err := report("", "", check, result, req); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	var got review.CheckRun
+	blob, err := os.ReadFile(check)
+	if err != nil {
+		t.Fatalf("reading the check run: %v", err)
+	}
+	if err := json.Unmarshal(blob, &got); err != nil {
+		t.Fatalf("decoding %s: %v", check, err)
+	}
+	if got.Threads == nil {
+		t.Fatalf("check.json carries no thread plan:\n%s", blob)
+	}
+	if len(got.Threads.Addressed) != 0 || len(got.Threads.Superseded) != 0 {
+		t.Errorf("plan = %+v; a caller that supplied no ids gave this run nothing to "+
+			"match against, so there is no thread it may close", *got.Threads)
+	}
+	if len(got.Threads.Refused) != 1 {
+		t.Errorf("refused = %v, want the one id the reply named", got.Threads.Refused)
+	}
+	if got.Conclusion != "success" {
+		t.Errorf("conclusion = %q, want success; a refused id is not a bad review",
+			got.Conclusion)
 	}
 }

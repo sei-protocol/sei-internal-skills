@@ -34,6 +34,20 @@ type CheckRun struct {
 	// a review this driver could not read would report nothing blocking over it, and an
 	// older driver binary writes the same absent key, so one branch covers both.
 	Counts *Counts `json:"counts,omitempty"`
+
+	// Threads is what this review does to the threads this tool left before. Like
+	// Counts it is no part of the check run GitHub publishes, and it rides here for the
+	// same reason: this is the file the caller already reads to publish a review, and a
+	// second file would be a second thing to find, gate on and clear.
+	//
+	// Nil when there is no plan, which is what a review reaching no verdict writes and
+	// what an older driver binary writes. A caller reading an absent key resolves
+	// nothing, which is this tool's behaviour before a plan existed.
+	//
+	// [BuildCheckRun] leaves it nil. The plan needs the threads the caller supplied and
+	// a check run is derived from the reply alone, so the two are built apart and
+	// [BuildThreadPlan] is what fills this in.
+	Threads *ThreadPlan `json:"threads,omitempty"`
 }
 
 // Counts are the integers a published comment's findings line is composed from.

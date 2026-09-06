@@ -1,6 +1,7 @@
 package review
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -410,7 +411,7 @@ func TestSharedPromptTextNamesNoStep(t *testing.T) {
 		GuidelinesFile:    "REVIEW.md",
 		ExtraInstructions: "prefer table-driven tests",
 		PriorThreads: []PriorThread{
-			{File: "p2p/router.go", Line: 12, Body: "still open"},
+			{ID: "PRRT_kwDOABCDEF4Ax1y2", File: "p2p/router.go", Line: 12, Body: "still open"},
 		},
 		Scouts: []ScoutResult{{Name: "codex", Findings: []Finding{
 			{File: "p2p/router.go", Line: 174, Severity: "low", Detail: "duplicated default"},
@@ -424,6 +425,7 @@ func TestSharedPromptTextNamesNoStep(t *testing.T) {
 		{"repoContextStep", repoContextStep(req)},
 		{"extraInstructionsStep", extraInstructionsStep(req)},
 		{"historyStep", historyStep(req)},
+		{"openThreadsStep", openThreadsStep(req)},
 		{"reconcileStep", reconcileStep(req)},
 		{"bucketRules", bucketRules(false)},
 	} {
@@ -469,11 +471,12 @@ func TestAPathIsCheckedInTheFormThePromptCarries(t *testing.T) {
 			Findings: []Finding{{File: raw, Line: 3, Severity: "high", Detail: "look here"}},
 		}}}
 		prior := Request{Repo: "r/n", PR: 1, PriorThreads: []PriorThread{
-			{File: raw, Line: 3, Body: "said before"},
+			{ID: "PRRT_kwDOABCDEF4Ax1y2", File: raw, Line: 3, Body: "said before"},
 		}}
 		for name, lines := range map[string][]string{
-			"reconcileStep": reconcileStep(scouted),
-			"historyStep":   historyStep(prior),
+			"reconcileStep":   reconcileStep(scouted),
+			"historyStep":     historyStep(prior),
+			"openThreadsStep": openThreadsStep(prior),
 		} {
 			// Non-vacuity first. Either builder returns nil for an empty request, and one
 			// that rendered nothing would pass every check below while testing nothing.
@@ -645,5 +648,80 @@ func TestEveryDispatchStatesTheNitSettingItIsRunningUnder(t *testing.T) {
 					"earlier one", name, c.nits)
 			}
 		}
+	}
+}
+
+// TestEveryDispatchCarriesTheThreadKeys puts the two keys on both prompts.
+//
+// The session outlives the run, so every review after the first takes the adopted path —
+// and that is the only path where there are threads to close. A schema stated on the
+// first dispatch alone would name the fields where they cannot be used and omit them
+// where they can.
+func TestEveryDispatchCarriesTheThreadKeys(t *testing.T) {
+	t.Parallel()
+
+	req := Request{Repo: "sei-protocol/sandbox", PR: 42, PriorThreads: []PriorThread{
+		{ID: "PRRT_kwDOABCDEF4Ax1y2", File: "a.go", Line: 9, Body: "unbounded retry"},
+	}}
+
+	for name, prompt := range map[string]string{
+		"BuildPrompt":   BuildPrompt(req),
+		"AdoptedPrompt": AdoptedPrompt(req),
+	} {
+		for _, key := range []string{"resolved_thread_ids", "supersedes_thread_ids"} {
+			if !strings.Contains(prompt, key) {
+				t.Errorf("%s names no %s, so a review cannot close a thread it addressed",
+					name, key)
+			}
+		}
+		// A review that leaves a live finding out because a thread already carries it
+		// turns its own check green: the closing block is the whole of what Counts and
+		// CheckConclusion read.
+		if !strings.Contains(prompt, "Report a finding that still holds") {
+			t.Errorf("%s does not tell a review to restate a finding that still holds",
+				name)
+		}
+	}
+}
+
+// TestTheThreadKeysAreValidJSONInTheShape keeps the schema a reply can copy.
+//
+// The shape is the one thing restated on every dispatch, and a reply that copies a
+// malformed one produces a block ParseVerdict refuses — which is a review nobody sees,
+// with nothing anywhere naming the cause.
+func TestTheThreadKeysAreValidJSONInTheShape(t *testing.T) {
+	t.Parallel()
+
+	shape := strings.Join(verdictShape(true), "\n")
+	_, body, ok := strings.Cut(shape, "```json\n")
+	if !ok {
+		t.Fatal("the shape carries no fenced json block")
+	}
+	body, _, ok = strings.Cut(body, "\n```")
+	if !ok {
+		t.Fatal("the shape's fence never closes")
+	}
+	// The placeholders are prose, not values, so the parse runs on a copy with each one
+	// replaced by something of its type. What is under test is the punctuation.
+	body = strings.ReplaceAll(body, "<line count>", "120")
+	body = strings.ReplaceAll(body, `"approve" | "comment" | "request_changes"`, `"approve"`)
+	body = strings.ReplaceAll(body, `"RIGHT|LEFT"`, `"RIGHT"`)
+	body = strings.ReplaceAll(body, `"blocker|suggestion|nit"`, `"blocker"`)
+	body = strings.ReplaceAll(body, `"blocker|suggestion"`, `"blocker"`)
+
+	var out map[string]any
+	if err := json.Unmarshal([]byte(body), &out); err != nil {
+		t.Fatalf("the shape is not json: %v\n%s", err, body)
+	}
+	if _, named := out["resolved_thread_ids"]; !named {
+		t.Error("the shape carries no resolved_thread_ids")
+	}
+	comments, ok := out["inline_comments"].([]any)
+	if !ok || len(comments) == 0 {
+		t.Fatalf("the shape carries no inline_comments: %v", out["inline_comments"])
+	}
+	first, _ := comments[0].(map[string]any)
+	if _, named := first["supersedes_thread_ids"]; !named {
+		t.Error("an inline comment in the shape carries no supersedes_thread_ids")
 	}
 }
