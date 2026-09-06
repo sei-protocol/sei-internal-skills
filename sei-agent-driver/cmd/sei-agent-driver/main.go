@@ -280,7 +280,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 			}
 		}
 		result := d.Close(ctx, review.New(req))
-		if err := report("", "", "", result, req.IncludeNits); err != nil {
+		if err := report("", "", "", result, req); err != nil {
 			return &exitError{code: driver.ExitConfig, err: err}
 		}
 		if result.ExitCode != driver.ExitOK {
@@ -302,7 +302,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	result := d.Run(ctx, review.New(req))
 
 	if err := report(cmd.String("out"), cmd.String("findings-out"),
-		cmd.String("check-out"), result, req.IncludeNits); err != nil {
+		cmd.String("check-out"), result, req); err != nil {
 		// The run's own outcome wins: ExitConfig here would relabel a review that
 		// timed out as one rejected before it started.
 		code := result.ExitCode
@@ -342,7 +342,8 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 // caller has a check run to publish and a reason to quote. Without it a review
 // that ran and could not be read publishes nothing at all, which reads on the
 // pull request like a review that never ran.
-func report(outPath, findingsPath, checkPath string, result driver.Result, includeNits bool) error {
+func report(outPath, findingsPath, checkPath string, result driver.Result,
+	req review.Request) error {
 	payload := map[string]any{
 		"session_id":  result.SessionID,
 		"exit_code":   result.ExitCode,
@@ -375,6 +376,23 @@ func report(outPath, findingsPath, checkPath string, result driver.Result, inclu
 		verdict.Reason = noReplyReason(result.ExitCode)
 		payload["reason"] = verdict.Reason
 	}
+	// Read once, here, and spent twice: the caller acts on the plan through the check
+	// file, and an operator reads the refusals on stdout. Two derivations of one answer
+	// are two things that disagree in front of whoever is reading both.
+	//
+	// A refused id is the reply naming a thread this run cannot match to one of its own,
+	// which is either a model that invented an id or a caller and a driver that disagree
+	// about whose threads these are. Both are worth an operator's attention, and neither
+	// stops the review.
+	plan := review.BuildThreadPlan(verdict, req.IncludeNits, req.PriorThreads)
+	if plan.RefusedTotal > 0 {
+		// The total as well as the list, because the list is capped. A model that
+		// slipped once and a model inventing ids by the thousand both print a handful
+		// of examples here, and only this number tells the operator which is happening.
+		payload["refused_thread_ids"] = plan.Refused
+		payload["refused_thread_ids_total"] = plan.RefusedTotal
+	}
+
 	blob, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
 		return fmt.Errorf("rendering the result: %w", err)
@@ -400,10 +418,10 @@ func report(outPath, findingsPath, checkPath string, result driver.Result, inclu
 			return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
 		}
 	}
-	if err := writeFindings(findingsPath, verdict, includeNits); err != nil {
+	if err := writeFindings(findingsPath, verdict, req.IncludeNits); err != nil {
 		return err
 	}
-	return writeCheckRun(checkPath, verdict, includeNits)
+	return writeCheckRun(checkPath, verdict, req.IncludeNits, plan)
 }
 
 // readPriorThreads loads what this tool said on this pull request before.
@@ -433,7 +451,8 @@ func readPriorThreads(path string) ([]review.PriorThread, error) {
 // Written whenever there is a verdict, unlike the findings: a review that found
 // nothing still concludes, and a checks list with no review entry reads as a
 // review that did not run rather than one that passed.
-func writeCheckRun(path string, verdict review.Verdict, includeNits bool) error {
+func writeCheckRun(path string, verdict review.Verdict, includeNits bool,
+	plan review.ThreadPlan) error {
 	if path == "" {
 		return nil
 	}
@@ -441,6 +460,10 @@ func writeCheckRun(path string, verdict review.Verdict, includeNits bool) error 
 	if !ok {
 		return nil
 	}
+	// Attached rather than built in: a check run is derived from the reply alone, and
+	// which threads may be closed is decided against what the caller supplied. Carried
+	// in this file because it is the one the caller already reads to publish a review.
+	check.Threads = &plan
 	return writeCheck(path, check)
 }
 

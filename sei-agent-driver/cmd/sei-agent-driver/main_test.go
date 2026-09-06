@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,7 +127,7 @@ func TestReportWritesEachOutputOnItsOwnFlag(t *testing.T) {
 		Text:   "A review.\n\n```json\n{\"decision\":\"comment\",\"summary\":\"s\"}\n```",
 		TurnID: "t1", ItemID: "i1",
 	}}
-	if err := report("", "", check, result, false); err != nil {
+	if err := report("", "", check, result, review.Request{}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 	if _, err := os.Stat(check); err != nil {
@@ -144,7 +146,7 @@ func TestReportClearsAnEarlierRunsOutputs(t *testing.T) {
 	}
 
 	// A run that reached no verdict: nothing to publish.
-	if err := report(out, "", "", driver.Result{SessionID: "s2"}, false); err != nil {
+	if err := report(out, "", "", driver.Result{SessionID: "s2"}, review.Request{}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
@@ -256,7 +258,7 @@ func TestBothCallersActOnARefusedClear(t *testing.T) {
 
 	t.Run("report refuses", func(t *testing.T) {
 		out := undeletable(t, "report-out")
-		err := report(out, "", "", driver.Result{SessionID: "s1"}, false)
+		err := report(out, "", "", driver.Result{SessionID: "s1"}, review.Request{})
 		if err == nil {
 			t.Fatal("report returned nil on an output it could not clear; the caller " +
 				"publishes on presence, so an earlier verdict posts as this run's")
@@ -325,7 +327,7 @@ func TestCheckJSONCarriesTheCounts(t *testing.T) {
 		Text:   "A review.\n\n```json\n" + block + "\n```",
 		TurnID: "t1", ItemID: "i1",
 	}}
-	if err := report("", findings, check, result, true); err != nil {
+	if err := report("", findings, check, result, review.Request{IncludeNits: true}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -394,7 +396,7 @@ func TestANoVerdictRunStillHandsTheCallerACheckRun(t *testing.T) {
 		ExitCode:  driver.ExitNoVerdict,
 		Reply:     &driver.Reply{Text: "I read the diff and it looks fine to me.", TurnID: "t1"},
 	}
-	if err := report(out, findings, check, result, true); err != nil {
+	if err := report(out, findings, check, result, review.Request{IncludeNits: true}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -452,7 +454,7 @@ func TestTheFailureCheckQuotesTheDriversOwnReason(t *testing.T) {
 		ExitCode:  driver.ExitNoVerdict,
 		Reply:     &driver.Reply{Text: "here is the diff", Reason: refusal},
 	}
-	if err := report("", "", check, result, true); err != nil {
+	if err := report("", "", check, result, review.Request{IncludeNits: true}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -491,7 +493,7 @@ func TestARunWithNoReplyNamesWhyRatherThanBlamingTheReply(t *testing.T) {
 
 			check := filepath.Join(t.TempDir(), "check.json")
 			result := driver.Result{SessionID: "s1", ExitCode: tc.exitCode}
-			if err := report("", "", check, result, true); err != nil {
+			if err := report("", "", check, result, review.Request{IncludeNits: true}); err != nil {
 				t.Fatalf("report: %v", err)
 			}
 			blob, err := os.ReadFile(check)
@@ -506,4 +508,207 @@ func TestARunWithNoReplyNamesWhyRatherThanBlamingTheReply(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCheckJSONCarriesTheThreadPlan covers the other half of the file the workflow reads.
+//
+// The assertion is on the bytes for the reason the counts test gives: nothing between
+// this driver and the step that resolves a thread is Go, so a field the marshaller
+// dropped would pass a check on the struct and resolve nothing on the pull request.
+//
+// The refusal is the part that matters. The ids come out of a reply the agent wrote
+// after reading a diff whose author is not this tool, and the caller resolves what it is
+// handed — so an id that matches no thread this run was told about must reach that caller
+// in the refused list and nowhere else.
+func TestCheckJSONCarriesTheThreadPlan(t *testing.T) {
+	dir := t.TempDir()
+	check := filepath.Join(dir, "check.json")
+
+	const ours = "PRRT_kwDOABCDEF4Ax1y2"
+	const restated = "PRRT_kwDOABCDEF4Bz3w4"
+	block := `{"read":120,"decision":"request_changes","summary":"One left.",` +
+		`"resolved_thread_ids":["` + ours + `","PRRT_neverOurs"],` +
+		`"inline_comments":[{"path":"a.go","line":9,"side":"RIGHT","severity":"blocker",` +
+		`"body":"still a nil deref","supersedes_thread_ids":["` + restated + `"]}]}`
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text: "A review.\n\n```json\n" + block + "\n```", TurnID: "t1", ItemID: "i1",
+	}}
+	req := review.Request{IncludeNits: true, PriorThreads: []review.PriorThread{
+		{ID: ours, File: "a.go", Line: 4, Body: "a leak"},
+		{ID: restated, File: "a.go", Line: 9, Body: "a nil deref"},
+	}}
+
+	if err := report("", "", check, result, req); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	blob, err := os.ReadFile(check)
+	if err != nil {
+		t.Fatalf("reading the check run: %v", err)
+	}
+	var got review.CheckRun
+	if err := json.Unmarshal(blob, &got); err != nil {
+		t.Fatalf("decoding %s: %v", check, err)
+	}
+	if got.Threads == nil {
+		t.Fatalf("check.json carries no thread plan:\n%s", blob)
+	}
+	if len(got.Threads.Addressed) != 1 || got.Threads.Addressed[0] != ours {
+		t.Errorf("addressed = %v, want [%s]", got.Threads.Addressed, ours)
+	}
+	if len(got.Threads.Superseded) != 1 || got.Threads.Superseded[0] != restated {
+		t.Errorf("superseded = %v, want [%s]", got.Threads.Superseded, restated)
+	}
+	if len(got.Threads.Refused) != 1 || got.Threads.Refused[0] != "PRRT_neverOurs" {
+		t.Errorf("refused = %v, want [PRRT_neverOurs]", got.Threads.Refused)
+	}
+	if strings.Contains(string(blob), `"PRRT_neverOurs"`) &&
+		!strings.Contains(string(blob), `"refused"`) {
+		t.Errorf("an unmatched id reaches the caller outside the refused list:\n%s", blob)
+	}
+}
+
+// TestAnOlderCallersCheckJSONPlansNothing covers the workflow that supplies no thread
+// ids, which is what every caller does before it learns to.
+//
+// The review still runs and still publishes. What it cannot do is close a thread, and
+// the empty allowlist is what turns every id the reply names into a refusal rather than
+// a mutation.
+func TestAnOlderCallersCheckJSONPlansNothing(t *testing.T) {
+	dir := t.TempDir()
+	check := filepath.Join(dir, "check.json")
+
+	block := `{"read":120,"decision":"approve","summary":"Clean.",` +
+		`"resolved_thread_ids":["PRRT_kwDOABCDEF4Ax1y2"]}`
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text: "A review.\n\n```json\n" + block + "\n```", TurnID: "t1",
+	}}
+	req := review.Request{PriorThreads: []review.PriorThread{
+		{File: "a.go", Line: 4, Body: "a leak"},
+	}}
+
+	if err := report("", "", check, result, req); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	var got review.CheckRun
+	blob, err := os.ReadFile(check)
+	if err != nil {
+		t.Fatalf("reading the check run: %v", err)
+	}
+	if err := json.Unmarshal(blob, &got); err != nil {
+		t.Fatalf("decoding %s: %v", check, err)
+	}
+	if got.Threads == nil {
+		t.Fatalf("check.json carries no thread plan:\n%s", blob)
+	}
+	if len(got.Threads.Addressed) != 0 || len(got.Threads.Superseded) != 0 {
+		t.Errorf("plan = %+v; a caller that supplied no ids gave this run nothing to "+
+			"match against, so there is no thread it may close", *got.Threads)
+	}
+	if len(got.Threads.Refused) != 1 {
+		t.Errorf("refused = %v, want the one id the reply named", got.Threads.Refused)
+	}
+	if got.Conclusion != "success" {
+		t.Errorf("conclusion = %q, want success; a refused id is not a bad review",
+			got.Conclusion)
+	}
+}
+
+// TestTheReportedRefusalsCarryTheirTotal covers the number an operator reads.
+//
+// The refusal list is capped, so its length says nothing about how many there were. A
+// model that slipped once and a model inventing ids by the thousand both print the same
+// handful, and only the total separates them — which is the whole reason the field
+// exists. Asserted on the printed bytes, because stdout is what an operator reads and a
+// field left out of the payload is invisible from the struct.
+func TestTheReportedRefusalsCarryTheirTotal(t *testing.T) {
+	invented := make([]string, 0, 40)
+	for i := 0; i < 40; i++ {
+		invented = append(invented, fmt.Sprintf(`"invented%d"`, i))
+	}
+	block := `{"read":120,"decision":"approve","summary":"Clean.",` +
+		`"resolved_thread_ids":[` + strings.Join(invented, ",") + `]}`
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text: "A review.\n\n```json\n" + block + "\n```", TurnID: "t1",
+	}}
+
+	printed := captureStdout(t, func() {
+		if err := report("", "", "", result, review.Request{}); err != nil {
+			t.Fatalf("report: %v", err)
+		}
+	})
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(printed), &payload); err != nil {
+		t.Fatalf("decoding the printed report: %v\n%s", err, printed)
+	}
+	ids, ok := payload["refused_thread_ids"].([]any)
+	if !ok {
+		t.Fatalf("the report names no refused ids:\n%s", printed)
+	}
+	total, ok := payload["refused_thread_ids_total"].(float64)
+	if !ok {
+		t.Fatalf("the report carries no refusal total, so the capped list reads as the "+
+			"whole of what the reply named:\n%s", printed)
+	}
+	if int(total) != 40 {
+		t.Errorf("refused_thread_ids_total = %v, want 40", total)
+	}
+	if len(ids) >= int(total) {
+		t.Errorf("the printed list holds %d of %v ids; this test is meant to exercise "+
+			"the capped case, where the length and the total differ", len(ids), total)
+	}
+}
+
+// TestACleanReviewReportsNoRefusals keeps the two keys out of the common report, so their
+// presence means something happened rather than being noise on every run.
+func TestACleanReviewReportsNoRefusals(t *testing.T) {
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text: "A review.\n\n```json\n" +
+			`{"read":120,"decision":"approve","summary":"Clean."}` + "\n```",
+		TurnID: "t1",
+	}}
+
+	printed := captureStdout(t, func() {
+		if err := report("", "", "", result, review.Request{}); err != nil {
+			t.Fatalf("report: %v", err)
+		}
+	})
+
+	for _, key := range []string{"refused_thread_ids", "refused_thread_ids_total"} {
+		if strings.Contains(printed, key) {
+			t.Errorf("a review that refused nothing reports %q:\n%s", key, printed)
+		}
+	}
+}
+
+// captureStdout runs fn with os.Stdout replaced by a pipe and returns what it wrote.
+//
+// The report prints rather than returning, so this is the only way to assert on the
+// bytes an operator sees. Restored on the way out whatever fn did.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	read, write, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	saved := os.Stdout
+	os.Stdout = write
+	done := make(chan string, 1)
+	go func() {
+		var b strings.Builder
+		_, _ = io.Copy(&b, read)
+		done <- b.String()
+	}()
+	func() {
+		defer func() {
+			os.Stdout = saved
+			_ = write.Close()
+		}()
+		fn()
+	}()
+	out := <-done
+	_ = read.Close()
+	return out
 }

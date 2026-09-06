@@ -423,12 +423,23 @@ func bucketRules(includeNits bool) []string {
 // refuses it and the run exits with [driver.ExitNoVerdict]. So the shape is restated on
 // every dispatch and the sorting prose is not.
 //
-// One field's rule rides along, because read is the second silent decay. A turn that fills
-// in the shape it was handed reports read: 0, [Verdict.readTheDiff] then reads that as a
-// review of nothing, and [Verdict.CheckConclusion] degrades a clean re-review from success
-// to neutral -- a wrong answer with no error anywhere. So the rule travels with the field,
-// and the placeholder is <line count> rather than 0 so that copying the shape cannot
-// produce the sentinel.
+// Two field rules ride along, each because the sorting prose that would otherwise carry
+// them reaches the first dispatch only.
+//
+// read is the second silent decay. A turn that fills in the shape it was handed reports
+// read: 0, [Verdict.readTheDiff] then reads that as a review of nothing, and
+// [Verdict.CheckConclusion] degrades a clean re-review from success to neutral -- a wrong
+// answer with no error anywhere. So the rule travels with the field, and the placeholder
+// is <line count> rather than 0 so that copying the shape cannot produce the sentinel.
+//
+// The thread ids are the other. They exist to be named on a re-review, which is the
+// adopted path, so a rule for them stated only in [bucketRules] would reach every
+// dispatch except the ones that can use it. The rule carries the refusal as well as the
+// field: an id this tool cannot match to a thread of its own is dropped and reported, and
+// a review told that stops inventing one. It also says to report a finding that still
+// holds, because this block is what [Counts] and [Verdict.CheckConclusion] read -- a
+// review that left a live blocker out on the grounds that a thread already carries it
+// would turn its own check green.
 func verdictShape(includeNits bool) []string {
 	shape := []string{
 		// Rides here rather than in the report contract, for the reason nitRule does:
@@ -448,17 +459,30 @@ func verdictShape(includeNits bool) []string {
 		"nothing, so it is not optional and not an estimate. The placeholder below is",
 		"the shape, not a value to copy.",
 		"",
+		"resolved_thread_ids names the open threads of yours whose finding this diff now",
+		"addresses, so each one closes instead of being read again. supersedes_thread_ids",
+		"does the same on one inline comment: name the thread that comment restates, and",
+		"the author is left with one thread per finding rather than two. Take every id",
+		"from the thread list in this conversation. An id from anywhere else is refused",
+		"and reported, so guessing one costs a warning and closes nothing.",
+		"",
+		"Report a finding that still holds, whether or not a thread already carries it.",
+		"This block is the whole of what the check reads, so a blocker you leave out of",
+		"it because you raised it before is a blocker the check passes over.",
+		"",
 		"```json",
 		`{"read": <line count>,`,
 		` "decision": "approve" | "comment" | "request_changes",`,
 		` "summary": "one or two sentences",`,
 		` "inline_comments": [{"path": "file", "line": 0, "side": "RIGHT|LEFT",`,
 		`                      "severity": "blocker|suggestion|nit",`,
+		`                      "supersedes_thread_ids": [],`,
 		`                      "body": "what is wrong and why it matters"}],`,
 		` "blockers": ["must fix, tied to no single line"],`,
 		` "non_blockers": ["worth noting, tied to no single line"],`,
 		` "pre_existing_issues": [{"severity": "blocker|suggestion",`,
-		`                          "body": "where it is and what it costs"}]}`,
+		`                          "body": "where it is and what it costs"}],`,
+		` "resolved_thread_ids": []}`,
 		"```",
 	}
 	return append(shape, nitRule(includeNits)...)
@@ -698,7 +722,7 @@ func intentCommand(req Request) string {
 // reviewer wrote are all in the conversation it is answering in. Re-sending them is paying
 // for a session twice: once to hold the context and again to replace it.
 //
-// Three things are sent anyway, each because the session cannot hold them:
+// Four things are sent anyway, each because the session cannot hold them:
 //
 //   - the diff and the tree, which moved. Memory of them is now wrong, not merely stale.
 //   - the repository's standards, re-read because the tree they live in was re-cloned and
@@ -706,6 +730,8 @@ func intentCommand(req Request) string {
 //   - what happened to this reviewer's findings on GitHub -- replies, resolutions -- and
 //     this dispatch's scout readings. Both happened outside the session. See
 //     [threadUpdateStep] and [reconcileStep].
+//   - the handle of every thread still open, which GitHub minted after the comment
+//     posted and no session ever held. See [openThreadsStep].
 //
 // [verdictShape] is restated rather than referenced, alone out of the output rules,
 // because its decay is the only silent one: a turn that stops emitting the block produces
@@ -736,6 +762,7 @@ func AdoptedPrompt(req Request) string {
 	}
 	lines = append(lines, repoContextStep(req)...)
 	lines = append(lines, extraInstructionsStep(req)...)
+	lines = append(lines, openThreadsStep(req)...)
 	lines = append(lines, threadUpdateStep(req)...)
 	lines = append(lines, []string{
 		"Review the current state against the same checklist, and report under the same",
