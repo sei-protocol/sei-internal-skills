@@ -483,6 +483,8 @@ func TestARunWithNoReplyNamesWhyRatherThanBlamingTheReply(t *testing.T) {
 		{"transport", driver.ExitTransport, "transport"},
 		{"turn failed", driver.ExitTurnFailed, "turn as failed"},
 		{"config", driver.ExitConfig, "configuration or credential"},
+		{"internal", driver.ExitInternal, "this driver failed"},
+		{"cancelled", driver.ExitCancelled, "cancelled"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()

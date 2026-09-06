@@ -461,6 +461,10 @@ func noReplyReason(exitCode int) string {
 		return "the session reported the turn as failed"
 	case driver.ExitConfig:
 		return "a configuration or credential problem stopped the run before it started"
+	case driver.ExitInternal:
+		return "this driver failed while producing the review"
+	case driver.ExitCancelled:
+		return "the run was cancelled before the turn replied"
 	default:
 		return "the run ended without a reply"
 	}

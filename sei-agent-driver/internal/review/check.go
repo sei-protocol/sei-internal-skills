@@ -12,9 +12,10 @@ import (
 // objected. What fills it is the buckets a review sorts its observations into, and above
 // all the ones tied to no line: those reach a reader nowhere else.
 type CheckRun struct {
-	// Conclusion is failure, neutral or success. Empty when the turn produced no verdict,
-	// which is not a check run at all: a review that could not be decided has nothing to
-	// conclude.
+	// Conclusion is failure, neutral or success. Empty only on the value [BuildCheckRun]
+	// returns beside a false ok, which no caller publishes. A review that reached no
+	// verdict still concludes: [BuildFailureCheck] renders it as failure, under a title
+	// that says so.
 	Conclusion string `json:"conclusion"`
 
 	// Title is the one-line reading in the checks list.
