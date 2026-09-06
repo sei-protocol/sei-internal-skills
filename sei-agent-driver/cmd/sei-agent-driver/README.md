@@ -96,9 +96,14 @@ signal, so a caller never posts a stale file from a previous run.
   `addressed` are the threads whose finding the change fixed — resolve them whenever
   the review publishes. `superseded` are the threads a new inline comment restates —
   resolve them only once those comments are on the code, because a thread closed
-  behind a comment that never posted takes a live finding off the pull request. An id
-  the reply names under both keys is reported under `superseded` only, so a
-  contradiction costs a thread left open rather than a finding taken off the diff.
+  behind a comment that never posted takes a live finding off the pull request.
+
+  An id that any inline comment claims never appears under `addressed`, whether or not
+  the reply also named it there. It appears under `superseded` when that comment is one
+  this run can place, and under neither key when it is not — a nit dropped by the
+  `--include-nits` setting, or a finding naming no line, replaces nothing and so closes
+  nothing. Either way a reply that contradicts itself costs a thread left open rather
+  than a finding taken off the diff.
 
   `refused` are the ids the reply named that match no thread supplied through
   `--conversation-context`; report them and resolve nothing. It carries at most 20,

@@ -384,8 +384,12 @@ func report(outPath, findingsPath, checkPath string, result driver.Result, req r
 	// about whose threads these are. Both are worth an operator's attention, and neither
 	// stops the review.
 	plan := review.BuildThreadPlan(verdict, req.IncludeNits, req.PriorThreads)
-	if len(plan.Refused) > 0 {
+	if plan.RefusedTotal > 0 {
+		// The total as well as the list, because the list is capped. A model that
+		// slipped once and a model inventing ids by the thousand both print a handful
+		// of examples here, and only this number tells the operator which is happening.
 		payload["refused_thread_ids"] = plan.Refused
+		payload["refused_thread_ids_total"] = plan.RefusedTotal
 	}
 
 	blob, err := json.MarshalIndent(payload, "", "  ")

@@ -3,6 +3,8 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -611,4 +613,102 @@ func TestAnOlderCallersCheckJSONPlansNothing(t *testing.T) {
 		t.Errorf("conclusion = %q, want success; a refused id is not a bad review",
 			got.Conclusion)
 	}
+}
+
+// TestTheReportedRefusalsCarryTheirTotal covers the number an operator reads.
+//
+// The refusal list is capped, so its length says nothing about how many there were. A
+// model that slipped once and a model inventing ids by the thousand both print the same
+// handful, and only the total separates them — which is the whole reason the field
+// exists. Asserted on the printed bytes, because stdout is what an operator reads and a
+// field left out of the payload is invisible from the struct.
+func TestTheReportedRefusalsCarryTheirTotal(t *testing.T) {
+	invented := make([]string, 0, 40)
+	for i := 0; i < 40; i++ {
+		invented = append(invented, fmt.Sprintf(`"invented%d"`, i))
+	}
+	block := `{"read":120,"decision":"approve","summary":"Clean.",` +
+		`"resolved_thread_ids":[` + strings.Join(invented, ",") + `]}`
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text: "A review.\n\n```json\n" + block + "\n```", TurnID: "t1",
+	}}
+
+	printed := captureStdout(t, func() {
+		if err := report("", "", "", result, review.Request{}); err != nil {
+			t.Fatalf("report: %v", err)
+		}
+	})
+
+	var payload map[string]any
+	if err := json.Unmarshal([]byte(printed), &payload); err != nil {
+		t.Fatalf("decoding the printed report: %v\n%s", err, printed)
+	}
+	ids, ok := payload["refused_thread_ids"].([]any)
+	if !ok {
+		t.Fatalf("the report names no refused ids:\n%s", printed)
+	}
+	total, ok := payload["refused_thread_ids_total"].(float64)
+	if !ok {
+		t.Fatalf("the report carries no refusal total, so the capped list reads as the "+
+			"whole of what the reply named:\n%s", printed)
+	}
+	if int(total) != 40 {
+		t.Errorf("refused_thread_ids_total = %v, want 40", total)
+	}
+	if len(ids) >= int(total) {
+		t.Errorf("the printed list holds %d of %v ids; this test is meant to exercise "+
+			"the capped case, where the length and the total differ", len(ids), total)
+	}
+}
+
+// TestACleanReviewReportsNoRefusals keeps the two keys out of the common report, so their
+// presence means something happened rather than being noise on every run.
+func TestACleanReviewReportsNoRefusals(t *testing.T) {
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text: "A review.\n\n```json\n" +
+			`{"read":120,"decision":"approve","summary":"Clean."}` + "\n```",
+		TurnID: "t1",
+	}}
+
+	printed := captureStdout(t, func() {
+		if err := report("", "", "", result, review.Request{}); err != nil {
+			t.Fatalf("report: %v", err)
+		}
+	})
+
+	for _, key := range []string{"refused_thread_ids", "refused_thread_ids_total"} {
+		if strings.Contains(printed, key) {
+			t.Errorf("a review that refused nothing reports %q:\n%s", key, printed)
+		}
+	}
+}
+
+// captureStdout runs fn with os.Stdout replaced by a pipe and returns what it wrote.
+//
+// The report prints rather than returning, so this is the only way to assert on the
+// bytes an operator sees. Restored on the way out whatever fn did.
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+	read, write, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("pipe: %v", err)
+	}
+	saved := os.Stdout
+	os.Stdout = write
+	done := make(chan string, 1)
+	go func() {
+		var b strings.Builder
+		_, _ = io.Copy(&b, read)
+		done <- b.String()
+	}()
+	func() {
+		defer func() {
+			os.Stdout = saved
+			_ = write.Close()
+		}()
+		fn()
+	}()
+	out := <-done
+	_ = read.Close()
+	return out
 }
