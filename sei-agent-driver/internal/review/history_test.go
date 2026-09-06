@@ -598,3 +598,63 @@ func TestAThreadIdThatIsNotOneIsNeverRendered(t *testing.T) {
 		}
 	}
 }
+
+// TestACollapsedFindingHandsOverAnOpenThread is the case a re-review cannot recover from.
+//
+// A finding raised, resolved, and raised again is several threads with one body in one
+// place, so collapseRepeats renders them as one. That survivor reports open, because a
+// copy is open. Its handle has to name that copy: a review told "open, and here is the
+// id" spends its one move on whichever thread the id names, and if that is the resolved
+// copy the live one stays on the pull request — the outcome this whole path exists to
+// prevent, reached with no error anywhere.
+//
+// Both orders, because taking the first copy's id and taking the last copy's id each
+// produce it on one of them.
+func TestACollapsedFindingHandsOverAnOpenThread(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name    string
+		threads []PriorThread
+		want    string
+	}{
+		{"the resolved copy came first", []PriorThread{
+			{ID: "PRRT_closed", File: "a.go", Line: 9, Body: "unbounded retry", Resolved: true},
+			{ID: "PRRT_live", File: "a.go", Line: 9, Body: "unbounded retry"},
+		}, "PRRT_live"},
+		{"the resolved copy came last", []PriorThread{
+			{ID: "PRRT_live", File: "a.go", Line: 9, Body: "unbounded retry"},
+			{ID: "PRRT_closed", File: "a.go", Line: 9, Body: "unbounded retry", Resolved: true},
+		}, "PRRT_live"},
+		{"the newest of several open copies", []PriorThread{
+			{ID: "PRRT_old", File: "a.go", Line: 9, Body: "unbounded retry"},
+			{ID: "PRRT_closed", File: "a.go", Line: 9, Body: "unbounded retry", Resolved: true},
+			{ID: "PRRT_live", File: "a.go", Line: 9, Body: "unbounded retry"},
+		}, "PRRT_live"},
+		{"every copy resolved, so the newest stands", []PriorThread{
+			{ID: "PRRT_older", File: "a.go", Line: 9, Body: "unbounded retry", Resolved: true},
+			{ID: "PRRT_newest", File: "a.go", Line: 9, Body: "unbounded retry", Resolved: true},
+		}, "PRRT_newest"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			got := collapseRepeats(tc.threads)
+			if len(got) != 1 {
+				t.Fatalf("collapsed to %d findings, want 1: %+v", len(got), got)
+			}
+			if got[0].ID != tc.want {
+				t.Errorf("the survivor hands over %q, want %q; it reports %s and its "+
+					"handle has to name a thread in that state",
+					got[0].ID, tc.want, map[bool]string{true: "resolved", false: "open"}[got[0].Resolved])
+			}
+			// The history a first dispatch reads is rendered from this, so the defect
+			// reaches a prompt rather than staying in a struct.
+			rendered := strings.Join(historyStep(
+				Request{Repo: "o/r", PR: 42, PriorThreads: tc.threads}), "\n")
+			if !strings.Contains(rendered, "[thread_id: "+tc.want+"]") {
+				t.Errorf("the history hands over something other than %q:\n%s",
+					tc.want, rendered)
+			}
+		})
+	}
+}

@@ -123,7 +123,19 @@ func TestASupersedingIdRidesOnlyOnACommentThatCanPost(t *testing.T) {
 
 // TestAnIdIsAdmittedOnce keeps one thread from being resolved twice and one bad id from
 // being reported twice, however many times a reply writes it.
-func TestAnIdIsAdmittedOnce(t *testing.T) {
+//
+// Which list an id lands in when a reply names it under both keys is the part worth
+// pinning, and Superseded is the safe answer rather than the arbitrary one. Addressed is
+// spent whenever the review publishes; Superseded is spent only once a comment replaced
+// the finding. A reply that contradicts itself has to resolve somewhere, and under
+// Addressed it would close a thread on publication alone -- so if placement then failed,
+// a live finding would come off the pull request with nothing where it was. Held to
+// Superseded, the same contradiction costs a thread left open, which is what this
+// workflow does today.
+//
+// Nothing in the prompt forbids naming an id twice and the reply is untrusted, so this
+// is a shape that arrives rather than one a well-behaved model avoids.
+func TestAnIdNamedTwiceIsHeldToTheStricterGate(t *testing.T) {
 	t.Parallel()
 
 	v := verdictFrom(t, `{"read":120,"decision":"comment","summary":"s",
@@ -134,33 +146,131 @@ func TestAnIdIsAdmittedOnce(t *testing.T) {
 
 	plan := BuildThreadPlan(v, true, ownThreads(threadA, threadB))
 
-	if want := []string{threadA}; !equalIDs(plan.Addressed, want) {
-		t.Errorf("addressed = %v, want %v", plan.Addressed, want)
+	if want := []string{threadA, threadB}; !equalIDs(plan.Superseded, want) {
+		t.Errorf("superseded = %v, want %v: an id under both keys closes only once its "+
+			"replacement is on the code", plan.Superseded, want)
 	}
-	// threadA is spent by the key that read it first, so the comment naming it again
-	// adds nothing. It is the same thread and it closes once.
-	if want := []string{threadB}; !equalIDs(plan.Superseded, want) {
-		t.Errorf("superseded = %v, want %v", plan.Superseded, want)
+	if len(plan.Addressed) != 0 {
+		t.Errorf("addressed = %v; threadA is named under both keys, and closing it on "+
+			"publication alone is what the split exists to prevent", plan.Addressed)
 	}
 	if want := []string{"nope"}; !equalIDs(plan.Refused, want) {
 		t.Errorf("refused = %v, want %v", plan.Refused, want)
 	}
 }
 
-// TestTheIdsOneKeyCarriesAreBounded holds the refusal list to a size a file and a log can
-// take. Every refused id is model output on its way to both.
-func TestTheIdsOneKeyCarriesAreBounded(t *testing.T) {
+// TestAnIdNamedTwiceOnAnUnplaceableCommentClosesNothing is the other half of the rule.
+//
+// The stricter gate is only worth reaching if it actually holds. A comment this run will
+// not place supersedes nothing, so an id named there and in resolved_thread_ids has to
+// close under neither -- falling back to Addressed would restore exactly the behaviour
+// the test above refuses.
+func TestAnIdNamedTwiceOnAnUnplaceableCommentClosesNothing(t *testing.T) {
 	t.Parallel()
 
-	ids := make([]string, 0, maxThreadIDs*2)
-	for i := 0; i < maxThreadIDs*2; i++ {
-		ids = append(ids, fmt.Sprintf(`"invented%d"`, i))
+	v := verdictFrom(t, `{"read":120,"decision":"comment","summary":"s",
+		"resolved_thread_ids":["`+threadA+`"],
+		"inline_comments":[
+			{"path":"a.go","line":12,"severity":"nit","body":"a nit",
+			 "supersedes_thread_ids":["`+threadA+`"]}]}`)
+
+	// Nits off, so the comment naming threadA is never placed.
+	plan := BuildThreadPlan(v, false, ownThreads(threadA))
+
+	if len(plan.Addressed) != 0 || len(plan.Superseded) != 0 {
+		t.Errorf("plan = %+v; the only comment naming this thread will not be placed, "+
+			"so nothing replaces it and it stays open", plan)
+	}
+}
+
+// TestTheRefusalListIsBoundedOverTheWholePlan holds the reported refusals to a size a
+// file and a log can take, counting every key rather than each one on its own.
+//
+// Per key is not a bound here. supersedes_thread_ids is read once per placeable finding,
+// so a per-key bound alone admits maxThreadIDs × maxPlaceableFindings refusals — about a
+// megabyte of model output written into the check file and echoed line by line by a
+// caller that warns on each. This fixture is that shape: every finding names a full key
+// of invented ids, and none of them is a thread anybody owns.
+func TestTheRefusalListIsBoundedOverTheWholePlan(t *testing.T) {
+	t.Parallel()
+
+	comments := make([]string, 0, maxPlaceableFindings)
+	for f := 0; f < maxPlaceableFindings; f++ {
+		ids := make([]string, 0, maxThreadIDs)
+		for i := 0; i < maxThreadIDs; i++ {
+			ids = append(ids, fmt.Sprintf(`"invented%d-%d"`, f, i))
+		}
+		comments = append(comments, fmt.Sprintf(
+			`{"path":"a%d.go","line":%d,"severity":"blocker","body":"b%d",`+
+				`"supersedes_thread_ids":[%s]}`,
+			f, f+1, f, strings.Join(ids, ",")))
 	}
 	v := verdictFrom(t, `{"read":120,"decision":"comment","summary":"s",
-		"resolved_thread_ids":[`+strings.Join(ids, ",")+`]}`)
+		"inline_comments":[`+strings.Join(comments, ",")+`]}`)
 
-	if plan := BuildThreadPlan(v, true, ownThreads(threadA)); len(plan.Refused) != maxThreadIDs {
-		t.Errorf("refused %d ids, want the bound of %d", len(plan.Refused), maxThreadIDs)
+	plan := BuildThreadPlan(v, true, ownThreads(threadA))
+
+	if len(plan.Refused) != maxRefusedThreadIDs {
+		t.Errorf("refused list holds %d ids, want the bound of %d",
+			len(plan.Refused), maxRefusedThreadIDs)
+	}
+	// Bounded is not the same as silent. A caller reading the length alone would report
+	// twenty over a reply that named thousands, and those are different problems.
+	if want := maxThreadIDs * maxPlaceableFindings; plan.RefusedTotal != want {
+		t.Errorf("refused_total = %d, want %d; what the bound leaves out is counted "+
+			"rather than dropped", plan.RefusedTotal, want)
+	}
+	bytes := 0
+	for _, id := range plan.Refused {
+		bytes += len(id)
+	}
+	if bytes > maxRefusedThreadIDs*(maxThreadID+8) {
+		t.Errorf("the refusal list is %d bytes, which is not a bound a log can take", bytes)
+	}
+}
+
+// TestARefusedIdCarriesNothingATerminalObeys covers the bytes a refusal is echoed with.
+//
+// A refused id reaches a workflow annotation and a log, and a terminal reads more than
+// text: ESC opens an OSC 8 hyperlink, and BEL and DEL rewrite what a reader sees. So a
+// refusal that renders as "this id was not resolved" must not also render as a link
+// somebody else wrote. oneLine does not stop any of these — it splits on unicode space,
+// and a C0 control is not one — which is why the filter is the id alphabet instead.
+func TestARefusedIdCarriesNothingATerminalObeys(t *testing.T) {
+	t.Parallel()
+
+	for _, id := range []string{
+		"PRRT_\x1b]8;;http://evil.example\x07click here\x1b]8;;\x07",
+		"PRRT_\x00nul",
+		"PRRT_\x07bel",
+		"PRRT_\x7fdel",
+		"PRRT_\rcarriage",
+		"PRRT_ok not really",
+	} {
+		plan := BuildThreadPlan(verdictFrom(t, blockNaming(id)), true, ownThreads(threadA))
+		if len(plan.Refused) != 1 {
+			t.Fatalf("%q produced %d refusals, want 1", id, len(plan.Refused))
+		}
+		got := plan.Refused[0]
+		for _, r := range got {
+			if r == '…' {
+				continue // clip's own marker, and printable
+			}
+			if r == '?' {
+				continue // what this replaces a byte outside the alphabet with
+			}
+			if !threadIDRune(r) {
+				t.Errorf("the refusal for %q carries %q, which is not a character an "+
+					"id is made of: %q", id, r, got)
+			}
+		}
+		// The length still says how much was written, so a reader can tell a mangled id
+		// from a short one.
+		if len([]rune(got)) != len([]rune(id)) {
+			t.Errorf("the refusal for %q is %d runes against %d written; a dropped byte "+
+				"reads as a shorter id rather than as a mangled one",
+				id, len([]rune(got)), len([]rune(id)))
+		}
 	}
 }
 

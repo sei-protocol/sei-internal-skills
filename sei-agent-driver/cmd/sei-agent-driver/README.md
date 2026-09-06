@@ -90,16 +90,22 @@ signal, so a caller never posts a stale file from a previous run.
   file a caller already reads.
 
   ```json
-  "threads": { "addressed": [], "superseded": [], "refused": [] }
+  "threads": { "addressed": [], "superseded": [], "refused": [], "refused_total": 0 }
   ```
 
   `addressed` are the threads whose finding the change fixed — resolve them whenever
   the review publishes. `superseded` are the threads a new inline comment restates —
   resolve them only once those comments are on the code, because a thread closed
-  behind a comment that never posted takes a live finding off the pull request.
+  behind a comment that never posted takes a live finding off the pull request. An id
+  the reply names under both keys is reported under `superseded` only, so a
+  contradiction costs a thread left open rather than a finding taken off the diff.
+
   `refused` are the ids the reply named that match no thread supplied through
-  `--conversation-context`; report them and resolve nothing. An older binary writes no
-  `threads` key, and a caller reading its absence resolves nothing.
+  `--conversation-context`; report them and resolve nothing. It carries at most 20,
+  and `refused_total` is how many there were — read that rather than the list's
+  length, because a review inventing thousands of ids and one that slipped once are
+  different problems. An older binary writes no `threads` key, and a caller reading
+  its absence resolves nothing.
 - `--guidelines-file PATH` — a path *inside the reviewed repository* holding the
   guidance that repository adds to every review. Defaults to `REVIEW.md`, which is
   read whether or not this is passed; a repository without that file is reviewed

@@ -54,10 +54,22 @@ type PriorThread struct {
 // The survivor keeps every reply anyone left on any copy, and sits where the finding was
 // last stated. It stays open if any copy is open: an author who resolved three of four
 // identical threads has not resolved the finding.
+//
+// Its handle follows that state. The survivor carries the id of the most recent copy
+// that is still open, and of the most recent copy of any state only when every copy is
+// resolved. The id is what a review names to close the thread, so a survivor that
+// reports open while handing over a resolved copy's id spends the review's one move on a
+// thread that is already shut and leaves the live one standing — the outcome this whole
+// path exists to prevent. Taking the first copy's id, or the last one whatever its
+// state, each produces that on a pull request where a finding was raised, resolved, and
+// raised again.
 func collapseRepeats(threads []PriorThread) []PriorThread {
 	type finding struct {
 		thread PriorThread
 		last   int
+		// openHandle records that thread.ID names a copy that is still open, which is
+		// what lets a later resolved copy know not to take the handle from it.
+		openHandle bool
 	}
 	at := make(map[string]*finding, len(threads))
 	found := make([]*finding, 0, len(threads))
@@ -67,7 +79,7 @@ func collapseRepeats(threads []PriorThread) []PriorThread {
 		key := fmt.Sprintf("%s\x00%d\x00%s", t.File, t.Line, t.Body)
 		f, seen := at[key]
 		if !seen {
-			f = &finding{thread: t, last: i}
+			f = &finding{thread: t, last: i, openHandle: !t.Resolved}
 			at[key] = f
 			found = append(found, f)
 			continue
@@ -75,6 +87,10 @@ func collapseRepeats(threads []PriorThread) []PriorThread {
 		f.thread.Resolved = f.thread.Resolved && t.Resolved
 		f.thread.Replies = withNewReplies(f.thread.Replies, t.Replies)
 		f.last = i
+		if !t.Resolved || !f.openHandle {
+			f.thread.ID = t.ID
+			f.openHandle = !t.Resolved
+		}
 	}
 
 	// Ordered by where each finding was last stated, not where it was first. [selectThreads]
