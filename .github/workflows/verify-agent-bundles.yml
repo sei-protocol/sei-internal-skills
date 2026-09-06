@@ -56,6 +56,11 @@ jobs:
               # per-run prompt is its whole instruction, so a discovered skill would
               # be capability it was never asked to use.
               'xreview-scout-codex': {'filter': 'none', 'skills': 0},
+              # Same contract on a different harness. Listed here because a bundle
+              # with no entry fails below, and the deployment cannot reach its
+              # harness yet: this gate is the only thing asserting it stays parsable
+              # while the four prerequisites in its README are open.
+              'xreview-scout-cursor': {'filter': 'none', 'skills': 0},
           }
 
           root = Path('agents')
