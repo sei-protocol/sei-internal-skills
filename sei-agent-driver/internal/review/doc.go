@@ -50,7 +50,8 @@
 //   - publish.go — the comment body, and what happens when it will not fit.
 //   - scout.go — an independent reading, its prompt, and its own run key.
 //   - threads.go — which of the threads named in a reply a caller may close.
-//   - history.go, runkey.go — prior threads, and the key a session is found by.
+//   - history.go, runkey.go — prior threads, the budget a prompt renders them under,
+//     and the key a session is found by.
 //
 // # How the package models it
 //
@@ -72,6 +73,13 @@
 // Every prompt-bound string is one-lined and clipped. A finding, a scout note or a
 // filename that carried a newline could otherwise open a heading and attribute
 // itself to someone else.
+//
+// What a bound leaves out is said, not swallowed. The history a prompt carries is
+// bounded in bytes rather than by a thread count, because the two are not the same
+// question, and every block that drops a thread renders a line saying so. A review that
+// cannot see a finding it made will make it again, and it can only allow for a history
+// it is told is partial. [withinBudget] owns the bound and [HistoryFit] reports it to
+// the operator from the same computation.
 //
 // A thread id is admitted against a list, not checked for shape alone. It arrives in the
 // reply and it decides a mutation on somebody's pull request, so the only ids this

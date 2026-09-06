@@ -249,6 +249,19 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 				"path", path, "error", err)
 		}
 		req.PriorThreads = threads
+
+		// What the prompt will actually carry, said out loud. A history short of what
+		// the pull request holds is why a review repeats a finding it already made, and
+		// the whole point of bounding it by bytes rather than by a count is that the
+		// bound is now reportable: this says whether anything was left out and how much.
+		// [review.HistoryFit] runs the same selection the prompt renders, so this line
+		// and the prompt cannot disagree.
+		if carried, shown, dropped := review.HistoryFit(req); dropped > 0 {
+			log.Warn("the prior findings do not fit the prompt's history budget",
+				"carried", carried, "shown", shown, "dropped", dropped)
+		} else if carried > 0 {
+			log.Info("carrying the prior findings", "carried", carried, "shown", shown)
+		}
 	}
 
 	// Parsed leniently here and enforced below, so a malformed scout list cannot
