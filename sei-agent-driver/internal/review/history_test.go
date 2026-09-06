@@ -150,23 +150,56 @@ func TestHistoryStepSaysNothingAboutTruncationWhenNothingIsDropped(t *testing.T)
 	}
 }
 
-// TestASingleOversizeThreadIsStillCarried covers the entry larger than the whole budget.
+// TestWithinBudgetKeepsAnOversizeFirstEntry covers the entry larger than the whole
+// budget, which is [withinBudget]'s only special case.
 //
-// Every field inside one is already clipped, so this means the budget is too small for
-// one finding. Answering that by carrying no history at all would lose the review its
-// memory of the pull request entirely.
-func TestASingleOversizeThreadIsStillCarried(t *testing.T) {
+// Driven through withinBudget directly, because that is where the branch is and the only
+// place it can be reached. An earlier version of this test built a thread with four
+// hundred replies and asserted through historyStep; that entry rendered to 5,210 bytes
+// against a 60,000 budget, so it never took the branch and passed for the wrong reason.
+// [TestNoSingleThreadCanOverrunTheBudget] is the assertion that fixture was reaching for.
+func TestWithinBudgetKeepsAnOversizeFirstEntry(t *testing.T) {
 	t.Parallel()
 
-	huge := make([]string, 400)
-	for i := range huge {
-		huge[i] = strings.Repeat("reply text ", 60)
+	oversize := []string{strings.Repeat("x", 200)}
+	second := []string{"a later entry"}
+
+	kept, dropped := withinBudget([][]string{oversize, second}, 50)
+	if len(kept) != 1 || kept[0][0] != oversize[0] {
+		t.Fatalf("kept = %v, want the oversize first entry", kept)
 	}
-	out := strings.Join(historyStep(Request{Repo: "o/r", PR: 1, PriorThreads: []PriorThread{
-		{File: "a.go", Line: 9, Body: "a finding", Replies: huge},
-	}}), "\n")
-	if !strings.Contains(out, "a finding") {
-		t.Errorf("an oversize thread was dropped, leaving no history at all:\n%s", out)
+	if dropped != 1 {
+		t.Errorf("dropped = %d, want 1", dropped)
+	}
+}
+
+// TestNoSingleThreadCanOverrunTheBudget is why the case above is a backstop rather than a
+// path a review reaches.
+//
+// Every field in an entry is clipped before it is rendered: the finding to maxScoutDetail,
+// each reply to the same, and the replies themselves to maxPriorReplies. So the largest
+// entry historyEntry can produce is far inside the budget, and a history is only ever
+// truncated between threads, never inside one. If a later change removes one of those
+// clips this fails, which is the point.
+func TestNoSingleThreadCanOverrunTheBudget(t *testing.T) {
+	t.Parallel()
+
+	replies := make([]string, 400)
+	for i := range replies {
+		replies[i] = strings.Repeat("reply text ", 60)
+	}
+	entry := historyEntry(Request{Repo: "o/r", PR: 1}, PriorThread{
+		ID:   strings.Repeat("A", maxThreadID),
+		File: strings.Repeat("d/", 60) + "a.go", Line: 9,
+		Body: strings.Repeat("finding prose ", 400), Replies: replies,
+	})
+	size := 0
+	for _, line := range entry {
+		size += len(line) + 1
+	}
+	if size >= maxHistoryBytes {
+		t.Errorf("one thread renders to %d bytes against a %d budget; a history can now "+
+			"be cut inside a finding rather than between two", size, maxHistoryBytes)
 	}
 }
 
@@ -820,4 +853,57 @@ func TestACollapsedFindingHandsOverAnOpenThread(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestHistoryFitBoundsBothPaths pins the claim HistoryFit's doc makes, in the direction
+// it makes it.
+//
+// It computes the first dispatch's rendering. The adopted path renders different entries
+// over different subsets — openThreadsStep writes one short line per open thread,
+// threadUpdateStep takes only the threads with activity — so the two are not equal and
+// the doc must not say they are. What has to hold is the bound: the adopted blocks drop
+// no more than HistoryFit reports, so zero there means zero everywhere.
+func TestHistoryFitBoundsBothPaths(t *testing.T) {
+	t.Parallel()
+
+	// Large enough that the fullest rendering overruns and the adopted ones need not.
+	var threads []PriorThread
+	for i := 0; i < 600; i++ {
+		threads = append(threads, PriorThread{
+			ID: fmt.Sprintf("PRRT_%d", i), File: fmt.Sprintf("pkg/file%d.go", i), Line: i + 1,
+			Body:    fmt.Sprintf("finding %d: %s", i, strings.Repeat("prose ", 60)),
+			Replies: []string{"author: " + strings.Repeat("argument ", 40)},
+		})
+	}
+	req := Request{Repo: "o/r", PR: 42, PriorThreads: threads}
+
+	_, _, dropped := HistoryFit(req)
+	if dropped == 0 {
+		t.Fatal("nothing was dropped; this fixture is meant to overrun the fullest rendering")
+	}
+
+	// Both adopted blocks render every thread they keep, so counting their entries is
+	// counting what survived.
+	openDropped := len(threads) - countRendered(openThreadsStep(req), "  pr-42-tree/")
+	updateDropped := len(threads) - countRendered(threadUpdateStep(req), "  [")
+	for name, got := range map[string]int{
+		"openThreadsStep": openDropped, "threadUpdateStep": updateDropped,
+	} {
+		if got > dropped {
+			t.Errorf("%s dropped %d against HistoryFit's %d; the log reports a bound the "+
+				"adopted path exceeds, so an operator reading zero could still be losing "+
+				"history", name, got, dropped)
+		}
+	}
+}
+
+// countRendered counts the lines in a block that open an entry.
+func countRendered(lines []string, prefix string) int {
+	n := 0
+	for _, line := range lines {
+		if strings.HasPrefix(line, prefix) {
+			n++
+		}
+	}
+	return n
 }

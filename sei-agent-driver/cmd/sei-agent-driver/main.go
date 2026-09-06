@@ -250,12 +250,16 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 		}
 		req.PriorThreads = threads
 
-		// What the prompt will actually carry, said out loud. A history short of what
-		// the pull request holds is why a review repeats a finding it already made, and
-		// the whole point of bounding it by bytes rather than by a count is that the
-		// bound is now reportable: this says whether anything was left out and how much.
-		// [review.HistoryFit] runs the same selection the prompt renders, so this line
-		// and the prompt cannot disagree.
+		// What the prompt will carry, said out loud. A history short of what the pull
+		// request holds is why a review repeats a finding it already made, and the point
+		// of bounding it by bytes rather than by a count is that the bound is reportable:
+		// this says whether anything was left out and how much.
+		//
+		// An upper bound rather than an equality. [review.HistoryFit] computes the first
+		// dispatch's rendering, which is the largest; a session that has reviewed this
+		// pull request before is sent fewer and smaller entries and drops no more than
+		// this. So zero here means nothing is dropped on either path, and a number is
+		// what the fullest prompt would lose.
 		if carried, shown, dropped := review.HistoryFit(req); dropped > 0 {
 			log.Warn("the prior findings do not fit the prompt's history budget",
 				"carried", carried, "shown", shown, "dropped", dropped)
