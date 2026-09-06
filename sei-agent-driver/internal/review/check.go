@@ -12,9 +12,10 @@ import (
 // objected. What fills it is the buckets a review sorts its observations into, and above
 // all the ones tied to no line: those reach a reader nowhere else.
 type CheckRun struct {
-	// Conclusion is failure, neutral or success. Empty when the turn produced no verdict,
-	// which is not a check run at all: a review that could not be decided has nothing to
-	// conclude.
+	// Conclusion is failure, neutral or success. Empty only on the value [BuildCheckRun]
+	// returns beside a false ok, which no caller publishes. A review that reached no
+	// verdict still concludes: [BuildFailureCheck] renders it as failure, under a title
+	// that says so.
 	Conclusion string `json:"conclusion"`
 
 	// Title is the one-line reading in the checks list.
@@ -519,14 +520,24 @@ func plural(n int, noun string) string {
 // that could not be read. Those are different things, and only one of them means an
 // operator should look.
 //
-// The conclusion is neutral rather than failure. It says this tool could not read a
-// review, not that the change is bad. A repository that wants that distinction to
-// block can require the check. The reason it carries is the one [Verdict] already
-// computed on every refusal path and nothing published.
+// The conclusion is failure. A repository that requires this check holds the merge until
+// a run reads the change, which is what requiring a review check is for. Neutral would
+// not: branch protection reads neutral as a pass, so publishing one where nothing was
+// published before would satisfy a requirement that used to hold the merge open, and turn
+// an unread change into a mergeable one.
+//
+// It reports that this tool could not read the change, not that the change is bad. The
+// title and the summary carry that distinction, since the conclusion cannot.
+//
+// The reason it carries is the one [Verdict] already computed on every refusal path and
+// nothing published.
 //
 // The reason quotes model text on one path — the decision word a reply wrote that this
 // driver does not accept — so it is defused like every other field. This is the check a
 // planted block produces, which makes it the one an attacker can aim at.
+//
+// The reply itself goes nowhere. A caller publishes this summary, and the reason in it,
+// as the whole of what the run has to say.
 func BuildFailureCheck(v Verdict) CheckRun {
 	reason := v.Reason
 	if reason == "" {
@@ -534,9 +545,11 @@ func BuildFailureCheck(v Verdict) CheckRun {
 	}
 	return CheckRun{
 		Title:      "no verdict",
-		Conclusion: "neutral",
+		Conclusion: "failure",
 		Summary: "This review produced no decision that could be read mechanically.\n\n" +
 			defuseMarkup(clip(oneLine(reason), maxCheckBullet)) +
-			"\n\nThe agent's own words, if it wrote any, are in the published comment.",
+			"\n\nThe agent's own reply is not published: a reply this driver cannot " +
+			"attribute to its own turn is one it must not repeat here. This run's log " +
+			"names the session that produced it.",
 	}
 }

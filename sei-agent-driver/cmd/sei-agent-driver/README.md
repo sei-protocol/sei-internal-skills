@@ -74,7 +74,16 @@ signal, so a caller never posts a stale file from a previous run.
   ordinary rather than a failure.
 - `--check-out FILE` — write the check run as json: conclusion, title and summary.
   The conclusion is derived from the findings, not from the word the agent used for
-  itself, so a review that says `approve` while listing blockers still fails.
+  itself, so a review that says `approve` while listing blockers still fails. A
+  no-verdict run writes this file too: it concludes `failure` under the title `no
+  verdict`, it carries the reason there is none, and it carries no `counts` key. So a
+  caller publishes whatever it finds at this path, and reads the **title** to tell the
+  two apart — `failure` is also what a decided review carrying blockers concludes, so
+  the conclusion alone does not separate them. An absent `counts` says the same thing.
+  Read that absence as absent, never as zero — "nothing blocking" over a review nobody
+  could read is the one wrong answer here. The `failure` holds a merge wherever the
+  check is required, and it reports a change this tool could not read rather than a
+  bad one.
 - `--guidelines-file PATH` — a path *inside the reviewed repository* holding the
   guidance that repository adds to every review. Defaults to `REVIEW.md`, which is
   read whether or not this is passed; a repository without that file is reviewed

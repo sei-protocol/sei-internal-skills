@@ -376,3 +376,134 @@ func TestCheckJSONCarriesTheCounts(t *testing.T) {
 			got.Counts.Placeable)
 	}
 }
+
+// TestANoVerdictRunStillHandsTheCallerACheckRun covers the run that publishes nothing.
+//
+// A review that ran and could not be read is indistinguishable, on the pull request,
+// from a review that never ran — unless something reaches the checks list. So the
+// assertion is on the three files together: the check run is there, and the two files
+// that mean "post this review" are not, because a caller decides on their absence.
+func TestANoVerdictRunStillHandsTheCallerACheckRun(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "verdict.md")
+	findings := filepath.Join(dir, "findings.json")
+	check := filepath.Join(dir, "check.json")
+
+	result := driver.Result{
+		SessionID: "s1",
+		ExitCode:  driver.ExitNoVerdict,
+		Reply:     &driver.Reply{Text: "I read the diff and it looks fine to me.", TurnID: "t1"},
+	}
+	if err := report(out, findings, check, result, true); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	for _, path := range []string{out, findings} {
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			blob, _ := os.ReadFile(path)
+			t.Errorf("%s exists on a no-verdict run; a caller posts on presence, so "+
+				"this is unparsed prose published as a review:\n%s", path, blob)
+		}
+	}
+
+	blob, err := os.ReadFile(check)
+	if err != nil {
+		t.Fatalf("reading the check run: %v", err)
+	}
+	var got review.CheckRun
+	if err := json.Unmarshal(blob, &got); err != nil {
+		t.Fatalf("decoding %s: %v", check, err)
+	}
+	want := review.BuildFailureCheck(review.ParseVerdict(result.Reply.Text))
+	if got.Conclusion != want.Conclusion || got.Title != want.Title {
+		t.Errorf("check.json = %q/%q, want %q/%q",
+			got.Conclusion, got.Title, want.Conclusion, want.Title)
+	}
+	if got.Summary != want.Summary {
+		t.Errorf("summary = %q, want %q", got.Summary, want.Summary)
+	}
+	// The reason is the actionable half, and the parser's own words for this reply are
+	// what name it. A summary that reached the reader without one says only that
+	// something went wrong.
+	if !strings.Contains(got.Summary, "fenced json block") {
+		t.Errorf("the check run does not say why there is no verdict:\n%s", blob)
+	}
+	// Absent, not zero. A caller reading .counts.blocking off this file must get null:
+	// nothing blocking, over a review nobody could read, is a green gate on an unread
+	// change.
+	if strings.Contains(string(blob), "counts") {
+		t.Errorf("check.json carries a counts key on a no-verdict run:\n%s", blob)
+	}
+}
+
+// TestTheFailureCheckQuotesTheDriversOwnReason pins which of two reasons is published.
+//
+// A reply refused for carrying a credential parses as ordinary prose, so the parser's
+// reason for it — no fenced block — describes the text and not the refusal. The driver's
+// reason names the refusal, and it is the one an operator has to act on. stdout and the
+// check run have to agree on it, because the same person reads both.
+func TestTheFailureCheckQuotesTheDriversOwnReason(t *testing.T) {
+	dir := t.TempDir()
+	check := filepath.Join(dir, "check.json")
+
+	const refusal = "the reply looks like it carries a github token"
+	result := driver.Result{
+		SessionID: "s1",
+		ExitCode:  driver.ExitNoVerdict,
+		Reply:     &driver.Reply{Text: "here is the diff", Reason: refusal},
+	}
+	if err := report("", "", check, result, true); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	blob, err := os.ReadFile(check)
+	if err != nil {
+		t.Fatalf("reading the check run: %v", err)
+	}
+	if !strings.Contains(string(blob), refusal) {
+		t.Errorf("the check run quotes the parser's reason over the driver's:\n%s", blob)
+	}
+}
+
+// TestARunWithNoReplyNamesWhyRatherThanBlamingTheReply covers the paths where the turn
+// produced nothing at all: a deadline, a transport fault, a failed turn, a bad config.
+//
+// The check concludes failure on all of them, so under branch protection they hold a
+// merge. The summary is the only place an operator can tell an infrastructure fault
+// from a review that answered in prose.
+func TestARunWithNoReplyNamesWhyRatherThanBlamingTheReply(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		exitCode int
+		want     string
+	}{
+		{"timeout", driver.ExitTimeout, "run deadline"},
+		{"transport", driver.ExitTransport, "transport"},
+		{"turn failed", driver.ExitTurnFailed, "turn as failed"},
+		{"config", driver.ExitConfig, "configuration or credential"},
+		{"internal", driver.ExitInternal, "this driver failed"},
+		{"cancelled", driver.ExitCancelled, "cancelled"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			check := filepath.Join(t.TempDir(), "check.json")
+			result := driver.Result{SessionID: "s1", ExitCode: tc.exitCode}
+			if err := report("", "", check, result, true); err != nil {
+				t.Fatalf("report: %v", err)
+			}
+			blob, err := os.ReadFile(check)
+			if err != nil {
+				t.Fatalf("reading the check run: %v", err)
+			}
+			if !strings.Contains(string(blob), tc.want) {
+				t.Errorf("summary does not name %q:\n%s", tc.want, blob)
+			}
+			if strings.Contains(string(blob), "no reply this driver could read") {
+				t.Errorf("summary blames a reply that never arrived:\n%s", blob)
+			}
+		})
+	}
+}
