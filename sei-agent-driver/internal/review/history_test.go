@@ -855,45 +855,118 @@ func TestACollapsedFindingHandsOverAnOpenThread(t *testing.T) {
 	}
 }
 
-// TestHistoryFitBoundsBothPaths pins the claim HistoryFit's doc makes, in the direction
-// it makes it.
+// TestHistoryFitDoesNotBoundTheHandles is the case that falsified the claim this
+// replaced, kept as a test so the broader claim cannot come back.
 //
-// It computes the first dispatch's rendering. The adopted path renders different entries
-// over different subsets — openThreadsStep writes one short line per open thread,
-// threadUpdateStep takes only the threads with activity — so the two are not equal and
-// the doc must not say they are. What has to hold is the bound: the adopted blocks drop
-// no more than HistoryFit reports, so zero there means zero everywhere.
-func TestHistoryFitBoundsBothPaths(t *testing.T) {
+// The fixture is one finding restated across four thousand threads — duplicates, which is
+// the only shape where the two disagree, and the shape an all-distinct fixture can never
+// produce. collapseRepeats folds them to a single entry for HistoryFit; openThreadsStep
+// renders them uncollapsed, because each carries an id a review has to be able to name.
+// So HistoryFit reports nothing dropped while the handles overrun the budget.
+//
+// Measured before the fix: carried=1 shown=1 dropped=0 against 4000 threads, 857 listed,
+// 3143 dropped. A log that said "nothing dropped" there was wrong about the population
+// that decides whether a finding can be closed at all.
+func TestHistoryFitDoesNotBoundTheHandles(t *testing.T) {
 	t.Parallel()
 
-	// Large enough that the fullest rendering overruns and the adopted ones need not.
+	var threads []PriorThread
+	for i := 0; i < 4000; i++ {
+		threads = append(threads, PriorThread{
+			ID: fmt.Sprintf("PRRT_%d", i), File: "a.go", Line: 9,
+			Body: "the retry is unbounded",
+		})
+	}
+	req := Request{Repo: "o/r", PR: 42, PriorThreads: threads}
+
+	carried, _, historyDropped := HistoryFit(req)
+	if carried != 1 {
+		t.Fatalf("carried = %d, want 1; the fixture is meant to collapse to one finding",
+			carried)
+	}
+	if historyDropped != 0 {
+		t.Fatalf("HistoryFit dropped %d; one collapsed finding fits with room to spare",
+			historyDropped)
+	}
+
+	open, listed, handlesDropped := HandleFit(req)
+	if open != len(threads) {
+		t.Errorf("HandleFit saw %d open threads, want %d uncollapsed", open, len(threads))
+	}
+	if handlesDropped == 0 {
+		t.Fatal("HandleFit dropped nothing; the fixture is meant to overrun the handles")
+	}
+	// The point: zero from one is not zero from the other, and a doc claiming otherwise
+	// is claiming something this fixture disproves.
+	t.Logf("HistoryFit dropped %d; HandleFit dropped %d of %d listed %d",
+		historyDropped, handlesDropped, open, listed)
+}
+
+// TestHistoryFitBoundsTheDelta pins what HistoryFit does bound.
+//
+// threadUpdateStep renders a subset of the same collapsed set, with entries no larger
+// than historyEntry's — it omits the handle, and the body unless the location repeats —
+// so it drops no more. The fixture carries duplicates as well, so the collapse runs here
+// too rather than the bound holding only on distinct threads.
+func TestHistoryFitBoundsTheDelta(t *testing.T) {
+	t.Parallel()
+
 	var threads []PriorThread
 	for i := 0; i < 600; i++ {
+		// Every third finding is a restatement of its predecessor, so collapseRepeats
+		// has work to do and the delta is drawn from the collapsed set.
+		body := fmt.Sprintf("finding %d: %s", i/3, strings.Repeat("prose ", 60))
 		threads = append(threads, PriorThread{
-			ID: fmt.Sprintf("PRRT_%d", i), File: fmt.Sprintf("pkg/file%d.go", i), Line: i + 1,
-			Body:    fmt.Sprintf("finding %d: %s", i, strings.Repeat("prose ", 60)),
+			ID: fmt.Sprintf("PRRT_%d", i), File: fmt.Sprintf("pkg/file%d.go", i/3),
+			Line: i/3 + 1, Body: body,
 			Replies: []string{"author: " + strings.Repeat("argument ", 40)},
 		})
 	}
 	req := Request{Repo: "o/r", PR: 42, PriorThreads: threads}
 
-	_, _, dropped := HistoryFit(req)
-	if dropped == 0 {
-		t.Fatal("nothing was dropped; this fixture is meant to overrun the fullest rendering")
+	carried, _, dropped := HistoryFit(req)
+	if carried == len(threads) {
+		t.Fatal("nothing collapsed; this fixture is meant to carry duplicates")
 	}
+	if dropped == 0 {
+		t.Fatal("nothing was dropped; this fixture is meant to overrun the full history")
+	}
+	if got := carried - countRendered(threadUpdateStep(req), "  ["); got > dropped {
+		t.Errorf("threadUpdateStep dropped %d against HistoryFit's %d; the log reports a "+
+			"bound the delta exceeds, so an operator reading zero could still be losing "+
+			"history", got, dropped)
+	}
+}
 
-	// Both adopted blocks render every thread they keep, so counting their entries is
-	// counting what survived.
-	openDropped := len(threads) - countRendered(openThreadsStep(req), "  pr-42-tree/")
-	updateDropped := len(threads) - countRendered(threadUpdateStep(req), "  [")
-	for name, got := range map[string]int{
-		"openThreadsStep": openDropped, "threadUpdateStep": updateDropped,
-	} {
-		if got > dropped {
-			t.Errorf("%s dropped %d against HistoryFit's %d; the log reports a bound the "+
-				"adopted path exceeds, so an operator reading zero could still be losing "+
-				"history", name, got, dropped)
-		}
+// TestHandleFitMatchesWhatTheStepLists keeps the reported number and the rendered list
+// one answer.
+//
+// They come from one selection, and this is what fails if a later change gives either a
+// filter of its own — a log saying eight hundred handles were listed while the prompt
+// carries a different set is worse than no log.
+func TestHandleFitMatchesWhatTheStepLists(t *testing.T) {
+	t.Parallel()
+
+	var threads []PriorThread
+	for i := 0; i < 4000; i++ {
+		threads = append(threads, PriorThread{
+			ID: fmt.Sprintf("PRRT_%d", i), File: "a.go", Line: 9, Body: "restated",
+		})
+	}
+	// Neither of these is nameable, and neither may be counted.
+	threads = append(threads,
+		PriorThread{ID: "PRRT_done", File: "b.go", Line: 1, Resolved: true},
+		PriorThread{File: "c.go", Line: 2, Body: "no handle"},
+	)
+	req := Request{Repo: "o/r", PR: 42, PriorThreads: threads}
+
+	open, listed, _ := HandleFit(req)
+	if open != 4000 {
+		t.Errorf("HandleFit counted %d open threads, want 4000: a resolved thread and one "+
+			"with no usable id are not threads a review can name", open)
+	}
+	if got := countRendered(openThreadsStep(req), "  pr-42-tree/"); got != listed {
+		t.Errorf("HandleFit says %d listed, the step renders %d", listed, got)
 	}
 }
 

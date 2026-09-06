@@ -250,21 +250,27 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 		}
 		req.PriorThreads = threads
 
-		// What the prompt will carry, said out loud. A history short of what the pull
-		// request holds is why a review repeats a finding it already made, and the point
-		// of bounding it by bytes rather than by a count is that the bound is reportable:
-		// this says whether anything was left out and how much.
+		// What the prompt will carry, said out loud, on both counts. A history short of
+		// what the pull request holds is why a review repeats a finding it already made,
+		// and the point of bounding it by bytes rather than by a count is that the bound
+		// is reportable.
 		//
-		// An upper bound rather than an equality. [review.HistoryFit] computes the first
-		// dispatch's rendering, which is the largest; a session that has reviewed this
-		// pull request before is sent fewer and smaller entries and drops no more than
-		// this. So zero here means nothing is dropped on either path, and a number is
-		// what the fullest prompt would lose.
+		// Two numbers, because they are about two populations and neither bounds the
+		// other. [review.HistoryFit] counts collapsed findings and covers the full
+		// history and the delta. [review.HandleFit] counts open threads uncollapsed, and
+		// is the one that decides whether a finding can be closed at all: an id the
+		// prompt cannot carry is a thread the review cannot resolve, whatever else it
+		// knows. One finding restated many times is one entry to the first and many to
+		// the second, so a single number here would be wrong about one of them.
 		if carried, shown, dropped := review.HistoryFit(req); dropped > 0 {
 			log.Warn("the prior findings do not fit the prompt's history budget",
 				"carried", carried, "shown", shown, "dropped", dropped)
 		} else if carried > 0 {
 			log.Info("carrying the prior findings", "carried", carried, "shown", shown)
+		}
+		if open, listed, dropped := review.HandleFit(req); dropped > 0 {
+			log.Warn("the open threads do not fit the prompt, so this review cannot name them all",
+				"open", open, "listed", listed, "dropped", dropped)
 		}
 	}
 
