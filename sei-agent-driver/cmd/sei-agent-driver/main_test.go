@@ -464,3 +464,44 @@ func TestTheFailureCheckQuotesTheDriversOwnReason(t *testing.T) {
 		t.Errorf("the check run quotes the parser's reason over the driver's:\n%s", blob)
 	}
 }
+
+// TestARunWithNoReplyNamesWhyRatherThanBlamingTheReply covers the paths where the turn
+// produced nothing at all: a deadline, a transport fault, a failed turn, a bad config.
+//
+// The check concludes failure on all of them, so under branch protection they hold a
+// merge. The summary is the only place an operator can tell an infrastructure fault
+// from a review that answered in prose.
+func TestARunWithNoReplyNamesWhyRatherThanBlamingTheReply(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name     string
+		exitCode int
+		want     string
+	}{
+		{"timeout", driver.ExitTimeout, "run deadline"},
+		{"transport", driver.ExitTransport, "transport"},
+		{"turn failed", driver.ExitTurnFailed, "turn as failed"},
+		{"config", driver.ExitConfig, "configuration or credential"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			check := filepath.Join(t.TempDir(), "check.json")
+			result := driver.Result{SessionID: "s1", ExitCode: tc.exitCode}
+			if err := report("", "", check, result, true); err != nil {
+				t.Fatalf("report: %v", err)
+			}
+			blob, err := os.ReadFile(check)
+			if err != nil {
+				t.Fatalf("reading the check run: %v", err)
+			}
+			if !strings.Contains(string(blob), tc.want) {
+				t.Errorf("summary does not name %q:\n%s", tc.want, blob)
+			}
+			if strings.Contains(string(blob), "no reply this driver could read") {
+				t.Errorf("summary blames a reply that never arrived:\n%s", blob)
+			}
+		})
+	}
+}

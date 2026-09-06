@@ -367,6 +367,13 @@ func report(outPath, findingsPath, checkPath string, result driver.Result, inclu
 			verdict.Reason = firstNonEmpty(result.Reply.Reason, verdict.Reason)
 			payload["reason"] = verdict.Reason
 		}
+	} else {
+		// No reply at all, which is a different thing from one this driver could not
+		// read, and the check run says so. An operator reading only the summary has to
+		// be able to tell a run deadline or a transport fault from a review that
+		// answered in prose.
+		verdict.Reason = noReplyReason(result.ExitCode)
+		payload["reason"] = verdict.Reason
 	}
 	blob, err := json.MarshalIndent(payload, "", "  ")
 	if err != nil {
@@ -437,11 +444,35 @@ func writeCheckRun(path string, verdict review.Verdict, includeNits bool) error 
 	return writeCheck(path, check)
 }
 
+// noReplyReason names why a run produced no reply, in the words of the exit code the
+// driver already settled on.
+//
+// The generic fallback in [review.BuildFailureCheck] speaks of a reply that could not
+// be read, which is wrong on every path here: there was no reply to read. Under branch
+// protection these paths red-gate a pull request, so the summary has to separate an
+// infrastructure fault from a review that answered unreadably.
+func noReplyReason(exitCode int) string {
+	switch exitCode {
+	case driver.ExitTimeout:
+		return "the run deadline expired before the turn replied"
+	case driver.ExitTransport:
+		return "the transport to the agent failed before a reply arrived"
+	case driver.ExitTurnFailed:
+		return "the session reported the turn as failed"
+	case driver.ExitConfig:
+		return "a configuration or credential problem stopped the run before it started"
+	default:
+		return "the run ended without a reply"
+	}
+}
+
 // writeFailureCheck renders the check run for a review that reached no verdict.
 //
 // It takes --check-out, the same path the deciding check run takes, so a caller
-// publishes whatever it finds there and needs no second flag to find this one. The
-// conclusion tells the two apart, and [review.BuildFailureCheck] carries the reason.
+// publishes whatever it finds there and needs no second flag to find this one. What
+// tells the two apart is the `no verdict` title and the absent counts, not the
+// conclusion: a decided review carrying blockers concludes failure too.
+// [review.BuildFailureCheck] carries the reason.
 //
 // --out and --findings-out stay empty here. The caller still reads an absent verdict
 // as "no verdict to post", and this check is the only thing such a run publishes.
