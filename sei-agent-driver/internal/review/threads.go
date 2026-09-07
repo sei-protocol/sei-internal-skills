@@ -53,6 +53,11 @@ type ThreadPlan struct {
 
 	// Superseded are the threads a new inline comment restates. They close once that
 	// comment is on the code and not before.
+	//
+	// Which comment restates which thread is not here. It is [Finding.Supersedes], on
+	// the findings the caller posts, and it is what lets a caller close one of these
+	// while another stays open. This list is the whole set and the caller's warrant for
+	// closing any of it.
 	Superseded []string `json:"superseded"`
 
 	// Refused are the ids the reply named that no thread of this tool's carries, in a
@@ -83,12 +88,17 @@ type ThreadPlan struct {
 // a shape that arrives.
 //
 // Ordering the passes is not enough on its own, which is why there are three. The first
-// takes the findings a caller can place, under the same nit and placeability rules
-// [PlaceableFindings] applies, because a comment that never posts supersedes nothing. The
+// takes the findings a caller can place, under the nit and placeability rules
+// [PlaceableFindings] answers with, because a comment that never posts supersedes
+// nothing. The
 // second takes the claims left on findings this run will NOT place: they close nothing,
 // and spending them here is what stops the third pass from picking one up under the
-// weaker gate. [PlaceableFindings] stays the single definition of what gets placed — the
+// weaker gate. [placeableFindings] stays the single definition of what gets placed — the
 // second pass is a superset the first has already filtered.
+//
+// Those two passes read the linkage as the reply wrote it, which is why they read
+// [placeableFindings] and not [PlaceableFindings]. This is the side that reports an
+// invented id, and an id filtered upstream is one no operator hears about.
 func BuildThreadPlan(v Verdict, includeNits bool, prior []PriorThread) ThreadPlan {
 	own := ownThreadIDs(prior)
 	plan := ThreadPlan{
@@ -119,7 +129,7 @@ func BuildThreadPlan(v Verdict, includeNits bool, prior []PriorThread) ThreadPla
 		}
 	}
 
-	admit(supersedingIDs(PlaceableFindings(v, includeNits)), &plan.Superseded)
+	admit(supersedingIDs(placeableFindings(v, includeNits)), &plan.Superseded)
 	admit(supersedingIDs(reportedPlacements(v)), nil)
 	admit(namedThreadIDs(v.Structured, "resolved_thread_ids"), &plan.Addressed)
 	return plan
@@ -173,6 +183,21 @@ func ownThreadIDs(prior []PriorThread) map[string]bool {
 		}
 	}
 	return own
+}
+
+// admittedThreadIDs keeps the ids naming one of own, in the order the reply wrote them.
+//
+// The filter [PlaceableFindings] applies before a linkage reaches a caller's file. It
+// reports nothing, unlike [BuildThreadPlan]'s admit: the plan refuses the same id off the
+// same allowlist, and a second report would have a caller echo one slip as two.
+func admittedThreadIDs(ids []string, own map[string]bool) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if own[id] {
+			out = append(out, id)
+		}
+	}
+	return out
 }
 
 // namedThreadIDs reads the ids a reply wrote under one key, trimmed, without the empties

@@ -45,7 +45,8 @@
 //     driver drives.
 //   - prompt.go — the instruction, first dispatch and every one after.
 //   - verdict.go — reading a reply back into the four buckets.
-//   - findings.go — which findings can be placed on a line, and which cannot.
+//   - findings.go — which findings can be placed on a line, which cannot, and
+//     which threads each placed one replaces.
 //   - check.go — the check run, whose conclusion follows the findings.
 //   - publish.go — the comment body, and what happens when it will not fit.
 //   - scout.go — an independent reading, its prompt, and its own run key.
@@ -84,9 +85,14 @@
 // A thread id is admitted against a list, not checked for shape alone. It arrives in the
 // reply and it decides a mutation on somebody's pull request, so the only ids this
 // package hands a caller are the ones matching a thread the caller itself supplied as
-// this tool's own. Everything else is refused and reported. [BuildThreadPlan] owns it,
-// and [wellFormedThreadID] is what makes the list safe to render into a prompt line in
-// the first place.
+// this tool's own. Everything else is refused and reported. [ownThreadIDs] is that list,
+// and [wellFormedThreadID] is what makes it safe to render into a prompt line in the
+// first place.
+//
+// Two things read that list, and they answer for two files. [BuildThreadPlan] decides the
+// set a caller may close and reports every refusal. [PlaceableFindings] decides which of
+// that set each posted comment replaces, so a caller can close one superseded thread and
+// leave another open. The plan is the warrant; the linkage is which comment spent it.
 //
 // Every part of that summary is bounded before it is assembled, not only the assembled
 // whole. The body is cut from the end and the sections are at the end, so a bound over

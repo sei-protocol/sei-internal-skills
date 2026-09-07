@@ -41,12 +41,22 @@ type Finding struct {
 	// Detail is what is wrong and why it matters.
 	Detail string `json:"detail"`
 
-	// Supersedes names the threads this finding restates, as the reply wrote them.
+	// Supersedes names the threads this finding restates.
 	//
-	// Unpublished, and that is the point. These are ids out of model output, and a
-	// caller resolves what it is handed, so nothing reaches a file until
-	// [BuildThreadPlan] has checked each one against the threads the caller supplied.
-	Supersedes []string `json:"-"`
+	// Published so a caller can gate each of those threads on the comment that
+	// replaced it. A gate that cannot tell which comment replaced which thread has to
+	// decide all of them together, and together closes a thread whose own replacement
+	// is sitting in the summary instead of on the diff.
+	//
+	// Each id decides a mutation on somebody's pull request, and each arrives in model
+	// output, so nothing reaches a file unadmitted. [PlaceableFindings] is the one path
+	// a caller gets a finding through, and [ownThreadIDs] is the one allowlist it and
+	// [BuildThreadPlan] both read.
+	//
+	// Omitted when empty. So a finding replacing nothing reads exactly as an older
+	// driver's does, and what tells a caller which driver wrote the file is whether
+	// any finding in it carries the key at all.
+	Supersedes []string `json:"supersedes,omitempty"`
 }
 
 // PreExistingIssue is a problem the change did not introduce.
@@ -103,7 +113,8 @@ func normalizeSide(raw string) string {
 // bot write thousands of comments on one pull request.
 const maxPlaceableFindings = 50
 
-// PlaceableFindings returns the findings a caller can post against a line.
+// PlaceableFindings returns the findings a caller can post against a line, each
+// carrying the threads its comment replaces.
 //
 // Only the placeable ones, because a review comment needs a path and a line, and there
 // is nowhere sensible to put one that has neither. What is dropped here is still in the
@@ -113,7 +124,28 @@ const maxPlaceableFindings = 50
 // includeNits carries [Request.IncludeNits]. It is enforced here, on the one path that
 // produces every inline comment, rather than left to the prompt the model may ignore or
 // to each caller to remember.
-func PlaceableFindings(v Verdict, includeNits bool) []Finding {
+//
+// prior is the same history [BuildThreadPlan] is handed, and it is what makes
+// [Finding.Supersedes] safe to write out. A caller resolves the threads it is handed, so
+// the only ids that leave this package are the ones naming a thread the caller itself
+// listed as this tool's own. The set that survives is [ThreadPlan.Superseded] exactly:
+// both read [ownThreadIDs] over the same findings, so a caller cannot close a thread on a
+// linkage the plan refused.
+func PlaceableFindings(v Verdict, includeNits bool, prior []PriorThread) []Finding {
+	own := ownThreadIDs(prior)
+	out := placeableFindings(v, includeNits)
+	for i := range out {
+		out[i].Supersedes = admittedThreadIDs(out[i].Supersedes, own)
+	}
+	return out
+}
+
+// placeableFindings is that same set with the linkage as the reply wrote it.
+//
+// Read where an unadmitted id is what is wanted. [countFindings] needs the length, which
+// admitting cannot change. [BuildThreadPlan] needs the raw ids, because refusing one is
+// how an operator learns the review is naming threads that do not exist.
+func placeableFindings(v Verdict, includeNits bool) []Finding {
 	seen := make(map[string]bool)
 	out := make([]Finding, 0)
 	for _, entry := range reportedFindings(v) {

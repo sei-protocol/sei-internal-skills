@@ -25,7 +25,7 @@ func TestPlaceableFindingsDropsWhatCannotBePlaced(t *testing.T) {
 		"not an object"
 	]}` + "\n```")
 
-	got := PlaceableFindings(v, true)
+	got := PlaceableFindings(v, true, nil)
 	if len(got) != 2 {
 		t.Fatalf("placeable findings = %d, want 2: %+v", len(got), got)
 	}
@@ -44,7 +44,7 @@ func TestPlaceableFindingsDropsWhatCannotBePlaced(t *testing.T) {
 func TestPlaceableFindingsOnNoVerdict(t *testing.T) {
 	t.Parallel()
 
-	if got := PlaceableFindings(ParseVerdict("just prose, no block"), true); len(got) != 0 {
+	if got := PlaceableFindings(ParseVerdict("just prose, no block"), true, nil); len(got) != 0 {
 		t.Errorf("placeable findings = %d, want 0 when there is no verdict", len(got))
 	}
 }
@@ -64,7 +64,7 @@ func TestPlaceableFindingsReadsTheCurrentContract(t *testing.T) {
 	  "non_blockers":["naming could be clearer"],
 	  "pre_existing_issues":[{"severity":"nit","body":"old thing"}]}`)
 
-	got := PlaceableFindings(v, true)
+	got := PlaceableFindings(v, true, nil)
 	if len(got) != 2 {
 		t.Fatalf("placed %d findings, want 2 (the line-less one is dropped): %+v", len(got), got)
 	}
@@ -103,7 +103,7 @@ func TestPlaceableFindingsStillReadsTheOlderContract(t *testing.T) {
 	  "findings":[{"file":"a.go","line":10,"severity":"high","detail":"boom"},
 	              {"file":"b.go","line":2,"severity":"low","detail":"minor"}]}`)
 
-	got := PlaceableFindings(v, true)
+	got := PlaceableFindings(v, true, nil)
 	if len(got) != 2 {
 		t.Fatalf("placed %d, want 2: %+v", len(got), got)
 	}
@@ -163,7 +163,7 @@ func TestPlaceableFindingsReadsBothKeysWhenTheNewOneIsEmpty(t *testing.T) {
 	  "inline_comments":[],
 	  "findings":[{"file":"a.go","line":9,"severity":"high","detail":"boom"}]}`)
 
-	got := PlaceableFindings(v, true)
+	got := PlaceableFindings(v, true, nil)
 	if len(got) != 1 {
 		t.Fatalf("placed %d, want 1: an empty inline_comments must not hide a "+
 			"filled findings", len(got))
@@ -182,7 +182,7 @@ func TestPlaceableFindingsDedupesAcrossKeys(t *testing.T) {
 	  "inline_comments":[{"path":"a.go","line":9,"side":"RIGHT","severity":"blocker","body":"boom"}],
 	  "findings":[{"file":"a.go","line":9,"severity":"high","detail":"boom"}]}`)
 
-	if got := PlaceableFindings(v, true); len(got) != 1 {
+	if got := PlaceableFindings(v, true, nil); len(got) != 1 {
 		t.Fatalf("placed %d, want 1: the same finding under both keys is one "+
 			"finding, and posting it twice is noise on the author's diff", len(got))
 	}
@@ -352,7 +352,7 @@ func placedPaths(t *testing.T, path string) []Finding {
 	if err != nil {
 		t.Fatalf("building the reply block: %v", err)
 	}
-	return PlaceableFindings(verdictFrom(t, string(block)), true)
+	return PlaceableFindings(verdictFrom(t, string(block)), true, nil)
 }
 
 // TestPlaceableFindingsGatesNits pins the rule that a nit is placed only when the
@@ -367,12 +367,12 @@ func TestPlaceableFindingsGatesNits(t *testing.T) {
 	    {"path":"a.go","line":1,"side":"RIGHT","severity":"blocker","body":"real"},
 	    {"path":"b.go","line":2,"side":"RIGHT","severity":"nit","body":"polish"}]}`)
 
-	off := PlaceableFindings(v, false)
+	off := PlaceableFindings(v, false, nil)
 	if len(off) != 1 || off[0].Severity != "blocker" {
 		t.Fatalf("with nits off = %+v; want the blocker alone", off)
 	}
 
-	on := PlaceableFindings(v, true)
+	on := PlaceableFindings(v, true, nil)
 	if len(on) != 2 {
 		t.Fatalf("with nits on = %+v; want both", on)
 	}
@@ -393,7 +393,7 @@ func TestDroppedNitDoesNotClaimTheDedupeKey(t *testing.T) {
 	    {"path":"a.go","line":7,"side":"RIGHT","severity":"nit","body":"same words"},
 	    {"path":"a.go","line":7,"side":"RIGHT","severity":"blocker","body":"same words"}]}`)
 
-	got := PlaceableFindings(v, false)
+	got := PlaceableFindings(v, false, nil)
 	if len(got) != 1 {
 		t.Fatalf("got %d findings %+v; want the blocker alone", len(got), got)
 	}

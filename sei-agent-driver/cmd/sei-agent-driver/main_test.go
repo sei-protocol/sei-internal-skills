@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -565,6 +566,87 @@ func TestCheckJSONCarriesTheThreadPlan(t *testing.T) {
 	if strings.Contains(string(blob), `"PRRT_neverOurs"`) &&
 		!strings.Contains(string(blob), `"refused"`) {
 		t.Errorf("an unmatched id reaches the caller outside the refused list:\n%s", blob)
+	}
+}
+
+// TestFindingsJSONCarriesTheSupersededLinkage covers the file the resolve step reads.
+//
+// The gate on a superseded thread is per thread, and this is the only thing that makes it
+// so: the caller closes a thread on finding its id beside a comment that posted. Asserted
+// on the bytes for the reason the plan test gives -- nothing between this driver and that
+// step is Go, so a field the marshaller dropped would pass a check on the struct and read
+// as a driver that publishes no linkage at all.
+//
+// Two findings, one replacing a thread and one replacing nothing, because both keys
+// matter. The first has to carry the id. The second has to carry no key: whether ANY
+// finding in the file carries one is how the caller tells this driver from an older one,
+// and an empty array on every finding would answer that question wrongly.
+func TestFindingsJSONCarriesTheSupersededLinkage(t *testing.T) {
+	dir := t.TempDir()
+	findings := filepath.Join(dir, "findings.json")
+	check := filepath.Join(dir, "check.json")
+
+	const restated = "PRRT_kwDOABCDEF4Bz3w4"
+	block := `{"read":120,"decision":"request_changes","summary":"Two.",` +
+		`"inline_comments":[` +
+		`{"path":"a.go","line":9,"side":"RIGHT","severity":"blocker",` +
+		`"body":"still a nil deref","supersedes_thread_ids":["` + restated + `",` +
+		`"PRRT_neverOurs"]},` +
+		`{"path":"b.go","line":3,"side":"RIGHT","severity":"suggestion",` +
+		`"body":"a finding this review makes for the first time"}]}`
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text: "A review.\n\n```json\n" + block + "\n```", TurnID: "t1", ItemID: "i1",
+	}}
+	req := review.Request{IncludeNits: true, PriorThreads: []review.PriorThread{
+		{ID: restated, File: "a.go", Line: 9, Body: "a nil deref"},
+	}}
+
+	if err := report("", findings, check, result, req); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	blob, err := os.ReadFile(findings)
+	if err != nil {
+		t.Fatalf("reading the findings: %v", err)
+	}
+	// Decoded as the raw objects rather than as []review.Finding, because the question
+	// is which keys the file carries and a struct field answers that for both.
+	var entries []map[string]any
+	if err := json.Unmarshal(blob, &entries); err != nil {
+		t.Fatalf("decoding %s: %v", findings, err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("findings.json holds %d entries, want 2:\n%s", len(entries), blob)
+	}
+	if got := entries[0]["supersedes"]; !reflect.DeepEqual(got, []any{restated}) {
+		t.Errorf("the replacing comment carries supersedes = %v, want [%s]; without it "+
+			"the caller cannot tell which thread this comment replaced and closes every "+
+			"superseded thread together", got, restated)
+	}
+	if got, named := entries[1]["supersedes"]; named {
+		t.Errorf("a finding replacing no thread wrote supersedes = %v; the key's "+
+			"presence anywhere in this file is what tells a caller the linkage is "+
+			"published, so writing it empty makes an older driver of a newer one", got)
+	}
+	if strings.Contains(string(blob), "PRRT_neverOurs") {
+		t.Errorf("an id matching no thread this run was told about reached the file the "+
+			"caller resolves from:\n%s", blob)
+	}
+
+	// The plan is the caller's warrant and the linkage is which comment spends it, so the
+	// two files have to name the same thread.
+	var run review.CheckRun
+	checkBlob, err := os.ReadFile(check)
+	if err != nil {
+		t.Fatalf("reading the check run: %v", err)
+	}
+	if err := json.Unmarshal(checkBlob, &run); err != nil {
+		t.Fatalf("decoding %s: %v", check, err)
+	}
+	if run.Threads == nil || len(run.Threads.Superseded) != 1 ||
+		run.Threads.Superseded[0] != restated {
+		t.Errorf("check.json superseded = %+v, want [%s] beside the linkage in "+
+			"findings.json", run.Threads, restated)
 	}
 }
 

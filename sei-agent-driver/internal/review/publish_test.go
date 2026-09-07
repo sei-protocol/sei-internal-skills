@@ -221,7 +221,7 @@ func TestPublishedCommentDropsASuppressedNit(t *testing.T) {
 	    {"path":"b.go","line":2,"side":"RIGHT","severity":"nit","body":"polish"}]}`)
 
 	// The two surfaces the gate does reach.
-	if got := PlaceableFindings(v, false); len(got) != 1 {
+	if got := PlaceableFindings(v, false, nil); len(got) != 1 {
 		t.Fatalf("PlaceableFindings = %+v; want the blocker alone", got)
 	}
 	check, ok := BuildCheckRun(v, false)

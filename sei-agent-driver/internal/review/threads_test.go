@@ -371,3 +371,173 @@ func equalIDs(got, want []string) bool {
 	}
 	return true
 }
+
+// TestEachPlacedCommentCarriesOnlyItsOwnSupersededThreads is the per-thread half of the
+// gate, and the reason the linkage is published at all.
+//
+// A caller closes a superseded thread when the comment replacing it reached the code. A
+// review superseding three threads places three comments, and any one of them can fail on
+// its own. So each comment has to name the thread it replaces and no other: handed the
+// review's whole set, a caller closes all three on the strength of whichever one posted,
+// and the other two authors read a resolved thread with nothing on the diff where it was.
+func TestEachPlacedCommentCarriesOnlyItsOwnSupersededThreads(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":120,"decision":"comment","summary":"s","inline_comments":[
+		{"path":"a.go","line":12,"severity":"blocker","body":"still wrong",
+		 "supersedes_thread_ids":["`+threadA+`"]},
+		{"path":"b.go","line":4,"severity":"blocker","body":"also still wrong",
+		 "supersedes_thread_ids":["`+threadB+`"]},
+		{"path":"c.go","line":8,"severity":"suggestion","body":"and this",
+		 "supersedes_thread_ids":["`+threadC+`"]}]}`)
+
+	got := PlaceableFindings(v, true, ownThreads(threadA, threadB, threadC))
+
+	if len(got) != 3 {
+		t.Fatalf("placeable findings = %d, want 3: %+v", len(got), got)
+	}
+	for i, want := range [][]string{{threadA}, {threadB}, {threadC}} {
+		if !equalIDs(got[i].Supersedes, want) {
+			t.Errorf("%s:%d supersedes %v, want %v: a comment carrying another comment's "+
+				"thread closes that thread on this one posting",
+				got[i].File, got[i].Line, got[i].Supersedes, want)
+		}
+	}
+}
+
+// TestAPublishedLinkageNamesOnlyTheCallersOwnThreads carries the allowlist across into
+// the file.
+//
+// A linkage is model output that decides a mutation on somebody's pull request, and the
+// file it lands in is read by a workflow that resolves what it is handed. So the ids that
+// reach it are the caller's own, and an invented one is still reported: a review naming
+// threads that do not exist is worth an operator's attention whether or not it closed
+// anything.
+func TestAPublishedLinkageNamesOnlyTheCallersOwnThreads(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":120,"decision":"comment","summary":"s","inline_comments":[
+		{"path":"a.go","line":12,"severity":"blocker","body":"still wrong",
+		 "supersedes_thread_ids":["`+threadA+`","PRRT_notOursAtAll"]}]}`)
+
+	prior := ownThreads(threadA)
+
+	got := PlaceableFindings(v, true, prior)
+	if len(got) != 1 {
+		t.Fatalf("placeable findings = %d, want 1: %+v", len(got), got)
+	}
+	if want := []string{threadA}; !equalIDs(got[0].Supersedes, want) {
+		t.Errorf("supersedes = %v, want %v", got[0].Supersedes, want)
+	}
+
+	plan := BuildThreadPlan(v, true, prior)
+	if want := []string{"PRRT_notOursAtAll"}; !equalIDs(plan.Refused, want) {
+		t.Errorf("refused = %v, want %v: filtering the linkage must not swallow the "+
+			"refusal, which is the only place a human learns of an invented id",
+			plan.Refused, want)
+	}
+}
+
+// TestTheLinkageSpendsExactlyThePlansSupersededSet pins the two files against each other.
+//
+// [ThreadPlan.Superseded] is a caller's warrant to close a thread, and the linkage is
+// which comment spends it. Two derivations of one allowlist can disagree, and both
+// directions are defects: a linkage naming a thread the plan does not closes one the
+// driver refused, and a plan entry no comment claims is a thread nothing can ever close.
+//
+// The shapes that could split them are all here: a nit this run drops, a finding with no
+// line, one thread claimed by two comments, and one id named under both keys.
+func TestTheLinkageSpendsExactlyThePlansSupersededSet(t *testing.T) {
+	t.Parallel()
+
+	const threadD = "PRRT_kwDOABCDEF4Dq9r8"
+	v := verdictFrom(t, `{"read":120,"decision":"comment","summary":"s",
+		"resolved_thread_ids":["`+threadD+`"],
+		"inline_comments":[
+			{"path":"a.go","line":12,"severity":"blocker","body":"still wrong",
+			 "supersedes_thread_ids":["`+threadA+`","`+threadD+`"]},
+			{"path":"b.go","line":4,"severity":"nit","body":"a nit",
+			 "supersedes_thread_ids":["`+threadB+`"]},
+			{"path":"c.go","line":0,"severity":"blocker","body":"no line to place it on",
+			 "supersedes_thread_ids":["`+threadC+`"]},
+			{"path":"d.go","line":7,"severity":"suggestion","body":"the same thread again",
+			 "supersedes_thread_ids":["`+threadA+`"]}]}`)
+
+	prior := ownThreads(threadA, threadB, threadC, threadD)
+
+	for _, includeNits := range []bool{false, true} {
+		plan := BuildThreadPlan(v, includeNits, prior)
+		linked := make([]string, 0, len(plan.Superseded))
+		seen := make(map[string]bool)
+		for _, f := range PlaceableFindings(v, includeNits, prior) {
+			for _, id := range f.Supersedes {
+				if seen[id] {
+					continue
+				}
+				seen[id] = true
+				linked = append(linked, id)
+			}
+		}
+		if !equalIDs(linked, plan.Superseded) {
+			t.Errorf("include-nits %v: the linkage names %v and the plan names %v",
+				includeNits, linked, plan.Superseded)
+		}
+		if len(plan.Addressed) != 0 {
+			t.Errorf("include-nits %v: addressed = %v; an id a comment claims closes on "+
+				"that comment posting, never on publication alone",
+				includeNits, plan.Addressed)
+		}
+	}
+}
+
+// TestAFindingThisRunWillNotPlacePublishesNoLinkage is the same rule read off the file.
+//
+// A nit the run drops posts no comment, so it replaces nothing. It is absent from the
+// findings a caller posts, and its claim has to be absent with it: a caller reading the
+// linkage off that file would otherwise close a thread whose replacement was never
+// written.
+func TestAFindingThisRunWillNotPlacePublishesNoLinkage(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":120,"decision":"comment","summary":"s","inline_comments":[
+		{"path":"a.go","line":12,"severity":"blocker","body":"still wrong",
+		 "supersedes_thread_ids":["`+threadA+`"]},
+		{"path":"b.go","line":4,"severity":"nit","body":"a nit",
+		 "supersedes_thread_ids":["`+threadB+`"]}]}`)
+
+	blob, err := json.Marshal(PlaceableFindings(v, false, ownThreads(threadA, threadB)))
+	if err != nil {
+		t.Fatalf("marshalling the findings: %v", err)
+	}
+	if !strings.Contains(string(blob), threadA) {
+		t.Errorf("the blocker's linkage is not in the file, so its thread can never "+
+			"close:\n%s", blob)
+	}
+	if strings.Contains(string(blob), threadB) {
+		t.Errorf("a nit this run drops named a thread in the file a caller resolves "+
+			"from:\n%s", blob)
+	}
+}
+
+// TestALinkageIsOmittedRatherThanWrittenEmpty is the compatibility contract, in the bytes.
+//
+// A caller cannot ask a file which driver wrote it. What it can read is whether any
+// finding in the file carries the key at all, and that is what decides between the
+// per-thread gate and the per-review one it falls back to. A finding replacing nothing
+// therefore has to write no key: an empty array on every finding would read as a driver
+// that published the linkage and had nothing to link, and a caller would then take the
+// per-thread path against a file that names no thread -- closing nothing, ever.
+func TestALinkageIsOmittedRatherThanWrittenEmpty(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":120,"decision":"comment","summary":"s","inline_comments":[
+		{"path":"a.go","line":12,"severity":"blocker","body":"replaces nothing"}]}`)
+
+	blob, err := json.Marshal(PlaceableFindings(v, true, ownThreads(threadA)))
+	if err != nil {
+		t.Fatalf("marshalling the findings: %v", err)
+	}
+	if strings.Contains(string(blob), "supersedes") {
+		t.Errorf("a finding replacing no thread wrote the key:\n%s", blob)
+	}
+}
