@@ -441,7 +441,7 @@ func report(outPath, findingsPath, checkPath string, result driver.Result,
 			return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
 		}
 	}
-	if err := writeFindings(findingsPath, verdict, req.IncludeNits); err != nil {
+	if err := writeFindings(findingsPath, verdict, req.IncludeNits, req.PriorThreads); err != nil {
 		return err
 	}
 	return writeCheckRun(checkPath, verdict, req.IncludeNits, plan)
@@ -587,11 +587,16 @@ func clearOutputs(paths ...string) error {
 // this review"; this one's means "and place these on the code", and a review with
 // nothing placeable is normal rather than a failure — so an empty list writes no
 // file and the caller posts a summary alone.
-func writeFindings(path string, verdict review.Verdict, includeNits bool) error {
+//
+// prior travels with it because each finding names the threads it replaces, and an id
+// that decides a mutation on somebody's pull request is admitted against the caller's
+// own threads first. [review.PlaceableFindings] is where that happens.
+func writeFindings(path string, verdict review.Verdict, includeNits bool,
+	prior []review.PriorThread) error {
 	if path == "" {
 		return nil
 	}
-	findings := review.PlaceableFindings(verdict, includeNits)
+	findings := review.PlaceableFindings(verdict, includeNits, prior)
 	if len(findings) == 0 {
 		return nil
 	}

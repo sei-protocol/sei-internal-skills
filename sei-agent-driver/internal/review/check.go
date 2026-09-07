@@ -141,7 +141,7 @@ func countFindings(v Verdict, includeNits bool) Counts {
 	return Counts{
 		Blocking:    blocking + len(Blockers(v)),
 		NonBlocking: other + len(NonBlockers(v)),
-		Placeable:   len(PlaceableFindings(v, includeNits)),
+		Placeable:   len(placeableFindings(v, includeNits)),
 		PreExisting: len(PreExisting(v)),
 	}
 }
