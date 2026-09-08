@@ -41,6 +41,60 @@ RUN python3 -m venv /opt/specify \
  && ln -s /opt/specify/bin/specify /usr/local/bin/specify \
  && specify --version 2>&1 | grep -q "${SPECIFY_VERSION}"
 
+# Vale and the writing contract's rules, so the gate runs inside the sandbox rather
+# than only in a consumer's CI after a push. `sei-spec` writes specification prose and
+# its prompt now instructs it to lint each artifact; without this that instruction is
+# a hint with nothing behind it.
+#
+# THE VERSION IS A FLOOR SHARED WITH .github/workflows/writing.yml. On 3.14.0 a
+# `sequence` whose tokens are all `tag:` entries matches nothing, which disables a rule
+# in silence. Keep the two in step: a runner checking a different rule set than CI is
+# the disagreement this pin exists to stop.
+#
+# Unlike the Spec Kit pin above, this one IS integrity-verified: the checksum covers
+# the exact release asset, so a substituted tarball fails the build. The asset is
+# amd64, matching the fleet. On another architecture the extract succeeds and
+# `vale --version` fails to exec, so the build stops rather than shipping a broken
+# binary.
+ARG VALE_VERSION=3.17.1
+ARG VALE_SHA256=db947f89f2292e6a0381a61de155f6a5f5cb4cb460ca178ea412ef605559cefd
+RUN curl -sfL --retry 3 --retry-all-errors --max-time 180 -o /tmp/vale.tgz \
+      "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" \
+ && echo "${VALE_SHA256}  /tmp/vale.tgz" | sha256sum -c - \
+ && tar -xz -C /usr/local/bin -f /tmp/vale.tgz vale \
+ && rm /tmp/vale.tgz \
+ && vale --version
+
+# The rules, and a configuration that resolves them from any working directory.
+#
+# StylesPath is rewritten to an absolute path because the committed template names
+# `.vale/styles`, which is relative to wherever Vale runs. A sandbox lints a clone at
+# an arbitrary path, so a relative styles path would resolve to a directory that does
+# not exist and Vale would stop on a configuration error.
+#
+# `vale sync` runs HERE, at build time, and that is what makes the gate work offline.
+# The configuration declares third-party packages that are not committed anywhere; a
+# runner that had to fetch them would depend on egress through the sandbox policy
+# proxy, and would fail closed on a green-looking `vale` that never loaded its styles.
+#
+# `a+rX` for the same reason as the overlay below: root-owned tree, non-root runtime
+# uid, so the files need other-read and the directories other-traverse.
+COPY writing/styles /opt/sei/writing/styles
+COPY writing/templates/consumer.vale.ini /opt/sei/writing/vale.ini
+COPY scripts/sei-writing-lint /usr/local/bin/sei-writing-lint
+#
+# The grep is the assertion, not decoration. `sed -i` exits 0 when it matches nothing,
+# so a template that renames or reformats that key would leave the relative path in
+# place and the build would carry on. Vale then resolves the styles against the
+# agent's working directory and reports no findings, which is the green-over-nothing
+# failure this whole layer exists to remove.
+RUN sed -i 's|^StylesPath = .*|StylesPath = /opt/sei/writing/styles|' /opt/sei/writing/vale.ini \
+ && grep -qx 'StylesPath = /opt/sei/writing/styles' /opt/sei/writing/vale.ini \
+ && vale --config=/opt/sei/writing/vale.ini sync \
+ && chmod 0755 /usr/local/bin/sei-writing-lint \
+ && chmod -R a+rX /opt/sei/writing \
+ && vale --no-global --config=/opt/sei/writing/vale.ini ls-config > /dev/null
+
 # The overlay, staged outside $HOME per the note above. Scoped to `agents/` and
 # `skills/` by Dockerfile.runner.dockerignore; `settings.json` is deliberately not
 # shipped, see that file.

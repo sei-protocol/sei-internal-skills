@@ -7,9 +7,16 @@ Never hand-edit a generated file.
 CONTEXT.md is the short form an agent loads: the anchors, named, with nothing else.
 CONTRACT.md is the long form a person reads, and a person writes it by hand.
 
+The `bundle-prompt` target renders one section of an Omnigent bundle prompt. A bundle
+carries no file the host reads, so its prompt is the only text that reaches the model,
+and the contract has to sit inside that prompt as literal words. Generating it from the
+registry is what keeps the third copy of the contract in step with the other two.
+writing/scripts/check-bundle-prompt.sh holds config.yaml to this output.
+
 Usage:
     python3 writing/scripts/render-context.py --target agents > writing/CONTEXT.md
     python3 writing/scripts/render-context.py --target table   # a table for docs/
+    python3 writing/scripts/render-context.py --target bundle-prompt
 
 A `style` target used to appear here and argparse never accepted it, so the file it
 named was generated once and then drifted with nothing to regenerate it.
@@ -51,6 +58,63 @@ VERIFY = [
 
 WIDTH = 90
 
+# The bundle prompt. Everything below serves the `bundle-prompt` target.
+#
+# PROMPT_WIDTH is narrower than WIDTH because the output nests two spaces inside a
+# YAML block scalar, and the surrounding prompt wraps at 78 columns.
+PROMPT_WIDTH = 76
+PROMPT_INDENT = "  "
+
+PROMPT_HEADING = "## Hold every artifact to the writing contract"
+
+PROMPT_INTRO = (
+    "A specification is prose, so the writing contract governs it. It governs "
+    "`spec.md`, `plan.md`, `tasks.md`, a commit subject, a pull request body, and "
+    "what you report in the session. Apply it as you draft, not as a pass at the end."
+)
+
+# Lane 1 of AGENTS.md. These are local rules rather than anchors: EARS and RFC 2119
+# name the syntax, and neither standard says a requirement carries an ID or that a
+# test cites one. An anchor cannot carry a rule its own standard does not state.
+PROMPT_NORMATIVE = [
+    "Write each requirement in one EARS template: ubiquitous, `WHEN`, `IF..THEN`, "
+    "`WHILE`, or `WHERE`.",
+    "Write a normative keyword in uppercase: `MUST`, `MUST NOT`, `SHOULD`, `MAY`. "
+    "Use it only for a requirement.",
+    "Give every requirement an ID. Every test names the ID it covers.",
+]
+
+# Quoted from the banned list in AGENTS.md Lane 2. Every entry is backticked, which
+# keeps the list inside Vale's code scope: a substitution rule reads bare prose and
+# would otherwise report each word this list exists to forbid.
+PROMPT_BANNED = [
+    "leverage",
+    "seamless",
+    "robust",
+    "delve",
+    "deep dive",
+    "unlock",
+    "elevate",
+    "game-changing",
+    "in today's landscape",
+    "it is important to note",
+    "this is not just X, it is Y",
+    "comprehensive as a filler word",
+]
+
+# The gate, not a hint. `sei-writing-lint` wraps Vale with the baked rules and the
+# flags, and Dockerfile.runner puts both on every runner. State the residue too:
+# Principle V of writing/CONTRACT.md asks every anchor to carry what it misses.
+PROMPT_VERIFY = [
+    "Run `sei-writing-lint <path>` on each artifact a phase produced, before you "
+    "report that phase as done. Fix what it reports.",
+    "A finding names a rule. A rule names a clause. If you disagree with a finding, "
+    "say which rule and why. Never silence a rule to make the output pass.",
+    "The gate reads patterns in finished text. It cannot read meaning, so it cannot "
+    "tell you that a requirement misses the problem. Exit code 0 means \"no finding "
+    "at or above the gate\", not \"correct\".",
+]
+
 
 def agents(reg):
     """The model-context contract.
@@ -82,6 +146,55 @@ def agents(reg):
     return "\n".join(out).rstrip("\n")
 
 
+def bundle_prompt(reg):
+    """One section of an Omnigent bundle prompt, indented for a YAML block scalar.
+
+    Three parts, in the order a reader needs them: the normative language a
+    requirement carries, the anchors, and the gate. The banned list sits with the
+    anchors because ASD-STE100 diction is what it serves.
+
+    The anchor bullets come from the same `context` blocks CONTEXT.md renders, so a
+    registry edit reaches the bundle and the context file together.
+    """
+    listed = sorted(
+        (a for a in reg["anchors"] if a.get("context")),
+        key=lambda a: a["context"]["order"],
+    )
+
+    def para(text, bullet=False):
+        return textwrap.fill(
+            text,
+            PROMPT_WIDTH,
+            initial_indent=PROMPT_INDENT + ("- " if bullet else ""),
+            subsequent_indent=PROMPT_INDENT + ("  " if bullet else ""),
+            break_on_hyphens=False,
+        )
+
+    out = [PROMPT_INDENT + PROMPT_HEADING, "", para(PROMPT_INTRO), ""]
+
+    out += [PROMPT_INDENT + "### Requirements carry normative language", ""]
+    out += [para(rule, bullet=True) for rule in PROMPT_NORMATIVE]
+    out += ["", PROMPT_INDENT + "### The anchors", ""]
+    for a in listed:
+        c = a["context"]
+        out.append(para(f"**{c['label']}** — {' '.join(c['text'].split())}", bullet=True))
+
+    out += ["", PROMPT_INDENT + "### Never write these", ""]
+    out += [
+        para(
+            "They read as machine filler: "
+            + ", ".join(f"`{w}`" for w in PROMPT_BANNED)
+            + "."
+        ),
+        "",
+        PROMPT_INDENT + "### Verify before you report a phase as done",
+        "",
+    ]
+    for text in PROMPT_VERIFY:
+        out += [para(text), ""]
+    return "\n".join(out).rstrip("\n")
+
+
 def table(reg):
     rows = ["| Anchor | Standard | Coverage | Rules |", "|---|---|---|---|"]
     for a in reg["anchors"]:
@@ -95,10 +208,13 @@ def table(reg):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--target", choices=["agents", "table"], default="agents")
+    p.add_argument(
+        "--target", choices=["agents", "table", "bundle-prompt"], default="agents"
+    )
     args = p.parse_args()
     reg = load()
-    print({"agents": agents, "table": table}[args.target](reg))
+    targets = {"agents": agents, "table": table, "bundle-prompt": bundle_prompt}
+    print(targets[args.target](reg))
 
 
 if __name__ == "__main__":

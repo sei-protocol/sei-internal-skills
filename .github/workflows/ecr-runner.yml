@@ -27,6 +27,12 @@ on:
       - 'runner-base.txt'
       - '.claude/**'
       - 'scripts/managed-settings.json'
+      # The writing contract's rules are baked in, so a rule edit changes what every
+      # runner enforces. Without these paths a merged rule change reaches this
+      # repository's own CI and never reaches a sandbox.
+      - 'writing/styles/**'
+      - 'writing/templates/consumer.vale.ini'
+      - 'scripts/sei-writing-lint'
   workflow_dispatch:
     inputs:
       tag:

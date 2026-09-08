@@ -1,0 +1,115 @@
+#!/usr/bin/env bash
+# Lint prose against the writing contract, inside a sandbox. Installed on every
+# runner by Dockerfile.runner as /usr/local/bin/sei-writing-lint.
+#
+#   sei-writing-lint specs/001-my-feature
+#   sei-writing-lint specs/001-my-feature/spec.md docs/adr/0003-thing.md
+#
+# It finds the repository root itself, so the working directory does not matter.
+#
+# WHY A WRAPPER RATHER THAN `vale`. Two reasons, and the first one is a defect this
+# closes rather than a preference.
+#
+# WHICH RULES RUN DEPENDS ON THE PATH VALE IS GIVEN, not on the file it ends up
+# reading. The contract is a directory convention: `.vale.ini` turns the spec rules on
+# for `specs/**/spec.md` and off everywhere else. Vale matches that glob against the
+# argument, so the same file checked three ways gives three answers. Measured on one
+# specification carrying a lowercase `must` and four missing sections:
+#
+#   cd <repo>   && vale specs/001-x/spec.md     5 errors, exit 1
+#   cd <repo>   && vale /abs/specs/001-x/spec.md    0 errors, exit 0
+#   cd specs/001-x && vale spec.md                  0 errors, exit 0
+#
+# The last two are the dangerous ones. They report success on prose the contract
+# rejects, so an agent that lints from the feature directory it is working in gets a
+# green run over almost nothing. This script normalises every argument to a
+# root-relative path and runs from the root, so all three forms behave like the first.
+#
+# THE RULES ARE BAKED, AND THE REPOSITORY'S OWN ARE NOT USABLE HERE. A consuming
+# repository commits `.vale.ini` and gitignores `.vale/styles`, which CI fetches per
+# run. A sandbox holds a fresh clone, so that directory is absent and the repository's
+# own configuration would fail on a missing style rather than report a finding. The
+# baked tree is complete: the third-party packages are synced at image build, so this
+# needs no network.
+#
+# EXIT CODE. Nonzero means an error-level finding. Vale exits 0 on a warning at any
+# --minAlertLevel, which is the same calibration this repository's CI uses: report a
+# warning, fail on an error.
+set -euo pipefail
+
+CONFIG="${SEI_WRITING_VALE_CONFIG:-/opt/sei/writing/vale.ini}"
+
+# DERIVED, NOT RESTATED. The header above is the one copy of the usage, so --help
+# cannot drift from what a reader of this file sees. The rationale that follows is for
+# somebody editing this script, not for somebody running it, so the sentinel below
+# ends the help there. A line number would move under the next edit; this does not.
+usage() {
+  awk 'NR==1 {next} /^# WHY A WRAPPER/ {exit} {sub(/^# ?/, ""); print}' "${BASH_SOURCE[0]}"
+}
+
+if [ $# -eq 0 ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  usage
+  [ $# -eq 0 ] && exit 2
+  exit 0
+fi
+
+if [ ! -f "$CONFIG" ]; then
+  echo "sei-writing-lint: no rules at $CONFIG." >&2
+  echo "This runner image was built without the writing contract. Do not report the" >&2
+  echo "prose as checked; say the gate was unavailable." >&2
+  exit 3
+fi
+
+# The root the mode globs are relative to, found by walking up for `.git`.
+#
+# NOT `git rev-parse --show-toplevel`. That reads the same answer out of the git
+# binary and adds two ways to lose it: git refuses a repository whose owner differs
+# from the caller unless `safe.directory` names it, and it exits nonzero outside a
+# repository. Either one returns empty, and falling back to the working directory
+# there is the silent under-check at the top of this file — the wrapper would report a
+# green run over prose rules alone. Walking the filesystem cannot fail that way.
+#
+# Fail-loud, with SEI_WRITING_ROOT as the escape hatch for a tree that is not a
+# repository. Refusing to run is the honest outcome: the contract scopes rules by
+# directory, so with no root there is no scope, and a clean report would be a lie.
+root="${SEI_WRITING_ROOT:-}"
+if [ -z "$root" ]; then
+  probe="$PWD"
+  while [ "$probe" != "/" ]; do
+    if [ -e "$probe/.git" ]; then
+      root="$probe"
+      break
+    fi
+    probe="$(dirname "$probe")"
+  done
+fi
+if [ -z "$root" ]; then
+  echo "sei-writing-lint: no .git above $PWD, so the contract has no root to scope to." >&2
+  echo "Which rules run depends on a path relative to the repository root. Run this" >&2
+  echo "inside the clone, or set SEI_WRITING_ROOT to the tree the paths are under." >&2
+  exit 3
+fi
+
+# Fail rather than under-check. A path outside the root cannot be expressed as the
+# root-relative form the globs expect, so linting it would silently apply the prose
+# rules alone — the exact green-over-nothing case this script exists to remove.
+rel=()
+for arg in "$@"; do
+  if [ ! -e "$arg" ]; then
+    echo "sei-writing-lint: no such path: $arg" >&2
+    exit 2
+  fi
+  abs="$(cd "$(dirname "$arg")" && pwd)/$(basename "$arg")"
+  case "$abs/" in
+    "$root"/*) rel+=("$(realpath --relative-to="$root" "$abs")") ;;
+    *)
+      echo "sei-writing-lint: $arg is outside $root." >&2
+      echo "The contract scopes rules by directory, so a path outside the repository" >&2
+      echo "would be checked for prose only. Move it in, or lint from its own root." >&2
+      exit 2
+      ;;
+  esac
+done
+
+cd "$root"
+exec vale --no-global --config="$CONFIG" --minAlertLevel=warning "${rel[@]}"

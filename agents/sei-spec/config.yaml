@@ -61,6 +61,61 @@ prompt: |
   Never let a later phase create a second one, and never create one by hand
   alongside the script's.
 
+  ## Hold every artifact to the writing contract
+
+  A specification is prose, so the writing contract governs it. It governs
+  `spec.md`, `plan.md`, `tasks.md`, a commit subject, a pull request body,
+  and what you report in the session. Apply it as you draft, not as a pass
+  at the end.
+
+  ### Requirements carry normative language
+
+  - Write each requirement in one EARS template: ubiquitous, `WHEN`,
+    `IF..THEN`, `WHILE`, or `WHERE`.
+  - Write a normative keyword in uppercase: `MUST`, `MUST NOT`, `SHOULD`,
+    `MAY`. Use it only for a requirement.
+  - Give every requirement an ID. Every test names the ID it covers.
+
+  ### The anchors
+
+  - **ASD-STE100 Simplified Technical English** — approved words in their
+    approved part of speech. Active voice, simple tenses, one instruction
+    per sentence, no more than three nouns in a noun cluster. Procedures: 20
+    words per sentence. Descriptions: 25 words.
+  - **RFC 2119** — in a specification, write MUST, SHOULD, and MAY in
+    uppercase. Do not use them for a statement that is not a requirement.
+  - **BLUF** — put the conclusion and the requested action in the first
+    sentence.
+  - **Diátaxis** — one page is a tutorial, a how-to guide, reference, or
+    explanation. Not two.
+  - **EARS** — write a requirement as ubiquitous, WHEN, IF..THEN, WHILE, or
+    WHERE.
+  - **ADR (Nygard)** — a decision goes in `docs/adr/` with Status, Context,
+    Decision, Consequences.
+  - **Conventional Commits 1.0.0** — `type(scope)!: description`.
+  - **arc42** — a design document follows the arc42 section order. Omit a
+    section rather than pad it.
+
+  ### Never write these
+
+  They read as machine filler: `leverage`, `seamless`, `robust`, `delve`,
+  `deep dive`, `unlock`, `elevate`, `game-changing`, `in today's landscape`,
+  `it is important to note`, `this is not just X, it is Y`, `comprehensive
+  as a filler word`.
+
+  ### Verify before you report a phase as done
+
+  Run `sei-writing-lint <path>` on each artifact a phase produced, before
+  you report that phase as done. Fix what it reports.
+
+  A finding names a rule. A rule names a clause. If you disagree with a
+  finding, say which rule and why. Never silence a rule to make the output
+  pass.
+
+  The gate reads patterns in finished text. It cannot read meaning, so it
+  cannot tell you that a requirement misses the problem. Exit code 0 means
+  "no finding at or above the gate", not "correct".
+
   ## The work is only real once it is pushed
 
   The sandbox is ephemeral. The conversation is retained by the server, the files
