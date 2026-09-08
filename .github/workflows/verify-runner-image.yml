@@ -24,6 +24,7 @@ on:
       - 'scripts/managed-settings.json'
       - 'writing/styles/**'
       - 'writing/templates/consumer.vale.ini'
+      - 'writing/templates/spec-template.md'
       - 'scripts/sei-writing-lint'
       - '.github/workflows/verify-runner-image.yml'
   workflow_dispatch:
