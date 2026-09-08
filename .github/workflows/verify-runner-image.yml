@@ -131,6 +131,10 @@ jobs:
           - **FR-001**: The system must write a record.
           EOF
           cp writing/templates/spec-template.md /tmp/caller/specs/002-template/spec.md
+          # The bind mount is owned by the host uid, so the symlinks are made here
+          # rather than by the sandbox user inside the container.
+          ln -s /etc /tmp/caller/escape
+          ln -s specs/001-fixture /tmp/caller/alias
           docker run --rm --user 1000660000:1000660000 --network none \
             --tmpfs /home/omnigent:exec,mode=1777 -e HOME=/home/omnigent \
             -v /tmp/caller:/workspace \
@@ -156,7 +160,17 @@ jobs:
               sei-writing-lint specs/002-template/spec.md >/dev/null 2>&1 || {
                 echo "FAIL: the Spec Kit template does not pass the gate it is linted by"
                 sei-writing-lint specs/002-template/spec.md; exit 1; }
-              echo "writing-gate-ok $(vale --version), offline, spec scope firing"
+              # Containment is decided on the resolved directory, so a symlink cannot
+              # carry an out-of-tree file in, and cannot drop an in-tree spec out of
+              # the spec scope. Both directions are silent when they regress.
+              sei-writing-lint escape/hostname >/dev/null 2>&1 && {
+                echo "FAIL: a symlink resolving outside the root was linted anyway"; exit 1; }
+              out="$(sei-writing-lint alias/spec.md 2>&1)" && {
+                echo "FAIL: known-bad spec passed through an in-tree symlinked directory"; exit 1; }
+              printf %s "$out" | grep -q "RFC2119-Keywords" || {
+                echo "FAIL: the spec scope did not survive an in-tree symlinked directory"
+                echo "$out"; exit 1; }
+              echo "writing-gate-ok $(vale --version), offline, spec scope firing, symlinks contained"
             '
 
       - name: A failed copy withholds the marker instead of latching a half-seed

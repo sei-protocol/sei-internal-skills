@@ -156,6 +156,12 @@ findings and exits 0. The wrapper normalises the path first.
 `writing/docs/adr/0003-the-writing-contract-reaches-a-bundle-through-its-prompt.md`
 records the decision and the measurements behind it.
 
+**Nothing yet measures whether the agent runs the gate.**
+`.github/workflows/verify-runner-image.yml` proves the gate is reachable and correct
+offline in a sandbox. It cannot show that the agent runs `sei-writing-lint` before it
+reports a phase as done. Until a session demonstrates that, the instruction in the
+prompt is an anchor and not a control.
+
 ## Sandboxing Comes From The Deploy, Not This Bundle
 
 The bundle sets `os_env.type: caller_process` and deliberately declares no sandbox,

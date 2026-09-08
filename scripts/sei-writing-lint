@@ -44,8 +44,10 @@ fi
 # differs from the caller unless `safe.directory` names it, and an empty answer
 # falling back to $PWD is the silent under-check at the top of this file.
 root="${SEI_WRITING_ROOT:-}"
-if [ -z "$root" ]; then
-  probe="$PWD"
+if [ -n "$root" ]; then
+  root="$(cd -P "$root" 2>/dev/null && pwd -P || true)"
+else
+  probe="$(pwd -P)"
   while [ "$probe" != "/" ]; do
     if [ -e "$probe/.git" ]; then
       root="$probe"
@@ -55,21 +57,35 @@ if [ -z "$root" ]; then
   done
 fi
 if [ -z "$root" ]; then
-  echo "sei-writing-lint: no .git above $PWD, so the contract has no root to scope to." >&2
+  if [ -n "${SEI_WRITING_ROOT:-}" ]; then
+    echo "sei-writing-lint: SEI_WRITING_ROOT=$SEI_WRITING_ROOT is not a directory." >&2
+  else
+    echo "sei-writing-lint: no .git above $(pwd -P), so the contract has no root to scope to." >&2
+  fi
   echo "Which rules run depends on a path relative to the repository root. Run this" >&2
   echo "inside the clone, or set SEI_WRITING_ROOT to the tree the paths are under." >&2
   exit 3
 fi
 
+# Resolve each directory physically, and never the final component. A symlinked
+# directory can sit textually under the root and resolve outside it, which would lint
+# an out-of-tree file with this repository's rules. Resolving the leaf as well would
+# re-scope a `spec.md` symlinked from elsewhere down to the prose rules.
 rel=()
 for arg in "$@"; do
   if [ ! -e "$arg" ]; then
     echo "sei-writing-lint: no such path: $arg" >&2
     exit 2
   fi
-  abs="$(cd "$(dirname "$arg")" && pwd)/$(basename "$arg")"
-  case "$abs/" in
-    "$root"/*) rel+=("$(realpath --relative-to="$root" "$abs")") ;;
+  dir="$(cd -P "$(dirname "$arg")" && pwd -P)"
+  case "$dir/" in
+    "$root"/)
+      rel+=("$(basename "$arg")")
+      ;;
+    "$root"/*)
+      sub="${dir#"$root"/}"
+      rel+=("$sub/$(basename "$arg")")
+      ;;
     *)
       echo "sei-writing-lint: $arg is outside $root." >&2
       echo "The contract scopes rules by directory, so a path outside the repository" >&2
