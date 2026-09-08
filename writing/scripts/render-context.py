@@ -8,10 +8,8 @@ CONTEXT.md is the short form an agent loads: the anchors, named, with nothing el
 CONTRACT.md is the long form a person reads, and a person writes it by hand.
 
 The `bundle-prompt` target renders one section of an Omnigent bundle prompt. A bundle
-carries no file the host reads, so its prompt is the only text that reaches the model,
-and the contract has to sit inside that prompt as literal words. Generating it from the
-registry is what keeps the third copy of the contract in step with the other two.
-writing/scripts/check-bundle-prompt.sh holds config.yaml to this output.
+carries no file the host reads, so its prompt is the only text that reaches the model.
+writing/scripts/check-bundle-prompt.sh holds agents/sei-spec/config.yaml to this output.
 
 Usage:
     python3 writing/scripts/render-context.py --target agents > writing/CONTEXT.md
@@ -58,8 +56,6 @@ VERIFY = [
 
 WIDTH = 90
 
-# The bundle prompt. Everything below serves the `bundle-prompt` target.
-#
 # PROMPT_WIDTH is narrower than WIDTH because the output nests two spaces inside a
 # YAML block scalar, and the surrounding prompt wraps at 78 columns.
 PROMPT_WIDTH = 76
@@ -102,9 +98,8 @@ PROMPT_BANNED = [
     "comprehensive as a filler word",
 ]
 
-# The gate, not a hint. `sei-writing-lint` wraps Vale with the baked rules and the
-# flags, and Dockerfile.runner puts both on every runner. State the residue too:
-# Principle V of writing/CONTRACT.md asks every anchor to carry what it misses.
+# The last bullet is the residue: Principle V of writing/CONTRACT.md asks every
+# anchor to state what it misses.
 PROMPT_VERIFY = [
     "Run `sei-writing-lint <path>` on each artifact a phase produced, before you "
     "report that phase as done. Fix what it reports.",
@@ -148,10 +143,6 @@ def agents(reg):
 
 def bundle_prompt(reg):
     """One section of an Omnigent bundle prompt, indented for a YAML block scalar.
-
-    Three parts, in the order a reader needs them: the normative language a
-    requirement carries, the anchors, and the gate. The banned list sits with the
-    anchors because ASD-STE100 diction is what it serves.
 
     The anchor bullets come from the same `context` blocks CONTEXT.md renders, so a
     registry edit reaches the bundle and the context file together.

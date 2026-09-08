@@ -215,12 +215,14 @@ left to be rediscovered.
 
 ## Preconditions Outside This Directory
 
-- **The `specify` CLI in the runner image.** The agent scaffolds `.specify/` when a
-  repository lacks it, and cannot without the CLI. The host image
+- **The `specify` CLI, which the runner overlay installs.** The agent scaffolds
+  `.specify/` when a repository lacks it, and cannot without the CLI. The host image
   (`deploy/docker/Dockerfile.sei --target host` in the `bdchatham/omnigent` fork)
-  carries git, `gh`, and the credential bridge, but not `specify`. It should be added
-  with a pinned version, the same way `gh` and the other CLIs in that image are pinned
-  and checksum-verified.
+  carries git, `gh`, and the credential bridge, but not `specify`. `Dockerfile.runner`
+  in this repository installs `specify-cli==0.15.0` into its own venv and asserts the
+  version. The version is immutable on PyPI, but the transitive closure resolves fresh
+  on each build. That is a weaker control than the checksum verification the other
+  CLIs in that image carry.
 - **A git token that can push and open pull requests.** The runner image's credential
   bridge reads a rotating token from `/mnt/secrets/git/token` and exports it for both
   git and `gh`. Read-only scope is enough for `xreview`, which never writes. It is not

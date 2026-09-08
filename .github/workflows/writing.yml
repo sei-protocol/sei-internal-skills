@@ -134,11 +134,6 @@ jobs:
             echo "writing/CONTEXT.md is stale. Run writing/scripts/render-context.py."
             exit 1; }
 
-      # The sei-spec bundle prompt is a third copy of the contract, and the only
-      # one Vale cannot reach by itself: it reads Markdown and lints no YAML, so
-      # `vale agents/sei-spec/config.yaml` reports zero findings in zero files.
-      # An Omnigent bundle takes no guidelines file, so that prompt is the whole
-      # delivery path. This diffs it against the registry and lints the text.
       - name: The sei-spec bundle prompt matches the registry, and passes Vale
         run: ./writing/scripts/check-bundle-prompt.sh
 

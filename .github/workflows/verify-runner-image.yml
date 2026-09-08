@@ -22,8 +22,6 @@ on:
       - 'runner-base.txt'
       - '.claude/**'
       - 'scripts/managed-settings.json'
-      # The writing contract's gate is baked into this image, so a rule edit
-      # changes what a runner enforces and has to rebuild it.
       - 'writing/styles/**'
       - 'writing/templates/consumer.vale.ini'
       - 'scripts/sei-writing-lint'
@@ -46,11 +44,8 @@ jobs:
         # `sandbox` user at the provider's _RUN_AS_UID, python3 for the specify venv,
         # and flock. Public base, so no registry credentials are needed.
         #
-        # curl, ca-certificates and git are in the real base's own apt list. They are
-        # here because the Vale layer fetches a release asset and the lint wrapper asks
-        # git for the repository root. Adding a package the real base lacks would make
-        # this gate pass on a build the fleet cannot reproduce, so keep this list a
-        # subset of the base's.
+        # Keep the apt list a subset of the real base's: a package the base lacks
+        # would make this gate pass on a build the fleet cannot reproduce.
         run: |
           set -euo pipefail
           cat > /tmp/Dockerfile.stub <<'EOF'
@@ -120,28 +115,13 @@ jobs:
             '
 
       - name: The writing contract's gate runs in a sandbox, offline
-        # `sei-spec`'s prompt tells the agent to lint every artifact it writes. That
-        # instruction is a hint unless the gate is reachable where the agent runs, so
-        # this asserts reachability rather than presence.
-        #
-        # --network none is the point of the test, not caution. The rules declare
-        # third-party packages that no checkout carries; `vale sync` runs at image
-        # build so the sandbox needs no egress. Without that bake, Vale stops on a
-        # missing style, which reads as a broken configuration rather than as a
-        # finding — and an agent told to lint would report the prose as checked.
-        #
-        # THE KNOWN-BAD FIXTURE IS THE ASSERTION. A `command -v vale` proves a binary
-        # exists, not that the spec rules load and fire. The fixture carries a
-        # lowercase `must`, which only the spec scope reports, so a rule set that
-        # failed to load or a scope that stopped matching fails here.
         timeout-minutes: 4
         run: |
           set -euo pipefail
           rm -rf /tmp/caller
           mkdir -p /tmp/caller/specs/001-fixture /tmp/caller/specs/002-template
-          # A sandbox workspace is a clone, and the wrapper walks up for `.git` to find
-          # the root the mode globs are relative to. An empty marker is enough: it
-          # reads the filesystem, not the repository.
+          # The wrapper walks up for `.git` to find the root the mode globs are
+          # relative to, so an empty marker is enough: it reads the filesystem.
           mkdir -p /tmp/caller/.git
           cat > /tmp/caller/specs/001-fixture/spec.md <<'EOF'
           # Feature Specification: Fixture
@@ -160,11 +140,9 @@ jobs:
               command -v sei-writing-lint >/dev/null || { echo "FAIL: sei-writing-lint absent"; exit 1; }
               command -v specify >/dev/null || { echo "FAIL: specify CLI lost to the Vale layer"; exit 1; }
               cd /workspace
-              # WHICH RULES RUN DEPENDS ON THE PATH. Vale matches the mode globs against
-              # the argument, so the same file linted from its own directory, or by
-              # absolute path, reports 0 errors and exits 0. The wrapper normalises all
-              # three to a root-relative path; each form is asserted because a
-              # regression here is green and silent.
+              # Vale matches the mode globs against the argument, so the same file
+              # linted by absolute path, or from its own directory, reports 0 errors
+              # and exits 0. Each form is asserted because that regression is green.
               for form in "specs/001-fixture/spec.md" "/workspace/specs/001-fixture/spec.md"; do
                 out="$(sei-writing-lint "$form" 2>&1)" && {
                   echo "FAIL: known-bad spec passed via $form"; echo "$out"; exit 1; }
@@ -175,8 +153,6 @@ jobs:
               ( cd specs/001-fixture \
                 && out="$(sei-writing-lint spec.md 2>&1)" && { echo "FAIL: known-bad spec passed from its own directory"; exit 1; }
                 printf %s "$out" | grep -q "RFC2119-Keywords" || { echo "FAIL: RFC 2119 rule did not fire from the feature directory"; exit 1; } ) || exit 1
-              # The clean case. A gate that fails everything is as useless as one that
-              # passes everything, and this is the template every spec starts from.
               sei-writing-lint specs/002-template/spec.md >/dev/null 2>&1 || {
                 echo "FAIL: the Spec Kit template does not pass the gate it is linted by"
                 sei-writing-lint specs/002-template/spec.md; exit 1; }

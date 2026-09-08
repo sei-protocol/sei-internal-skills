@@ -1,25 +1,7 @@
 #!/usr/bin/env bash
-# The sei-spec bundle prompt carries the writing contract. This holds it to the registry.
-#
-# WHY A THIRD COPY EXISTS AT ALL. An Omnigent bundle has no guidelines file and no
-# skill the host resolves: `agents/sei-spec/config.yaml` names `skills: none`, and its
-# prompt is the only text that reaches the model. So the contract sits inside that
-# prompt as literal words, beside CONTRACT.md and CONTEXT.md. Generation is what keeps
-# the three in step, and this gate is what makes generation binding.
-#
-# Two assertions, because the copy can fail two ways:
-#
-#   1. DRIFT. The section in config.yaml matches
-#      `render-context.py --target bundle-prompt` byte for byte. A hand edit here is
-#      worse than a hand-written prompt: a registry change silently reverts it, and a
-#      paraphrase weakens the contract while still reading like it.
-#   2. UNCHECKED PROSE. Vale reads Markdown and lints no YAML at all, so a prompt is
-#      the one artifact in this repository that states the contract and sits outside
-#      every check of it. This lints the rendered section as the Markdown it is.
-#
-# Vale needs the section dedented. Two spaces of YAML block-scalar indent make the
-# whole thing an indented code block, which Vale reads as code and skips in silence —
-# a green run over nothing.
+# The sei-spec bundle prompt carries the writing contract. This diffs it against the
+# registry and lints it. Vale reads Markdown and lints no YAML at all, so
+# `vale agents/sei-spec/config.yaml` reports zero findings in zero files.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -31,8 +13,8 @@ trap 'rm -rf "$work"' EXIT
 
 python3 "$ROOT/writing/scripts/render-context.py" --target bundle-prompt > "$work/want.txt"
 
-# The heading delimits the section, so the prompt needs no sentinel comment. A YAML
-# comment cannot sit inside a block scalar: it would reach the model as literal text.
+# A sentinel comment inside a YAML block scalar would reach the model as literal
+# text, so the heading is what delimits the section.
 HEADING="$HEADING" python3 - "$CONFIG" > "$work/have.txt" <<'PY'
 import os, sys
 heading = os.environ["HEADING"]
@@ -59,6 +41,8 @@ if ! diff -u "$work/want.txt" "$work/have.txt"; then
   exit 1
 fi
 
+# Two spaces of block-scalar indent make the whole section an indented code block,
+# which Vale reads as code and skips in silence.
 sed 's/^  //' "$work/want.txt" > "$work/section.md"
 if ! vale --no-global --config="$ROOT/.vale.ini" --minAlertLevel=error "$work/section.md"; then
   echo

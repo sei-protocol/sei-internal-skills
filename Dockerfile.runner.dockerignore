@@ -6,18 +6,12 @@
 !.claude/agents
 !.claude/skills
 !scripts/managed-settings.json
-
-# The writing contract's gate. `writing/styles` is 144K of rule files, and only the
-# rules, one configuration template and the wrapper are re-included: the evals,
-# fixtures and documentation beside them are a person's inputs, not a runner's.
 !writing/styles
 !writing/templates/consumer.vale.ini
 !scripts/sei-writing-lint
 
-# Vale fetches the third-party packages into the styles tree and .gitignore excludes
-# them, so a checkout does not carry them. `vale sync` in Dockerfile.runner puts them
-# in the image. Keeping a locally synced copy out of the context makes the built image
-# identical whether or not the builder had run Vale.
+# A local `vale sync` leaves write-good in the styles tree and .gitignore hides it, so
+# excluding it makes the image identical whether or not the builder had run Vale.
 writing/styles/write-good
 
 # Per-skill scratch state is gitignored; keep it out of the image layer too.
