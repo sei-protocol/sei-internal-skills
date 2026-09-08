@@ -134,6 +134,9 @@ jobs:
             echo "writing/CONTEXT.md is stale. Run writing/scripts/render-context.py."
             exit 1; }
 
+      - name: The sei-spec bundle prompt matches the registry, and passes Vale
+        run: ./writing/scripts/check-bundle-prompt.sh
+
       # The coverage manifest says what each anchor actually checks. A claim
       # nobody verifies is how one anchor came to credit rules that check
       # something else, so the manifest is enforced rather than trusted.

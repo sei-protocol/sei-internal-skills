@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# Lint prose against the writing contract, inside a sandbox. Installed on every
+# runner by Dockerfile.runner as /usr/local/bin/sei-writing-lint.
+#
+#   sei-writing-lint specs/001-my-feature
+#   sei-writing-lint specs/001-my-feature/spec.md docs/adr/0003-thing.md
+#
+# It finds the repository root itself, so the working directory does not matter.
+#
+# Exit 1 on an error-level finding, 2 on a usage or path error, 3 when the rules or
+# the repository root are missing. Vale exits 0 on a warning at any --minAlertLevel.
+#
+# NOT PART OF --help, from here down.
+#
+# WHICH RULES RUN DEPENDS ON THE PATH VALE IS GIVEN, not on the file it ends up
+# reading. `.vale.ini` turns the spec rules on for `specs/**/spec.md` and Vale matches
+# that glob against the argument. One specification carrying a lowercase `must` and
+# four missing sections: from the root by relative path, 5 errors, exit 1; by absolute
+# path, 0 errors, exit 0; from its own directory, 0 errors, exit 0. Hence the
+# normalising below, and ADR 0003 for the rest.
+set -euo pipefail
+
+CONFIG="${SEI_WRITING_VALE_CONFIG:-/opt/sei/writing/vale.ini}"
+
+usage() {
+  awk 'NR==1 {next} /^# NOT PART OF --help/ {exit} {sub(/^# ?/, ""); print}' \
+    "${BASH_SOURCE[0]}"
+}
+
+if [ $# -eq 0 ] || [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  usage
+  [ $# -eq 0 ] && exit 2
+  exit 0
+fi
+
+if [ ! -f "$CONFIG" ]; then
+  echo "sei-writing-lint: no rules at $CONFIG." >&2
+  echo "This runner image was built without the writing contract. Do not report the" >&2
+  echo "prose as checked; say the gate was unavailable." >&2
+  exit 3
+fi
+
+# Walk up for `.git` rather than ask git: git refuses a repository whose owner
+# differs from the caller unless `safe.directory` names it, and an empty answer
+# falling back to $PWD is the silent under-check at the top of this file.
+root="${SEI_WRITING_ROOT:-}"
+if [ -n "$root" ]; then
+  root="$(cd -P "$root" 2>/dev/null && pwd -P || true)"
+else
+  probe="$(pwd -P)"
+  while [ "$probe" != "/" ]; do
+    if [ -e "$probe/.git" ]; then
+      root="$probe"
+      break
+    fi
+    probe="$(dirname "$probe")"
+  done
+fi
+if [ -z "$root" ]; then
+  if [ -n "${SEI_WRITING_ROOT:-}" ]; then
+    echo "sei-writing-lint: SEI_WRITING_ROOT=$SEI_WRITING_ROOT is not a directory." >&2
+  else
+    echo "sei-writing-lint: no .git above $(pwd -P), so the contract has no root to scope to." >&2
+  fi
+  echo "Which rules run depends on a path relative to the repository root. Run this" >&2
+  echo "inside the clone, or set SEI_WRITING_ROOT to the tree the paths are under." >&2
+  exit 3
+fi
+
+# Resolve each directory physically, and never the final component. A symlinked
+# directory can sit textually under the root and resolve outside it, which would lint
+# an out-of-tree file with this repository's rules. Resolving the leaf as well would
+# re-scope a `spec.md` symlinked from elsewhere down to the prose rules.
+rel=()
+for arg in "$@"; do
+  if [ ! -e "$arg" ]; then
+    echo "sei-writing-lint: no such path: $arg" >&2
+    exit 2
+  fi
+  dir="$(cd -P "$(dirname "$arg")" && pwd -P)"
+  case "$dir/" in
+    "$root"/)
+      rel+=("$(basename "$arg")")
+      ;;
+    "$root"/*)
+      sub="${dir#"$root"/}"
+      rel+=("$sub/$(basename "$arg")")
+      ;;
+    *)
+      echo "sei-writing-lint: $arg is outside $root." >&2
+      echo "The contract scopes rules by directory, so a path outside the repository" >&2
+      echo "would be checked for prose only. Move it in, or lint from its own root." >&2
+      exit 2
+      ;;
+  esac
+done
+
+cd "$root"
+exec vale --no-global --config="$CONFIG" --minAlertLevel=warning "${rel[@]}"

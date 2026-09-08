@@ -27,6 +27,9 @@ on:
       - 'runner-base.txt'
       - '.claude/**'
       - 'scripts/managed-settings.json'
+      - 'writing/styles/**'
+      - 'writing/templates/consumer.vale.ini'
+      - 'scripts/sei-writing-lint'
   workflow_dispatch:
     inputs:
       tag:

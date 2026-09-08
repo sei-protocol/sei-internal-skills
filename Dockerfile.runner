@@ -41,6 +41,33 @@ RUN python3 -m venv /opt/specify \
  && ln -s /opt/specify/bin/specify /usr/local/bin/specify \
  && specify --version 2>&1 | grep -q "${SPECIFY_VERSION}"
 
+# VALE_VERSION is a floor shared with .github/workflows/writing.yml: on 3.14.0 a
+# `sequence` whose tokens are all `tag:` entries matches nothing and disables a rule
+# in silence. The asset is amd64. On another architecture the checksum and the extract
+# both pass and `vale --version` fails to exec, so the build stops here.
+ARG VALE_VERSION=3.17.1
+ARG VALE_SHA256=db947f89f2292e6a0381a61de155f6a5f5cb4cb460ca178ea412ef605559cefd
+RUN curl -sfL --retry 3 --retry-all-errors --max-time 180 -o /tmp/vale.tgz \
+      "https://github.com/vale-cli/vale/releases/download/v${VALE_VERSION}/vale_${VALE_VERSION}_Linux_64-bit.tar.gz" \
+ && echo "${VALE_SHA256}  /tmp/vale.tgz" | sha256sum -c - \
+ && tar -xz -C /usr/local/bin -f /tmp/vale.tgz vale \
+ && rm /tmp/vale.tgz \
+ && vale --version
+
+COPY writing/styles /opt/sei/writing/styles
+COPY writing/templates/consumer.vale.ini /opt/sei/writing/vale.ini
+COPY scripts/sei-writing-lint /usr/local/bin/sei-writing-lint
+
+# `sed -i` exits 0 when it matches nothing, so the grep is the assertion: a renamed
+# key would leave StylesPath relative, and Vale would then resolve the styles against
+# the agent's working directory and report no findings on prose the contract rejects.
+RUN sed -i 's|^StylesPath = .*|StylesPath = /opt/sei/writing/styles|' /opt/sei/writing/vale.ini \
+ && grep -qx 'StylesPath = /opt/sei/writing/styles' /opt/sei/writing/vale.ini \
+ && vale --config=/opt/sei/writing/vale.ini sync \
+ && chmod 0755 /usr/local/bin/sei-writing-lint \
+ && chmod -R a+rX /opt/sei/writing \
+ && vale --no-global --config=/opt/sei/writing/vale.ini ls-config > /dev/null
+
 # The overlay, staged outside $HOME per the note above. Scoped to `agents/` and
 # `skills/` by Dockerfile.runner.dockerignore; `settings.json` is deliberately not
 # shipped, see that file.

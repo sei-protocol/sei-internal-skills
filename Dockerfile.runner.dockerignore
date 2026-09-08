@@ -1,10 +1,18 @@
-# Build context is exactly what a runner needs: the `.claude` overlay and the admin
-# policy. Exclude everything, then re-include only those, so the context stays small
-# and a new top-level directory in the repo cannot silently enlarge the image.
+# Build context is exactly what a runner needs: the `.claude` overlay, the admin
+# policy, and the writing contract's rules. Exclude everything, then re-include only
+# those, so the context stays small and a new top-level directory in the repo cannot
+# silently enlarge the image.
 *
 !.claude/agents
 !.claude/skills
 !scripts/managed-settings.json
+!writing/styles
+!writing/templates/consumer.vale.ini
+!scripts/sei-writing-lint
+
+# A local `vale sync` leaves write-good in the styles tree and .gitignore hides it, so
+# excluding it makes the image identical whether or not the builder had run Vale.
+writing/styles/write-good
 
 # Per-skill scratch state is gitignored; keep it out of the image layer too.
 .claude/skills/*/state

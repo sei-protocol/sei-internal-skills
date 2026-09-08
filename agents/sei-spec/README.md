@@ -130,6 +130,38 @@ in the runner image. Note that `specify init` also writes `.claude/skills/specki
 into the repository, which is inert for this agent because `skills: none` suppresses
 host scope, and useful to anyone running Claude Code in that repo directly.
 
+## The Writing Contract, Stated In The Prompt And Gated In The Sandbox
+
+A specification is prose, so `AGENTS.md` Lane 1 and Lane 2 both govern what this agent
+writes. The prompt carries the contract in a section headed `## Hold every artifact to
+the writing contract`, covering three parts: the normative language a requirement
+carries, the eight anchors, and the banned list.
+
+**The generator owns that section. Do not edit it here.** It comes from
+`writing/anchors/registry.yaml` through
+`writing/scripts/render-context.py --target bundle-prompt`, the same source
+`writing/CONTEXT.md` renders from. `writing/scripts/check-bundle-prompt.sh` diffs the
+section against the generator and lints the rendered text, so a hand edit fails CI.
+
+A prompt is a hint on its own, so the gate ships with it. `Dockerfile.runner` installs
+Vale and bakes the rules, and `sei-writing-lint <path>` runs them offline inside the
+sandbox. The prompt tells the agent to run it on each artifact before it reports a
+phase as done.
+
+Use the wrapper rather than `vale` directly. Which rules run depends on the path Vale
+receives. `.vale.ini` scopes the spec rules to `specs/**/spec.md`, and Vale matches
+that glob against the argument rather than against the file it opens. The same
+specification linted by absolute path, or from its own directory, therefore reports no
+findings and exits 0. The wrapper normalises the path first.
+`writing/docs/adr/0003-the-writing-contract-reaches-a-bundle-through-its-prompt.md`
+records the decision and the measurements behind it.
+
+**Nothing yet measures whether the agent runs the gate.**
+`.github/workflows/verify-runner-image.yml` proves the gate is reachable and correct
+offline in a sandbox. It cannot show that the agent runs `sei-writing-lint` before it
+reports a phase as done. Until a session demonstrates that, the instruction in the
+prompt is an anchor and not a control.
+
 ## Sandboxing Comes From The Deploy, Not This Bundle
 
 The bundle sets `os_env.type: caller_process` and deliberately declares no sandbox,
@@ -189,12 +221,14 @@ left to be rediscovered.
 
 ## Preconditions Outside This Directory
 
-- **The `specify` CLI in the runner image.** The agent scaffolds `.specify/` when a
-  repository lacks it, and cannot without the CLI. The host image
+- **The `specify` CLI, which the runner overlay installs.** The agent scaffolds
+  `.specify/` when a repository lacks it, and cannot without the CLI. The host image
   (`deploy/docker/Dockerfile.sei --target host` in the `bdchatham/omnigent` fork)
-  carries git, `gh`, and the credential bridge, but not `specify`. It should be added
-  with a pinned version, the same way `gh` and the other CLIs in that image are pinned
-  and checksum-verified.
+  carries git, `gh`, and the credential bridge, but not `specify`. `Dockerfile.runner`
+  in this repository installs `specify-cli==0.15.0` into its own venv and asserts the
+  version. The version is immutable on PyPI, but the transitive closure resolves fresh
+  on each build. That is a weaker control than the checksum verification the other
+  CLIs in that image carry.
 - **A git token that can push and open pull requests.** The runner image's credential
   bridge reads a rotating token from `/mnt/secrets/git/token` and exports it for both
   git and `gh`. Read-only scope is enough for `xreview`, which never writes. It is not
