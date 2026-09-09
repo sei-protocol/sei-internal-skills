@@ -175,29 +175,31 @@ If `kubectl get kustomization <alias> -n eng-<alias>` returns `NotFound`, the on
 
 A Flux reconcile reports success once it issues the deletes. Deletion is asynchronous and finalizers hold objects in `Terminating` while the controller releases their PVCs, so poll rather than assert once.
 
-**Three outcomes — `GONE`, `PRESENT`, `UNVERIFIED` — and a failed API read is never a pass.** A `Forbidden`, an expired credential, or a dropped connection returns zero lines, so a check that counts lines without reading `kubectl`'s exit status prints "gone" exactly when it cannot see the cluster. Capture the status separately.
+**This block is the only verification code in this skill.** `verify_teardown` is the single entry point: every teardown — one chain, a whole namespace, a bench — calls it and reads its return value. Nothing re-implements the orchestration, because the one defect this whole procedure exists to prevent ("report success when the check could not actually look") has repeatedly survived by reappearing in a second copy of the orchestration one layer up. One copy is the control for that.
 
-**This block is the one implementation.** `teardown.md` calls it rather than restating it; two copies of a verification routine drift, and the copy that drifts is the one that stops catching leaks.
+Written for a portable shell (`dash`, `ash`, `bash`). Three deliberate non-POSIX dependencies, all near-universal: `date +%s`, `mktemp -d`, and `kubectl`'s own flags. Bash's `SECONDS` is *not* usable — it is unset under `sh`, where the comparison dies with `Illegal number` and the loop never runs.
 
-Written for a portable shell (`dash`, `ash`, `bash`). One deliberate non-POSIX dependency: `date +%s` is a near-universal extension, not a specified `date` format — substitute an equivalent epoch source if you meet a `date` without it. Bash's `SECONDS` is *not* usable here: it is unset under `sh`, where the comparison dies with `Illegal number` and the loop never runs.
+**Three rules hold everywhere below.** Each corresponds to a defect found while reviewing this document, and fixed before it merged. None of them ever ran against a cluster. They are recorded because each would have shipped a verifier that passes when it cannot see the cluster, and because the same defect class kept reappearing until the rule was written down:
 
-**Three rules hold everywhere in this block**, and each one is a bug that reached production in this file before it was a rule:
-
-1. **stderr never mixes with resource output.** `2>&1` merges API deprecation warnings into the result, and a routine like "count the non-empty lines" then treats one warning line as one resource. That makes an absent claim report as preserved, and an empty result report as present.
-2. **Names are matched, not counted.** A count says how many lines came back, not whether the resources you asked about are the ones that came back.
-3. **Every command that can fail is run inside a condition.** Under `set -e` a bare `out=$(kubectl …)` terminates the shell at the assignment — before the classification runs and before the caller records anything.
+1. **stderr never mixes with resource output.** `2>&1` merges API deprecation warnings into the result, and "count the non-empty lines" then treats one warning as one resource.
+2. **Identities are matched, not counted.** A count says how many lines came back, not whether the resources you asked about are the ones that came back.
+3. **Every command that can fail runs inside a condition.** Under `set -e` a bare `out=$(kubectl …)` terminates the shell at the assignment — before classification, and before the caller records anything.
 
 ```sh
-# ---- verdict aggregation -------------------------------------------------
-# Worst outcome wins, and no later success clears an earlier failure:
-#   0 GONE/PRESERVED  <  1 PRESENT/MISSING  <  2 UNVERIFIED
+# ============ harbor teardown verification library ========================
+# Source this, then call verify_teardown. Do not copy pieces of it.
+
+# Worst outcome wins:  0 VERIFIED/GONE  <  1 INCOMPLETE/PRESENT  <  2 UNVERIFIED
 VERDICT=0
 record() { if [ "$1" -gt "$VERDICT" ]; then VERDICT=$1; fi; }
 
-# Per-process stderr sink. `mktemp` is not POSIX either; $$ is enough here.
-ERRF="${TMPDIR:-/tmp}/harbor-verify.$$.err"
+# Private 0700 temp dir, removed on exit. A fixed /tmp path can be pre-created
+# as a symlink by another user, and the stderr redirect then truncates whatever
+# it points at.
+VERIFY_TMP=$(mktemp -d) || { echo 'UNVERIFIED: cannot create temp dir'; exit 2; }
+trap 'rm -rf "$VERIFY_TMP"' EXIT INT TERM
+ERRF="$VERIFY_TMP/err"
 
-# Emit any API warnings without ever letting them reach a counted stream.
 _note_stderr() {
   if [ -s "$ERRF" ]; then
     printf 'note: API wrote to stderr (not counted as resources):\n' >&2
@@ -205,125 +207,169 @@ _note_stderr() {
   fi
 }
 
-# ---- poll a set of resources to gone -------------------------------------
-# usage: poll_gone <kind[,kind...]> <extra kubectl args...>
-#   by selector:  poll_gone seinetwork,seinode -l sei.io/seinetwork=<chain-id>
-#   by name:      poll_gone pvc --ignore-not-found <name>...
-# --ignore-not-found is REQUIRED with explicit names: without it a deleted
-# resource returns NotFound and a nonzero exit, and the success condition
-# would report as UNVERIFIED.
-poll_gone() {
-  res=$1; shift
-  deadline=$(( $(date +%s) + 300 ))
-  while : ; do
-    if out=$(kubectl --context harbor get "$res" -n eng-<alias> "$@" -o name 2>"$ERRF")
-    then rc=0; else rc=$?; fi
-    if [ "$rc" -ne 0 ]; then
-      printf 'UNVERIFIED: %s read failed (exit %s) — NOT confirmed\n' "$res" "$rc"
-      _note_stderr; return 2
-    fi
-    _note_stderr
-    # stdout only, and only lines that look like a resource id.
-    left=$(printf '%s\n' "$out" | grep -c '^[a-z][a-z0-9.-]*/' || true)
-    if [ "$left" -eq 0 ]; then printf 'GONE: no %s matches\n' "$res"; return 0; fi
-    if [ "$(date +%s)" -ge "$deadline" ]; then
-      printf 'PRESENT at deadline: %s %s\n%s\n' "$left" "$res" "$out"; return 1
-    fi
-    echo "$left $res remain"; sleep 10
-  done
-}
-
-# ---- assert the deliberately-preserved resources are still there ---------
-# The mirror of poll_gone, for imported PVCs. A MISSING imported claim is a
-# real finding: something deleted a volume the controller preserves by design.
-# usage: expect_present pvc <name>...
-# Matches the RETURNED IDENTITIES against the requested names. Counting lines
-# cannot tell "the claim you asked for" from "some other line of output".
-expect_present() {
-  kind=$1; shift
-  if [ "$#" -eq 0 ]; then echo 'expect_present: no names given'; return 2; fi
-  if out=$(kubectl --context harbor get "$kind" -n eng-<alias> --ignore-not-found \
-             "$@" -o name 2>"$ERRF")
-  then rc=0; else rc=$?; fi
-  if [ "$rc" -ne 0 ]; then
-    printf 'UNVERIFIED: %s read failed (exit %s) — preservation NOT confirmed\n' "$kind" "$rc"
-    _note_stderr; return 2
-  fi
-  _note_stderr
-  # `-o name` prints <fully-qualified-kind>/<name> (pvc -> persistentvolumeclaim/x),
-  # so compare on the bare name after the last slash.
-  got=$(printf '%s\n' "$out" | sed -n 's#^[a-z][a-z0-9.-]*/##p')
-  miss=0
-  for want in "$@"; do
-    if ! printf '%s\n' "$got" | grep -qxF -- "$want"; then
-      printf 'MISSING: %s/%s is absent — a preserved claim was deleted\n' "$kind" "$want"
-      miss=1
-    fi
-  done
-  if [ "$miss" -ne 0 ]; then return 1; fi
-  printf 'PRESERVED: every requested %s still present\n' "$kind"; return 0
-}
-```
-
-**Every call site records its outcome, and does so `set -e`-safely.** `poll_gone …; record $?` has two defects: under `set -e` a nonzero return terminates the script at the call, so `record` never runs; and when the argument list is built from a command substitution, `$?` is the helper's status and never the substitution's. Use an OR-list, and build argument lists in a separate, checked step.
-
-```sh
 # ---- read one inventory name list ----------------------------------------
-# THREE distinct states, because "the list is empty" and "the list is gone"
-# mean opposite things and an argument list cannot tell them apart:
+# THREE states, because "the list is empty" and "the list is gone" mean
+# opposite things and an argument list cannot tell them apart:
 #   0 -> readable, has entries (in $LIST)
-#   1 -> readable and legitimately empty (nothing of this class existed)
+#   1 -> readable and legitimately empty
 #   2 -> missing or unreadable: the inventory itself failed
-# Inlining `$(cat f)` into a helper's arguments collapses states 1 and 2 into
-# an empty argument list, and the helper then succeeds against an empty
-# namespace — losing the inventory reads as a clean teardown.
 read_inventory() {
-  f=$1; LIST=''
-  if [ ! -f "$f" ]; then
-    printf 'UNVERIFIED: inventory file missing: %s\n' "$f"; return 2
+  ri_f=$1; LIST=''
+  if [ ! -f "$ri_f" ]; then
+    printf 'UNVERIFIED: inventory file missing: %s\n' "$ri_f"; return 2
   fi
-  if LIST=$(cat -- "$f" 2>"$ERRF"); then :; else
-    printf 'UNVERIFIED: cannot read inventory file: %s\n' "$f"; _note_stderr; return 2
+  if LIST=$(cat -- "$ri_f" 2>"$ERRF"); then :; else
+    printf 'UNVERIFIED: cannot read inventory file: %s\n' "$ri_f"; _note_stderr; return 2
   fi
   if [ -z "$LIST" ]; then return 1; fi
   return 0
 }
 
-# ---- the teardown verification, in order ---------------------------------
-INV=./teardown-inventory
+# ---- poll a set of resources to gone -------------------------------------
+# usage: poll_gone <namespace> <kind[,kind...]> <extra kubectl args...>
+#   by selector:  poll_gone eng-x seinetwork,seinode,pod -l sei.io/seinetwork=c
+#   by name:      poll_gone eng-x persistentvolumeclaim --ignore-not-found n1 n2
+# --ignore-not-found is REQUIRED with explicit names: without it a deleted
+# resource returns NotFound and a nonzero exit, and the success condition
+# would report as UNVERIFIED.
+poll_gone() {
+  pg_ns=$1; pg_res=$2; shift 2
+  # 5 minutes by default. Raise it for an archive-scale finalizer; POLL_BUDGET
+  # also lets a test drive this function without waiting out the real budget.
+  pg_deadline=$(( $(date +%s) + ${POLL_BUDGET:-300} ))
+  while : ; do
+    if pg_out=$(kubectl --context harbor -n "$pg_ns" get "$pg_res" "$@" -o name 2>"$ERRF")
+    then pg_rc=0; else pg_rc=$?; fi
+    if [ "$pg_rc" -ne 0 ]; then
+      printf 'UNVERIFIED: %s read failed in %s (exit %s)\n' "$pg_res" "$pg_ns" "$pg_rc"
+      _note_stderr; return 2
+    fi
+    _note_stderr
+    pg_left=$(printf '%s\n' "$pg_out" | grep -c '^[a-z][a-z0-9.-]*/' || true)
+    if [ "$pg_left" -eq 0 ]; then printf 'GONE: no %s in %s\n' "$pg_res" "$pg_ns"; return 0; fi
+    if [ "$(date +%s)" -ge "$pg_deadline" ]; then
+      printf 'PRESENT at deadline: %s %s\n%s\n' "$pg_left" "$pg_res" "$pg_out"; return 1
+    fi
+    echo "$pg_left $pg_res remain"; sleep 10
+  done
+}
 
-# 0. The inventory must have declared itself complete. An incomplete inventory
-#    cannot support a "verified" verdict no matter what the polls say.
-rc=0; read_inventory "$INV/status" || rc=$?
-if [ "$rc" -ne 0 ] || [ "$LIST" != "OK" ]; then
-  echo 'UNVERIFIED: inventory incomplete or unreadable — see unresolved-nodes.txt'
-  record 2
-fi
+# ---- assert the deliberately-preserved resources are still there ---------
+# usage: expect_present <namespace> <singular-canonical-kind> <name>...
+# Pass the SINGULAR CANONICAL kind (persistentvolumeclaim, not pvc): `-o name`
+# prints `<singular-canonical-kind>/<name>`, so the full returned identity is
+# compared, kind included. A short alias would only match the name half.
+expect_present() {
+  ep_ns=$1; ep_kind=$2; shift 2
+  if [ "$#" -eq 0 ]; then echo 'expect_present: no names given'; return 2; fi
+  if ep_out=$(kubectl --context harbor -n "$ep_ns" get "$ep_kind" --ignore-not-found \
+                "$@" -o name 2>"$ERRF")
+  then ep_rc=0; else ep_rc=$?; fi
+  if [ "$ep_rc" -ne 0 ]; then
+    printf 'UNVERIFIED: %s read failed in %s (exit %s)\n' "$ep_kind" "$ep_ns" "$ep_rc"
+    _note_stderr; return 2
+  fi
+  _note_stderr
+  ep_miss=0
+  for ep_want in "$@"; do
+    if ! printf '%s\n' "$ep_out" | grep -qxF -- "$ep_kind/$ep_want"; then
+      printf 'MISSING: %s/%s absent in %s — a preserved claim was deleted\n' \
+        "$ep_kind" "$ep_want" "$ep_ns"
+      ep_miss=1
+    fi
+  done
+  if [ "$ep_miss" -ne 0 ]; then return 1; fi
+  printf 'PRESERVED: every requested %s still present\n' "$ep_kind"; return 0
+}
 
-rc=0; poll_gone seinetwork,seinode -l sei.io/seinetwork=<chain-id> || rc=$?; record "$rc"
-rc=0; poll_gone pods               -l sei.io/seinetwork=<chain-id> || rc=$?; record "$rc"
+# ---- THE one orchestration -----------------------------------------------
+# usage: verify_teardown <namespace> <kinds> <selector> <inventory-dir|->
+#   chain: verify_teardown eng-x seinetwork,seinode,pod sei.io/seinetwork=c ./inv-c
+#   bench: verify_teardown eng-x job,configmap,pod      sei.io/bench-name=r  -
+# Pass `-` for the inventory dir only where no PersistentVolumeClaim is in
+# scope (a bench dir holds a Job and a ConfigMap and nothing else).
+# Returns the worst outcome. Callers aggregate with `record`.
+VT_WORST=0
+_vt_worse() { if [ "$1" -gt "$VT_WORST" ]; then VT_WORST=$1; fi; }
 
-# PVCs BY NAME, never by namespace sweep: a sweep also matches imported claims
-# and other chains' claims, so a correct teardown would report PRESENT.
-rc=0; read_inventory "$INV/managed-claims.txt" || rc=$?
-case "$rc" in
-  0) prc=0; poll_gone pvc --ignore-not-found $LIST || prc=$?; record "$prc" ;;
-  1) echo 'NOTE: no controller-managed claims were inventoried — nothing to poll' ;;
-  2) record 2 ;;
-esac
+verify_teardown() {
+  vt_ns=$1; vt_kinds=$2; vt_sel=$3; vt_inv=$4
+  VT_WORST=0
 
-rc=0; read_inventory "$INV/imported-claims.txt" || rc=$?
-case "$rc" in
-  0) prc=0; expect_present pvc $LIST || prc=$?; record "$prc" ;;
-  1) echo 'NOTE: this chain imported no claims — nothing to preserve' ;;
-  2) record 2 ;;
-esac
+  if [ "$vt_inv" != "-" ]; then
+    # gate 0: the inventory must certify itself complete FOR THIS TARGET.
+    # A stale certificate from another chain, or from an earlier run of this
+    # one, must not authorize anything.
+    vt_rc=0; read_inventory "$vt_inv/status" || vt_rc=$?
+    if [ "$vt_rc" -ne 0 ]; then
+      printf 'UNVERIFIED: no readable completeness certificate in %s\n' "$vt_inv"
+      _vt_worse 2
+    elif [ "$LIST" != "OK $vt_ns $vt_sel" ]; then
+      printf 'UNVERIFIED: certificate does not match this target\n  want: OK %s %s\n  got:  %s\n' \
+        "$vt_ns" "$vt_sel" "$LIST"
+      _vt_worse 2
+    fi
 
-case "$VERDICT" in
-  0) echo 'TEARDOWN VERIFIED — every checked object reached its expected state' ;;
-  1) echo 'TEARDOWN INCOMPLETE — objects remain, or a preserved claim vanished' ;;
-  2) echo 'TEARDOWN UNVERIFIED — an API read failed; state unknown, do not report done' ;;
-esac
+    # gate 1: nodes the inventory could not resolve to any storage.
+    vt_rc=0; read_inventory "$vt_inv/unresolved-nodes.txt" || vt_rc=$?
+    case "$vt_rc" in
+      0) printf 'UNVERIFIED: inventory left SeiNodes with no resolved storage:\n%s\n' "$LIST"
+         _vt_worse 2 ;;
+      1) : ;;
+      2) _vt_worse 2 ;;
+    esac
+  fi
+
+  # The objects themselves. An EMPTY selector means "everything of these kinds
+  # in the namespace" — used for the unlabelled sweep at the end of a namespace
+  # teardown. Pass no -l at all rather than `-l ""`.
+  vt_rc=0
+  if [ -n "$vt_sel" ]; then
+    poll_gone "$vt_ns" "$vt_kinds" -l "$vt_sel" || vt_rc=$?
+  else
+    poll_gone "$vt_ns" "$vt_kinds" || vt_rc=$?
+  fi
+  _vt_worse "$vt_rc"
+
+  if [ "$vt_inv" != "-" ]; then
+    # controller-managed claims: BY NAME, never a namespace sweep
+    vt_rc=0; read_inventory "$vt_inv/managed-claims.txt" || vt_rc=$?
+    case "$vt_rc" in
+      0) vt_p=0
+         poll_gone "$vt_ns" persistentvolumeclaim --ignore-not-found $LIST || vt_p=$?
+         _vt_worse "$vt_p" ;;
+      1) echo 'NOTE: no controller-managed claims inventoried — nothing to poll' ;;
+      2) _vt_worse 2 ;;
+    esac
+
+    # imported claims must SURVIVE
+    vt_rc=0; read_inventory "$vt_inv/imported-claims.txt" || vt_rc=$?
+    case "$vt_rc" in
+      0) vt_p=0
+         expect_present "$vt_ns" persistentvolumeclaim $LIST || vt_p=$?
+         _vt_worse "$vt_p" ;;
+      1) echo 'NOTE: this target imported no claims — nothing to preserve' ;;
+      2) _vt_worse 2 ;;
+    esac
+  fi
+
+  case "$VT_WORST" in
+    0) printf 'VERIFIED   %s %s\n' "$vt_ns" "$vt_sel" ;;
+    1) printf 'INCOMPLETE %s %s — objects remain, or a preserved claim vanished\n' "$vt_ns" "$vt_sel" ;;
+    2) printf 'UNVERIFIED %s %s — state unknown, do not report done\n' "$vt_ns" "$vt_sel" ;;
+  esac
+  return "$VT_WORST"
+}
+```
+
+**Callers do exactly this and nothing more.** The OR-list matters: `verify_teardown …; record $?` terminates the script at the call under `set -e`, so `record` never runs.
+
+```sh
+# one chain
+rc=0
+verify_teardown eng-<alias> seinetwork,seinode,pod \
+  "sei.io/seinetwork=<chain-id>" ./teardown-inventory-<chain-id> || rc=$?
+record "$rc"
 exit "$VERDICT"
 ```
 
@@ -333,7 +379,7 @@ kubectl --context harbor get seinetwork,seinode -n eng-<alias> -l sei.io/seinetw
   -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,DELETED:.metadata.deletionTimestamp,FINALIZERS:.metadata.finalizers'
 ```
 
-**Zero PVCs is the wrong expectation, and a namespace-wide PVC poll is the wrong check.** The SeiNode finalizer deliberately skips an imported PVC, so imported claims survive by design and other chains' claims are none of this teardown's business. Both make a namespace sweep report `PRESENT` after a correct teardown. Poll the target chain's **controller-managed** claims by name, and assert the imported ones separately with `expect_present`. Both name lists come from `teardown.md` inventory step 2, captured **before** the SeiNodes are deleted — afterwards nothing in the cluster still says which claims were which.
+**Zero PVCs is the wrong expectation, and a namespace-wide PVC poll is the wrong check.** The SeiNode finalizer deliberately skips an imported PVC, so imported claims survive by design and other chains' claims are none of this teardown's business. Both make a namespace sweep report `PRESENT` after a correct teardown. `verify_teardown` therefore polls the target's controller-managed claims by name and asserts the imported ones separately, from the lists `teardown.md` inventory step 2 captured **before** the SeiNodes were deleted — afterwards nothing in the cluster still says which claims were which.
 
 `sei.io/seinode-finalizer` on a parked SeiNode means the controller has not released the PVC — an unhealthy controller or an EBS CSI flake. See `teardown.md` → *a stuck `Terminating` object is a real signal*.
 
@@ -395,17 +441,18 @@ After the PR merges, reconcile the engineer's own Kustomization and **poll** the
 ```sh
 flux --context harbor reconcile kustomization <alias> -n eng-<alias> --with-source
 
-# poll_gone and record from recipe #9 — same three outcomes, same aggregation.
-# Pods are included deliberately: the Job can be gone while its pod is still Terminating.
+# The SAME verify_teardown from recipe #9 — a bench is not a special case.
+# `pod` is in the kind list deliberately: the Job can be gone while its pod is
+# still Terminating. `-` for the inventory dir because a bench dir holds a Job
+# and a ConfigMap and no PersistentVolumeClaim, so no claim lists exist.
 VERDICT=0
-poll_gone job,configmap -l sei.io/bench-name=<RUN_ID>;  record $?
-poll_gone pods          -l sei.io/bench-name=<RUN_ID>;  record $?
+rc=0
+verify_teardown eng-<alias> job,configmap,pod "sei.io/bench-name=<RUN_ID>" - || rc=$?
+record "$rc"
 exit "$VERDICT"
 ```
 
-A bench dir holds no SeiNetwork and no PVC, so there is nothing to poll by name here — the `sei.io/bench-name` selector already scopes both calls to this run.
-
-`record $?` is not optional. Without it the block's status is the last call's, so an `UNVERIFIED` on the Jobs followed by a clean pods read exits 0. An `UNVERIFIED` from either call means the bench teardown is unconfirmed, not clean. Flux prunes the Job + ConfigMap on that reconcile; Pods cascade per k8s deletion propagation. The `<RUN_ID>` task dir leaves the engineer's workspace tree. Bench results already in S3 are untouched.
+An `UNVERIFIED` here means the bench teardown is unconfirmed, not clean. Results already in S3 are untouched either way. Flux prunes the Job + ConfigMap on that reconcile; Pods cascade per k8s deletion propagation. The `<RUN_ID>` task dir leaves the engineer's workspace tree. Bench results already in S3 are untouched.
 
 ## When a recipe doesn't match observed output
 

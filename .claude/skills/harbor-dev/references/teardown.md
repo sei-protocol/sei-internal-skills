@@ -110,23 +110,32 @@ Teardown follows the same PR contract as spinup: render the change, open a PR, l
    # the current locale collates, and a locale that ignores punctuation orders
    # hyphenated claim names differently. Pin both to codepoint order.
    export LC_ALL=C
-   ALIAS=<alias>; CHAIN=<chain-id>; INV=./teardown-inventory
+   ALIAS=<alias>; CHAIN=<chain-id>
+   [ -n "$ALIAS" ] && [ -n "$CHAIN" ] || { echo 'inventory: ALIAS and CHAIN are required'; exit 2; }
+   INV=./teardown-inventory-$CHAIN
+
+   # A FRESH directory per run. Reusing one leaves a previous run's completeness
+   # certificate in place, and `set -e` exits on the first failed read below —
+   # before anything invalidates it. The verifier would then accept a stale OK
+   # sitting beside half-refreshed lists.
+   rm -rf "$INV"
    mkdir -p "$INV"
    K="kubectl --context harbor -n eng-$ALIAS"
 
    # Raw reads, each REDIRECTED to a file rather than piped. In a POSIX shell
    # `kubectl ... | jq ...` exits with jq's status, so a Forbidden from kubectl
    # would pass through as success — the same defect this file exists to prevent.
+   #
+   # No completeness certificate is written until the very end. Until then the
+   # file is simply absent, which read_inventory reports as UNVERIFIED — so an
+   # abort at any point below leaves the verifier refusing to pass, with no
+   # window in which a stale certificate could authorize anything.
    $K get seinetwork,seinode -l "sei.io/seinetwork=$CHAIN" \
      -o custom-columns='KIND:.kind,NAME:.metadata.name,ROLE:.metadata.labels.sei\.io/role,PHASE:.status.phase' \
      > "$INV/crs.txt"
    $K get seinode -l "sei.io/seinetwork=$CHAIN" -o json > "$INV/nodes.json"
    $K get pods    -l "sei.io/seinetwork=$CHAIN" -o json > "$INV/pods.json"
    $K get pvc                                   -o json > "$INV/pvcs.json"
-
-   # The verifier refuses to pass while status reads UNRESOLVED. It is only
-   # flipped to OK if every completeness check below succeeds.
-   printf 'UNRESOLVED\n' > "$INV/status"
 
    # Imported claims — PRESERVED by design. `unique` sorts, which comm needs.
    # Every jq call is a single command with a redirect: in a pipeline its
@@ -146,7 +155,12 @@ Teardown follows the same PR contract as spinup: render the change, open a PR, l
           | unique | .[] | "\(.node)\t\(.claim)"' \
      "$INV/pods.json" > "$INV/node-claims.tsv"
 
-   cut -f2 "$INV/node-claims.tsv" | sort -u > "$INV/all-claims.txt"
+   # Each transformation is its own command. In a POSIX shell `cut … | sort -u`
+   # exits with sort's status, so a failed cut yields a successful EMPTY claim
+   # list — and the inventory would then certify itself complete while omitting
+   # every managed claim. set -e does not catch a non-final pipeline failure.
+   cut -f2 "$INV/node-claims.tsv" > "$INV/all-claims.raw"
+   sort -u "$INV/all-claims.raw" > "$INV/all-claims.txt"
 
    # Controller-managed = attributed minus imported. These MUST disappear.
    comm -23 "$INV/all-claims.txt" "$INV/imported-claims.txt" > "$INV/managed-claims.txt"
@@ -163,7 +177,14 @@ Teardown follows the same PR contract as spinup: render the change, open a PR, l
      "$INV/nodes.json" > "$INV/imported-nodes.txt"
    # Drop the empty owner field: a pod with no ownerReferences still yields its
    # claim above, but attributes to no node — so its node stays unresolved.
-   cut -f1 "$INV/node-claims.tsv" | grep -v '^$' | sort -u > "$INV/nodes-with-claims.txt"
+   # Three separate commands, same reason as above. grep's exit 1 (nothing
+   # matched) is a legitimate outcome here; 2 or more is a real failure.
+   cut -f1 "$INV/node-claims.tsv" > "$INV/owners.raw"
+   if grep -v '^$' "$INV/owners.raw" > "$INV/owners.nonempty"; then :; else
+     gs=$?
+     [ "$gs" -eq 1 ] || { echo 'inventory: owner filter failed'; exit 2; }
+   fi
+   sort -u "$INV/owners.nonempty" > "$INV/nodes-with-claims.txt"
    sort -u "$INV/imported-nodes.txt" "$INV/nodes-with-claims.txt" > "$INV/resolved-nodes.txt"
    comm -23 "$INV/nodes.txt" "$INV/resolved-nodes.txt" > "$INV/unresolved-nodes.txt"
 
@@ -184,10 +205,14 @@ Teardown follows the same PR contract as spinup: render the change, open a PR, l
    if [ -s "$INV/unresolved-nodes.txt" ]; then
      printf 'INVENTORY INCOMPLETE — SeiNodes that resolve to no storage\n'
      cat "$INV/unresolved-nodes.txt"
-     printf 'status stays UNRESOLVED; the verifier will report UNVERIFIED.\n'
+     printf 'No certificate written; the verifier will report UNVERIFIED.\n'
      exit 2
    fi
-   printf 'OK\n' > "$INV/status"
+
+   # The certificate names the target it certifies. A complete inventory for a
+   # DIFFERENT namespace or chain must not authorize this one, and verify_teardown
+   # compares this string against the target it was called with.
+   printf 'OK eng-%s sei.io/seinetwork=%s\n' "$ALIAS" "$CHAIN" > "$INV/status"
    ```
 
    Claim names come from the **pods' own `spec.volumes[].persistentVolumeClaim.claimName`**, not from a guessed naming rule — the controller owns how it names a generated claim, and a rule inferred here would desync the moment it changes.
@@ -253,28 +278,21 @@ A successful reconcile says Flux applied the change. It does not say the objects
 
 **And a later success must never overwrite an earlier failure.** Printing `UNVERIFIED` is not enough on its own: a `break` out of a loop, or a bare call whose return code nobody reads, still leaves the block exiting 0. A human sees the warning; a wrapper script or an agent reading `$?` sees success. Every check records its outcome into a running verdict, and the worst one wins.
 
-**Use `poll_gone`, `expect_present`, and `record` from `cluster-inspection-recipes.md` recipe #9 — do not re-implement them here.** One implementation, one place to fix. Source them, then:
+**All of that lives in one function.** `verify_teardown` in `cluster-inspection-recipes.md` recipe #9 carries the completeness gate, the checked list reads, the empty-list branches, the polls, and the aggregation. This file calls it and reads its return value — there is deliberately no verification shell here to drift out of step with the library:
 
 ```sh
-VERDICT=0
+. ./verify-lib.sh          # the library block from recipe #9
 
-# The chain's CRs and pods, by label.
-poll_gone seinetwork,seinode -l sei.io/seinetwork=<chain-id>;   record $?
-poll_gone pods               -l sei.io/seinetwork=<chain-id>;   record $?
-
-# The claims, BY NAME, from inventory step 2 — never a namespace sweep.
-poll_gone      pvc --ignore-not-found $(cat ./teardown-inventory/managed-claims.txt);  record $?
-expect_present pvc $(cat ./teardown-inventory/imported-claims.txt);                    record $?
-
-case "$VERDICT" in
-  0) echo 'TEARDOWN VERIFIED — the chain is gone and preserved claims are intact' ;;
-  1) echo 'TEARDOWN INCOMPLETE — objects remain, or a preserved claim vanished' ;;
-  2) echo 'TEARDOWN UNVERIFIED — an API read failed; state unknown, do not report done' ;;
-esac
+rc=0
+verify_teardown eng-<alias> seinetwork,seinode,pod \
+  "sei.io/seinetwork=<chain-id>" ./teardown-inventory-<chain-id> || rc=$?
+record "$rc"
 exit "$VERDICT"
 ```
 
-If `managed-claims.txt` is empty, skip that `poll_gone` rather than calling it with no names — `kubectl get pvc` with no arguments lists the whole namespace, which is the sweep this avoids. Same for `expect_present` and an empty imported list.
+That is the whole verification step. **If you find yourself writing a `poll_gone` line in this file, stop** — a second copy of the orchestration is how this exact defect survived four review rounds, reappearing one layer up each time: duplicated poll bodies, then the caller chain, then the arguments feeding the callers, then a canonical caller that bypassed the fixed library entirely while the paragraph above it said not to re-implement.
+
+The empty-list cases are handled inside the function, as code rather than as advice here: an empty `managed-claims.txt` takes a `NOTE` branch instead of calling `poll_gone` with no names, because `kubectl get persistentvolumeclaim` with no arguments lists the whole namespace — the sweep this design exists to avoid.
 
 **Zero PVCs is the wrong expectation, and a namespace sweep is the wrong check.** The SeiNode finalizer deliberately skips an imported claim, so those survive by design, and other chains' claims are none of this teardown's business. Both make a sweep report `PRESENT` after a correct teardown — a false alarm that trains the reader to ignore the check. The expected end state is precise: every controller-managed claim of this chain gone, every imported claim still present.
 
@@ -318,16 +336,54 @@ It does **not** remove:
 
    ```sh
    kubectl --context harbor get seinetwork,seinode,job,pvc -n eng-<alias>
-   kubectl --context harbor get seinode -n eng-<alias> \
-     -o jsonpath='{range .items[*]}{.metadata.labels.sei\.io/seinetwork}{"\n"}{end}' | sort -u
    ```
 
-   Run `inventory.sh` **once per chain-id** that second command returns, each with its own `INV` directory (`INV=./teardown-inventory-<chain-id>`). A namespace has more than one chain more often than not, and a single sweep cannot tell one chain's controller-managed claim from another's.
+   Then discover the chain-ids **with the discovery's own status checked**. Piping `kubectl` into `sort` exits with sort's status, so a `Forbidden` becomes a successful empty list — and "no chains found" then reads as "nothing to do", which is the whole defect class this document exists to close:
 
-   Any chain whose `inventory.sh` exits non-zero stops the whole namespace teardown: its `status` stays `UNRESOLVED`, and emptying a namespace on an incomplete inventory is how a leak becomes invisible. Claims that no chain attributes land in each run's `unattributed-claims.txt` — take them to the leak sweep in step 5, not to a delete.
+   ```sh
+   . ./verify-lib.sh          # recipe #9 — provides ERRF, _note_stderr, record, VERDICT
+   VERDICT=0
+
+   if raw=$(kubectl --context harbor get seinode -n eng-<alias> \
+              -o jsonpath='{range .items[*]}{.metadata.labels.sei\.io/seinetwork}{"\n"}{end}' 2>"$ERRF")
+   then
+     chains=$(printf '%s\n' "$raw" | grep -v '^$' | sort -u || true)
+   else
+     echo 'UNVERIFIED: chain discovery failed — the namespace inventory is unknown'
+     _note_stderr; record 2; chains=''
+   fi
+   ```
+
+   Run `inventory.sh` **once per chain-id**, each writing its own `./teardown-inventory-<chain-id>`. A namespace usually holds more than one chain, and a single sweep cannot tell one chain's controller-managed claim from another's. Any chain whose `inventory.sh` exits non-zero writes no certificate, and its verification then reports `UNVERIFIED` — emptying a namespace on an incomplete inventory is how a leak becomes invisible. Claims no chain attributes land in each run's `unattributed-claims.txt`; take those to the leak sweep in step 5, not to a delete.
 2. For every SeiNetwork in the inventory, run the `deletionPolicy` gate in [The `deletionPolicy: Retain` trap](#the-deletionpolicy-retain-trap). One `Retain` network is enough to leak a set of disks.
 3. `git rm -r` every task dir under `engineers/<alias>/`, and reduce `engineers/<alias>/kustomization.yaml` to `resources: []`. Keep that file: deleting it makes the Flux Kustomization fail reconcile with `path not found`, which is the same breakage the onboarding scaffolding PR exists to prevent.
-4. Open the PR, merge, then run [Verify the teardown](#verify-the-teardown) **once per chain**, each against its own `INV` directory. Do not substitute a namespace-wide PVC poll: it matches imported and unattributed claims too, so it reports `PRESENT` after a correct teardown. The CR and pod polls may drop their `-l` selector to sweep the namespace; the claim checks may not.
+4. Open the PR, merge, then verify **every chain, retaining the worst result**. One `VERDICT` spans the whole namespace, so a clean second chain cannot cover an unverified first one:
+
+   ```sh
+   # Same shell as step 1 — the library is already sourced and $VERDICT already
+   # carries a 2 if chain discovery failed.
+   for c in $chains; do
+     rc=0
+     verify_teardown eng-<alias> seinetwork,seinode,pod \
+       "sei.io/seinetwork=$c" "./teardown-inventory-$c" || rc=$?
+     record "$rc"
+   done
+
+   # Anything left that carries no chain label at all — an escape-hatch apply,
+   # or an orphan whose labels were stripped. No inventory applies, so `-`.
+   rc=0
+   verify_teardown eng-<alias> seinetwork,seinode,pod "" - || rc=$?
+   record "$rc"
+
+   case "$VERDICT" in
+     0) echo 'NAMESPACE EMPTIED — every chain verified' ;;
+     1) echo 'NAMESPACE NOT EMPTY — objects remain in at least one chain' ;;
+     2) echo 'NAMESPACE UNVERIFIED — at least one check could not run' ;;
+   esac
+   exit "$VERDICT"
+   ```
+
+   An empty `$chains` after a **successful** discovery is legitimate — the namespace has no labelled chains — and the unlabelled sweep still runs. An empty `$chains` after a **failed** discovery already recorded `2`, so the loop running zero times cannot pass. Do not substitute a namespace-wide PVC poll anywhere here: it matches imported and unattributed claims too, so it reports `PRESENT` after a correct teardown.
 5. Sweep for what git never owned — [Find and clean up already-leaked resources](#find-and-clean-up-already-leaked-resources).
 
 ### Remove the namespace entirely (offboarding)
@@ -494,17 +550,9 @@ Anything not in this table, or any case where the ownership question stays open,
 
 **This is why the direct deletes above use `kubectl`, not `seictl`.** `seictl`'s common flags are `--kubeconfig` and `-n/--namespace` only (`seictl-cli.md` → *Common flags on every verb*) — **there is no `--context`**, and the namespace falls back to the kubeconfig context's default. A `seictl delete` therefore cannot pin the cluster on its own command line; writing "(harbor context)" beside it states an intention the command does not enforce. `kubectl --context harbor delete <kind> <name> -n eng-<alias>` pins both on the line that does the deleting, and issues the same Delete against the same CR (`seictl-cli.md` → `seictl network|node delete`).
 
-If a workflow genuinely needs `seictl` for a destructive verb, pin the cluster out of band and prove it immediately before, in the same command list — a guard that runs, not a parenthetical:
+**There is no `seictl` alternative for network or node deletion here, guarded or otherwise.** A `kubectl config current-context` check reads mutable state rather than pinning the config the delete then consumes, so it leaves a window between the check and the call — and it buys nothing, because `kubectl --context harbor delete` does the same deletion against the same CR with no window at all.
 
-```sh
-ctx=$(kubectl config current-context) || { echo 'UNRESOLVED: cannot read current context'; exit 2; }
-if [ "$ctx" != "harbor" ]; then
-  printf 'REFUSED: current context is %s, not harbor\n' "$ctx"; exit 2
-fi
-seictl network delete <name> -n eng-<alias>
-```
-
-That still leaves a window between the check and the call. `kubectl --context harbor` has no window, which is why it is the documented path.
+Should some genuinely `seictl`-only destructive verb ever need documenting, the pin belongs on the invocation: hand it a kubeconfig that contains the harbor cluster and nothing else, via `--kubeconfig <harbor-only-file>` (a documented `seictl` flag). A file that cannot name another cluster cannot select one. Do not substitute a current-context check.
 
 ### The ownership search that authorizes a direct delete
 
