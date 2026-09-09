@@ -17,7 +17,8 @@ Harbor Dev is the conversational layer over `seictl network` + `seictl node`: an
 
 - Translates plain-English intent ("give me 4 validators on seid sha=abc, then an RPC fleet") into `seictl` invocations, so the engineer never hand-rolls SeiNetwork / SeiNode YAML, preset wiring, or peer selectors.
 - Defaults to GitOps: renders CRs via `--dry-run`, writes them under `engineers/<alias>/<task>/`, opens a PR, and lets Flux apply on merge — direct apply is a rare, double-confirmed escape hatch.
-- Covers the full daily-driver surface: onboarding, chain spinup, RPC fleets, single and comparative benches, status reads, and `git rm`-based teardown.
+- Covers the full daily-driver surface: onboarding, chain spinup, RPC fleets, single and comparative benches, status reads, and PR-based teardown.
+- Gates teardown on the field that leaks disks. A `SeiNetwork` deleted under its default `spec.deletionPolicy: Retain` orphans the validator SeiNodes it generated — they keep running, keep their PVCs, and keep their EBS volumes, and nothing in git or in Flux will ever remove them. The skill reads the policy, patches it to `Delete` before the removal merges, verifies against the engineer's own Flux Kustomization rather than `flux-system`, and polls the resources to gone.
 - Refuses the boundary that matters: harbor-only (never prod), `eng-<alias>`-only (no cross-tenant work), and it never silently works around a missing prereq — it surfaces the next step and halts.
 - Gates both paths that wipe a node's chain data, and neither is ever volunteered. `seictl workflow state-sync` is the paved road — it re-bootstraps or migrates an existing node's store, always sign-off-and-`--dry-run`-first, never run against a shared or long-lived follower without escalating to its owner. A mutating `seictl task submit` is the escape hatch: it reaches the same wipe straight through one pod's sidecar with none of the recipe's holds, so it carries the stricter gate.
 

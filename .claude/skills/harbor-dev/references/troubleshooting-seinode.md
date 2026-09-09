@@ -62,8 +62,8 @@ kubectl delete seinode <name> -n eng-<alias>
 ```
 
 **PVC behavior** — verify before deleting on stateful nodes:
-- For **imported** PVCs (`spec.import` set on the SeiNode): the PVC is preserved; the recreated SeiNode reuses existing data.
-- For **controller-managed** PVCs (no `spec.import`): the controller's `handleNodeDeletion` path deletes the PVC during teardown. Delete-and-recreate **wipes data**. Safe for ephemeral chains being recreated from genesis; not safe for archive nodes or any chain with state worth preserving.
+- For **imported** PVCs (`spec.dataVolume.import` set on the SeiNode): the PVC is preserved; the recreated SeiNode reuses existing data.
+- For **controller-managed** PVCs (no `spec.dataVolume.import`): the controller's `handleNodeDeletion` path deletes the PVC during teardown. Delete-and-recreate **wipes data**. Safe for ephemeral chains being recreated from genesis; not safe for archive nodes or any chain with state worth preserving.
 
 ## SeiNetwork genesis plan stuck
 
@@ -115,6 +115,8 @@ Manual override (only after confirming PVC orphan is acceptable):
 ```sh
 kubectl patch seinode <name> -p '{"metadata":{"finalizers":[]}}' --type=merge
 ```
+
+This abandons the PVC and its EBS disk — the finalizer is what deletes the PVC, so removing it is how a stuck teardown becomes a leaked disk. Take it only with the engineer's explicit acceptance, record the PVC name, and follow up with the sweep in `teardown.md` → *find and clean up already-leaked resources*.
 
 ### HTTPRoute hostname unreachable
 
@@ -314,4 +316,4 @@ PVC space won't fully release until the original files are also unlinked (compac
 
 ### vs. retained data on delete
 
-For a SeiNode, whether its PVC survives deletion is governed by `spec.import` (imported PVC = preserved) vs controller-managed (wiped on teardown) — documented under **Phase: Failed** above. A `SeiNetwork`'s `spec.deletionPolicy` (defaults `Retain`) governs whether the controller orphans its generated validator SeiNodes (and thus their PVCs) when the network is deleted — useful when tearing down a network but keeping a validator's disk for forensics. The hardlink trick above is for **live debugging** while the node continues running. They're complementary, not redundant.
+For a SeiNode, whether its PVC survives deletion is governed by `spec.dataVolume.import` (imported PVC = preserved) vs controller-managed (wiped on teardown) — documented under **Phase: Failed** above. A `SeiNetwork`'s `spec.deletionPolicy` (defaults `Retain`) governs whether the controller orphans its generated validator SeiNodes (and thus their PVCs) when the network is deleted. Forensics is the one case where `Retain` is the right answer; on an ordinary teardown it is a disk leak, because the orphaned validators keep running with no owner left to delete them (see `teardown.md`). The hardlink trick above is for **live debugging** while the node continues running. The two are complementary, not redundant.
