@@ -217,7 +217,7 @@ Teardown follows the same PR contract as spinup: render the change, open a PR, l
 
    Claim names come from the **pods' own `spec.volumes[].persistentVolumeClaim.claimName`**, not from a guessed naming rule — the controller owns how it names a generated claim, and a rule inferred here would desync the moment it changes.
 
-   **A node with no pod resolves to nothing, and that is the leak case, not a nuisance.** The controller reconciles each SeiNode into a StatefulSet (`seinode-crd.md`), so a node whose StatefulSet has no pod — scaled down, unschedulable, evicted — still has its PVC and its EBS volume. The old version of this inventory dropped that node's claim silently and the teardown then verified clean. Check 1 makes the gap executable: the node lands in `unresolved-nodes.txt`, the script exits non-zero, `status` stays `UNRESOLVED`, and the verifier forces `UNVERIFIED`.
+   **A node with no pod resolves to nothing, and that is the leak case, not a nuisance.** The controller reconciles each SeiNode into a StatefulSet (`seinode-crd.md`), so a node whose StatefulSet has no pod — scaled down, unschedulable, evicted — still has its PVC and its EBS volume. The old version of this inventory dropped that node's claim silently and the teardown then verified clean. Check 1 makes the gap executable: the node lands in `unresolved-nodes.txt`, the script exits non-zero, and **no certificate is written at all** — the `status` file simply does not exist, which `read_inventory` reports as `UNVERIFIED`. The verifier reads that file, and also reads `unresolved-nodes.txt` directly, so either one alone is enough to fail the run.
 
    > **Attribution caveat.** A pod is attributed to a node by its **first owner reference's name matching the SeiNode name**. `seinode-crd.md` documents the one-StatefulSet-per-SeiNode shape but not the name the controller gives it, so this is a convention, not a contract. If it does not hold, the node lands in `unresolved-nodes.txt` and the run stops — the failure direction is safe. Confirm with `kubectl get pod <pod> -n eng-<alias> -o jsonpath='{.metadata.ownerReferences[0].name}'` before assuming an empty `unresolved-nodes.txt` means full coverage.
 
@@ -341,17 +341,34 @@ It does **not** remove:
    Then discover the chain-ids **with the discovery's own status checked**. Piping `kubectl` into `sort` exits with sort's status, so a `Forbidden` becomes a successful empty list — and "no chains found" then reads as "nothing to do", which is the whole defect class this document exists to close:
 
    ```sh
-   . ./verify-lib.sh          # recipe #9 — provides ERRF, _note_stderr, record, VERDICT
+   . ./verify-lib.sh          # recipe #9 — provides record, VERDICT, verify_teardown
    VERDICT=0
+   derr=$(mktemp) || { echo 'UNVERIFIED: cannot create temp file'; exit 2; }
+   chains=''
 
    if raw=$(kubectl --context harbor get seinode -n eng-<alias> \
-              -o jsonpath='{range .items[*]}{.metadata.labels.sei\.io/seinetwork}{"\n"}{end}' 2>"$ERRF")
+              -o jsonpath='{range .items[*]}{.metadata.labels.sei\.io/seinetwork}{"\n"}{end}' 2>"$derr")
    then
-     chains=$(printf '%s\n' "$raw" | grep -v '^$' | sort -u || true)
+     # The API read is checked above. The TRANSFORMATIONS need checking too:
+     # `| sort -u` exits with sort's status and `|| true` swallows everything,
+     # so a failed grep or sort yields a successful EMPTY chain list — the loop
+     # then runs zero times and every certificate and claim check is skipped.
+     # Only grep's exit 1 (nothing matched) is legitimate emptiness.
+     if filtered=$(printf '%s\n' "$raw" | grep -v '^$'); then fs=0; else fs=$?; fi
+     if [ "$fs" -gt 1 ]; then
+       echo 'UNVERIFIED: chain-id filter failed — cannot enumerate this namespace'
+       record 2
+     elif chains=$(printf '%s\n' "$filtered" | sort -u); then
+       :
+     else
+       echo 'UNVERIFIED: chain-id sort failed — cannot enumerate this namespace'
+       record 2; chains=''
+     fi
    else
      echo 'UNVERIFIED: chain discovery failed — the namespace inventory is unknown'
-     _note_stderr; record 2; chains=''
+     cat "$derr" >&2; record 2
    fi
+   rm -f "$derr"
    ```
 
    Run `inventory.sh` **once per chain-id**, each writing its own `./teardown-inventory-<chain-id>`. A namespace usually holds more than one chain, and a single sweep cannot tell one chain's controller-managed claim from another's. Any chain whose `inventory.sh` exits non-zero writes no certificate, and its verification then reports `UNVERIFIED` — emptying a namespace on an incomplete inventory is how a leak becomes invisible. Claims no chain attributes land in each run's `unattributed-claims.txt`; take those to the leak sweep in step 5, not to a delete.
@@ -361,7 +378,7 @@ It does **not** remove:
 
    ```sh
    # Same shell as step 1 — the library is already sourced and $VERDICT already
-   # carries a 2 if chain discovery failed.
+   # carries a 2 if discovery or either of its transformations failed.
    for c in $chains; do
      rc=0
      verify_teardown eng-<alias> seinetwork,seinode,pod \
@@ -370,21 +387,44 @@ It does **not** remove:
    done
 
    # Anything left that carries no chain label at all — an escape-hatch apply,
-   # or an orphan whose labels were stripped. No inventory applies, so `-`.
+   # or an orphan whose labels were stripped. `-` means NO storage is in scope
+   # here: this is a CR/pod disappearance check ONLY, and on its own it proves
+   # nothing about residual claims.
    rc=0
    verify_teardown eng-<alias> seinetwork,seinode,pod "" - || rc=$?
    record "$rc"
+   ```
+
+   **Do not print a verdict yet.** The check that can contradict "the namespace is empty" has not run: a namespace whose only leftover is a leaked PVC passes everything above — successful discovery, a clean CR/pod poll, exit 0.
+5. **Sweep the residuals, then decide.** Build the expected-survivors list from every chain's imported claims, sweep what is left, and only then print and exit:
+
+   ```sh
+   # Imported claims are EXPECTED to survive. Concatenating them is what keeps
+   # this sweep from demanding zero PVCs.
+   : > ./expected-survivors.txt
+   for c in $chains; do
+     f="./teardown-inventory-$c/imported-claims.txt"
+     if [ -f "$f" ]; then
+       if ! cat "$f" >> ./expected-survivors.txt; then
+         echo 'UNVERIFIED: cannot read an imported-claims list'; record 2
+       fi
+     fi
+   done
+
+   rc=0; sweep_residual eng-<alias> ./expected-survivors.txt || rc=$?; record "$rc"
 
    case "$VERDICT" in
-     0) echo 'NAMESPACE EMPTIED — every chain verified' ;;
-     1) echo 'NAMESPACE NOT EMPTY — objects remain in at least one chain' ;;
+     0) echo 'NAMESPACE EMPTIED — every chain verified and no unaccounted resources remain' ;;
+     1) echo 'NAMESPACE NOT EMPTY — objects or unaccounted resources remain' ;;
      2) echo 'NAMESPACE UNVERIFIED — at least one check could not run' ;;
+     *) echo "NAMESPACE VERIFICATION ABORTED — unexpected status $VERDICT (interrupted?); treat as unverified" ;;
    esac
    exit "$VERDICT"
    ```
 
-   An empty `$chains` after a **successful** discovery is legitimate — the namespace has no labelled chains — and the unlabelled sweep still runs. An empty `$chains` after a **failed** discovery already recorded `2`, so the loop running zero times cannot pass. Do not substitute a namespace-wide PVC poll anywhere here: it matches imported and unattributed claims too, so it reports `PRESENT` after a correct teardown.
-5. Sweep for what git never owned — [Find and clean up already-leaked resources](#find-and-clean-up-already-leaked-resources).
+   Then take anything `sweep_residual` reported, plus what git never owned, to [Find and clean up already-leaked resources](#find-and-clean-up-already-leaked-resources).
+
+   An empty `$chains` after a **successful** discovery is legitimate — the namespace has no labelled chains — and both the unlabelled check and the residual sweep still run. An empty `$chains` after a **failed** discovery, **or after a failed filter or sort**, already recorded `2`, so the loop running zero times cannot pass. Do not substitute a namespace-wide PVC poll for a chain's claim check: that matches imported and unattributed claims too, so it reports `PRESENT` after a correct teardown. `sweep_residual` is the opposite question — what is left over that no chain accounted for — and it excludes the imported claims by name.
 
 ### Remove the namespace entirely (offboarding)
 
@@ -402,11 +442,26 @@ Run this after any teardown that ran under `Retain`, and any time an engineer as
 
 An orphaned validator has **no `ownerReferences`** and no live parent SeiNetwork. Absence of owner references alone is not the signal: a follower applied through `seictl node apply` is a top-level object and legitimately has none. The signature is `sei.io/role=validator` **and** no owner references.
 
+**An unreadable sweep is not a clean sweep.** Piping `kubectl` straight into `jq` hands `jq` no input when the read fails, and `jq` exits 0 with no output — which reads as "no orphans". Check the read and the parse separately:
+
 ```sh
-kubectl --context harbor get seinode -n eng-<alias> -l sei.io/role=validator -o json \
-  | jq -r '.items[]
+errf=$(mktemp) || { echo 'UNRESOLVED: cannot create temp file'; exit 2; }
+if raw=$(kubectl --context harbor get seinode -n eng-<alias> \
+           -l sei.io/role=validator -o json 2>"$errf")
+then :; else
+  echo 'UNRESOLVED: orphan sweep read failed — this is NOT "no orphans"'
+  cat "$errf" >&2; rm -f "$errf"; exit 2
+fi
+rm -f "$errf"
+
+if orphans=$(printf '%s' "$raw" | jq -r '.items[]
       | select((.metadata.ownerReferences // []) | length == 0)
-      | "\(.metadata.name)\t\(.metadata.labels["sei.io/seinetwork"] // "-")\t\(.status.phase // "-")\t\(.metadata.creationTimestamp)"'
+      | "\(.metadata.name)\t\(.metadata.labels["sei.io/seinetwork"] // "-")\t\(.status.phase // "-")\t\(.metadata.creationTimestamp)"')
+then :; else
+  echo 'UNRESOLVED: orphan sweep parse failed'; exit 2
+fi
+
+if [ -z "$orphans" ]; then echo 'no candidate orphans'; else printf '%s\n' "$orphans"; fi
 ```
 
 Each line is a validator still running with nothing that will ever delete it. Confirm the parent is gone before treating one as an orphan:

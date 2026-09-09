@@ -187,23 +187,25 @@ Written for a portable shell (`dash`, `ash`, `bash`). Three deliberate non-POSIX
 
 ```sh
 # ============ harbor teardown verification library ========================
-# Source this, then call verify_teardown. Do not copy pieces of it.
+# Source this, then call verify_teardown / sweep_residual. Do not copy pieces.
+#
+# Sourcing this file installs NO trap and creates NO temp dir. Each public
+# function is a SUBSHELL function — `name() ( ... )`, not `{ ... }` — so the
+# temp dir and its trap live and die inside that subshell. A source-time
+# `trap ... EXIT` silently replaces whatever EXIT handler the calling script
+# already had, and a dir cleaned on INT without re-raising leaves later checks
+# writing stderr into a directory that no longer exists.
 
 # Worst outcome wins:  0 VERIFIED/GONE  <  1 INCOMPLETE/PRESENT  <  2 UNVERIFIED
 VERDICT=0
 record() { if [ "$1" -gt "$VERDICT" ]; then VERDICT=$1; fi; }
 
-# Private 0700 temp dir, removed on exit. A fixed /tmp path can be pre-created
-# as a symlink by another user, and the stderr redirect then truncates whatever
-# it points at.
-VERIFY_TMP=$(mktemp -d) || { echo 'UNVERIFIED: cannot create temp dir'; exit 2; }
-trap 'rm -rf "$VERIFY_TMP"' EXIT INT TERM
-ERRF="$VERIFY_TMP/err"
-
+# usage: _note_stderr <errfile>   — emit API warnings without ever letting them
+# reach a counted stream.
 _note_stderr() {
-  if [ -s "$ERRF" ]; then
+  if [ -s "$1" ]; then
     printf 'note: API wrote to stderr (not counted as resources):\n' >&2
-    cat "$ERRF" >&2
+    cat "$1" >&2
   fi
 }
 
@@ -219,7 +221,8 @@ read_inventory() {
     printf 'UNVERIFIED: inventory file missing: %s\n' "$ri_f"; return 2
   fi
   if LIST=$(cat -- "$ri_f" 2>"$ERRF"); then :; else
-    printf 'UNVERIFIED: cannot read inventory file: %s\n' "$ri_f"; _note_stderr; return 2
+    printf 'UNVERIFIED: cannot read inventory file: %s\n' "$ri_f"
+    _note_stderr "$ERRF"; return 2
   fi
   if [ -z "$LIST" ]; then return 1; fi
   return 0
@@ -231,7 +234,7 @@ read_inventory() {
 #   by name:      poll_gone eng-x persistentvolumeclaim --ignore-not-found n1 n2
 # --ignore-not-found is REQUIRED with explicit names: without it a deleted
 # resource returns NotFound and a nonzero exit, and the success condition
-# would report as UNVERIFIED.
+# would report as UNVERIFIED. Uses $ERRF from the enclosing subshell.
 poll_gone() {
   pg_ns=$1; pg_res=$2; shift 2
   # 5 minutes by default. Raise it for an archive-scale finalizer; POLL_BUDGET
@@ -242,9 +245,9 @@ poll_gone() {
     then pg_rc=0; else pg_rc=$?; fi
     if [ "$pg_rc" -ne 0 ]; then
       printf 'UNVERIFIED: %s read failed in %s (exit %s)\n' "$pg_res" "$pg_ns" "$pg_rc"
-      _note_stderr; return 2
+      _note_stderr "$ERRF"; return 2
     fi
-    _note_stderr
+    _note_stderr "$ERRF"
     pg_left=$(printf '%s\n' "$pg_out" | grep -c '^[a-z][a-z0-9.-]*/' || true)
     if [ "$pg_left" -eq 0 ]; then printf 'GONE: no %s in %s\n' "$pg_res" "$pg_ns"; return 0; fi
     if [ "$(date +%s)" -ge "$pg_deadline" ]; then
@@ -267,9 +270,9 @@ expect_present() {
   then ep_rc=0; else ep_rc=$?; fi
   if [ "$ep_rc" -ne 0 ]; then
     printf 'UNVERIFIED: %s read failed in %s (exit %s)\n' "$ep_kind" "$ep_ns" "$ep_rc"
-    _note_stderr; return 2
+    _note_stderr "$ERRF"; return 2
   fi
-  _note_stderr
+  _note_stderr "$ERRF"
   ep_miss=0
   for ep_want in "$@"; do
     if ! printf '%s\n' "$ep_out" | grep -qxF -- "$ep_kind/$ep_want"; then
@@ -286,20 +289,30 @@ expect_present() {
 # usage: verify_teardown <namespace> <kinds> <selector> <inventory-dir|->
 #   chain: verify_teardown eng-x seinetwork,seinode,pod sei.io/seinetwork=c ./inv-c
 #   bench: verify_teardown eng-x job,configmap,pod      sei.io/bench-name=r  -
-# Pass `-` for the inventory dir only where no PersistentVolumeClaim is in
-# scope (a bench dir holds a Job and a ConfigMap and nothing else).
+#   sweep: verify_teardown eng-x seinetwork,seinode,pod ""                   -
+# `-` for the inventory dir means NO PersistentVolumeClaim is in scope for this
+# call. It is a CR/pod disappearance check ONLY — it proves nothing about
+# storage, so it can never on its own justify calling a namespace empty.
+# An empty selector means "every object of these kinds in the namespace".
 # Returns the worst outcome. Callers aggregate with `record`.
 VT_WORST=0
 _vt_worse() { if [ "$1" -gt "$VT_WORST" ]; then VT_WORST=$1; fi; }
 
-verify_teardown() {
+verify_teardown() (
   vt_ns=$1; vt_kinds=$2; vt_sel=$3; vt_inv=$4
   VT_WORST=0
+  vt_tmp=$(mktemp -d) || { echo 'UNVERIFIED: cannot create temp dir'; return 2; }
+  # Traps are set INSIDE this subshell, so the caller's handlers are untouched.
+  # INT/TERM re-raise the conventional status instead of continuing.
+  trap 'rm -rf "$vt_tmp"' EXIT
+  trap 'rm -rf "$vt_tmp"; exit 130' INT
+  trap 'rm -rf "$vt_tmp"; exit 143' TERM
+  ERRF="$vt_tmp/err"
 
   if [ "$vt_inv" != "-" ]; then
     # gate 0: the inventory must certify itself complete FOR THIS TARGET.
-    # A stale certificate from another chain, or from an earlier run of this
-    # one, must not authorize anything.
+    # A certificate from another chain, or from an earlier run of this one,
+    # must not authorize anything.
     vt_rc=0; read_inventory "$vt_inv/status" || vt_rc=$?
     if [ "$vt_rc" -ne 0 ]; then
       printf 'UNVERIFIED: no readable completeness certificate in %s\n' "$vt_inv"
@@ -357,9 +370,70 @@ verify_teardown() {
     0) printf 'VERIFIED   %s %s\n' "$vt_ns" "$vt_sel" ;;
     1) printf 'INCOMPLETE %s %s — objects remain, or a preserved claim vanished\n' "$vt_ns" "$vt_sel" ;;
     2) printf 'UNVERIFIED %s %s — state unknown, do not report done\n' "$vt_ns" "$vt_sel" ;;
+    # An interrupt exits 130/143, which is above every verdict value. Without
+    # this branch the case matches nothing and the run ends silently.
+    *) printf 'ABORTED %s %s — interrupted or unexpected status %s; treat as unverified\n' \
+         "$vt_ns" "$vt_sel" "$VT_WORST" ;;
   esac
   return "$VT_WORST"
-}
+)
+
+# ---- residual sweep: what is LEFT that no teardown accounted for ---------
+# usage: sweep_residual <namespace> <expected-survivors-file|->
+# Storage is the point: a namespace whose only leftover is a leaked PVC must
+# not pass. Imported claims are EXPECTED to survive, so they are excluded BY
+# NAME — this never demands zero PersistentVolumeClaims.
+# Returns 0 clear, 1 residual found, 2 a read failed.
+sweep_residual() (
+  sr_ns=$1; sr_expect=$2
+  sr_worst=0
+  sr_tmp=$(mktemp -d) || { echo 'UNVERIFIED: cannot create temp dir'; return 2; }
+  trap 'rm -rf "$sr_tmp"' EXIT
+  trap 'rm -rf "$sr_tmp"; exit 130' INT
+  trap 'rm -rf "$sr_tmp"; exit 143' TERM
+  ERRF="$sr_tmp/err"
+
+  sr_keep=''
+  if [ "$sr_expect" != "-" ]; then
+    sr_rc=0; read_inventory "$sr_expect" || sr_rc=$?
+    case "$sr_rc" in
+      0) sr_keep=$LIST ;;
+      1) sr_keep='' ;;
+      2) printf 'UNVERIFIED: cannot read the expected-survivors list\n'; sr_worst=2 ;;
+    esac
+  fi
+
+  for sr_kind in persistentvolumeclaim job configmap; do
+    if sr_out=$(kubectl --context harbor -n "$sr_ns" get "$sr_kind" -o name 2>"$ERRF")
+    then sr_rc=0; else sr_rc=$?; fi
+    if [ "$sr_rc" -ne 0 ]; then
+      printf 'UNVERIFIED: residual %s read failed in %s\n' "$sr_kind" "$sr_ns"
+      _note_stderr "$ERRF"
+      if [ "$sr_worst" -lt 2 ]; then sr_worst=2; fi
+      continue
+    fi
+    _note_stderr "$ERRF"
+    sr_left=''
+    for sr_id in $sr_out; do
+      sr_name=${sr_id#*/}
+      # kube-root-ca.crt is injected into every namespace by the apiserver and
+      # is never an engineer's leftover.
+      if [ "$sr_kind" = configmap ] && [ "$sr_name" = kube-root-ca.crt ]; then continue; fi
+      sr_skip=0
+      for sr_k in $sr_keep; do
+        if [ "$sr_name" = "$sr_k" ]; then sr_skip=1; break; fi
+      done
+      if [ "$sr_skip" -eq 0 ]; then sr_left="$sr_left $sr_id"; fi
+    done
+    if [ -n "$sr_left" ]; then
+      printf 'RESIDUAL %s in %s:%s\n' "$sr_kind" "$sr_ns" "$sr_left"
+      if [ "$sr_worst" -lt 1 ]; then sr_worst=1; fi
+    else
+      printf 'CLEAR: no unaccounted %s in %s\n' "$sr_kind" "$sr_ns"
+    fi
+  done
+  return "$sr_worst"
+)
 ```
 
 **Callers do exactly this and nothing more.** The OR-list matters: `verify_teardown …; record $?` terminates the script at the call under `set -e`, so `record` never runs.
@@ -389,14 +463,29 @@ A SeiNetwork deleted under `deletionPolicy: Retain` strips the owner reference f
 
 Absence of owner references alone is **not** the signal: a follower applied via `seictl node apply` is a top-level object and legitimately has none. The signature is `sei.io/role=validator` **and** no owner references.
 
+An unreadable sweep is not a clean sweep. Piping `kubectl` straight into `jq` hands `jq` no input on a failed read, and `jq` then exits 0 with no output — indistinguishable from "no orphans found". Separate the read from the parse and check both:
+
 ```sh
-kubectl get seinode -n eng-<alias> -l sei.io/role=validator -o json \
-  | jq -r '.items[]
+errf=$(mktemp) || { echo 'UNRESOLVED: cannot create temp file'; exit 2; }
+if raw=$(kubectl --context harbor get seinode -n eng-<alias> \
+           -l sei.io/role=validator -o json 2>"$errf")
+then :; else
+  echo 'UNRESOLVED: orphan sweep read failed — this is NOT "no orphans"'
+  cat "$errf" >&2; rm -f "$errf"; exit 2
+fi
+rm -f "$errf"
+
+if orphans=$(printf '%s' "$raw" | jq -r '.items[]
       | select((.metadata.ownerReferences // []) | length == 0)
-      | "\(.metadata.name)\t\(.metadata.labels["sei.io/seinetwork"] // "-")\t\(.status.phase // "-")\t\(.metadata.creationTimestamp)"'
+      | "\(.metadata.name)\t\(.metadata.labels["sei.io/seinetwork"] // "-")\t\(.status.phase // "-")\t\(.metadata.creationTimestamp)"')
+then :; else
+  echo 'UNRESOLVED: orphan sweep parse failed'; exit 2
+fi
+
+if [ -z "$orphans" ]; then echo 'no candidate orphans'; else printf '%s\n' "$orphans"; fi
 
 # Confirm the parent really is gone before calling one an orphan.
-kubectl get seinetwork <seinetwork-label-value> -n eng-<alias>   # NotFound → orphaned
+kubectl --context harbor get seinetwork <seinetwork-label-value> -n eng-<alias>   # NotFound → orphaned
 ```
 
 An orphaned SeiNode still holds a **`Bound`** PVC. A disk whose PVC has already gone shows up on the AWS side as `available`. The cleanup, the EBS-side check, and the escalation path live in `teardown.md` → *find and clean up already-leaked resources*.
