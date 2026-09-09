@@ -169,6 +169,51 @@ kubectl get kustomization <alias> -n eng-<alias> \
 
 If `kubectl get kustomization <alias> -n eng-<alias>` returns `NotFound`, the onboarding PR hasn't merged or the per-engineer Flux wiring wasn't included. Don't try to create the Kustomization yourself — surface to the engineer + platform team.
 
+**This is the Kustomization to reconcile after every workspace-repo merge**, teardown included. `flux-system` tracks `sei-protocol/platform`, so a `lastAppliedRevision` read there says nothing about whether the engineer's manifests landed.
+
+### 9. Did the teardown actually remove the resources?
+
+A Flux reconcile reports success once it issues the deletes. Deletion is asynchronous and finalizers hold objects in `Terminating` while the controller releases their PVCs, so poll rather than assert once.
+
+```sh
+# Poll a chain's CRs to gone (5-minute budget). Drop the -l selector to sweep the namespace.
+end=$((SECONDS + 300))
+while [ "$SECONDS" -lt "$end" ]; do
+  left=$(kubectl get seinetwork,seinode -n eng-<alias> \
+    -l sei.io/seinetwork=<chain-id> -o name | wc -l)
+  if [ "$left" -eq 0 ]; then echo "all objects gone"; break; fi
+  echo "$left object(s) remain"; sleep 10
+done
+
+# The disks must go with them — a Bound PVC outliving its SeiNode is a held disk.
+kubectl get pvc -n eng-<alias> \
+  -o custom-columns='NAME:.metadata.name,STATUS:.status.phase,VOLUME:.spec.volumeName,CLASS:.spec.storageClassName'
+
+# Budget exhausted? Read what holds each object — do not strip the finalizer to pass the check.
+kubectl get seinetwork,seinode -n eng-<alias> -l sei.io/seinetwork=<chain-id> \
+  -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,DELETED:.metadata.deletionTimestamp,FINALIZERS:.metadata.finalizers'
+```
+
+`sei.io/seinode-finalizer` on a parked SeiNode means the controller has not released the PVC — an unhealthy controller or an EBS CSI flake. See `teardown.md` → *a stuck `Terminating` object is a real signal*.
+
+### 10. Orphaned SeiNodes (the `deletionPolicy: Retain` leak)
+
+A SeiNetwork deleted under `deletionPolicy: Retain` strips the owner reference from its generated validators instead of deleting them. The orphans keep running and keep their disks, and Flux never sees them — the controller created them, so they were never in Flux's inventory.
+
+Absence of owner references alone is **not** the signal: a follower applied via `seictl node apply` is a top-level object and legitimately has none. The signature is `sei.io/role=validator` **and** no owner references.
+
+```sh
+kubectl get seinode -n eng-<alias> -l sei.io/role=validator -o json \
+  | jq -r '.items[]
+      | select((.metadata.ownerReferences // []) | length == 0)
+      | "\(.metadata.name)\t\(.metadata.labels["sei.io/seinetwork"] // "-")\t\(.status.phase // "-")\t\(.metadata.creationTimestamp)"'
+
+# Confirm the parent really is gone before calling one an orphan.
+kubectl get seinetwork <seinetwork-label-value> -n eng-<alias>   # NotFound → orphaned
+```
+
+An orphaned SeiNode still holds a **`Bound`** PVC. A disk whose PVC has already gone shows up on the AWS side as `available`. The cleanup, the EBS-side check, and the escalation path live in `teardown.md` → *find and clean up already-leaked resources*.
+
 ## Bench observation recipes (named)
 
 Three recipes used by the bench Procedure (single + comparative). Referenced by name from `SKILL.md` step 11 and from `references/sei-load-bench.md`. Each is the exact command, what it shows, and the failure mode.
@@ -195,6 +240,8 @@ Returns: `Complete=True` on success, `Failed=True` on `activeDeadlineSeconds` or
 
 ### `bench:teardown` — remove a bench from the engineer's workspace
 
+A bench dir holds a Job and a ConfigMap, so this recipe skips the `deletionPolicy` gate. **If the dir also holds a SeiNetwork** (a comparison sub-dir, or a chain and its bench together), it is not a bench teardown — run the full procedure in `teardown.md`, which gates on `deletionPolicy` before anything is removed.
+
 ```sh
 git rm -r engineers/<alias>/bench-<RUN_ID>/
 # Then edit engineers/<alias>/kustomization.yaml to remove the `bench-<RUN_ID>` entry
@@ -202,7 +249,14 @@ git rm -r engineers/<alias>/bench-<RUN_ID>/
 git commit + push
 ```
 
-After the PR merges, Flux prunes the Job + ConfigMap on next reconcile. PVCs / Pods cascade per k8s deletion propagation. The `<RUN_ID>` task dir is removed from the engineer's workspace tree.
+After the PR merges, reconcile the engineer's own Kustomization and confirm the objects went away — `flux-system` tracks a different repo and reports success regardless:
+
+```sh
+flux --context harbor reconcile kustomization <alias> -n eng-<alias> --with-source
+kubectl get job,configmap -n eng-<alias> -l sei.io/bench-name=<RUN_ID>   # → No resources found
+```
+
+Flux prunes the Job + ConfigMap on that reconcile; Pods cascade per k8s deletion propagation. The `<RUN_ID>` task dir leaves the engineer's workspace tree. Bench results already in S3 are untouched.
 
 ## When a recipe doesn't match observed output
 

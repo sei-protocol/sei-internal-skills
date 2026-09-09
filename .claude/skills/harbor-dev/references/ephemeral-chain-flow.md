@@ -186,7 +186,7 @@ Engineer says: "spin up a chain of 4 validators with seid sha=abc, then add an R
     - `.status.endpoint.tendermintRpc` — Tendermint RPC URL
     - `.status.endpoint.tendermintRest` — Tendermint REST URL
     - For pod-targeted connectivity (seiload's WebSocket block collector, etc.), pick one follower — its `.status.endpoint` is already its stable per-node URL.
-14. **Report teardown** — `git rm -r engineers/<alias>/<task>/` **and** remove the `<task>` entry from `engineers/<alias>/kustomization.yaml`'s `resources:` list (Kustomize fails to render with an orphan reference). Commit → push → merge. Flux prunes the SeiNetwork + SeiNodes on next reconcile, cascading to pods/PVCs per k8s deletion propagation.
+14. **Report teardown** — point at `teardown.md`; do not restate it. The load-bearing step comes *before* the `git rm`: read `spec.deletionPolicy` on the SeiNetwork and patch it to `Delete` if it reads `Retain` (the default). A `Retain` teardown orphans the generated validator SeiNodes and leaks their EBS disks, and no later patch undoes that. Then `git rm -r engineers/<alias>/<task>/`, remove the `<task>` entry from `engineers/<alias>/kustomization.yaml`'s `resources:` list (Kustomize fails to render with an orphan reference), merge, reconcile `kustomization <alias>` in `eng-<alias>`, and poll until the CRs and their PVCs are gone.
 
 ## Halt conditions specific to this flow
 

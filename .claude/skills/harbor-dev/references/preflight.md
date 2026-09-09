@@ -138,7 +138,7 @@ Halt until `command -v yq` returns 0.
 command -v flux
 ```
 
-**Why:** the post-merge reconcile pattern (`flux reconcile kustomization flux-system --with-source -n flux-system`) is the fast path from "PR merged" to "manifests applied in cluster." Without `flux`, the fallback is `kubectl annotate kustomization flux-system reconcile.fluxcd.io/requestedAt=$(date +%s) --overwrite -n flux-system`, which works but doesn't fetch the latest source revision in the same call.
+**Why:** the post-merge reconcile pattern is the fast path from "PR merged" to "manifests applied in cluster." The target depends on which repo merged: a **workspace**-repo merge (every chain, bench, and teardown) goes to `flux reconcile kustomization <alias> -n eng-<alias> --with-source`, and only a **platform**-repo merge (onboarding) goes to `flux reconcile kustomization flux-system --with-source -n flux-system`. Reconciling `flux-system` for a workspace merge reconciles the platform repo and reports success without applying the engineer's change. Without `flux`, the fallback is `kubectl annotate kustomization <name> reconcile.fluxcd.io/requestedAt=$(date +%s) --overwrite -n <namespace>`, which works but does not fetch the latest source revision in the same call.
 
 **Recovery (in-band):**
 

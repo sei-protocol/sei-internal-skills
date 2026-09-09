@@ -233,7 +233,7 @@ Field list lives in a single source-of-truth array in the skill's render path; u
 
 - **Atomic delivery.** Merging starts both chains and both benches at once. Splitting into multiple PRs adds an ordering hazard (one chain Ready, the other still Pending → side A's bench starts before side B's, the comparison clock is staggered).
 - **Single audit-trail entry.** Reviewers see "this is a comparison of A vs B" once; the diff lays out both sides for direct comparison.
-- **Single teardown.** `git rm -r engineers/<alias>/compare-<COMPARE_RUN_ID>/` removes everything; Flux prunes both chains, both benches, all child resources.
+- **Single teardown.** `git rm -r engineers/<alias>/compare-<COMPARE_RUN_ID>/` removes everything; Flux prunes both chains, both benches, all child resources. Gate both SeiNetworks on `deletionPolicy` first (`teardown.md`) — under the default `Retain` that single removal leaks two validator pools' disks.
 
 ## PR target + path
 
@@ -418,7 +418,7 @@ Reports:
 13. **Watch — follower fleets parallel** — loop `seictl node watch <chain-tag>-<a|b>-rpc-<k> --until=Running` over every follower on both sides (no `Ready` on a SeiNode).
 14. **Poll bench Jobs to terminal** — both `seiload-<COMPARE_RUN_ID>-a` and `-b` to `Complete` or `Failed`. Deadline `<DURATION> * 60 + 660` seconds.
 15. **Fetch + render** — `aws s3 cp` both reports; extract metrics; render the side-by-side table. On any extraction gap, fall back to the raw-tail format with both S3 paths surfaced.
-16. **Teardown guidance** — `git rm -r engineers/<alias>/compare-<COMPARE_RUN_ID>/` and remove the entry from `engineers/<alias>/kustomization.yaml` `resources:`. Flux prunes both SeiNetworks, all follower SeiNodes, and both Jobs; child pods/PVCs cascade.
+16. **Teardown guidance** — run the procedure in `teardown.md` against `engineers/<alias>/compare-<COMPARE_RUN_ID>/`. **Both** SeiNetworks need the `deletionPolicy` gate before the removal PR opens: a comparison under the default `Retain` orphans two validator pools and leaks both sets of EBS disks. After that gate, `git rm -r` the dir, remove the entry from `engineers/<alias>/kustomization.yaml` `resources:`, merge, reconcile `kustomization <alias>` in `eng-<alias>`, and poll both chain-ids to gone.
 
 ## Halt conditions
 
@@ -426,6 +426,7 @@ Reports:
 - **`<chain-tag>` exceeds the 22-char budget** when the `-{a,b}-rpc-<k>` suffix is added. Surface the overflow and ask the engineer to pick a shorter tag.
 - **CR name collision on either side.** Halt before render; surface the existing object's age + labels.
 - **One network reaches `Ready` while the other reaches `Failed`.** The comparison is invalid. Surface the failed side's `.status.plan.failedTaskDetail.error`. The half-teardown is two coordinated edits, **both required** — Flux refuses to apply a kustomization with a missing resource:
+  - **First**, patch the surviving side's SeiNetwork to `deletionPolicy: Delete` if it reads `Retain` (`teardown.md`). The failed side needs the same read: a network that never reached `Ready` may still have generated validators to orphan.
   - `git rm -r engineers/<alias>/compare-<COMPARE_RUN_ID>/chain-<a-or-b>/`
   - Edit `engineers/<alias>/compare-<COMPARE_RUN_ID>/kustomization.yaml` to remove the matching `- chain-<a-or-b>` line from `resources:`
   - Commit + push + merge; Flux prunes the SeiNetwork and all its follower SeiNodes on the failed side. The orphan followers were reconciling on their own until pruned.
