@@ -5,9 +5,12 @@
 # bumping the base is one reviewable line. Digest-pinned, not tag-pinned: a tag
 # is mutable, and a base that changes under a stale claim is not detectable here.
 #
-# Current: tag runner-c4e613dd-credbridge, fork commit c4e613dd.
+# Current: tag runner-1d570891-credbridge, fork commit 1d570891 — rebased on
+# upstream v0.13.0, carrying the fork-managed sandbox, the Slack pagination fix,
+# and a Node 22 harness runtime. Bakes claude-code 2.1.266, codex 0.153.4,
+# pi 0.85.1; ecr-runner-base.yml gated those versions against the image.
 #
 # Build this from the SAME fork ref as the server base. The host dials the server
 # over a tunnel neither side version-negotiates, so a split between them is the
 # combination upstream never tests.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:3160161d93d86aba88c4eaca2d1a251e3aed5ae63b5f219a292667373d5c769a
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:8bb885d9fdcbfe78f44de091112d2ae1d7f986bf737e4093ec18d1d13df4bac2
