@@ -181,12 +181,29 @@ A Flux reconcile reports success once it issues the deletes. Deletion is asynchr
 
 Written for a portable shell (`dash`, `ash`, `bash`). One deliberate non-POSIX dependency: `date +%s` is a near-universal extension, not a specified `date` format — substitute an equivalent epoch source if you meet a `date` without it. Bash's `SECONDS` is *not* usable here: it is unset under `sh`, where the comparison dies with `Illegal number` and the loop never runs.
 
+**Three rules hold everywhere in this block**, and each one is a bug that reached production in this file before it was a rule:
+
+1. **stderr never mixes with resource output.** `2>&1` merges API deprecation warnings into the result, and a routine like "count the non-empty lines" then treats one warning line as one resource. That makes an absent claim report as preserved, and an empty result report as present.
+2. **Names are matched, not counted.** A count says how many lines came back, not whether the resources you asked about are the ones that came back.
+3. **Every command that can fail is run inside a condition.** Under `set -e` a bare `out=$(kubectl …)` terminates the shell at the assignment — before the classification runs and before the caller records anything.
+
 ```sh
 # ---- verdict aggregation -------------------------------------------------
 # Worst outcome wins, and no later success clears an earlier failure:
-#   0 GONE  <  1 PRESENT  <  2 UNVERIFIED
+#   0 GONE/PRESERVED  <  1 PRESENT/MISSING  <  2 UNVERIFIED
 VERDICT=0
 record() { if [ "$1" -gt "$VERDICT" ]; then VERDICT=$1; fi; }
+
+# Per-process stderr sink. `mktemp` is not POSIX either; $$ is enough here.
+ERRF="${TMPDIR:-/tmp}/harbor-verify.$$.err"
+
+# Emit any API warnings without ever letting them reach a counted stream.
+_note_stderr() {
+  if [ -s "$ERRF" ]; then
+    printf 'note: API wrote to stderr (not counted as resources):\n' >&2
+    cat "$ERRF" >&2
+  fi
+}
 
 # ---- poll a set of resources to gone -------------------------------------
 # usage: poll_gone <kind[,kind...]> <extra kubectl args...>
@@ -199,12 +216,15 @@ poll_gone() {
   res=$1; shift
   deadline=$(( $(date +%s) + 300 ))
   while : ; do
-    out=$(kubectl --context harbor get "$res" -n eng-<alias> "$@" -o name 2>&1); rc=$?
+    if out=$(kubectl --context harbor get "$res" -n eng-<alias> "$@" -o name 2>"$ERRF")
+    then rc=0; else rc=$?; fi
     if [ "$rc" -ne 0 ]; then
-      printf 'UNVERIFIED: %s read failed (exit %s) — NOT confirmed\n%s\n' "$res" "$rc" "$out"
-      return 2
+      printf 'UNVERIFIED: %s read failed (exit %s) — NOT confirmed\n' "$res" "$rc"
+      _note_stderr; return 2
     fi
-    left=$(printf '%s' "$out" | grep -c . || true)
+    _note_stderr
+    # stdout only, and only lines that look like a resource id.
+    left=$(printf '%s\n' "$out" | grep -c '^[a-z][a-z0-9.-]*/' || true)
     if [ "$left" -eq 0 ]; then printf 'GONE: no %s matches\n' "$res"; return 0; fi
     if [ "$(date +%s)" -ge "$deadline" ]; then
       printf 'PRESENT at deadline: %s %s\n%s\n' "$left" "$res" "$out"; return 1
@@ -217,37 +237,87 @@ poll_gone() {
 # The mirror of poll_gone, for imported PVCs. A MISSING imported claim is a
 # real finding: something deleted a volume the controller preserves by design.
 # usage: expect_present pvc <name>...
+# Matches the RETURNED IDENTITIES against the requested names. Counting lines
+# cannot tell "the claim you asked for" from "some other line of output".
 expect_present() {
   kind=$1; shift
-  want=$#
-  out=$(kubectl --context harbor get "$kind" -n eng-<alias> --ignore-not-found \
-    "$@" -o name 2>&1); rc=$?
+  if [ "$#" -eq 0 ]; then echo 'expect_present: no names given'; return 2; fi
+  if out=$(kubectl --context harbor get "$kind" -n eng-<alias> --ignore-not-found \
+             "$@" -o name 2>"$ERRF")
+  then rc=0; else rc=$?; fi
   if [ "$rc" -ne 0 ]; then
-    printf 'UNVERIFIED: %s read failed (exit %s) — preservation NOT confirmed\n%s\n' \
-      "$kind" "$rc" "$out"
-    return 2
+    printf 'UNVERIFIED: %s read failed (exit %s) — preservation NOT confirmed\n' "$kind" "$rc"
+    _note_stderr; return 2
   fi
-  got=$(printf '%s' "$out" | grep -c . || true)
-  if [ "$got" -eq "$want" ]; then
-    printf 'PRESERVED: all %s imported %s still present\n' "$want" "$kind"; return 0
-  fi
-  printf 'MISSING: expected %s imported %s, found %s — a preserved claim was deleted\n%s\n' \
-    "$want" "$kind" "$got" "$out"
-  return 1
+  _note_stderr
+  # `-o name` prints <fully-qualified-kind>/<name> (pvc -> persistentvolumeclaim/x),
+  # so compare on the bare name after the last slash.
+  got=$(printf '%s\n' "$out" | sed -n 's#^[a-z][a-z0-9.-]*/##p')
+  miss=0
+  for want in "$@"; do
+    if ! printf '%s\n' "$got" | grep -qxF -- "$want"; then
+      printf 'MISSING: %s/%s is absent — a preserved claim was deleted\n' "$kind" "$want"
+      miss=1
+    fi
+  done
+  if [ "$miss" -ne 0 ]; then return 1; fi
+  printf 'PRESERVED: every requested %s still present\n' "$kind"; return 0
 }
 ```
 
-**Every call site records its outcome.** A bare `poll_gone …` discards the return code, and an `UNVERIFIED` first call followed by a clean last call then leaves the block looking successful — the original bug on the exit-code path.
+**Every call site records its outcome, and does so `set -e`-safely.** `poll_gone …; record $?` has two defects: under `set -e` a nonzero return terminates the script at the call, so `record` never runs; and when the argument list is built from a command substitution, `$?` is the helper's status and never the substitution's. Use an OR-list, and build argument lists in a separate, checked step.
 
 ```sh
-poll_gone seinetwork,seinode -l sei.io/seinetwork=<chain-id>;        record $?
-poll_gone pods               -l sei.io/seinetwork=<chain-id>;        record $?
+# ---- read one inventory name list ----------------------------------------
+# THREE distinct states, because "the list is empty" and "the list is gone"
+# mean opposite things and an argument list cannot tell them apart:
+#   0 -> readable, has entries (in $LIST)
+#   1 -> readable and legitimately empty (nothing of this class existed)
+#   2 -> missing or unreadable: the inventory itself failed
+# Inlining `$(cat f)` into a helper's arguments collapses states 1 and 2 into
+# an empty argument list, and the helper then succeeds against an empty
+# namespace — losing the inventory reads as a clean teardown.
+read_inventory() {
+  f=$1; LIST=''
+  if [ ! -f "$f" ]; then
+    printf 'UNVERIFIED: inventory file missing: %s\n' "$f"; return 2
+  fi
+  if LIST=$(cat -- "$f" 2>"$ERRF"); then :; else
+    printf 'UNVERIFIED: cannot read inventory file: %s\n' "$f"; _note_stderr; return 2
+  fi
+  if [ -z "$LIST" ]; then return 1; fi
+  return 0
+}
 
-# PVCs by NAME, from the inventory taken before the teardown — never by
-# namespace sweep. A sweep also matches imported claims and other chains'
-# claims, so a correct teardown reports PRESENT.
-poll_gone      pvc --ignore-not-found <managed-pvc>...;              record $?
-expect_present pvc <imported-pvc>...;                                record $?
+# ---- the teardown verification, in order ---------------------------------
+INV=./teardown-inventory
+
+# 0. The inventory must have declared itself complete. An incomplete inventory
+#    cannot support a "verified" verdict no matter what the polls say.
+rc=0; read_inventory "$INV/status" || rc=$?
+if [ "$rc" -ne 0 ] || [ "$LIST" != "OK" ]; then
+  echo 'UNVERIFIED: inventory incomplete or unreadable — see unresolved-nodes.txt'
+  record 2
+fi
+
+rc=0; poll_gone seinetwork,seinode -l sei.io/seinetwork=<chain-id> || rc=$?; record "$rc"
+rc=0; poll_gone pods               -l sei.io/seinetwork=<chain-id> || rc=$?; record "$rc"
+
+# PVCs BY NAME, never by namespace sweep: a sweep also matches imported claims
+# and other chains' claims, so a correct teardown would report PRESENT.
+rc=0; read_inventory "$INV/managed-claims.txt" || rc=$?
+case "$rc" in
+  0) prc=0; poll_gone pvc --ignore-not-found $LIST || prc=$?; record "$prc" ;;
+  1) echo 'NOTE: no controller-managed claims were inventoried — nothing to poll' ;;
+  2) record 2 ;;
+esac
+
+rc=0; read_inventory "$INV/imported-claims.txt" || rc=$?
+case "$rc" in
+  0) prc=0; expect_present pvc $LIST || prc=$?; record "$prc" ;;
+  1) echo 'NOTE: this chain imported no claims — nothing to preserve' ;;
+  2) record 2 ;;
+esac
 
 case "$VERDICT" in
   0) echo 'TEARDOWN VERIFIED — every checked object reached its expected state' ;;
