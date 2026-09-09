@@ -249,7 +249,7 @@ It does **not** remove:
 
 This is a platform-repo change and the engineer cannot do it from the workspace repo. It reverses the onboarding PR: delete `clusters/harbor/engineers/<alias>/`, remove `<alias>` from `clusters/harbor/engineers/kustomization.yaml`, remove `eng-<alias>` from `clusters/harbor/monitoring/podmonitor-seiload-eng.yaml`, delete `terraform/aws/189176372795/eu-central-1/harbor/engineers/<alias>.tf`, and run the targeted `terraform apply` to drop the six Pod Identity resources.
 
-Empty the namespace first, through the steps above. Deleting the `Namespace` object while SeiNetworks still live in it starts a namespace-wide cascade that races the controller's finalizers and can strand PVCs with no owning CR to inspect.
+**Empty the namespace first, through the steps above.** This is an operational preference, not a claim about a failure mode: the Kubernetes namespace controller does remove namespaced resources on its own. Emptying first keeps the `deletionPolicy` gate, the disappearance poll, and the leak sweep available while the objects are still there to inspect. Once the namespace is going away, a `Retain` SeiNetwork's orphans are much harder to reason about, and there is no inventory left to check them against.
 
 The file list mirrors the onboarding shape in `onboarding-pr.md`; the reverse flow has no worked example in this skill. Surface it to the platform team through `#harbor-onboarding` rather than opening the PR unassisted.
 
@@ -275,26 +275,59 @@ kubectl --context harbor get seinetwork <seinetwork-label-value> -n eng-<alias>
 # NotFound → the parent is gone and this node is orphaned
 ```
 
-### Held and leaked disks
+### Candidate disks — and why neither signal proves anything on its own
 
-An orphaned SeiNode still shows a **`Bound`** PVC — the disk is attached and billing, not free-floating. A disk whose PVC has already gone shows up on the AWS side as **`available`**. Check both.
+**Nothing in this section identifies garbage. It identifies candidates.** Two readings look conclusive and are not:
 
-```sh
-kubectl --context harbor describe pvc <name> -n eng-<alias> | grep -A2 'Used By'
-# Used By: <pod>   → an orphaned node is holding it
-# Used By: <none>  → Bound but unattached; nothing in-cluster references it
-```
+- **EC2 `state: available` does not mean unowned.** It means unattached. A volume backing a live PV whose PVC is `Bound` reads `available` the moment its workload stops — a scaled-to-zero StatefulSet, a pod stuck `Pending`, a node drained mid-reschedule. Deleting on that signal destroys a disk somebody is coming back to.
+- **`Used By: <pod>` does not prove the pod belongs to an orphan**, and `Used By: <none>` does not prove the PVC is unwanted. `describe pvc` reports current pod attachment, not ownership.
 
-On the AWS side, the EBS CSI driver tags each volume with the PVC it was provisioned for:
+So treat both as **candidate** signals, then resolve ownership before calling anything garbage.
 
 ```sh
+# Candidate list only. Scoped to this tenant; do not widen the filter.
 aws ec2 describe-volumes --region eu-central-1 --profile <chosen> \
   --filters "Name=tag:kubernetes.io/created-for/pvc/namespace,Values=eng-<alias>" \
   --query 'Volumes[].{id:VolumeId,state:State,size:Size,created:CreateTime,pvc:Tags[?Key==`kubernetes.io/created-for/pvc/name`]|[0].Value}' \
   --output table
 ```
 
-`state: in-use` with an orphaned SeiNode above it is a running leak. `state: available` is a disk nothing references at all. Those tag keys are the EBS CSI driver's own convention rather than something this skill's repos set — run the command once without `--filters` against a volume you know is live to confirm the keys are present before trusting an empty result.
+Those tag keys are the EBS CSI driver's own convention rather than something this skill's repos set. To confirm they are present before trusting an empty result, describe **one volume you already know is live, by ID** — never re-run without `--filters`, which enumerates every volume in the account including other tenants':
+
+```sh
+aws ec2 describe-volumes --region eu-central-1 --profile <chosen> \
+  --volume-ids <vol-id-you-know-is-live> --query 'Volumes[].Tags' --output table
+```
+
+### Resolve ownership before calling a disk garbage
+
+Walk the chain from the volume back to a workload. Each hop either names an owner or fails, and a failed hop means unresolved, not unowned.
+
+```sh
+# 1. Volume ID → PV. The CSI volume handle is the EBS volume ID.
+kubectl --context harbor get pv -o json \
+  | jq -r --arg v '<vol-id>' '.items[]
+      | select(.spec.csi.volumeHandle == $v)
+      | "\(.metadata.name)\t\(.status.phase)\t\(.spec.persistentVolumeReclaimPolicy)\tclaim=\(.spec.claimRef.namespace // "-")/\(.spec.claimRef.name // "-")"'
+
+# 2. PV claimRef → PVC. Does the claim still exist?
+kubectl --context harbor get pvc <claim-name> -n <claim-namespace>
+
+# 3. PVC → the workload that wants it.
+kubectl --context harbor describe pvc <claim-name> -n <claim-namespace> | sed -n '/Used By/,+3p'
+kubectl --context harbor get seinode -n <claim-namespace> -o json \
+  | jq -r '.items[] | "\(.metadata.name)\t\(.status.phase // "-")"'
+```
+
+`kubectl get pv` is cluster-scoped, and the per-engineer Role is namespaced. Expect `Forbidden` here as the normal case for an engineer — that is an **unresolved** result, not a clean one. Hand the volume IDs to the platform team and let them walk the chain.
+
+| What the walk found | Verdict |
+|---|---|
+| Volume → PV → PVC → a SeiNode that is a confirmed orphan | Reclaimable. Delete the **SeiNode**, not the volume — see below. |
+| Volume → PV → PVC → a live, wanted workload | **Not garbage.** Leave it. `available` only meant the workload was stopped. |
+| Volume → PV → PVC whose claim is gone, PV `Released` | Candidate for platform-team deletion. Report the PV, PVC name, and reclaim policy. |
+| Volume → no PV, no claimRef, tags name a PVC that no longer exists | Candidate. Still report rather than delete — the tag is provenance, not ownership. |
+| Any hop returned `Forbidden`, errored, or found nothing | **UNRESOLVED.** Escalate as unresolved. Never as confirmed-safe. |
 
 The engineer's SSO profile may lack `ec2:DescribeVolumes`. On `AccessDenied`, surface the ask to the platform team with the namespace and the orphaned node names; do not treat the denial as "no leaked disks".
 
@@ -313,9 +346,24 @@ Two checks before you run it:
 - The node must be a confirmed orphan by the signature above. `kubectl delete seinode` against a follower that still has a manifest in the workspace repo is undone by the next Flux reconcile, and the safer `git rm` path never lands.
 - Poll the disappearance and the PVC afterwards, exactly as in [Verify the teardown](#verify-the-teardown). An orphan can stick in `Terminating` for the same finalizer reasons.
 
-An imperative `kubectl delete` is right here and nowhere else in teardown: the object was never in git, so there is no manifest to `git rm`.
+An imperative `kubectl delete` is right for a confirmed orphaned SeiNode because the object was never in git, so there is no manifest to `git rm`. The same reasoning covers the other non-Git resources below; it never covers anything Flux owns.
 
-**A volume already `available` in EC2 has no in-cluster handle left.** Deleting it needs `ec2:DeleteVolume`, which the engineer's profile is unlikely to carry. Collect the volume IDs, sizes, and creation times, and escalate to the platform team through `#harbor-onboarding`. Do not report the cleanup as complete while those IDs are outstanding.
+**Never delete an EBS volume from this skill.** Even a volume the ownership walk resolved to a dead PVC goes to the platform team: `ec2:DeleteVolume` is outside the engineer's policy, the walk can be wrong, and an EBS delete is unrecoverable. Hand over the volume IDs, sizes, creation times, and the walk's verdict per volume — including every `UNRESOLVED` one, labelled as unresolved. Escalate through `#harbor-onboarding`. Do not report the cleanup as complete while any ID is outstanding.
+
+### The other resources git never owned
+
+Deleting an orphaned SeiNode is the one cleanup with a paved road. The rest of what a workspace PR leaves behind needs its own handling, so nothing in the [what a workspace-repo PR removes](#what-a-workspace-repo-pr-removes) list is left with no next step:
+
+| Resource | Why git never owned it | What to do |
+|---|---|---|
+| Orphaned validator SeiNode | Controller-generated, then owner-reference stripped | Delete it, per above. Confirm the orphan signature first. |
+| SeiNetwork/SeiNode from an escape-hatch direct apply | Applied with `seictl` outside the PR flow | Confirm no workspace-repo manifest names it (`grep -r <name> engineers/<alias>/`). If none, gate on `deletionPolicy` exactly as a Flux-owned network, then `seictl network\|node delete`. If a manifest does exist, it is Flux-owned — use the PR path. |
+| `SeiNodeTaskWorkflow` | Never committed to the workspace repo, by Guardrail #9 | A `Complete` workflow is the deliberate audit trail — leave it. Force-delete only a `Failed` workflow holding a node, with the `sei.io/force-delete-workflow` annotation first (`seictl-cli.md`). |
+| Bench Job/ConfigMap applied by hand | Ran outside the PR flow | `kubectl delete job\|configmap` by name. Results already in S3 are untouched and are not garbage. |
+| Controller-managed PVC with no SeiNode | The controller owns PVC lifecycle; the engineer's Role has no `delete` on PVCs | Escalate with the PVC name and its PV. Do not request the verb. |
+| S3 genesis prefixes, bench results | Never Kubernetes objects | Out of scope for teardown. Purging a `<chain-id>/` genesis prefix is a deliberate act that unburns the chain-id; the engineer decides. |
+
+Anything not in this table, or any case where the ownership question stays open, escalates as unresolved rather than getting a guess.
 
 ## Halt conditions
 
@@ -326,5 +374,8 @@ Stop and report. Do not auto-remediate.
 - **`kustomization <alias>` is `NotFound` in `eng-<alias>`.** The engineer's Flux wiring is missing, so no workspace-repo merge reconciles at all. Surface to the platform team; do not create the Kustomization.
 - **`lastAppliedRevision` does not reach the merge commit within two reconcile intervals (~10 min).** Read the Ready condition's message (`cluster-inspection-recipes.md` recipe #8). A render error in `engineers/<alias>/kustomization.yaml` — most often a `resources:` entry pointing at the dir that was just removed — blocks every later apply in the namespace, not only this teardown.
 - **An object is still `Terminating` after the poll budget.** Report the finalizer and the controller's log line. Do not strip the finalizer to make the check pass.
+- **A verification read returned `UNVERIFIED`.** The API call failed, so the teardown state is unknown. Report it as unknown — never as verified-gone, and never as still-present. Re-run once the access problem is fixed; a teardown with an unverified check is not a finished teardown.
+- **A `deletionPolicy` patch landed on the live object but git still declares `Retain`.** Flux reverts it, and the removal PR may merge after the revert. Halt and land the policy in git before the removal.
+- **An EBS volume's ownership walk did not resolve.** Any hop that returned `Forbidden`, errored, or found nothing leaves the disk unresolved. Escalate it as unresolved with the volume ID; do not present it as confirmed garbage, and do not delete it.
 - **Orphaned SeiNodes found in a namespace the engineer does not own.** Cross-tenant cleanup is out of scope. Hand the platform team the namespace and the node names.
 - **`aws ec2 describe-volumes` returns `AccessDenied`.** The leak check did not run. Say that, rather than reporting a clean result.
