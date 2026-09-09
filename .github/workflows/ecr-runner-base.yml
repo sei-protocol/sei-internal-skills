@@ -20,6 +20,13 @@ name: ECR Runner Base
 #
 # amd64 only, matching the sandbox NodePool's default selector.
 #
+# This build is the fleet's only source of fresh harness CLIs, so it carries two
+# things that keep "rebuilt" and "current" the same statement: it passes
+# HARNESS_CLI_REFRESH, which is the only input that moves the cache key of the
+# Dockerfile's `npm install -g` layer, and it gates the built image on the baked
+# claude-code version. Both exist because neither did: the deployed base served
+# claude-code 2.1.197 for over two months while every rebuild reported success.
+#
 # Publishing does not roll anything. Deploying is three deliberate steps: the
 # digest here into runner-base.txt, then ecr-runner.yml for the overlay, then the
 # overlay digest into platform's sandbox-config-patch.yaml with a
@@ -70,7 +77,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
 
       - id: vars
-        name: Resolve the target tag
+        name: Resolve the target tag, the cache-refresh key, and the CLI baseline
         env:
           INPUT_TAG: ${{ inputs.tag }}
         run: |
@@ -78,6 +85,21 @@ jobs:
           sha="$(git rev-parse --short=8 HEAD)"
           echo "tag=${INPUT_TAG:-runner-${sha}-credbridge}" >> "$GITHUB_OUTPUT"
           echo "built ${sha} ($(git log -1 --format=%s | cut -c1-60))"
+
+          # HARNESS_CLI_REFRESH moves the cache key of the Dockerfile's
+          # `npm install -g` layer. Nothing else in that layer varies across fork
+          # commits, so without this the registry cache replays it forever and the
+          # image's harness CLIs freeze at whatever the first build resolved.
+          # run_attempt is included so re-running a failed job gets a fresh key.
+          echo "refresh=${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" >> "$GITHUB_OUTPUT"
+
+          # The claude-code release that was current BEFORE the build started.
+          # Captured here, not after, so a publish landing mid-build makes the
+          # baked CLI newer than this baseline rather than failing the gate.
+          latest="$(npm view @anthropic-ai/claude-code version)"
+          [ -n "$latest" ] || { echo "could not read claude-code's latest version" >&2; exit 1; }
+          echo "claude_latest=${latest}" >> "$GITHUB_OUTPUT"
+          echo "claude-code latest at build start: ${latest}"
 
       - name: Build the host target
         uses: docker/build-push-action@v6
@@ -89,6 +111,10 @@ jobs:
           load: true
           platforms: linux/amd64
           tags: sei-omnigent-runner-base:candidate
+          # The Push step below MUST pass the identical value. It is a second
+          # build reading this build's cache; a different key would re-run the
+          # npm layer and push an image no gate below ever saw.
+          build-args: HARNESS_CLI_REFRESH=${{ steps.vars.outputs.refresh }}
           cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-base
           cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-base,mode=max
 
@@ -153,6 +179,57 @@ jobs:
               echo "runner-base-ok"
             '
 
+      - name: Gate — the baked claude-code is not older than the current release
+        # The Dockerfile asserts this too, but an assertion inside a layer is
+        # skipped on exactly the cache hit it exists to catch. This one runs
+        # against the built image, so no cache can skip it, and it is what makes
+        # "the base was rebuilt" mean "the base is current".
+        #
+        # This is the gate the fleet did not have. The deployed runner served
+        # claude-code 2.1.197 for over two months and ~70 releases because npm
+        # silently resolves the newest release the image's Node can run, and
+        # every build reported success. The visible symptom was a model picker
+        # offering only Opus 5.
+        #
+        # Compared against the version captured BEFORE the build, so a release
+        # published mid-build makes the image newer than the baseline and passes.
+        # Only an image that is OLDER than the baseline fails.
+        timeout-minutes: 5
+        env:
+          WANT: ${{ steps.vars.outputs.claude_latest }}
+        run: |
+          set -euo pipefail
+          # grep -m1, matching the convention in ecr-runner.yml: under pipefail,
+          # head closing the pipe early can surface as SIGPIPE from grep and fail
+          # the step. -m1 makes grep exit on its own; head only trims a second
+          # match on the same line.
+          read_ver() {
+            docker run --rm --user 0 -e SEI_RUNNER_CREDENTIAL_CHECK_SKIP_NETWORK=1 \
+              --entrypoint bash sei-omnigent-runner-base:candidate \
+              -lc "$1 --version 2>&1" | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1
+          }
+          for bin in claude codex pi; do
+            echo "  baked ${bin} $(read_ver "$bin")"
+          done
+
+          # || true so the guard below reports the failure. Bare, an empty read
+          # trips set -e at the assignment and the diagnostic never prints.
+          GOT="$(read_ver claude || true)"
+          [ -n "$GOT" ] || { echo "FAIL: no parseable claude --version in the image"; exit 1; }
+
+          if [ "$GOT" != "$WANT" ] \
+             && [ "$(printf '%s\n%s\n' "$GOT" "$WANT" | sort -V | head -n1)" = "$GOT" ]; then
+            echo "FAIL: the image bakes claude-code ${GOT}; ${WANT} was current when this build started."
+            echo "  npm resolves an unpinned package to the newest release the image's Node"
+            echo "  can run and exits 0 when that is not latest. Check HARNESS_NODE_VERSION"
+            echo "  in deploy/docker/Dockerfile.sei against:"
+            echo "    npm view @anthropic-ai/claude-code@${WANT} engines.node"
+            echo "  If the Node floor is right, the npm layer was replayed from the build"
+            echo "  cache — confirm HARNESS_CLI_REFRESH reached the build."
+            exit 1
+          fi
+          echo "cli-freshness-ok claude ${GOT} (baseline ${WANT})"
+
       - name: Push
         uses: docker/build-push-action@v6
         with:
@@ -162,6 +239,9 @@ jobs:
           push: true
           platforms: linux/amd64
           tags: ${{ steps.ecr-login.outputs.registry }}/sei/sei-omnigent:${{ steps.vars.outputs.tag }}
+          # Identical to the Build step's key, so this resolves entirely from
+          # that build's cache and pushes the exact image the gates accepted.
+          build-args: HARNESS_CLI_REFRESH=${{ steps.vars.outputs.refresh }}
           cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-base
 
       - name: Report the digest to pin in runner-base.txt
