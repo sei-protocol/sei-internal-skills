@@ -23,11 +23,11 @@ Teardown removes an engineer's workloads from `eng-<alias>` through the same PR 
 
 ### The patch works only before deletion
 
-`spec.deletionPolicy` is **mutable** — no CEL validation rule and no webhook makes it immutable, unlike `spec.genesis`, `spec.replicas`, `spec.dataVolume`, and `spec.resources`. An operator can therefore flip a live SeiNetwork from `Retain` to `Delete`.
+`spec.deletionPolicy` is **mutable** — no CEL validation rule and no webhook makes it immutable. `SeiNetworkSpec` carries exactly three immutability rules, on `spec.genesis`, `spec.replicas`, and `spec.dataVolume`. An operator can therefore move a SeiNetwork from `Retain` to `Delete`.
 
 That window closes at deletion. Once a `Retain` deletion has stripped the owner references and removed the parent SeiNetwork, no patch brings the cascade back — the parent is gone and the children are top-level objects. The leftover SeiNodes and PVCs then need the manual cleanup in [Find and clean up already-leaked resources](#find-and-clean-up-already-leaked-resources).
 
-**Patch first, delete second. No later step recovers a teardown that ran in the other order.**
+**Set the policy first, delete second. No later step recovers a teardown that ran in the other order.**
 
 ### Read the current policy
 
@@ -41,22 +41,30 @@ kubectl --context harbor get seinetwork <chain-id> -n eng-<alias> \
 
 An empty result is `Retain`, not "no policy". Treat it the same way.
 
-### Set it to `Delete`
+### Set it to `Delete` — the change must land in git
 
-Two paths. Both must land before the removal PR merges.
+**A `kubectl patch` alone does not survive to merge time.** Flux reconciles `engineers/<alias>/` every 5 minutes against what git declares. The manifest that spun the chain up was rendered from `seictl network apply --dry-run`, which captures the server-defaulted CR, so `deletionPolicy: Retain` is normally written out in the committed file. Flux owns that field, and the next reconcile reverts the patch — typically while the removal PR sits in review. The engineer then merges a teardown they believe is safe, and it orphans the validators anyway. Do not rely on server-side-apply field ownership to keep a patch alive across a reconcile, even where git happens to omit the field.
 
-**Path A — a manifest PR (default).** Add `deletionPolicy: Delete` to `spec` in `engineers/<alias>/<task>/seinetwork-<chain-id>.yaml`, merge it, and confirm the live object reads `Delete` with the command above. Then open the removal PR. This keeps the change in git, which is where every other spec field for this chain lives.
+**The policy change goes in git, and it reconciles, before the removal merges.** Two orderings do that correctly.
 
-**Path B — a live patch (fast path for a disposable chain).** One PR instead of two:
+**Path A — two PRs (the default).**
 
-```sh
-kubectl --context harbor patch seinetwork <chain-id> -n eng-<alias> \
-  --type=merge -p '{"spec":{"deletionPolicy":"Delete"}}'
-kubectl --context harbor get seinetwork <chain-id> -n eng-<alias> \
-  -o jsonpath='{.spec.deletionPolicy}'   # must print Delete before you go on
-```
+1. **Policy PR.** Set `deletionPolicy: Delete` in `spec` in `engineers/<alias>/<task>/seinetwork-<chain-id>.yaml`. Nothing else. Merge it.
+2. **Confirm it reconciled onto the live object** — the reconcile, then the read-back, then the git state:
 
-The patch mutates a live object outside git. That is acceptable here only because the object is about to be deleted, and only after the verify read prints `Delete`. Say in the removal PR body that the patch ran, so the reviewer sees the whole teardown.
+   ```sh
+   flux --context harbor reconcile kustomization <alias> -n eng-<alias> --with-source
+   kubectl --context harbor get seinetwork <chain-id> -n eng-<alias> \
+     -o jsonpath='{.spec.deletionPolicy}'   # must print Delete
+   grep -n 'deletionPolicy' engineers/<alias>/<task>/seinetwork-<chain-id>.yaml   # must read Delete
+   ```
+
+   Both reads must agree on `Delete`. A live object reading `Delete` while git still declares `Retain` is the drift this path exists to close.
+3. **Removal PR.** Only now `git rm` the task dir, per the procedure below.
+
+**Path B — one PR that sets the policy and removes nothing else yet.** Where two PRs are too much ceremony, put the policy edit in the removal branch as its **own commit**, merge the branch, and then confirm with the three reads above before the removal commit is allowed to land. This is Path A with the review collapsed, not a shortcut past the ordering. If the branch merges as one unit, it is not this path — it is a `Retain` teardown.
+
+**The live patch is a repair, not a fast path.** `kubectl patch seinetwork <chain-id> -n eng-<alias> --type=merge -p '{"spec":{"deletionPolicy":"Delete"}}'` is correct in one situation: the SeiNetwork is **not** in the workspace repo at all (an escape-hatch direct apply, or an object already orphaned from an earlier teardown), so no reconcile will revert it. Against a Flux-owned SeiNetwork the patch is drift that Flux undoes on its own schedule. If an engineer insists on it anyway, re-read `.spec.deletionPolicy` **immediately before the removal PR merges** rather than once at patch time — a read taken minutes earlier proves history, not the state at merge.
 
 ### Render new chains with `Delete` from the start
 
