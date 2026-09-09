@@ -5,6 +5,7 @@ Teardown removes an engineer's workloads from `eng-<alias>` through the same PR 
 - [The `deletionPolicy: Retain` trap](#the-deletionpolicy-retain-trap)
 - [Procedure: tear down a chain, bench, or comparison](#procedure-tear-down-a-chain-bench-or-comparison)
 - [Verify the teardown](#verify-the-teardown)
+  - [Target the workspace Kustomization, not `flux-system`](#target-the-workspace-kustomization-not-flux-system)
 - [Procedure: empty or remove my namespace](#procedure-empty-or-remove-my-namespace)
 - [Find and clean up already-leaked resources](#find-and-clean-up-already-leaked-resources)
 - [Halt conditions](#halt-conditions)
@@ -22,11 +23,11 @@ Teardown removes an engineer's workloads from `eng-<alias>` through the same PR 
 
 ### The patch works only before deletion
 
-`spec.deletionPolicy` is **mutable** — no CEL validation rule and no webhook makes it immutable, unlike `spec.genesis`, `spec.replicas`, `spec.dataVolume`, and `spec.resources`. So an operator can flip a live SeiNetwork from `Retain` to `Delete`.
+`spec.deletionPolicy` is **mutable** — no CEL validation rule and no webhook makes it immutable, unlike `spec.genesis`, `spec.replicas`, `spec.dataVolume`, and `spec.resources`. An operator can therefore flip a live SeiNetwork from `Retain` to `Delete`.
 
 That window closes at deletion. Once a `Retain` deletion has stripped the owner references and removed the parent SeiNetwork, no patch brings the cascade back — the parent is gone and the children are top-level objects. The leftover SeiNodes and PVCs then need the manual cleanup in [Find and clean up already-leaked resources](#find-and-clean-up-already-leaked-resources).
 
-**Patch first, delete second. There is no way to reorder these two steps.**
+**Patch first, delete second. No later step recovers a teardown that ran in the other order.**
 
 ### Read the current policy
 
@@ -101,7 +102,7 @@ Teardown follows the same PR contract as spinup: render the change, open a PR, l
 
 Two separate questions, and the second is the one that catches a leak: did the right reconciler run, and did the objects actually disappear?
 
-### Reconcile the workspace Kustomization, not `flux-system`
+### Target the workspace Kustomization, not `flux-system`
 
 The engineer's manifests are applied by the Flux `Kustomization <alias>` in namespace `eng-<alias>`, which watches `harbor-engineering-workspace` at `./engineers/<alias>` and reconciles every 5 minutes. The root `flux-system` Kustomization tracks `sei-protocol/platform` at `clusters/harbor`. Reconciling `flux-system` after a workspace-repo merge reconciles a different repository and reports success without applying the engineer's change.
 
