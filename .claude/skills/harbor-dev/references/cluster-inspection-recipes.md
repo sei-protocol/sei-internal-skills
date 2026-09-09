@@ -185,6 +185,8 @@ Written for a portable shell (`dash`, `ash`, `bash`). Three deliberate non-POSIX
 2. **Identities are matched, not counted.** A count says how many lines came back, not whether the resources you asked about are the ones that came back.
 3. **Every command that can fail runs inside a condition.** Under `set -e` a bare `out=$(kubectl …)` terminates the shell at the assignment — before classification, and before the caller records anything.
 
+**Adding a helper here? Reuse the matching and status handling beside it rather than re-deriving them.** Through this file's review history the recurring defect was never one bug — it was new code re-deriving logic already hardened next door, and arriving without the fix. `sweep_residual` was written comparing bare names in the same review round that `expect_present` was corrected to compare full identities, one function away.
+
 ```sh
 # ============ harbor teardown verification library ========================
 # Source this, then call verify_teardown / sweep_residual. Do not copy pieces.
@@ -464,6 +466,13 @@ rc=0
 verify_teardown eng-<alias> seinetwork,seinode,pod \
   "sei.io/seinetwork=<chain-id>" ./teardown-inventory-<chain-id> || rc=$?
 record "$rc"
+
+# An interrupt exits the function through its trap at 130/143, bypassing its own
+# closing message — so say something here rather than exiting nonzero in silence.
+case "$VERDICT" in
+  0|1|2) : ;;
+  *) echo "VERIFICATION ABORTED — unexpected status $VERDICT (interrupted?); treat as unverified" ;;
+esac
 exit "$VERDICT"
 ```
 
