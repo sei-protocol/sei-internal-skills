@@ -175,24 +175,40 @@ If `kubectl get kustomization <alias> -n eng-<alias>` returns `NotFound`, the on
 
 A Flux reconcile reports success once it issues the deletes. Deletion is asynchronous and finalizers hold objects in `Terminating` while the controller releases their PVCs, so poll rather than assert once.
 
+**Three outcomes — `GONE`, `PRESENT`, `UNVERIFIED` — and a failed API read is never a pass.** A `Forbidden`, an expired credential, or a dropped connection returns zero lines, so a check that counts lines without reading `kubectl`'s exit status prints "gone" exactly when it cannot see the cluster. Capture the status separately.
+
 ```sh
-# Poll a chain's CRs to gone (5-minute budget). Drop the -l selector to sweep the namespace.
-end=$((SECONDS + 300))
-while [ "$SECONDS" -lt "$end" ]; do
-  left=$(kubectl get seinetwork,seinode -n eng-<alias> \
-    -l sei.io/seinetwork=<chain-id> -o name | wc -l)
-  if [ "$left" -eq 0 ]; then echo "all objects gone"; break; fi
-  echo "$left object(s) remain"; sleep 10
-done
+# POSIX sh. Polls a chain's CRs to gone. Drop the -l selector to sweep the namespace.
+# `date +%s` arithmetic, not Bash's SECONDS — SECONDS is unset under sh, where the
+# comparison dies with `Illegal number` and the loop never runs.
+poll_gone() {   # usage: poll_gone <resources> <extra-kubectl-args...>
+  res=$1; shift
+  deadline=$(( $(date +%s) + 300 ))
+  while : ; do
+    out=$(kubectl get "$res" -n eng-<alias> "$@" -o name 2>&1); rc=$?
+    if [ "$rc" -ne 0 ]; then
+      printf 'UNVERIFIED: %s read failed (exit %s) — NOT confirmed\n%s\n' "$res" "$rc" "$out"
+      return 2
+    fi
+    left=$(printf '%s' "$out" | grep -c . || true)
+    if [ "$left" -eq 0 ]; then printf 'GONE: no %s matches\n' "$res"; return 0; fi
+    if [ "$(date +%s)" -ge "$deadline" ]; then
+      printf 'PRESENT at deadline: %s %s\n%s\n' "$left" "$res" "$out"; return 1
+    fi
+    echo "$left $res remain"; sleep 10
+  done
+}
 
-# The disks must go with them — a Bound PVC outliving its SeiNode is a held disk.
-kubectl get pvc -n eng-<alias> \
-  -o custom-columns='NAME:.metadata.name,STATUS:.status.phase,VOLUME:.spec.volumeName,CLASS:.spec.storageClassName'
+poll_gone seinetwork,seinode -l sei.io/seinetwork=<chain-id>
+poll_gone pvc          # see the imported-PVC caveat below before expecting zero
+poll_gone pods         -l sei.io/seinetwork=<chain-id>
 
-# Budget exhausted? Read what holds each object — do not strip the finalizer to pass the check.
+# PRESENT at deadline? Read what holds each object — never strip a finalizer to pass the check.
 kubectl get seinetwork,seinode -n eng-<alias> -l sei.io/seinetwork=<chain-id> \
   -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,DELETED:.metadata.deletionTimestamp,FINALIZERS:.metadata.finalizers'
 ```
+
+**Zero PVCs is the wrong expectation.** The SeiNode finalizer deliberately skips an **imported** PVC (`spec.import` on the node), so an imported PVC surviving is correct. Compare the survivors against the imported-PVC list taken before the teardown — `teardown.md` inventory step 2 — not against zero.
 
 `sei.io/seinode-finalizer` on a parked SeiNode means the controller has not released the PVC — an unhealthy controller or an EBS CSI flake. See `teardown.md` → *a stuck `Terminating` object is a real signal*.
 
@@ -249,14 +265,18 @@ git rm -r engineers/<alias>/bench-<RUN_ID>/
 git commit + push
 ```
 
-After the PR merges, reconcile the engineer's own Kustomization and confirm the objects went away — `flux-system` tracks a different repo and reports success regardless:
+After the PR merges, reconcile the engineer's own Kustomization and **poll** the bench resources to gone — `flux-system` tracks a different repo and reports success regardless, and a single read right after the reconcile catches a Job mid-deletion:
 
 ```sh
 flux --context harbor reconcile kustomization <alias> -n eng-<alias> --with-source
-kubectl get job,configmap -n eng-<alias> -l sei.io/bench-name=<RUN_ID>   # → No resources found
+
+# poll_gone from recipe #9 — same three outcomes, same exit-status handling.
+# Pods are included deliberately: the Job can be gone while its pod is still Terminating.
+poll_gone job,configmap -l sei.io/bench-name=<RUN_ID>
+poll_gone pods          -l sei.io/bench-name=<RUN_ID>
 ```
 
-Flux prunes the Job + ConfigMap on that reconcile; Pods cascade per k8s deletion propagation. The `<RUN_ID>` task dir leaves the engineer's workspace tree. Bench results already in S3 are untouched.
+An `UNVERIFIED` from either call means the bench teardown is unconfirmed, not clean. Flux prunes the Job + ConfigMap on that reconcile; Pods cascade per k8s deletion propagation. The `<RUN_ID>` task dir leaves the engineer's workspace tree. Bench results already in S3 are untouched.
 
 ## When a recipe doesn't match observed output
 

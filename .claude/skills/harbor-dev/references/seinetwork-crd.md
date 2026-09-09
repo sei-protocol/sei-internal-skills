@@ -52,15 +52,15 @@ The spec is flat (no `spec.template`):
 
 The storage class is not the lever. A `Delete` reclaim policy releases a disk only when the PVC is deleted, and an orphaned SeiNode never releases its PVC.
 
-**Mutable, unlike the immutable fields above.** No CEL rule and no webhook covers `deletionPolicy`, so `kubectl patch` moves a live SeiNetwork from `Retain` to `Delete`:
+**Mutable, unlike the immutable fields above.** No CEL rule and no webhook covers `deletionPolicy`, so the value can move from `Retain` to `Delete` on an existing network:
 
 ```sh
 kubectl get seinetwork <id> -n eng-<alias> -o jsonpath='{.spec.deletionPolicy}'   # empty means Retain
-kubectl patch seinetwork <id> -n eng-<alias> --type=merge \
-  -p '{"spec":{"deletionPolicy":"Delete"}}'
 ```
 
-**The patch works only before deletion.** Once a `Retain` deletion has stripped the owner references and removed the parent, no patch restores the cascade — the leftover SeiNodes and PVCs need manual cleanup (`teardown.md`).
+**For a Flux-owned SeiNetwork the change goes through git, not `kubectl patch`.** The manifest rendered at spin-up normally carries the server-defaulted `Retain`, so Flux owns the field and reverts a live patch on its next reconcile — often while a removal PR is still in review, which is exactly when the revert does the damage. Set `deletionPolicy: Delete` in `engineers/<alias>/<task>/seinetwork-<id>.yaml`, merge, reconcile, and read back both git and the live object. `kubectl patch seinetwork <id> -n eng-<alias> --type=merge -p '{"spec":{"deletionPolicy":"Delete"}}'` is correct only where no reconcile owns the object.
+
+**Either way it works only before deletion.** Once a `Retain` deletion has stripped the owner references and removed the parent, nothing restores the cascade — the leftover SeiNodes and PVCs need manual cleanup (`teardown.md`).
 
 Under `Delete` the chain runs end to end: SeiNetwork deleted → validators deleted through their owner references → each SeiNode's finalizer deletes its data PVC → the storage class's `Delete` reclaim policy releases the EBS volume. The finalizer skips an **imported** PVC (`spec.import` on the SeiNode) by design.
 

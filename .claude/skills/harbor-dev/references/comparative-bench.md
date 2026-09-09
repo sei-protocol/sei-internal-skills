@@ -426,7 +426,7 @@ Reports:
 - **`<chain-tag>` exceeds the 22-char budget** when the `-{a,b}-rpc-<k>` suffix is added. Surface the overflow and ask the engineer to pick a shorter tag.
 - **CR name collision on either side.** Halt before render; surface the existing object's age + labels.
 - **One network reaches `Ready` while the other reaches `Failed`.** The comparison is invalid. Surface the failed side's `.status.plan.failedTaskDetail.error`. The half-teardown is two coordinated edits, **both required** — Flux refuses to apply a kustomization with a missing resource:
-  - **First**, patch the surviving side's SeiNetwork to `deletionPolicy: Delete` if it reads `Retain` (`teardown.md`). The failed side needs the same read: a network that never reached `Ready` may still have generated validators to orphan.
+  - **First**, land `deletionPolicy: Delete` in the surviving side's SeiNetwork manifest if it reads `Retain`, and let it reconcile before the removal merges (`teardown.md` — a live patch gets reverted). The failed side needs the same read: a network that never reached `Ready` may still have generated validators to orphan.
   - `git rm -r engineers/<alias>/compare-<COMPARE_RUN_ID>/chain-<a-or-b>/`
   - Edit `engineers/<alias>/compare-<COMPARE_RUN_ID>/kustomization.yaml` to remove the matching `- chain-<a-or-b>` line from `resources:`
   - Commit + push + merge; Flux prunes the SeiNetwork and all its follower SeiNodes on the failed side. The orphan followers were reconciling on their own until pruned.

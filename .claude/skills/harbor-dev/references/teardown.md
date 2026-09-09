@@ -41,9 +41,9 @@ kubectl --context harbor get seinetwork <chain-id> -n eng-<alias> \
 
 An empty result is `Retain`, not "no policy". Treat it the same way.
 
-### Set it to `Delete` — the change must land in git
+### Set it to `Delete`
 
-**A `kubectl patch` alone does not survive to merge time.** Flux reconciles `engineers/<alias>/` every 5 minutes against what git declares. The manifest that spun the chain up was rendered from `seictl network apply --dry-run`, which captures the server-defaulted CR, so `deletionPolicy: Retain` is normally written out in the committed file. Flux owns that field, and the next reconcile reverts the patch — typically while the removal PR sits in review. The engineer then merges a teardown they believe is safe, and it orphans the validators anyway. Do not rely on server-side-apply field ownership to keep a patch alive across a reconcile, even where git happens to omit the field.
+**The change must land in git. A `kubectl patch` alone does not survive to merge time.** Flux reconciles `engineers/<alias>/` every 5 minutes against what git declares. The manifest that spun the chain up was rendered from `seictl network apply --dry-run`, which captures the server-defaulted CR, so `deletionPolicy: Retain` is normally written out in the committed file. Flux owns that field, and the next reconcile reverts the patch — typically while the removal PR sits in review. The engineer then merges a teardown they believe is safe, and it orphans the validators anyway. Do not rely on server-side-apply field ownership to keep a patch alive across a reconcile, even where git happens to omit the field.
 
 **The policy change goes in git, and it reconciles, before the removal merges.** Two orderings do that correctly.
 
@@ -282,7 +282,7 @@ kubectl --context harbor get seinetwork <seinetwork-label-value> -n eng-<alias>
 - **EC2 `state: available` does not mean unowned.** It means unattached. A volume backing a live PV whose PVC is `Bound` reads `available` the moment its workload stops — a scaled-to-zero StatefulSet, a pod stuck `Pending`, a node drained mid-reschedule. Deleting on that signal destroys a disk somebody is coming back to.
 - **`Used By: <pod>` does not prove the pod belongs to an orphan**, and `Used By: <none>` does not prove the PVC is unwanted. `describe pvc` reports current pod attachment, not ownership.
 
-So treat both as **candidate** signals, then resolve ownership before calling anything garbage.
+Treat both as **candidate** signals, then resolve ownership before calling anything garbage.
 
 ```sh
 # Candidate list only. Scoped to this tenant; do not widen the filter.
