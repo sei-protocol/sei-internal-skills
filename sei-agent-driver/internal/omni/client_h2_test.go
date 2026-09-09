@@ -102,8 +102,9 @@ func TestTheMintClientCarriesTheSameProtection(t *testing.T) {
 	}
 	if base.TLSNextProto["h2"] == nil {
 		t.Error("the mint client's transport has no x/net/http2 handler installed, so " +
-			"ReadIdleTimeout and PingTimeout do not apply and a connection idle since " +
-			"the last mint is only found dead at the kernel retransmit ceiling")
+			"ReadIdleTimeout and PingTimeout do not apply to the API calls that reuse it " +
+			"after the mint, and a connection one of them leaves idle is only found dead " +
+			"at the kernel retransmit ceiling")
 	}
 }
 
