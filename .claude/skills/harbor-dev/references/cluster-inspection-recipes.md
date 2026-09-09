@@ -177,15 +177,29 @@ A Flux reconcile reports success once it issues the deletes. Deletion is asynchr
 
 **Three outcomes — `GONE`, `PRESENT`, `UNVERIFIED` — and a failed API read is never a pass.** A `Forbidden`, an expired credential, or a dropped connection returns zero lines, so a check that counts lines without reading `kubectl`'s exit status prints "gone" exactly when it cannot see the cluster. Capture the status separately.
 
+**This block is the one implementation.** `teardown.md` calls it rather than restating it; two copies of a verification routine drift, and the copy that drifts is the one that stops catching leaks.
+
+Written for a portable shell (`dash`, `ash`, `bash`). One deliberate non-POSIX dependency: `date +%s` is a near-universal extension, not a specified `date` format — substitute an equivalent epoch source if you meet a `date` without it. Bash's `SECONDS` is *not* usable here: it is unset under `sh`, where the comparison dies with `Illegal number` and the loop never runs.
+
 ```sh
-# POSIX sh. Polls a chain's CRs to gone. Drop the -l selector to sweep the namespace.
-# `date +%s` arithmetic, not Bash's SECONDS — SECONDS is unset under sh, where the
-# comparison dies with `Illegal number` and the loop never runs.
-poll_gone() {   # usage: poll_gone <resources> <extra-kubectl-args...>
+# ---- verdict aggregation -------------------------------------------------
+# Worst outcome wins, and no later success clears an earlier failure:
+#   0 GONE  <  1 PRESENT  <  2 UNVERIFIED
+VERDICT=0
+record() { if [ "$1" -gt "$VERDICT" ]; then VERDICT=$1; fi; }
+
+# ---- poll a set of resources to gone -------------------------------------
+# usage: poll_gone <kind[,kind...]> <extra kubectl args...>
+#   by selector:  poll_gone seinetwork,seinode -l sei.io/seinetwork=<chain-id>
+#   by name:      poll_gone pvc --ignore-not-found <name>...
+# --ignore-not-found is REQUIRED with explicit names: without it a deleted
+# resource returns NotFound and a nonzero exit, and the success condition
+# would report as UNVERIFIED.
+poll_gone() {
   res=$1; shift
   deadline=$(( $(date +%s) + 300 ))
   while : ; do
-    out=$(kubectl get "$res" -n eng-<alias> "$@" -o name 2>&1); rc=$?
+    out=$(kubectl --context harbor get "$res" -n eng-<alias> "$@" -o name 2>&1); rc=$?
     if [ "$rc" -ne 0 ]; then
       printf 'UNVERIFIED: %s read failed (exit %s) — NOT confirmed\n%s\n' "$res" "$rc" "$out"
       return 2
@@ -199,16 +213,57 @@ poll_gone() {   # usage: poll_gone <resources> <extra-kubectl-args...>
   done
 }
 
-poll_gone seinetwork,seinode -l sei.io/seinetwork=<chain-id>
-poll_gone pvc          # see the imported-PVC caveat below before expecting zero
-poll_gone pods         -l sei.io/seinetwork=<chain-id>
+# ---- assert the deliberately-preserved resources are still there ---------
+# The mirror of poll_gone, for imported PVCs. A MISSING imported claim is a
+# real finding: something deleted a volume the controller preserves by design.
+# usage: expect_present pvc <name>...
+expect_present() {
+  kind=$1; shift
+  want=$#
+  out=$(kubectl --context harbor get "$kind" -n eng-<alias> --ignore-not-found \
+    "$@" -o name 2>&1); rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'UNVERIFIED: %s read failed (exit %s) — preservation NOT confirmed\n%s\n' \
+      "$kind" "$rc" "$out"
+    return 2
+  fi
+  got=$(printf '%s' "$out" | grep -c . || true)
+  if [ "$got" -eq "$want" ]; then
+    printf 'PRESERVED: all %s imported %s still present\n' "$want" "$kind"; return 0
+  fi
+  printf 'MISSING: expected %s imported %s, found %s — a preserved claim was deleted\n%s\n' \
+    "$want" "$kind" "$got" "$out"
+  return 1
+}
+```
 
+**Every call site records its outcome.** A bare `poll_gone …` discards the return code, and an `UNVERIFIED` first call followed by a clean last call then leaves the block looking successful — the original bug on the exit-code path.
+
+```sh
+poll_gone seinetwork,seinode -l sei.io/seinetwork=<chain-id>;        record $?
+poll_gone pods               -l sei.io/seinetwork=<chain-id>;        record $?
+
+# PVCs by NAME, from the inventory taken before the teardown — never by
+# namespace sweep. A sweep also matches imported claims and other chains'
+# claims, so a correct teardown reports PRESENT.
+poll_gone      pvc --ignore-not-found <managed-pvc>...;              record $?
+expect_present pvc <imported-pvc>...;                                record $?
+
+case "$VERDICT" in
+  0) echo 'TEARDOWN VERIFIED — every checked object reached its expected state' ;;
+  1) echo 'TEARDOWN INCOMPLETE — objects remain, or a preserved claim vanished' ;;
+  2) echo 'TEARDOWN UNVERIFIED — an API read failed; state unknown, do not report done' ;;
+esac
+exit "$VERDICT"
+```
+
+```sh
 # PRESENT at deadline? Read what holds each object — never strip a finalizer to pass the check.
-kubectl get seinetwork,seinode -n eng-<alias> -l sei.io/seinetwork=<chain-id> \
+kubectl --context harbor get seinetwork,seinode -n eng-<alias> -l sei.io/seinetwork=<chain-id> \
   -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,DELETED:.metadata.deletionTimestamp,FINALIZERS:.metadata.finalizers'
 ```
 
-**Zero PVCs is the wrong expectation.** The SeiNode finalizer deliberately skips an **imported** PVC (`spec.import` on the node), so an imported PVC surviving is correct. Compare the survivors against the imported-PVC list taken before the teardown — `teardown.md` inventory step 2 — not against zero.
+**Zero PVCs is the wrong expectation, and a namespace-wide PVC poll is the wrong check.** The SeiNode finalizer deliberately skips an imported PVC, so imported claims survive by design and other chains' claims are none of this teardown's business. Both make a namespace sweep report `PRESENT` after a correct teardown. Poll the target chain's **controller-managed** claims by name, and assert the imported ones separately with `expect_present`. Both name lists come from `teardown.md` inventory step 2, captured **before** the SeiNodes are deleted — afterwards nothing in the cluster still says which claims were which.
 
 `sei.io/seinode-finalizer` on a parked SeiNode means the controller has not released the PVC — an unhealthy controller or an EBS CSI flake. See `teardown.md` → *a stuck `Terminating` object is a real signal*.
 
@@ -270,13 +325,17 @@ After the PR merges, reconcile the engineer's own Kustomization and **poll** the
 ```sh
 flux --context harbor reconcile kustomization <alias> -n eng-<alias> --with-source
 
-# poll_gone from recipe #9 — same three outcomes, same exit-status handling.
+# poll_gone and record from recipe #9 — same three outcomes, same aggregation.
 # Pods are included deliberately: the Job can be gone while its pod is still Terminating.
-poll_gone job,configmap -l sei.io/bench-name=<RUN_ID>
-poll_gone pods          -l sei.io/bench-name=<RUN_ID>
+VERDICT=0
+poll_gone job,configmap -l sei.io/bench-name=<RUN_ID>;  record $?
+poll_gone pods          -l sei.io/bench-name=<RUN_ID>;  record $?
+exit "$VERDICT"
 ```
 
-An `UNVERIFIED` from either call means the bench teardown is unconfirmed, not clean. Flux prunes the Job + ConfigMap on that reconcile; Pods cascade per k8s deletion propagation. The `<RUN_ID>` task dir leaves the engineer's workspace tree. Bench results already in S3 are untouched.
+A bench dir holds no SeiNetwork and no PVC, so there is nothing to poll by name here — the `sei.io/bench-name` selector already scopes both calls to this run.
+
+`record $?` is not optional. Without it the block's status is the last call's, so an `UNVERIFIED` on the Jobs followed by a clean pods read exits 0. An `UNVERIFIED` from either call means the bench teardown is unconfirmed, not clean. Flux prunes the Job + ConfigMap on that reconcile; Pods cascade per k8s deletion propagation. The `<RUN_ID>` task dir leaves the engineer's workspace tree. Bench results already in S3 are untouched.
 
 ## When a recipe doesn't match observed output
 
