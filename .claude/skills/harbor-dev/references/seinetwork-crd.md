@@ -62,7 +62,7 @@ kubectl get seinetwork <id> -n eng-<alias> -o jsonpath='{.spec.deletionPolicy}' 
 
 **Either way it works only before deletion.** Once a `Retain` deletion has stripped the owner references and removed the parent, nothing restores the cascade — the leftover SeiNodes and PVCs need manual cleanup (`teardown.md`).
 
-Under `Delete` the chain runs end to end: SeiNetwork deleted → validators deleted through their owner references → each SeiNode's finalizer deletes its data PVC → the storage class's `Delete` reclaim policy releases the EBS volume. The finalizer skips an **imported** PVC (`spec.import` on the SeiNode) by design.
+Under `Delete` the chain runs end to end: SeiNetwork deleted → validators deleted through their owner references → each SeiNode's finalizer deletes its data PVC → the storage class's `Delete` reclaim policy releases the EBS volume. The finalizer skips an **imported** PVC (`spec.dataVolume.import` on the SeiNode) by design.
 
 Keep `Retain` only to preserve a validator's disk for forensics after the network goes away, and say so where the choice is made — a retained disk is a cost somebody chose.
 
