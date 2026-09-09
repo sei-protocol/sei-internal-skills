@@ -96,7 +96,9 @@ jobs:
           # The claude-code release that was current BEFORE the build started.
           # Captured here, not after, so a publish landing mid-build makes the
           # baked CLI newer than this baseline rather than failing the gate.
-          latest="$(npm view @anthropic-ai/claude-code version)"
+          # || true so the guard below reports the failure. Bare, a non-zero npm
+          # view trips set -e at the assignment and the diagnostic never prints.
+          latest="$(npm view @anthropic-ai/claude-code version || true)"
           [ -n "$latest" ] || { echo "could not read claude-code's latest version" >&2; exit 1; }
           echo "claude_latest=${latest}" >> "$GITHUB_OUTPUT"
           echo "claude-code latest at build start: ${latest}"

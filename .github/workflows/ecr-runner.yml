@@ -135,10 +135,19 @@ jobs:
         continue-on-error: true
         run: |
           set -euo pipefail
+          # Both reads carry || true, and an unread one says so. Bare, set -e ends
+          # the step before its first echo, and continue-on-error then renders that
+          # identical to the current-CLI path: no version line, no warning, green
+          # step. A detector that reports nothing when it breaks is the failure
+          # mode this step exists to catch.
           got="$(docker run --rm --user 0 -e SEI_RUNNER_CREDENTIAL_CHECK_SKIP_NETWORK=1 \
                    --entrypoint bash sei-runner-overlay:candidate -lc 'claude --version 2>&1' \
-                 | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1)"
-          latest="$(npm view @anthropic-ai/claude-code version)"
+                 | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
+          latest="$(npm view @anthropic-ai/claude-code version || true)"
+          if [ -z "$got" ] || [ -z "$latest" ]; then
+            echo "::warning::Could not determine runner-base CLI staleness (baked '${got:-unread}', npm latest '${latest:-unread}'). This check did not run; it did not pass."
+            exit 0
+          fi
           echo "base bakes claude-code ${got}; npm latest is ${latest}"
           [ "$got" = "$latest" ] && { echo "base CLI is current"; exit 0; }
 
