@@ -66,7 +66,7 @@ An empty result is `Retain`, not "no policy". Treat it the same way.
 
 **The live patch is a repair, and it is not available for a Flux-owned network.** `kubectl patch seinetwork <chain-id> -n eng-<alias> --type=merge -p '{"spec":{"deletionPolicy":"Delete"}}'` is correct in exactly one situation: the SeiNetwork is **not** in the workspace repo at all — an escape-hatch direct apply, or an object already orphaned from an earlier teardown — so no reconcile will revert it. Confirm that with the workspace search in [the other resources git never owned](#the-other-resources-git-never-owned) before relying on it.
 
-**There is no "read it again just before merging" version of this for a Flux-owned network.** A pre-merge read narrows the window; it does not order your read against Flux's reconcile, and the losing sequence needs no unusual timing:
+**No "read it again just before merging" version of this exists for a Flux-owned network.** A pre-merge read narrows the window; it does not order your read against Flux's reconcile, and the losing sequence needs no unusual timing:
 
 1. Git declares `Retain`. The engineer patches the live object to `Delete`.
 2. The pre-merge read returns `Delete`. It is true, and it is already stale.
