@@ -90,19 +90,24 @@ That finalizer is also why the per-engineer Role carries no `delete` on `persist
 Teardown follows the same PR contract as spinup: render the change, open a PR, let the engineer merge, verify what Flux did. Never `kubectl delete` a Flux-owned CR — the next reconcile re-applies it and the removal PR never lands.
 
 1. **Pre-flight** — the five gates. Halt on first failure.
-2. **Name what goes away** — the task dir, every SeiNetwork and SeiNode in it, and the PVCs those nodes hold. List them for the engineer before touching anything:
+2. **Name what goes away, and what stays** — the task dir, every SeiNetwork and SeiNode in it, and the PVCs those nodes hold. List them for the engineer before touching anything. **Record which SeiNodes carry `spec.import`**: their PVCs survive the teardown by design, and once the nodes are deleted nothing in the cluster still says which PVCs those were.
 
    ```sh
    kubectl --context harbor get seinetwork,seinode -n eng-<alias> \
      -l sei.io/seinetwork=<chain-id> \
      -o custom-columns='KIND:.kind,NAME:.metadata.name,ROLE:.metadata.labels.sei\.io/role,PHASE:.status.phase'
+
+   # Imported PVCs — expected to SURVIVE. Everything else is controller-managed.
+   kubectl --context harbor get seinode -n eng-<alias> -l sei.io/seinetwork=<chain-id> -o json \
+     | jq -r '.items[] | select(.spec.import != null) | "\(.metadata.name)\timported"'
+
    kubectl --context harbor get pvc -n eng-<alias>
    ```
 3. **Check `deletionPolicy` on every SeiNetwork in the task dir** — read it with the command in [Read the current policy](#read-the-current-policy). On `Retain` (or empty), halt and route to [Set it to `Delete`](#set-it-to-delete). Do not open the removal PR while a SeiNetwork still reads `Retain`.
-4. **Confirm the policy landed** — the live object must read `Delete`. This is the gate for step 5; a removal that merges ahead of it leaks the validators' disks.
+4. **Confirm the policy landed in git and on the object** — the committed manifest and the live object must both read `Delete`. The live object alone is not enough: Flux reverts a policy that git still declares `Retain`, and it does so on its own schedule, which can fall inside the removal PR's review window. This is the gate for step 5.
 5. **Remove the manifests** — `git rm -r engineers/<alias>/<task>/` **and** remove the `<task>` entry from `engineers/<alias>/kustomization.yaml`'s `resources:` list. Both edits are required: Kustomize fails to render with a missing-resource entry, and Flux then applies nothing at all.
 6. **Commit + push** — branch `feat/eng-<alias>-teardown-<task>`. Commit message: `feat(eng/<alias>): tear down <task> — chain-id=<chain-id>`.
-7. **Open the PR** — title `feat(eng/<alias>): tear down <task>`. The body names the chain-id, every CR that goes away, the `deletionPolicy` value the SeiNetwork now carries, and the patch path (A or B) that set it. `gh pr create --repo sei-protocol/harbor-engineering-workspace --base main`.
+7. **Open the PR** — title `feat(eng/<alias>): tear down <task>`. The body names the chain-id, every CR that goes away, the `deletionPolicy` value the SeiNetwork now carries in git and on the live object, and which path set it. `gh pr create --repo sei-protocol/harbor-engineering-workspace --base main`.
 8. **After merge — reconcile and verify** — [Verify the teardown](#verify-the-teardown). A merged PR is not a completed teardown.
 9. **Report what survives** — the chain-id's S3 genesis artifacts are **not** purged by teardown, so the chain-id is burned. A later respin uses a fresh chain-id or purges the `<chain-id>/` prefix in `harbor-sei-k8s-genesis-artifacts` first.
 
@@ -136,30 +141,65 @@ kubectl --context harbor -n eng-<alias> get kustomization <alias> \
 
 Compare that revision to the merge commit SHA. A stale revision means Flux has not applied the removal yet, so any disappearance check below is premature.
 
-If `--with-source` returns `Forbidden`, the `GitRepository` the Kustomization references sits outside `eng-<alias>` and the engineer's namespace-scoped Role does not reach it. Drop `--with-source` and reconcile the Kustomization alone; it applies the revision the source has already fetched, and the source polls on its own schedule.
+A `Forbidden` on `--with-source` **may** mean the `GitRepository` the Kustomization references sits outside `eng-<alias>`, beyond the engineer's namespace-scoped Role. It may equally be an expired session, a missing EKS access entry, or a Role that never carried the Flux verbs. Read the message before concluding which. Whatever the cause, dropping `--with-source` and reconciling the Kustomization alone still applies the revision the source has already fetched, and the source polls on its own schedule.
 
 ### Confirm the resources disappeared
 
-A successful reconcile says Flux applied the change. It does not say the objects are gone. Deletion is asynchronous and finalizers hold objects in `Terminating` while the controller releases their PVCs, so poll instead of asserting once:
+A successful reconcile says Flux applied the change. It does not say the objects are gone. Deletion is asynchronous and finalizers hold objects in `Terminating` while the controller releases their PVCs, so poll instead of asserting once.
+
+**Three outcomes, and they are not interchangeable:**
+
+| Outcome | Meaning | What to report |
+|---|---|---|
+| `GONE` | The API answered and matched nothing. | Teardown verified for these objects. |
+| `PRESENT` | The API answered and objects remain at the deadline. | Not torn down. Read the finalizers below. |
+| `UNVERIFIED` | The API call failed — `Forbidden`, expired credential, connection error. | **Teardown not confirmed.** Say the check could not run. |
+
+**A failed API read is never a pass.** A `Forbidden` or a dropped connection returns zero lines, and a check that counts lines without reading the exit status prints "gone" precisely when it cannot see the cluster. Capture the status separately, every time.
 
 ```sh
-end=$((SECONDS + 300))
-while [ "$SECONDS" -lt "$end" ]; do
-  left=$(kubectl --context harbor get seinetwork,seinode -n eng-<alias> \
-    -l sei.io/seinetwork=<chain-id> -o name | wc -l)
-  if [ "$left" -eq 0 ]; then echo "all objects gone"; break; fi
+# POSIX sh. Polls the chain's CRs to gone. Drop -l to sweep the whole namespace.
+# Prints exactly one of GONE / PRESENT / UNVERIFIED.
+deadline=$(( $(date +%s) + 300 ))
+while : ; do
+  out=$(kubectl --context harbor get seinetwork,seinode -n eng-<alias> \
+    -l sei.io/seinetwork=<chain-id> -o name 2>&1); rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'UNVERIFIED: the API read failed (exit %s) — teardown NOT confirmed\n%s\n' "$rc" "$out"
+    break
+  fi
+  left=$(printf '%s' "$out" | grep -c . || true)
+  if [ "$left" -eq 0 ]; then echo 'GONE: no SeiNetwork or SeiNode matches'; break; fi
+  if [ "$(date +%s)" -ge "$deadline" ]; then
+    printf 'PRESENT at deadline: %s object(s)\n%s\n' "$left" "$out"; break
+  fi
   echo "$left object(s) remain"; sleep 10
 done
 ```
 
-Then confirm the disks went with them:
+Two details are load-bearing. `rc` is captured from the `kubectl` call itself, not from a pipeline whose status belongs to `wc`. And the deadline is arithmetic on `date +%s` rather than Bash's `SECONDS`, which is unset under `sh` — there the comparison fails with `Illegal number` and the loop never runs at all.
+
+**Then poll the disks with the same shape.** Controller-managed PVCs go away with their SeiNodes; the poll below is the same loop with the resource swapped:
 
 ```sh
-kubectl --context harbor get pvc -n eng-<alias> \
-  -o custom-columns='NAME:.metadata.name,STATUS:.status.phase,VOLUME:.spec.volumeName,CLASS:.spec.storageClassName'
+deadline=$(( $(date +%s) + 300 ))
+while : ; do
+  out=$(kubectl --context harbor get pvc -n eng-<alias> -o name 2>&1); rc=$?
+  if [ "$rc" -ne 0 ]; then
+    printf 'UNVERIFIED: PVC read failed (exit %s) — disks NOT confirmed released\n%s\n' "$rc" "$out"
+    break
+  fi
+  left=$(printf '%s' "$out" | grep -c . || true)
+  # Compare `left` against the imported-PVC list from inventory step 2, not against zero.
+  printf 'PVCs still in the namespace: %s\n%s\n' "$left" "$out"
+  if [ "$(date +%s)" -ge "$deadline" ]; then break; fi
+  sleep 10
+done
 ```
 
-Every PVC belonging to the torn-down chain must be gone. A `Bound` PVC that outlives its SeiNode is a held disk.
+**Zero is the wrong expectation.** The SeiNode finalizer deliberately skips an **imported** PVC (`spec.import` on the node), so an imported PVC surviving the teardown is correct behavior, not a leak. The expected end state is: every **controller-managed** PVC of the torn-down chain gone, and every imported PVC still present. That is why inventory step 2 records which nodes carry `spec.import` — after the SeiNodes are deleted, nothing in the cluster still says which PVCs were imported.
+
+A controller-managed PVC that outlives its SeiNode is a held disk. Take it to [Find and clean up already-leaked resources](#find-and-clean-up-already-leaked-resources).
 
 ### A stuck `Terminating` object is a real signal
 
