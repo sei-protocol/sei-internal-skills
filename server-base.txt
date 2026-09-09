@@ -1,45 +1,60 @@
 # Base image for Dockerfile.server: the omnigent server image the fleet deploys.
-# Read by ecr-server.yml; built by ecr-server-base.yml from the omnigent fork.
+# Read by ecr-server.yml; built by ecr-server-base.yml from the omnigent fork at
+# deploy/docker/Dockerfile -- upstream's own recipe, no --target, so the last
+# stage (`runtime`) is the server. Dockerfile.sei builds the RUNNER, not this.
 # Digest-pinned, not tag-pinned: a tag is mutable, and a base that changed under
 # a stale claim would not be detectable from this file.
 #
-# Current: tag agents-main-d5cce212-k8s, server 0.13.0.dev0, from
-# bdchatham/omnigent@feat/sei-base d5cce212 -- upstream 1ddfed019 plus FIVE
-# carried commits: the machine-auth grant, the runner recipe, the COPY that
-# ships integrations/, the paginated agent/host listing the Slack picker
-# needs, and now the Slack integration's host_type="managed" support
-# (bdchatham/omnigent#3, merging feat/slack-managed-hosts).
+# Current: tag agents-main-1d570891-k8s, server 0.13.0, from
+# bdchatham/omnigent@feat/sei-base 1d570891 -- rebased onto upstream v0.13.0
+# (eebef804), 149 upstream commits past the previous pin's 1ddfed019.
 #
-# What #3 fixes: the Slack integration never requested a managed sandbox --
-# every session needed a host the caller already owned and had online, either
-# a saved host_id or `omni host --server <url>` kept running in a foreground
-# terminal. Filed upstream: omnigent-ai/omnigent#6601. Host<->session is
-# effectively 1:1, and neither a saved host_id nor the random-online-host
-# fallback checked whether a host already had a runner bound -- only whether
-# it was online -- so landing a new session on an already-busy host risked
-# replacing that session's live connection (launch_runner's own 409 comment:
-# "host offline / connection replaced"). Now the setup flow offers a managed
-# sandbox in the host picker (gated on a GET /v1/info capability probe) instead
-# of hard-failing to "bring your own machine."
-#
-# This is a no-op for the SERVER's own runtime: the fix lives entirely in
-# integrations/slack/, which only the BOT container executes
-# (`python -m omnigent_slack`) -- the server never imports omnigent_slack.
-# Rebuilding the base is still required for the bot to pick it up; see
-# slack-deployment.yaml in platform for that pin.
+# The rebase RETIRED two carried patches, because upstream now ships both: the
+# client_credentials machine-auth grant, and the Slack host_type="managed"
+# support (omnigent-ai/omnigent#6608, filed from here as #6601). Eight fork
+# commits remain, of which FIVE reach this image:
+#   - two deploy/docker/Dockerfile fixes that COPY integrations/. Without them
+#     the slack extra does not resolve at build time.
+#   - the paginated built-in agent/host listing the Slack picker needs. Still
+#     not upstream. It lives in integrations/slack/, which only the BOT runs.
+#   - two session-fork commits, which ARE server runtime: a fork may request a
+#     managed sandbox, and a clone no longer inherits the source's sandbox
+#     repository (server/routes/sessions/routes_core.py, schemas.py).
+# The other three touch deploy/docker/Dockerfile.sei and the runner credential
+# check. This image is not built from that file, so they land in runner-base.txt
+# and change nothing here.
 #
 # OMNIGENT_EXTRAS unchanged: kubernetes,slack,kms.
 #
 # Platform's vendored Kustomize tree MUST come from this same upstream commit.
 # The launcher creates batch/v1 Jobs: its RBAC lives in that tree, its API calls
 # live in this image, and a split between them 403s every managed sandbox launch
-# while the server reports healthy.
+# while the server reports healthy. That tree sits at 951ef519e; this image now
+# sits at v0.13.0. The one functional drift is an added RBAC rule for
+# agents.x-k8s.io/sandboxes, which only a `provider: agent_sandbox` launcher
+# uses. Dev is `provider: kubernetes`, so the split is inert today. Re-sync the
+# tree before anything selects that provider.
+#
+# MIGRATIONS. Four revisions land with this bump, ga1b2c3d4e5f -> ge1b2c3d4e5f.
+# Rehearsed against postgres:16-alpine seeded to the deployed revision by the
+# outgoing image, which emitted exactly:
+#     ALTER TABLE hosts ADD COLUMN terminating_sandbox_id VARCHAR(256);
+#     ALTER TABLE hosts ADD COLUMN deleted_at INTEGER;
+#     ALTER TABLE users ADD COLUMN background_session_titles_enabled BOOLEAN;
+#     ALTER TABLE users DROP COLUMN background_session_titles_enabled;
+# Each one is nullable, defaultless and catalog-only on Postgres: no rewrite, no
+# scan, no backfill, no constraint. The last two add and drop one column inside
+# a single upgrade and net to nothing. The whole chain took 297 ms.
 #
 # ROLLBACK. Migrations run at boot; the point of no return is that transaction
-# committing. An older image cannot boot against a newer schema -- no
-# newer-revision guard, so it fails to resolve a revision it does not carry and
-# crash-loops. That warning does not bind THIS bump specifically: PR #3 touches
-# only integrations/slack/ and its own local SQLite (with its own additive,
-# non-Alembic migration) -- no server-side schema moved, so reverting this one
-# digest is a valid rollback, on its own, with nothing else to downgrade first.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:e27cb084eedde89a907f4a9d13a3c0c698d6931c83c1b320c62dddc9a31015f6
+# committing. Two corrections to what this file used to say. First, there IS a
+# newer-revision guard: _verify_db_revision_is_supported refuses a database
+# ahead of the image and raises "Omnigent database schema is newer than this
+# version of Omnigent", so an older image crash-loops on a named error, not on
+# an unresolved revision. Second, a down path exists and was measured: all four
+# revisions implement downgrade(), so `alembic downgrade ga1b2c3d4e5f` run FROM
+# THIS IMAGE reverts in 265 ms, after which the previous base boots clean. No
+# db-downgrade CLI exists, so that is a manual exec, and it discards any
+# terminating_sandbox_id / deleted_at written since the upgrade -- which leaks a
+# managed sandbox, and loses no transcript.
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:39592eb4e7de051d0680cd6aef13bd4780f7f40bab82ac5902a263c49233d6b6
