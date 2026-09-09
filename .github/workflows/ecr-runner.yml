@@ -120,6 +120,49 @@ jobs:
               echo "real-base-ok agents=$n specify=$(specify --version 2>&1 | head -1) policy=ok"
             '
 
+      - name: Report how stale the base's harness CLIs are
+        # A WARNING, never a failure. This job's input is the .claude overlay, not
+        # the CLIs; the CLIs arrive from whatever runner-base.txt pins. Failing here
+        # would block a roster-only rebuild for a reason that rebuild cannot fix,
+        # and a gate that fires on unrelated work is a gate someone removes.
+        #
+        # It exists because a stale pin is invisible at exactly this step otherwise.
+        # The base sat on claude-code 2.1.197 for over two months, and each overlay
+        # built on it published green. The threshold is deliberately loose: normal
+        # drift between base rebuilds is days, so 30 flags a base that stopped being
+        # rebuilt rather than one that is merely a few releases behind.
+        timeout-minutes: 5
+        continue-on-error: true
+        run: |
+          set -euo pipefail
+          # Both reads carry || true, and an unread one says so. Bare, set -e ends
+          # the step before its first echo, and continue-on-error then renders that
+          # identical to the current-CLI path: no version line, no warning, green
+          # step. A detector that reports nothing when it breaks is the failure
+          # mode this step exists to catch.
+          got="$(docker run --rm --user 0 -e SEI_RUNNER_CREDENTIAL_CHECK_SKIP_NETWORK=1 \
+                   --entrypoint bash sei-runner-overlay:candidate -lc 'claude --version 2>&1' \
+                 | grep -m1 -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -n1 || true)"
+          latest="$(npm view @anthropic-ai/claude-code version || true)"
+          if [ -z "$got" ] || [ -z "$latest" ]; then
+            echo "::warning::Could not determine runner-base CLI staleness (baked '${got:-unread}', npm latest '${latest:-unread}'). This check did not run; it did not pass."
+            exit 0
+          fi
+          echo "base bakes claude-code ${got}; npm latest is ${latest}"
+          [ "$got" = "$latest" ] && { echo "base CLI is current"; exit 0; }
+
+          # Age of the BAKED release, not a release count: claude-code publishes
+          # more than once a day, so a count reads as alarming within a normal week.
+          pub="$(npm view "@anthropic-ai/claude-code@${got}" time --json 2>/dev/null \
+                 | python3 -c "import json,sys; print(json.load(sys.stdin).get('$got',''))" || true)"
+          if [ -n "$pub" ]; then
+            days=$(( ( $(date -u +%s) - $(date -u -d "$pub" +%s) ) / 86400 ))
+            echo "baked release is ${days} day(s) old (published ${pub})"
+            if [ "$days" -ge 30 ]; then
+              echo "::warning::The pinned runner base bakes claude-code ${got}, ${days} days old (latest ${latest}). Rebuild the base with ECR Runner Base and bump runner-base.txt."
+            fi
+          fi
+
       - name: Push
         uses: docker/build-push-action@v6
         with:
