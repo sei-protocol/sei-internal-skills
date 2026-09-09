@@ -381,8 +381,12 @@ verify_teardown() (
 # ---- residual sweep: what is LEFT that no teardown accounted for ---------
 # usage: sweep_residual <namespace> <expected-survivors-file|->
 # Storage is the point: a namespace whose only leftover is a leaked PVC must
-# not pass. Imported claims are EXPECTED to survive, so they are excluded BY
-# NAME — this never demands zero PersistentVolumeClaims.
+# not pass. Imported claims are EXPECTED to survive, so `persistentvolumeclaim`
+# entries matching the survivors list are excluded — this never demands zero
+# PersistentVolumeClaims.
+# Covers persistentvolumeclaim, job, cronjob, service and configmap. It does
+# NOT cover every Kind in the namespace, so callers must not report it as
+# "nothing remains" — report what was swept.
 # Returns 0 clear, 1 residual found, 2 a read failed.
 sweep_residual() (
   sr_ns=$1; sr_expect=$2
@@ -403,7 +407,12 @@ sweep_residual() (
     esac
   fi
 
-  for sr_kind in persistentvolumeclaim job configmap; do
+  # Kinds an engineer can leave behind that keep costing money or quota.
+  # `service` is here because a leftover type=LoadBalancer bills with no pod
+  # running, and the per-tenant ResourceQuota caps load balancers. Platform-owned
+  # objects (Namespace, ServiceAccounts, RBAC, the Flux Kustomization) are NOT
+  # swept — a workspace PR never owned them, so they are not residuals.
+  for sr_kind in persistentvolumeclaim job cronjob service configmap; do
     if sr_out=$(kubectl --context harbor -n "$sr_ns" get "$sr_kind" -o name 2>"$ERRF")
     then sr_rc=0; else sr_rc=$?; fi
     if [ "$sr_rc" -ne 0 ]; then
@@ -415,14 +424,25 @@ sweep_residual() (
     _note_stderr "$ERRF"
     sr_left=''
     for sr_id in $sr_out; do
-      sr_name=${sr_id#*/}
+      # EVERY exemption is scoped to a kind and compared on the FULL identity
+      # `<kind>/<name>` that `-o name` prints. Comparing the bare name lets an
+      # imported PersistentVolumeClaim called `data` exempt `job/data` and
+      # `configmap/data` from the sweep — the same defect already fixed in
+      # expect_present, which this code has to reuse rather than re-invent.
+      sr_skip=0
+
       # kube-root-ca.crt is injected into every namespace by the apiserver and
       # is never an engineer's leftover.
-      if [ "$sr_kind" = configmap ] && [ "$sr_name" = kube-root-ca.crt ]; then continue; fi
-      sr_skip=0
-      for sr_k in $sr_keep; do
-        if [ "$sr_name" = "$sr_k" ]; then sr_skip=1; break; fi
-      done
+      if [ "$sr_id" = "configmap/kube-root-ca.crt" ]; then sr_skip=1; fi
+
+      # Imported claims are expected survivors — for PersistentVolumeClaims and
+      # nothing else. A Job or ConfigMap stays a residual whatever it is called.
+      if [ "$sr_skip" -eq 0 ] && [ "$sr_kind" = persistentvolumeclaim ]; then
+        for sr_k in $sr_keep; do
+          if [ "$sr_id" = "persistentvolumeclaim/$sr_k" ]; then sr_skip=1; break; fi
+        done
+      fi
+
       if [ "$sr_skip" -eq 0 ]; then sr_left="$sr_left $sr_id"; fi
     done
     if [ -n "$sr_left" ]; then

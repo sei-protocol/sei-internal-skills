@@ -287,6 +287,13 @@ rc=0
 verify_teardown eng-<alias> seinetwork,seinode,pod \
   "sei.io/seinetwork=<chain-id>" ./teardown-inventory-<chain-id> || rc=$?
 record "$rc"
+
+# An interrupt exits the function through its trap at 130/143, bypassing its own
+# closing message — so say something here rather than exiting nonzero in silence.
+case "$VERDICT" in
+  0|1|2) : ;;
+  *) echo "VERIFICATION ABORTED — unexpected status $VERDICT (interrupted?); treat as unverified" ;;
+esac
 exit "$VERDICT"
 ```
 
@@ -399,28 +406,52 @@ It does **not** remove:
 5. **Sweep the residuals, then decide.** Build the expected-survivors list from every chain's imported claims, sweep what is left, and only then print and exit:
 
    ```sh
-   # Imported claims are EXPECTED to survive. Concatenating them is what keeps
-   # this sweep from demanding zero PVCs.
-   : > ./expected-survivors.txt
-   for c in $chains; do
-     f="./teardown-inventory-$c/imported-claims.txt"
-     if [ -f "$f" ]; then
-       if ! cat "$f" >> ./expected-survivors.txt; then
-         echo 'UNVERIFIED: cannot read an imported-claims list'; record 2
-       fi
-     fi
-   done
+   # Imported claims are EXPECTED to survive, and this list is what exempts
+   # them. A STALE list exempts the wrong things, so it is built in a fresh
+   # per-namespace directory and every step that produces it is checked.
+   #
+   # `: > file` is the specific trap. In bash without `set -e` a failed
+   # redirection on that builtin leaves the OLD file intact and execution
+   # continues, so a previous run's list would silently authorise this run's
+   # exemptions. dash aborts instead — which does not make the bash
+   # configuration this document supports any safer.
+   SURV_DIR="./teardown-residual-eng-<alias>"
+   surv="$SURV_DIR/expected-survivors.txt"
+   if rm -rf "$SURV_DIR" && mkdir -p "$SURV_DIR" && : > "$surv"; then
+     :
+   else
+     echo 'UNVERIFIED: cannot create a fresh expected-survivors list'
+     record 2
+     surv='-'    # NEVER fall back to a stale list; '-' means "no exemptions"
+   fi
 
-   rc=0; sweep_residual eng-<alias> ./expected-survivors.txt || rc=$?; record "$rc"
+   if [ "$surv" != '-' ]; then
+     for c in $chains; do
+       f="./teardown-inventory-$c/imported-claims.txt"
+       if [ ! -f "$f" ]; then
+         printf 'UNVERIFIED: no imported-claims list for chain %s — exemptions incomplete\n' "$c"
+         record 2
+       elif ! cat "$f" >> "$surv"; then
+         printf 'UNVERIFIED: cannot read the imported-claims list for chain %s\n' "$c"
+         record 2
+       fi
+     done
+   fi
+
+   rc=0; sweep_residual eng-<alias> "$surv" || rc=$?; record "$rc"
 
    case "$VERDICT" in
-     0) echo 'NAMESPACE EMPTIED — every chain verified and no unaccounted resources remain' ;;
+     0) echo 'NAMESPACE EMPTIED — every chain verified; no unaccounted PVCs, Jobs, CronJobs, Services or ConfigMaps remain' ;;
      1) echo 'NAMESPACE NOT EMPTY — objects or unaccounted resources remain' ;;
      2) echo 'NAMESPACE UNVERIFIED — at least one check could not run' ;;
      *) echo "NAMESPACE VERIFICATION ABORTED — unexpected status $VERDICT (interrupted?); treat as unverified" ;;
    esac
    exit "$VERDICT"
    ```
+
+   With `surv='-'` the sweep runs with **no** exemptions, so genuinely imported claims are reported as residuals. That is the safe direction and it is not the verdict: `record 2` already fired, and `2` dominates the `1` a residual would raise.
+
+   **What the sweep covers, and what it does not.** `sweep_residual` inspects `persistentvolumeclaim`, `job`, `cronjob`, `service` and `configmap` — the engineer-owned kinds that keep costing money or quota, `service` included because a leftover `type: LoadBalancer` bills with no pod running and the per-tenant ResourceQuota caps load balancers. It does **not** enumerate every Kind in the namespace, and it deliberately leaves platform-owned objects alone: the `Namespace`, the three ServiceAccounts, the RBAC, and the Flux `Kustomization` are not residuals, because a workspace PR never owned them. Report what was swept rather than "nothing remains".
 
    Then take anything `sweep_residual` reported, plus what git never owned, to [Find and clean up already-leaked resources](#find-and-clean-up-already-leaked-resources).
 
