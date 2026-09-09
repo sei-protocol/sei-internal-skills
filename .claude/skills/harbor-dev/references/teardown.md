@@ -122,25 +122,79 @@ Teardown follows the same PR contract as spinup: render the change, open a PR, l
      > "$INV/crs.txt"
    $K get seinode -l "sei.io/seinetwork=$CHAIN" -o json > "$INV/nodes.json"
    $K get pods    -l "sei.io/seinetwork=$CHAIN" -o json > "$INV/pods.json"
+   $K get pvc                                   -o json > "$INV/pvcs.json"
+
+   # The verifier refuses to pass while status reads UNRESOLVED. It is only
+   # flipped to OK if every completeness check below succeeds.
+   printf 'UNRESOLVED\n' > "$INV/status"
 
    # Imported claims — PRESERVED by design. `unique` sorts, which comm needs.
+   # Every jq call is a single command with a redirect: in a pipeline its
+   # status would be masked, and a parse failure would look like an empty list.
    jq -r '[ .items[] | select(.spec.dataVolume.import.pvcName != null)
             | .spec.dataVolume.import.pvcName ] | unique | .[]' \
      "$INV/nodes.json" > "$INV/imported-claims.txt"
 
-   # Every claim the chain's pods actually mount.
-   jq -r '[ .items[].spec.volumes[]? | select(.persistentVolumeClaim)
-            | .persistentVolumeClaim.claimName ] | unique | .[]' \
-     "$INV/pods.json" > "$INV/all-claims.txt"
+   # node -> claim, attributed through the pod that DECLARES the volume.
+   # Pod phase is deliberately not consulted: a Pending pod still declares its
+   # volumes, and requiring Running would drop exactly the nodes most likely
+   # to be leaking.
+   jq -r '[ .items[] as $p
+            | ($p.metadata.ownerReferences[0].name // "") as $owner
+            | $p.spec.volumes[]? | select(.persistentVolumeClaim)
+            | { node: $owner, claim: .persistentVolumeClaim.claimName } ]
+          | unique | .[] | "\(.node)\t\(.claim)"' \
+     "$INV/pods.json" > "$INV/node-claims.tsv"
 
-   # Controller-managed = mounted minus imported. These MUST disappear.
+   cut -f2 "$INV/node-claims.tsv" | sort -u > "$INV/all-claims.txt"
+
+   # Controller-managed = attributed minus imported. These MUST disappear.
    comm -23 "$INV/all-claims.txt" "$INV/imported-claims.txt" > "$INV/managed-claims.txt"
+
+   # ---- completeness check 1: every node must resolve to storage ----------
+   # A node resolves if it imports a claim, or if a pod attributed to it
+   # declares one. A node that resolves to NEITHER contributes nothing to the
+   # lists above — and a provisioned PVC with no pod is precisely the leak
+   # this document exists to catch, so it must never pass silently.
+   jq -r '[ .items[].metadata.name ] | unique | .[]' \
+     "$INV/nodes.json" > "$INV/nodes.txt"
+   jq -r '[ .items[] | select(.spec.dataVolume.import.pvcName != null)
+            | .metadata.name ] | unique | .[]' \
+     "$INV/nodes.json" > "$INV/imported-nodes.txt"
+   # Drop the empty owner field: a pod with no ownerReferences still yields its
+   # claim above, but attributes to no node — so its node stays unresolved.
+   cut -f1 "$INV/node-claims.tsv" | grep -v '^$' | sort -u > "$INV/nodes-with-claims.txt"
+   sort -u "$INV/imported-nodes.txt" "$INV/nodes-with-claims.txt" > "$INV/resolved-nodes.txt"
+   comm -23 "$INV/nodes.txt" "$INV/resolved-nodes.txt" > "$INV/unresolved-nodes.txt"
+
+   # ---- completeness check 2: namespace claims nobody claimed -------------
+   # Not this chain's business to delete, but worth surfacing: a claim here is
+   # either another chain's or already leaked.
+   jq -r '[ .items[].metadata.name ] | unique | .[]' "$INV/pvcs.json" > "$INV/ns-claims.txt"
+   sort -u "$INV/all-claims.txt" "$INV/imported-claims.txt" > "$INV/attributed.txt"
+   comm -23 "$INV/ns-claims.txt" "$INV/attributed.txt" > "$INV/unattributed-claims.txt"
 
    printf '== must disappear (controller-managed) ==\n'; cat "$INV/managed-claims.txt"
    printf '== must survive (imported) ==\n';             cat "$INV/imported-claims.txt"
+   if [ -s "$INV/unattributed-claims.txt" ]; then
+     printf '== unattributed claims in this namespace (leak sweep, not this teardown) ==\n'
+     cat "$INV/unattributed-claims.txt"
+   fi
+
+   if [ -s "$INV/unresolved-nodes.txt" ]; then
+     printf 'INVENTORY INCOMPLETE — SeiNodes that resolve to no storage\n'
+     cat "$INV/unresolved-nodes.txt"
+     printf 'status stays UNRESOLVED; the verifier will report UNVERIFIED.\n'
+     exit 2
+   fi
+   printf 'OK\n' > "$INV/status"
    ```
 
-   Claim names come from the **pods' own `spec.volumes[].persistentVolumeClaim.claimName`**, not from a guessed naming rule — the controller owns how it names a generated claim, and a rule inferred here would desync the moment it changes. A node whose pod is not running contributes no claim, so re-run the inventory once every pod is up, or treat that node's storage as unresolved and say so.
+   Claim names come from the **pods' own `spec.volumes[].persistentVolumeClaim.claimName`**, not from a guessed naming rule — the controller owns how it names a generated claim, and a rule inferred here would desync the moment it changes.
+
+   **A node with no pod resolves to nothing, and that is the leak case, not a nuisance.** The controller reconciles each SeiNode into a StatefulSet (`seinode-crd.md`), so a node whose StatefulSet has no pod — scaled down, unschedulable, evicted — still has its PVC and its EBS volume. The old version of this inventory dropped that node's claim silently and the teardown then verified clean. Check 1 makes the gap executable: the node lands in `unresolved-nodes.txt`, the script exits non-zero, `status` stays `UNRESOLVED`, and the verifier forces `UNVERIFIED`.
+
+   > **Attribution caveat.** A pod is attributed to a node by its **first owner reference's name matching the SeiNode name**. `seinode-crd.md` documents the one-StatefulSet-per-SeiNode shape but not the name the controller gives it, so this is a convention, not a contract. If it does not hold, the node lands in `unresolved-nodes.txt` and the run stops — the failure direction is safe. Confirm with `kubectl get pod <pod> -n eng-<alias> -o jsonpath='{.metadata.ownerReferences[0].name}'` before assuming an empty `unresolved-nodes.txt` means full coverage.
 
    > **Field-path caveat.** `.spec.dataVolume.import.pvcName` is read from `sei-protocol/sei-k8s-controller` `api/v1alpha1/seinode_types.go` on **repo main** (`DataVolume` → nested `Import` → `PVCName`), not from the CRD deployed on harbor. Confirm against the live cluster before trusting an empty imported list — `kubectl explain seinode.spec.dataVolume.import` — and if the deployed CRD disagrees, **the CRD wins**. An empty `imported-claims.txt` from a wrong path is indistinguishable from a chain that genuinely imports nothing, and it silently reclassifies a preserved claim as one that must disappear.
 3. **Check `deletionPolicy` on every SeiNetwork in the task dir** — read it with the command in [Read the current policy](#read-the-current-policy). On `Retain` (or empty), halt and route to [Set it to `Delete`](#set-it-to-delete). Do not open the removal PR while a SeiNetwork still reads `Retain`.
@@ -260,14 +314,20 @@ It does **not** remove:
 
 ### Empty the namespace (the common case)
 
-1. Inventory everything first, including what git does not know about:
+1. **List what is there, then inventory each chain properly.** The display read below is an overview, not an inventory — it produces none of the named-claim files the verifier consumes, so it cannot stand in for step 2 of the per-chain procedure:
 
    ```sh
    kubectl --context harbor get seinetwork,seinode,job,pvc -n eng-<alias>
+   kubectl --context harbor get seinode -n eng-<alias> \
+     -o jsonpath='{range .items[*]}{.metadata.labels.sei\.io/seinetwork}{"\n"}{end}' | sort -u
    ```
+
+   Run `inventory.sh` **once per chain-id** that second command returns, each with its own `INV` directory (`INV=./teardown-inventory-<chain-id>`). A namespace has more than one chain more often than not, and a single sweep cannot tell one chain's controller-managed claim from another's.
+
+   Any chain whose `inventory.sh` exits non-zero stops the whole namespace teardown: its `status` stays `UNRESOLVED`, and emptying a namespace on an incomplete inventory is how a leak becomes invisible. Claims that no chain attributes land in each run's `unattributed-claims.txt` — take them to the leak sweep in step 5, not to a delete.
 2. For every SeiNetwork in the inventory, run the `deletionPolicy` gate in [The `deletionPolicy: Retain` trap](#the-deletionpolicy-retain-trap). One `Retain` network is enough to leak a set of disks.
 3. `git rm -r` every task dir under `engineers/<alias>/`, and reduce `engineers/<alias>/kustomization.yaml` to `resources: []`. Keep that file: deleting it makes the Flux Kustomization fail reconcile with `path not found`, which is the same breakage the onboarding scaffolding PR exists to prevent.
-4. Open the PR, merge, then run [Verify the teardown](#verify-the-teardown) with no `-l` selector, so the poll covers the whole namespace.
+4. Open the PR, merge, then run [Verify the teardown](#verify-the-teardown) **once per chain**, each against its own `INV` directory. Do not substitute a namespace-wide PVC poll: it matches imported and unattributed claims too, so it reports `PRESENT` after a correct teardown. The CR and pod polls may drop their `-l` selector to sweep the namespace; the claim checks may not.
 5. Sweep for what git never owned — [Find and clean up already-leaked resources](#find-and-clean-up-already-leaked-resources).
 
 ### Remove the namespace entirely (offboarding)
@@ -362,9 +422,18 @@ kubectl --context harbor get pvc "$claim" -n eng-<alias> --ignore-not-found -o n
 # SeiNode in the namespace does not establish a relationship to this claim.
 raw=$(kubectl --context harbor get pods -n eng-<alias> -o json 2>&1) || {
   printf 'UNRESOLVED: pod list failed\n%s\n' "$raw"; exit 2; }
-printf '%s' "$raw" | jq -r --arg c "$claim" '.items[] as $p
+if users=$(printf '%s' "$raw" | jq -r --arg c "$claim" '.items[] as $p
   | $p.spec.volumes[]? | select(.persistentVolumeClaim.claimName == $c)
-  | "pod=\($p.metadata.name)\towner=\($p.metadata.ownerReferences[0].kind // "-")/\($p.metadata.ownerReferences[0].name // "-")\tnetwork=\($p.metadata.labels["sei.io/seinetwork"] // "-")"'
+  | "pod=\($p.metadata.name)\towner=\($p.metadata.ownerReferences[0].kind // "-")/\($p.metadata.ownerReferences[0].name // "-")\tnetwork=\($p.metadata.labels["sei.io/seinetwork"] // "-")"')
+then :; else
+  echo 'UNRESOLVED: pod parse failed — cannot tell "no pod mounts it" from "could not look"'
+  exit 2
+fi
+if [ -z "$users" ]; then
+  echo 'UNRESOLVED: no pod currently mounts this claim — a stopped workload looks identical'
+  exit 2
+fi
+printf '%s\n' "$users"
 ```
 
 An empty hop-3 result means **no pod currently mounts the claim**. That is not evidence the claim is unwanted — it is exactly the stopped-workload state that made the volume read `available` in the first place. Treat it as unresolved.
@@ -413,7 +482,7 @@ Deleting an orphaned SeiNode is the one cleanup with a paved road. The rest of w
 | Resource | Why git never owned it | What to do |
 |---|---|---|
 | Orphaned validator SeiNode | Controller-generated, then owner-reference stripped | Delete it, per above. Confirm the orphan signature first. |
-| SeiNetwork/SeiNode from an escape-hatch direct apply | Applied with `seictl` outside the PR flow | Prove no workspace manifest names it — see the ownership search below — then gate on `deletionPolicy` exactly as a Flux-owned network, then `seictl network\|node delete <name> -n eng-<alias>` (harbor context). If a manifest does exist, it is Flux-owned: use the PR path. |
+| SeiNetwork/SeiNode from an escape-hatch direct apply | Applied with `seictl` outside the PR flow | Prove no workspace manifest names it — see the ownership search below — then gate on `deletionPolicy` exactly as a Flux-owned network, then delete with `kubectl --context harbor delete seinetwork\|seinode <name> -n eng-<alias>`. **Not `seictl delete`** — see the context note below. If a manifest does exist, it is Flux-owned: use the PR path. |
 | `SeiNodeTaskWorkflow` | Never committed to the workspace repo, by Guardrail #9 | A `Complete` workflow is the deliberate audit trail — leave it. Force-delete only a `Failed` workflow holding a node, with the `sei.io/force-delete-workflow` annotation first (`seictl-cli.md`). |
 | Bench Job/ConfigMap applied by hand | Ran outside the PR flow | Same ownership search first, then `kubectl --context harbor delete job <name> -n eng-<alias>` / `… delete configmap <name> -n eng-<alias>`, by name. Results already in S3 are untouched and are not garbage. |
 | Controller-managed PVC with no SeiNode | The controller owns PVC lifecycle; the engineer's Role has no `delete` on PVCs | Escalate with the PVC name and its PV. Do not request the verb. |
@@ -421,7 +490,21 @@ Deleting an orphaned SeiNode is the one cleanup with a paved road. The rest of w
 
 Anything not in this table, or any case where the ownership question stays open, escalates as unresolved rather than getting a guess.
 
-**Every namespace-scoped command above names its namespace and its context explicitly.** `seictl` and `kubectl` both fall back to the kubeconfig's current context and default namespace when the flags are absent (`seictl-cli.md`), so an unqualified `delete` deletes wherever the shell happens to point. On a delete that is not a typo you can retry — it is a delete in the wrong place.
+**Every namespace-scoped command above names its namespace, and every destructive one names its context.** An unqualified `delete` deletes wherever the shell happens to point, and that is not a typo you can retry — it is a delete in the wrong place.
+
+**This is why the direct deletes above use `kubectl`, not `seictl`.** `seictl`'s common flags are `--kubeconfig` and `-n/--namespace` only (`seictl-cli.md` → *Common flags on every verb*) — **there is no `--context`**, and the namespace falls back to the kubeconfig context's default. A `seictl delete` therefore cannot pin the cluster on its own command line; writing "(harbor context)" beside it states an intention the command does not enforce. `kubectl --context harbor delete <kind> <name> -n eng-<alias>` pins both on the line that does the deleting, and issues the same Delete against the same CR (`seictl-cli.md` → `seictl network|node delete`).
+
+If a workflow genuinely needs `seictl` for a destructive verb, pin the cluster out of band and prove it immediately before, in the same command list — a guard that runs, not a parenthetical:
+
+```sh
+ctx=$(kubectl config current-context) || { echo 'UNRESOLVED: cannot read current context'; exit 2; }
+if [ "$ctx" != "harbor" ]; then
+  printf 'REFUSED: current context is %s, not harbor\n' "$ctx"; exit 2
+fi
+seictl network delete <name> -n eng-<alias>
+```
+
+That still leaves a window between the check and the call. `kubectl --context harbor` has no window, which is why it is the documented path.
 
 ### The ownership search that authorizes a direct delete
 
@@ -433,15 +516,15 @@ Before deleting anything imperatively, prove the object is **not** in the worksp
 git -C <workspace-clone> fetch origin main && git -C <workspace-clone> checkout -q origin/main \
   || { echo 'UNRESOLVED: cannot refresh the workspace clone — do not delete'; exit 2; }
 
-grep -rn -- '<object-name>' <workspace-clone>/engineers/<alias>/
-case $? in
-  0) echo 'FLUX-OWNED: a manifest names it — use the PR path, do not delete' ;;
-  1) echo 'NOT IN GIT: safe to consider for a direct delete, after the other gates' ;;
-  *) echo 'UNRESOLVED: the search itself failed — do not delete' ;;
+grep -rn -- '<object-name>' <workspace-clone>/engineers/<alias>/ && gs=0 || gs=$?
+case "$gs" in
+  0) echo 'FLUX-OWNED: a manifest names it — use the PR path, do not delete'; exit 1 ;;
+  1) echo 'NOT IN GIT: safe to consider for a direct delete, after the other gates'; exit 0 ;;
+  *) echo 'UNRESOLVED: the search itself failed — do not delete'; exit 2 ;;
 esac
 ```
 
-Only exit status 1 authorizes a direct delete. Status 0 routes to the PR path; anything else means the question was never answered.
+**Only exit status 0 from this block authorizes a direct delete.** Every branch used to end in a successful `echo`, so the block's own status was 0 whatever it found — a scripted caller could not tell "not in git" from "the search failed", which is the same class of defect as counting lines without reading an exit status. `1` routes to the PR path; `2` means the question was never answered.
 
 ## Halt conditions
 
