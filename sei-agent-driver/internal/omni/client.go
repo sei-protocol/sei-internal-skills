@@ -46,9 +46,14 @@ const (
 // credential-bearing and so refuses to carry it across an unsafe redirect, which
 // is the behaviour this header wants anyway.
 func (h *Host) newClient(ctx context.Context) (*omnigent.Client, error) {
+	httpClient, err := healthCheckedClient(h.log)
+	if err != nil {
+		return nil, err
+	}
+
 	token := h.cfg.Token
 	if h.cfg.MintsOwnToken() {
-		minted, ttl, err := mintToken(ctx, &http.Client{Timeout: h.cfg.RequestTimeout},
+		minted, ttl, err := mintToken(ctx, mintClient(httpClient, h.cfg.RequestTimeout),
 			h.cfg.BaseURL, h.cfg.MachineClientID, h.cfg.MachineClientSecret)
 		if err != nil {
 			return nil, err
@@ -64,11 +69,6 @@ func (h *Host) newClient(ctx context.Context) (*omnigent.Client, error) {
 				"token_ttl", ttl, "run_deadline", h.cfg.RunDeadline)
 		}
 		token = minted
-	}
-
-	httpClient, err := healthCheckedClient(h.log)
-	if err != nil {
-		return nil, err
 	}
 
 	client, err := omnigent.New(h.cfg.BaseURL,
@@ -119,6 +119,36 @@ func healthCheckedClient(log *slog.Logger) (*http.Client, error) {
 	}
 
 	return &http.Client{Transport: &tracingTransport{base: transport, log: log}}, nil
+}
+
+// mintClient returns the client the token exchange runs on: the API client's
+// transport, under the exchange's own overall timeout.
+//
+// What actually fixes the mint is not the health checks — newClient builds this
+// transport fresh, two lines above, so its pool is empty and the exchange always
+// dials cold; ReadIdleTimeout/PingTimeout never get a chance to fire on it, and
+// could not fire between retries either (mintBackoff's 0.5s/2s are both far under
+// the 20s idle bound). What fixes it is that the pool is now PRIVATE to this
+// newClient call instead of the process-shared http.DefaultTransport, where an
+// earlier invocation's mint — one per scout, one for the review, another per
+// session a --close reclaims — left an idle connection for this one to inherit,
+// with nothing asking it whether it still existed. The health checks earn their
+// place here on the API calls that follow, which DO reuse the connection this
+// mint warms for them.
+//
+// A copy rather than the client itself, because this overall timeout is the
+// exchange's: the SDK sets its own on the copies it takes for unary calls and for
+// streams. The copy still carries the shared transport's ResponseHeaderTimeout
+// (60s), which x/net/http2 honours once ConfigureTransports has run — so this
+// Timeout only fully bounds the exchange below that wall; a caller who raises
+// SEIDROID_REQUEST_TIMEOUT_S past 60s gets a 60s header wall on each of the three
+// retries rather than one longer wait. Benign (the wall still fails as the
+// retryable transport error mintToken already retries on), but worth knowing
+// before raising that knob to chase a mint timeout.
+func mintClient(api *http.Client, timeout time.Duration) *http.Client {
+	mint := *api
+	mint.Timeout = timeout
+	return &mint
 }
 
 // configureHealthChecks enables HTTP/2 keepalive pings on transport and returns the
