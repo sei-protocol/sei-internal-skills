@@ -313,7 +313,7 @@ verify_teardown() {
     # gate 1: nodes the inventory could not resolve to any storage.
     vt_rc=0; read_inventory "$vt_inv/unresolved-nodes.txt" || vt_rc=$?
     case "$vt_rc" in
-      0) printf 'UNVERIFIED: inventory left SeiNodes with no resolved storage:\n%s\n' "$LIST"
+      0) printf 'UNVERIFIED: inventory left these SeiNodes unresolved\n%s\n' "$LIST"
          _vt_worse 2 ;;
       1) : ;;
       2) _vt_worse 2 ;;
