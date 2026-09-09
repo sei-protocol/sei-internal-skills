@@ -46,9 +46,14 @@ const (
 // credential-bearing and so refuses to carry it across an unsafe redirect, which
 // is the behaviour this header wants anyway.
 func (h *Host) newClient(ctx context.Context) (*omnigent.Client, error) {
+	httpClient, err := healthCheckedClient(h.log)
+	if err != nil {
+		return nil, err
+	}
+
 	token := h.cfg.Token
 	if h.cfg.MintsOwnToken() {
-		minted, ttl, err := mintToken(ctx, &http.Client{Timeout: h.cfg.RequestTimeout},
+		minted, ttl, err := mintToken(ctx, mintClient(httpClient, h.cfg.RequestTimeout),
 			h.cfg.BaseURL, h.cfg.MachineClientID, h.cfg.MachineClientSecret)
 		if err != nil {
 			return nil, err
@@ -64,11 +69,6 @@ func (h *Host) newClient(ctx context.Context) (*omnigent.Client, error) {
 				"token_ttl", ttl, "run_deadline", h.cfg.RunDeadline)
 		}
 		token = minted
-	}
-
-	httpClient, err := healthCheckedClient(h.log)
-	if err != nil {
-		return nil, err
 	}
 
 	client, err := omnigent.New(h.cfg.BaseURL,
@@ -119,6 +119,28 @@ func healthCheckedClient(log *slog.Logger) (*http.Client, error) {
 	}
 
 	return &http.Client{Transport: &tracingTransport{base: transport, log: log}}, nil
+}
+
+// mintClient returns the client the token exchange runs on: the API client's
+// transport, under the exchange's own overall timeout.
+//
+// The exchange needs the connections [healthCheckedClient] describes as much as the
+// API calls do, and it needs this driver's own pool. A bare [http.Client] has
+// neither — it falls back to [http.DefaultTransport], which every caller in the
+// process shares and which asks nothing of a connection before handing it over. One
+// invocation mints once per scout and once for the review, and a --close mints again
+// for each session it reclaims, so the connection a mint is offered has been idle
+// across a whole agent turn. That is the long-idle case the health checks exist for,
+// on the one call whose failure stops a run before it starts.
+//
+// A copy rather than the client itself, because this overall timeout is the
+// exchange's: the SDK sets its own on the copies it takes for unary calls and for
+// streams. The copy carries the same transport, so the exchange also warms the pool
+// the first API call draws from.
+func mintClient(api *http.Client, timeout time.Duration) *http.Client {
+	mint := *api
+	mint.Timeout = timeout
+	return &mint
 }
 
 // configureHealthChecks enables HTTP/2 keepalive pings on transport and returns the
