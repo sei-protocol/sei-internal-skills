@@ -328,31 +328,62 @@ aws ec2 describe-volumes --region eu-central-1 --profile <chosen> \
 
 Walk the chain from the volume back to a workload. Each hop either names an owner or fails, and a failed hop means unresolved, not unowned.
 
+Every hop separates the API call from the parse, and checks both. A `kubectl … | jq …` pipeline exits with `jq`'s status, so a `Forbidden` would read as "no match found" — which on this walk is the difference between *unowned* and *could not look*.
+
 ```sh
-# 1. Volume ID → PV. The CSI volume handle is the EBS volume ID.
-kubectl --context harbor get pv -o json \
-  | jq -r --arg v '<vol-id>' '.items[]
+# ---- hop 1: volume ID → PV. The CSI volume handle is the EBS volume ID. -----
+raw=$(kubectl --context harbor get pv -o json 2>&1) || {
+  printf 'UNRESOLVED: PV list failed — cannot tell unowned from unreadable\n%s\n' "$raw"
+  exit 2; }
+pv=$(printf '%s' "$raw" | jq -r --arg v '<vol-id>' '.items[]
       | select(.spec.csi.volumeHandle == $v)
-      | "\(.metadata.name)\t\(.status.phase)\t\(.spec.persistentVolumeReclaimPolicy)\tclaim=\(.spec.claimRef.namespace // "-")/\(.spec.claimRef.name // "-")"'
-
-# 2. PV claimRef → PVC. Does the claim still exist?
-kubectl --context harbor get pvc <claim-name> -n <claim-namespace>
-
-# 3. PVC → the workload that wants it.
-kubectl --context harbor describe pvc <claim-name> -n <claim-namespace> | sed -n '/Used By/,+3p'
-kubectl --context harbor get seinode -n <claim-namespace> -o json \
-  | jq -r '.items[] | "\(.metadata.name)\t\(.status.phase // "-")"'
+      | "\(.metadata.name)\t\(.status.phase)\t\(.spec.persistentVolumeReclaimPolicy)\t\(.spec.claimRef.namespace // "-")\t\(.spec.claimRef.name // "-")"') || {
+  printf 'UNRESOLVED: PV parse failed\n'; exit 2; }
+[ -n "$pv" ] || echo 'no PV references this volume — see the verdict table'
+printf '%s\n' "$pv"
 ```
 
-`kubectl get pv` is cluster-scoped, and the per-engineer Role is namespaced. Expect `Forbidden` here as the normal case for an engineer — that is an **unresolved** result, not a clean one. Hand the volume IDs to the platform team and let them walk the chain.
+**Hop 2 is a scope gate, not just a lookup.** `kubectl get pv` is cluster-scoped, so the `claimRef` it returns can name *any* namespace. Assert it is this tenant's before inspecting further — a claim in another namespace is another tenant's disk, and this skill does not investigate those.
+
+```sh
+# ---- hop 2: claimRef → PVC, inside this tenant only ------------------------
+claim_ns=<claim-namespace-from-hop-1>; claim=<claim-name-from-hop-1>
+if [ "$claim_ns" != "eng-<alias>" ]; then
+  printf 'OUT OF SCOPE: volume claimed by %s/%s — escalate, do not inspect\n' "$claim_ns" "$claim"
+  exit 2
+fi
+kubectl --context harbor get pvc "$claim" -n eng-<alias> --ignore-not-found -o name \
+  || { echo 'UNRESOLVED: PVC read failed'; exit 2; }
+```
+
+```sh
+# ---- hop 3: PVC → the pod that mounts it → that pod's owner ---------------
+# This is the hop that names WHICH node references the candidate. Listing every
+# SeiNode in the namespace does not establish a relationship to this claim.
+raw=$(kubectl --context harbor get pods -n eng-<alias> -o json 2>&1) || {
+  printf 'UNRESOLVED: pod list failed\n%s\n' "$raw"; exit 2; }
+printf '%s' "$raw" | jq -r --arg c "$claim" '.items[] as $p
+  | $p.spec.volumes[]? | select(.persistentVolumeClaim.claimName == $c)
+  | "pod=\($p.metadata.name)\towner=\($p.metadata.ownerReferences[0].kind // "-")/\($p.metadata.ownerReferences[0].name // "-")\tnetwork=\($p.metadata.labels["sei.io/seinetwork"] // "-")"'
+```
+
+An empty hop-3 result means **no pod currently mounts the claim**. That is not evidence the claim is unwanted — it is exactly the stopped-workload state that made the volume read `available` in the first place. Treat it as unresolved.
+
+The owner reference names the StatefulSet the controller created for the node, not the SeiNode directly. Map it back to a SeiNode by name and confirm that node is a **confirmed orphan** by the signature in [Orphaned SeiNodes](#orphaned-seinodes). If you cannot make that link, the hop is unresolved.
 
 | What the walk found | Verdict |
 |---|---|
-| Volume → PV → PVC → a SeiNode that is a confirmed orphan | Reclaimable. Delete the **SeiNode**, not the volume — see below. |
-| Volume → PV → PVC → a live, wanted workload | **Not garbage.** Leave it. `available` only meant the workload was stopped. |
-| Volume → PV → PVC whose claim is gone, PV `Released` | Candidate for platform-team deletion. Report the PV, PVC name, and reclaim policy. |
-| Volume → no PV, no claimRef, tags name a PVC that no longer exists | Candidate. Still report rather than delete — the tag is provenance, not ownership. |
+| Volume → PV → PVC → pod → a SeiNode confirmed orphaned by the signature | Reclaimable. Delete the **SeiNode**, not the volume — see below. |
+| Volume → PV → PVC → pod → a live, wanted workload | **Not garbage.** Leave it. `available` only meant the workload was stopped. |
+| Volume → PV → PVC whose claim is gone, PV `Released` | **Unresolved candidate.** Platform review required. Report the PV, PVC name, and reclaim policy; do not act on it here. |
+| Volume → no PV, no claimRef, tags name a PVC that no longer exists | **Unresolved candidate.** The tag is provenance, not ownership. Platform review required. |
+| PVC exists but no pod mounts it | **Unresolved.** A stopped workload looks identical to an abandoned claim from here. |
+| `claimRef` names a namespace other than `eng-<alias>` | **Out of scope.** Another tenant's disk. Escalate; do not inspect. |
 | Any hop returned `Forbidden`, errored, or found nothing | **UNRESOLVED.** Escalate as unresolved. Never as confirmed-safe. |
+
+Only the first two rows are verdicts. Every other row is an escalation, and the platform team is told which row it came from.
+
+`kubectl get pv` is cluster-scoped and the per-engineer Role is namespaced, so `Forbidden` at hop 1 is the **normal** case for an engineer — an unresolved result, not a clean one. When it happens, hand the volume IDs to the platform team and let them walk the chain; do not substitute the tag data for the walk.
 
 The engineer's SSO profile may lack `ec2:DescribeVolumes`. On `AccessDenied`, surface the ask to the platform team with the namespace and the orphaned node names; do not treat the denial as "no leaked disks".
 
@@ -382,13 +413,35 @@ Deleting an orphaned SeiNode is the one cleanup with a paved road. The rest of w
 | Resource | Why git never owned it | What to do |
 |---|---|---|
 | Orphaned validator SeiNode | Controller-generated, then owner-reference stripped | Delete it, per above. Confirm the orphan signature first. |
-| SeiNetwork/SeiNode from an escape-hatch direct apply | Applied with `seictl` outside the PR flow | Confirm no workspace-repo manifest names it (`grep -r <name> engineers/<alias>/`). If none, gate on `deletionPolicy` exactly as a Flux-owned network, then `seictl network\|node delete`. If a manifest does exist, it is Flux-owned — use the PR path. |
+| SeiNetwork/SeiNode from an escape-hatch direct apply | Applied with `seictl` outside the PR flow | Prove no workspace manifest names it — see the ownership search below — then gate on `deletionPolicy` exactly as a Flux-owned network, then `seictl network\|node delete <name> -n eng-<alias>` (harbor context). If a manifest does exist, it is Flux-owned: use the PR path. |
 | `SeiNodeTaskWorkflow` | Never committed to the workspace repo, by Guardrail #9 | A `Complete` workflow is the deliberate audit trail — leave it. Force-delete only a `Failed` workflow holding a node, with the `sei.io/force-delete-workflow` annotation first (`seictl-cli.md`). |
-| Bench Job/ConfigMap applied by hand | Ran outside the PR flow | `kubectl delete job\|configmap` by name. Results already in S3 are untouched and are not garbage. |
+| Bench Job/ConfigMap applied by hand | Ran outside the PR flow | Same ownership search first, then `kubectl --context harbor delete job <name> -n eng-<alias>` / `… delete configmap <name> -n eng-<alias>`, by name. Results already in S3 are untouched and are not garbage. |
 | Controller-managed PVC with no SeiNode | The controller owns PVC lifecycle; the engineer's Role has no `delete` on PVCs | Escalate with the PVC name and its PV. Do not request the verb. |
 | S3 genesis prefixes, bench results | Never Kubernetes objects | Out of scope for teardown. Purging a `<chain-id>/` genesis prefix is a deliberate act that unburns the chain-id; the engineer decides. |
 
 Anything not in this table, or any case where the ownership question stays open, escalates as unresolved rather than getting a guess.
+
+**Every namespace-scoped command above names its namespace and its context explicitly.** `seictl` and `kubectl` both fall back to the kubeconfig's current context and default namespace when the flags are absent (`seictl-cli.md`), so an unqualified `delete` deletes wherever the shell happens to point. On a delete that is not a typo you can retry — it is a delete in the wrong place.
+
+### The ownership search that authorizes a direct delete
+
+Before deleting anything imperatively, prove the object is **not** in the workspace repo. A search that fails must never read as "no manifest found" — `grep` exits 1 for no match and 2 or more for an error, and an unreadable or stale clone produces the same empty output as a genuinely absent manifest.
+
+```sh
+# Run inside a FRESH clone of harbor-engineering-workspace at origin/main.
+# A stale working copy can miss a manifest somebody merged an hour ago.
+git -C <workspace-clone> fetch origin main && git -C <workspace-clone> checkout -q origin/main \
+  || { echo 'UNRESOLVED: cannot refresh the workspace clone — do not delete'; exit 2; }
+
+grep -rn -- '<object-name>' <workspace-clone>/engineers/<alias>/
+case $? in
+  0) echo 'FLUX-OWNED: a manifest names it — use the PR path, do not delete' ;;
+  1) echo 'NOT IN GIT: safe to consider for a direct delete, after the other gates' ;;
+  *) echo 'UNRESOLVED: the search itself failed — do not delete' ;;
+esac
+```
+
+Only exit status 1 authorizes a direct delete. Status 0 routes to the PR path; anything else means the question was never answered.
 
 ## Halt conditions
 
