@@ -343,9 +343,9 @@ The default footprint is roughly a quarter of the mainnet validator shape (16 CP
 
 **Storage size lives only at `spec.dataVolume.storage`, never under `spec.resources`.** DR-001 separated the two: `spec.resources.requests` accepts only `cpu` and `memory`, and `spec.dataVolume.storage.resources.requests` accepts only `storage`. Note the nested volume-claim shape of the storage path — `spec.dataVolume.storage` is an object, not a quantity. It carries `resources` for the size and `volumeAttributesClassName` for the performance selection, and CEL requires `resources.requests.storage` whenever a CR populates `resources`. A bare quantity at `spec.dataVolume.storage` fails schema validation.
 
-**Minimum version: a build carrying the flags.** No release tag has them yet — v0.0.71 is the newest and predates seictl#248 — so install from `main`. Older binaries reject the three flags at parse, and their presets carry no resource block at all. Gate 1 in `preflight.md` probes `node apply --help` for `--cpu`.
+**Minimum version: v0.0.72.** That tag is the first to carry seictl#248, so `go install ...@latest` clears the gate. Older binaries reject the three flags at parse, and their presets carry no resource block at all. Gate 1 in `preflight.md` probes `node apply --help` for `--cpu`.
 
-`--iops` and `--throughput` arrived later still, so a binary carrying the three resource flags may lack them. Gate 1 probes for them separately. See *Storage performance* below.
+`--iops` and `--throughput` merged after the resource flags, but both landed in the same v0.0.72 tag. Only a build taken from `main` between those two merges carries one set without the other. Gate 1 probes for them separately anyway. See *Storage performance* below.
 
 **Fleet cost is per node, and the size is create-only.** Both presets carry the same 500Gi. A 4-validator chain with a 4-follower fleet therefore provisions about 4Ti of EBS that no later edit can shrink. An EVM-serving follower also inherits the consensus-validator shape, which may not suit it. The default is still the default — pass `--storage 500Gi` on the follower loop unless the engineer asks for something else. Raise the fleet total with them when N is large, since correcting an oversized volume means deleting the node and losing its data.
 
