@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,10 @@ import (
 
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
 )
+
+// lostLookupLog is what findByRunKey writes per attempt it lost, and the only
+// signal that separates a retry this package made from one net/http made for it.
+const lostLookupLog = "the session lookup did not reach the server"
 
 // TestTheRunKeyLookupSurvivesAConnectionThatDies is the failure the run key exists
 // to absorb, on the path that had no retry: the listing the open searches on dies
@@ -26,6 +31,7 @@ func TestTheRunKeyLookupSurvivesAConnectionThatDies(t *testing.T) {
 		AgentPages:       []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		CreateResp:       driverSessionResp("conv_new", "ag_1"),
 		SessionListDrops: 1,
+		NoKeepAlives:     true,
 		SessionListResp: `{"data":[{"id":"conv_prior","agent_id":"ag_1","labels":` +
 			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
 		StreamFrames: []string{
@@ -43,12 +49,19 @@ func TestTheRunKeyLookupSurvivesAConnectionThatDies(t *testing.T) {
 		},
 	})
 
-	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+	log, sink := driverCapturingLogger()
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, log).
 		Run(t.Context(), req)
 
 	if result.ExitCode != driver.ExitOK {
 		t.Errorf("ExitCode = %d, want driver.ExitOK — the second attempt reached the server",
 			result.ExitCode)
+	}
+	// On the log rather than on a request count: net/http replays an idempotent
+	// GET whose reused connection died before any byte of the response, and a drop
+	// it absorbs is a drop this retry never saw.
+	if n := strings.Count(sink.String(), lostLookupLog); n != 1 {
+		t.Errorf("the lookup reported losing %d attempts, want 1 — the retry under test", n)
 	}
 	if result.SessionID != "conv_prior" {
 		t.Errorf("SessionID = %q, want conv_prior — the retry has to find what the first attempt could not",
@@ -96,11 +109,15 @@ func TestTheRunKeyLookupSurvivesAListingThatHangs(t *testing.T) {
 	// before the second gets to run.
 	cfg.RequestTimeout = 200 * time.Millisecond
 
-	result := newTestDriver(cfg, driver.Policy{}, driverTestLogger()).Run(t.Context(), req)
+	log, sink := driverCapturingLogger()
+	result := newTestDriver(cfg, driver.Policy{}, log).Run(t.Context(), req)
 
 	if result.ExitCode != driver.ExitOK {
 		t.Errorf("ExitCode = %d, want driver.ExitOK — the hang costs one walk, not the run",
 			result.ExitCode)
+	}
+	if n := strings.Count(sink.String(), lostLookupLog); n != 1 {
+		t.Errorf("the lookup reported losing %d attempts, want 1", n)
 	}
 	if result.SessionID != "conv_prior" {
 		t.Errorf("SessionID = %q, want conv_prior", result.SessionID)
@@ -120,18 +137,24 @@ func TestTheRunKeyLookupGivesUp(t *testing.T) {
 		AgentPages:       []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		CreateResp:       driverSessionResp("conv_new", "ag_1"),
 		SessionListDrops: transportAttempts + 1,
+		NoKeepAlives:     true,
 	})
 
-	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+	log, sink := driverCapturingLogger()
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, log).
 		Run(t.Context(), testWork{
 			Repo: "sei-protocol/sandbox", PR: 32, Trigger: "dead-listing"})
 
 	if result.ExitCode != driver.ExitTransport {
 		t.Errorf("ExitCode = %d, want driver.ExitTransport", result.ExitCode)
 	}
-	// The attempts the lookup is allowed, plus the one the close sweep spends
-	// reclaiming whatever the failed open may have left behind.
-	if want, hits := transportAttempts+1, fs.ListSessionHits(); hits != want {
+	if n := strings.Count(sink.String(), lostLookupLog); n != transportAttempts {
+		t.Errorf("the lookup spent %d attempts, want %d", n, transportAttempts)
+	}
+	// Exact only because the server denies keep-alives: on a pooled connection
+	// net/http replays a dropped listing itself, and the hits stop matching the
+	// attempts.
+	if want, hits := transportAttempts, fs.ListSessionHits(); hits != want {
 		t.Errorf("the listing was asked %d times, want %d", hits, want)
 	}
 }

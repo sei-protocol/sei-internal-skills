@@ -50,6 +50,11 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	trace := &httptrace.ClientTrace{
 		GotConn: func(i httptrace.GotConnInfo) {
 			conn.Store(&i)
+			// A held connection settles any dial that failed on the way to it: one
+			// request may try both families of a dual-stack address and may be
+			// replayed onto a second connection, and an error from an attempt the
+			// request recovered from names the wrong backend for the one it kept.
+			dialErr.Store(nil)
 			// Read in the hook, not after: a connection this request then loses
 			// answers RemoteAddr with nil once it is closed, and the address is
 			// exactly what a lost connection is worth logging for.

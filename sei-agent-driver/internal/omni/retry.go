@@ -26,6 +26,10 @@ const transportAttempts = len(transportBackoff) + 1
 // The caller's deadline, not this loop's, decides when to stop waiting. The op's
 // own error is returned rather than the context's, so the reason the run failed
 // stays in the message.
+//
+// The op must be safe to run again for every error retryable admits: a request
+// that was written and lost its response is one of them, so a caller whose op
+// changes state gets at-least-once delivery.
 func retryUnreached(ctx context.Context, retryable func(error) bool, op func() error) error {
 	for attempt := 1; ; attempt++ {
 		err := op()

@@ -140,6 +140,12 @@ type driverFakeServerConfig struct {
 	// answered nor refused, so what ends the attempt is the walk's own budget.
 	SessionListStalls int
 
+	// NoKeepAlives answers every request with Connection: close, so each one dials
+	// its own connection. net/http silently replays a request whose *reused*
+	// connection died before any response byte, so a test that means to exercise
+	// this package's own retry has to deny it that.
+	NoKeepAlives bool
+
 	// SessionResps is served in order, one per GET /v1/sessions/{id}, with the
 	// last body repeating. The reply read and any adoption read are the same
 	// route, so a test that needs them to differ configures both.
@@ -282,6 +288,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		fs.totalHits.Add(1)
 		mux.ServeHTTP(w, r)
 	}))
+	srv.Config.SetKeepAlivesEnabled(!cfg.NoKeepAlives)
 	t.Cleanup(srv.Close)
 	fs.URL = srv.URL
 	return fs
