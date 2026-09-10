@@ -57,7 +57,17 @@ The resource fields are create-only for mechanical reasons, not policy. Each chi
 
 ## Deletion
 
-`spec.deletionPolicy` defaults to `Retain` — it governs whether the controller orphans its generated validator SeiNodes on delete. This is orthogonal to the client-side `--cascade` propagation policy on `seictl network delete`; both apply.
+`spec.deletionPolicy` defaults to `Delete`: the generated validator SeiNodes go with the network by ownerReference. Each SeiNode's finalizer then deletes its StatefulSet, pod, and controller-managed PVC. An imported PVC (`spec.dataVolume.import`) survives. `Retain` orphans the validators instead and stamps each with `sei.io/retained-from-seinetwork` and `sei.io/retain-reason`. Set it only when a validator's consensus identity must outlive the network.
+
+The default applies at admission, so a SeiNetwork created before it changed keeps `Retain` in its persisted spec. Read the live value before a teardown:
+
+```sh
+kubectl get seinetwork <name> -n eng-<alias> -o jsonpath='{.spec.deletionPolicy}'
+```
+
+On `Retain`, either set `deletionPolicy: Delete` in the manifest and merge that one PR ahead of the `git rm`, or delete the retained SeiNodes by hand afterwards.
+
+`spec.deletionPolicy` is orthogonal to the client-side `--cascade` propagation policy on `seictl network delete`; both apply.
 
 ## Everything else
 
