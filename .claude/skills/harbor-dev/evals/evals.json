@@ -113,7 +113,7 @@
           "agent recommends `go install github.com/sei-protocol/seictl@latest`, which resolves to v0.0.71 and cannot clear the missing --cpu gate"
         ]
       },
-      "source": "references/preflight.md Gate 1 check 3 (line 34), upgrade path (lines 46-50), and halt instruction (line 123)"
+      "source": "references/preflight.md Gate 1 check 3 (line 34), upgrade path (lines 46-50), and halt instruction (line 123); SKILL.md pre-flight gate-1 table row (line 61)"
     },
     {
       "id": "genesis-override-voting-period-key-provenance",
