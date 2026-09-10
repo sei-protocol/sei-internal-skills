@@ -41,6 +41,7 @@ The skill always passes `-n eng-<alias>` explicitly.
 seictl network apply <name>
                      --preset genesis-chain
                      [--chain-id <id>] [--image <ref>] [--replicas N]
+                     [--cpu <cores>] [--memory <quantity>] [--storage <quantity>]
                      [--genesis-account <addr>:<balance>] [--genesis-account ...]
                      [--genesis-override <module.field>=<value>] [--genesis-override ...]
                      [--set <dotted.path>=<value>] [--set ...]
@@ -53,10 +54,12 @@ Loads the `genesis-chain` preset, applies discrete-flag and `--set` overrides, a
 **Layering, lowest precedence first:**
 
 1. Preset YAML (embedded in the seictl binary).
-2. Discrete flags (`--chain-id`, `--image`, `--replicas`).
+2. Discrete flags (`--chain-id`, `--image`, `--replicas`, `--cpu`, `--memory`, `--storage`).
 3. `--set <dotted.path>=<value>`. Strategic-merge: maps merge per-key, lists replace wholesale. Wins on collision with discrete flags. SeiNetwork config overrides live under `spec.configOverrides` (reach them via `--set`); there is **no `--override` flag** on `network apply`. Overrides take effect only on an **init path** — set them at create time; an edit to a Running network's overrides never reaches its nodes' on-disk config (see `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*).
 
-**Immutability (apply-time, load-bearing):** `spec.genesis` and `spec.replicas` are admission-immutable. Re-applying `network apply <same-name>` with a changed `--chain-id` or `--replicas` is **rejected** with `metav1.Status.reason=Invalid` — it is not a silent no-op. To change either, `delete` + re-create. This is the new-CRD analogue of the old `updateStrategy` trap.
+**Immutability (apply-time, load-bearing):** `spec.genesis`, `spec.replicas`, `spec.resources`, and `spec.dataVolume.storage` are all admission-immutable. The apiserver **rejects** a re-apply of `network apply <same-name>` that changes `--chain-id`, `--replicas`, `--cpu`, `--memory`, or `--storage`, with `metav1.Status.reason=Invalid`. It is not a silent no-op. To change any of them, `delete` + re-create. This is the new-CRD analogue of the old `updateStrategy` trap.
+
+The two resource one-way doors are create-only for different reasons, both load-bearing. The child StatefulSet uses `OnDelete` with image-only drift detection, so a changed footprint never rolls onto a running pod. A Get-then-Create task creates the data PVC once and never updates it, so a changed size could never reach the volume. A resize is therefore a new chain: `delete`, pick a fresh chain-id, and re-create.
 
 **Required:** `<name>` (positional) and `--preset genesis-chain`. `--chain-id` and `--image` must resolve after layering — if either is missing in the rendered CR, the apiserver rejects with `metav1.Status.reason=Invalid`.
 
@@ -72,6 +75,7 @@ Loads the `genesis-chain` preset, applies discrete-flag and `--set` overrides, a
 seictl node apply <name>
                   --preset rpc
                   [--chain-id <id>] [--image <ref>] --network <X>
+                  [--cpu <cores>] [--memory <quantity>] [--storage <quantity>]
                   [--external-address <host>:<port>]
                   [--override <toml.key>=<value>] [--override ...]
                   [--set <dotted.path>=<value>] [--set ...]
@@ -88,6 +92,8 @@ Loads the `rpc` preset and server-side-applies a single `SeiNode`. An RPC fleet 
 **`--external-address`** advertises a reachable host:port for external p2p. Leave unset for in-cluster ephemeral chains (followers peer over headless DNS).
 
 **`--override <toml.key>=<value>`** targets `spec.overrides` (per-node `config.toml`/`app.toml`, applied at config-apply — an **init-path** task). Set overrides at create time: a re-apply against a Running node updates only the spec; the on-disk config never changes until the node next traverses an init path (see `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*). `--set` does strategic-merge on the whole spec and wins on collision.
+
+**`--cpu` / `--memory` / `--storage`** set the seid container footprint and the data-volume size. See *Resource footprint* below; the rules are identical on both `network apply` and `node apply`.
 
 **Required:** `<name>`, `--preset rpc`. `--chain-id`, `--image`, and `--network` must resolve after layering, else `Invalid`.
 
@@ -315,6 +321,37 @@ When `seictl network|node apply` succeeds, the post-apply CR carries:
 
 Commands never `cd`, never modify `~/.kube/config`, never set env vars in the calling shell. Every kubectl call is explicit about context and namespace.
 
+## Resource footprint (`--cpu` / `--memory` / `--storage`)
+
+Present on both `network apply` and `node apply`, with identical semantics. Each flag overrides exactly one dimension of the preset footprint, resolved independently: `--cpu 8` alone leaves memory and storage on their preset values.
+
+| Flag | CR path | Preset default | Accepts |
+|---|---|---|---|
+| `--cpu` | `spec.resources.requests.cpu` | `4` | bare cores (`4`) or millicores (`500m`) |
+| `--memory` | `spec.resources.requests.memory` | `32Gi` | any Kubernetes quantity (`32Gi`) |
+| `--storage` | `spec.dataVolume.storage.resources.requests.storage` | `500Gi` | any Kubernetes quantity (`500Gi`) |
+
+The default footprint is roughly a quarter of the mainnet validator shape (16 CPU / 128Gi / 2000Gi). That mainnet shape is the controller's per-mode default, and far too large for a dev chain.
+
+**seictl validates the quantities locally, before it renders.** A bad spelling (`32GB`) or a non-positive value (`0`, `-1`) exits non-zero naming the flag. This matters because the render output goes into a git PR. Without the local check, an invalid quantity reaches the apiserver only after merge. The engineer then reads the failure out of a Flux reconcile instead of the terminal.
+
+**Neither the presets nor the three flags emit `resources.limits`.** The CRD's CEL accepts only `memory` under `limits` — seid deliberately carries no CPU limit — and requires `limits.memory` to equal `requests.memory`, which the controller derives from the request. `seictl` refuses to render a CR carrying `spec.resources.limits.cpu` from any source, including `--set`. seictl passes a `--set` memory limit through, and the apiserver enforces the equality rule.
+
+**Storage size lives only at `spec.dataVolume.storage`, never under `spec.resources`.** DR-001 separated the two: `spec.resources.requests` accepts only `cpu` and `memory`, and `spec.dataVolume.storage.resources.requests` accepts only `storage`. Note the nested volume-claim shape of the storage path — `spec.dataVolume.storage` is an object whose sole property is `resources`, and CEL requires `resources.requests.storage` whenever a CR populates `resources`. A bare quantity at `spec.dataVolume.storage` fails schema validation.
+
+**Minimum version: `seictl` ≥ v0.0.72.** Older binaries reject the three flags at parse, and their presets carry no resource block at all. Gate 1 in `preflight.md` probes `node apply --help` for `--cpu`.
+
+**Fleet cost is per node, and the size is create-only.** Both presets carry the same 500Gi. A 4-validator chain with a 4-follower fleet therefore provisions about 4Ti of EBS that no later edit can shrink. An EVM-serving follower also inherits the consensus-validator shape, which may not suit it. The default is still the default — pass `--storage 500Gi` on the follower loop unless the engineer asks for something else. Raise the fleet total with them when N is large, since correcting an oversized volume means deleting the node and losing its data.
+
+**Provenance for the controller-side claims in this section.** Those claims are:
+
+- the CEL limits and immutability rules
+- the `OnDelete` image-only drift detection
+- the Get-then-Create ensure-data-pvc task
+- the per-mode 16 CPU / 128Gi default
+
+Verified against `sei-k8s-controller` main @ `c3fabbf` on 2026-09-10. The sources read were `api/v1alpha1/seinode_types.go`, `api/v1alpha1/seinetwork_types.go`, and the generated CRDs under `config/crd/`. A reader cannot check these from the CLI alone. If one ever looks wrong, re-verify against the controller rather than against `seictl --help`.
+
 ## Presets
 
 Two presets, embedded in the seictl binary at `presets/*.yaml`:
@@ -329,6 +366,15 @@ kind: SeiNetwork
 spec:
   replicas: 4
   genesis: {}
+  resources:
+    requests:
+      cpu: "4"
+      memory: 32Gi
+  dataVolume:
+    storage:
+      resources:
+        requests:
+          storage: 500Gi
   configOverrides:
     network.rpc.pprof_listen_address: "0.0.0.0:6060"
 ```
@@ -379,6 +425,15 @@ apiVersion: sei.io/v1alpha1
 kind: SeiNode
 spec:
   fullNode: {}
+  resources:
+    requests:
+      cpu: "4"
+      memory: 32Gi
+  dataVolume:
+    storage:
+      resources:
+        requests:
+          storage: 500Gi
   overrides:
     network.rpc.pprof_listen_address: "0.0.0.0:6060"
 ```

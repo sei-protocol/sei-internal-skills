@@ -8,7 +8,7 @@ A pre-flight that just rejects on missing prereqs gives engineers an error and w
 
 The end state pre-flight delivers:
 
-- `seictl` ≥ v0.0.59 on PATH (the version that ships the split `network`/`node` surface)
+- `seictl` ≥ v0.0.72 on PATH (v0.0.59 shipped the split `network`/`node` surface; v0.0.72 added the `--cpu`/`--memory`/`--storage` resource flags and the preset footprint)
 - `yq` on PATH (the render path pipes `seictl network|node apply --dry-run` through it)
 - `flux` CLI on PATH (used to force-reconcile harbor after a merge instead of waiting on the natural poll interval)
 - AWS SSO session active under the engineer's chosen profile
@@ -20,20 +20,22 @@ That's the floor for `seictl network|node apply`. Below this floor, no procedure
 
 ## The gates
 
-### Gate 1: `seictl ≥ v0.0.59` installed
+### Gate 1: `seictl ≥ v0.0.72` installed
 
-**Verifies:** `seictl` is on `$PATH` and ships the split `network`/`node` surface.
+**Verifies:** `seictl` is on `$PATH`, ships the split `network`/`node` surface, and carries the resource flags. This gate probes the binary only, so it runs on a fresh laptop with no SSO session and no kubeconfig. The cluster-side twin of check 3 lives in gate 5, which is the first gate that has cluster access.
 
-Two-part check:
+Three-part check:
 
 1. `command -v seictl` returns 0.
 2. `seictl node apply --help` exits 0 and the help text includes `--network`. `--network` is the peer-rail flag on the split `node` tree; it exists only in v0.0.59+, so its presence proves the binary has the split trees (the old `nd apply` had no such flag). It is the breaking-cut sentinel: an older binary that still carries `nd` but not the split trees fails this gate, which is correct — `nd` targets the deleted `SeiNodeDeployment` Kind and hard-fails at apply against new-CRD clusters. Optionally also probe `seictl network apply --help` for `--genesis-override`.
 
-**Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation, and `--network` auto-wire is what makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here is strictly better than a confusing `NotFound`-on-CRD at apply. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
+3. `seictl node apply --help` includes `--cpu`. This is the v0.0.72 sentinel, and the one check whose failure is otherwise **silent**. A pre-v0.0.72 binary carries presets with no resource block, so it renders a CR with no resource fields. The controller then fills in its per-mode default of 16 CPU / 128Gi. Nothing errors — the engineer gets a mainnet-shaped dev chain while the plan echo claims 4 CPU / 32Gi. Probe the capability, not a version string — same reasoning as check 2.
+
+**Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation. The `--network` auto-wire makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here beats a confusing `NotFound`-on-CRD at apply. For check 3 it beats something worse: a chain that runs four times its intended size without complaint. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
 
 **Recovery (out-of-band):**
 
-Recommended path: `go install`, from seictl v0.0.71 on.
+Recommended path: `go install`. The method itself works only from seictl v0.0.71 on. This gate's floor is v0.0.72, so install v0.0.72 or later — which `@latest` satisfies.
 
 ```sh
 go install github.com/sei-protocol/seictl@latest
@@ -71,7 +73,7 @@ To keep the provenance stamp, pass the flag. The version appears twice, so set i
 # Set V to the release you are installing. Where gh is available,
 # `gh release view --repo sei-protocol/seictl --json tagName --jq .tagName`
 # prints the latest tag.
-V=v0.0.71
+V=v0.0.72
 go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=${V:?set V to the release tag}'" \
   "github.com/sei-protocol/seictl@${V:?set V to the release tag}"
 ```
@@ -105,7 +107,7 @@ sudo mv build/seictl /usr/local/bin/
 
 `go install` was unusable before seictl v0.0.71 and the runbook forbade it. Eleven `replace` directives in `go.mod`, inherited from sei-chain, made Go reject any module-aware install. seictl#246 removed them, and v0.0.71 is the first release that installs this way. The old prohibition no longer applies. If `go install` ever fails again with `contains ... replace directives`, a new one has crept back into `go.mod` — that is a seictl bug, not an install-method problem.
 
-Halt until both checks (PATH + `node apply --help` lists `--network`) pass.
+Halt until all three checks pass: PATH, `node apply --help` lists `--network`, and `node apply --help` lists `--cpu`.
 
 ### Gate 2: `yq` installed
 
@@ -239,6 +241,10 @@ Halt until the access entry lands. Same-day turnaround typically.
 
 **Workflow-CRD sub-gate:** before the first `seictl workflow` invocation in a session, separately verify `kubectl auth can-i patch seinodetaskworkflows -n eng-<alias> --context=harbor` returns `yes` — `patch` is the verb server-side apply exercises. A `no` means the namespace Role predates the workflow CRD; halt all `workflow` verbs and ask the platform team via `#harbor-onboarding` to add `seinodetaskworkflows` (verbs `get`, `list`, `watch`, `create`, `patch`, `delete`, plus `seinodetaskworkflows/status` read) to the Role. The failure otherwise surfaces mid-operation as `is forbidden: ... cannot patch resource "seinodetaskworkflows"`.
 
+**Resource-CRD sub-gate:** `kubectl explain seinode.spec.resources --context=harbor` must exit 0. This is the cluster-side twin of gate 1 check 3, and it fails just as silently. A cluster whose CRDs predate the resource work **prunes** `spec.resources` from the applied object, with no error, because structural-schema pruning drops unknown fields. The node then takes the controller's 16 CPU / 128Gi default while the rendered file on disk says 4 CPU / 32Gi. This check reaches the cluster, which is why it sits here rather than in gate 1.
+
+Probe the CRD rather than reading the controller image tag. `clusters/<cluster>/sei-k8s-controller/kustomization.yaml` pins the image and the CRDs by the same ref, so a stale pin moves both. On a failure, halt every render that passes `--cpu`/`--memory`/`--storage`. Ask the platform team to advance the controller pin for the cluster.
+
 **Edge case — alias not yet known.** On a brand-new engineer, the alias is captured in First Run (gate 6 path) before they have an `eng-<alias>` namespace. Run this gate against the *resolved* alias from First Run; if the engineer is mid-onboarding (PR open but not merged), it may still pass on namespace-list reach even though the namespace doesn't exist yet — gate 6 owns the namespace-existence check.
 
 **Edge case — gate passes but `apply` later fails with `Forbidden`:** the access entry may be read-only. Surface that as a separate gap when `seictl network|node apply` returns `metav1.Status.reason=Forbidden`. The platform team escalates the access entry to write.
@@ -300,7 +306,7 @@ For a literal "fresh laptop" engineer, the first session looks like:
 5. Engineer runs SSO login. Continue.
 6. Gate 4 fails (no kubeconfig). Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>` directly (using the gate-3 profile). Continue.
 7. Gate 5 fails (no access entry). Surface "ask platform team in #harbor-onboarding," halt.
-8. Engineer pings the channel, gets the access entry. Comes back, says "ok try again."
+8. Engineer pings the channel, gets the access entry. Comes back, says "ok try again." Gate 5 now passes, so run its resource-CRD sub-gate here. This is the first point in the ramp that can reach the cluster.
 9. Gate 6 fails (namespace doesn't exist). Enter First Run: prompt for alias (default from `$USER`), validate the regex, generate the PR body following the fromtherain pattern, open the PR via `gh pr create`. Surface the PR URL and halt. "Merge this; ping me when done."
 10. Engineer merges, says "merged."
 11. Poll gate 6 — namespace + RBAC + workload SA + Flux watcher all reconcile from the same merge (~60s). Once `kubectl get namespace eng-<alias>` returns 0, gate 6 passes.

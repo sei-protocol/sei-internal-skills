@@ -32,10 +32,18 @@ The spec is flat (no `spec.template`):
 - `spec.genesis.accounts[]` — funded accounts at genesis (`--genesis-account`)
 - `spec.genesis.overrides{}` — flat dotted cosmos-module keys patched into the assembled `app_state` after collect-gentxs; module must exist, sub-fields unchecked (`--genesis-override`). Wrong deeper field names are injected silently and crash every node at InitChain — take keys from a real genesis, never from upstream-Cosmos docs (see the Genesis params section + sharp-edge note in `seictl-cli.md`)
 - `spec.configOverrides{}` — per-node `config.toml`/`app.toml` overrides (the SeiNetwork equivalent of a SeiNode's `spec.overrides`; reached via `--set spec.configOverrides...`). There is **no `--override` flag** on `network apply`.
+- `spec.resources` — the seid container footprint for every validator in the pool (`--cpu` / `--memory`). Request-only; `requests` accepts **only** `cpu` and `memory`. **Create-only.**
+- `spec.dataVolume.storage` — the data-PVC size for each pool validator (`--storage`), at the nested path `spec.dataVolume.storage.resources.requests.storage`. **Create-only.**
 
 ## Immutability (the new `updateStrategy`-class trap)
 
-`spec.genesis` and `spec.replicas` are **admission-immutable** (CEL). Re-applying `network apply <same-name>` with a changed `--chain-id` or `--replicas` is rejected with `metav1.Status.reason=Invalid` — not a silent no-op. To change either: `delete` + re-create. A network minted at 4 replicas cannot be re-applied at 1.
+`spec.genesis`, `spec.replicas`, `spec.resources`, and `spec.dataVolume.storage` are **admission-immutable** (CEL). The apiserver rejects a re-apply of `network apply <same-name>` that changes `--chain-id`, `--replicas`, `--cpu`, `--memory`, or `--storage`, with `metav1.Status.reason=Invalid` — not a silent no-op. To change any of them: `delete` + re-create. A network minted at 4 replicas cannot be re-applied at 1, and a pool minted at 4 CPU cannot be re-applied at 8.
+
+The resource fields are create-only for mechanical reasons, not policy. Each child StatefulSet uses `OnDelete` with image-only drift detection, so a changed footprint never reaches a running pod. The controller creates each data PVC once and never updates it, so a changed size never reaches the volume. Resizing a pool is therefore a new chain — `delete`, fresh chain-id, re-create — and the pool's data PVCs go with it.
+
+**Provenance:** the resource immutability reasons and the limits rules here come from `sei-k8s-controller` main @ `c3fabbf` (2026-09-10) — `api/v1alpha1/seinetwork_types.go` plus the shared `DataVolume*` types, and the generated `config/crd/sei.io_seinetworks.yaml`.
+
+**`resources.limits`:** `limits` accepts only `memory`, and `limits.memory` must equal `requests.memory`. The CRD rejects a CPU limit outright. The controller derives the memory limit from the request, so a rendered CR normally carries no `limits` block; `seictl` refuses to render `spec.resources.limits.cpu` from any source.
 
 ## Status fields you'll read when debugging
 

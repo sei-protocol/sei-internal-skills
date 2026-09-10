@@ -62,8 +62,8 @@ kubectl delete seinode <name> -n eng-<alias>
 ```
 
 **PVC behavior** — verify before deleting on stateful nodes:
-- For **imported** PVCs (`spec.import` set on the SeiNode): the PVC is preserved; the recreated SeiNode reuses existing data.
-- For **controller-managed** PVCs (no `spec.import`): the controller's `handleNodeDeletion` path deletes the PVC during teardown. Delete-and-recreate **wipes data**. Safe for ephemeral chains being recreated from genesis; not safe for archive nodes or any chain with state worth preserving.
+- For **imported** PVCs (`spec.dataVolume.import` set on the SeiNode): the controller preserves the PVC, and the recreated SeiNode reuses existing data.
+- For **controller-managed** PVCs (no `spec.dataVolume.import`): the controller's `handleNodeDeletion` path deletes the PVC during teardown. Delete-and-recreate **wipes data**. Safe for an ephemeral chain you recreate from genesis; not safe for archive nodes or any chain with state worth keeping.
 
 ## SeiNetwork genesis plan stuck
 
@@ -314,4 +314,4 @@ PVC space won't fully release until the original files are also unlinked (compac
 
 ### vs. retained data on delete
 
-For a SeiNode, whether its PVC survives deletion is governed by `spec.import` (imported PVC = preserved) vs controller-managed (wiped on teardown) — documented under **Phase: Failed** above. A `SeiNetwork`'s `spec.deletionPolicy` (defaults `Retain`) governs whether the controller orphans its generated validator SeiNodes (and thus their PVCs) when the network is deleted — useful when tearing down a network but keeping a validator's disk for forensics. The hardlink trick above is for **live debugging** while the node continues running. They're complementary, not redundant.
+For a SeiNode, `spec.dataVolume.import` governs whether its PVC survives deletion: an imported PVC survives, a controller-managed one does not — see **Phase: Failed** above. A `SeiNetwork`'s `spec.deletionPolicy` (defaults `Retain`) governs something different. It decides whether the controller orphans its generated validator SeiNodes, and thus their PVCs, when you delete the network. That is useful when you tear down a network but keep a validator's disk for forensics. The hardlink trick above is for **live debugging** while the node continues running. The three are complementary, not redundant.
