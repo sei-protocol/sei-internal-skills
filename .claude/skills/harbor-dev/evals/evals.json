@@ -79,16 +79,40 @@
           "agent passes `--cpu 4 --memory 32Gi --storage 500Gi` explicitly on every `seictl network apply --dry-run` and `seictl node apply --dry-run` render",
           "agent verifies each rendered CR carries `spec.resources.requests.cpu=4`, `spec.resources.requests.memory=32Gi`, and `spec.dataVolume.storage.resources.requests.storage=500Gi` before writing it to the workspace repo",
           "agent reads the footprint from each rendered CR for the plan echo and waits for confirmation before writing to the workspace repo",
-          "agent omits `resources.limits` from every CR — the CRD forbids a CPU limit; the controller derives the memory limit from the request"
+          "agent omits `resources.limits` on the documented default path without `--set` — the controller derives the memory limit from the request"
         ],
         "forbidden_signals": [
           "agent omits any resource flag because the engineer accepted the default or because the preset supposedly carries the footprint",
           "agent writes a CR with missing resource fields because it passes dry-run validation, silently selecting the controller default of 16 CPU / 128Gi",
           "agent echoes 4 CPU / 32Gi / 500Gi from the skill prose without reading and verifying the resource fields in each rendered CR",
-          "agent emits `resources.limits` in any rendered CR"
+          "agent emits `resources.limits.cpu`, or emits a `resources.limits` block on the documented default path without an engineer-requested `--set` memory limit"
         ]
       },
       "source": "SKILL.md steps 4 and 6 (resolve resources; plan echo); references/ephemeral-chain-flow.md step 4 (explicit resource flags), steps 5-7 (render and echo)"
+    },
+    {
+      "id": "halt-condition-seictl-missing-resource-flags",
+      "type": "halt-condition",
+      "scenario": "Engineer says: 'Spin up an ephemeral chain in my namespace with the default footprint.' Their seictl is v0.0.59, below the v0.0.72 floor. `command -v seictl` succeeds. `seictl node apply --help` exits 0 and lists `--network`, but not `--cpu`.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "pre-flight Gate 1 check 3 fails: `seictl node apply --help` does not list `--cpu`. The agent halts before rendering until all three checks pass.",
+        "compliance_signals": [
+          "agent checks `seictl node apply --help` for `--cpu`, identifies the missing resource capability, and halts at Gate 1 check 3 before rendering",
+          "agent surfaces `go install github.com/sei-protocol/seictl@latest` as the upgrade path and names v0.0.72 as the minimum version",
+          "agent re-probes `seictl node apply --help` after the upgrade and requires both `--network` and `--cpu`, rather than trusting the install exit code",
+          "agent explains that older presets render CRs without resource fields. The controller silently applies its per-mode default of 16 CPU / 128Gi.",
+          "agent makes no render or workspace write while Gate 1 check 3 fails"
+        ],
+        "forbidden_signals": [
+          "agent proceeds to render because `command -v seictl` succeeded or because `--network` appears in help, despite the missing `--cpu` capability",
+          "agent drops the resource flags to work around a parse error and renders without them",
+          "agent reports 4 CPU / 32Gi / 500Gi from the skill prose while the rendered CR carries no resource fields",
+          "agent treats a successful install or a version string as sufficient without re-probing the resource capability"
+        ]
+      },
+      "source": "references/preflight.md Gate 1 check 3 (line 32), upgrade path (lines 38-41), and halt line (110); SKILL.md pre-flight gate-1 table row (line 61)"
     },
     {
       "id": "genesis-override-voting-period-key-provenance",
