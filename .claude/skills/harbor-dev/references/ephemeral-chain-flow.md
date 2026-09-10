@@ -206,7 +206,7 @@ Engineer says: "spin up a chain of 4 validators with seid sha=abc, then add an R
     - `.status.endpoint.tendermintRpc` — Tendermint RPC URL
     - `.status.endpoint.tendermintRest` — Tendermint REST URL
     - For pod-targeted connectivity (seiload's WebSocket block collector, etc.), pick one follower — its `.status.endpoint` is already its stable per-node URL.
-15. **Report teardown** — `git rm -r engineers/<alias>/<task>/` **and** remove the `<task>` entry from `engineers/<alias>/kustomization.yaml`'s `resources:` list (Kustomize fails to render with an orphan reference). Commit → push → merge. Flux prunes the SeiNetwork + SeiNodes on next reconcile, cascading to pods/PVCs per k8s deletion propagation.
+15. **Report teardown** — `git rm -r engineers/<alias>/<task>/` **and** remove the `<task>` entry from `engineers/<alias>/kustomization.yaml`'s `resources:` list (Kustomize fails to render with an orphan reference). Commit → push → merge. Flux prunes the SeiNetwork + follower SeiNodes on next reconcile. Under `spec.deletionPolicy: Delete` (the CRD default) the validator SeiNodes go with the SeiNetwork by ownerReference, and each SeiNode's finalizer deletes its StatefulSet, pod, and controller-managed data PVC. Read `spec.deletionPolicy` off the live object first: a SeiNetwork admitted before the default changed still carries `Retain`, which leaves the validators and their EBS volumes running. An imported PVC (`spec.dataVolume.import`) is never deleted.
 
 ## Halt conditions specific to this flow
 

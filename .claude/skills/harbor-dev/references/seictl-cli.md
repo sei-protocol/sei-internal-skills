@@ -143,7 +143,7 @@ seictl node    delete <name> [--cascade foreground | background | orphan] [-n <n
 
 Issues a Delete against the named CR. Default propagation is `foreground` (waits for child resources before the CR itself is removed). `background` returns immediately; `orphan` leaves children behind.
 
-`--cascade` (the **client** propagation policy) is orthogonal to the CRD's own `spec.deletionPolicy`. A `SeiNetwork`'s `deletionPolicy` defaults to `Retain` (it governs whether the controller orphans its generated children); `--cascade` governs how the client waits. Both apply.
+`--cascade` (the **client** propagation policy) is orthogonal to the CRD's own `spec.deletionPolicy`. A `SeiNetwork`'s `deletionPolicy` defaults to `Delete` (`Retain` makes the controller orphan its generated children; see `seinetwork-crd.md` → *Deletion*); `--cascade` governs how the client waits. Both apply.
 
 **Output (success):** `seinetwork.sei.io/<name> deleted` / `seinode.sei.io/<name> deleted` on stdout. Exit 0.
 
