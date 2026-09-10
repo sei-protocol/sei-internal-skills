@@ -123,25 +123,34 @@ The agent appends `compare-<COMPARE_RUN_ID>` to `engineers/<alias>/kustomization
 
 ### Chain CRs (`chain-a/` and `chain-b/`)
 
-Render with `seictl network apply --dry-run` (the SeiNetwork) + a loop of `seictl node apply --dry-run` (the followers), same recipe as single-chain (`references/ephemeral-chain-flow.md`):
+Render with `seictl network apply --dry-run` (the SeiNetwork) + a loop of `seictl node apply --dry-run` (the followers), same recipe as single-chain (`references/ephemeral-chain-flow.md`) — including its resource-resolution step:
 
 ```sh
+# Resolve ONE footprint and reuse it for both sides. Default 4 CPU / 32Gi / 500Gi.
+CPU=4; MEM=32Gi; DISK=500Gi
+
 # Side A genesis network
 seictl network apply <chain-tag>-a \
   --preset genesis-chain --chain-id <chain-tag>-a \
-  --image <IMAGE_A_REF> -n eng-<alias> --dry-run \
+  --image <IMAGE_A_REF> \
+  --cpu "$CPU" --memory "$MEM" --storage "$DISK" \
+  -n eng-<alias> --dry-run \
   | yq -P > chain-a/seinetwork-<chain-tag>-a.yaml
 
 # Side A RPC followers — loop k = 0..N-1; --network wires each to side A's network
 for k in $(seq 0 $((N-1))); do
   seictl node apply <chain-tag>-a-rpc-${k} \
     --preset rpc --chain-id <chain-tag>-a --network <chain-tag>-a \
-    --image <IMAGE_A_REF> -n eng-<alias> --dry-run \
+    --image <IMAGE_A_REF> \
+    --cpu "$CPU" --memory "$MEM" --storage "$DISK" \
+    -n eng-<alias> --dry-run \
     | yq -P > chain-a/seinode-<chain-tag>-a-rpc-${k}.yaml
 done
 
-# Side B (mirror with image B, -b suffix, and --network <chain-tag>-b)
+# Side B (mirror with image B, -b suffix, and --network <chain-tag>-b) — SAME footprint
 ```
+
+**Both sides must carry an identical footprint, and the image is the only thing that differs.** A comparative bench attributes a throughput delta to the seid build under test. Two sides on different CPU, memory, or disk sizes measure the footprint instead, and the report reads as a build regression. Resolve the footprint once, before rendering either side, and pass the same three values to all four render calls. If the engineer wants a footprint comparison rather than a build comparison, that is a different experiment — say so rather than varying the resources here.
 
 The compare-labels (`sei.io/compare-name`, `sei.io/compare-side`) come from the top-level `kustomization.yaml`'s `commonLabels` and `bench-{a,b}/kustomization.yaml`'s side label — Kustomize propagates `commonLabels` to all resources sourced from listed sub-dirs, so each CR inherits both fields without per-resource edits. The `--network` peer-rail labels (`sei.io/seinetwork`, `sei.io/role=node`) are stamped by `node apply` and are independent of the compare-labels.
 

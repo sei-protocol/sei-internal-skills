@@ -8,7 +8,7 @@ A pre-flight that just rejects on missing prereqs gives engineers an error and w
 
 The end state pre-flight delivers:
 
-- `seictl` ≥ v0.0.59 on PATH (the version that ships the split `network`/`node` surface)
+- `seictl` ≥ v0.0.72 on PATH (v0.0.59 shipped the split `network`/`node` surface; v0.0.72 added the `--cpu`/`--memory`/`--storage` resource flags and the preset footprint)
 - `yq` on PATH (the render path pipes `seictl network|node apply --dry-run` through it)
 - `flux` CLI on PATH (used to force-reconcile harbor after a merge instead of waiting on the natural poll interval)
 - AWS SSO session active under the engineer's chosen profile
@@ -20,16 +20,18 @@ That's the floor for `seictl network|node apply`. Below this floor, no procedure
 
 ## The gates
 
-### Gate 1: `seictl ≥ v0.0.59` installed
+### Gate 1: `seictl ≥ v0.0.72` installed
 
-**Verifies:** `seictl` is on `$PATH` and ships the split `network`/`node` surface.
+**Verifies:** `seictl` is on `$PATH`, ships the split `network`/`node` surface, and carries the resource flags.
 
-Two-part check:
+Three-part check:
 
 1. `command -v seictl` returns 0.
 2. `seictl node apply --help` exits 0 and the help text includes `--network`. `--network` is the peer-rail flag on the split `node` tree; it exists only in v0.0.59+, so its presence proves the binary has the split trees (the old `nd apply` had no such flag). It is the breaking-cut sentinel: an older binary that still carries `nd` but not the split trees fails this gate, which is correct — `nd` targets the deleted `SeiNodeDeployment` Kind and hard-fails at apply against new-CRD clusters. Optionally also probe `seictl network apply --help` for `--genesis-override`.
 
-**Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation, and `--network` auto-wire is what makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here is strictly better than a confusing `NotFound`-on-CRD at apply. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
+3. `seictl node apply --help` includes `--cpu`. This is the v0.0.72 sentinel, and the one check whose failure is otherwise **silent**. A pre-v0.0.72 binary carries presets with no resource block, so it renders a CR with no resource fields. The controller then fills in its per-mode default of 16 CPU / 128Gi. Nothing errors — the engineer gets a mainnet-shaped dev chain while the plan echo claims 4 CPU / 32Gi. Probe the capability, not a version string — same reasoning as check 2.
+
+**Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation. The `--network` auto-wire makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here beats a confusing `NotFound`-on-CRD at apply. For check 3 it beats something worse: a chain that runs four times its intended size without complaint. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
 
 **Recovery (out-of-band):**
 

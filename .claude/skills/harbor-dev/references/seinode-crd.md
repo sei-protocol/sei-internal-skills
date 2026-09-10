@@ -29,15 +29,34 @@ The controller reconciles each `SeiNode` into:
 
 ## Spec fields you'll touch (operator's view)
 
-The 6 fields engineers actually edit:
+The 8 fields engineers actually edit:
 
 - `spec.chainId` — the chain identifier this node joins
 - `spec.image` — full container image ref (with tag or digest); flat (no `spec.template`)
+- `spec.resources` — the seid container footprint, request-only (`seictl node apply --cpu/--memory`). `requests` accepts **only** `cpu` and `memory`, both required positive. **Create-only.**
+- `spec.dataVolume.storage` — the data-PVC size (`seictl node apply --storage`), at the nested volume-claim path `spec.dataVolume.storage.resources.requests.storage`. Mutually exclusive with `spec.dataVolume.import`. **Create-only.**
 - `spec.peers` — peer discovery (one of `EC2Tags`, `Static`, `Label`). For a network's follower, the `Label` selector keys `sei.io/seinetwork` (set automatically by `seictl node apply --network <X>`).
 - `spec.fullNode | archive | replayer | validator` — mutually exclusive role marker
 - `spec.fullNode.snapshot` — bootstrap-from-snapshot config (exactly one of `s3` | `stateSync`); `snapshot.rpcServers` declares ≥2 light-client witness endpoints (bare `host:port`) replacing the platform syncer registry — the self-service path for state-syncing onto your own chain. See `state-sync-bootstrap.md`
 - `spec.sidecar` — seictl sidecar overrides (image, env, resources)
 - `spec.overrides` — TOML config patches applied via seictl `config patch`
+
+## Immutability and the limits rules (CEL, admission-time)
+
+`spec.resources` and `spec.dataVolume.storage` are **admission-immutable**, each for a concrete reason:
+
+- **`spec.resources`** — the child StatefulSet is `OnDelete` and drift detection is image-only, so a changed footprint never rolls onto a running pod. Editing it would read as a resize and do nothing.
+- **`spec.dataVolume.storage`** — the ensure-data-pvc task creates the data PVC once and never updates it (Get-then-Create, no update path). A changed size could never reach the volume.
+
+The apiserver rejects a re-apply that changes either, with `metav1.Status.reason=Invalid`. It is not a silent no-op, and it is not retryable. `delete` + re-create is the only path. For a genesis chain that means a fresh chain-id and a destroyed data PVC.
+
+**`resources.limits` — what the CRD accepts:**
+
+- `limits` accepts **only** `memory`. The CRD rejects a CPU limit outright: seid deliberately carries no CPU limit.
+- A CR that populates `limits.memory` **must match** `requests.memory` — the mode's memory-Guaranteed footprint. The controller derives the limit from the request, so the rendered CR normally carries no `limits` block at all.
+- `seictl` refuses to render `spec.resources.limits.cpu` from any source, including `--set`. It passes a `--set` memory limit through and lets the apiserver enforce the equality rule.
+
+**`spec.dataVolume.storage` is an object, not a quantity.** Its sole property is `resources`, and CEL requires `resources.requests.storage` whenever a CR populates `resources`. A bare quantity there fails schema validation before CEL runs. DR-001 keeps `spec.resources.requests` and `spec.dataVolume.storage.resources.requests` disjoint: compute takes only `cpu`/`memory`, storage only `storage`.
 
 ## Object labels (producer↔consumer contract)
 

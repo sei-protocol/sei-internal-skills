@@ -88,7 +88,12 @@ Atomic preset + `--set` overrides on the CR spec (the spec is flat — no `spec.
 | Image ref | `--image <ref>` | `--image ghcr.io/sei-protocol/seid:v6.4.0` |
 | Chain ID | `--chain-id <id>` | `--chain-id sei-test-1` |
 | Peer target (node only) | `--network <id>` | `--network sei-test-1` |
-| Anything else | `--set <dotted.path>=<value>` (repeatable) | `--set spec.resources.requests.memory=8Gi` |
+| seid CPU request | `--cpu <cores>` (create-time only — immutable) | `--cpu 8` |
+| seid memory request | `--memory <quantity>` (create-time only — immutable) | `--memory 64Gi` |
+| Data-volume size | `--storage <quantity>` (create-time only — immutable) | `--storage 1Ti` |
+| Anything else | `--set <dotted.path>=<value>` (repeatable) | `--set spec.fullNode.snapshot.s3.targetHeight=12345` |
+
+Prefer the discrete resource flags over `--set spec.resources...`. `--set` bypasses seictl's local quantity validation. seictl also refuses a `--set` CPU limit at render, because the CRD forbids one (see `seictl-cli.md` → *Resource footprint*).
 
 Layering, lowest precedence first: preset YAML → discrete flags → `--set`. Maps merge per-key; lists replace wholesale. Server-side-apply dry-run validates the merged CR against the apiserver's schema (preset isn't enough — the cluster's CRD is the schema oracle).
 
@@ -171,22 +176,31 @@ Engineer says: "spin up a chain of 4 validators with seid sha=abc, then add an R
 1. **Pre-flight** — five gates (see `preflight.md`). Halt on first failure.
 2. **Resolve naming** — derive a chain-id from caller context (Linear ticket / PR slug / commit substring / `--tag` / ask). Lowercase, k8s-namespace-safe (`^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`). For "chain X with RPC," the genesis network is `<id>` and the followers are `<id>-rpc-0 .. <id>-rpc-(N-1)`.
 3. **Resolve image** — sei-chain (`seid`) image. **Required input** (PR / commit / branch / explicit `--image`); never silently default. Resolve to a full SHA + verify in registry per `references/image-resolution.md`. Surface the resolved digest in the plan echo.
-4. **Render the SeiNetwork CR** — `seictl network apply <id> --preset genesis-chain --chain-id <id> --image <ref> [--replicas N] -n eng-<alias> --dry-run` emits the would-be-applied CR as JSON on stdout. Pipe through `yq -P 'del(.metadata.creationTimestamp, .metadata.generation, .metadata.managedFields, .metadata.resourceVersion, .metadata.uid, .status)' -o yaml` to strip server-side fields (the workspace-repo file should be source-of-truth-shaped, not server-shaped).
-5. **Render the follower CRs (if requested)** — **loop** N times: `seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --network <id> -n eng-<alias> --dry-run` for `k` in `0..N-1`, same `yq` strip per file. `--network <id>` auto-wires each follower's peer selector at the genesis network; there is no `--replicas` on a node — the skill owns this loop.
-6. **Plan echo & confirm** (first side-effecting call only) — show: cluster (harbor), namespace (`eng-<alias>`), preset(s), network name + follower names, chain-id, image digest, validator replica count, target path under workspace repo (`engineers/<alias>/<task>/`), what's about to be committed and pushed. Wait for confirmation.
-7. **Write to workspace repo** — fresh clone of `sei-protocol/harbor-engineering-workspace` (or session-scoped clone). Write rendered YAML to `engineers/<alias>/<task>/seinetwork-<id>.yaml` (and `seinode-<id>-rpc-<k>.yaml` per follower, or one multi-doc file). Update `engineers/<alias>/<task>/kustomization.yaml` listing all of them as resources. Append `<task>` to `engineers/<alias>/kustomization.yaml`'s `resources:` list if not already present.
-8. **Commit + push** — branch `feat/eng-<alias>-<task>`. Commit message: `feat(eng/<alias>): spin up <task> — chain-id=<id>, image=<digest-prefix>`. Push.
-9. **Open the PR** — title: `feat(eng/<alias>): spin up <task>`; body lists chain-id, image digest, preset(s), expected endpoints. `gh pr create --repo sei-protocol/harbor-engineering-workspace --base main`.
-10. **Surface and halt** — surface PR URL with: "after merge, Flux reconciles in ~60s; ping me to watch the network to Ready and report endpoints."
-11. **After merge — watch genesis to Ready** — `seictl network watch <id> --until=Ready --timeout=15m -n eng-<alias>`. NDJSON stream; exits 0 when `.status.phase=Ready`. Halt on non-zero with the `metav1.Status.reason` surfaced.
-12. **Watch each follower to Running** (if applicable) — per `k`: `seictl node watch <id>-rpc-<k> --until=Running --timeout=15m -n eng-<alias>` (terminal is `Running` — `--until=Ready` errors `Invalid` on a node).
-13. **Report** — assemble the fleet's endpoints across followers (the fleet is N CRs — there is no single object to read from). Use recipe #1 / `seictl node list -n eng-<alias> -l sei.io/seinetwork=<id>,sei.io/role=node -o json | jq` and read each follower's published URL **verbatim** — never reconstruct it (the controller owns the per-node headless DNS form):
+4. **Resolve resources** — the seid container footprint and the data-volume size. Default **4 CPU / 32Gi / 500Gi**, roughly a quarter of the mainnet shape; the controller's own per-mode default is 16 CPU / 128Gi. Pass `--cpu`, `--memory`, and `--storage` explicitly on every render, including when the engineer accepts the default. Each flag overrides one dimension independently. All three fields are create-only, so a resize means a new chain with a fresh chain-id (step 2) and a destroyed data PVC. See `seictl-cli.md` → *Resource footprint* for the quantity rules and the limits contract.
+5. **Render the SeiNetwork CR** — `seictl network apply <id> --preset genesis-chain --chain-id <id> --image <ref> [--replicas N] --cpu <cpu> --memory <mem> --storage <size> -n eng-<alias> --dry-run` emits the would-be-applied CR as JSON on stdout. Pipe through `yq -P 'del(.metadata.creationTimestamp, .metadata.generation, .metadata.managedFields, .metadata.resourceVersion, .metadata.uid, .status)' -o yaml` to strip server-side fields (the workspace-repo file should be source-of-truth-shaped, not server-shaped).
+6. **Render the follower CRs (if requested)** — **loop** N times: `seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --network <id> --cpu <cpu> --memory <mem> --storage <size> -n eng-<alias> --dry-run` for `k` in `0..N-1`, same `yq` strip per file. `--network <id>` auto-wires each follower's peer selector at the genesis network; there is no `--replicas` on a node — the skill owns this loop.
+7. **Plan echo & confirm** (first side-effecting call only) — show the plan below, then wait for confirmation. Read the footprint out of the rendered CRs from steps 5-6, never from a stated default. An echo that restates prose reports a footprint the agent never observed. Show:
+
+    - cluster (harbor) and namespace (`eng-<alias>`)
+    - preset(s), network name, and the follower names
+    - chain-id and image digest
+    - validator replica count
+    - resource footprint per node group: CPU request, memory request, storage size
+    - target path under the workspace repo (`engineers/<alias>/<task>/`)
+    - the files the agent will commit and push
+8. **Write to workspace repo** — fresh clone of `sei-protocol/harbor-engineering-workspace` (or session-scoped clone). Write rendered YAML to `engineers/<alias>/<task>/seinetwork-<id>.yaml` (and `seinode-<id>-rpc-<k>.yaml` per follower, or one multi-doc file). Update `engineers/<alias>/<task>/kustomization.yaml` listing all of them as resources. Append `<task>` to `engineers/<alias>/kustomization.yaml`'s `resources:` list if not already present.
+9. **Commit + push** — branch `feat/eng-<alias>-<task>`. Commit message: `feat(eng/<alias>): spin up <task> — chain-id=<id>, image=<digest-prefix>`. Push.
+10. **Open the PR** — title: `feat(eng/<alias>): spin up <task>`; body lists chain-id, image digest, preset(s), expected endpoints. `gh pr create --repo sei-protocol/harbor-engineering-workspace --base main`.
+11. **Surface and halt** — surface PR URL with: "after merge, Flux reconciles in ~60s; ping me to watch the network to Ready and report endpoints."
+12. **After merge — watch genesis to Ready** — `seictl network watch <id> --until=Ready --timeout=15m -n eng-<alias>`. NDJSON stream; exits 0 when `.status.phase=Ready`. Halt on non-zero with the `metav1.Status.reason` surfaced.
+13. **Watch each follower to Running** (if applicable) — per `k`: `seictl node watch <id>-rpc-<k> --until=Running --timeout=15m -n eng-<alias>` (terminal is `Running` — `--until=Ready` errors `Invalid` on a node).
+14. **Report** — assemble the fleet's endpoints across followers (the fleet is N CRs — there is no single object to read from). Use recipe #1 / `seictl node list -n eng-<alias> -l sei.io/seinetwork=<id>,sei.io/role=node -o json | jq`. Read each follower's published URL **verbatim** and never reconstruct it. The controller owns the per-node headless DNS form:
     - `.status.endpoint.evmJsonRpc` — EVM HTTP JSON-RPC URL (per follower)
     - `.status.endpoint.evmWs` — EVM WebSocket URL
     - `.status.endpoint.tendermintRpc` — Tendermint RPC URL
     - `.status.endpoint.tendermintRest` — Tendermint REST URL
     - For pod-targeted connectivity (seiload's WebSocket block collector, etc.), pick one follower — its `.status.endpoint` is already its stable per-node URL.
-14. **Report teardown** — `git rm -r engineers/<alias>/<task>/` **and** remove the `<task>` entry from `engineers/<alias>/kustomization.yaml`'s `resources:` list (Kustomize fails to render with an orphan reference). Commit → push → merge. Flux prunes the SeiNetwork + SeiNodes on next reconcile, cascading to pods/PVCs per k8s deletion propagation.
+15. **Report teardown** — `git rm -r engineers/<alias>/<task>/` **and** remove the `<task>` entry from `engineers/<alias>/kustomization.yaml`'s `resources:` list (Kustomize fails to render with an orphan reference). Commit → push → merge. Flux prunes the SeiNetwork + SeiNodes on next reconcile, cascading to pods/PVCs per k8s deletion propagation.
 
 ## Halt conditions specific to this flow
 
