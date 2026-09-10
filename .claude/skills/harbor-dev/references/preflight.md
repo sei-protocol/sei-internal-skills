@@ -8,7 +8,7 @@ A pre-flight that just rejects on missing prereqs gives engineers an error and w
 
 The end state pre-flight delivers:
 
-- `seictl` on PATH carrying the `--cpu`/`--memory`/`--storage` resource flags. v0.0.59 shipped the split `network`/`node` surface, and seictl#248 added the resource flags and the preset footprint. **No release tag carries them yet.** v0.0.71 is the newest tag and predates that merge, so gate 1 probes the capability rather than a version.
+- `seictl` on PATH carrying the `--cpu`/`--memory`/`--storage` resource flags. v0.0.59 shipped the split `network`/`node` surface, and seictl#248 added the resource flags and the preset footprint. **v0.0.72 is the first tag that carries them**, together with the `--iops`/`--throughput` pair from seictl#249. Gate 1 still probes the capability rather than the version, because a version string cannot reveal a stale binary shadowing the new one on `PATH`.
 - `yq` on PATH (the render path pipes `seictl network|node apply --dry-run` through it)
 - `flux` CLI on PATH (used to force-reconcile harbor after a merge instead of waiting on the natural poll interval)
 - AWS SSO session active under the engineer's chosen profile
@@ -33,7 +33,7 @@ Four-part check:
 
 3. `seictl node apply --help` includes `--cpu`. This is the resource-flag sentinel, and the one check whose failure is otherwise **silent**. A binary that predates seictl#248 carries presets with no resource block, so it renders a CR with no resource fields. The controller then fills in its per-mode default of 16 CPU / 128Gi. Nothing errors — the engineer gets a mainnet-shaped dev chain while the plan echo claims 4 CPU / 32Gi. Probe the capability, not a version string — same reasoning as check 2.
 
-4. `seictl node apply --help` includes `--iops`. This one gates the storage-performance selection only, so it blocks a performance tier rather than the whole render. No version pins it either. `--iops` and `--throughput` came in seictl#249, and like the resource flags they carry no release tag.
+4. `seictl node apply --help` includes `--iops`. This one gates the storage-performance selection only, so it blocks a performance tier rather than the whole render. `--iops` and `--throughput` came in seictl#249 and first shipped in v0.0.72, the same tag that first carries the resource flags. Probe the capability anyway, for the shadowing reason given above.
 
    This failure is loud once the flags reach the binary, exactly as check 3's is. An older `seictl` exits non-zero with `flag provided but not defined: -iops`. The silence arrives one step later, in the workaround. Dropping the two flags clears the parse error and renders the standard tier. The plan echo still promises 10000 IOPS, and the bench then measures the wrong disk. On a failure, either upgrade or drop to the standard tier, and state which one the render used.
 
@@ -41,17 +41,17 @@ Four-part check:
 
 **Recovery (out-of-band):**
 
-Recommended path: `go install` from the branch. The method itself works only from seictl v0.0.71 on, because seictl#246 removed the `replace` directives that blocked a module-aware install.
+Recommended path: `go install` from the newest release. The method itself works only from seictl v0.0.71 on, because seictl#246 removed the `replace` directives that blocked a module-aware install.
 
-**Do not use `@latest` here.** `@latest` resolves to the newest release *tag*, which is v0.0.71, and v0.0.71 predates the resource flags. It therefore installs a binary that fails check 3 exactly as the one it replaced did, and a second install does not help. Install the branch instead:
+**`@latest` is the correct target again.** An earlier version of this runbook forbade it and sent engineers to `@main`. The newest tag was then v0.0.71, which predates the resource flags. seictl v0.0.72 carries both seictl#248 and seictl#249, so `@latest` now clears checks 3 and 4. Do not restore the old prohibition.
 
 ```sh
-go install github.com/sei-protocol/seictl@main
+go install github.com/sei-protocol/seictl@latest
 ```
 
-Re-run checks 1 through 3 afterwards. Once someone cuts a release above v0.0.71, switch back to that tag and pin a version floor here to it.
+Re-run checks 1 through 4 afterwards. The version floor is **v0.0.72**. Treat that floor as the recovery target rather than the pass condition. The checks above still read the help text, because a floor cannot see which binary `PATH` resolves.
 
-**The two stamped paths below also predate the resource flags.** The `-ldflags` recipe installs a tag, and the release tarball serves `releases/latest`. Both therefore land on v0.0.71 today and fail check 3. Build-from-source is the one path that both keeps the provenance stamp and clears this gate.
+**All three paths below clear this gate now.** The `-ldflags` recipe installs a tag, and the release tarball serves `releases/latest`. Both land on v0.0.72 or newer, so the provenance stamp no longer costs a failed gate. Build-from-source stays available, and it is the one path that does not depend on a published release.
 
 **On an upgrade, the install is only half the job.** `go install` writes to the Go bin directory, but every engineer who followed an earlier version of this runbook has `seictl` in `/usr/local/bin`. On a stock `PATH`, `/usr/local/bin` precedes `~/go/bin`. The install then succeeds while `command -v seictl` still resolves the old binary, so gate 1 keeps failing its `--network` probe. Do not re-run the install; it will keep succeeding.
 
@@ -75,7 +75,7 @@ Do not try `GOBIN=/usr/local/bin go install …` instead. That directory is root
 
 Three things to know about it:
 
-- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` at all, or check 1 still fails — separate from the shadowing case above. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@main`. Note `@main`, for the reason given above — `@latest` resolves to v0.0.71 and fails check 3.
+- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` at all, or check 1 still fails — separate from the shadowing case above. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@latest`.
 - seictl's `go.mod` declares `go 1.26.0`. On an older toolchain `go install` prints `switching to go1.26.8` and downloads it. Treat that line as normal output, not an error.
 - A plain `go install` leaves the `seictl.sei.io/version` provenance annotation reading `dev` on every resource seictl applies. The version comes from an `-ldflags` stamp the Makefile passes, and `go install` does not pass it. Nothing breaks; the applied resources just do not record which seictl produced them.
 
@@ -84,11 +84,10 @@ To keep the provenance stamp, pass the flag. The version appears twice, so set i
 ```sh
 # Set V to the release you are installing. Where gh is available,
 # `gh release view --repo sei-protocol/seictl --json tagName --jq .tagName`
-# prints the latest tag. Today that is v0.0.71, which predates the
-# resource flags and fails gate 1 check 3 -- see the caveat above. So V is
-# left empty on purpose: no tag currently satisfies this gate, and the
-# ${V:?} guards below refuse rather than install one that cannot pass.
-V=
+# prints the newest tag. The floor is v0.0.72, the first tag carrying the
+# resource and storage-performance flags. The ${V:?} guards below refuse to
+# run on an unset V, so an empty value fails loudly instead of stamping "".
+V=v0.0.72
 go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=${V:?set V to the release tag}'" \
   "github.com/sei-protocol/seictl@${V:?set V to the release tag}"
 ```

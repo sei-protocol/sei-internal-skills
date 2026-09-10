@@ -93,15 +93,15 @@
     {
       "id": "halt-condition-seictl-missing-resource-flags",
       "type": "halt-condition",
-      "scenario": "Engineer says: 'Spin up an ephemeral chain in my namespace with the default footprint.' Their seictl is v0.0.71, the newest release tag, which predates the resource flags from seictl#248. `command -v seictl` succeeds. `seictl node apply --help` exits 0 and lists `--network`, but not `--cpu`.",
+      "scenario": "Engineer says: 'Spin up an ephemeral chain in my namespace with the default footprint.' Their seictl is v0.0.71, below the v0.0.72 minimum version, and predates the resource flags from seictl#248. `command -v seictl` succeeds. `seictl node apply --help` exits 0 and lists `--network`, but not `--cpu`.",
       "skill_loaded": true,
       "expected": {
         "halt": true,
         "halt_reason": "pre-flight Gate 1 check 3 fails: `seictl node apply --help` does not list `--cpu`. The agent halts before rendering until the first three checks pass.",
         "compliance_signals": [
           "agent checks `seictl node apply --help` for `--cpu`, identifies the missing resource capability, and halts at Gate 1 check 3 before rendering",
-          "agent surfaces `go install github.com/sei-protocol/seictl@main` as the upgrade path (or an explicitly cut release above v0.0.71 carrying the resource flags), without inventing a minimum release version",
-          "agent re-probes `seictl node apply --help` after the upgrade and requires both `--network` and `--cpu`, rather than trusting the install exit code",
+          "agent surfaces `go install github.com/sei-protocol/seictl@latest` as the upgrade path and names v0.0.72 as the minimum release carrying both the resource and storage-performance flags",
+          "agent re-runs Gate 1 checks 1 through 4 after the upgrade: PATH, `--network`, `--cpu`, and `--iops`; the first three must pass before rendering, while check 4 gates only the performance tier",
           "agent explains that older presets render CRs without resource fields. The controller silently applies its per-mode default of 16 CPU / 128Gi.",
           "agent makes no render or workspace write while Gate 1 check 3 fails"
         ],
@@ -110,10 +110,10 @@
           "agent drops the resource flags to work around a parse error and renders without them",
           "agent reports 4 CPU / 32Gi / 500Gi from the skill prose while the rendered CR carries no resource fields",
           "agent treats a successful install or a version string as sufficient without re-probing the resource capability",
-          "agent recommends `go install github.com/sei-protocol/seictl@latest`, which resolves to v0.0.71 and cannot clear the missing --cpu gate"
+          "agent refuses `go install github.com/sei-protocol/seictl@latest` or insists on `@main` because it claims no release tag carries the required flags"
         ]
       },
-      "source": "references/preflight.md Gate 1 check 3 (line 34), upgrade path (lines 46-50), and halt instruction (line 125); SKILL.md pre-flight gate-1 table row (line 61)"
+      "source": "references/preflight.md Gate 1 check 3 (line 34), check 4 (lines 36-38), upgrade path and re-check instruction (lines 46-52), and halt instruction (line 124); SKILL.md pre-flight gate-1 table row (line 61); references/seictl-cli.md minimum-version note (lines 346-348)"
     },
     {
       "id": "genesis-override-voting-period-key-provenance",
