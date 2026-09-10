@@ -90,7 +90,9 @@ Pass an explicit `--storage` sized for the chain you are syncing. The `rpc`
 preset defaults to 500Gi, which is a fresh-genesis dev-chain shape, and
 state-sync loads an existing chain's accumulated state. The size is
 create-only, so you must delete and recreate an undersized follower rather
-than resize it.
+than resize it. Size it from a measurement of the restored state — see the
+measurement order under "Snapshot discovery" in
+`references/aws-dependencies.md`.
 
 Render via `seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id>
 --network <id> --image <ref> --cpu <cpu> --memory <mem> --storage <size>

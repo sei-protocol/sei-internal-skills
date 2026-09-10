@@ -52,7 +52,30 @@ seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --image <ref> --netw
   -n eng-<alias> --dry-run
 ```
 
-**Size the data volume for the restored state, not for a dev chain.** The `rpc` preset's `--storage` default is 500Gi, which suits a fresh-genesis chain and not `pacific-1` or `atlantic-2`. Read the snapshot's size from the same listing you used to pick the height, then pass an explicit `--storage` with headroom for continued sync. The field is create-only. Nothing can resize a follower that outgrows its volume — delete and recreate it instead.
+**Size the data volume for the restored state, not for a dev chain.** The `rpc` preset's `--storage` default is 500Gi, which suits a fresh-genesis chain and not `pacific-1` or `atlantic-2`. The field is create-only. Nothing can resize a follower that outgrows its volume — delete and recreate it instead.
+
+**Do not size from the S3 listing.** `aws s3 ls` reports the byte size of the `<height>.tar.gz` object, which is the compressed archive and not the unpacked database the PVC has to hold. The expansion factor follows from the snapshot's contents, and this runbook pins no such factor. Sizing off the listing therefore undershoots by a multiple, and a headroom allowance does not cover a multiple. Treat the archive size as a floor only.
+
+Measure the restored footprint instead, in this order:
+
+1. **A running node on the same chain** — the direct measurement:
+
+   ```sh
+   kubectl exec -n <ns> <pod> -c seid --context=harbor -- du -sh /root/.sei/data
+   ```
+
+2. **The provisioned volume of an existing follower on that chain**, when no pod is reachable:
+
+   ```sh
+   kubectl get pvc -A --context=harbor \
+     -o custom-columns='NS:.metadata.namespace,NAME:.metadata.name,SIZE:.spec.resources.requests.storage'
+   ```
+
+   This reports what an operator provisioned rather than what the state occupies, so read it as a peer's judgement and not as a measurement.
+
+3. **Neither available** — surface that the restored size is unmeasured, and agree an explicit `--storage` with the engineer before rendering. Do not derive one from the listing.
+
+Add headroom for continued sync on top of whichever figure the steps above produce.
 
 **Mechanism**: `targetHeight` is a **ceiling, not an exact pin**. The seictl sidecar lists `*.tar.gz` under the chain prefix, parses heights from filenames, and picks `max(height ≤ targetHeight)`. `targetHeight=0` means "use the newest available." If no snapshot ≤ targetHeight exists, the `snapshot-restore` task fails with `no snapshot found at or below height <H>`. `latest.txt` is publisher bookkeeping; the sidecar ignores it. Source: `sei-protocol/seictl/sidecar/tasks/snapshot_restore.go:162-210`.
 
