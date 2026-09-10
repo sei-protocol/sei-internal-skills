@@ -343,8 +343,8 @@ func TestMintStopsAfterItsAttempts(t *testing.T) {
 	if err == nil {
 		t.Fatal("a mint that never reached a server reported success")
 	}
-	if flaky.attempts != mintAttempts {
-		t.Errorf("made %d attempts, want %d", flaky.attempts, mintAttempts)
+	if flaky.attempts != transportAttempts {
+		t.Errorf("made %d attempts, want %d", flaky.attempts, transportAttempts)
 	}
 	if !strings.Contains(err.Error(), "could not reach the server") {
 		t.Errorf("the message no longer says what happened: %v", err)
@@ -406,7 +406,7 @@ func TestMintStopsWhenTheCallerDoes(t *testing.T) {
 	if elapsed := time.Since(start); elapsed > time.Second {
 		t.Errorf("kept waiting for %s after the caller gave up", elapsed.Round(time.Millisecond))
 	}
-	if flaky.attempts >= mintAttempts {
+	if flaky.attempts >= transportAttempts {
 		t.Errorf("made %d attempts despite cancellation", flaky.attempts)
 	}
 }

@@ -127,7 +127,7 @@ func healthCheckedClient(log *slog.Logger) (*http.Client, error) {
 // What actually fixes the mint is not the health checks — newClient builds this
 // transport fresh, two lines above, so its pool is empty and the exchange always
 // dials cold; ReadIdleTimeout/PingTimeout never get a chance to fire on it, and
-// could not fire between retries either (mintBackoff's 0.5s/2s are both far under
+// could not fire between retries either (transportBackoff's 0.5s/2s are both far under
 // the 20s idle bound). What fixes it is that the pool is now PRIVATE to this
 // newClient call instead of the process-shared http.DefaultTransport, where an
 // earlier invocation's mint — one per scout, one for the review, another per

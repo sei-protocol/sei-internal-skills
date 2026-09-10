@@ -310,7 +310,36 @@ func (h *Host) resolveAgent(
 // including the close on a runner that is already
 // being terminated. Sessions accumulate for as long as anything fails to reclaim
 // one, so the cheap default is the expensive one over time.
+//
+// A walk that never reached the server is retried, on the pattern [mintToken]
+// uses and for the reason it uses it: the same blackholed flow that kills a mint
+// kills this lookup, and here it costs the whole run -- an open that cannot ask
+// whether this work already has a session neither adopts one nor creates one.
+// Each attempt takes a fresh walk budget, so a retry is a new search rather than
+// the remainder of the one that failed.
 func (h *Host) findByRunKey(
+	ctx context.Context,
+	client *omnigent.Client,
+	agentID, runKey string,
+) (*omnigent.SessionResponse, error) {
+	var session *omnigent.SessionResponse
+	err := retryUnreached(ctx, transportFailed, func() error {
+		var err error
+		session, err = h.walkForRunKey(ctx, client, agentID, runKey)
+		if transportFailed(err) {
+			h.log.Warn("the session lookup did not reach the server",
+				"run_key", runKey, "error", err)
+		}
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+// walkForRunKey is one pass over the listing, under one walk budget.
+func (h *Host) walkForRunKey(
 	ctx context.Context,
 	client *omnigent.Client,
 	agentID, runKey string,

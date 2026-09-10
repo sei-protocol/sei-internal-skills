@@ -42,11 +42,30 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	// request whose failure this line exists to place.
 	var (
 		conn         atomic.Pointer[httptrace.GotConnInfo]
+		peer         atomic.Pointer[string]
+		dialErr      atomic.Pointer[string]
 		wroteHeaders atomic.Bool
 		firstByte    atomic.Bool
 	)
 	trace := &httptrace.ClientTrace{
-		GotConn:              func(i httptrace.GotConnInfo) { conn.Store(&i) },
+		GotConn: func(i httptrace.GotConnInfo) {
+			conn.Store(&i)
+			// Read in the hook, not after: a connection this request then loses
+			// answers RemoteAddr with nil once it is closed, and the address is
+			// exactly what a lost connection is worth logging for.
+			if i.Conn != nil {
+				if addr := i.Conn.RemoteAddr(); addr != nil {
+					s := addr.String()
+					peer.Store(&s)
+				}
+			}
+		},
+		ConnectDone: func(network, addr string, err error) {
+			if err != nil {
+				s := addr + ": " + err.Error()
+				dialErr.Store(&s)
+			}
+		},
 		WroteHeaders:         func() { wroteHeaders.Store(true) },
 		GotFirstResponseByte: func() { firstByte.Store(true) },
 	}
@@ -73,6 +92,15 @@ func (t *tracingTransport) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 	if got != nil && got.WasIdle {
 		attrs = append(attrs, "conn_idle_for", got.IdleTime)
+	}
+	// The peer is which target behind the load balancer this attempt actually
+	// held, so a failure can be attributed to one rather than to the service name
+	// every attempt shares. A dial that never completed has no peer and says why.
+	if p := peer.Load(); p != nil {
+		attrs = append(attrs, "peer", *p)
+	}
+	if d := dialErr.Load(); d != nil {
+		attrs = append(attrs, "dial_error", *d)
 	}
 
 	if err != nil {

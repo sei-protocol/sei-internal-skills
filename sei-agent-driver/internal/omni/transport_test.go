@@ -70,10 +70,35 @@ func TestTracingTransportCarriesAnIDAndPlacesAFailure(t *testing.T) {
 		}
 
 		out := sink.String()
-		for _, want := range []string{"request failed", "wrote_headers=false", "got_first_byte=false", "request_id="} {
+		for _, want := range []string{"request failed", "wrote_headers=false", "got_first_byte=false", "request_id=", "dial_error="} {
 			if !strings.Contains(out, want) {
 				t.Errorf("log is missing %q, which is what places the failure:\n%s", want, out)
 			}
+		}
+	})
+
+	t.Run("the peer it held is named", func(t *testing.T) {
+		t.Parallel()
+		// Which target answered, not which service was addressed. A failure behind a
+		// load balancer is only attributable to one backend if the attempts that
+		// worked named theirs too.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		defer srv.Close()
+
+		sink := &driverLogSink{}
+		client := &http.Client{Transport: &tracingTransport{
+			base: srv.Client().Transport,
+			log:  slog.New(slog.NewTextHandler(sink, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		}}
+		resp, err := client.Get(srv.URL)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		want := strings.TrimPrefix(srv.URL, "http://")
+		if out := sink.String(); !strings.Contains(out, "peer="+want) {
+			t.Errorf("log does not name the peer %s:\n%s", want, out)
 		}
 	})
 }
