@@ -48,7 +48,7 @@ seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node
 
 `select(.)` drops a matched follower whose `.status.endpoint` is unset (not yet `Running`); the **selector** `sei.io/seinetwork=<id>,sei.io/role=node` does the real fleet-scoping at the apiserver (validators are `role=validator` and excluded). **Use the published URLs verbatim — never reconstruct them** (the controller owns the per-node headless DNS form, e.g. `http://<chain-id>-rpc-0.eng-<alias>.svc:8545`).
 
-If `.items` is empty, no follower nodes exist for the network yet — `seictl node apply <id>-rpc-0 --preset rpc --chain-id <id> --network <id>` first.
+If `.items` is empty, no follower nodes exist for the network yet. Render one first, per `ephemeral-chain-flow.md` step 6. That recipe carries the create-only footprint and storage-performance flags.
 
 If `.items[].status.endpoint` is unset, the followers exist but none reached `Running` yet. Use recipe #2 to confirm phase, then `seictl node watch <id>-rpc-<k> --until=Running` to block.
 

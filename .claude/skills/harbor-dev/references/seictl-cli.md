@@ -341,9 +341,9 @@ The default footprint is roughly a quarter of the mainnet validator shape (16 CP
 
 **Neither the presets nor the three flags emit `resources.limits`.** The CRD's CEL accepts only `memory` under `limits` — seid deliberately carries no CPU limit — and requires `limits.memory` to equal `requests.memory`, which the controller derives from the request. `seictl` refuses to render a CR carrying `spec.resources.limits.cpu` from any source, including `--set`. seictl passes a `--set` memory limit through, and the apiserver enforces the equality rule.
 
-**Storage size lives only at `spec.dataVolume.storage`, never under `spec.resources`.** DR-001 separated the two: `spec.resources.requests` accepts only `cpu` and `memory`, and `spec.dataVolume.storage.resources.requests` accepts only `storage`. Note the nested volume-claim shape of the storage path — `spec.dataVolume.storage` is an object whose sole property is `resources`, and CEL requires `resources.requests.storage` whenever a CR populates `resources`. A bare quantity at `spec.dataVolume.storage` fails schema validation.
+**Storage size lives only at `spec.dataVolume.storage`, never under `spec.resources`.** DR-001 separated the two: `spec.resources.requests` accepts only `cpu` and `memory`, and `spec.dataVolume.storage.resources.requests` accepts only `storage`. Note the nested volume-claim shape of the storage path — `spec.dataVolume.storage` is an object, not a quantity. It carries `resources` for the size and `volumeAttributesClassName` for the performance selection, and CEL requires `resources.requests.storage` whenever a CR populates `resources`. A bare quantity at `spec.dataVolume.storage` fails schema validation.
 
-**Minimum version: `seictl` ≥ v0.0.72.** Older binaries reject the three flags at parse, and their presets carry no resource block at all. Gate 1 in `preflight.md` probes `node apply --help` for `--cpu`.
+**Minimum version: a build carrying the flags.** No release tag has them yet — v0.0.71 is the newest and predates seictl#248 — so install from `main`. Older binaries reject the three flags at parse, and their presets carry no resource block at all. Gate 1 in `preflight.md` probes `node apply --help` for `--cpu`.
 
 `--iops` and `--throughput` arrived later, in a release this floor does not pin. Gate 1 probes for them separately. See *Storage performance* below.
 
@@ -373,7 +373,7 @@ The supported set is two entries:
 
 Omitting both flags is a real selection, not a gap. The PVC then carries no `volumeAttributesClassName` at all.
 
-The catalog holds no archive tier. The harness renders validator and fullNode nodes only, and both resolve to the performance class. Every production archive node binds a statically imported PV instead.
+The catalog holds no archive tier, and this skill needs none. seictl ships two presets, `genesis-chain` and `rpc`, so every node it renders is a validator or a fullNode on a dev chain. Both default to the standard tier, and a performance selection is an explicit opt-in for a storage-bound bench. Archive nodes fall outside harbor-dev's dev-only scope.
 
 **The `-v1` suffix is load-bearing.** VolumeAttributesClass `parameters` are immutable, so the platform retunes a tier by creating a new object (`sei-gp3-performance-v2`), never by editing this one. Do not strip the suffix or treat it as noise.
 

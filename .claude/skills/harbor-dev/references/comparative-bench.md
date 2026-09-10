@@ -130,6 +130,10 @@ Render with `seictl network apply --dry-run` (the SeiNetwork) + a loop of `seict
 CPU=4; MEM=32Gi; DISK=500Gi
 # Storage performance, also ONE selection for both sides. Leave PERF empty for the
 # standard tier; PERF="--iops 10000 --throughput 750" selects sei-gp3-performance-v1.
+# $PERF expands UNQUOTED below, unlike every neighbouring variable, and that is
+# deliberate: an empty value must vanish rather than pass an empty argument, and a
+# populated value must word-split into two flags. Do not "fix" it to "$PERF" -- the
+# usual shell lint (SC2086) would break every standard-tier render.
 PERF=""
 
 # Side A genesis network

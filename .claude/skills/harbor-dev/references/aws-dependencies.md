@@ -48,9 +48,12 @@ aws s3 cp s3://harbor-sei-snapshots/<chainID>/state-sync/latest.txt - \
 
 ```sh
 seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --image <ref> --network <id> \
+  --cpu <cpu> --memory <mem> --storage <size> [--iops <iops> --throughput <tput>] \
   --set spec.fullNode.snapshot.s3.targetHeight=<height> \
   -n eng-<alias> --dry-run
 ```
+
+Pass the footprint and any storage-performance selection explicitly here, exactly as `ephemeral-chain-flow.md` step 4 requires. Both are create-only. A render that omits them takes the preset shape in silence, and no later apply can correct it.
 
 **Size the data volume for the restored state, not for a dev chain.** The `rpc` preset's `--storage` default is 500Gi, which suits a fresh-genesis chain and not `pacific-1` or `atlantic-2`. The field is create-only. Nothing can resize a follower that outgrows its volume — delete and recreate it instead.
 
