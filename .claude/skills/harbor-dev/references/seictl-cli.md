@@ -341,6 +341,17 @@ The default footprint is roughly a quarter of the mainnet validator shape (16 CP
 
 **Minimum version: `seictl` ≥ v0.0.72.** Older binaries reject the three flags at parse, and their presets carry no resource block at all. Gate 1 in `preflight.md` probes `node apply --help` for `--cpu`.
 
+**Fleet cost is per node, and the size is create-only.** Both presets carry the same 500Gi. A 4-validator chain with a 4-follower fleet therefore provisions about 4Ti of EBS that no later edit can shrink. An EVM-serving follower also inherits the consensus-validator shape, which may not suit it. Size the followers deliberately with `--storage` on the `node apply` loop rather than taking 500Gi by default. Correcting an oversized volume means deleting the node and losing its data.
+
+**Provenance for the controller-side claims in this section.** Those claims are:
+
+- the CEL limits and immutability rules
+- the `OnDelete` image-only drift detection
+- the Get-then-Create ensure-data-pvc task
+- the per-mode 16 CPU / 128Gi default
+
+Verified against `sei-k8s-controller` main @ `c3fabbf` on 2026-09-10. The sources read were `api/v1alpha1/seinode_types.go`, `api/v1alpha1/seinetwork_types.go`, and the generated CRDs under `config/crd/`. A reader cannot check these from the CLI alone. If one ever looks wrong, re-verify against the controller rather than against `seictl --help`.
+
 ## Presets
 
 Two presets, embedded in the seictl binary at `presets/*.yaml`:

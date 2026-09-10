@@ -56,6 +56,8 @@ The apiserver rejects a re-apply that changes either, with `metav1.Status.reason
 - A CR that populates `limits.memory` **must match** `requests.memory` — the mode's memory-Guaranteed footprint. The controller derives the limit from the request, so the rendered CR normally carries no `limits` block at all.
 - `seictl` refuses to render `spec.resources.limits.cpu` from any source, including `--set`. It passes a `--set` memory limit through and lets the apiserver enforce the equality rule.
 
+**Provenance:** the immutability reasons and the limits rules above come from `sei-k8s-controller` main @ `c3fabbf` (2026-09-10) — `api/v1alpha1/seinode_types.go` and the generated `config/crd/sei.io_seinodes.yaml`. The generated CRD is the schema oracle: a cluster enforces it, not this file.
+
 **`spec.dataVolume.storage` is an object, not a quantity.** Its sole property is `resources`, and CEL requires `resources.requests.storage` whenever a CR populates `resources`. A bare quantity there fails schema validation before CEL runs. DR-001 keeps `spec.resources.requests` and `spec.dataVolume.storage.resources.requests` disjoint: compute takes only `cpu`/`memory`, storage only `storage`.
 
 ## Object labels (producer↔consumer contract)

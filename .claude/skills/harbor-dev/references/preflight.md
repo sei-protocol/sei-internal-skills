@@ -35,7 +35,7 @@ Three-part check:
 
 **Recovery (out-of-band):**
 
-Recommended path: `go install`, from seictl v0.0.71 on.
+Recommended path: `go install`. The method itself works only from seictl v0.0.71 on. This gate's floor is v0.0.72, so install v0.0.72 or later — which `@latest` satisfies.
 
 ```sh
 go install github.com/sei-protocol/seictl@latest
@@ -73,7 +73,7 @@ To keep the provenance stamp, pass the flag. The version appears twice, so set i
 # Set V to the release you are installing. Where gh is available,
 # `gh release view --repo sei-protocol/seictl --json tagName --jq .tagName`
 # prints the latest tag.
-V=v0.0.71
+V=v0.0.72
 go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=${V:?set V to the release tag}'" \
   "github.com/sei-protocol/seictl@${V:?set V to the release tag}"
 ```
@@ -107,7 +107,7 @@ sudo mv build/seictl /usr/local/bin/
 
 `go install` was unusable before seictl v0.0.71 and the runbook forbade it. Eleven `replace` directives in `go.mod`, inherited from sei-chain, made Go reject any module-aware install. seictl#246 removed them, and v0.0.71 is the first release that installs this way. The old prohibition no longer applies. If `go install` ever fails again with `contains ... replace directives`, a new one has crept back into `go.mod` — that is a seictl bug, not an install-method problem.
 
-Halt until both checks (PATH + `node apply --help` lists `--network`) pass.
+Halt until all three checks pass: PATH, `node apply --help` lists `--network`, and `node apply --help` lists `--cpu`.
 
 ### Gate 2: `yq` installed
 
