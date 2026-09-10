@@ -73,6 +73,18 @@ type driverFakeServerConfig struct {
 	// LaterStreamFrames replace StreamFrames from the second subscription on.
 	LaterStreamFrames []string
 
+	// StreamFrameGap pauses this long before each frame of the first subscription,
+	// so a test can hold a stream open past StreamIdleTimeout while frames keep
+	// arriving. Zero writes them back to back.
+	StreamFrameGap time.Duration
+
+	// StreamKeepaliveEvery makes the first subscription, once its frames are
+	// written, emit an SSE comment at this interval and never close. Bytes keep
+	// moving, so the SDK's byte-level idle monitor stays satisfied, and no frame
+	// ever completes, so the driver decodes nothing: the shape of an intermediary
+	// holding a dead stream open. Zero ends the stream after its frames as usual.
+	StreamKeepaliveEvery time.Duration
+
 	// SandboxFrames precede StreamFrames. Left empty, a sensible launch pipeline
 	// (connecting then ready) is supplied, because that is what the deployed
 	// server does for a managed session and a created session's prompt waits for
@@ -190,6 +202,9 @@ type driverFakeServer struct {
 	listSessHits           atomic.Int64
 	getSessHits            atomic.Int64
 	streamHits             atomic.Int64
+	// firstStreamFrames counts the frames the server wrote on the first
+	// subscription before the driver went away.
+	firstStreamFrames atomic.Int64
 
 	t   *testing.T
 	URL string
@@ -205,8 +220,10 @@ type driverFakeServer struct {
 	sandboxFrames []string
 	// laterStreamFrames replace streamFrames from the second subscription on, so a
 	// test can end one stream mid-turn and finish the turn on the next.
-	laterStreamFrames []string
-	eventResp         string
+	laterStreamFrames    []string
+	streamFrameGap       time.Duration
+	streamKeepaliveEvery time.Duration
+	eventResp            string
 	// eventResps are served in order before eventResp takes over, so a test can
 	// make the server decline to queue a prompt and then accept it.
 	eventResps   []string
@@ -245,6 +262,8 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		streamFrames:           cfg.StreamFrames,
 		sandboxFrames:          cfg.SandboxFrames,
 		laterStreamFrames:      cfg.LaterStreamFrames,
+		streamFrameGap:         cfg.StreamFrameGap,
+		streamKeepaliveEvery:   cfg.StreamKeepaliveEvery,
 		sessionList:            cfg.SessionListResp,
 		itemsResp:              cfg.ItemsResp,
 		itemsResps:             cfg.ItemsResps,
@@ -477,6 +496,11 @@ func (fs *driverFakeServer) handleCreateSession(w http.ResponseWriter, r *http.R
 // stream lost before the prompt went in was re-established rather than abandoned.
 func (fs *driverFakeServer) StreamHits() int64 { return fs.streamHits.Load() }
 
+// FirstStreamFrames is how many frames the first subscription delivered before
+// the driver went away, which is what proves a frame-delivering stream was (or
+// was not) cut by the driver's own idle bound.
+func (fs *driverFakeServer) FirstStreamFrames() int64 { return fs.firstStreamFrames.Load() }
+
 func (fs *driverFakeServer) handleStream(w http.ResponseWriter, r *http.Request) {
 	fs.streamHits.Add(1)
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -494,8 +518,35 @@ func (fs *driverFakeServer) handleStream(w http.ResponseWriter, r *http.Request)
 	} else {
 		body = append(append([]string(nil), fs.sandboxFrames...), body...)
 	}
+	first := fs.streamHits.Load() == 1
 	for _, frame := range body {
+		if first && fs.streamFrameGap > 0 {
+			select {
+			case <-r.Context().Done():
+				return
+			case <-time.After(fs.streamFrameGap):
+			}
+		}
 		if _, err := io.WriteString(w, frame); err != nil {
+			return
+		}
+		_ = ctrl.Flush()
+		if first {
+			fs.firstStreamFrames.Add(1)
+		}
+	}
+	if !first || fs.streamKeepaliveEvery <= 0 {
+		return
+	}
+	ticker := time.NewTicker(fs.streamKeepaliveEvery)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-r.Context().Done():
+			return
+		case <-ticker.C:
+		}
+		if _, err := io.WriteString(w, ": keepalive\n\n"); err != nil {
 			return
 		}
 		_ = ctrl.Flush()
@@ -1945,6 +1996,121 @@ func TestDriverFollowsATurnAcrossStreams(t *testing.T) {
 	if strings.Contains(result.Reply.Text, "I'll read the diff") {
 		t.Error("published the agent's opening line: a turn the session still reports " +
 			"as running must not be salvaged half-written")
+	}
+}
+
+// TestDriverReclaimsAStreamThatCarriesBytesButNoFrames covers the incident this
+// bound exists for: after the prompt goes in the stream stays open and keeps
+// moving bytes -- here SSE comment keepalives, the shape of an intermediary
+// holding a dead connection open -- without ever completing a frame. The SDK's
+// byte-level idle monitor stays satisfied, so without the driver's own frame
+// bound the attempt would run to the deadline having logged nothing.
+func TestDriverReclaimsAStreamThatCarriesBytesButNoFrames(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+		CreateResp: driverSessionResp("conv_stalled", "ag_1"),
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+		},
+		// Well inside the idle timeout: the SDK's monitor must never be what ends
+		// this stream, or the test measures the SDK rather than the driver.
+		StreamKeepaliveEvery: 50 * time.Millisecond,
+		LaterStreamFrames: []string{
+			driverAckFrame(),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			driverRunningSessionResp("conv_stalled", "ag_1", "resp_claude_a",
+				driverReplyItem("item_narration", "resp_claude_a", "I'll read the diff.")),
+			driverSessionWithItems("conv_stalled", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_a",
+					driverVerdict("The review, once the stream came back.", "comment"))),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	cfg.StreamIdleTimeout = time.Second
+	log, sink := driverCapturingLogger()
+	result := newTestDriver(cfg, driver.Policy{}, log).
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 53, Trigger: "t-stalled"})
+
+	if fs.StreamHits() < 2 {
+		t.Fatalf("stream subscriptions = %d, want more than 1: a stream carrying bytes "+
+			"but no frames must be reclaimed and re-subscribed", fs.StreamHits())
+	}
+	if result.Reply == nil {
+		t.Fatalf("Verdict = nil, want the review finished on the next stream (exit %d)", result.ExitCode)
+	}
+	if result.ExitCode != driver.ExitOK {
+		t.Errorf("ExitCode = %d, want driver.ExitOK", result.ExitCode)
+	}
+	if got := len(driverPrompts(fs.EventReqs())); got != 1 {
+		t.Errorf("prompt posts = %d, want 1: re-subscribing must not re-send the prompt", got)
+	}
+	// The drop is classed as idle, not interrupted: that is what tells an operator
+	// the far end went quiet rather than that the connection was capped.
+	if logged := sink.String(); !strings.Contains(logged, "idle_timeout=true") {
+		t.Errorf("the reclaimed stream was not logged as idle:\n%s", logged)
+	}
+}
+
+// TestDriverDoesNotCutAStreamThatKeepsDeliveringFrames pins the other side of
+// the frame bound: it measures silence between decoded frames, not the age of
+// the attempt. A stream that stays up past StreamIdleTimeout while frames keep
+// arriving is healthy and must finish on its first subscription. The bound is
+// operator-settable, and tightening it in response to a stall must not start
+// shortening every healthy attempt.
+func TestDriverDoesNotCutAStreamThatKeepsDeliveringFrames(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+		CreateResp: driverSessionResp("conv_steady", "ag_1"),
+		// Eight frames at 300ms apart: the stream lives ~2.4s against a 1s idle
+		// timeout, and no gap between frames approaches it.
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverAckFrame(),
+			driverAckFrame(),
+			driverAckFrame(),
+			driverAckFrame(),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		StreamFrameGap: 300 * time.Millisecond,
+		SessionResps: []string{
+			driverSessionWithItems("conv_steady", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_a",
+					driverVerdict("The review.", "comment"))),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	cfg.StreamIdleTimeout = time.Second
+	result := newTestDriver(cfg, driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 54, Trigger: "t-steady"})
+
+	if fs.StreamHits() != 1 {
+		t.Errorf("stream subscriptions = %d, want 1: a stream delivering frames must not "+
+			"be cut at StreamIdleTimeout", fs.StreamHits())
+	}
+	// The turn ends on the idle frame, the seventh; the driver may well be gone
+	// before the done sentinel behind it is written. Anything short of that is a
+	// stream cut mid-turn.
+	if got := fs.FirstStreamFrames(); got < 7 {
+		t.Errorf("frames delivered on the first stream = %d, want at least 7: the bound must "+
+			"measure silence between frames, not the age of the attempt", got)
+	}
+	if result.Reply == nil {
+		t.Fatalf("Verdict = nil, want the review (exit %d)", result.ExitCode)
+	}
+	if result.ExitCode != driver.ExitOK {
+		t.Errorf("ExitCode = %d, want driver.ExitOK", result.ExitCode)
 	}
 }
 
