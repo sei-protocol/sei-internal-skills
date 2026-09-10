@@ -96,13 +96,16 @@ measurement order under "Snapshot discovery" in
 
 Render via `seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id>
 --network <id> --image <ref> --cpu <cpu> --memory <mem> --storage <size>
--n eng-<alias> --dry-run` and add the
+[--iops <iops> --throughput <tput>] -n eng-<alias> --dry-run` and add the
 `spec.fullNode.snapshot` block to the emitted YAML (check `seictl node apply
 --help` for current `--set` list-literal support before trying to express the
 list inline; hand-editing the rendered YAML and re-validating with
 `kubectl apply --dry-run=server -f <file>` is the reliable path). **Inspect the
 dry-run/server response and confirm `rpcServers` survived** — a cluster whose
-CRD predates the field prunes it silently.
+CRD predates the field prunes it silently. A render that passed
+`--iops`/`--throughput` needs the same inspection for
+`spec.dataVolume.storage.volumeAttributesClassName`, which the same pruning
+drops for the same reason.
 
 ## What happens after Flux applies
 

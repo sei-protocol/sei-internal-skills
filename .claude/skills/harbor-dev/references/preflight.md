@@ -8,7 +8,7 @@ A pre-flight that just rejects on missing prereqs gives engineers an error and w
 
 The end state pre-flight delivers:
 
-- `seictl` ≥ v0.0.72 on PATH (v0.0.59 shipped the split `network`/`node` surface; v0.0.72 added the `--cpu`/`--memory`/`--storage` resource flags and the preset footprint)
+- `seictl` on PATH carrying the `--cpu`/`--memory`/`--storage` resource flags. v0.0.59 shipped the split `network`/`node` surface, and seictl#248 added the resource flags and the preset footprint. **No release tag carries them yet.** v0.0.71 is the newest tag and predates that merge, so gate 1 probes the capability rather than a version.
 - `yq` on PATH (the render path pipes `seictl network|node apply --dry-run` through it)
 - `flux` CLI on PATH (used to force-reconcile harbor after a merge instead of waiting on the natural poll interval)
 - AWS SSO session active under the engineer's chosen profile
@@ -18,28 +18,40 @@ The end state pre-flight delivers:
 
 That's the floor for `seictl network|node apply`. Below this floor, no procedure can proceed safely.
 
+`--iops`/`--throughput` sit above that floor rather than in it. They gate a storage-performance selection only, so a standard-tier render proceeds without them. Gate 1 check 4 covers them separately.
+
 ## The gates
 
-### Gate 1: `seictl ≥ v0.0.72` installed
+### Gate 1: a `seictl` that carries the resource flags
 
 **Verifies:** `seictl` is on `$PATH`, ships the split `network`/`node` surface, and carries the resource flags. This gate probes the binary only, so it runs on a fresh laptop with no SSO session and no kubeconfig. The cluster-side twin of check 3 lives in gate 5, which is the first gate that has cluster access.
 
-Three-part check:
+Four-part check:
 
 1. `command -v seictl` returns 0.
 2. `seictl node apply --help` exits 0 and the help text includes `--network`. `--network` is the peer-rail flag on the split `node` tree; it exists only in v0.0.59+, so its presence proves the binary has the split trees (the old `nd apply` had no such flag). It is the breaking-cut sentinel: an older binary that still carries `nd` but not the split trees fails this gate, which is correct — `nd` targets the deleted `SeiNodeDeployment` Kind and hard-fails at apply against new-CRD clusters. Optionally also probe `seictl network apply --help` for `--genesis-override`.
 
-3. `seictl node apply --help` includes `--cpu`. This is the v0.0.72 sentinel, and the one check whose failure is otherwise **silent**. A pre-v0.0.72 binary carries presets with no resource block, so it renders a CR with no resource fields. The controller then fills in its per-mode default of 16 CPU / 128Gi. Nothing errors — the engineer gets a mainnet-shaped dev chain while the plan echo claims 4 CPU / 32Gi. Probe the capability, not a version string — same reasoning as check 2.
+3. `seictl node apply --help` includes `--cpu`. This is the resource-flag sentinel, and the one check whose failure is otherwise **silent**. A binary that predates seictl#248 carries presets with no resource block, so it renders a CR with no resource fields. The controller then fills in its per-mode default of 16 CPU / 128Gi. Nothing errors — the engineer gets a mainnet-shaped dev chain while the plan echo claims 4 CPU / 32Gi. Probe the capability, not a version string — same reasoning as check 2.
+
+4. `seictl node apply --help` includes `--iops`. This one gates the storage-performance selection only, so it blocks a performance tier rather than the whole render. No version pins it either. `--iops` and `--throughput` came in seictl#249, and like the resource flags they carry no release tag.
+
+   This failure is loud once the flags reach the binary, exactly as check 3's is. An older `seictl` exits non-zero with `flag provided but not defined: -iops`. The silence arrives one step later, in the workaround. Dropping the two flags clears the parse error and renders the standard tier. The plan echo still promises 10000 IOPS, and the bench then measures the wrong disk. On a failure, either upgrade or drop to the standard tier, and state which one the render used.
 
 **Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation. The `--network` auto-wire makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here beats a confusing `NotFound`-on-CRD at apply. For check 3 it beats something worse: a chain that runs four times its intended size without complaint. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
 
 **Recovery (out-of-band):**
 
-Recommended path: `go install`. The method itself works only from seictl v0.0.71 on. This gate's floor is v0.0.72, so install v0.0.72 or later — which `@latest` satisfies.
+Recommended path: `go install` from the branch. The method itself works only from seictl v0.0.71 on, because seictl#246 removed the `replace` directives that blocked a module-aware install.
+
+**Do not use `@latest` here.** `@latest` resolves to the newest release *tag*, which is v0.0.71, and v0.0.71 predates the resource flags. It therefore installs a binary that fails check 3 exactly as the one it replaced did, and a second install does not help. Install the branch instead:
 
 ```sh
-go install github.com/sei-protocol/seictl@latest
+go install github.com/sei-protocol/seictl@main
 ```
+
+Re-run checks 1 through 3 afterwards. Once someone cuts a release above v0.0.71, switch back to that tag and pin a version floor here to it.
+
+**The two stamped paths below also predate the resource flags.** The `-ldflags` recipe installs a tag, and the release tarball serves `releases/latest`. Both therefore land on v0.0.71 today and fail check 3. Build-from-source is the one path that both keeps the provenance stamp and clears this gate.
 
 **On an upgrade, the install is only half the job.** `go install` writes to the Go bin directory, but every engineer who followed an earlier version of this runbook has `seictl` in `/usr/local/bin`. On a stock `PATH`, `/usr/local/bin` precedes `~/go/bin`. The install then succeeds while `command -v seictl` still resolves the old binary, so gate 1 keeps failing its `--network` probe. Do not re-run the install; it will keep succeeding.
 
@@ -63,7 +75,7 @@ Do not try `GOBIN=/usr/local/bin go install …` instead. That directory is root
 
 Three things to know about it:
 
-- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` at all, or check 1 still fails — separate from the shadowing case above. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@latest`.
+- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` at all, or check 1 still fails — separate from the shadowing case above. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@main`. Note `@main`, for the reason given above — `@latest` resolves to v0.0.71 and fails check 3.
 - seictl's `go.mod` declares `go 1.26.0`. On an older toolchain `go install` prints `switching to go1.26.8` and downloads it. Treat that line as normal output, not an error.
 - A plain `go install` leaves the `seictl.sei.io/version` provenance annotation reading `dev` on every resource seictl applies. The version comes from an `-ldflags` stamp the Makefile passes, and `go install` does not pass it. Nothing breaks; the applied resources just do not record which seictl produced them.
 
@@ -72,8 +84,11 @@ To keep the provenance stamp, pass the flag. The version appears twice, so set i
 ```sh
 # Set V to the release you are installing. Where gh is available,
 # `gh release view --repo sei-protocol/seictl --json tagName --jq .tagName`
-# prints the latest tag.
-V=v0.0.72
+# prints the latest tag. Today that is v0.0.71, which predates the
+# resource flags and fails gate 1 check 3 -- see the caveat above. So V is
+# left empty on purpose: no tag currently satisfies this gate, and the
+# ${V:?} guards below refuse rather than install one that cannot pass.
+V=
 go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=${V:?set V to the release tag}'" \
   "github.com/sei-protocol/seictl@${V:?set V to the release tag}"
 ```
@@ -107,7 +122,7 @@ sudo mv build/seictl /usr/local/bin/
 
 `go install` was unusable before seictl v0.0.71 and the runbook forbade it. Eleven `replace` directives in `go.mod`, inherited from sei-chain, made Go reject any module-aware install. seictl#246 removed them, and v0.0.71 is the first release that installs this way. The old prohibition no longer applies. If `go install` ever fails again with `contains ... replace directives`, a new one has crept back into `go.mod` — that is a seictl bug, not an install-method problem.
 
-Halt until all three checks pass: PATH, `node apply --help` lists `--network`, and `node apply --help` lists `--cpu`.
+Halt until the first three checks pass: PATH, `node apply --help` lists `--network`, and `node apply --help` lists `--cpu`. Check 4 gates only the performance tier, so a render that stays on standard storage may proceed without it.
 
 ### Gate 2: `yq` installed
 
@@ -244,6 +259,26 @@ Halt until the access entry lands. Same-day turnaround typically.
 **Resource-CRD sub-gate:** `kubectl explain seinode.spec.resources --context=harbor` must exit 0. This is the cluster-side twin of gate 1 check 3, and it fails just as silently. A cluster whose CRDs predate the resource work **prunes** `spec.resources` from the applied object, with no error, because structural-schema pruning drops unknown fields. The node then takes the controller's 16 CPU / 128Gi default while the rendered file on disk says 4 CPU / 32Gi. This check reaches the cluster, which is why it sits here rather than in gate 1.
 
 Probe the CRD rather than reading the controller image tag. `clusters/<cluster>/sei-k8s-controller/kustomization.yaml` pins the image and the CRDs by the same ref, so a stale pin moves both. On a failure, halt every render that passes `--cpu`/`--memory`/`--storage`. Ask the platform team to advance the controller pin for the cluster.
+
+**Storage-performance sub-gate.** A render that also passes `--iops`/`--throughput` needs two more things on the cluster, and each one gets its own probe:
+
+```sh
+kubectl explain seinode.spec.dataVolume.storage.volumeAttributesClassName --context=harbor
+kubectl get volumeattributesclass sei-gp3-performance-v1 --context=harbor
+```
+
+**The first probe is the load-bearing one, and it fails on every harbor cluster today.** The CRD field comes from `sei-k8s-controller` PR 533, which nobody has merged. Pruning then makes the failure silent, in the same shape as the resource fields. The apiserver drops the unknown `volumeAttributesClassName` without an error. The PVC provisions on the plain gp3 StorageClass, and the plan echo still promises 10000 IOPS. `kubectl explain` reads the served schema, so this probe is namespace-independent and every engineer can run it.
+
+On a non-zero exit from that probe, halt every render that passes `--iops`/`--throughput`. Offer the standard tier instead, and state that the render used it. Never fall back in silence.
+
+**The second probe is advisory, because `VolumeAttributesClass` is cluster-scoped.** The `eng-<alias>` Role is namespace-scoped, so it grants no cluster-scoped read at all. Read the two failures apart rather than treating both as a missing class:
+
+- `NotFound` — the class is genuinely absent. The platform team owns the catalog (`platform` `clusters/base/default/volume-attributes-class.yaml`). Halt and ask them.
+- `Forbidden` — the engineer cannot read cluster-scoped objects. That is a Role question, not a catalog one, and this check is **inconclusive**. Do not halt on it. Say that the class went unverified, and proceed on the first probe's verdict.
+
+State the cost of that uncertainty alongside it. If the class turns out to be absent, the PVC sits `Pending` on `ProvisioningFailed`. The field is create-only, so the remedy is a fresh chain-id rather than a fix. The engineer can then decide whether to ask the platform team to confirm the class first. In practice the catalog ships from `platform` `clusters/base/default/`, so every reconciled cluster carries it.
+
+Halting on `Forbidden` would put the performance tier out of reach for the engineers this runbook serves. It would also blame the platform catalog for a Role gap.
 
 **Edge case — alias not yet known.** On a brand-new engineer, the alias is captured in First Run (gate 6 path) before they have an `eng-<alias>` namespace. Run this gate against the *resolved* alias from First Run; if the engineer is mid-onboarding (PR open but not merged), it may still pass on namespace-list reach even though the namespace doesn't exist yet — gate 6 owns the namespace-existence check.
 

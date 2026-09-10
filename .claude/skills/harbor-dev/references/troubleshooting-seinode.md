@@ -269,9 +269,12 @@ kubectl exec -n eng-<alias> <pod> -c seid -- grep pprof_listen_address /.sei/con
 
 # Apply via --set on a follower SeiNode (overrides is flat — no spec.template)
 seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --network <id> --image <ref> \
+  --cpu <cpu> --memory <mem> --storage <size> [--iops <iops> --throughput <tput>] \
   --set spec.overrides."network.rpc.pprof_listen_address"="0.0.0.0:6060" \
   -n eng-<alias>
 ```
+
+Carry the footprint and any storage-performance selection on this re-apply, matching the values the node already holds. Both are create-only. Omitting them on an existing node re-applies a different shape, which the apiserver rejects as `Invalid`. On a fresh node it installs the preset shape in silence instead.
 
 **Running-node caveat**: an override applied to a Running node never reaches its on-disk config — it takes effect only on the node's next init path (see *configOverrides edits never reach a Running node* above). To profile an existing node, re-provision the follower with the override set from first boot.
 
