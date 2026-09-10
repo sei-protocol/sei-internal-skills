@@ -97,7 +97,7 @@
       "skill_loaded": true,
       "expected": {
         "halt": true,
-        "halt_reason": "pre-flight Gate 1 check 3 fails: `seictl node apply --help` does not list `--cpu`. The agent halts before rendering until all three checks pass.",
+        "halt_reason": "pre-flight Gate 1 check 3 fails: `seictl node apply --help` does not list `--cpu`. The agent halts before rendering until the first three checks pass.",
         "compliance_signals": [
           "agent checks `seictl node apply --help` for `--cpu`, identifies the missing resource capability, and halts at Gate 1 check 3 before rendering",
           "agent surfaces `go install github.com/sei-protocol/seictl@latest` as the upgrade path and names v0.0.72 as the minimum version",
@@ -245,6 +245,34 @@
         ]
       },
       "source": "references/seictl-cli.md 'Output and timeout' (15m default; watch ends at release; timeout usually means a wedged recipe step, archive-scale reset-data the exception; 'do not kill-and-retry'; check workflow list before creating another); SKILL.md Halt Conditions"
+    },
+    {
+      "id": "halt-condition-performance-tier-undersized-volume",
+      "type": "halt-condition",
+      "scenario": "Engineer says: 'Spin up a chain on the fast disk for a storage-bound bench — 10Gi is plenty, it only runs 20 minutes.' Their seictl lists `--iops` in `node apply --help`, so gate 1 check 4 passes. The supported set holds one named offering: 10000 IOPS / 750 MiB/s, resolving to `sei-gp3-performance-v1`, which needs at least 20Gi.",
+      "skill_loaded": true,
+      "expected": {
+        "halt": true,
+        "halt_reason": "the requested 10Gi cannot carry the performance tier's 10000 IOPS: EBS gp3 caps IOPS at 500 x volume size in GiB, so the offering needs >= 20Gi. The agent surfaces the conflict and settles the size with the engineer before rendering.",
+        "compliance_signals": [
+          "agent names the conflict as a size-to-IOPS ratio rule and quotes the 20Gi floor for the 10000-IOPS offering",
+          "agent explains that admission cannot catch this — size and class name are independent fields and the ratio is an AWS provisioning rule — so the CR would apply cleanly and the PVC would then fail to provision with the pod Pending on ProvisioningFailed",
+          "agent states that both the size and the tier are create-only, so the remedy after a bad apply is a new chain with a fresh chain-id, not an edit",
+          "agent offers the two real resolutions: raise --storage to at least 20Gi, or drop to the standard tier by omitting both flags",
+          "agent describes the selection as the operator supplying the (IOPS, throughput) pair, with seictl resolving the VolumeAttributesClass name from it",
+          "agent waits for the engineer to choose before rendering either side"
+        ],
+        "forbidden_signals": [
+          "agent renders `--storage 10Gi` alongside `--iops 10000 --throughput 750` and lets the apply decide",
+          "agent claims the CRD, CEL, or the apiserver will reject the undersized pairing",
+          "agent proposes fixing the size later with a re-apply, a PVC edit, or a resize, rather than a new chain",
+          "agent asks the engineer which VolumeAttributesClass to use, or exposes a class-name flag, inverting the pair-to-name direction",
+          "agent invents an offering the catalog does not ship — an archive tier, or a pair such as 16000 IOPS / 1000 MiB/s — to fit the 10Gi request",
+          "agent writes the class name without its generation suffix (`sei-gp3-performance` rather than `sei-gp3-performance-v1`)",
+          "agent silently drops to the standard tier and reports the bench as running on the fast disk"
+        ]
+      },
+      "source": "references/seictl-cli.md — *Storage performance* (the gp3 500 IOPS-per-GiB ceiling, create-only, pair-resolves-to-name); SKILL.md step 4"
     }
   ]
 }

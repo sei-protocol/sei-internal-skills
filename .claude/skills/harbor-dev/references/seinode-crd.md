@@ -29,12 +29,13 @@ The controller reconciles each `SeiNode` into:
 
 ## Spec fields you'll touch (operator's view)
 
-The 8 fields engineers actually edit:
+The 10 fields engineers actually edit:
 
 - `spec.chainId` — the chain identifier this node joins
 - `spec.image` — full container image ref (with tag or digest); flat (no `spec.template`)
 - `spec.resources` — the seid container footprint, request-only (`seictl node apply --cpu/--memory`). `requests` accepts **only** `cpu` and `memory`, both required positive. **Create-only.**
 - `spec.dataVolume.storage` — the data-PVC size (`seictl node apply --storage`), at the nested volume-claim path `spec.dataVolume.storage.resources.requests.storage`. Mutually exclusive with `spec.dataVolume.import`. **Create-only.**
+- `spec.dataVolume.storage.volumeAttributesClassName` — the storage performance selection, a sibling of the size path above. Names a platform-managed VolumeAttributesClass, which carries the gp3 IOPS and throughput. `seictl node apply` resolves the name from the `--iops` and `--throughput` pair you supply. Unset means the standard tier, and the gp3 StorageClass defaults apply. **Create-only.**
 - `spec.peers` — peer discovery (one of `EC2Tags`, `Static`, `Label`). For a network's follower, the `Label` selector keys `sei.io/seinetwork` (set automatically by `seictl node apply --network <X>`).
 - `spec.fullNode | archive | replayer | validator` — mutually exclusive role marker
 - `spec.fullNode.snapshot` — bootstrap-from-snapshot config (exactly one of `s3` | `stateSync`); `snapshot.rpcServers` declares ≥2 light-client witness endpoints (bare `host:port`) replacing the platform syncer registry — the self-service path for state-syncing onto your own chain. See `state-sync-bootstrap.md`
@@ -46,7 +47,7 @@ The 8 fields engineers actually edit:
 `spec.resources` and `spec.dataVolume.storage` are **admission-immutable**, each for a concrete reason:
 
 - **`spec.resources`** — the child StatefulSet is `OnDelete` and drift detection is image-only, so a changed footprint never rolls onto a running pod. Editing it would read as a resize and do nothing.
-- **`spec.dataVolume.storage`** — the ensure-data-pvc task creates the data PVC once and never updates it (Get-then-Create, no update path). A changed size could never reach the volume.
+- **`spec.dataVolume.storage`** — the ensure-data-pvc task creates the data PVC once and never updates it (Get-then-Create, no update path). A changed size could never reach the volume. The same applies to `volumeAttributesClassName`: the name binds at provision. A first-time set, a change, and an unset are all rejected.
 
 The apiserver rejects a re-apply that changes either, with `metav1.Status.reason=Invalid`. It is not a silent no-op, and it is not retryable. `delete` + re-create is the only path. For a genesis chain that means a fresh chain-id and a destroyed data PVC.
 

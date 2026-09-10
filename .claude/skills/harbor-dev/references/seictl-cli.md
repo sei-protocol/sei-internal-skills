@@ -42,6 +42,7 @@ seictl network apply <name>
                      --preset genesis-chain
                      [--chain-id <id>] [--image <ref>] [--replicas N]
                      [--cpu <cores>] [--memory <quantity>] [--storage <quantity>]
+                     [--iops <count> --throughput <MiB/s>]
                      [--genesis-account <addr>:<balance>] [--genesis-account ...]
                      [--genesis-override <module.field>=<value>] [--genesis-override ...]
                      [--set <dotted.path>=<value>] [--set ...]
@@ -54,10 +55,10 @@ Loads the `genesis-chain` preset, applies discrete-flag and `--set` overrides, a
 **Layering, lowest precedence first:**
 
 1. Preset YAML (embedded in the seictl binary).
-2. Discrete flags (`--chain-id`, `--image`, `--replicas`, `--cpu`, `--memory`, `--storage`).
+2. Discrete flags (`--chain-id`, `--image`, `--replicas`, `--cpu`, `--memory`, `--storage`, `--iops`, `--throughput`).
 3. `--set <dotted.path>=<value>`. Strategic-merge: maps merge per-key, lists replace wholesale. Wins on collision with discrete flags. SeiNetwork config overrides live under `spec.configOverrides` (reach them via `--set`); there is **no `--override` flag** on `network apply`. Overrides take effect only on an **init path** — set them at create time; an edit to a Running network's overrides never reaches its nodes' on-disk config (see `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*).
 
-**Immutability (apply-time, load-bearing):** `spec.genesis`, `spec.replicas`, `spec.resources`, and `spec.dataVolume.storage` are all admission-immutable. The apiserver **rejects** a re-apply of `network apply <same-name>` that changes `--chain-id`, `--replicas`, `--cpu`, `--memory`, or `--storage`, with `metav1.Status.reason=Invalid`. It is not a silent no-op. To change any of them, `delete` + re-create. This is the new-CRD analogue of the old `updateStrategy` trap.
+**Immutability (apply-time, load-bearing):** `spec.genesis`, `spec.replicas`, `spec.resources`, and `spec.dataVolume.storage` are all admission-immutable. The apiserver **rejects** a re-apply of `network apply <same-name>` that changes `--chain-id`, `--replicas`, `--cpu`, `--memory`, `--storage`, `--iops`, or `--throughput`, with `metav1.Status.reason=Invalid`. It is not a silent no-op. To change any of them, `delete` + re-create. This is the new-CRD analogue of the old `updateStrategy` trap.
 
 The two resource one-way doors are create-only for different reasons, both load-bearing. The child StatefulSet uses `OnDelete` with image-only drift detection, so a changed footprint never rolls onto a running pod. A Get-then-Create task creates the data PVC once and never updates it, so a changed size could never reach the volume. A resize is therefore a new chain: `delete`, pick a fresh chain-id, and re-create.
 
@@ -76,6 +77,7 @@ seictl node apply <name>
                   --preset rpc
                   [--chain-id <id>] [--image <ref>] --network <X>
                   [--cpu <cores>] [--memory <quantity>] [--storage <quantity>]
+                  [--iops <count> --throughput <MiB/s>]
                   [--external-address <host>:<port>]
                   [--override <toml.key>=<value>] [--override ...]
                   [--set <dotted.path>=<value>] [--set ...]
@@ -94,6 +96,8 @@ Loads the `rpc` preset and server-side-applies a single `SeiNode`. An RPC fleet 
 **`--override <toml.key>=<value>`** targets `spec.overrides` (per-node `config.toml`/`app.toml`, applied at config-apply — an **init-path** task). Set overrides at create time: a re-apply against a Running node updates only the spec; the on-disk config never changes until the node next traverses an init path (see `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*). `--set` does strategic-merge on the whole spec and wins on collision.
 
 **`--cpu` / `--memory` / `--storage`** set the seid container footprint and the data-volume size. See *Resource footprint* below; the rules are identical on both `network apply` and `node apply`.
+
+**`--iops` / `--throughput`** select the data volume's storage performance. See *Storage performance* below. The rules are identical on both `network apply` and `node apply`.
 
 **Required:** `<name>`, `--preset rpc`. `--chain-id`, `--image`, and `--network` must resolve after layering, else `Invalid`.
 
@@ -341,6 +345,8 @@ The default footprint is roughly a quarter of the mainnet validator shape (16 CP
 
 **Minimum version: `seictl` ≥ v0.0.72.** Older binaries reject the three flags at parse, and their presets carry no resource block at all. Gate 1 in `preflight.md` probes `node apply --help` for `--cpu`.
 
+`--iops` and `--throughput` arrived later, in a release this floor does not pin. Gate 1 probes for them separately. See *Storage performance* below.
+
 **Fleet cost is per node, and the size is create-only.** Both presets carry the same 500Gi. A 4-validator chain with a 4-follower fleet therefore provisions about 4Ti of EBS that no later edit can shrink. An EVM-serving follower also inherits the consensus-validator shape, which may not suit it. The default is still the default — pass `--storage 500Gi` on the follower loop unless the engineer asks for something else. Raise the fleet total with them when N is large, since correcting an oversized volume means deleting the node and losing its data.
 
 **Provenance for the controller-side claims in this section.** Those claims are:
@@ -351,6 +357,39 @@ The default footprint is roughly a quarter of the mainnet validator shape (16 CP
 - the per-mode 16 CPU / 128Gi default
 
 Verified against `sei-k8s-controller` main @ `c3fabbf` on 2026-09-10. The sources read were `api/v1alpha1/seinode_types.go`, `api/v1alpha1/seinetwork_types.go`, and the generated CRDs under `config/crd/`. A reader cannot check these from the CLI alone. If one ever looks wrong, re-verify against the controller rather than against `seictl --help`.
+
+## Storage performance (`--iops` / `--throughput`)
+
+Present on both `network apply` and `node apply`, with identical semantics. The two flags are one selection, so pass both or neither.
+
+**You supply the pair; seictl resolves the name.** The platform owns a catalog of VolumeAttributesClass objects, and each one encodes a supported (IOPS, throughput) pair. You give the parameters you want. seictl finds the class that carries them and writes its name to `spec.dataVolume.storage.volumeAttributesClassName`. No flag accepts a class name, and the direction never runs the other way.
+
+The supported set is two entries:
+
+| Selection | Resolves to | Data volume |
+|---|---|---|
+| omit both flags | *standard* — no `volumeAttributesClassName`, so the gp3 StorageClass defaults apply | any size |
+| `--iops 10000 --throughput 750` | `sei-gp3-performance-v1` | at least 20Gi |
+
+Omitting both flags is a real selection, not a gap. The PVC then carries no `volumeAttributesClassName` at all.
+
+The catalog holds no archive tier. The harness renders validator and fullNode nodes only, and both resolve to the performance class. Every production archive node binds a statically imported PV instead.
+
+**The `-v1` suffix is load-bearing.** VolumeAttributesClass `parameters` are immutable, so the platform retunes a tier by creating a new object (`sei-gp3-performance-v2`), never by editing this one. Do not strip the suffix or treat it as noise.
+
+**An unsupported pair fails at the flag, and the message names the whole supported set.** Each offering appears with the class name it resolves to, next to the standard tier. seictl refuses `--iops` without `--throughput` for the same reason: half a pair would make seictl invent the other half.
+
+**The 10000-IOPS tier needs a data volume of at least 20Gi.** EBS gp3 caps IOPS at 500 times the volume size in GiB. seictl enforces that floor locally, against the size that the render actually produced, which is the 500Gi preset default when nobody passes `--storage`.
+
+That local check matters more than it looks. CEL cannot see this rule. The size and the class name are two independent fields, and the ratio belongs to AWS rather than to the schema. The apiserver therefore accepts `--storage 10Gi` next to the performance tier. It then creates the PVC, provisioning fails, and the pod sits `Pending` on `ProvisioningFailed`. Both fields are create-only, so the remedy at that point is a new chain.
+
+**`--set` cannot reach around either guard.** seictl re-reads `spec.dataVolume.storage` after every layer. A `--set` of the class name or of the size therefore meets the same two checks the flags meet. This mirrors the `spec.resources.limits.cpu` guard.
+
+**Create-only on both Kinds.** The name binds when the controller provisions the data PVC. Admission rejects a first-time set, a change, and an unset alike. Comparing two performance tiers therefore means two chains, not one chain edited between runs — see `comparative-bench.md`.
+
+**Provenance, and what is not merged yet.** The catalog is the one VolumeAttributesClass the platform ships: `sei-gp3-performance-v1`, `driverName: ebs.csi.aws.com`, `iops: "10000"`, `throughput: "750"` (platform `clusters/base/default/volume-attributes-class.yaml`, PR 1661, merged). The CRD field `spec.dataVolume.storage.volumeAttributesClassName` and its create-only CEL come from `sei-k8s-controller` PR 533. Reviewers approved that PR, but it is **not merged**. Requirement 3 of Spec 001 and DR-001 fix the direction the pair resolves in.
+
+DR-001 lines 101-106 split the ownership: the platform owns the catalog, the harness owns the menu. Re-verify against the controller if the field path ever looks wrong.
 
 ## Presets
 
