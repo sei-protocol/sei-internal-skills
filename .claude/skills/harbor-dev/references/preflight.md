@@ -22,14 +22,16 @@ That's the floor for `seictl network|node apply`. Below this floor, no procedure
 
 ### Gate 1: `seictl ≥ v0.0.72` installed
 
-**Verifies:** `seictl` is on `$PATH`, ships the split `network`/`node` surface, and carries the resource flags.
+**Verifies:** `seictl` is on `$PATH`, ships the split `network`/`node` surface, carries the resource flags, and talks to a cluster whose CRDs carry the matching fields.
 
-Three-part check:
+Four-part check:
 
 1. `command -v seictl` returns 0.
 2. `seictl node apply --help` exits 0 and the help text includes `--network`. `--network` is the peer-rail flag on the split `node` tree; it exists only in v0.0.59+, so its presence proves the binary has the split trees (the old `nd apply` had no such flag). It is the breaking-cut sentinel: an older binary that still carries `nd` but not the split trees fails this gate, which is correct — `nd` targets the deleted `SeiNodeDeployment` Kind and hard-fails at apply against new-CRD clusters. Optionally also probe `seictl network apply --help` for `--genesis-override`.
 
 3. `seictl node apply --help` includes `--cpu`. This is the v0.0.72 sentinel, and the one check whose failure is otherwise **silent**. A pre-v0.0.72 binary carries presets with no resource block, so it renders a CR with no resource fields. The controller then fills in its per-mode default of 16 CPU / 128Gi. Nothing errors — the engineer gets a mainnet-shaped dev chain while the plan echo claims 4 CPU / 32Gi. Probe the capability, not a version string — same reasoning as check 2.
+
+4. `kubectl explain seinode.spec.resources` exits 0 against the target cluster. This is the cluster-side twin of check 3, and it fails just as silently. A cluster whose CRDs predate the resource work **prunes** `spec.resources` from the applied object. Structural-schema pruning drops an unknown field without an error. The node then takes the controller's 16 CPU / 128Gi default while the rendered file on disk says 4 CPU / 32Gi. Probe the CRD rather than reading the controller image tag. `clusters/<cluster>/sei-k8s-controller/kustomization.yaml` pins the image and the CRDs by the same ref, so a stale pin moves both.
 
 **Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation. The `--network` auto-wire makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here beats a confusing `NotFound`-on-CRD at apply. For check 3 it beats something worse: a chain that runs four times its intended size without complaint. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
 
@@ -107,7 +109,7 @@ sudo mv build/seictl /usr/local/bin/
 
 `go install` was unusable before seictl v0.0.71 and the runbook forbade it. Eleven `replace` directives in `go.mod`, inherited from sei-chain, made Go reject any module-aware install. seictl#246 removed them, and v0.0.71 is the first release that installs this way. The old prohibition no longer applies. If `go install` ever fails again with `contains ... replace directives`, a new one has crept back into `go.mod` — that is a seictl bug, not an install-method problem.
 
-Halt until all three checks pass: PATH, `node apply --help` lists `--network`, and `node apply --help` lists `--cpu`.
+Halt until all four checks pass: PATH, `node apply --help` lists `--network`, `node apply --help` lists `--cpu`, and `kubectl explain seinode.spec.resources` exits 0.
 
 ### Gate 2: `yq` installed
 
