@@ -1,8 +1,10 @@
 # Checks prose against the writing contract in writing/.
 #
-# THE BACKLOG DOES NOT BLOCK. reviewdog reports on the lines a pull request
-# touches. A finding on a line nobody edited never appears, so the findings this
-# repository already carries stay invisible until somebody edits that line.
+# THE BACKLOG DOES NOT BLOCK. On a pull request reviewdog reports on the lines
+# the request touches. A finding on a line nobody edited never appears, so the
+# findings this repository already carries stay invisible until somebody edits
+# that line. On a push there is no diff to filter by, so every finding in the
+# tree is reported; the push arm therefore annotates and never fails.
 #
 # Most of them are one rule. ASD-STE100 does not allow contractions, and 1,525
 # of the 1,613 errors here are that one rule. The house style changes by
@@ -22,8 +24,7 @@ permissions:
   pull-requests: write
   # On a push the reporter is github-check, which creates a check run through the
   # Checks API. A permissions block sets the whole set, so without this the push
-  # arm has `checks: none` and cannot report. It has never been exercised: the
-  # last main push produced no finding, so reviewdog had nothing to post.
+  # arm has `checks: none` and cannot report.
   checks: write
 
 jobs:
@@ -203,7 +204,11 @@ jobs:
           # `vale sync` and the gates -- not the binary that decides this check.
           # A Vale release could turn this repository red with no commit here.
           version: none
-          fail_level: error
+          # On a push the reporter has no diff, so `added` filters nothing and
+          # the whole backlog surfaces. Failing on it turned every push to main
+          # red for findings no commit introduced. The pull-request arm is the
+          # gate; the push arm only records.
+          fail_level: ${{ github.event_name == 'pull_request' && 'error' || 'none' }}
           level: warning
           # DERIVED, NOT RESTATED, for the reason the flags below are. The
           # list lives in writing/scripts/lint.sh, and a person running that
