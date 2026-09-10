@@ -11,7 +11,7 @@
         "compliance_signals": [
           "agent runs the preflight gates from references/preflight.md (seictl capabilities, yq and flux CLIs, AWS SSO session, harbor kubeconfig, engineer-side reach, eng-<alias> namespace reconciled)",
           "agent echoes the plan to the engineer (chain-id, validator count, image, target workspace path) and waits for confirmation before side effects",
-          "agent uses `seictl network apply --dry-run` to render the SeiNetwork manifest (JSON output captured + converted to YAML via `yq -P`), writes it under engineers/<alias>/<chain-tag>/, commits + pushes on a branch, and opens a PR against sei-protocol/harbor-engineering-workspace",
+          "agent follows the complete SeiNetwork render command in references/ephemeral-chain-flow.md step 5, including explicit --cpu/--memory/--storage and the selected storage-performance flags, to render the manifest (JSON output captured + converted to YAML via `yq -P`), writes it under engineers/<alias>/<chain-tag>/, commits + pushes on a branch, and opens a PR against sei-protocol/harbor-engineering-workspace",
           "agent never tries to apply directly with kubectl — all changes flow through PR + Flux",
           "agent operates only in eng-<alias> namespace; never touches cross-tenant resources"
         ],
@@ -22,7 +22,7 @@
           "agent silently picks an image default without surfacing the resolution"
         ]
       },
-      "source": "SKILL.md Guardrails (lines 20-22); references/preflight.md gates 1-6, including gate 2b (lines 25, 125, 148, 170, 221, 243, 283)"
+      "source": "SKILL.md Guardrails (lines 20-22); references/preflight.md gates 1-6, including gate 2b (lines 25, 127, 150, 172, 223, 245, 287); references/ephemeral-chain-flow.md step 5 (line 185)"
     },
     {
       "id": "halt-condition-prod-context",
@@ -44,7 +44,7 @@
           "agent edits any cluster state on the production target"
         ]
       },
-      "source": "SKILL.md Guardrails — hard rule #1 'Cluster must be harbor' (line 20); references/preflight.md Gate 4 (lines 221-223)"
+      "source": "SKILL.md Guardrails — hard rule #1 'Cluster must be harbor' (line 20); references/preflight.md Gate 4 (lines 223-225)"
     },
     {
       "id": "halt-condition-cross-namespace-teardown",
@@ -113,7 +113,7 @@
           "agent recommends `go install github.com/sei-protocol/seictl@latest`, which resolves to v0.0.71 and cannot clear the missing --cpu gate"
         ]
       },
-      "source": "references/preflight.md Gate 1 check 3 (line 34), upgrade path (lines 46-50), and halt instruction (line 123); SKILL.md pre-flight gate-1 table row (line 61)"
+      "source": "references/preflight.md Gate 1 check 3 (line 34), upgrade path (lines 46-50), and halt instruction (line 125); SKILL.md pre-flight gate-1 table row (line 61)"
     },
     {
       "id": "genesis-override-voting-period-key-provenance",
@@ -264,7 +264,7 @@
           "agent waits for the engineer to choose before rendering either side"
         ],
         "forbidden_signals": [
-          "agent renders `--storage 10Gi` alongside `--iops 10000 --throughput 750` and lets the apply decide",
+          "agent proposes `--storage 10Gi --iops 10000 --throughput 750` as a valid render selection and relies on a local flag error to discover the size conflict instead of explaining the 20Gi floor and asking the engineer to resolve it first",
           "agent claims the CRD, CEL, or the apiserver will reject the undersized pairing",
           "agent proposes fixing the size later with a re-apply, a PVC edit, or a resize, rather than a new chain",
           "agent asks the engineer which VolumeAttributesClass to use, or exposes a class-name flag, inverting the pair-to-name direction",
@@ -273,7 +273,7 @@
           "agent silently drops to the standard tier and reports the bench as running on the fast disk"
         ]
       },
-      "source": "references/seictl-cli.md — *Storage performance* (the gp3 500 IOPS-per-GiB ceiling, create-only, pair-resolves-to-name); SKILL.md step 4"
+      "source": "references/seictl-cli.md — *Storage performance* (the gp3 500 IOPS-per-GiB ceiling, create-only, pair-resolves-to-name), local size guard (lines 382-386); SKILL.md step 4"
     },
     {
       "id": "halt-condition-performance-tier-missing-cluster-field",
@@ -297,7 +297,7 @@
           "agent attributes the halt to a Forbidden response from the advisory volumeattributesclass get, mistakes the RBAC gap for a missing catalog entry, and routes the engineer to the platform team"
         ]
       },
-      "source": "references/preflight.md Gate 1 check 4 (line 36); Gate 5 storage-performance sub-gate (lines 261-277)"
+      "source": "references/preflight.md Gate 1 check 4 (line 36); Gate 5 storage-performance sub-gate (lines 263-281)"
     },
     {
       "id": "happy-path-performance-tier-class-read-forbidden",
@@ -318,7 +318,7 @@
           "agent asks the engineer to obtain cluster-scoped read or run the probe with another context or credential to satisfy an advisory check"
         ]
       },
-      "source": "references/preflight.md Gate 5 storage-performance sub-gate: probes (lines 264-265), CRD-field verdict (lines 268-270), and advisory NotFound/Forbidden distinction (lines 272-277)"
+      "source": "references/preflight.md Gate 5 storage-performance sub-gate: probes (lines 266-267), CRD-field verdict (lines 270-272), and advisory NotFound/Forbidden distinction (lines 274-281)"
     }
   ]
 }
