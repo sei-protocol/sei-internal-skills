@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -70,6 +71,50 @@ func (u unreached) Error() string {
 func (u unreached) Unwrap() error        { return u.err }
 func (u unreached) Is(target error) bool { return target == errUnreached }
 
+// errRateLimited marks a mint the server explicitly deferred rather than
+// refused: reached, and answered on purpose "not yet, slow down" -- a third
+// class distinct from [errUnreached] (never reached at all) and every other
+// non-2xx status (refused outright, and not retried; see the comment on that
+// branch in [mintOnce]). Measured in production: a burst of concurrent
+// reviews under the same client_id got exactly this back, and until this the
+// driver read it as a bad credential and gave up on a call the server asked
+// it to simply try again.
+var errRateLimited = errors.New("rate limited")
+
+// rateLimited carries a 429 and the server's own Retry-After, when it named
+// one. Matched with errors.As so mintToken can read retryAfter off it, and
+// with errors.Is against errRateLimited by anything that only needs to know
+// it happened.
+type rateLimited struct {
+	err        error
+	retryAfter time.Duration // zero when the server named none
+}
+
+func (r rateLimited) Error() string        { return r.err.Error() }
+func (r rateLimited) Unwrap() error        { return r.err }
+func (r rateLimited) Is(target error) bool { return target == errRateLimited }
+
+// maxRateLimitWait caps how long one attempt waits on the server's own
+// Retry-After. Honouring it uncapped would let a single header value hold a
+// run hostage for however long the server named; the cap keeps this attempt's
+// wait inside the same order of magnitude as the fixed backoff below it uses
+// when the server names nothing.
+const maxRateLimitWait = 5 * time.Second
+
+// parseRetryAfter reads the Retry-After header as a delay in seconds (RFC
+// 9110 §10.2.3), which is the only form this endpoint sends. The HTTP-date
+// form is not parsed: a clock skewed against either side would misread a date
+// as sooner or later than the server meant, and a delay in seconds carries no
+// clock to skew. Empty, unparseable, zero, or negative all return zero, which
+// callers read as "the server named none."
+func parseRetryAfter(v string) time.Duration {
+	secs, err := strconv.Atoi(strings.TrimSpace(v))
+	if err != nil || secs <= 0 {
+		return 0
+	}
+	return time.Duration(secs) * time.Second
+}
+
 // mintToken exchanges the machine client's credentials for a short-lived access
 // token at POST /oauth/token.
 //
@@ -122,19 +167,34 @@ func mintToken(
 	}
 	client = &noRedirect
 
-	var token string
-	var ttl time.Duration
-	err := retryUnreached(ctx,
-		func(err error) bool { return errors.Is(err, errUnreached) },
-		func() error {
-			var err error
-			token, ttl, err = mintOnce(ctx, client, baseURL, clientID, clientSecret)
-			return err
-		})
-	if err != nil {
-		return "", 0, err
+	// Not retryUnreached: that helper's backoff is fixed, and a 429 names its
+	// own wait, which is a better source than a constant chosen before this
+	// specific slow_down existed. The two retryable reasons still share
+	// transportBackoff's table and attempt count for whichever one keeps
+	// firing without a server-named wait -- only the source of the wait
+	// itself diverges, not the budget.
+	for attempt := 1; ; attempt++ {
+		token, ttl, err := mintOnce(ctx, client, baseURL, clientID, clientSecret)
+		if err == nil {
+			return token, ttl, nil
+		}
+
+		var limited rateLimited
+		retryable := errors.Is(err, errUnreached) || errors.As(err, &limited)
+		if attempt == transportAttempts || !retryable {
+			return "", 0, err
+		}
+
+		wait := transportBackoff[attempt-1]
+		if limited.retryAfter > 0 {
+			wait = min(limited.retryAfter, maxRateLimitWait)
+		}
+		select {
+		case <-ctx.Done():
+			return "", 0, err
+		case <-time.After(wait):
+		}
 	}
-	return token, ttl, nil
 }
 
 // mintOnce is one exchange. Its failures are classified rather than merged:
@@ -179,6 +239,19 @@ func mintOnce(
 		return "", 0, fmt.Errorf("%w: reading response: %w", driver.ErrMint, err)
 	}
 
+	if resp.StatusCode == http.StatusTooManyRequests {
+		// The one status that is a refusal's opposite: the server names the
+		// grant valid and asks only that this wait. Every other status is a
+		// refusal (see below) and this one status carries an explicit "not yet"
+		// that has no such reading -- there is no credential a 429 could be
+		// naming as wrong.
+		return "", 0, rateLimited{
+			err: fmt.Errorf("%w: the token endpoint returned 429 (%s), asking to slow down",
+				driver.ErrMint, oauthErrorCode(body)),
+			retryAfter: parseRetryAfter(resp.Header.Get("Retry-After")),
+		}
+	}
+
 	if resp.StatusCode != http.StatusOK {
 		// The OAuth error code is safe to surface and is the one thing that says
 		// what to fix — invalid_client means the id or secret is wrong,
@@ -186,13 +259,15 @@ func mintOnce(
 		// The rest of the body is withheld: a non-2xx here need not have come
 		// from this API at all.
 		//
-		// Every status is a refusal here, including a 5xx, and none of them is
-		// retried. That reads backwards -- a 503 is usually a server declining to
-		// answer right now -- but this endpoint was measured answering 503 to a
-		// malformed credential, a token with a trailing newline among them. Retrying
-		// on status would retry the one case that cannot succeed, and would report a
-		// bad secret as a deployment that is down. Reachability is what decides a
-		// retry here, and it is decided in the transport error above.
+		// Every OTHER status is a refusal here, including a 5xx, and none of
+		// them is retried. That reads backwards -- a 503 is usually a server
+		// declining to answer right now -- but this endpoint was measured
+		// answering 503 to a malformed credential, a token with a trailing
+		// newline among them. Retrying on status would retry the one case that
+		// cannot succeed, and would report a bad secret as a deployment that is
+		// down. Reachability is what decides a retry here, and it is decided in
+		// the transport error above -- 429 is carved out above this branch
+		// because it is the one status that is not a refusal at all.
 		return "", 0, fmt.Errorf("%w: the token endpoint returned %d (%s)",
 			driver.ErrMint, resp.StatusCode, oauthErrorCode(body))
 	}
