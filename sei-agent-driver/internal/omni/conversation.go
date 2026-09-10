@@ -236,14 +236,44 @@ func (c *conversation) backoff(ctx context.Context, failedOpens int) {
 }
 
 // consumeTurn watches one subscription until the turn ends or the stream does.
+//
+// The subscription is bounded by StreamIdleTimeout a second way here, independent
+// of [omnigent.Client.Stream]'s own byte-level idle monitor. That monitor resets on
+// any bytes a read delivers -- a stray comment, a partial write, anything an
+// intermediary on the path emits to hold the connection open -- so a middlebox that
+// keeps traffic moving without ever completing a frame can hold the SDK's monitor
+// permanently satisfied while this driver receives nothing. Measured in production:
+// three concurrent reviews whose stream went silent immediately after the prompt
+// went in, no frame, no SDK idle error, nothing logged, for the full 20-minute run
+// deadline, while the server's own logs showed the turn genuinely still running.
+//
+// attemptCtx bounds the same duration on frames actually decoded (t.frames, not
+// bytes read), so a stream that satisfies the SDK's monitor without ever handing
+// this driver a frame still gets reclaimed. A healthy long turn is not shortened by
+// this: the connection's own roughly-three-minute cap already forces a reconnect
+// well inside StreamIdleTimeout's default five, so this bound is never the first to
+// fire on a stream that is actually delivering frames.
 func (c *conversation) consumeTurn(
 	ctx context.Context,
 	prompt string,
 	t *turn,
 	opts omnigent.StreamOptions,
 ) (driver.Reply, error) {
-	for ev, err := range c.client.Stream(ctx, c.sessionID, opts) {
+	attemptCtx, cancel := context.WithTimeout(ctx, c.host.cfg.StreamIdleTimeout)
+	defer cancel()
+
+	for ev, err := range c.client.Stream(attemptCtx, c.sessionID, opts) {
 		if err != nil {
+			if attemptCtx.Err() != nil && ctx.Err() == nil {
+				// The attempt's own bound expired, not the run's, and not the SDK's own
+				// monitor (that path returns omnigent.ErrStreamIdle already, wrapping it
+				// again is harmless since errors.Is walks the chain either way). Reported
+				// as an idle stream -- which is what this is, one level above the byte
+				// monitor -- so recoverFromStreamLoss's existing salvage path runs against
+				// it instead of a duplicate copy keyed to a different sentinel.
+				err = fmt.Errorf("%w: no frame decoded inside the %s attempt bound",
+					omnigent.ErrStreamIdle, c.host.cfg.StreamIdleTimeout)
+			}
 			return c.recoverFromStreamLoss(ctx, t, err)
 		}
 		t.frames++
