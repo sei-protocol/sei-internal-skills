@@ -88,7 +88,7 @@
           "agent emits `resources.limits` in any rendered CR"
         ]
       },
-      "source": "SKILL.md steps 4-5 (resolve resources; plan echo); references/ephemeral-chain-flow.md step 4 (explicit resource flags), steps 5-7 (render and echo)"
+      "source": "SKILL.md steps 4 and 6 (resolve resources; plan echo); references/ephemeral-chain-flow.md step 4 (explicit resource flags), steps 5-7 (render and echo)"
     },
     {
       "id": "genesis-override-voting-period-key-provenance",
