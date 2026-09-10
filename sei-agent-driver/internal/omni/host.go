@@ -316,17 +316,18 @@ func (h *Host) resolveAgent(
 // kills this lookup, and here it costs the whole run -- an open that cannot ask
 // whether this work already has a session neither adopts one nor creates one.
 // Each attempt takes a fresh walk budget, so a retry is a new search rather than
-// the remainder of the one that failed.
+// the remainder of the one that failed -- which is also what makes a hang worth
+// retrying, and not only the reset that comes back at once.
 func (h *Host) findByRunKey(
 	ctx context.Context,
 	client *omnigent.Client,
 	agentID, runKey string,
 ) (*omnigent.SessionResponse, error) {
 	var session *omnigent.SessionResponse
-	err := retryUnreached(ctx, transportFailed, func() error {
+	err := retryUnreached(ctx, lookupUnreached, func() error {
 		var err error
 		session, err = h.walkForRunKey(ctx, client, agentID, runKey)
-		if transportFailed(err) {
+		if lookupUnreached(err) {
 			h.log.Warn("the session lookup did not reach the server",
 				"run_key", runKey, "error", err)
 		}
@@ -350,7 +351,7 @@ func (h *Host) walkForRunKey(
 	opts := omnigent.ListSessionsOptions{AgentID: agentID, Limit: 1000}
 	for session, err := range client.Sessions().List(walkCtx, opts) {
 		if err != nil {
-			return nil, err
+			return nil, markExpiredWalk(ctx, walkCtx, err)
 		}
 		if session.Labels[RunKeyLabel] == runKey {
 			// Deliberately ctx, not walkCtx: this is the fetch the walk existed to
@@ -361,6 +362,17 @@ func (h *Host) walkForRunKey(
 		}
 	}
 	return nil, nil
+}
+
+// markExpiredWalk names a listing its own walk budget ended, so a retry can tell
+// it from the caller's deadline passing. Both arrive as the same
+// [context.DeadlineExceeded], and only the first is worth another search: the
+// budget is a share of what the caller still has, so the next walk gets one too.
+func markExpiredWalk(ctx, walkCtx context.Context, err error) error {
+	if errors.Is(err, context.DeadlineExceeded) && walkCtx.Err() != nil && ctx.Err() == nil {
+		return fmt.Errorf("%w: %w", errWalkExpired, err)
+	}
+	return err
 }
 
 // adoption is where a conversation's session came from, split into the two

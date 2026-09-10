@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/url"
 	"testing"
+	"time"
 
 	omnigent "github.com/sei-protocol/omnigent-go-sdk"
 
@@ -55,6 +56,57 @@ func TestTheRunKeyLookupSurvivesAConnectionThatDies(t *testing.T) {
 	}
 	if len(fs.CreateReqs()) != 0 {
 		t.Error("created a session; a lookup that failed must not read as an empty search")
+	}
+}
+
+// TestTheRunKeyLookupSurvivesAListingThatHangs is the same failure arriving
+// slowly. A blackholed flow answers nothing rather than resetting, so the
+// attempt ends on the walk's own budget -- a deadline, which is the one shape a
+// transport classifier has to refuse on its face. The walk budget is a share of
+// what the caller still has, so spending one leaves the caller another.
+func TestTheRunKeyLookupSurvivesAListingThatHangs(t *testing.T) {
+	t.Parallel()
+
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 33, Trigger: "hung-listing"}
+	runKey := testRunKey(req.Repo, req.PR)
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages:        []string{driverAgentPage("ag_1", "seidroid", "", false)},
+		CreateResp:        driverSessionResp("conv_new", "ag_1"),
+		SessionListStalls: 1,
+		SessionListResp: `{"data":[{"id":"conv_prior","agent_id":"ag_1","labels":` +
+			`{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			driverSessionResp("conv_prior", "ag_1"),
+			driverSessionResp("conv_prior", "ag_1"),
+			driverSessionWithItems("conv_prior", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_a",
+					driverVerdict("Read the diff again.", "approve"))),
+		},
+	})
+
+	cfg := driverTestConfig(t, fs.URL)
+	// Prices the hang: the walk budget it buys is what the first attempt spends
+	// before the second gets to run.
+	cfg.RequestTimeout = 200 * time.Millisecond
+
+	result := newTestDriver(cfg, driver.Policy{}, driverTestLogger()).Run(t.Context(), req)
+
+	if result.ExitCode != driver.ExitOK {
+		t.Errorf("ExitCode = %d, want driver.ExitOK — the hang costs one walk, not the run",
+			result.ExitCode)
+	}
+	if result.SessionID != "conv_prior" {
+		t.Errorf("SessionID = %q, want conv_prior", result.SessionID)
+	}
+	if len(fs.CreateReqs()) != 0 {
+		t.Error("created a session; a lookup that hung must not read as an empty search")
 	}
 }
 

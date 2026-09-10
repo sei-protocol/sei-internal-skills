@@ -40,6 +40,19 @@ func retryUnreached(ctx context.Context, retryable func(error) bool, op func() e
 	}
 }
 
+// errWalkExpired marks a listing that spent its own walk budget while the
+// caller's still had time.
+var errWalkExpired = errors.New("the session listing spent its walk budget")
+
+// lookupUnreached reports a run-key walk that got no answer, by either shape the
+// blackhole takes: the reset that returns at once, and the hang that returns
+// when the walk's own budget runs out. Only the first is a transport error --
+// the second arrives as the walk context's deadline, which [transportFailed]
+// rejects on its face because a caller's spent deadline is not retryable.
+func lookupUnreached(err error) bool {
+	return transportFailed(err) || errors.Is(err, errWalkExpired)
+}
+
 // transportFailed reports a request that never got an answer: it failed below
 // HTTP, so nothing is known about whether the server acted, and another attempt
 // can land where this one did not.

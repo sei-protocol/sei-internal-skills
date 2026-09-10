@@ -135,6 +135,11 @@ type driverFakeServerConfig struct {
 	// reached no reply, which is what the run-key lookup retries on.
 	SessionListDrops int
 
+	// SessionListStalls hangs this many opening GET /v1/sessions calls until the
+	// caller gives up on them. The blackhole's other shape: the request is neither
+	// answered nor refused, so what ends the attempt is the walk's own budget.
+	SessionListStalls int
+
 	// SessionResps is served in order, one per GET /v1/sessions/{id}, with the
 	// last body repeating. The reply read and any adoption read are the same
 	// route, so a test that needs them to differ configures both.
@@ -173,6 +178,7 @@ type driverFakeServer struct {
 	sessListNeverEnds      bool
 	sessListNeverEndsAfter bool
 	sessListDrops          int
+	sessListStalls         int
 	listItemsHits          atomic.Int64
 	sessionResps           []string
 	listSessHits           atomic.Int64
@@ -239,6 +245,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		sessListNeverEnds:      cfg.SessionListNeverEnds,
 		sessListNeverEndsAfter: cfg.SessionListNeverEndsAfterFirst,
 		sessListDrops:          cfg.SessionListDrops,
+		sessListStalls:         cfg.SessionListStalls,
 		sessionResps:           cfg.SessionResps,
 		approvalStatus:         cfg.ApprovalStatus,
 		eventStatus:            cfg.EventStatus,
@@ -306,6 +313,11 @@ func (fs *driverFakeServer) handleListSessions(w http.ResponseWriter, r *http.Re
 
 	if hit <= fs.sessListDrops {
 		fs.dropConnection(w)
+		return
+	}
+
+	if hit <= fs.sessListDrops+fs.sessListStalls {
+		<-r.Context().Done()
 		return
 	}
 
