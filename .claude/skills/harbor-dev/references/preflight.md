@@ -265,9 +265,16 @@ kubectl explain seinode.spec.dataVolume.storage.volumeAttributesClassName --cont
 kubectl get volumeattributesclass sei-gp3-performance-v1 --context=harbor
 ```
 
-Both must exit 0. The first fails on every harbor cluster today, because the CRD field comes from `sei-k8s-controller` PR 533 and nobody has merged that PR. Pruning then makes the failure silent, in the same shape as the resource fields. The apiserver drops the unknown `volumeAttributesClassName` without an error. The PVC provisions on the plain gp3 StorageClass, and the plan echo still promises 10000 IOPS.
+**The first probe is the load-bearing one, and it fails on every harbor cluster today.** The CRD field comes from `sei-k8s-controller` PR 533, which nobody has merged. Pruning then makes the failure silent, in the same shape as the resource fields. The apiserver drops the unknown `volumeAttributesClassName` without an error. The PVC provisions on the plain gp3 StorageClass, and the plan echo still promises 10000 IOPS. `kubectl explain` reads the served schema, so this probe is namespace-independent and every engineer can run it.
 
-On either failure, halt every render that passes `--iops`/`--throughput`. Offer the standard tier instead, and state that the render used it. Never fall back in silence.
+On a non-zero exit from that probe, halt every render that passes `--iops`/`--throughput`. Offer the standard tier instead, and state that the render used it. Never fall back in silence.
+
+**The second probe is advisory, because `VolumeAttributesClass` is cluster-scoped.** The `eng-<alias>` Role is namespace-scoped, so it grants no cluster-scoped read at all. Read the two failures apart rather than treating both as a missing class:
+
+- `NotFound` — the class is genuinely absent. The platform team owns the catalog (`platform` `clusters/base/default/volume-attributes-class.yaml`). Halt and ask them.
+- `Forbidden` — the engineer cannot read cluster-scoped objects. That is a Role question, not a catalog one, and this check is **inconclusive**. Do not halt on it. Say that the class went unverified, and proceed on the first probe's verdict.
+
+Halting on `Forbidden` would put the performance tier out of reach for the engineers this runbook serves. It would also blame the platform catalog for a Role gap.
 
 **Edge case — alias not yet known.** On a brand-new engineer, the alias is captured in First Run (gate 6 path) before they have an `eng-<alias>` namespace. Run this gate against the *resolved* alias from First Run; if the engineer is mid-onboarding (PR open but not merged), it may still pass on namespace-list reach even though the namespace doesn't exist yet — gate 6 owns the namespace-existence check.
 

@@ -345,7 +345,7 @@ The default footprint is roughly a quarter of the mainnet validator shape (16 CP
 
 **Minimum version: a build carrying the flags.** No release tag has them yet — v0.0.71 is the newest and predates seictl#248 — so install from `main`. Older binaries reject the three flags at parse, and their presets carry no resource block at all. Gate 1 in `preflight.md` probes `node apply --help` for `--cpu`.
 
-`--iops` and `--throughput` arrived later, in a release this floor does not pin. Gate 1 probes for them separately. See *Storage performance* below.
+`--iops` and `--throughput` arrived later still, so a binary carrying the three resource flags may lack them. Gate 1 probes for them separately. See *Storage performance* below.
 
 **Fleet cost is per node, and the size is create-only.** Both presets carry the same 500Gi. A 4-validator chain with a 4-follower fleet therefore provisions about 4Ti of EBS that no later edit can shrink. An EVM-serving follower also inherits the consensus-validator shape, which may not suit it. The default is still the default — pass `--storage 500Gi` on the follower loop unless the engineer asks for something else. Raise the fleet total with them when N is large, since correcting an oversized volume means deleting the node and losing its data.
 
