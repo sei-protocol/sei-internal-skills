@@ -35,7 +35,7 @@ Four-part check:
 
 4. `seictl node apply --help` includes `--iops`. This one gates the storage-performance selection only, so it blocks a performance tier rather than the whole render. No version pins it either. `--iops` and `--throughput` came in seictl#249, and like the resource flags they carry no release tag.
 
-   Unlike check 3, this failure is loud once the flags reach the binary. An older `seictl` exits non-zero with `flag provided but not defined: -iops`. The silence arrives one step later, in the workaround. Dropping the two flags clears the parse error and renders the standard tier. The plan echo still promises 10000 IOPS, and the bench then measures the wrong disk. On a failure, either upgrade or drop to the standard tier, and state which one the render used.
+   This failure is loud once the flags reach the binary, exactly as check 3's is. An older `seictl` exits non-zero with `flag provided but not defined: -iops`. The silence arrives one step later, in the workaround. Dropping the two flags clears the parse error and renders the standard tier. The plan echo still promises 10000 IOPS, and the bench then measures the wrong disk. On a failure, either upgrade or drop to the standard tier, and state which one the render used.
 
 **Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation. The `--network` auto-wire makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here beats a confusing `NotFound`-on-CRD at apply. For check 3 it beats something worse: a chain that runs four times its intended size without complaint. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
 
@@ -75,7 +75,7 @@ Do not try `GOBIN=/usr/local/bin go install …` instead. That directory is root
 
 Three things to know about it:
 
-- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` at all, or check 1 still fails — separate from the shadowing case above. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@latest`.
+- The binary lands in `$(go env GOBIN)`, or `$(go env GOPATH)/bin` when `GOBIN` is empty. That directory must be on `$PATH` at all, or check 1 still fails — separate from the shadowing case above. To place it somewhere already on `$PATH`, set `GOBIN` for the call: `GOBIN=$HOME/.local/bin go install github.com/sei-protocol/seictl@main`. Note `@main`, for the reason given above — `@latest` resolves to v0.0.71 and fails check 3.
 - seictl's `go.mod` declares `go 1.26.0`. On an older toolchain `go install` prints `switching to go1.26.8` and downloads it. Treat that line as normal output, not an error.
 - A plain `go install` leaves the `seictl.sei.io/version` provenance annotation reading `dev` on every resource seictl applies. The version comes from an `-ldflags` stamp the Makefile passes, and `go install` does not pass it. Nothing breaks; the applied resources just do not record which seictl produced them.
 
@@ -85,8 +85,10 @@ To keep the provenance stamp, pass the flag. The version appears twice, so set i
 # Set V to the release you are installing. Where gh is available,
 # `gh release view --repo sei-protocol/seictl --json tagName --jq .tagName`
 # prints the latest tag. Today that is v0.0.71, which predates the
-# resource flags and fails gate 1 check 3 -- see the caveat above.
-V=v0.0.71
+# resource flags and fails gate 1 check 3 -- see the caveat above. So V is
+# left empty on purpose: no tag currently satisfies this gate, and the
+# ${V:?} guards below refuse rather than install one that cannot pass.
+V=
 go install -ldflags "-X 'github.com/sei-protocol/seictl/internal/cliutil.Version=${V:?set V to the release tag}'" \
   "github.com/sei-protocol/seictl@${V:?set V to the release tag}"
 ```
@@ -273,6 +275,8 @@ On a non-zero exit from that probe, halt every render that passes `--iops`/`--th
 
 - `NotFound` — the class is genuinely absent. The platform team owns the catalog (`platform` `clusters/base/default/volume-attributes-class.yaml`). Halt and ask them.
 - `Forbidden` — the engineer cannot read cluster-scoped objects. That is a Role question, not a catalog one, and this check is **inconclusive**. Do not halt on it. Say that the class went unverified, and proceed on the first probe's verdict.
+
+State the cost of that uncertainty alongside it. If the class turns out to be absent, the PVC sits `Pending` on `ProvisioningFailed`. The field is create-only, so the remedy is a fresh chain-id rather than a fix. The engineer can then decide whether to ask the platform team to confirm the class first. In practice the catalog ships from `platform` `clusters/base/default/`, so every reconciled cluster carries it.
 
 Halting on `Forbidden` would put the performance tier out of reach for the engineers this runbook serves. It would also blame the platform catalog for a Role gap.
 

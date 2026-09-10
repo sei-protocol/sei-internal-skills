@@ -47,7 +47,7 @@ The 10 fields engineers actually edit:
 `spec.resources` and `spec.dataVolume.storage` are **admission-immutable**, each for a concrete reason:
 
 - **`spec.resources`** — the child StatefulSet is `OnDelete` and drift detection is image-only, so a changed footprint never rolls onto a running pod. Editing it would read as a resize and do nothing.
-- **`spec.dataVolume.storage`** — the ensure-data-pvc task creates the data PVC once and never updates it (Get-then-Create, no update path). A changed size could never reach the volume. The same applies to `volumeAttributesClassName`: the name binds at provision. A first-time set, a change, and an unset are all rejected.
+- **`spec.dataVolume.storage`** — the ensure-data-pvc task creates the data PVC once and never updates it (Get-then-Create, no update path). A changed size could never reach the volume. The same applies to `volumeAttributesClassName`: the name binds at provision. On a re-apply, a first-time set, a change, and an unset are all rejected — the value is settable only at creation.
 
 The apiserver rejects a re-apply that changes either, with `metav1.Status.reason=Invalid`. It is not a silent no-op, and it is not retryable. `delete` + re-create is the only path. For a genesis chain that means a fresh chain-id and a destroyed data PVC.
 

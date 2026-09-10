@@ -128,7 +128,9 @@ Render with `seictl network apply --dry-run` (the SeiNetwork) + a loop of `seict
 ```sh
 # Resolve ONE footprint and reuse it for both sides. Default 4 CPU / 32Gi / 500Gi.
 CPU=4; MEM=32Gi; DISK=500Gi
-# Storage performance, also ONE selection for both sides. Leave PERF empty for the
+# Storage performance: ONE selection for both sides, unless the tier IS what the
+# bench compares -- see the storage-tier section below, which sets PERF per side.
+# Leave PERF empty for the
 # standard tier; PERF="--iops 10000 --throughput 750" selects sei-gp3-performance-v1.
 # $PERF expands UNQUOTED below, unlike every neighbouring variable, and that is
 # deliberate: an empty value must vanish rather than pass an empty argument, and a
