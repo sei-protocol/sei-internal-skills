@@ -55,7 +55,7 @@ Auto-wired on the rendered CR:
 - `metadata.labels.sei.io/seinetwork: <chain-id>`
 - The controller generates the validator SeiNodes and stamps `sei.io/seinetwork=<chain-id>`, `sei.io/role=validator` on each.
 
-**Immutability:** `spec.genesis` and `spec.replicas` are admission-immutable. To change the chain-id or replica count, `delete` + re-create — a re-apply is rejected `Invalid`.
+**Immutability:** `spec.genesis`, `spec.replicas`, `spec.resources`, and `spec.dataVolume.storage` are admission-immutable. To change the chain-id, the replica count, or the resource footprint, `delete` + re-create — the apiserver rejects a re-apply with `Invalid`.
 
 ### `rpc` (→ `seictl node`, renders one `SeiNode` per follower)
 
@@ -144,7 +144,7 @@ Native `SeiNetwork` / `SeiNode` CR on stdout as JSON. Same shape as `kubectl get
 
 `metav1.Status` on stderr; non-zero exit. Common reasons:
 
-- `Invalid` — the rendered CR fails apiserver schema validation (typo'd `--set` path), OR a re-apply changes an immutable field (`spec.genesis`/`spec.replicas` on a SeiNetwork) — delete + re-create instead.
+- `Invalid` — the rendered CR fails apiserver schema validation (typo'd `--set` path), OR a re-apply changes an immutable field (`spec.genesis`, `spec.replicas`, `spec.resources`, or `spec.dataVolume.storage`) — delete + re-create instead. Check the resource fields before blaming a `--set` typo: a changed `--cpu`, `--memory`, or `--storage` produces the same `Invalid`.
 - `Forbidden` — RBAC denies the apply. Likely the engineer's access entry is read-only; pre-flight gate 5 normally catches this earlier.
 - `AlreadyExists` — name collision with an existing CR. If the existing CR is Flux-owned (rendered from another workspace-repo manifest), `git rm` that manifest first; calling `seictl network|node delete` on a Flux-owned CR races the next reconcile. If hand-rolled (no Flux owner), `delete` it or pick a new name.
 
@@ -207,7 +207,7 @@ Engineer says: "spin up a chain of 4 validators with seid sha=abc, then add an R
 Stop and report (don't auto-remediate):
 
 - **Render rejected by `--dry-run` with `metav1.Status.reason=Invalid`.** The would-be-applied CR fails schema validation. Surface the message; ask the engineer to inspect the `--set` paths or preset overrides. Don't push a broken CR to the workspace repo.
-- **Re-apply rejected `Invalid` on an immutable field** — `network apply <same-name>` with a changed `--chain-id`/`--replicas` is rejected (`spec.genesis`/`spec.replicas` are admission-immutable). Delete + re-create; don't retry.
+- **Re-apply rejected `Invalid` on an immutable field** — the apiserver rejects `network apply <same-name>` when `--chain-id`, `--replicas`, `--cpu`, `--memory`, or `--storage` changes. `spec.genesis`, `spec.replicas`, `spec.resources`, and `spec.dataVolume.storage` are all admission-immutable. Delete + re-create; do not retry.
 - **`AlreadyExists` on cluster post-merge** — the engineer's PR proposed a name that already has a live CR (escape-hatch direct-apply, or stale workspace state). Surface the existing object's metadata; ask whether to pick a different name or `git rm` the old manifest first.
 - **Workspace-repo task path collision** — `engineers/<alias>/<task>/` already exists in the workspace repo. Don't silently overwrite. Halt and ask whether to reuse the dir (add new files alongside) or pick a different `<task>` name.
 - **Push rejected (non-fast-forward)** — engineer or another agent pushed to the same branch. Don't force-push. Halt; surface `git pull --rebase` and let the engineer resolve.
@@ -218,7 +218,7 @@ Stop and report (don't auto-remediate):
 
 ## Escape hatch: direct `seictl network|node apply` (rare)
 
-If the engineer specifically asks to bypass the PR loop for a one-shot debug session and confirms they understand the result won't be in git history, fall through to direct apply: `seictl network apply <id> --preset genesis-chain --chain-id <id> --image <ref> -n eng-<alias>` (no `--dry-run`; server-side applies), then per follower `seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --network <id> -n eng-<alias>`. Then `seictl network watch <id> --until=Ready -n eng-<alias>` and `seictl node watch <id>-rpc-<k> --until=Running -n eng-<alias>`.
+The engineer may ask to bypass the PR loop for a one-shot debug session. Proceed only after they confirm they understand the result will not be in git history. Apply the network with `seictl network apply <id> --preset genesis-chain --chain-id <id> --image <ref> -n eng-<alias>` (no `--dry-run`; server-side applies). Then apply each follower with `seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --image <ref> --network <id> --cpu <cpu> --memory <mem> --storage <size> -n eng-<alias>`. Then `seictl network watch <id> --until=Ready -n eng-<alias>` and `seictl node watch <id>-rpc-<k> --until=Running -n eng-<alias>`.
 
 **Steer first.** The agent does not volunteer this path. Before running it, ask: "I can do this through the GitOps PR flow (audit trail, Flux reconciles, `git rm` to tear down) — do you want that, or do you specifically need a direct-apply run with no git history?" Only proceed on explicit confirmation.
 

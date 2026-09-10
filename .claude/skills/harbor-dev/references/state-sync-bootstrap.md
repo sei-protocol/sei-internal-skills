@@ -86,8 +86,15 @@ IPv6 literals, no commas inside an item; **minimum 2 entries**; duplicates
 rejected. A single-witness request is rejected at `kubectl apply` time, not at
 runtime — CometBFT light-client verification needs two independent servers.
 
+Pass an explicit `--storage` sized for the chain you are syncing. The `rpc`
+preset defaults to 500Gi, which is a fresh-genesis dev-chain shape, and
+state-sync loads an existing chain's accumulated state. The size is
+create-only, so you must delete and recreate an undersized follower rather
+than resize it.
+
 Render via `seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id>
---network <id> --image <ref> -n eng-<alias> --dry-run` and add the
+--network <id> --image <ref> --cpu <cpu> --memory <mem> --storage <size>
+-n eng-<alias> --dry-run` and add the
 `spec.fullNode.snapshot` block to the emitted YAML (check `seictl node apply
 --help` for current `--set` list-literal support before trying to express the
 list inline; hand-editing the rendered YAML and re-validating with

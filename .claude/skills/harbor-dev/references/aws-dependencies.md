@@ -52,6 +52,8 @@ seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --image <ref> --netw
   -n eng-<alias> --dry-run
 ```
 
+**Size the data volume for the restored state, not for a dev chain.** The `rpc` preset's `--storage` default is 500Gi, which suits a fresh-genesis chain and not `pacific-1` or `atlantic-2`. Read the snapshot's size from the same listing you used to pick the height, then pass an explicit `--storage` with headroom for continued sync. The field is create-only. Nothing can resize a follower that outgrows its volume — delete and recreate it instead.
+
 **Mechanism**: `targetHeight` is a **ceiling, not an exact pin**. The seictl sidecar lists `*.tar.gz` under the chain prefix, parses heights from filenames, and picks `max(height ≤ targetHeight)`. `targetHeight=0` means "use the newest available." If no snapshot ≤ targetHeight exists, the `snapshot-restore` task fails with `no snapshot found at or below height <H>`. `latest.txt` is publisher bookkeeping; the sidecar ignores it. Source: `sei-protocol/seictl/sidecar/tasks/snapshot_restore.go:162-210`.
 
 **Halt conditions**:
