@@ -1,10 +1,13 @@
 package omni
 
 import (
+	"context"
+	"errors"
 	"log/slog"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/http/httptrace"
 	"strings"
 	"testing"
 )
@@ -70,10 +73,68 @@ func TestTracingTransportCarriesAnIDAndPlacesAFailure(t *testing.T) {
 		}
 
 		out := sink.String()
-		for _, want := range []string{"request failed", "wrote_headers=false", "got_first_byte=false", "request_id="} {
+		for _, want := range []string{"request failed", "wrote_headers=false", "got_first_byte=false", "request_id=", "dial_error="} {
 			if !strings.Contains(out, want) {
 				t.Errorf("log is missing %q, which is what places the failure:\n%s", want, out)
 			}
+		}
+	})
+
+	t.Run("a dial the request recovered from is not reported", func(t *testing.T) {
+		t.Parallel()
+		// One request can dial twice -- the second family of a dual-stack address,
+		// or a replay onto a fresh connection. The address it failed on is not the
+		// one it went on to hold, and naming it points an exit-6 hunt at a backend
+		// this request never used.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		defer srv.Close()
+
+		base := http.DefaultTransport.(*http.Transport).Clone()
+		base.DialContext = func(ctx context.Context, network, addr string) (net.Conn, error) {
+			// What net.Dialer reports when it moves on to the next address.
+			httptrace.ContextClientTrace(ctx).
+				ConnectDone(network, "[::1]:1", errors.New("connect: no route to host"))
+			return (&net.Dialer{}).DialContext(ctx, network, addr)
+		}
+
+		sink := &driverLogSink{}
+		client := &http.Client{Transport: &tracingTransport{
+			base: base,
+			log:  slog.New(slog.NewTextHandler(sink, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		}}
+		resp, err := client.Get(srv.URL)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		if out := sink.String(); strings.Contains(out, "dial_error=") {
+			t.Errorf("a dial the request recovered from is still in the log:\n%s", out)
+		}
+	})
+
+	t.Run("the peer it held is named", func(t *testing.T) {
+		t.Parallel()
+		// Which target answered, not which service was addressed. A failure behind a
+		// load balancer is only attributable to one backend if the attempts that
+		// worked named theirs too.
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+		defer srv.Close()
+
+		sink := &driverLogSink{}
+		client := &http.Client{Transport: &tracingTransport{
+			base: srv.Client().Transport,
+			log:  slog.New(slog.NewTextHandler(sink, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		}}
+		resp, err := client.Get(srv.URL)
+		if err != nil {
+			t.Fatalf("Get: %v", err)
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		want := strings.TrimPrefix(srv.URL, "http://")
+		if out := sink.String(); !strings.Contains(out, "peer="+want) {
+			t.Errorf("log does not name the peer %s:\n%s", want, out)
 		}
 	})
 }

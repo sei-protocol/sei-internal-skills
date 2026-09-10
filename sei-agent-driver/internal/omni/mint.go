@@ -70,18 +70,6 @@ func (u unreached) Error() string {
 func (u unreached) Unwrap() error        { return u.err }
 func (u unreached) Is(target error) bool { return target == errUnreached }
 
-// mintBackoff is the wait before each retry, indexed by the attempt just failed.
-// Short, because a reset is returned immediately and the run is holding a
-// sandbox while this sleeps.
-var mintBackoff = [...]time.Duration{500 * time.Millisecond, 2 * time.Second}
-
-// mintAttempts bounds how many times a mint that never reached a server is
-// tried. Derived from the backoff table rather than written beside it: the two
-// have to agree, and a hand-written 3 makes raising one an index panic in the
-// other. Three today, because the failure this absorbs is a single reset rather
-// than an outage.
-const mintAttempts = len(mintBackoff) + 1
-
 // mintToken exchanges the machine client's credentials for a short-lived access
 // token at POST /oauth/token.
 //
@@ -134,20 +122,19 @@ func mintToken(
 	}
 	client = &noRedirect
 
-	for attempt := 1; ; attempt++ {
-		token, ttl, err := mintOnce(ctx, client, baseURL, clientID, clientSecret)
-		if err == nil || attempt == mintAttempts || !errors.Is(err, errUnreached) {
-			return token, ttl, err
-		}
-		select {
-		case <-ctx.Done():
-			// The caller's deadline, not this loop's, decides when to stop
-			// waiting. Returning the mint's own error rather than the context's
-			// keeps the reason the run failed in the message.
-			return "", 0, err
-		case <-time.After(mintBackoff[attempt-1]):
-		}
+	var token string
+	var ttl time.Duration
+	err := retryUnreached(ctx,
+		func(err error) bool { return errors.Is(err, errUnreached) },
+		func() error {
+			var err error
+			token, ttl, err = mintOnce(ctx, client, baseURL, clientID, clientSecret)
+			return err
+		})
+	if err != nil {
+		return "", 0, err
 	}
+	return token, ttl, nil
 }
 
 // mintOnce is one exchange. Its failures are classified rather than merged:

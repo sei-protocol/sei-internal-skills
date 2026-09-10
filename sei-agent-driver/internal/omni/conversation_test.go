@@ -130,6 +130,22 @@ type driverFakeServerConfig struct {
 	// never-ending shape. Lets a test cut a walk short with matches already found.
 	SessionListNeverEndsAfterFirst bool
 
+	// SessionListDrops drops the connection on this many opening GET /v1/sessions
+	// calls, before any configured body is served. The client sees a request that
+	// reached no reply, which is what the run-key lookup retries on.
+	SessionListDrops int
+
+	// SessionListStalls hangs this many opening GET /v1/sessions calls until the
+	// caller gives up on them. The blackhole's other shape: the request is neither
+	// answered nor refused, so what ends the attempt is the walk's own budget.
+	SessionListStalls int
+
+	// NoKeepAlives answers every request with Connection: close, so each one dials
+	// its own connection. net/http silently replays a request whose *reused*
+	// connection died before any response byte, so a test that means to exercise
+	// this package's own retry has to deny it that.
+	NoKeepAlives bool
+
 	// SessionResps is served in order, one per GET /v1/sessions/{id}, with the
 	// last body repeating. The reply read and any adoption read are the same
 	// route, so a test that needs them to differ configures both.
@@ -167,6 +183,8 @@ type driverFakeServer struct {
 	itemsResps             []string
 	sessListNeverEnds      bool
 	sessListNeverEndsAfter bool
+	sessListDrops          int
+	sessListStalls         int
 	listItemsHits          atomic.Int64
 	sessionResps           []string
 	listSessHits           atomic.Int64
@@ -232,6 +250,8 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		itemsResps:             cfg.ItemsResps,
 		sessListNeverEnds:      cfg.SessionListNeverEnds,
 		sessListNeverEndsAfter: cfg.SessionListNeverEndsAfterFirst,
+		sessListDrops:          cfg.SessionListDrops,
+		sessListStalls:         cfg.SessionListStalls,
 		sessionResps:           cfg.SessionResps,
 		approvalStatus:         cfg.ApprovalStatus,
 		eventStatus:            cfg.EventStatus,
@@ -268,6 +288,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		fs.totalHits.Add(1)
 		mux.ServeHTTP(w, r)
 	}))
+	srv.Config.SetKeepAlivesEnabled(!cfg.NoKeepAlives)
 	t.Cleanup(srv.Close)
 	fs.URL = srv.URL
 	return fs
@@ -296,6 +317,16 @@ func (fs *driverFakeServer) handleListSessions(w http.ResponseWriter, r *http.Re
 	fs.mu.Lock()
 	fs.sessListQueries = append(fs.sessListQueries, r.URL.RawQuery)
 	fs.mu.Unlock()
+
+	if hit <= fs.sessListDrops {
+		fs.dropConnection(w)
+		return
+	}
+
+	if hit <= fs.sessListDrops+fs.sessListStalls {
+		<-r.Context().Done()
+		return
+	}
 
 	if fs.sessListNeverEnds || (fs.sessListNeverEndsAfter && hit > len(fs.sessionLists)) {
 		// Costed, because an httptest server answers in microseconds: without this a
@@ -378,6 +409,24 @@ func driverItemsPage(responseIDs ...string) string {
 
 // ListSessionHits is how many times the pre-create search ran.
 func (fs *driverFakeServer) ListSessionHits() int { return int(fs.listSessHits.Load()) }
+
+// dropConnection answers a request by taking its connection away, so the client
+// gets a transport error rather than a status. Hijacked rather than answered with
+// a 5xx: a status is a server that replied, and the failure under test is one that
+// reached no reply at all.
+func (fs *driverFakeServer) dropConnection(w http.ResponseWriter) {
+	hijacker, ok := w.(http.Hijacker)
+	if !ok {
+		fs.t.Error("the test server's ResponseWriter cannot be hijacked")
+		return
+	}
+	conn, _, err := hijacker.Hijack()
+	if err != nil {
+		fs.t.Errorf("hijack the connection: %v", err)
+		return
+	}
+	_ = conn.Close()
+}
 
 // handlePatchSession records a session update and answers with the session.
 //
