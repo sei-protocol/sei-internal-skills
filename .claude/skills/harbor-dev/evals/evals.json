@@ -450,28 +450,29 @@
       "source": "SKILL.md operation table (chaos row), Halt Conditions (chaos entries); references/chaos-faults.md → Selector contract, Fault catalog, Lifecycle and gates, Sequencing with a Workflow"
     },
     {
-      "id": "autobahn-evm-only-not-deployable",
-      "type": "halt-condition",
+      "id": "autobahn-evm-only-spec-consensus",
+      "type": "happy-path",
       "skill_loaded": true,
       "scenario": "Engineer says: 'Stand up the autobahn evm-only network from sei-chain/integration_test/autobahn/README.md in my namespace — 4 validators, giga storage, then bench it with sei-load.'",
       "expected": {
         "compliance_signals": [
-          "agent does not render a SeiNetwork with config.toml evm-only=true or autobahn-config-file; it states that autobahn.json is a genesis-ceremony artefact with no CRD substrate (ConfigValue.fileName admits only *.toml) and that EVM-only stops the CometBFT RPC the controller's /lag_status readiness probe and restart-seid depend on, citing references/autobahn-giga.md and PLT-1249",
-          "agent offers the deployable subset: a normal 4-validator chain with spec.configValues for giga_executor.enabled/occ_enabled, state-commit.sc-write-mode pinned with state-commit.sc-write-mode-enable-auto=false, state-store.evm-ss-split, receipt-store.rs-backend — one --config-value per key or the equivalent YAML — and asks Recipe A (test_only_dual_write + evm-ss-split=true) vs Recipe B (flatkv_only + evm-ss-split=false) rather than defaulting",
-          "agent does not offer spec.configOverrides, an init container, or a hand-edited pod as a way around the gap",
-          "if the engineer insists on evm-only, agent explains the bench consequences (RPC serves only eth_sendRawTransaction/eth_getTransactionReceipt; trackReceipts/trackBlocks/trackUserLatency must be off; validators are the RPC targets; height stays 0 until load) rather than promising the standard bench flow"
+          "agent gates first: runs kubectl explain seinetwork.spec.consensus.engine and probes the seictl binary for --consensus-engine, and on a cell whose CRD lacks the field offers the Giga configValues subset and asks for a controller pin advance instead of rendering",
+          "agent renders spec.consensus: {engine: Autobahn, evmOnly: true} (or --consensus-engine Autobahn --evm-only) and spec.genesis.consensusParams {block: {max_gas: \"35000000\"}} — never evm-only, autobahn-config-file, rpc.laddr or api/grpc/grpc-web.enable through configValues, which the controller owns and refuses",
+          "agent adds the Giga storage keys via configValues and asks Recipe A (test_only_dual_write + evm-ss-split=true) vs Recipe B (flatkv_only + evm-ss-split=false) rather than defaulting",
+          "agent states the EVM-only bench consequences before running sei-load: validators are the RPC targets (URLs from .status.endpoints.nodes[].evmJsonRpc), no follower, profile chainId 713715, trackReceipts/trackBlocks/trackUserLatency off, progress proven by cast receipt not eth_blockNumber, Ready means the 8545 listener answers not synced, height 0 while idle is healthy",
+          "agent verifies after Running that the validator pod count equals status.replicas, every validator has autobahn-config-file and evm-only in config.toml and a non-empty config/autobahn.json, and that the apiserver kept spec.consensus"
         ],
-        "halt_reason": "Autobahn / EVM-only is not deployable on the controller today (no autobahn.json substrate; EVM-only stops the CometBFT RPC the readiness probe reads) — offer the Giga configValues subset and link PLT-1249",
         "forbidden_signals": [
-          "a rendered SeiNetwork or --config-value containing evm-only=true or autobahn-config-file",
+          "a --config-value or configValues entry containing evm-only, autobahn-config-file, rpc.laddr, api.enable, grpc.enable or grpc-web.enable",
           "sc-write-mode or sc-write-mode-enable-auto placed under state-store instead of state-commit",
           "flatkv_only paired with evm-ss-split=true, or test_only_dual_write paired with evm-ss-split=false (keys mixed across recipes)",
           "spec.configOverrides, an init container, or a manual pod edit offered as the way to inject autobahn.json",
-          "a promise that the standard sei-load bench (trackReceipts/trackBlocks on, follower RPC targets) works on an evm-only chain"
-        ],
-        "halt": true
+          "a follower SeiNode added to an evm-only chain as the sei-load target, or a promise that trackReceipts/trackBlocks work on it",
+          "a claim that Autobahn or EVM-only is not deployable without first probing the CRD for spec.consensus",
+          "a seiload profile for the evm-only chain carrying chainId 713714, or cast block-number / eth_blockNumber offered as the progress check"
+        ]
       },
-      "source": "references/autobahn-giga.md — tier table + 'Halt conditions specific to this reference'; SKILL.md triage row 'Spin up a giga chain'"
+      "source": "references/autobahn-giga.md — tier table, gate, 'Tier 2/3 — Autobahn and EVM-only via spec.consensus', 'What EVM-only changes for the rest of this skill'; SKILL.md triage row 'Spin up a giga chain'"
     }
   ]
 }
