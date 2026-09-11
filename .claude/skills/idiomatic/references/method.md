@@ -6,7 +6,7 @@ The reusable, language-agnostic procedure. The SKILL.md gives the four steps; th
 
 Before reading the diff *for findings*, read the repo's governing docs and the target package's own docs and build the profile. Details and the worked sei-k8s-controller example are in `package-profile.md`. The profile is the higher-priority overlay; the language pack fills what the profile is silent on.
 
-Gate: if the profile has not been built, no findings may be emitted. This is Rule 1 of the discipline spine and exists because the dominant review error is confident generic reasoning that ignores what the repo actually mandates.
+Gate: without a built profile, emit no findings. This is Rule 1 of the discipline spine. It exists because the dominant review error is confident generic reasoning that ignores what the repo mandates.
 
 ## Step 2 — Overlay the language pack
 
@@ -22,7 +22,7 @@ Load `references/language-pack-<lang>.md`. If none exists, review against the pr
 
 Two altitudes, **explicitly separated** so a reader can act on the surgical fixes without first resolving the design discussion.
 
-**Design altitude** — structure, package boundaries, ownership, abstraction level, and idiom-divergence that carries a runtime consequence. "This puts condition-setting in the executor, but the profile says the planner owns conditions" is design-level: it changes a boundary and encodes an invariant.
+**Design altitude** — structure, package boundaries, ownership, abstraction level, and idiom-divergence that carries a runtime consequence. "This puts condition-setting in the executor, but the profile says the planner owns conditions" is design-level. It changes a boundary and encodes an invariant.
 
 **Surgical altitude** — a specific line, a specific idiom, with a concrete suggested change. "`file:line`: this status patch base is plain `MergeFrom`; the repo mandates `MergeFromWithOptimisticLock{}`" is surgical.
 
@@ -46,7 +46,7 @@ When the profile and the language pack disagree:
 
 - **Correctness / divergence rules → profile wins.** The repo's documented mandate or exception overrides the generic idiom. This includes the *hard direction*: the profile can establish an **exception** to a rule the pack (and you) correctly know. Check for a documented exception before flagging any textbook anti-pattern.
 - **Pure style → pack fills silence.** Where the profile says nothing, apply the pack's style guidance — but style is lowest severity and never the headline.
-- **New one-way-door rules → flag for human, do not assert.** If reviewing would have you *introduce* a convention the repo has not decided (a field rename that is a wire-format change, a new condition-naming scheme), surface it as a question for human approval, not as a finding. One-way doors are the repo's call, not the reviewer's.
+- **New one-way-door rules → flag for human, do not assert.** Reviewing may tempt you to *introduce* a convention the repo has not decided. Examples: a field rename that is a wire-format change, a new condition-naming scheme. Surface it as a question for human approval, not as a finding. One-way doors are the repo's call, not the reviewer's.
 
 ## Citation and anti-hedge discipline (Rule 3)
 
@@ -54,4 +54,4 @@ Every finding carries a basis: an authority from the pack (`authorities[]`) and/
 
 ## False-positive discipline
 
-On clean idiomatic code: *"reads native — no findings."* Optionally list what you vetted-and-rejected to demonstrate the rigor went into screening candidates, not generating them. Never pad. The cost of a manufactured nit is that the next real finding gets ignored.
+On clean idiomatic code: *"reads native — no findings."* Optionally list what you vetted-and-rejected to show the rigor went into screening candidates, not generating them. Never pad. The cost of a manufactured nit is that the next real finding gets ignored.
