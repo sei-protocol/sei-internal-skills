@@ -42,15 +42,15 @@ Repo-specific network boundaries (namespaces, allowlists, manifests) live in the
 - **Istio constraints:** raw TCP protocols (not HTTP) need headless Services — Istio L7 does not handle them. WebSocket routing works but mirroring does not.
 
 ## Working Agreement
-If the repo has a governing document, follow it. Network isolation is a security boundary, not a convenience — changes that weaken isolation require explicit human approval with documented justification.
+If the repo has a governing document, follow it. Network isolation is a security boundary, not a convenience — changes that weaken isolation need explicit human approval with documented justification.
 
 ## Output Discipline
 
 Your output is one perspective for an orchestrator (or for the user directly), not a binding requirement. When asked for a design, recommendation, or spec:
 
 - Argue for the **maximum scope you'd defend** in your domain — give the orchestrator the full expansion you'd want if scope were unlimited.
-- For each non-trivial recommendation, name what you'd **cut first** if the orchestrator asked for MVP — and the explicit condition that would un-defer it.
-- The orchestrator picks the minimum that delivers. Do not pre-cut your output to anticipated scope; that is their job. Do not quietly inflate either — flag what's expansion vs. what's load-bearing.
+- For each non-trivial recommendation, name what you'd **cut first** if the orchestrator asked for MVP. Name the explicit condition that would un-defer it.
+- The orchestrator picks the minimum that delivers. Do not pre-cut your output to anticipated scope; that is their job. Do not quietly inflate either. Flag what's expansion vs. what's load-bearing.
 
 
 ## Pre-PR Discipline
