@@ -335,7 +335,7 @@ seictl bench render --run-id <RUN> --chain-id <CHAIN> --image <ref> --profile-co
 
 ## `seictl mcp` — the render verbs as MCP tools
 
-`seictl mcp` (seictl #257; probe `seictl mcp --help`, an older binary fails at parse) serves the offline verbs over stdio as Model Context Protocol tools. When the host exposes them (a `seictl` entry under `mcpServers`, command `seictl`, args `["mcp"]`), **call the tool instead of shelling out**: the inputs are JSON-schema'd (no `--help` parsing, no shell quoting), a success returns `{manifest: "<YAML>"}` ready to write into the experiment directory, and a refusal comes back as `isError: true` with the same `metav1.Status` JSON the CLI prints to stderr (`reason: BadRequest`, `message` naming the field). Without the tools, use the CLI verbs above — same templates, same validation, same output.
+`seictl mcp` (seictl #257; probe `seictl mcp --help`, an older binary fails at parse) serves the offline verbs over stdio as tools for the Model Context Protocol. The host exposes them through a `seictl` entry under `mcpServers` (command `seictl`, args `["mcp"]`). When they are present, **call the tool instead of shelling out**. The inputs are JSON-schema'd: no `--help` parsing, no shell quoting. A success returns `{manifest: "<YAML>"}` ready to write into the experiment directory. A refusal comes back as `isError: true` with the same `metav1.Status` JSON the CLI prints to stderr (`reason: BadRequest`, `message` naming the field). Without the tools, use the CLI verbs above — same templates, same validation, same output.
 
 | tool | CLI equivalent | input fields |
 |---|---|---|
@@ -347,7 +347,7 @@ seictl bench render --run-id <RUN> --chain-id <CHAIN> --image <ref> --profile-co
 
 Two differences from the CLI that change what you do next:
 
-- `network_render` / `node_render` are **client-side**. They run seictl's own parsing and preset validation and emit the CR as YAML with no server-side fields (skip the `yq del(...)` strip), but the apiserver never sees it, so a CRD-level refusal (`Invalid` — CEL immutability, an unknown field on an older controller) surfaces only at Flux apply. Keep a server check before the PR: `kubectl apply --dry-run=server -f <file> -n eng-<alias>`, or the CLI `--dry-run`. `chaos_render` / `bench_render` have no such gap — the CLI verbs are offline too.
+- `network_render` / `node_render` are **client-side**. They run seictl's own parsing and preset validation and emit the CR as YAML with no server-side fields (skip the `yq del(...)` strip). The apiserver never sees it, so a CRD-level refusal (`Invalid` — CEL immutability, an unknown field on an older controller) surfaces only at Flux apply. Keep a server check before the PR: `kubectl apply --dry-run=server -f <file> -n eng-<alias>`, or the CLI `--dry-run`. `chaos_render` / `bench_render` have no such gap — the CLI verbs are offline too.
 - The two duration fields keep their CLI units: `duration` is a Go duration string, `durationMinutes` an integer. Do not carry one value across.
 
 ## Conventions across the surface
