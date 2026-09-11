@@ -186,7 +186,7 @@ kubectl get pod -n eng-<alias> -l sei.io/nodedeployment=<chain-id> \
 
 **Duration-bearing faults must self-expire.** Omit `duration` and the fault persists until the CR is deleted, and the recovery gate hangs. Always set `<DUR>`.
 
-**Land one-shot kills only on a producing chain.** A `pod-kill` that fires during genesis assembly kills a validator before it has produced a block and the ceremony fails. Merge the kill after `Ready`, or sequence it behind a `Suspend` in a Workflow — a timer, not a readiness gate; see the caveat under *One PR, sequenced*. A `StatusCheck` template (HTTP probe against the follower's `eth_blockNumber`, admitted by the policy) is the only in-Workflow readiness gate.
+**Land one-shot kills only on a producing chain.** A `pod-kill` that fires during genesis assembly kills a validator before it has produced a block and the ceremony fails. Merge the kill after `Ready`, or sequence it behind a `Suspend` in a Workflow — a timer, not a readiness gate; see *Sequencing with a Workflow (one PR)* below. A `StatusCheck` template (HTTP probe against the follower's `eth_blockNumber`, admitted by the policy) is the only in-Workflow readiness gate.
 
 ## Experiment directory convention
 
@@ -284,7 +284,7 @@ spec:
 
 `StatusCheck` criteria match the HTTP status only, so `200` means the RPC answers, not that height advances; on an empty-blocks-off chain the height stays `0x0` until load and this gate still passes, which is the intended "validators exist" check. A Workflow template's `deadline` is the fault duration for a duration-bearing kind. Every nested selector still needs `namespaces: ["<NS>"]` — the admission policy walks the templates. Read Workflow progress with `kubectl get workflow exp-<RUN> -n <NS> -o jsonpath='{.status.conditions}'` and the child `WorkflowNode` objects (`kubectl get workflownode -n <NS> -l chaos-mesh.org/workflow=exp-<RUN>`).
 
-The `Suspend` warm-up is a fixed timer, not a readiness gate: size it from the chain's observed time-to-`Ready` plus margin, and prefer the two-PR path when the chain's start time is uncertain (a cold image pull or a Dedicated pool waiting on capacity makes the timer fire early, and an early `pod-kill` breaks the ceremony).
+The `warmup` `Suspend` is bench ramp only, never the readiness gate: the `StatusCheck` ahead of it absorbs a cold image pull or a Dedicated pool waiting on capacity, so size `warmup` from the load profile's ramp, not from time-to-`Ready`. The two-PR path remains the choice when the engineer wants to inspect the chain by hand before the first fault.
 
 ## Interpreting a run
 
