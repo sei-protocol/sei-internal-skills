@@ -18,12 +18,12 @@ The engineer base overlay (`clusters/harbor/engineers/base/`, sei-protocol/platf
 
 ```sh
 kubectl get ns eng-<alias> -o jsonpath='{.metadata.annotations.chaos-mesh\.org/inject}'   # → enabled
-# Flux applies the CR as the `tenant` ServiceAccount; read its Role rather than impersonating it
-kubectl get role tenant -n eng-<alias> --context=harbor \
-  -o jsonpath='{range .rules[*]}{.apiGroups}{" "}{.verbs}{"\n"}{end}' | grep chaos-mesh.org   # → nonempty
+# Chaos Mesh CRDs installed in the cell (your own access, not Flux's): `yes`, or `no` with a
+# "server doesn't have a resource type" warning → Chaos Mesh is not installed; a bare `no` is only your principal
+kubectl auth can-i create networkchaos.chaos-mesh.org -n eng-<alias> --context=harbor
 ```
 
-An empty annotation is a platform ask (PLT-1253), not something to patch by hand.
+Flux applies the CR as the cell's ServiceAccount `<alias>` (the base names it `tenant`; the overlay replaces that with the alias), bound to the Role `<alias>` in the same namespace. Its `chaos-mesh.org` grant has no direct probe from an engineer principal: `kubectl auth can-i --as=system:serviceaccount:eng-<alias>:<alias>` needs the `impersonate` verb, which the `admin` ClusterRole the cell binds engineers to does not carry. The grant surfaces at apply time instead: a missing verb turns the `exp-<RUN_ID>` Kustomization `Ready=False` with `networkchaos.chaos-mesh.org ... is forbidden: User "system:serviceaccount:eng-<alias>:<alias>"` in the message. Read that as a platform ask (PLT-1253, platform#1678 not yet live in the cell), the same as an empty annotation; neither is something to patch by hand.
 
 ## Selector contract (admission-enforced)
 
@@ -155,9 +155,11 @@ provision(4 validators + 1 unfaulted RPC follower)
 Gate commands:
 
 ```sh
-# Placement (precondition): every row Scheduled; a Pending row on a Dedicated pool is a capacity ask, not a chain to fault
+# Placement (precondition): one row per validator, every row Scheduled; a Pending row on a Dedicated pool is a capacity ask, not a chain to fault.
+# .status.nodes[*].{placement,workerNode} exist from controller 7163c98 (spec 006); an older controller prints no rows. Compare the row count
+# to .status.replicas — fewer rows than replicas is a failed gate, not a pass. Fallback on any controller: kubectl get pods -o wide, NODE column nonempty.
 kubectl get seinetwork <chain-id> -n eng-<alias> \
-  -o jsonpath='{range .status.nodes[*]}{.name}{"\t"}{.placement}{"\t"}{.workerNode}{"\n"}{end}'
+  -o jsonpath='{.status.replicas}{"\n"}{range .status.nodes[*]}{.name}{"\t"}{.placement}{"\t"}{.workerNode}{"\n"}{end}'
 
 # Injected / recovered (conditions live on the Chaos CR)
 kubectl get <kind> <name> -n eng-<alias> \
@@ -203,9 +205,9 @@ engineers/<alias>/exp-<RUN_ID>/
 Append `exp-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `resources:`. Flux applies the whole directory together, so **a Chaos CR in the same commit as the SeiNetwork starts injecting as soon as pods exist** — before genesis completes. Two ways to order it:
 
 1. **Two PRs.** Chain + observer first; merge, wait for `Ready` and the placement check; then bench + chaos in a second PR to the same directory.
-2. **One PR, a `Workflow` with a leading `Suspend`.** The Workflow is the only declarative sequencer the admission policy admits; it replaces agent sleeps.
+2. **One PR, a `Workflow` whose first child is a `StatusCheck`.** The Workflow is the only declarative sequencer the admission policy admits; it replaces agent sleeps. A `Suspend` alone is a timer: a cold image pull outruns it into genesis. Lead with the `StatusCheck` below and keep a `Suspend` after it only for bench ramp.
 
-Teardown is `git rm -r engineers/<alias>/exp-<RUN_ID>/` plus the `kustomization.yaml` entry; Flux prunes the directory's objects with no ordering guarantee: if the validator pods go before the Chaos CR, the chaos finalizer has no target to recover and can hold the Kustomization in `Terminating`. Tear down in two merges when a fault is live — first remove the Chaos CRs and wait for `kubectl get networkchaos,podchaos,stresschaos,timechaos -n eng-<alias> -l sei.io/harness-run=<RUN_ID>` to return nothing, then remove the rest. Never `kubectl delete` a Chaos CR that Flux owns — Flux re-applies it on the next reconcile and the fault re-injects. Emergency stop for a fault that is halting the chain: `kubectl annotate <kind> <name> -n eng-<alias> experiment.chaos-mesh.org/pause=true` recovers the targets immediately and survives re-apply (the annotation is not in the manifest, so Flux leaves it); follow with the removal PR.
+Teardown is `git rm -r engineers/<alias>/exp-<RUN_ID>/` plus the `kustomization.yaml` entry; Flux prunes the directory's objects with no ordering guarantee: if the validator pods go before the Chaos CR, the chaos finalizer has no target to recover and can hold the Kustomization in `Terminating`. Tear down in two merges when a fault is live — first remove the Chaos CRs (on the Workflow path, the Workflow object) and wait for both `kubectl get networkchaos,podchaos,stresschaos,timechaos -n eng-<alias> -l sei.io/harness-run=<RUN_ID>` and `... -l chaos-mesh.org/workflow=exp-<RUN_ID>` to return nothing (Workflow children carry the second label, not the first), then remove the rest. Never `kubectl delete` a Chaos CR that Flux owns — Flux re-applies it on the next reconcile and the fault re-injects. Emergency stop for a fault that is halting the chain: `kubectl annotate <kind> <name> -n eng-<alias> experiment.chaos-mesh.org/pause=true` recovers the targets immediately and survives re-apply (the annotation is not in the manifest, so Flux leaves it); on the Workflow path the child's name is controller-chosen, so resolve it first with `kubectl get networkchaos,podchaos,stresschaos,timechaos -n eng-<alias> -l chaos-mesh.org/workflow=exp-<RUN_ID>` and annotate that object. Follow with the removal PR.
 
 ### Sequencing with a Workflow (one PR)
 
@@ -223,10 +225,28 @@ spec:
     - name: timeline
       templateType: Serial
       deadline: 40m
-      children: [warmup, partition, settle, kill]
+      children: [rpc-up, warmup, partition, settle, kill]
+    - name: rpc-up                # readiness gate: the observer answers JSON-RPC, so genesis is over and validators exist to fault
+      templateType: StatusCheck
+      deadline: 20m
+      statusCheck:
+        mode: Synchronous         # ends on the first success; the Serial parent then advances
+        type: HTTP
+        intervalSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 120      # 120 × 10s = the deadline; the Workflow fails instead of faulting a chain that never came up
+        successThreshold: 1
+        http:
+          url: <FOLLOWER_URL>     # the per-pod evmJsonRpc URL recipe #1 returns; in-cluster DNS, not a port-forward
+          method: POST
+          headers:
+            Content-Type: [application/json]
+          body: '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
+          criteria:
+            statusCode: "200"
     - name: warmup
       templateType: Suspend
-      deadline: 15m              # chain Ready + placement check + bench ramp
+      deadline: 5m               # bench ramp only; readiness is the StatusCheck above
     - name: partition
       templateType: NetworkChaos
       deadline: 3m
@@ -262,7 +282,7 @@ spec:
             - {key: sei.io/nodedeployment, operator: In, values: ["<CHAIN>"]}
 ```
 
-A Workflow template's `deadline` is the fault duration for a duration-bearing kind. Every nested selector still needs `namespaces: ["<NS>"]` — the admission policy walks the templates. Read Workflow progress with `kubectl get workflow exp-<RUN> -n <NS> -o jsonpath='{.status.conditions}'` and the child `WorkflowNode` objects (`kubectl get workflownode -n <NS> -l chaos-mesh.org/workflow=exp-<RUN>`).
+`StatusCheck` criteria match the HTTP status only, so `200` means the RPC answers, not that height advances; on an empty-blocks-off chain the height stays `0x0` until load and this gate still passes, which is the intended "validators exist" check. A Workflow template's `deadline` is the fault duration for a duration-bearing kind. Every nested selector still needs `namespaces: ["<NS>"]` — the admission policy walks the templates. Read Workflow progress with `kubectl get workflow exp-<RUN> -n <NS> -o jsonpath='{.status.conditions}'` and the child `WorkflowNode` objects (`kubectl get workflownode -n <NS> -l chaos-mesh.org/workflow=exp-<RUN>`).
 
 The `Suspend` warm-up is a fixed timer, not a readiness gate: size it from the chain's observed time-to-`Ready` plus margin, and prefer the two-PR path when the chain's start time is uncertain (a cold image pull or a Dedicated pool waiting on capacity makes the timer fire early, and an early `pod-kill` breaks the ceremony).
 
@@ -277,4 +297,4 @@ The `Suspend` warm-up is a fixed timer, not a readiness gate: size it from the c
 
 - `seictl` has no `chaos render` or `bench render` verb (PLT-1248). Render from the harness templates by substitution until it lands.
 - Fault templates are not published as a versioned artefact; the harness directory in `sei-k8s-controller` main is the source of truth. Pin the commit you copied from in the experiment's PR description.
-- A Dedicated pool with a validator `Pending` on capacity (`kubectl get seinetwork <chain-id> -n eng-<alias> -o jsonpath='{range .status.nodes[*]}{.name}{"\t"}{.placement}{"\n"}{end}'`) is not a chain to run chaos on; the fault lands on three validators and `f=1` no longer holds.
+- A Dedicated pool with a validator `Pending` on capacity (the placement gate command under *Lifecycle and gates*; `kubectl get pods -o wide` with an empty `NODE` column on an older controller) is not a chain to run chaos on; the fault lands on three validators and `f=1` no longer holds.
