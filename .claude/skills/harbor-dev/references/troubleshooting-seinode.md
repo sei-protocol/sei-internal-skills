@@ -227,6 +227,8 @@ A `RestartSeid` task re-reads the **unchanged on-disk config** — a restart is 
 
 **Fix.** Set overrides **before first boot** whenever possible. For a Running node, the change takes effect only when the node next traverses an init path. That means a re-provision: delete + recreate with a **fresh chain-id** (see the chain-id-reuse entry below). Or a snapshot-restore / state-sync task. Verify what a node is *actually* running by reading its rendered files, never by trusting the spec: `kubectl exec <pod> -c seid -- cat /sei/config/app.toml`.
 
+**Contrast: `spec.configValues` does have a day-2 path.** A changed set on a Running node whose `.status.currentConfigValuesHash` is set builds a config-update plan (`config-patch → config-validate → mark-ready → restart-seid`) that regenerates the TOML and restarts seid in place — no pod replacement, but on a SeiNetwork every validator does it at once (SKILL.md guardrail 10). A node whose hash is empty (Running before the controller learned configValues) is the one exception: it waits for its next image roll. Source: controller `internal/planner/config_update.go`, `planner.go:configValuesDrifted`.
+
 ## Chain wedged at height 0 after delete-and-recreate (chain-id reuse)
 
 **Symptom.** Pods all `Ready` (0 restarts) and the SeiNetwork `Ready`, but the chain never produces a block: `kubectl exec <pod> -c seid -- seid status` shows `latest_block_height: 0`, `catching_up: true`, `latest_block_time: 1970-01-01`, and seid spams `level=ERROR msg="no progress since last advance" logger=tendermint/internal/blocksync` (last_advance frozen at startup). Validators never form consensus.

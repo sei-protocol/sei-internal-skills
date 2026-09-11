@@ -62,7 +62,7 @@ Loads the `genesis-chain` preset, applies discrete-flag and `--set` overrides, a
 
 **Immutability (apply-time, load-bearing):** `spec.genesis`, `spec.replicas`, `spec.resources`, and `spec.dataVolume.storage` are all admission-immutable. The apiserver **rejects** a re-apply of `network apply <same-name>` that changes `--chain-id`, `--replicas`, `--cpu`, `--memory`, `--storage`, `--iops`, or `--throughput`, with `metav1.Status.reason=Invalid`. It is not a silent no-op. To change any of them, `delete` + re-create. This is the new-CRD analogue of the old `updateStrategy` trap.
 
-The two resource one-way doors are create-only for different reasons, both load-bearing. The child StatefulSet uses `OnDelete` with image-only drift detection, so a changed footprint never rolls onto a running pod. A Get-then-Create task creates the data PVC once and never updates it, so a changed size could never reach the volume. A resize is therefore a new chain: `delete`, pick a fresh chain-id, and re-create.
+The two resource one-way doors are create-only for different reasons, both load-bearing. The child StatefulSet uses `OnDelete` and pod-template drift detection observes only the seid image, sidecar image and node isolation, so a changed footprint never rolls onto a running pod. A Get-then-Create task creates the data PVC once and never updates it, so a changed size could never reach the volume. A resize is therefore a new chain: `delete`, pick a fresh chain-id, and re-create.
 
 **Required:** `<name>` (positional) and `--preset genesis-chain`. `--chain-id` and `--image` must resolve after layering — if either is missing in the rendered CR, the apiserver rejects with `metav1.Status.reason=Invalid`.
 
@@ -368,11 +368,11 @@ The default footprint is roughly a quarter of the mainnet validator shape (16 CP
 **Provenance for the controller-side claims in this section.** Those claims are:
 
 - the CEL limits and immutability rules
-- the `OnDelete` image-only drift detection
+- the `OnDelete` StatefulSets and their drift set (seid image, sidecar image, node isolation)
 - the Get-then-Create ensure-data-pvc task
 - the per-mode 16 CPU / 128Gi default
 
-Verified against `sei-k8s-controller` main @ `c3fabbf` on 2026-09-10. The sources read were `api/v1alpha1/seinode_types.go`, `api/v1alpha1/seinetwork_types.go`, and the generated CRDs under `config/crd/`. A reader cannot check these from the CLI alone. If one ever looks wrong, re-verify against the controller rather than against `seictl --help`.
+Verified against `sei-k8s-controller` main @ `7da9946` on 2026-09-10. The sources read were `api/v1alpha1/seinode_types.go`, `api/v1alpha1/seinetwork_types.go`, and the generated CRDs under `config/crd/`. A reader cannot check these from the CLI alone. If one ever looks wrong, re-verify against the controller rather than against `seictl --help`.
 
 ## Storage performance (`--iops` / `--throughput`)
 
