@@ -58,7 +58,7 @@ The resource fields are create-only for mechanical reasons, not policy. Each chi
 - `.status.plan[*]` — genesis-assembly + rollout plan; on terminal `Failed`, `.status.plan.failedTaskDetail.error` carries the cause, and `seictl network watch` lifts it to stderr
 - `.status.observedGeneration` — drift detection
 
-**Validators serve no EVM.** `ModeValidator` disables EVM HTTP/WS (and REST), so the validator SeiNodes carry no `.status.endpoint` — **never point load traffic at them.** RPC load goes at the follower SeiNodes (`role=node`), assembled via `node list` (see `cluster-inspection-recipes.md` recipe #1).
+**Validators serve no EVM.** `ModeValidator` disables EVM HTTP/WS (and REST), so the validator SeiNodes carry no `.status.endpoint` — **never point load traffic at them — except on an EVM-only chain, where the validator *is* the RPC (`autobahn-giga.md`).** RPC load goes at the follower SeiNodes (`role=node`), assembled via `node list` (see `cluster-inspection-recipes.md` recipe #1).
 
 ## Deletion
 

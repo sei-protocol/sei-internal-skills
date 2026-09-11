@@ -264,15 +264,16 @@ Halt until the access entry lands. Same-day turnaround typically.
 
 Probe the CRD rather than reading the controller image tag. `clusters/<cluster>/sei-k8s-controller/kustomization.yaml` pins the image and the CRDs by the same ref, so a stale pin moves both. On a failure, halt every render that passes `--cpu`/`--memory`/`--storage`. Ask the platform team to advance the controller pin for the cluster.
 
-**Typed-config and isolation sub-gate.** A render that carries `spec.configValues` or `spec.scheduling.nodeIsolation` needs the served CRD to know the field, and pruning is silent in the same shape as the resource fields:
+**Typed-config, isolation and consensus sub-gate.** A render that carries `spec.configValues`, `spec.scheduling.nodeIsolation`, `spec.consensus` or `spec.genesis.consensusParams` needs the served CRD to know the field, and pruning is silent in the same shape as the resource fields:
 
 ```sh
 kubectl explain seinetwork.spec.configValues --context=harbor
 kubectl explain seinetwork.spec.scheduling.nodeIsolation --context=harbor
-kubectl explain seinetwork.spec.consensus.engine --context=harbor   # only for an Autobahn / EVM-only render (#553; autobahn-giga.md)
+kubectl explain seinetwork.spec.consensus.engine --context=harbor          # only for an Autobahn / EVM-only render (#553; autobahn-giga.md)
+kubectl explain seinetwork.spec.genesis.consensusParams --context=harbor   # only when the render sets consensus_params (#553)
 ```
 
-Both fields landed on controller main after `c3fabbf` (#530/#538 and #547) and are present at the `7da9946` pin the CRD references cite. On a non-zero exit, halt every render that uses the field; the alternative is a chain with no values or a Shared pool that was promised Dedicated, and both look healthy. Ask the platform team to advance the pin. Never drop the field and continue.
+The first two fields landed on controller main after `c3fabbf` (#530/#538 and #547) and are present at the `7da9946` pin the CRD references cite; `spec.consensus` and `spec.genesis.consensusParams` landed later, in #553, so a pin that passes the first two probes can still fail the last two. On a non-zero exit, halt every render that uses the field; the alternative is a chain with no values or a Shared pool that was promised Dedicated, and both look healthy. Ask the platform team to advance the pin. Never drop the field and continue.
 
 **Storage-performance sub-gate.** A render that also passes `--iops`/`--throughput` needs two more things on the cluster, and each one gets its own probe:
 
