@@ -227,6 +227,28 @@ A `RestartSeid` task re-reads the **unchanged on-disk config** — a restart is 
 
 **Fix.** Set overrides **before first boot** whenever possible. For a Running node, the change takes effect only when the node next traverses an init path. That means a re-provision: delete + recreate with a **fresh chain-id** (see the chain-id-reuse entry below). Or a snapshot-restore / state-sync task. Verify what a node is *actually* running by reading its rendered files, never by trusting the spec: `kubectl exec <pod> -c seid -- cat /sei/config/app.toml`.
 
+**The day-2 path is `spec.configValues`.** Express the key as a typed config value (`seictl ... --config-value app.toml:<key>=<value>`) instead of an override. The controller detects configValues drift on a Running node and runs a `config-update` plan (regenerate base → patch peers → overlay configValues → validate → restart seid). On a SeiNetwork that restarts every validator at once, so block production stops until >2/3 are back — never do it mid-bench. See `seictl-cli.md` → *Typed config values*.
+
+## ConfigValuesValid=False / configValues edit produced no restart
+
+**Symptom A.** You edit `spec.configValues` on a SeiNetwork and nothing happens on the children. `kubectl get seinetwork <id> -o jsonpath='{.status.conditions[?(@.type=="ConfigValuesValid")]}'` shows `status: False, reason: InvalidConfigValues`, and `kubectl get events -n eng-<alias> --field-selector reason=InvalidConfigValues` carries the parse error.
+
+**Cause.** The CRD admits the set, but the TOML overlay cannot be built from it: a `null` nested in an array or table, a number outside int64/float64, or two entries under one `fileName` whose dotted paths overlap (`evm` and `evm.http_enabled`). The controller validates on the SeiNetwork before propagating, so every child keeps its **last good set** and keeps running — nothing is wedged, but the edit never lands.
+
+**Fix.** Correct the entry named in the condition message. `seictl --config-value` rejects nulls, bad names, and duplicate `(fileName,key)` pairs at render, so a False condition usually means the CR was hand-edited; re-render through seictl.
+
+**Symptom B.** The same edit on a standalone SeiNode (or a child after the network's set propagated) leaves the node with `NodeUpdateInProgress=True` and a plan stuck at `config-validate` or `restart-seid`, and later image rolls also stall.
+
+**Cause.** On a SeiNode there is no pre-validation: an entry the overlay can build but seid refuses (unknown key, wrong type for the key, invalid value) fails at `config-validate` or at seid start, and the failed plan blocks every subsequent update plan for that node until the entry is corrected.
+
+**Symptom C.** The edit is valid, but the node stays Running with no plan and `NodeUpdateInProgress=False, reason: ConfigBaselineUnobserved`.
+
+**Cause.** `status.currentConfigValuesHash` is empty: the node was materialized by a controller build that predates configValues, so there is no observed baseline to diff against. Drift detection starts after the next image update regenerates its config. Nodes provisioned by the current controller never show this.
+
+**Fix.** Roll the image (any `spec.image` change) or re-provision; the configValues land as part of that update.
+
+**Fix (B).** Read the failing task from `kubectl get seinode <name> -o jsonpath='{.status.plan}'` and the seid log (`kubectl logs <pod> -c seid`), fix or remove the entry, and let the next reconcile rebuild the plan. Check the rendered file afterwards (`kubectl exec <pod> -c seid -- cat /sei/config/app.toml`) — the same edit also regenerates the base, so `[statesync]` trust-point keys and out-of-band giga migration keys are gone unless they were also expressed as configValues.
+
 ## Chain wedged at height 0 after delete-and-recreate (chain-id reuse)
 
 **Symptom.** Pods all `Ready` (0 restarts) and the SeiNetwork `Ready`, but the chain never produces a block: `kubectl exec <pod> -c seid -- seid status` shows `latest_block_height: 0`, `catching_up: true`, `latest_block_time: 1970-01-01`, and seid spams `level=ERROR msg="no progress since last advance" logger=tendermint/internal/blocksync` (last_advance frozen at startup). Validators never form consensus.
@@ -282,7 +304,7 @@ seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id> --network <id> --ima
 
 Carry the footprint and any storage-performance selection on this re-apply, matching the values the node already holds. Both are create-only. Omitting them on an existing node re-applies a different shape, which the apiserver rejects as `Invalid`. On a fresh node it installs the preset shape in silence instead.
 
-**Running-node caveat**: an override applied to a Running node never reaches its on-disk config. It takes effect only on the node's next init path (see *configOverrides edits never reach a Running node* above). To profile an existing node, re-provision the follower with the override set from first boot.
+**Running-node caveat**: an override applied to a Running node never reaches its on-disk config. It takes effect only on the node's next init path (see *configOverrides edits never reach a Running node* above). To profile an existing node, express the key as a config value instead (`--config-value config.toml:rpc.pprof_laddr=...`), which restarts that node only, or re-provision the follower with the override set from first boot.
 
 **Production caveat**: seictl ships one set of presets (`genesis-chain`, `rpc`) used in both dev and prod; there is no separate prod preset. When promoting a follower to prod, strip the pprof override explicitly: `--set spec.overrides."network.rpc.pprof_listen_address"=""`. Pprof must never be reachable in prod — it exposes profile dumps and memory state to anyone with HTTP access to port 6060.
 

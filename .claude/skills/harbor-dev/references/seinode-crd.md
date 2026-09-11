@@ -40,7 +40,8 @@ The 10 fields engineers actually edit:
 - `spec.fullNode | archive | replayer | validator` — mutually exclusive role marker
 - `spec.fullNode.snapshot` — bootstrap-from-snapshot config (exactly one of `s3` | `stateSync`); `snapshot.rpcServers` declares ≥2 light-client witness endpoints (bare `host:port`) replacing the platform syncer registry. This is the self-service path for state-syncing onto your own chain. See `state-sync-bootstrap.md`
 - `spec.sidecar` — seictl sidecar overrides (image, env, resources)
-- `spec.overrides` — TOML config patches applied via seictl `config patch`
+- `spec.overrides` — TOML config patches applied via seictl `config patch` on init paths only; an edit on a Running node never lands (`troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*)
+- `spec.configValues[]` — typed `{fileName, key, value}` overlay on the generated `config.toml`/`app.toml` (`--config-value <file>.toml:<key>=<value>`; ≤100 entries, `.toml` filenames only, `null` refused). Wins over the base config, the controller's `[p2p]` keys and `spec.overrides`. **Reaches a Running node**: drift against `status.currentConfigValuesHash` builds a `config-update` plan (regenerate base → patch peers → overlay → validate → restart seid) for this node only; no pod roll. On a validator owned by a SeiNetwork the list is copied from the network and any direct edit is overwritten — edit the network. A standalone SeiNode has no pre-validation: a value seid rejects fails the plan at `config-validate`/`restart-seid` and blocks later image rolls until fixed. An empty `status.currentConfigValuesHash` on a Running node defers edits to the next image update (`NodeUpdateInProgress` reason `ConfigBaselineUnobserved`). Full rules: `seictl-cli.md` → *Typed config values*
 
 ## Immutability and the limits rules (CEL, admission-time)
 
