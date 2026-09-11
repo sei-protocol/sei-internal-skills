@@ -7,11 +7,11 @@
 | id | dimension | rule | cue | authority |
 |----|-----------|------|-----|-----------|
 | M1 | Establish the effect first | State the observable in measurable terms (signal, onset, baseline, blast radius) before any probe. No baseline → no investigation, only a feeling. | "feels slow"; a probe chosen before a baseline | `/root-cause` Step 1; USE method |
-| M2 | USE method (run first) | For every resource (CPU, mem, disk, NIC, locks): check **U**tilization, **S**aturation, **E**rrors — errors first (cheapest). Converts unknowns into a question list, not "whatever tool is installed." | jumping to one tool; no resource sweep | Gregg, USE method |
-| M3 | On-CPU vs off-CPU | On-CPU (sampled stacks) answers "where are cycles burned"; off-CPU answers "where/why blocked." Together = 100% of thread time. A slow-but-idle system is *blocked, not busy* → off-CPU first. | high latency + low CPU% treated as "not the CPU, so unknown" | Gregg, Off-CPU Analysis |
+| M2 | USE method (run first) | For every resource (CPU, mem, disk, NIC, locks): check **U**tilization, **S**aturation, **E**rrors — errors first (cheapest). Converts unknowns into a question list, not "whatever tool is on the box." | jumping to one tool; no resource sweep | Gregg, USE method |
+| M3 | On-CPU vs off-CPU | On-CPU (sampled stacks) answers "where are cycles burned"; off-CPU answers "where/why blocked." Together = 100% of thread time. A slow-but-idle system sits *blocked, not busy* → off-CPU first. | high latency + low CPU% treated as "not the CPU, so unknown" | Gregg, Off-CPU Analysis |
 | M4 | Distributions, not averages | Power-of-2 latency histograms expose multimodality + the p99/p999 tail; scraped averages/quantiles smear it. | reasoning from a mean; a single p99 number with no shape | Gregg, BPF tools |
 | M5 | Retrieved, not extrapolated | Every cited signal = the literal probe + verbatim output. "The logs/stacks probably show…" is fabrication. | a perf claim with no probe output attached | `/root-cause` Rule 3 |
-| M6 | Comment discipline *(required)* | An eBPF/bpftrace program is terse; comments are a rare exception. A comment earns its place only for a non-obvious *why* — and the **verifier-forced idioms** (per-CPU map scratch for the 512B stack, a bounded loop, `__always_inline`) are exactly that: they look wrong, so one line says why. **No history/changelog in the program** ("was kprobe, moved to fentry"); **no tombstone** for a removed probe — that lives in the PR/commit. Present state only. | `// what` restating the next line; "we used to attach…"; a removed-probe tombstone; commented-out probe variants | `/idiomatic` comment-discipline (PLT-626); the pack `divergences[]` below |
+| M6 | Comment discipline *(required)* | An eBPF/bpftrace program is terse; comments are a rare exception. A comment earns its place only for a non-obvious *why*. The **verifier-forced idioms** (per-CPU map scratch for the 512B stack, a bounded loop, `__always_inline`) are exactly that. They look wrong, so one line says why. **No history/changelog in the program** ("moved from kprobe to fentry"); **no tombstone** for a removed probe — that lives in the PR/commit. Present state only. | `// what` restating the next line; "we used to attach…"; a removed-probe tombstone; commented-out probe variants | `/idiomatic` comment-discipline (PLT-626); the pack `divergences[]` below |
 
 ## 2. authorities[]
 
@@ -26,11 +26,11 @@
 ## 3. divergences[] — where kernel-perf rejects general wisdom (the load-bearing section)
 
 - **"High CPU% means CPU-bound."** No — CPU% is *non-idle time*; a thread stalled on memory counts as "busy." Only IPC / stall-cycle PMCs distinguish retiring from stalled. → Do not conclude compute-bound from CPU%; check IPC (`< 1.0` ≈ memory-bound).
-- **"A closed-loop load test measures the tail."** No — if the generator backs off when the system stalls, measured p99 *understates* the real tail by the stall (coordinated omission), which is catastrophic for a latency-cliff investigation. → Any tail-latency benchmark uses an **open-loop / rate-controlled** harness (constant arrival, measure queueing), or explicitly corrects for CO.
+- **"A closed-loop load test measures the tail."** No — if the generator backs off when the system stalls, measured p99 *understates* the real tail by the stall (coordinated omission). That is catastrophic for a latency-cliff investigation. → Any tail-latency benchmark uses an **open-loop / rate-controlled** harness (constant arrival, measure queueing), or explicitly corrects for CO.
 - **"eBPF replaces the in-process profiler."** No — for language-semantic heap/goroutine/allocation detail, `pprof` (etc.) wins; eBPF wins off-CPU + kernel-boundary + zero-instrumentation. → Pair them; for Go, kernel off-CPU stacks show *thread* (futex/netpoll) blocking, not goroutine identity — cross-check with `pprof` block/mutex profiles.
-- **"This eBPF code is over-engineered."** Verifier-forced idioms are not smells: the **512-byte stack** forces a per-CPU-array map for any non-trivial scratch struct; **bounded loops** (or `bpf_loop`) are required (no unbounded loops); `__always_inline` / map-of-maps are normal. → Do not flag verifier-mandated structure as over-engineering (the 1M-instruction + 512B-stack + bounded-loop limits are the constraint).
+- **"This eBPF code is over-engineered."** Verifier-forced idioms are not smells. The **512-byte stack** forces a per-CPU-array map for any non-trivial scratch struct. The verifier demands **bounded loops** (or `bpf_loop`) and rejects unbounded ones; `__always_inline` / map-of-maps are normal. → Do not flag verifier-mandated structure as over-engineering (the 1M-instruction + 512B-stack + bounded-loop limits are the constraint).
 - **"Attach a uprobe to the function."** On a stripped/optimized Go binary, uprobes are fragile (moved goroutine stacks, non-standard calling convention, missing symbols; uretprobes can corrupt the Go runtime). → Prefer kernel-side **tracepoints** (futex/block/sched/tcp) keyed by PID/cgroup; reserve uprobes for where language-semantic attribution is essential and symbols exist.
-- **"Aggregation is premature optimization."** Overhead = per-event cost × frequency. An event-streaming probe is **drain-bound** (ringbuf egress dominates); a map-aggregated probe is **event-rate-bound** (no egress). → On a hot path, aggregate in-kernel (histogram/count maps), read the map periodically — this is *why* `biolatency`/`runqlat` are cheap despite firing on every I/O/wakeup.
+- **"Aggregation is premature optimization."** Overhead = per-event cost × frequency. An event-streaming probe is **drain-bound** (ringbuf egress dominates); a map-aggregated probe is **event-rate-bound** (no egress). → On a hot path, aggregate in-kernel (histogram/count maps), read the map periodically. This is *why* `biolatency`/`runqlat` are cheap despite firing on every I/O/wakeup.
 
 ## 4. anti_patterns[]
 
@@ -57,19 +57,19 @@ Cite a tool only from this table or §7; verify flags on the target. bcc tools a
 | TCP / network | `tcpretrans`, `tcpconnlat`, `tcplife`, `tcptop` | retransmits/RTT per peer; connect latency; churn | packet loss / congestion / peer flapping on (even encrypted) sockets |
 | Memory / cache | `cachestat`, page-fault tracing, PMC | cache hit ratio; major-fault rate; stall cycles | page-cache spillover; memory-stall vs. compute |
 
-**What kernel signals show that pod/Prometheus metrics structurally cannot:** off-CPU (blocked) time + stacks; lock/futex contention; latency *distributions/tails* (not 15–60s averages); run-queue latency; per-thread blocking; causal wakeup chains; per-syscall latency; the CPU%-is-misleading (IPC) correction.
+**What kernel signals show that pod/Prometheus metrics structurally cannot:** off-CPU (blocked) time + stacks; lock/futex contention; latency *distributions/tails* (not 15–60s averages). Also run-queue latency; per-thread blocking; causal wakeup chains; per-syscall latency; the CPU%-is-misleading (IPC) correction.
 
 ## 6. severity / overhead model
 
 - **correctness (act on these):** a measured saturation/contention/tail with a retrieved signal; a coordinated-omission-corrected tail.
-- **divergence-with-consequence:** an unbounded hot-path probe (perturbs the measurement); a uprobe on a stripped hot Go path (fragile/unsafe); a closed-loop tail harness (wrong number).
+- **divergence-with-consequence:** an unbounded hot-path probe (perturbs the measurement); a uprobe on a stripped hot Go path (fragile/unsafe). Also a closed-loop tail harness (wrong number).
 - **style:** tool-flag nits; histogram-bucketing taste.
 
-**Overhead model:** the map-aggregated-vs-event-streaming model lives in §3 (the "Aggregation is premature optimization" divergence) — map-aggregated ⇒ ~ event rate; event-streaming ⇒ ~ rate × egress, drain-bound. The verifier bounds memory + termination (1M-insn complexity, 512B stack, bounded loops) — **never** overhead. Measure on a non-prod target before a hot/prod attach.
+**Overhead model:** the map-aggregated-vs-event-streaming model lives in §3 (the "Aggregation is premature optimization" divergence). Map-aggregated ⇒ ~ event rate; event-streaming ⇒ ~ rate × egress, drain-bound. The verifier bounds memory + termination (1M-insn complexity, 512B stack, bounded loops) — **never** overhead. Measure on a non-prod target before a hot/prod attach.
 
 ## 7. verify_anchors[] — the checkable tools (cite ONLY from here)
 
-**Cite a tool/flag only from this table — never assert one from memory.** Mark genuinely judgment-only calls (which methodology to apply, how to read a flame graph) as judgment-only; record version caveats (eBPF behavior is kernel- and tool-version-dependent — encode as a provenance caveat, not "currently").
+**Cite a tool/flag only from this table — never assert one from memory.** Mark genuinely judgment-only calls (which methodology to apply, how to read a flame graph) as judgment-only. Record version caveats (eBPF behavior is kernel- and tool-version-dependent — encode as a provenance caveat, not "currently").
 
 | dimension / concern | anchor(s) | catalog | caveat |
 |---|---|---|---|
@@ -84,4 +84,4 @@ Cite a tool only from this table or §7; verify flags on the target. bcc tools a
 | CO / tail harness | (no tool) | — | **judgment-only** — open-loop harness design is a method call, not a checkable tool; cite the coordinated-omission authority (§2) |
 | which method to apply / flame-graph reading | (no tool) | — | **judgment-only** — cite the §2 method authority; never fabricate a tool that "decides" the method |
 
-**Genuinely judgment-only — never fabricate a tool:** choosing the method (USE vs. off-CPU vs. workload-characterization); reading a flame graph; the open-loop/CO harness decision; whether a measured signal is the *cause* vs. a correlate. Cite the §2 authority and say plainly there is no checkable tool.
+**Genuinely judgment-only — never fabricate a tool:** choosing the method (USE vs. off-CPU vs. workload-characterization); reading a flame graph. Also the open-loop/CO harness decision, and whether a measured signal is the *cause* vs. a correlate. Cite the §2 authority and say plainly there is no checkable tool.

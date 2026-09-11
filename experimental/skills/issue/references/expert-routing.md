@@ -8,9 +8,9 @@ How `/issue` discovers and suggests the **Relevant experts** field. The point of
    - If CWD is the target repo, read the directory directly.
    - If targeting a different repo, the user is the source of truth — ask them which experts apply, or proceed with global personas.
 
-2. **`AGENTS.md` at repo root** (if present). Often contains a curated table mapping work types to personas — much higher signal than scanning `.claude/agents/` blindly. Read this first when it exists.
+2. **`AGENTS.md` at repo root** (if present). Often contains a curated table that maps work types to personas — much higher signal than scanning `.claude/agents/` blindly. Read this first when it exists.
 
-3. **Global Claude personas** (fallback). The standard set: `kubernetes-specialist`, `platform-engineer`, `solidity-developer`, `network-specialist`, `security-specialist`, `tee-specialist`, `product-engineer`, `product-manager`, `opentelemetry-expert`. Also Sei-specific: `sei-network-specialist`. Use these names verbatim — they are recognized by `coral` / `council`.
+3. **Global Claude personas** (fallback). The standard set: `kubernetes-specialist`, `platform-engineer`, `solidity-developer`, `network-specialist`, `security-specialist`, `tee-specialist`, `product-engineer`, `product-manager`, `opentelemetry-expert`. Also Sei-specific: `sei-network-specialist`. Use these names verbatim — `coral` / `council` recognize them.
 
 4. **Repo-specific personas.** Some repos have their own (e.g. `sei-network-specialist` in sei-k8s-controller). When a repo has its own, prefer it over a generic equivalent.
 
