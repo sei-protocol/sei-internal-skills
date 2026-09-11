@@ -6,13 +6,13 @@ Coral is for lightweight iteration. Council is for full-ceremony work. When any 
 
 - ≥3 components affected → council (System tier likely)
 - ≥2 interface boundaries touched → council
-- Any new interface being *defined* (as opposed to consumed) → council
+- Any new interface the work *defines* (as opposed to consumes) → council
 
 ## One-Way Doors
 
 Immediate handoff, regardless of size:
 
-- Persisted schema / field names (after data is written or consumers depend on them)
+- Persisted schema / field names (after data lands or consumers depend on them)
 - Public API contracts (request/response shapes, status codes, error formats)
 - On-disk or wire data formats
 - Signed or indexed identifiers (stable IDs, content hashes, signed tokens)
@@ -23,7 +23,7 @@ Script: "This touches a one-way door: [what]. Warrants full council process — 
 ## Duration Signals
 
 - User says "this is bigger than I thought" / "let us do this properly" / "we should design this"
-- Work clearly will not complete in one session
+- Work will not complete in one session
 - Experts start asking for design documents that do not exist
 
 ## Interface Changes
