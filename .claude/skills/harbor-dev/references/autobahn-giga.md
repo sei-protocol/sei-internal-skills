@@ -66,7 +66,7 @@ Verification after `Running` — check the storage keys, not just the executor s
 
 ```sh
 kubectl exec <validator-0-pod> -n eng-<alias> -c seid -- sh -c \
-  'awk "/^\\[/{s=\$0} /^(enabled|occ_enabled|sc-write-mode|sc-write-mode-enable-auto|evm-ss-split|rs-backend) *=/{print s, \$0}" \$HOME/.sei/config/app.toml'
+  'awk "/^\\[/{s=\$0} /^(enabled|occ_enabled|sc-write-mode|sc-write-mode-enable-auto|evm-ss-split|rs-backend) *=/{print s, \$0}" $HOME/.sei/config/app.toml'
 # $HOME is /home/nonroot in controller-rendered pods (platform.HomeDir); the data PVC is mounted at $HOME/.sei.
 # expect, Recipe A: [giga_executor] enabled = true · [state-commit] sc-write-mode = "test_only_dual_write" · [state-commit] sc-write-mode-enable-auto = false · [state-store] evm-ss-split = true · [receipt-store] rs-backend = "pebble"
 # expect, Recipe B: same, with sc-write-mode = "flatkv_only" and evm-ss-split = false
