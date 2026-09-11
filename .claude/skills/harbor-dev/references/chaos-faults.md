@@ -18,7 +18,9 @@ The engineer base overlay (`clusters/harbor/engineers/base/`, sei-protocol/platf
 
 ```sh
 kubectl get ns eng-<alias> -o jsonpath='{.metadata.annotations.chaos-mesh\.org/inject}'   # → enabled
-kubectl auth can-i create networkchaos.chaos-mesh.org -n eng-<alias> --as=system:serviceaccount:eng-<alias>:<alias>
+# Flux applies the CR as the `tenant` ServiceAccount; read its Role rather than impersonating it
+kubectl get role tenant -n eng-<alias> --context=harbor \
+  -o jsonpath='{range .rules[*]}{.apiGroups}{" "}{.verbs}{"\n"}{end}' | grep chaos-mesh.org   # → nonempty
 ```
 
 An empty annotation is a platform ask (PLT-1253), not something to patch by hand.
@@ -133,7 +135,7 @@ Copy the other eight from `sei-k8s-controller/test/integration/faults/<name>.yam
 
 ## The `f=1` rule
 
-Every catalog fault targets **one** validator of a **four**-validator committee (or, for latency, degrades all links symmetrically). Tendermint needs more than 2/3 of voting power; with 4 equal validators the chain tolerates exactly one faulty node. Two validators faulted at once, or `mode: one` on a 3-validator chain with unequal power, halts the chain — that is a different experiment (liveness loss), not a degradation measurement. Render `mode: one` / a single-victim selector on a 4-validator pool unless the engineer explicitly asks for a halt.
+Every catalog fault targets **one** validator of a **four**-validator committee (or, for latency, degrades all links symmetrically). Tendermint needs more than 2/3 of voting power; with 4 equal validators the chain tolerates exactly one faulty node. Two validators faulted at once, or any single victim on a 3-validator chain of equal power (losing one leaves exactly 2/3, which is not more than 2/3), halts the chain — that is a different experiment (liveness loss), not a degradation measurement. Render `mode: one` / a single-victim selector on a 4-validator pool unless the engineer explicitly asks for a halt.
 
 ## Lifecycle and gates
 
@@ -141,7 +143,7 @@ The harness sequence, which a GitOps experiment reproduces by hand or in a Workf
 
 ```text
 provision(4 validators + 1 unfaulted RPC follower)
-→ SeiNetwork Ready, followers Running, placement check clean (recipe #9)
+→ SeiNetwork Ready, followers Running, every validator placement Scheduled (command below)
 → Flux applies the Chaos CR
 → gate AllInjected=True                    (fault reached its targets)
 → assert the follower's height advances by ≥3 while the fault is active
@@ -153,16 +155,23 @@ provision(4 validators + 1 unfaulted RPC follower)
 Gate commands:
 
 ```sh
+# Placement (precondition): every row Scheduled; a Pending row on a Dedicated pool is a capacity ask, not a chain to fault
+kubectl get seinetwork <chain-id> -n eng-<alias> \
+  -o jsonpath='{range .status.nodes[*]}{.name}{"\t"}{.placement}{"\t"}{.workerNode}{"\n"}{end}'
+
 # Injected / recovered (conditions live on the Chaos CR)
 kubectl get <kind> <name> -n eng-<alias> \
   -o jsonpath='{range .status.conditions[*]}{.type}={.status}{"\n"}{end}'
 # → AllInjected=True … AllRecovered=False while active; AllRecovered=True after duration
 
+# On the Workflow path the child chaos objects carry controller-chosen names: list them by
+# -l chaos-mesh.org/workflow=exp-<RUN> and read the same conditions on each.
 # How many pods the fault actually hit (mode: one → exactly 1)
 kubectl get <kind> <name> -n eng-<alias> -o jsonpath='{.status.experiment.containerRecords[*].id}'
 
 # Follower height under fault (the observer is never a target)
-curl -s http://<follower-evm-rpc>/ -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
+# <FOLLOWER_URL> is the full per-pod evmJsonRpc URL recipe #1 returns; -d alone sends form-encoded and the handler returns 415
+curl -s -H 'Content-Type: application/json' <FOLLOWER_URL> -d '{"jsonrpc":"2.0","id":1,"method":"eth_blockNumber","params":[]}'
 
 # Validators back after recovery
 kubectl get pod -n eng-<alias> -l sei.io/nodedeployment=<chain-id> \
@@ -175,7 +184,7 @@ kubectl get pod -n eng-<alias> -l sei.io/nodedeployment=<chain-id> \
 
 **Duration-bearing faults must self-expire.** Omit `duration` and the fault persists until the CR is deleted, and the recovery gate hangs. Always set `<DUR>`.
 
-**Land one-shot kills only on a producing chain.** A `pod-kill` that fires during genesis assembly kills a validator before it has produced a block and the ceremony fails. Merge the kill after `Ready`, or sequence it behind a `Suspend` in a Workflow.
+**Land one-shot kills only on a producing chain.** A `pod-kill` that fires during genesis assembly kills a validator before it has produced a block and the ceremony fails. Merge the kill after `Ready`, or sequence it behind a `Suspend` in a Workflow — a timer, not a readiness gate; see the caveat under *One PR, sequenced*. A `StatusCheck` template (HTTP probe against the follower's `eth_blockNumber`, admitted by the policy) is the only in-Workflow readiness gate.
 
 ## Experiment directory convention
 
@@ -196,7 +205,7 @@ Append `exp-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `resources:`. 
 1. **Two PRs.** Chain + observer first; merge, wait for `Ready` and the placement check; then bench + chaos in a second PR to the same directory.
 2. **One PR, a `Workflow` with a leading `Suspend`.** The Workflow is the only declarative sequencer the admission policy admits; it replaces agent sleeps.
 
-Teardown is `git rm -r engineers/<alias>/exp-<RUN_ID>/` plus the `kustomization.yaml` entry; Flux prune deletes the Chaos CRs (their finalizers recover the targets first), then the Job, then the SeiNetwork and followers. Never `kubectl delete` a Chaos CR that Flux owns — Flux re-applies it on the next reconcile and the fault re-injects.
+Teardown is `git rm -r engineers/<alias>/exp-<RUN_ID>/` plus the `kustomization.yaml` entry; Flux prunes the directory's objects with no ordering guarantee: if the validator pods go before the Chaos CR, the chaos finalizer has no target to recover and can hold the Kustomization in `Terminating`. Tear down in two merges when a fault is live — first remove the Chaos CRs and wait for `kubectl get networkchaos,podchaos,stresschaos,timechaos -n eng-<alias> -l sei.io/harness-run=<RUN_ID>` to return nothing, then remove the rest. Never `kubectl delete` a Chaos CR that Flux owns — Flux re-applies it on the next reconcile and the fault re-injects. Emergency stop for a fault that is halting the chain: `kubectl annotate <kind> <name> -n eng-<alias> experiment.chaos-mesh.org/pause=true` recovers the targets immediately and survives re-apply (the annotation is not in the manifest, so Flux leaves it); follow with the removal PR.
 
 ### Sequencing with a Workflow (one PR)
 
@@ -268,4 +277,4 @@ The `Suspend` warm-up is a fixed timer, not a readiness gate: size it from the c
 
 - `seictl` has no `chaos render` or `bench render` verb (PLT-1248). Render from the harness templates by substitution until it lands.
 - Fault templates are not published as a versioned artefact; the harness directory in `sei-k8s-controller` main is the source of truth. Pin the commit you copied from in the experiment's PR description.
-- A Dedicated pool that is `Pending` on capacity (recipe #9) is not a chain to run chaos on; the fault lands on three validators and `f=1` no longer holds.
+- A Dedicated pool with a validator `Pending` on capacity (`kubectl get seinetwork <chain-id> -n eng-<alias> -o jsonpath='{range .status.nodes[*]}{.name}{"\t"}{.placement}{"\n"}{end}'`) is not a chain to run chaos on; the fault lands on three validators and `f=1` no longer holds.
