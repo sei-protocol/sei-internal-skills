@@ -48,9 +48,9 @@ docker run --rm -v "$PWD:/p:ro" $IMG validate /p/profile.json
 #   → ok: 5 scenario(s), 5 runnable   (parse + Scenario.Validate + registry check + weight check; sends nothing)
 ```
 
-`explain` prints Markdown; there is no `--json` schema, `--skeleton`, `manifest`, or `mcp` verb yet (PLT-1245 tracks them). The image is distroless: `validate` and `explain` are the only agent-facing verbs, and `--help` is the flag inventory. In a cluster, the same verbs run as a one-off Pod with the profile ConfigMap mounted; prefer the local `docker run` when the engineer's laptop has GHCR auth.
+`explain` prints Markdown; there is no `--json` schema, `--skeleton`, `manifest`, or `mcp` verb yet (PLT-1245 tracks them). The image is distroless: `validate` and `explain` are the only agent-facing verbs, and `--help` is the flag inventory. In a cluster, the same verbs run as a one-off Pod with the profile ConfigMap mounted. Prefer the local `docker run` when the laptop has GHCR auth.
 
-**Capability gate.** Images older than `4398610` have no `explain`/`validate` — `docker run --rm $IMG validate --help` exits non-zero. Fall back to the `jq -e .` syntax gate, say so in the plan echo, and expect the strict decoder to be the first real check (at Job start, seconds in). Never call a profile "validated" on an image that could not validate it.
+**Capability gate.** Images older than `4398610` have no `explain`/`validate` — `docker run --rm $IMG validate --help` exits non-zero. Fall back to the `jq -e .` syntax gate and say so in the plan echo. The strict decoder at Job start is then the first real check. Never call a profile "validated" on an image that could not validate it.
 
 ### The eleven scenarios (`generator/scenarios/factory.go`)
 
@@ -70,7 +70,7 @@ docker run --rm -v "$PWD:/p:ro" $IMG validate /p/profile.json
 
 `Prewarm` is a label, not a selectable scenario. `StorageRW` vs `DivergentRW` is the contention-shape comparison an OCC/Giga bench wants; `control_rmw` is `DivergentRW`'s matched control arm.
 
-**A knob a scenario does not read is accepted and ignored** (open gap, PLT-1245 R-DESC-2). `keyDistribution` on `ERC20` validates, runs, and measures the unconfigured baseline. Before putting a contention knob in a profile, confirm the scenario is in the "reads it" column, or the run reports a number nobody can attribute.
+**The binary accepts and ignores a knob the scenario does not read** (open gap, PLT-1245 R-DESC-2). `keyDistribution` on `ERC20` validates, runs, and measures the unconfigured baseline. Before you put a contention knob in a profile, confirm the scenario is in the "reads it" column. Otherwise the run reports a number nobody can attribute.
 
 ### Profile shape
 
@@ -104,11 +104,18 @@ docker run --rm -v "$PWD:/p:ro" $IMG validate /p/profile.json
 
 ### Reproducibility contract
 
-Operation names, their declaration order, per-scenario config keys and the per-scenario PRNG draw order are frozen; saved workloads key on `config_sha256`. Pin in the PR description: image digest, profile SHA-256 (`sha256sum` of the substituted `profile.json`), `seed`, `arrivalModel`, `--duration`. A re-run that changes any of them is a new experiment, not a repeat.
+The binary freezes operation names, their declaration order, per-scenario config keys and the per-scenario PRNG draw order; saved workloads key on `config_sha256`. Pin in the PR description: image digest, profile SHA-256 (`sha256sum` of the substituted `profile.json`), `seed`, `arrivalModel`, `--duration`. A re-run that changes any of them is a new experiment, not a repeat.
 
 ### Job flags that come from the binary, not from taste
 
-`--duration` (0 = run until SIGTERM; always set it in a Job), `--post-summary-flush-delay` (default 25s; the template uses 45s so Prometheus scrapes the run summary before exit), `--track-receipts`, `--report-path` (text only; the sidecar uploads it), `--nodes N` (0 = all endpoints), `--arrival-model`, `--max-in-flight`, `--inclusion-reap-after`. `--dry-run` mocks deploy and sends for a config smoke test. `/healthz` answers at bind; `/readyz` reports the startup phase (fund → deploy → prewarm) while refusing, which can take minutes against a cold chain — a `Running` pod that is not `Ready` yet is normal, not stuck.
+Flags:
+
+- `--duration` — 0 = run until SIGTERM; always set it in a Job.
+- `--post-summary-flush-delay` — default 25s; the template uses 45s so Prometheus scrapes the summary before exit.
+- `--track-receipts`, `--report-path` (text only; the sidecar uploads it), `--nodes N` (0 = all endpoints).
+- `--arrival-model`, `--max-in-flight`, `--inclusion-reap-after`.
+
+`--dry-run` mocks deploy and sends for a config smoke test. `/healthz` answers at bind. `/readyz` refuses through the startup phase (fund → deploy → prewarm) and reports which step is running. That phase can take minutes on a cold chain, so a `Running` pod that is not yet `Ready` is normal.
 
 ## `<RUN_ID>` derivation and re-render determinism
 
