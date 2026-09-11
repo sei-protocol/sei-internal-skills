@@ -306,7 +306,7 @@ The `warmup` `Suspend` is bench ramp only, never the readiness gate: the `Status
 
 ## What is not here yet
 
-- `seictl chaos render` / `bench render` arrive with seictl #256 (needs controller #558 on main); no tag carried them at the time of writing. Probe `seictl chaos --help` before the first use in a session; an older binary fails at parse. Until then render by substitution from `harness/faults/` (or `test/integration/faults/` before #558).
+- `seictl chaos render` / `bench render` arrive with seictl #256 (controller #558 is on main); no seictl tag carried them at the time of writing. Probe `seictl chaos --help` before the first use in a session; an older binary fails at parse. Until then render by substitution from `harness/faults/` (or `test/integration/faults/` before #558).
 - Fault templates are not published as a versioned artefact; the `harness/faults` package on `sei-k8s-controller` main is the source of truth and seictl pins one commit of it in `go.mod`. Record the seictl version (or the controller commit you copied from) in the experiment's PR description.
 - No `seictl` MCP server exists yet; the render verbs are the surface an MCP tool would wrap (PLT-1248 follow-up).
 - A Dedicated pool with a validator `Pending` on capacity (the placement gate command under *Lifecycle and gates*; `kubectl get pods -o wide` with an empty `NODE` column on an older controller) is not a chain to run chaos on; the fault lands on three validators and `f=1` no longer holds.

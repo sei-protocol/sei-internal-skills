@@ -319,7 +319,7 @@ Submits one `snapshot-upload-once` with a fresh unique task ID and polls it to a
 
 ## `seictl chaos` and `seictl bench` — render verbs
 
-Both print YAML to stdout, touch no cluster, and take no `--kubeconfig`/`-n`-as-context: `-n` here is the namespace *written into* the manifest — `metadata.namespace` and, on a chaos CR, every selector's `namespaces:` list (the field the tenant `ValidatingAdmissionPolicy` checks), so pass the engineer's `eng-<alias>` and nothing else. They import the controller's `harness/faults` and `harness/bench` packages, so the bytes are the ones the nightly suite applies. Arrive with seictl #256 (controller #558); no tag carried them at the time of writing. Probe `seictl chaos --help` before first use; an older binary fails at parse.
+Both print YAML to stdout, touch no cluster, and take no `--kubeconfig`/`-n`-as-context: `-n` here is the namespace *written into* the manifest — `metadata.namespace` and, on a chaos CR, every selector's `namespaces:` list (the field the tenant `ValidatingAdmissionPolicy` checks), so pass the engineer's `eng-<alias>` and nothing else. They import the controller's `harness/faults` and `harness/bench` packages, so the bytes are the ones the nightly suite applies. Arrive with seictl #256 (controller #558 is on main); no seictl tag carried them at the time of writing. Probe `seictl chaos --help` before first use; an older binary fails at parse.
 
 ```
 seictl chaos list [--output json]
