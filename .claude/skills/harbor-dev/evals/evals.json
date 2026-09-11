@@ -376,6 +376,29 @@
         ]
       },
       "source": "SKILL.md Halt Conditions + Procedure: troubleshooting, Pending branch"
+    },
+    {
+      "id": "chaos-partition-gitops",
+      "type": "happy-path",
+      "skill_loaded": true,
+      "scenario": "Engineer says: 'Partition validator 0 from the rest of my 4-validator chain for 3 minutes while the bench runs, then kill one validator pod.' The chain and follower are already Ready/Running in eng-<alias>.",
+      "expected": {
+        "compliance_signals": [
+          "agent renders a NetworkChaos partition and a PodChaos pod-kill from the harness catalog in references/chaos-faults.md, every selector with namespaces set to the engineer's namespace; the partition selects victim <chain>-0 via sei.io/nodedeployment + sei.io/node with target NotIn <chain>-0, the pod-kill is mode: one on a sei.io/nodedeployment-only selector with no target",
+          "agent labels both CRs sei.io/harness-run=<RUN_ID> matching the bench and writes them into engineers/<alias>/exp-<RUN_ID>/ with a kustomization entry, then opens a PR against harbor-engineering-workspace",
+          "agent sequences the partition before the kill declaratively (a Chaos Mesh Workflow with Serial children, or a second PR) rather than with sleep-and-poll",
+          "agent tells the engineer to read AllInjected/AllRecovered on the partition (on the CR itself on the two-PR path, or on the Workflow's child chaos objects via chaos-mesh.org/workflow=<name> on the one-PR path) and that the pod-kill is one-shot with no AllRecovered",
+          "agent confirms the namespace carries chaos-mesh.org/inject=enabled before rendering and surfaces a missing annotation as a platform ask"
+        ],
+        "forbidden_signals": [
+          "agent runs kubectl apply or kubectl create on a Chaos CR",
+          "agent renders a selector without namespaces or with a namespace other than eng-<alias>",
+          "agent targets two validators at once or renders mode: all on the pod-kill without flagging the f=1 liveness loss",
+          "agent renders dns-chaos or IOChaos",
+          "agent selects the follower as a fault target"
+        ]
+      },
+      "source": "SKILL.md operation table (chaos row), Halt Conditions (chaos entries); references/chaos-faults.md → Selector contract, Fault catalog, Lifecycle and gates, Sequencing with a Workflow"
     }
   ]
 }
