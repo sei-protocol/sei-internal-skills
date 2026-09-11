@@ -8,8 +8,8 @@ For each hypothesis, answer in writing:
 
 1. **What observable would I expect to see if this hypothesis is TRUE?** (the confirmation signal)
 2. **What observable would I expect to see if this hypothesis is FALSE?** (the falsification signal — the load-bearing one)
-3. **Are these two observables distinguishable?** If the same data could be interpreted either way, the hypothesis is unfalsifiable as stated. Sharpen it.
-4. **Can I obtain the falsification observable right now?** If not, name what blocks you (access, missing instrumentation, time window already passed).
+3. **Are these two observables distinguishable?** If the same data supports either reading, the hypothesis is unfalsifiable as stated. Sharpen it.
+4. **Can I get the falsification observable right now?** If not, name what blocks you (access, missing instrumentation, time window already passed).
 
 The falsification signal is the rigor check. A hypothesis that "predicts" both "logs will show errors" and "logs will not show errors depending on timing" predicts nothing.
 
@@ -23,7 +23,7 @@ The falsification signal is the rigor check. A hypothesis that "predicts" both "
 >
 > **Falsification:** Same logs show reconcile entries at < 1/sec, OR controller logs show no reconciles at all for SeiNodeDeployment X during the incident window.
 >
-> **Obtainable now?** Yes — controller logs are retained 24h, incident was 2h ago.
+> **Obtainable now?** Yes — controller log retention is 24h, incident was 2h ago.
 
 ### Bad (unfalsifiable)
 
@@ -38,7 +38,7 @@ This predicts nothing specific. Network is too broad — DNS, NodePort routing, 
 > **Confirmation:** Stale reads observed.
 > **Falsification:** ?
 
-The hypothesis predicts an effect ("stale reads") that we already know is happening — that is why we are investigating. Without a specification of *when* the stale reads should appear (which interleaving, under what cache state), no observation can falsify it. Either drop the hypothesis or specify the interleaving testably (e.g., "stale reads should appear only on the second of two rapid-fire requests to the same key within X ms of a cache invalidation").
+The hypothesis predicts an effect ("stale reads") that we already know is happening — that is why we are investigating. Without a specification of *when* the stale reads should appear (which interleaving, under what cache state), no observation can falsify it. Either drop the hypothesis or specify the interleaving testably. Example: "stale reads appear only on the second of two rapid-fire requests to the same key within X ms of a cache invalidation".
 
 ## Counterfactuals — when they are rigorous, when they are rationalization
 
@@ -46,7 +46,7 @@ Counterfactual reasoning ("would the effect have occurred without X?") is causal
 
 Testable counterfactuals (good):
 
-- **Rollback the deploy.** If the effect disappears, the deploy is implicated. If it persists, the deploy is not the (sole) cause.
+- **Rollback the deploy.** If the effect disappears, the deploy is a suspect. If it persists, the deploy is not the (sole) cause.
 - **Replay the traffic at an earlier commit.** Same logic, with a synthetic load.
 - **Bisect a git range.** Reduces an "X happened around when Y changed" suspicion to a specific commit.
 - **Restart with the suspect config / flag changed.** Single-variable experiment.
@@ -55,7 +55,7 @@ Untestable counterfactuals (rationalization):
 
 - "If the on-call had paged sooner, this would not have happened." Hindsight bias. The relevant question is whether the system permitted the on-call to act when needed, not whether they were faster.
 - "If we had better monitoring, we'd have caught this." May be true and worth fixing, but it is a recommendation, not a causal finding.
-- "If the deploy had been canaried, this would not have happened." Possibly true, but it is a process recommendation, not a mechanism for this incident.
+- "If the deploy had gone through a canary, this would not have happened." Possibly true, but it is a process recommendation, not a mechanism for this incident.
 
 When the counterfactual is untestable, label it explicitly as **speculation** in the output. Do not smuggle hindsight into a causal claim.
 

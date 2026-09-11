@@ -1,8 +1,13 @@
 # Rationalization Table (with literature citations)
 
-The skill's rationalization table is the highest-leverage persuasion mechanism — it pre-loads counters to the rationalizations the agent is most likely to generate. Each row below is documented in the published LLM-RCA / multi-agent literature.
+The skill's rationalization table is its strongest persuasion mechanism. It pre-loads counters to the rationalizations the agent is most likely to generate. The published LLM-RCA / multi-agent literature documents each row below.
 
 ## The table
+
+<!-- Row 11 quotes a citation title. STE-NounCluster reads a title as a noun
+     cluster and cannot judge one, and the rule file names this directive as the
+     escape hatch for that case. It covers the table alone. -->
+<!-- vale AgenticWriting.STE-NounCluster = NO -->
 
 | # | Rationalization | Documented as | Reality |
 |---|-----------------|---------------|---------|
@@ -18,6 +23,8 @@ The skill's rationalization table is the highest-leverage persuasion mechanism �
 | 10 | "The dashboards look fine." | Aggregate-blind: pre-aggregated metrics hide tail behavior. Charity Majors: "metrics permanently discard the connective tissue." | Descend from aggregates to raw events (logs, traces, request-level) before declaring no problem. |
 | 11 | "Human error — the on-call should have noticed sooner." | Hindsight bias. Cook ("How Complex Systems Fail"), Dekker ("human error is the starting point of investigation, never the conclusion"). | Treat operator action as a symptom and ask why the system permitted/encouraged that action. |
 | 12 | "The fix is obvious — let me apply it and move on." | Mitigation collapsing investigation. Indistinguishable from failure mode #3 in effect; different in framing (proactive vs. reactive). | The fix is a separate engagement. Investigation ends at the ranked conclusion + recommended actions, not at applying them. |
+
+<!-- vale AgenticWriting.STE-NounCluster = YES -->
 
 ## Red-flag phrase list
 
@@ -79,9 +86,9 @@ Explicit verification-skipping wearing a justification. The justification does n
 - "the team agrees"
 - "all experts converge"
 - "we all see it"
-- "clearly the cause"
+- "evidently the cause"
 
-Sycophantic alignment masquerading as evidence. Only valid if each opinion was committed independently.
+Sycophantic alignment masquerading as evidence. Only valid if each expert committed their opinion independently.
 
 ### Closure smells
 
@@ -90,6 +97,11 @@ Sycophantic alignment masquerading as evidence. Only valid if each opinion was c
 - "the root cause is X" with one bullet and no contributing factors — single-cause reduction of a multi-cause failure.
 
 ## Citations
+
+<!-- Every entry is a citation title. STE-NounCluster reads a title as a noun
+     cluster and cannot judge one, and the rule file names this directive as the
+     escape hatch for that case. It covers the list alone. -->
+<!-- vale AgenticWriting.STE-NounCluster = NO -->
 
 - Roy et al., *Exploring LLM-based Agents for Root Cause Analysis* (FSE'24). https://arxiv.org/html/2403.04123v1
 - Cemri et al., *Why Do Multi-Agent LLM Systems Fail?* (MAST, 2025). https://arxiv.org/pdf/2503.13657
@@ -109,3 +121,5 @@ Sycophantic alignment masquerading as evidence. Only valid if each opinion was c
 - Cindy Sridharan, *Monitoring and Observability*. https://copyconstruct.medium.com/monitoring-and-observability-8417d1952e1c
 - Brendan Gregg, *The USE Method*. https://www.brendangregg.com/usemethod.html
 - KubeGPT (illustration of fabricated kubectl output). https://kubegpt.org/
+
+<!-- vale AgenticWriting.STE-NounCluster = YES -->
