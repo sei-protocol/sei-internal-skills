@@ -1,6 +1,6 @@
 # Reviewer Dispatch Contract
 
-How to dispatch the independent reviews in Step 3. The goal is *independent* judgment — the engine of effective review (Fagan inspection's individual-preparation phase; a single independent dissenter restores judgment against a conforming majority, per Asch).
+How to dispatch the independent reviews in Step 3. The goal is *independent* judgment — the engine of effective review (Fagan inspection's individual-preparation phase). A single independent dissenter restores judgment against a conforming majority, per Asch.
 
 ## The contract
 
@@ -8,7 +8,7 @@ How to dispatch the independent reviews in Step 3. The goal is *independent* jud
 - **Assigned dissent.** Tag exactly one reviewer as red-team. Their explicit job: argue the artifact is wrong, find the strongest objection, name the boundary most likely to break. Without an assigned dissenter, multi-agent review collapses into agreement (consensus theater / sycophancy).
 - **Provider + consumer coverage.** For each boundary, the brief goes to at least the provider-domain specialist and the consumer-domain specialist. The provider defines the interface; the consumer says whether it can actually adapt to it.
 - **Evidence-bearing findings only.** The brief demands the specific contract / field / signature / line behind every finding. Reject "looks good."
-- **Reachability — pass artifacts the reviewer can actually open.** Give each reviewer **on-disk absolute paths or pasted content**, never a `gh`/`git`/shell command as the pointer. Reviewers' tool grants vary and some are **Read-only** — `prose-steward` has Read/Grep/Glob but no Bash, so a `gh pr diff` pointer is unreachable to it and the review halts or fabricates. Do not assume any given reviewer can fetch a remote artifact: **materialize** it — a PR diff, a fetched doc — to disk *before* dispatch, then brief the on-disk path.
+- **Reachability — pass artifacts the reviewer can actually open.** Give each reviewer **on-disk absolute paths or pasted content**, never a `gh`/`git`/shell command as the pointer. Reviewers' tool grants vary, and some are **Read-only**. `prose-steward` has Read/Grep/Glob but no Bash, so a `gh pr diff` pointer is unreachable to it, and the review halts or fabricates. Do not assume any given reviewer can fetch a remote artifact. **Materialize** it — a PR diff, a fetched doc — to disk *before* dispatch, then brief the on-disk path.
 
 ## Brief template
 
@@ -44,17 +44,17 @@ reviewer with this brief in place of the boundary-table one:
 > `.claude/skills/xreview/scripts/skill-package-checks.sh --skill-dir <abs-path>` for the static
 > subset and report every `block` failure. Judge the `[semantic]` rules by reading the skill.
 > Run P7 by the method in `references/pressure-testing.md` — P7 is `block`, so do not skip it
-> and return RATIFY on the static rules alone. **Every finding names its rule id.** Return a
-> per-lens verdict: RATIFY or DISSENT.
+> and return RATIFY on the static rules alone. **Every finding names its rule id**, and the lens
+> returns a per-lens verdict: RATIFY or DISSENT.
 
 **When the diff edits the rubric**, the orchestrator materializes the merge-base revision to disk
-first and briefs *that* path (Reachability, above) — a reviewer with no Bash cannot run a
+first and briefs *that* path (Reachability, above). A reviewer with no Bash cannot run a
 `git show`. The edit is itself a finding in the ledger's routing section. Otherwise a change can
-weaken a rule and be reviewed under the weakened rule in the same pass.
+weaken a rule, and the same pass then reviews that change under the weakened rule.
 
 **When the target under review is `/xreview` itself**, the lens has read the skill it is judging
 — it loaded the rubric out of that skill. `pressure-testing.md` states this for P7 ("you cannot be
-your own subject"), and the argument is not specific to P7: it covers every `[semantic]` rule,
+your own subject"). The argument is not specific to P7: it covers every `[semantic]` rule,
 B5–B8 and D4/D6/D7 included. Record those judgments in the ledger as **reduced-confidence**, and
 where a fresh subagent can carry the judgment instead, dispatch one.
 
@@ -62,8 +62,8 @@ Three conditions on what comes back:
 
 - **A verdict citing no rule id is not a rubric review.** Re-dispatch it. The rubric lens has no
   absence check, so an uncited verdict is the only way its pin fails silently.
-- **A rule the lens could not evaluate is reported `skipped`,** never dropped. An unrun rule that
-  leaves no trace reads as a rule that passed. The checker splits two cases and so should you:
+- **The lens reports a rule it could not evaluate as `skipped`,** never dropped. An unrun rule that
+  leaves no trace reads as a rule that passed. The checker splits two cases and so should you.
   `skip_reason: unavailable` means the rule had a subject you could not reach — follow it up, and
   a `block` one is an open finding. `skip_reason: inapplicable` means the rule had no subject at
   all (`S1` on a skill with no `scripts/`) — nothing is unknown, and it is not a finding.

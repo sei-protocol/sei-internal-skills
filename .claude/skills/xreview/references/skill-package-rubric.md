@@ -1,21 +1,21 @@
 # Skill-package review rubric
 
-The rules a reviewer cites when a `skill-package` change is under review. It moved here from `audit-skill` when that skill was cut (recorded in `scripts/prune-retired.sh`): `/xreview` is the only consumer, and a pin on
-a separate skill meant the review halted whenever that skill was absent from an install.
+The rules a reviewer cites when a `skill-package` change is under review. It moved here from `audit-skill` when the repository cut that skill (recorded in `scripts/prune-retired.sh`). `/xreview` is the only consumer, and a pin on
+a separate skill meant the review halted whenever an install lacked that skill.
 Owning the rubric removes the cross-skill dependency.
 
 `scripts/skill-package-checks.sh --skill-dir <path>` runs the static half. Every finding
-names its rule id, which is what makes a steward verdict falsifiable — presence of a file
-is not evidence that a rubric was read.
+names its rule id, which is what makes a steward verdict falsifiable. The presence of a file
+is no evidence that the reviewer read the rubric.
 
 Every rule the rubric lens checks. Each rule has an ID (used in findings), a severity, and a
-one-line statement. This file is the single source of truth for what a skill package must hold;
-a finding that cites a rule id resolves here or it resolves nowhere.
+one-line statement. This file is the single source of truth for what a skill package must hold.
+A finding that cites a rule id resolves here or it resolves nowhere.
 
 **Severities:**
 
 - **block** — the skill is not ready to ship with this finding outstanding.
-- **warn** — the skill works but has a known weakness that should be addressed before broad rollout.
+- **warn** — the skill works but has a known weakness the author should close before broad rollout.
 - **info** — observation worth surfacing but not a quality bar.
 
 **Source legend:**
@@ -27,23 +27,23 @@ a finding that cites a rule id resolves here or it resolves nowhere.
   the load-bearing one and it is `block`, so do not skip it and return RATIFY on the static
   rules alone.
 
-The `[semantic]` and `[pressure]` rules were previously dispatched by two separate skills. Those
-were cut; the rubric lens judges them directly now, using `references/pressure-testing.md` for
+Two separate skills previously dispatched the `[semantic]` and `[pressure]` rules. The
+repository cut both; the rubric lens judges them directly now, using `references/pressure-testing.md` for
 the pressure method and `references/eval-format.md` for the eval vocabulary E4/E5 cite. It cites
 the rule id either way.
 
-When a rule applies only to certain shapes, the shape is noted (e.g., `[procedural only]`).
+When a rule applies only to certain shapes, the row names the shape (e.g., `[procedural only]`).
 
-**Known gaps.** Two things a reviewer will want to cite and cannot. They are recorded here so the
+**Known gaps.** Two things a reviewer will want to cite and cannot. This file records them so the
 next lens does not rediscover them and file the nearest ill-fitting id:
 
 - **Halt-condition → eval traceability.** `E2` requires at least one halt-condition eval; nothing
   requires *each* halt condition to have one. Closing it needs a machine-readable link from a
-  `## Halt Conditions` bullet to an eval id — add a `halt_ref` field to `references/eval-format.md`
-  first, then the rule can be `[static]` rather than a judgment nobody can reproduce.
+  `## Halt Conditions` bullet to an eval id. Add a `halt_ref` field to `references/eval-format.md`
+  first. The rule can then be `[static]` rather than a judgment nobody can reproduce.
 - **A description's coverage of an inherited capability.** When a skill absorbs another's job, its
-  `description:` should route the vocabulary that used to reach the absorbed skill. No rule covers this, and the term
-  is undefined — define "inherited capability" before writing one, or the rule produces findings a
+  `description:` should route the vocabulary that used to reach the absorbed skill. No rule covers this, and nothing defines
+  the term. Define "inherited capability" before writing one, or the rule produces findings a
   reader cannot look up and disagree with.
 
 ---
@@ -74,22 +74,22 @@ next lens does not rediscover them and file the nearest ill-fitting id:
 > script's `warn` on B2/B3 as "block if this skill is procedural or discipline" and make that call
 > yourself. This is the one place the script deliberately under-reports.
 
-| B4 | warn | static | SKILL.md has a numbered procedure (`^[0-9]+\. \*\*`) [procedural] |
-| B5 | warn | semantic | Each procedure step has a clear success criterion (judgment call) [procedural] |
-| B6 | warn | semantic | Body uses one consistent term per concept (no synonyms drifting) |
-| B7 | warn | semantic | Body does not embed shell commands in prose (commands belong in `scripts/`) [procedural] |
-| B8 | block | semantic | Guardrails stanza is substantive, not a stub (≥3 refusal conditions named) [procedural, discipline] |
+| B4 | warn | static | SKILL.md has a numbered procedure (`^[0-9]+\. \*\*`) [procedural]. |
+| B5 | warn | semantic | Each procedure step has a clear success criterion (judgment call) [procedural]. |
+| B6 | warn | semantic | Body uses one consistent term per concept (no synonyms drifting). |
+| B7 | warn | semantic | Body does not embed shell commands in prose (commands belong in `scripts/`) [procedural]. |
+| B8 | block | semantic | Guardrails stanza is substantive, not a stub (≥3 refusal conditions named) [procedural, discipline]. |
 
 ## References (one level deep)
 
 | ID | Severity | Source | Rule |
 |----|----------|--------|------|
-| R1 | block | static | All reference files live directly under `references/` (no `references/sub/foo.md`). **Scope:** within a single skill's own `references/` directory. Cross-skill refs via `../../<sibling-skill>/references/<file>.md` are permitted — see R5. |
+| R1 | block | static | All reference files live directly under `references/` (no `references/sub/foo.md`). **Scope:** within a single skill's own `references/` directory. R5 permits cross-skill refs via `../../<sibling-skill>/references/<file>.md`. |
 | R2 | warn | static | Reference files >100 lines have a Table of Contents (heading scan in first 50 lines) |
 | R3 | info | static | Cross-references to other skills use the skill name only (no `@skills/...` force-loads). Plain-markdown relative links to sibling skills are fine — see R5. |
 | R4 | warn | semantic | Reference files do not duplicate SKILL.md content — they extend it |
-| R5 | info | semantic | Cross-skill references using `../../<sibling-skill>/references/<file>.md` (relative — note the double `../`: from inside a `references/` dir, a single `../` resolves to the skill root, not `.claude/skills/`, so it links to a path that does not exist) or `.claude/skills/<sibling>/references/<file>.md` (repo-root form) are permitted between skills in the same `.claude/skills/` directory when they encode a handoff contract or shared methodology (e.g. coral's handoff points at design/issue's coral-integration refs). These are documentation links, not force-loads — they do not violate R1. Surfaced as info-only so reviewers see the cross-skill coupling. |
-| R6 | info | semantic | A skill that declares a **cite/exemplar contract** in its references (a corpus directory whose paths are load-bearing cite targets, e.g. language's `references/exemplars/<vertical>/` per its `sources.md` cite vocabulary) may nest those corpus files one extra level. The contract file must document the path scheme. Scope: corpus/exemplar content only — the skill's own method/reference docs still obey R1. |
+| R5 | info | semantic | A skill may cross-reference a sibling as `../../<sibling-skill>/references/<file>.md` (relative) or `.claude/skills/<sibling>/references/<file>.md` (repo-root form). Note the double `../`: from inside a `references/` dir, a single `../` resolves to the skill root, not `.claude/skills/`, so it links to a path that does not exist. The rubric permits the link between skills in the same `.claude/skills/` directory. The link must encode a handoff contract or shared methodology (e.g. coral's handoff points at design/issue's coral-integration refs). These are documentation links, not force-loads — they do not violate R1, and surface as info-only so reviewers see the cross-skill coupling. |
+| R6 | info | semantic | A skill may declare a **cite/exemplar contract** in its references — a corpus directory whose paths are load-bearing cite targets. An example: language's `references/exemplars/<vertical>/` per its `sources.md` cite vocabulary. Such a skill may nest those corpus files one extra level. The contract file must document the path scheme. Scope: corpus/exemplar content only — the skill's own method/reference docs still obey R1. |
 | R7 | block | semantic | A `references/` file does not contradict `SKILL.md`. Where they diverge the divergence **is** the finding; where the reference declares itself authoritative on divergence, it is correctness-grade. |
 
 ## Scripts [procedural only]
@@ -117,14 +117,14 @@ next lens does not rediscover them and file the nearest ill-fitting id:
 
 | ID | Severity | Source | Rule |
 |----|----------|--------|------|
-| T1 | block | static | The skill's `state/` directory is gitignored (via `.claude/skills/*/state/` at repo level, or local `.gitignore`) |
-| T2 | info | static | `state/.gitkeep` exists so the directory is preserved when empty |
+| T1 | block | static | Git ignores the skill's `state/` directory (via `.claude/skills/*/state/` at repo level, or local `.gitignore`) |
+| T2 | info | static | `state/.gitkeep` exists so the directory survives when empty |
 
 ## Catalog & sync
 
 | ID | Severity | Source | Rule |
 |----|----------|--------|------|
-| C1 | block | static | Skill is listed in `.claude/skills/README.md` catalog |
+| C1 | block | static | The `.claude/skills/README.md` catalog lists the skill |
 | C2 | warn | semantic | Catalog entry is in an appropriate section (judgment based on skill purpose) |
 | C3 | warn | static | Skill's `category:` frontmatter resolves to a sync alias in `scripts/sync-skills.sh` — a skill with no alias never syncs anywhere |
 
@@ -138,7 +138,7 @@ next lens does not rediscover them and file the nearest ill-fitting id:
 | P4 | info | semantic | [discipline] Uses social-proof language ("Every time", "Always", failure mode universality) |
 | P5 | warn | semantic | [technique, pattern] Balances authority with unity ("we", "our codebase") rather than pure imperative |
 | P6 | warn | semantic | [reference] Uses no persuasion language — clarity only |
-| P7 | block | pressure | Skill is bypassed by a shape-appropriate pressure scenario (the load-bearing finding — captured from pressure-testing) |
+| P7 | block | pressure | A shape-appropriate pressure scenario bypasses the skill (the load-bearing finding — captured from pressure-testing) |
 
 ## Anti-patterns
 
@@ -147,7 +147,7 @@ next lens does not rediscover them and file the nearest ill-fitting id:
 | A1 | warn | static | No time-sensitive content ("as of 2025", "in the latest version", "currently") |
 | A2 | warn | static | No Windows-style paths (backslashes in path-like strings) |
 | A3 | warn | semantic | No `@skills/...` force-load syntax (force-loads burn context) |
-| A4 | warn | semantic | No multi-language code examples for one technique (one excellent example beats many mediocre ones) |
+| A4 | warn | semantic | No multi-language code examples for one technique (one strong example beats many mediocre ones) |
 | A5 | warn | semantic | No fill-in-the-blank templates (use concrete examples instead) |
 | A6 | warn | semantic | No deeply-nested file references (refs are one level deep) — overlaps R1, surfaces from prose context |
 
@@ -160,7 +160,7 @@ When the team identifies a new convention:
 1. Add a row to the appropriate section in this table.
 2. Assign an ID (next free number in the section's prefix; e.g., next description rule = D9).
 3. Pick a severity honestly. New rules default to `warn` — promote to `block` after one cycle of real audits shows the rule is load-bearing.
-4. Update `scripts/skill-package-checks.sh` if the rule is checkable. If it is not, tag it `[semantic]` or `[pressure]` and say in the row what the rubric lens should look for — there is no separate checker to extend.
+4. Update `scripts/skill-package-checks.sh` if the rule is checkable. If it is not, tag it `[semantic]` or `[pressure]`. Say in the row what the rubric lens should look for — no separate checker exists to extend.
 5. State the rule so a reviewer can cite it and be wrong. A rule nobody can fail is not a rule.
 
 ## Rules that do not appear here

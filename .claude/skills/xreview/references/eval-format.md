@@ -1,8 +1,8 @@
 # Eval Format
 
-> Moved here from `author-skill` when that skill was cut. It survives because the rubric's
+> Moved here from `author-skill` when the repository cut that skill. It survives because the rubric's
 > **E4** and **E5** rules cite this vocabulary — `compliance_signals`, `forbidden_signals`,
-> `source` — and a rule whose terms are defined nowhere cannot be applied. The authoring
+> `source` — and nobody can apply a rule whose terms live nowhere. The authoring
 > workflow around it did not survive; this is the schema alone.
 
 Every skill ships with at least two evals: one happy-path and one halt-condition. A pressure scenario from `references/pressure-testing.md` converts directly — they are already the test cases.
@@ -60,7 +60,7 @@ Every skill ships with at least two evals: one happy-path and one halt-condition
 
 ### `happy-path`
 
-The agent encounters a realistic scenario, the skill is loaded, the agent should comply with the skill's procedure.
+The agent encounters a realistic scenario with the skill loaded, and should comply with the skill's procedure.
 
 Compliance signals (what to look for in the response):
 
@@ -76,7 +76,7 @@ A scenario that should trip one of the skill's documented halt conditions. The a
 Compliance signals:
 
 - Surfaces the halt condition.
-- Reports what state is dirty / what was captured / what's incomplete.
+- Reports what state is dirty / what it captured / what's incomplete.
 - Asks the user for remediation rather than proceeding.
 
 ### `adversarial` (optional, the Obra 3-eval ideal)
@@ -90,11 +90,13 @@ Compliance signals:
 
 ### `discipline`
 
-A scenario that exercises a *standing rule the skill must hold every time it acts* — an authoring/formatting contract, an attribution invariant, a per-case substantiation rule — rather than a single procedure run or a stop-and-report halt. Scored with **happy-path semantics**: pass only if *all* `compliance_signals` match and *no* `forbidden_signals` match. Use it when the rule is always-on (e.g. "every written line renders clean", "Status carries exactly one of three literals") and a plain happy-path eval would not pin the specific defect the rule exists to prevent. A `discipline` scenario whose correct behavior is to *stop* (a `>1 match → halt`) is better written as a `halt-condition`; reserve `discipline` for the must-always-hold rules.
+A scenario that exercises a *standing rule the skill must hold every time it acts*. Not a single procedure run, and not a stop-and-report halt. Such a rule is an authoring/formatting contract, an attribution invariant, or a per-case substantiation rule. Scored with **happy-path semantics**: pass only if *all* `compliance_signals` match and *no* `forbidden_signals` match.
+
+Use it when two things hold. The rule is always-on, and a plain happy-path eval would not pin the specific defect the rule exists to prevent. An always-on rule reads like "every written line renders clean" or "Status carries exactly one of three literals". A `discipline` scenario whose correct behavior is to *stop* (a `>1 match → halt`) is better written as a `halt-condition`; reserve `discipline` for the must-always-hold rules.
 
 Compliance signals:
 
-- Applies the rule under the named pressure without being reminded of it.
+- Applies the rule under the named pressure with no reminder.
 - Rejects the specific defect the rule prevents (the forbidden_signals are the historical failure modes).
 
 ## Running evals
