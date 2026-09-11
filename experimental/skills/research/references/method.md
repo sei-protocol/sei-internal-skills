@@ -7,7 +7,7 @@ The four stages from SKILL.md, with the protocols each needs. The discipline is 
 A useful scoped question names three things:
 
 - **The decision it informs** — "should we adopt X?", "which of A/B/C fits?", "is claim C true?". Research with no decision behind it is a literature dump.
-- **The falsifiable claims sought** — what statements would the answer assert, that could be shown false? ("X supports streaming" is falsifiable; "X is good" is not.)
+- **The falsifiable claims sought** — what statements would the answer assert, that evidence could show false? ("X supports streaming" is falsifiable; "X is good" is not.)
 - **The scope boundary** — what's in and out, so the completeness pass has something to check coverage against.
 
 If the operator's question lacks these, sharpen it with them first (Guardrail 2). Write the scoped question verbatim at the top of the artifact — it is the contract.
@@ -38,7 +38,7 @@ Per material finding, take the skeptic stance and try to break it:
 
 Outcome, recorded per finding:
 
-- **verified** — the refutation pass *ran* and failed to break the finding. Record (a) which refutation move was tried (contradicting-source / freshness / overgeneralization / sample-size) and (b) the specific source or reasoning that defeated it. **A refutation that was not attempted does not yield `verified` — it yields `unverified`.** "I did not find a contradiction" with no recorded search is `unverified`, not `verified`.
+- **verified** — the refutation pass *ran* and failed to break the finding. Record (a) which refutation move you tried (contradicting-source / freshness / overgeneralization / sample-size) and (b) the specific source or reasoning that defeated it. **A refutation that was not attempted does not yield `verified` — it yields `unverified`.** "I did not find a contradiction" with no recorded search is `unverified`, not `verified`.
 - **refuted** — dropped; note why once, so a later sweep round does not resurrect it.
 - **unverified** — neither confirmed nor refuted; kept only with the `[unverified]` label, never presented as established.
 
@@ -59,4 +59,4 @@ One pass, four questions against the scoped contract:
 
 See SKILL.md "The artifact" for the full template. Two rules that are easy to get wrong:
 
-- **Tag every finding** `[verified]` / `[unverified]` (refuted ones are dropped with a one-line note). An untagged finding reads as established — that is the failure mode.
+- **Tag every finding** `[verified]` / `[unverified]` (drop refuted ones with a one-line note). An untagged finding reads as established — that is the failure mode.
