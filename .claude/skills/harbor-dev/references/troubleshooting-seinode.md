@@ -17,6 +17,7 @@ Common causes:
   ```
 
   `NoSyncersConfigured` means no `spec.fullNode.snapshot.rpcServers` and no registry entry for the chain (eng chains never have one). The controller deliberately holds StatefulSet creation until the gate opens — the fix is in the condition message: declare ≥2 `rpcServers` or drop `stateSync` and genesis-replay. See `state-sync-bootstrap.md`. (On pre-`254375d` controllers this same cause presented as a pod stuck Pending on `persistentvolumeclaim not found` — if you see that shape, check this condition before chasing storage.)
+- **Pod exists but is unschedulable (`Dedicated` isolation, no free worker node)** — the StatefulSet and pod exist, the pod is `Pending`, and `kubectl describe pod <name>-0 -n <ns>` ends in `FailedScheduling ... didn't match pod anti-affinity rules`. The CR (or its parent SeiNetwork) carries `spec.scheduling.nodeIsolation: Dedicated`, which admits only a worker node hosting no other Sei pod, and none is free. On harbor, `Dedicated` is anti-affinity only — the controller config names no single-tenant NodePool yet (PLT-1227) — so a Dedicated pod consumes a whole node from the shared pool and waits for one to be empty or for Karpenter to add one. This is a capacity ask to platform, not a controller fault: do not delete the pod (the StatefulSet recreates it in the same state), and do not drop the field to `Shared` without the engineer's say — that trades the isolation the bench was designed around for a start time. Recipe #9 in `cluster-inspection-recipes.md` shows the whole pool's placement.
 - Controller leader lease unhealthy → `kubectl get lease -n sei-k8s-controller-system` and `kubectl get pods -n sei-k8s-controller-system`
 - Controller pod missing or crashlooping → `kubectl describe pod -n sei-k8s-controller-system -l app.kubernetes.io/name=sei-k8s-controller`
 
@@ -47,6 +48,8 @@ Symptoms after Ready:
 - **Block production stalls** — `kubectl get seinode <name> -o jsonpath='{.status.conditions[?(@.type=="Ready")].lastTransitionTime}'`, then `kubectl logs <name>-0 -c seid` for consensus errors.
 - **HTTPRoute hostname returns 503** — `kubectl get httproute -n <ns>`, verify `parentRefs` points at the shared Gateway, hostname matches `*.harbor.platform.sei.io`. Run `istioctl analyze -n <ns>`.
 - **Pod restart loops** — `kubectl describe pod <name>-0 -n <ns>`. Common: OOMKill, image pull error, init container failure.
+- **Pod replaced after a `nodeIsolation` edit** — expected. Once `status.currentNodeIsolation` is set, any change between the effective `spec.scheduling.nodeIsolation` and the rolled value builds a node-update plan that deletes and recreates the pod on a compliant worker node (StatefulSets are `OnDelete`, so only the controller rolls it). On a SeiNetwork every validator rolls at once and block production pauses until >2/3 are back. If `WANT` ≠ `ROLLED` (recipe #9) persists with no plan in `.status.plan`, the controller has not observed the node since the edit — check `.status.observedGeneration` against `.metadata.generation`.
+- **Two validators on one worker node** — `Shared` isolation (the default when the field is unset) permits it, and the scheduler packs by resources. Not a fault, but any bench on the chain measures the neighbour. Isolation is `Dedicated` on a re-render; a re-apply that sets it rolls the pool.
 
 ### Phase: Failed (terminal)
 

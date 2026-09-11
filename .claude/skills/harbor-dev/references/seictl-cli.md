@@ -43,6 +43,7 @@ seictl network apply <name>
                      [--chain-id <id>] [--image <ref>] [--replicas N]
                      [--cpu <cores>] [--memory <quantity>] [--storage <quantity>]
                      [--iops <count> --throughput <MiB/s>]
+                     [--node-isolation Shared|Dedicated]
                      [--genesis-account <addr>:<balance>] [--genesis-account ...]
                      [--genesis-override <module.field>=<value>] [--genesis-override ...]
                      [--set <dotted.path>=<value>] [--set ...]
@@ -55,7 +56,7 @@ Loads the `genesis-chain` preset, applies discrete-flag and `--set` overrides, a
 **Layering, lowest precedence first:**
 
 1. Preset YAML (embedded in the seictl binary).
-2. Discrete flags (`--chain-id`, `--image`, `--replicas`, `--cpu`, `--memory`, `--storage`, `--iops`, `--throughput`).
+2. Discrete flags (`--chain-id`, `--image`, `--replicas`, `--cpu`, `--memory`, `--storage`, `--iops`, `--throughput`, `--node-isolation`).
 3. `--set <dotted.path>=<value>`. Strategic-merge: maps merge per-key, lists replace wholesale. Wins on collision with discrete flags. SeiNetwork config overrides live under `spec.configOverrides` (reach them via `--set`); there is **no `--override` flag** on `network apply`.
 
    Overrides take effect only on an **init path**, so set them at create time. An edit to a Running network's overrides never reaches its nodes' on-disk config. See `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*.
@@ -80,6 +81,7 @@ seictl node apply <name>
                   [--chain-id <id>] [--image <ref>] --network <X>
                   [--cpu <cores>] [--memory <quantity>] [--storage <quantity>]
                   [--iops <count> --throughput <MiB/s>]
+                  [--node-isolation Shared|Dedicated]
                   [--external-address <host>:<port>]
                   [--override <toml.key>=<value>] [--override ...]
                   [--set <dotted.path>=<value>] [--set ...]
@@ -340,6 +342,42 @@ When `seictl network|node apply` succeeds, the post-apply CR carries:
 ### No ambient state
 
 Commands never `cd`, never modify `~/.kube/config`, never set env vars in the calling shell. Every kubectl call is explicit about context and namespace.
+
+## Node isolation (`--node-isolation`)
+
+Present on both `network apply` and `node apply`, identical semantics. Writes `spec.scheduling.nodeIsolation`; on a SeiNetwork the controller copies the block into every validator child.
+
+```
+--node-isolation Shared      # may share a worker node with other Sei pods
+--node-isolation Dedicated   # one Sei pod per worker node
+```
+
+Input is case-insensitive (`dedicated`, `DEDICATED`) and renders canonical (`Dedicated`). Any other token fails at render before the apiserver is reached. `--set spec.scheduling.nodeIsolation=...` wins over the flag on collision.
+
+**Omitted means unset, not `Shared`.** The field has no schema default. An unset field resolves in the controller as: legacy `sei.io/dedicated-node: "true"` annotation on the SeiNode → `Dedicated`; otherwise `Shared`. The field supersedes the annotation — write the field, never the annotation, on a new CR.
+
+**What `Dedicated` does.** The pod gets a required pod anti-affinity against every Sei-managed pod (`sei.io/node` exists) across all namespaces, and every Sei pod carries a matching term that repels dedicated pods. Two consequences: a Dedicated pod schedules only onto a worker node hosting no Sei pod at all, and no later Sei pod lands next to it. When the cell's controller config names a single-tenant Karpenter NodePool for the mode, the pod also selects that pool; harbor's controller config names none today (PLT-1227), so on harbor `Dedicated` is anti-affinity only and consumes a whole node from the shared pool.
+
+**Capacity, not correctness, is the failure mode.** Admission accepts `Dedicated` regardless of cluster capacity. The pod then sits `Pending` until a worker node with no Sei pod exists, and the SeiNetwork reports the child as `placement: Pending` with an empty `workerNode`. That is a capacity ask to the platform team, not a retry, and not a reason to flip to `Shared` silently. Check with `cluster-inspection-recipes.md` recipe #9.
+
+**Mutable, and a change rolls the pod.** `nodeIsolation` is not admission-immutable. Once the controller has observed a node's isolation (`status.currentNodeIsolation` set), a change between the effective desired value and the rolled value builds a node-update plan that replaces the pod (StatefulSets use `OnDelete`; nothing rolls on its own). On a SeiNetwork that means every validator pod restarts — same blast radius as a `configValues` edit. Set it at create time for a bench; never flip it inside a measurement window. An empty `status.currentNodeIsolation` means not yet observed and never triggers a roll.
+
+**Server-side apply drops the field on a re-apply that omits the flag.** `apply` runs with force-ownership; a `network apply <same-name>` without `--node-isolation` renders the field unset, the apply removes it, and the controller resolves `Shared` and rolls the pool back to shared placement. Repeat `--node-isolation Dedicated` on every re-apply of a Dedicated CR. In the PR flow this is moot — the committed YAML carries the field — but the escape hatch and any `--dry-run` re-render must carry it.
+
+**Verify:**
+
+```sh
+# The rendered CR carries it
+seictl network apply <id> ... --node-isolation Dedicated --dry-run -n eng-<alias> | jq -r .spec.scheduling.nodeIsolation
+
+# Placement per validator once Ready (also recipe #9)
+kubectl get seinetwork <id> -n eng-<alias> \
+  -o jsonpath='{range .status.nodes[*]}{.name}{"\t"}{.placement}{"\t"}{.workerNode}{"\n"}{end}'
+
+# What the controller has rolled, per node
+kubectl get seinode -n eng-<alias> -l sei.io/seinetwork=<id> \
+  -o custom-columns='NAME:.metadata.name,WANT:.spec.scheduling.nodeIsolation,ROLLED:.status.currentNodeIsolation'
+```
 
 ## Resource footprint (`--cpu` / `--memory` / `--storage`)
 
