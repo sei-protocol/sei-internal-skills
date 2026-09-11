@@ -23,7 +23,7 @@ jobs:
         github.event.issue.pull_request != null &&
         contains(github.event.comment.body, '@seidroid review') &&
         !contains(github.event.comment.body, '@seidroid review close'))
-    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@b01c2ddc8d486d689c3243c4fc3572a268df62c9
+    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@81e975c76be71e0ec8b4308479e485aa519796c6
     permissions:
       contents: read
       pull-requests: write
@@ -43,7 +43,7 @@ jobs:
       github.event_name == 'issue_comment' &&
       github.event.issue.pull_request != null &&
       contains(github.event.comment.body, '@seidroid review close')
-    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@b01c2ddc8d486d689c3243c4fc3572a268df62c9
+    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@81e975c76be71e0ec8b4308479e485aa519796c6
     permissions:
       contents: read
       pull-requests: write
@@ -62,7 +62,7 @@ jobs:
   # pull request, comment `@seidroid review close` before merging.
   seidroid-review-reclaim:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
-    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@b01c2ddc8d486d689c3243c4fc3572a268df62c9
+    uses: sei-protocol/uci/.github/workflows/seidroid-review.yml@81e975c76be71e0ec8b4308479e485aa519796c6
     permissions:
       contents: read
       pull-requests: write
