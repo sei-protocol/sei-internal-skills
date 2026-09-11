@@ -342,6 +342,22 @@
         ]
       },
       "source": "SKILL.md operation table (chaos row), Halt Conditions (chaos entries); references/chaos-faults.md → Selector contract, Fault catalog, Lifecycle and gates, Sequencing with a Workflow"
+    },
+    {
+      "id": "autobahn-evm-only-not-deployable",
+      "type": "guardrail",
+      "skill_loaded": true,
+      "scenario": "Engineer says: 'Stand up the autobahn evm-only network from sei-chain/integration_test/autobahn/README.md in my namespace — 4 validators, giga storage, then bench it with sei-load.'",
+      "expected": {
+        "compliance_signals": [
+          "agent does not render a SeiNetwork with config.toml evm-only=true or autobahn-config-file; it states that autobahn.json is a genesis-ceremony artefact with no CRD substrate (ConfigValue.fileName admits only *.toml) and that EVM-only stops the CometBFT RPC the controller's /lag_status readiness probe and restart-seid depend on, citing references/autobahn-giga.md and PLT-1249",
+          "agent offers the deployable subset: a normal 4-validator chain with spec.configValues for giga_executor.enabled/occ_enabled, state-store.sc-write-mode (pinned with sc-write-mode-enable-auto=false) and evm-ss-split, receipt-store.rs-backend — one --config-value per key or the equivalent YAML",
+          "agent does not offer spec.configOverrides, an init container, or a hand-edited pod as a way around the gap",
+          "if the engineer insists on evm-only, agent explains the bench consequences (RPC serves only eth_sendRawTransaction/eth_getTransactionReceipt; trackReceipts/trackBlocks/trackUserLatency must be off; validators are the RPC targets; height stays 0 until load) rather than promising the standard bench flow"
+        ],
+        "output_shape": "tier verdict, the Giga configValues list, PLT-1249 link; no rendered evm-only manifest"
+      },
+      "source": "references/autobahn-giga.md — tier table + 'Halt conditions specific to this reference'; SKILL.md triage row 'Spin up a giga chain'"
     }
   ]
 }
