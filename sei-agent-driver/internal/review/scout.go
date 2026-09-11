@@ -98,6 +98,12 @@ type ScoutReport struct {
 	// read.
 	Lines int
 
+	// Inert is the scout saying the diff changes nothing a machine executes, parses
+	// or renders into configuration: comments, documentation prose and whitespace
+	// only. False when the block omits the key, so a scout that never heard of the
+	// field cannot settle a review by silence.
+	Inert bool
+
 	// Reason renders why there is no usable report, for the operator who has to
 	// act on it. Empty when Findings carries one.
 	Reason string
@@ -167,6 +173,7 @@ func ParseScoutReport(text string) ScoutReport {
 
 	r.reported = true
 	r.Lines = intField(out, "read")
+	r.Inert, _ = out["inert"].(bool)
 	r.Findings = make([]Finding, 0, len(raw))
 	for _, entry := range raw {
 		fields, ok := entry.(map[string]any)
@@ -290,8 +297,16 @@ func scoutSchema() string {
 		"so it is not optional and not an estimate. The placeholder below is the shape,",
 		"not a value to copy.",
 		"",
+		"inert is true only when every changed line is a comment, documentation prose",
+		"(Markdown, plain text) or whitespace, so that nothing a machine executes,",
+		"parses or renders into configuration changed. A doc comment on code counts as",
+		"inert; a changed string literal, test, workflow, manifest, dependency pin or",
+		"image tag does not. When in doubt, false. A true here with no findings can end",
+		"the review without the reader after you, so it is a claim about every line.",
+		"",
 		"```json",
 		`{"read": <line count>,`,
+		` "inert": false,`,
 		` "findings": [{"file": "path", "line": 0, "severity": "high|medium|low",`,
 		`               "detail": "what is wrong and why it matters"}]}`,
 		"```",

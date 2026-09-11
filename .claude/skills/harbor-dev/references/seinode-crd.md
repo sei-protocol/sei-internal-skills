@@ -46,7 +46,7 @@ The 10 fields engineers actually edit:
 
 `spec.resources` and `spec.dataVolume.storage` are **admission-immutable**, each for a concrete reason:
 
-- **`spec.resources`** — the child StatefulSet is `OnDelete` and drift detection is image-only, so a changed footprint never rolls onto a running pod. Editing it would read as a resize and do nothing.
+- **`spec.resources`** — the child StatefulSet is `OnDelete` and pod-template drift detection observes only the seid image, sidecar image and node isolation (`planner.go:podTemplateDrifted`), so a changed footprint never rolls onto a running pod. Editing it would read as a resize and do nothing.
 - **`spec.dataVolume.storage`** — the ensure-data-pvc task creates the data PVC once and never updates it (Get-then-Create, no update path). A changed size could never reach the volume. The same applies to `volumeAttributesClassName`: the name binds at provision. On a re-apply, a first-time set, a change, and an unset are all rejected — the value is settable only at creation.
 
 The apiserver rejects a re-apply that changes either, with `metav1.Status.reason=Invalid`. It is not a silent no-op, and it is not retryable. `delete` + re-create is the only path. For a genesis chain that means a fresh chain-id and a destroyed data PVC.
@@ -57,7 +57,7 @@ The apiserver rejects a re-apply that changes either, with `metav1.Status.reason
 - A CR that populates `limits.memory` **must match** `requests.memory` — the mode's memory-Guaranteed footprint. The controller derives the limit from the request, so the rendered CR normally carries no `limits` block at all.
 - `seictl` refuses to render `spec.resources.limits.cpu` from any source, including `--set`. It passes a `--set` memory limit through and lets the apiserver enforce the equality rule.
 
-**Provenance:** the immutability reasons and the limits rules above come from `sei-k8s-controller` main @ `c3fabbf` (2026-09-10) — `api/v1alpha1/seinode_types.go` and the generated `config/crd/sei.io_seinodes.yaml`. The generated CRD is the schema oracle: a cluster enforces it, not this file.
+**Provenance:** the immutability reasons and the limits rules above come from `sei-k8s-controller` main @ `7da9946` (2026-09-10; re-verified for `spec.configValues` and `spec.scheduling`) — `api/v1alpha1/seinode_types.go` and the generated `config/crd/sei.io_seinodes.yaml`. The generated CRD is the schema oracle: a cluster enforces it, not this file.
 
 **`spec.dataVolume.storage` is an object, not a quantity.** It carries `resources` for the size and `volumeAttributesClassName` for the performance selection, and CEL requires `resources.requests.storage` whenever a CR populates `resources`. A bare quantity there fails schema validation before CEL runs. DR-001 keeps `spec.resources.requests` and `spec.dataVolume.storage.resources.requests` disjoint: compute takes only `cpu`/`memory`, storage only `storage`.
 

@@ -146,7 +146,7 @@ func TestLoadConfigFallsBackToTheDocumentedDefaults(t *testing.T) {
 		{"BaseURL", cfg.BaseURL, "http://127.0.0.1:6767"},
 		{"Origin", cfg.Origin, "omnigent://internal"},
 		{"Agent", cfg.Agent, "seidroid"},
-		{"RunDeadline", cfg.RunDeadline, 20 * time.Minute},
+		{"RunDeadline", cfg.RunDeadline, 30 * time.Minute},
 		{"RequestTimeout", cfg.RequestTimeout, 30 * time.Second},
 		{"UnaryTimeout", cfg.UnaryTimeout, 150 * time.Second},
 		{"StreamIdleTimeout", cfg.StreamIdleTimeout, 5 * time.Minute},
