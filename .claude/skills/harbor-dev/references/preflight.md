@@ -136,7 +136,7 @@ Halt until the first three checks pass: PATH, `node apply --help` lists `--netwo
 command -v yq
 ```
 
-**Why:** the canonical render path is `seictl network|node apply --dry-run | yq -P 'del(...)'` — JSON to clean YAML with server-side fields stripped (see `ephemeral-chain-flow.md`). Without `yq`, the agent has no way to produce the workspace-repo file.
+**Why:** the canonical render path is `seictl network|node apply --dry-run | yq -P 'del(...)'` — JSON to clean YAML with server-side fields stripped (see `ephemeral-chain-flow.md`). Without `yq`, the agent has no way to produce the workspace-repo file on the CLI path; the `network_render` / `node_render` MCP tools return YAML and need no `yq`, so with those present this gate is informational (`seictl-cli.md`, `seictl mcp`).
 
 **Recovery (in-band):**
 
