@@ -110,5 +110,5 @@ Reuse the existing NodeUpdate plan shape ... [content as in #137]
 ## Notes on this example
 
 - **No "Background" section.** The standard format folds background into Problem. The reference issue uses Background as a header, but newer filings should use Problem — easier for triagers who scan top-down.
-- **No `_TBD — needs design_` placeholder.** This filer had a sketch, so Proposed approach is populated. If they hadn't, the section would be omitted entirely.
+- **No `_TBD — needs design_` placeholder.** This filer had a sketch, so Proposed approach has content. If they hadn't, the skill would omit the section entirely.
 - **Three experts is the cap.** This issue has a clean three-way split (controller / CRD / seid) so it is at the limit but not over. A fourth expert would be a signal to hand off to `/council`.

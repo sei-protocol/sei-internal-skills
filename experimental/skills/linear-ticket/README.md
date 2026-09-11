@@ -17,12 +17,12 @@ empty section from a forgotten one.
 
 ## No open standard defines a ticket
 
-Which is why the sections are stated in full rather than named. What goes
-*inside* them is anchored: **INVEST** for whether the ticket is a real slice,
+Which is why this file states the sections in full rather than naming them. What goes
+*inside* them has anchors: **INVEST** for whether the ticket is a real slice,
 **Gherkin** for the acceptance criteria, **MoSCoW** for the priority band.
-Underneath sits **ISO/IEC/IEEE 29148:2018** clause 6.4 — converting stakeholder
-requirements into testable work items — which is paywalled, so it is cited and
-never reproduced.
+Underneath sits **ISO/IEC/IEEE 29148:2018** clause 6.4, which covers converting
+stakeholder requirements into testable work items. It sits behind a paywall, so
+the skill cites it and never reproduces it.
 
 ## Where it sits
 
@@ -34,12 +34,12 @@ never reproduced.
 
 `/tasks-to-linear` is a kernel that files one issue per story with no lineage
 and no format. It does not ship in this repository. This skill supersedes it for
-Sei work rather than wrapping it, because a project cannot be attached after
-creation without an update, and that kernel forbids updates.
+Sei work rather than wrapping it. Attaching a project after creation takes an
+update, and that kernel forbids updates.
 
 ## What it refuses
 
-- **Filing without confirmation.** Every issue is rendered in full first, then it
+- **Filing without confirmation.** It renders every issue in full first, then
   waits for the word `confirm`.
 - **Guessing the team or project.** Both come from `.specify/linear.json`. With
   no config it stops and names what is missing.
