@@ -22,11 +22,11 @@ That is the floor for `seictl network|node apply`. Below this floor, no procedur
 
 ## The gates
 
-### Gate 1: a `seictl` that carries the resource flags
+### Gate 1: a `seictl` that carries the resource and config flags
 
 **Verifies:** `seictl` is on `$PATH`, ships the split `network`/`node` surface, and carries the resource flags. This gate probes the binary only, so it runs on a fresh laptop with no SSO session and no kubeconfig. The cluster-side twin of check 3 lives in gate 5, which is the first gate that has cluster access.
 
-Four-part check:
+Five-part check:
 
 1. `command -v seictl` returns 0.
 2. `seictl node apply --help` exits 0 and the help text includes `--network`. `--network` is the peer-rail flag on the split `node` tree. It exists only in v0.0.59+, so its presence proves the binary has the split trees (the old `nd apply` had no such flag). It is the breaking-cut sentinel: an older binary that still carries `nd` but not the split trees fails this gate. That is correct, because `nd` targets the deleted `SeiNodeDeployment` Kind and hard-fails at apply against new-CRD clusters. Optionally also probe `seictl network apply --help` for `--genesis-override`.
@@ -37,21 +37,24 @@ Four-part check:
 
    This failure is loud once the flags reach the binary, exactly as check 3's is. An older `seictl` exits non-zero with `flag provided but not defined: -iops`. The silence arrives one step later, in the workaround. Dropping the two flags clears the parse error and renders the standard tier. The plan echo still promises 10000 IOPS, and the bench then measures the wrong disk. On a failure, either upgrade or drop to the standard tier, and state which one the render used.
 
+5. `seictl node apply --help` includes `--config-value`. This gates typed `spec.configValues` (seictl#253), which post-dates the v0.0.72 floor: a v0.0.72 binary passes checks 1–4 and fails loud here (`flag provided but not defined: -config-value`). Skip only when the request sets no config.toml/app.toml key. On a failure, install from `@main` (the check-5 carve-out in the recovery block below); never substitute `--set spec.configOverrides`, which lands at first boot only and silently misses a Running node.
+
 **Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation. The `--network` auto-wire makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here beats a confusing `NotFound`-on-CRD at apply. For check 3 it beats something worse: a chain that runs four times its intended size without complaint. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
 
 **Recovery (out-of-band):**
 
 Recommended path: `go install` from the newest release. The method itself works only from seictl v0.0.71 on, because seictl#246 removed the `replace` directives that blocked a module-aware install.
 
-**`@latest` is the correct target again.** An earlier version of this runbook forbade it and sent engineers to `@main`. The newest tag was then v0.0.71, which predates the resource flags. seictl v0.0.72 carries both seictl#248 and seictl#249, so `@latest` now clears checks 3 and 4. Do not restore the old prohibition.
+**`@latest` is the correct target again.** An earlier version of this runbook forbade it and sent engineers to `@main`. The newest tag was then v0.0.71, which predates the resource flags. seictl v0.0.72 carries both seictl#248 and seictl#249, so `@latest` clears checks 1 through 4. Do not restore the old prohibition for those four checks. Check 5 is the one exception: `--config-value` (seictl#253) is on `main` and on no tag, so a tag cannot clear it.
 
 ```sh
-go install github.com/sei-protocol/seictl@latest
+go install github.com/sei-protocol/seictl@latest   # clears checks 1–4
+go install github.com/sei-protocol/seictl@main     # check 5 as well, until a tag carries seictl#253
 ```
 
-Re-run checks 1 through 4 afterwards. The version floor is **v0.0.72**. Treat that floor as the recovery target rather than the pass condition. The checks above still read the help text, because a floor cannot see which binary `PATH` resolves.
+Re-run the checks afterwards: 1 through 4 after `@latest`, 1 through 5 after `@main`. Say in the plan echo which target the binary came from. The version floor is **v0.0.72** for checks 1 through 4; check 5 has no tagged floor yet. Treat that floor as the recovery target rather than the pass condition. The checks above still read the help text, because a floor cannot see which binary `PATH` resolves.
 
-**All three paths below clear this gate now.** The `-ldflags` recipe installs a tag, and the release tarball serves `releases/latest`. Both land on v0.0.72 or newer, so the provenance stamp no longer costs a failed gate. Build-from-source stays available, and it is the one path that does not depend on a published release.
+**All three paths below clear checks 1 through 4.** The `-ldflags` recipe installs a tag, and the release tarball serves `releases/latest`. Both land on v0.0.72 or newer, so the provenance stamp no longer costs a failed gate. Neither clears check 5 — a tag does not carry seictl#253. Build-from-source from `main` does, and it is the one path that does not depend on a published release.
 
 **On an upgrade, the install is only half the job.** `go install` writes to the Go bin directory, but every engineer who followed an earlier version of this runbook has `seictl` in `/usr/local/bin`. On a stock `PATH`, `/usr/local/bin` precedes `~/go/bin`. The install then succeeds while `command -v seictl` still resolves the old binary, so gate 1 keeps failing its `--network` probe. Do not re-run the install; it will keep succeeding.
 

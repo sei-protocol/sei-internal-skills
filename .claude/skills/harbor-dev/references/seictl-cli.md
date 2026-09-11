@@ -46,6 +46,7 @@ seictl network apply <name>
                      [--node-isolation Shared|Dedicated]
                      [--genesis-account <addr>:<balance>] [--genesis-account ...]
                      [--genesis-override <module.field>=<value>] [--genesis-override ...]
+                     [--config-value <file>.toml:<dotted.key>=<value>] [--config-value ...]
                      [--set <dotted.path>=<value>] [--set ...]
                      [--dry-run]
                      [-n <ns>] [--kubeconfig <path>]
@@ -59,7 +60,9 @@ Loads the `genesis-chain` preset, applies discrete-flag and `--set` overrides, a
 2. Discrete flags (`--chain-id`, `--image`, `--replicas`, `--cpu`, `--memory`, `--storage`, `--iops`, `--throughput`, `--node-isolation`).
 3. `--set <dotted.path>=<value>`. Strategic-merge: maps merge per-key, lists replace wholesale. Wins on collision with discrete flags. SeiNetwork config overrides live under `spec.configOverrides` (reach them via `--set`); there is **no `--override` flag** on `network apply`.
 
-   Overrides take effect only on an **init path**, so set them at create time. An edit to a Running network's overrides never reaches its nodes' on-disk config. See `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*.
+   Overrides take effect only on an **init path**, so set them at create time. An edit to a Running network's overrides never reaches its nodes' on-disk config. See `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*. For a value that must reach a running pool, use `--config-value` instead (layer 4).
+
+4. `--config-value <file>.toml:<dotted.key>=<value>` (repeatable). Merges into the `spec.configValues` list **by `(fileName, key)`** after `--set`, so it can add to or replace entries the preset or a `--set` put there instead of replacing the list wholesale. See *Typed config values* below.
 
 **Immutability (apply-time, load-bearing):** `spec.genesis`, `spec.replicas`, `spec.resources`, and `spec.dataVolume.storage` are all admission-immutable. The apiserver **rejects** a re-apply of `network apply <same-name>` that changes `--chain-id`, `--replicas`, `--cpu`, `--memory`, `--storage`, `--iops`, or `--throughput`, with `metav1.Status.reason=Invalid`. It is not a silent no-op. To change any of them, `delete` + re-create. This is the new-CRD analogue of the old `updateStrategy` trap.
 
@@ -84,6 +87,7 @@ seictl node apply <name>
                   [--node-isolation Shared|Dedicated]
                   [--external-address <host>:<port>]
                   [--override <toml.key>=<value>] [--override ...]
+                  [--config-value <file>.toml:<dotted.key>=<value>] [--config-value ...]
                   [--set <dotted.path>=<value>] [--set ...]
                   [--dry-run]
                   [-n <ns>] [--kubeconfig <path>]
@@ -98,6 +102,8 @@ Loads the `rpc` preset and server-side-applies a single `SeiNode`. An RPC fleet 
 **`--external-address`** advertises a reachable host:port for external p2p. Leave unset for in-cluster ephemeral chains (followers peer over headless DNS).
 
 **`--override <toml.key>=<value>`** targets `spec.overrides` (per-node `config.toml`/`app.toml`, applied at config-apply — an **init-path** task). Set overrides at create time: a re-apply against a Running node updates only the spec. The on-disk config never changes until the node next traverses an init path. See `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*. `--set` does strategic-merge on the whole spec and wins on collision.
+
+**`--config-value <file>.toml:<dotted.key>=<value>`** targets `spec.configValues` — the typed, day-2 config surface. Same syntax and rules on both trees; see *Typed config values* below.
 
 **`--cpu` / `--memory` / `--storage`** set the seid container footprint and the data-volume size. See *Resource footprint* below; the rules are identical on both `network apply` and `node apply`.
 
@@ -342,6 +348,42 @@ When `seictl network|node apply` succeeds, the post-apply CR carries:
 ### No ambient state
 
 Commands never `cd`, never modify `~/.kube/config`, never set env vars in the calling shell. Every kubectl call is explicit about context and namespace.
+
+## Typed config values (`--config-value`)
+
+`spec.configValues` is a list of `{fileName, key, value}` entries the controller overlays on a node's generated `config.toml` / `app.toml` (SeiNetwork and SeiNode alike). It is the **day-2** config surface: an edit reaches a Running node. `spec.overrides` / `spec.configOverrides` are init-path only (see *configOverrides edits never reach a Running node* in `troubleshooting-seinode.md`); prefer `--config-value` for anything that may need to change after first boot.
+
+**The two surfaces take keys in different vocabularies — translate, never copy.** A `spec.overrides` key is a *unified sei-config schema* path (`storage.state_commit.write_mode`, `network.rpc.pprof_listen_address`); config-apply silently rejects anything else. A `--config-value` key is the *raw TOML path inside the named file* (`app.toml:state-commit.sc-write-mode`, `config.toml:rpc.pprof_laddr`), exactly as it appears in `/sei/config/<file>`. Carrying a unified key into `--config-value` writes a key seid does not know, and the failure surfaces late — at `config-validate`, or as a silently ignored table. Worked pair for pprof: override `spec.overrides."network.rpc.pprof_listen_address"="0.0.0.0:6060"` ⇔ config value `--config-value config.toml:rpc.pprof_laddr=0.0.0.0:6060`. Confirm a raw key by reading the rendered file on a running pod before you write it.
+
+**Minimum version.** `--config-value` arrives with seictl#253, which post-dates the v0.0.72 floor the rest of this skill assumes; no tag carried it at the time of writing. Pre-flight Gate 1 check 5 probes `seictl node apply --help` for `--config-value`; an older binary fails loud at parse (`flag provided but not defined: -config-value`). Upgrade (`go install ...@latest` once a tag ships, else `@main`); do not fall back to `--set spec.configOverrides`, which lands at first boot only.
+
+```
+--config-value <file>.toml:<dotted.key>=<value>      # repeatable
+```
+
+**Typing.** The value is parsed as JSON first, so `true`, `400`, `1.5`, `["a","b"]`, `{"x":1}` and `"quoted"` keep their type; a value that is not valid JSON (`async`, `0.0.0.0:8545`, `100ms`) is stored as a string. Integral numbers stay exact `int64` — large chain IDs and gas limits do not lose precision. The CR carries the typed value (`value: 400`, not `value: "400"`), and seid receives a typed TOML key. Quote a numeric string that must stay a string (`--config-value app.toml:evm.some_id='"713715"'`).
+
+**Rejected at render** — fix these before the PR, they never reach the cluster: empty value; `null` (top-level or nested in an array/object — the controller refuses both); `fileName` not matching `^[A-Za-z0-9_-]+\.toml$` (≤64 chars — so `autobahn.json` is not expressible here); `key` not matching dotted `^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$` (≤256 chars); more than **100** entries; a spec whose *pre-existing* list (preset or `--set spec.configValues=[...]`) already names one `(fileName, key)` twice — seictl refuses to build on a list the controller would reject. Repeating a `--config-value` for an identity that is already in the list is **not** a rejection; it replaces the entry (next paragraph).
+
+**Merge by identity.** `--config-value` merges into the existing list by `(fileName, key)`: an existing entry with the same identity is replaced in place, new ones append in flag order. This runs **after** `--set`, so a preset's or `--set`'s entries survive; `--set spec.configValues=[...]` alone replaces the list wholesale.
+
+**Precedence on disk.** base config generated by the controller → controller-owned `[p2p]` peer keys → `configValues` overlay → seid validation. `configValues` wins over the base and over legacy overrides for the same key; the controller re-patches only peer keys, so it never overwrites a configValue.
+
+**Network vs node.** On a SeiNetwork the set is **authoritative for every validator child** — the controller pre-validates it (`ConfigValuesValid` condition on the network; `InvalidConfigValues` event on failure, children keep their last good set) and then copies it into each child `SeiNode.spec.configValues`. Editing a child directly is overwritten on the next reconcile; edit the network. A standalone SeiNode (RPC/follower) owns its own list.
+
+**Restart semantics — read before editing a live bench.** A configValues change on a Running node builds a `config-update` plan: regenerate base → patch peers → overlay → validate → restart seid. On a SeiNetwork every validator restarts **at the same time** (no rolling order), so block production stops until >2/3 are back. Never change network configValues during a measurement window; provision the bench with the values from the start, or re-apply between runs and wait for `Ready`. The plan does not touch the StatefulSet or image; a `--config-value` re-apply alone never rolls pods.
+
+**Base-regeneration side effect.** Because the plan regenerates the base file, keys that were set out-of-band — `[statesync]` trust height/hash from a state-sync workflow, giga migration keys written by a migration task — revert to defaults unless they are also expressed as configValues. If a follower was state-synced or migrated, add those keys as `--config-value` entries before any day-2 config edit.
+
+**Verify on the cluster, not in the spec.**
+
+```bash
+kubectl get seinetwork <id> -o jsonpath='{.status.conditions[?(@.type=="ConfigValuesValid")]}'
+kubectl get seinode <name> -o jsonpath='{.status.currentConfigValuesHash}{"\n"}{.status.plan.tasks[*].type}'
+kubectl exec <pod> -c seid -- grep -A2 '^\[evm\]' /sei/config/app.toml
+```
+
+An empty `currentConfigValuesHash` on a Running node means it predates the feature: edits wait for the next image roll (`NodeUpdateInProgress` reason `ConfigBaselineUnobserved`). Triage in `troubleshooting-seinode.md` → *ConfigValuesValid=False / configValues edit produced no restart*.
 
 ## Node isolation (`--node-isolation`)
 
