@@ -2,7 +2,7 @@
 
 Generate one `GovVote` SeiNodeTask per validator, **per cluster**, from the live validator
 list (so every `nodeRef` resolves in its own cluster). Fill `proposalId` only after the
-proposal is submitted and the content/id confirm gate (SKILL step 3) passes.
+proposal submit lands and the content/id confirm gate (SKILL step 3) passes.
 
 ## Template
 
@@ -38,4 +38,4 @@ spec:
 - One manifest set per cluster context; wire into that cluster's Flux path; `flux reconcile
   kustomization flux-system -n flux-system --with-source --context <ctx>` after the merge.
 - Fee floor and the SeiNode-name (not pod/deployment) rule are the two most common mistakes —
-  both are encoded above. See `sei-protocol/bdchatham-designs designs/seinode-task/seinode-task.md` for the why.
+  the template above encodes both. See `sei-protocol/bdchatham-designs designs/seinode-task/seinode-task.md` for the why.
