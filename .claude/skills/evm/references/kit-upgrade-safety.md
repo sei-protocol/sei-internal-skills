@@ -9,7 +9,7 @@ Upgradeable contracts on Sei use the **standard EVM proxy stack** — ERC-1967 s
 - **Proxy slots are ERC-1967.** Implementation/admin/beacon at the standard `keccak('eip1967.proxy.<x>') - 1` slots — both UUPS and Transparent use them. *Cited:* `sources.md` §erc1967.
 - **UUPS vs Transparent.** Transparent has an immutable admin/upgrade interface in the proxy; UUPS puts the upgrade function in the implementation (cheaper, but the implementation must keep a valid `_authorizeUpgrade`). Pick deliberately. *Cited:* `sources.md` §oz.
 - **ERC-7201 namespaced storage (OZ v5).** Upgradeable contracts store state in a namespaced struct at a computed base slot (`@custom:storage-location erc7201:<id>`), avoiding sequential-slot collisions across upgrades. Solidity 0.8.35 has an `erc7201` builtin to compute the slot. *Cited:* `sources.md` §erc7201, §solidity.
-- **Init discipline.** Constructors don't run for proxies — use `initializer` (once) / `reinitializer(version)` (per upgrade); lock the implementation with `_disableInitializers()` in its constructor. *Cited:* `sources.md` §oz.
+- **Init discipline.** Constructors do not run for proxies — use `initializer` (once) / `reinitializer(version)` (per upgrade); lock the implementation with `_disableInitializers()` in its constructor. *Cited:* `sources.md` §oz.
 - **Automated layout checks.** Use the **OZ Upgrades plugin** (Hardhat/Foundry) to diff storage layout across versions before upgrading. *Cited:* `sources.md` §erc7201 *(plugin docs URL flagged verify-before-citing)*.
 
 ## 3. Anti-patterns / failure modes

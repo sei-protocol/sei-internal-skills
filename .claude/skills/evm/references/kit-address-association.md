@@ -15,10 +15,10 @@ On Sei every account has **two addresses for one key** — an EVM `0x…` (kecca
 ## 3. Anti-patterns / failure modes
 
 - **Assuming a 0x address can receive native/CW funds before association.** Cue: a flow that sends bank/native funds to an EVM address (or ERC tokens to a bech32) assuming they unify. Rewrite: ensure association first (or use the pointer/bank precompile path); surface "not linked" from `getSeiAddr` reverts. *Cited:* profile §5.
-- **Ignoring the `CanAddressReceive` cast trap.** Cue: a native send to a direct-cast Sei address whose cast EVM origin was *already associated* with a true pubkey-derived address — the send can be **rejected** (`x/evm/keeper/address.go:78-86`). Rewrite: resolve the true associated address; don't send to a stale cast address. *Cited:* `x/evm/keeper/address.go:78-86`.
+- **Ignoring the `CanAddressReceive` cast trap.** Cue: a native send to a direct-cast Sei address whose cast EVM origin was *already associated* with a true pubkey-derived address — the send can be **rejected** (`x/evm/keeper/address.go:78-86`). Rewrite: resolve the true associated address; do not send to a stale cast address. *Cited:* `x/evm/keeper/address.go:78-86`.
 - **Same-mnemonic, wrong account.** Cue: deriving with BIP-44 coin type 118 (Cosmos) and expecting the EVM account, or vice versa — EVM uses **coin type 60**, Cosmos **118**; the same mnemonic yields different accounts. Rewrite: derive with the correct coin type for the VM. *Cited:* sei-docs `learn/accounts.mdx`.
-- **`usei`/`wei` decimal mismatch / dust.** Cue: treating a precompile value arg as 18-dec when it's 6-dec (or vice versa); ignoring sub-`usei` dust in accounting. Rewrite: match the method's decimal contract; account for the dust remainder. *Cited:* profile §6.
-- **Using the retired `sei_associate` RPC.** Cue: a gasless `sei_associate` JSON-RPC call. Rewrite: it's in the deprecated `sei_*` namespace (returns `legacy_sei_deprecated` on public RPCs) — use the signed-message association method. *Cited:* sei-docs `learn/accounts.mdx`.
+- **`usei`/`wei` decimal mismatch / dust.** Cue: treating a precompile value arg as 18-dec when it is 6-dec (or vice versa); ignoring sub-`usei` dust in accounting. Rewrite: match the method's decimal contract; account for the dust remainder. *Cited:* profile §6.
+- **Using the retired `sei_associate` RPC.** Cue: a gasless `sei_associate` JSON-RPC call. Rewrite: it is in the deprecated `sei_*` namespace (returns `legacy_sei_deprecated` on public RPCs) — use the signed-message association method. *Cited:* sei-docs `learn/accounts.mdx`.
 
 ## 4. Review cues
 

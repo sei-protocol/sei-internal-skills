@@ -14,7 +14,7 @@ Coral / council should *proactively* surface `/design` when **the deliverable is
 |---|---|
 | Synthesis pass produced an LLD or architecture sketch | This IS the artifact; capture it before context decays |
 | Council closed a workstream with a final design | The workstream's whole point was to produce this; record it |
-| User says "let's write this up" / "we should document this" | They're explicitly asking for a doc |
+| User says "let us write this up" / "we should document this" | They are explicitly asking for a doc |
 | One-way door surfaced and a decision was made | The decision is worth a permanent record |
 | Multiple alternatives were weighed before picking one | The reasoning is what matters six months later — capture it |
 
@@ -22,7 +22,7 @@ The orchestrator phrases it as an offer: *"Want me to capture this as a design d
 
 ## `/design` vs `/issue` at the handoff
 
-Both skills can fire from the same session. They're complementary, not competing:
+Both skills can fire from the same session. They are complementary, not competing:
 
 | Skill | Captures | When |
 |---|---|---|
@@ -46,7 +46,7 @@ When both fire, threading the lineage matters:
 
 ## What the orchestrator passes to `/design`
 
-The orchestrator has the session in head. Pre-fill, don't re-prompt. The skill's procedure step 3 is short-circuited when these are provided:
+The orchestrator has the session in head. Pre-fill, do not re-prompt. The skill's procedure step 3 is short-circuited when these are provided:
 
 | Design field | Pulled from |
 |---|---|

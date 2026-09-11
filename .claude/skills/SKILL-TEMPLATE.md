@@ -2,9 +2,9 @@
 
 This document defines the canonical shape for skills that codify a team process. Read it before authoring a new procedural skill; use it as a checklist in review.
 
-A **procedural skill** executes a fixed sequence of steps with side effects on external systems (clusters, CI, deployments, on-chain state, etc.). It is different from an orchestration skill like `/council` or `/coral`, which coordinate agents and don't typically have side effects themselves.
+A **procedural skill** executes a fixed sequence of steps with side effects on external systems (clusters, CI, deployments, on-chain state, etc.). It is different from an orchestration skill like `/council` or `/coral`, which coordinate agents and do not typically have side effects themselves.
 
-Procedural skills live at **project scope** (`<repo>/.claude/skills/<name>/`) unless they're truly repo-agnostic, in which case they live at user scope (`~/.claude/skills/<name>/`). The default is project scope.
+Procedural skills live at **project scope** (`<repo>/.claude/skills/<name>/`) unless they are truly repo-agnostic, in which case they live at user scope (`~/.claude/skills/<name>/`). The default is project scope.
 
 **In sei-internal-skills, pick the tier before you pick the shape.** This repo ships a focused
 **core** (`.claude/skills/`) that every teammate installs, and parks everything else in
@@ -47,7 +47,7 @@ description: "<one sentence purpose. Concrete trigger phrases. Anti-triggers —
 ---
 ```
 
-Description crafting is the highest-leverage work in a skill — it's the only thing that routes invocation:
+Description crafting is the highest-leverage work in a skill — it is the only thing that routes invocation:
 
 - **Triggers** — exact phrases a user would say. Not synonyms, not intent-level paraphrases. The runtime matches on the text.
 - **Anti-triggers** — "NOT for production clusters", "SKIP if X", "do NOT use when Y". Prevent over-matching.
@@ -72,7 +72,7 @@ This skill operates on **<scope>** only. Before any side-effecting action:
 See `references/guardrails.md` for the detailed safety model.
 ```
 
-If you can't write the guardrails stanza, the skill isn't safe to author. Write it first.
+If you cannot write the guardrails stanza, the skill is not safe to author. Write it first.
 
 ### 3. Preconditions
 
@@ -81,8 +81,8 @@ What must be true before the skill runs: tools available, env vars set, auth sta
 ### 4. Procedure (the main body)
 
 The step-by-step procedure. Each step:
-- Calls a script from `scripts/` — don't embed shell commands in prose
-- Names what it's doing and which signal it's capturing
+- Calls a script from `scripts/` — do not embed shell commands in prose
+- Names what it is doing and which signal it is capturing
 - Specifies success criteria for that step
 - References the halt conditions that would fire
 
@@ -163,9 +163,9 @@ When creating a new procedural skill:
 
 - [ ] Skill name is slash-command-friendly (kebab-case, short).
 - [ ] Description field has triggers AND anti-triggers AND sibling redirects.
-- [ ] Guardrails stanza drafted FIRST. If you can't articulate what the skill refuses to do, stop and think again.
+- [ ] Guardrails stanza drafted FIRST. If you cannot articulate what the skill refuses to do, stop and think again.
 - [ ] Procedure broken into discrete steps. Each step → one script under `scripts/`.
-- [ ] Halt conditions written. The "stop, don't auto-remediate" list is explicit.
+- [ ] Halt conditions written. The "stop, do not auto-remediate" list is explicit.
 - [ ] Summary template drafted (if the skill produces an artifact).
 - [ ] State convention followed — `state/` gitignored, run-ID subdir, audit.log.
 - [ ] Happy-path permissions pre-approved in `settings.json` or documented.
@@ -181,7 +181,7 @@ Things that signal a procedural skill is going wrong:
 
 - **Shell commands in SKILL.md prose** — the SKILL.md is documentation, not a script. Put commands in `scripts/`.
 - **Vague trigger phrases** — "use this when working on the platform." Too broad; will over-match. Be specific.
-- **Missing anti-triggers** — if there's ANY scope where invoking this skill would be wrong, the description must say so.
+- **Missing anti-triggers** — if there is ANY scope where invoking this skill would be wrong, the description must say so.
 - **Auto-remediation** — the skill detects a problem and "just fixes it." Almost always wrong. Halt and ask.
 - **Embedded secrets or cluster identifiers** — these belong in env vars or config, never checked into the skill.
 - **No state directory** — the skill runs, something goes wrong, you have nothing to debug. Always write state.

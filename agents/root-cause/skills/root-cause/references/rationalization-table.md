@@ -7,14 +7,14 @@ The skill's rationalization table is the highest-leverage persuasion mechanism �
 | # | Rationalization | Documented as | Reality |
 |---|-----------------|---------------|---------|
 | 1 | "The most likely cause is X — let me verify by fixing it." | Premature closure / anchoring. Persistent across CoT reasoning in ~23% of clinical-LLM traces (medRxiv 2025). | A fix is not a test of a hypothesis. Write the falsification criterion **before** applying the fix. |
-| 2 | "Based on the symptoms, the logs probably show…" | Plausibility hallucination. Documented in KubeGPT, Arize field analysis ("confident liars"), FSE'24 RCA paper. The same pathology as code-completion hallucination, transplanted to ops. | If you didn't run the command, you don't have evidence. Cite the tool call or tag `unverified`. |
+| 2 | "Based on the symptoms, the logs probably show…" | Plausibility hallucination. Documented in KubeGPT, Arize field analysis ("confident liars"), FSE'24 RCA paper. The same pathology as code-completion hallucination, transplanted to ops. | If you did not run the command, you do not have evidence. Cite the tool call or tag `unverified`. |
 | 3 | "Restarting the pod fixed it, so the root cause was X." | Symptom-as-cause via mitigation theater. Google SRE explicitly distinguishes mitigation (drain/rollback/restart/scale) from root cause. | A restart is evidence the system is *restartable*. Root cause must survive the next deploy. |
-| 4 | "You're right, that's probably it — let me investigate that angle." | Sycophancy / authority capitulation. Anthropic's own Petri evals + Sharma et al. (2023). Reduced 70–85% in Opus 4.5 but not eliminated. | When a human supplies a hypothesis, generate **two independent alternatives** before acting on it. |
-| 5 | "We're losing money every minute — let me skip ahead to the fix." | Time-pressure compliance. Temporal-awareness paper (arXiv 2601.13206): LLMs translate urgency into skipped verification, not better strategy. StepFly: agents "express intention to proceed but fail to invoke the necessary tools." | Urgency raises the cost of being wrong, which raises the required evidence per action. |
-| 6 | "All five experts agree, so this is the cause." | Consensus theater. MAST (Cemri et al., 2025) catalogs sycophancy among agents, role drift, evidence fabrication to support emergent consensus. ICLR'25: multi-agent debate often fails to beat single-agent baselines. | Consensus is evidence only if each expert committed **before** seeing the others. Otherwise it's one well-chosen anchor. |
-| 7 | "There's not enough information to determine the root cause." | Paralysis / excessive-caution escape hatch. FSE'24: 66% of ReAct wrong answers were "insufficient information" punts vs. 18–32% for weaker baselines. | After N hypothesis cycles, force a ranked commitment with explicit confidence, not a punt. |
-| 8 | "It's probably a race condition." | Domain-flavored guess. The race is not specified — which threads, which shared state, which interleaving. | State the race or drop it. Unspecified race conditions are unfalsifiable. |
-| 9 | "We've seen this before — it's the usual culprit." | Pattern-matching as conclusion. Documented in incident-response cognitive-bias literature (cybersecurity-magazine, Allspaw/Woods STELLA report). | Pattern-match is a strong source of hypotheses, weak source of conclusions. Run the falsification observation. |
+| 4 | "You are right, that is probably it — let me investigate that angle." | Sycophancy / authority capitulation. Anthropic's own Petri evals + Sharma et al. (2023). Reduced 70–85% in Opus 4.5 but not eliminated. | When a human supplies a hypothesis, generate **two independent alternatives** before acting on it. |
+| 5 | "We are losing money every minute — let me skip ahead to the fix." | Time-pressure compliance. Temporal-awareness paper (arXiv 2601.13206): LLMs translate urgency into skipped verification, not better strategy. StepFly: agents "express intention to proceed but fail to invoke the necessary tools." | Urgency raises the cost of being wrong, which raises the required evidence per action. |
+| 6 | "All five experts agree, so this is the cause." | Consensus theater. MAST (Cemri et al., 2025) catalogs sycophancy among agents, role drift, evidence fabrication to support emergent consensus. ICLR'25: multi-agent debate often fails to beat single-agent baselines. | Consensus is evidence only if each expert committed **before** seeing the others. Otherwise it is one well-chosen anchor. |
+| 7 | "Not enough information exists to determine the root cause." | Paralysis / excessive-caution escape hatch. FSE'24: 66% of ReAct wrong answers were "insufficient information" punts vs. 18–32% for weaker baselines. | After N hypothesis cycles, force a ranked commitment with explicit confidence, not a punt. |
+| 8 | "It is probably a race condition." | Domain-flavored guess. The race is not specified — which threads, which shared state, which interleaving. | State the race or drop it. Unspecified race conditions are unfalsifiable. |
+| 9 | "We have seen this before — it is the usual culprit." | Pattern-matching as conclusion. Documented in incident-response cognitive-bias literature (cybersecurity-magazine, Allspaw/Woods STELLA report). | Pattern-match is a strong source of hypotheses, weak source of conclusions. Run the falsification observation. |
 | 10 | "The dashboards look fine." | Aggregate-blind: pre-aggregated metrics hide tail behavior. Charity Majors: "metrics permanently discard the connective tissue." | Descend from aggregates to raw events (logs, traces, request-level) before declaring no problem. |
 | 11 | "Human error — the on-call should have noticed sooner." | Hindsight bias. Cook ("How Complex Systems Fail"), Dekker ("human error is the starting point of investigation, never the conclusion"). | Treat operator action as a symptom and ask why the system permitted/encouraged that action. |
 | 12 | "The fix is obvious — let me apply it and move on." | Mitigation collapsing investigation. Indistinguishable from failure mode #3 in effect; different in framing (proactive vs. reactive). | The fix is a separate engagement. Investigation ends at the ranked conclusion + recommended actions, not at applying them. |
@@ -36,7 +36,7 @@ When applied to *system state* (not to predictions about a future test):
 - "appears to"
 - "seems like"
 
-These predict, they don't observe. Demand the tool call.
+These predict, they do not observe. Demand the tool call.
 
 ### Passive voice on data sources
 
@@ -55,24 +55,24 @@ Passive voice hides who looked. If no one looked, no one knows.
 - "go ahead and rollback"
 - "real quick"
 
-These minimize the action so the agent doesn't have to defend skipping verification.
+These minimize the action so the agent does not have to defend skipping verification.
 
 ### Authority capitulation
 
-- "you're right"
+- "you are right"
 - "good point"
 - "that makes sense"
 
-In response to a hypothesis (rather than to retrieved evidence). The pattern is fine in response to data; it's a smell in response to a claim.
+In response to a hypothesis (rather than to retrieved evidence). The pattern is fine in response to data; it is a smell in response to a claim.
 
 ### Time-pressure laundering
 
 - "given the urgency"
 - "to save time"
 - "skipping ahead"
-- "we don't have time to"
+- "we do not have time to"
 
-Explicit verification-skipping wearing a justification. The justification doesn't change the math: skipped verification raises the probability of being wrong.
+Explicit verification-skipping wearing a justification. The justification does not change the math: skipped verification raises the probability of being wrong.
 
 ### Consensus laundering
 

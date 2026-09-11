@@ -53,4 +53,4 @@
 ## 5. One-way doors in this concern
 
 - **`result-export` is read-only on the node** — it reads the chain (CometBFT + EVM RPC) and writes to S3; it does **not** mutate node state, so it is **low-risk** and is **NOT** a schema or prod one-way door. Re-running is safe (the watermark advances from `last+1`).
-- **Honest load/collision notes (not irreversible, but real):** the task adds sidecar + RPC load (CometBFT `canonicalRpc`, EVM RPCs, and `debug_traceBlockByNumber` on `traceRpc`, which needs the `debug_` namespace on an operator-owned node), and it **writes to the S3 `{prefix}`** — give each run its own prefix so concurrent or repeated runs don't collide pages/reports.
+- **Honest load/collision notes (not irreversible, but real):** the task adds sidecar + RPC load (CometBFT `canonicalRpc`, EVM RPCs, and `debug_traceBlockByNumber` on `traceRpc`, which needs the `debug_` namespace on an operator-owned node), and it **writes to the S3 `{prefix}`** — give each run its own prefix so concurrent or repeated runs do not collide pages/reports.

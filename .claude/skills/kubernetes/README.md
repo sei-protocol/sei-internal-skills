@@ -16,7 +16,7 @@ This skill designs and reviews Kubernetes operator/controller code — CRDs, rec
 ## What it does
 
 - Designs or reviews controller/CRD code against the five controller dimensions: reconcile correctness and idempotency, CRD-contract durability, failure-mode handling, RBAC least-privilege, and observability (conditions / `observedGeneration`).
-- Loads the Sei-controller profile and the relevant kit first, citing every finding to a primary source or a profile rule — never a naked "this isn't idiomatic."
+- Loads the Sei-controller profile and the relevant kit first, citing every finding to a primary source or a profile rule — never a naked "this is not idiomatic."
 - Treats the CRD contract as a one-way door: a served-version field, its validation, or its semantics cannot change incompatibly once a consumer depends on it. Such changes are flagged for human approval and routed through a new version, never asserted as the fix.
 
 ## Reading the diagram

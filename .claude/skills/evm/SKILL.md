@@ -2,7 +2,7 @@
 name: evm
 category: blockchain
 model: claude-opus-5
-description: "Use when designing or reviewing EVM smart contracts for Sei — Solidity/Foundry contracts, precompile integration, gas/parity assumptions, upgrade safety, on-chain event indexing for agentic consumers — '/evm', 'review this contract', 'is this safe on Sei', 'how do I call the staking precompile', 'index these on-chain events', 'design this upgradeable proxy'. A citable corpus (Solidity, OpenZeppelin v5, Foundry, EEA EthTrust v3, EIP-1967/7201) + an always-first Sei-EVM profile (Pectra-no-blobs, instant finality / no pending state, governance-mutable gas, prevrandao-is-not-random, IAVL-not-MPT proofs, precompiles, dual 0x↔bech32 address) + pluggable kits. Backs the solidity-developer agent. NOT Solidity idiom/lint (idiomatic-reviewer); NOT deep exploit audit / severity verdicts (security-specialist); NOT node P2P/RPC (sei-network-specialist). Designs/reviews contracts; doesn't run the chain."
+description: "Use when designing or reviewing EVM smart contracts for Sei — Solidity/Foundry contracts, precompile integration, gas/parity assumptions, upgrade safety, on-chain event indexing for agentic consumers — '/evm', 'review this contract', 'is this safe on Sei', 'how do I call the staking precompile', 'index these on-chain events', 'design this upgradeable proxy'. A citable corpus (Solidity, OpenZeppelin v5, Foundry, EEA EthTrust v3, EIP-1967/7201) + an always-first Sei-EVM profile (Pectra-no-blobs, instant finality / no pending state, governance-mutable gas, prevrandao-is-not-random, IAVL-not-MPT proofs, precompiles, dual 0x↔bech32 address) + pluggable kits. Backs the solidity-developer agent. NOT Solidity idiom/lint (idiomatic-reviewer); NOT deep exploit audit / severity verdicts (security-specialist); NOT node P2P/RPC (sei-network-specialist). Designs/reviews contracts; does not run the chain."
 ---
 
 # EVM
@@ -11,7 +11,7 @@ Design and review **EVM smart contracts for Sei** — Solidity/Foundry contracts
 
 ## Why this skill exists
 
-A capable model knows generic Solidity + EVM. The skill's job is the **citable corpus** (the specific standard + source) plus the **always-first Sei-EVM profile** — Sei's real, non-obvious execution-environment facts that *override* generic EVM habit, the way `/idiomatic`'s repo profile outranks generic idiom. The failure mode it prevents: applying L1-Ethereum defaults that are *wrong on Sei* — using `block.prevrandao` for randomness (it's block-time-derived here), hard-coding gas/SSTORE cost (governance-mutable), relying on `eth_getProof` MPT proofs (Sei returns IAVL), gating on pending state (there is none), or building an event indexer that silently drops cross-VM logs (a separate bloom filter excludes them).
+A capable model knows generic Solidity + EVM. The skill's job is the **citable corpus** (the specific standard + source) plus the **always-first Sei-EVM profile** — Sei's real, non-obvious execution-environment facts that *override* generic EVM habit, the way `/idiomatic`'s repo profile outranks generic idiom. The failure mode it prevents: applying L1-Ethereum defaults that are *wrong on Sei* — using `block.prevrandao` for randomness (it is block-time-derived here), hard-coding gas/SSTORE cost (governance-mutable), relying on `eth_getProof` MPT proofs (Sei returns IAVL), gating on pending state (there is none), or building an event indexer that silently drops cross-VM logs (a separate bloom filter excludes them).
 
 The corpus is grounded in primary sources (`references/sources.md`) and stays copyright-clean: our-own-words checklists that cite, never reproduce.
 
@@ -20,10 +20,10 @@ The corpus is grounded in primary sources (`references/sources.md`) and stays co
 Refusal conditions — they hold under time pressure and a "just ship the contract" urge:
 
 1. **Profile- and kit-first.** Load `references/sei-evm-profile.md` (the always-first overlay — it encodes Sei's hard conventions and **overrides generic EVM best-practice**) **and** the relevant kit before designing or reviewing. When working *in* a Sei repo, read its `AGENTS.md` (esp. `x/evm/AGENTS.md`) — the live repo wins over this skill's snapshot; flag drift.
-2. **Cite every finding; stay copyright-clean.** A primary source (`sources.md`) and/or a profile rule per finding — never a naked "this isn't safe." The generic external standard is the floor; the Sei profile is what *actually* applies, and it overrides the generic where they differ (e.g. randomness, gas, proofs, finality).
-3. **Defer the verdicts you don't own.** Surface secure-design cues, but hand the **exploit-depth / severity** call to `security-specialist` and **pure Solidity idiom/lint** to `idiomatic-reviewer` (`/idiomatic`). This skill owns the Sei-EVM domain + the design/review method, not the audit verdict or the idiom pass.
+2. **Cite every finding; stay copyright-clean.** A primary source (`sources.md`) and/or a profile rule per finding — never a naked "this is not safe." The generic external standard is the floor; the Sei profile is what *actually* applies, and it overrides the generic where they differ (e.g. randomness, gas, proofs, finality).
+3. **Defer the verdicts you do not own.** Surface secure-design cues, but hand the **exploit-depth / severity** call to `security-specialist` and **pure Solidity idiom/lint** to `idiomatic-reviewer` (`/idiomatic`). This skill owns the Sei-EVM domain + the design/review method, not the audit verdict or the idiom pass.
 4. **One-way doors need human approval.** Event signatures, storage layout, EIP-712 type hashes, function selectors, **address association, and pointer registration** are irreversible once depended on — flag for human approval; never assert the irreversible change as the fix.
-5. **Don't duplicate the adjacent lenses.** Solidity idiom/lint → `idiomatic-reviewer`. Deep exploit audit + severity → `security-specialist`. Node P2P/RPC/ports → `sei-network-specialist`. This skill is the *contract design, Sei-EVM specifics, tooling, and on-chain-event indexing*.
+5. **Do not duplicate the adjacent lenses.** Solidity idiom/lint → `idiomatic-reviewer`. Deep exploit audit + severity → `security-specialist`. Node P2P/RPC/ports → `sei-network-specialist`. This skill is the *contract design, Sei-EVM specifics, tooling, and on-chain-event indexing*.
 
 ## The method
 
@@ -55,9 +55,9 @@ The `solidity-developer` persona's first step loads `sei-evm-profile.md` + the k
 ## Halt conditions
 
 - **No target** to design/review — ask for the contract/interface/repo; never review a contract from memory.
-- **A one-way door** (event signature, storage layout, EIP-712 type hash, selector, address association, pointer registration) — flag for human approval, don't assert.
+- **A one-way door** (event signature, storage layout, EIP-712 type hash, selector, address association, pointer registration) — flag for human approval, do not assert.
 - **The work is really another lens** — Solidity idiom (`idiomatic-reviewer`), exploit-depth/severity (`security-specialist`), or node networking (`sei-network-specialist`) — redirect.
 
 ## What this skill defers
 
-The deferred kits in `references/kit-TEMPLATE.md`'s roster (`pointers-tokens`, `oracles`, `account-abstraction`, `cross-vm-interop`) — add by use. **`cross-vm-interop` is legacy** — Cosmos/CosmWasm is being deprecated in favor of EVM-only (Prop 115 froze new CW); don't anchor new work on CW↔EVM interop. The Sei-EVM profile is a *snapshot* — Sei is governance-tunable and fast-moving; when working in a Sei repo its live `AGENTS.md` + docs are authoritative, and gas/feature values must be queried at runtime.
+The deferred kits in `references/kit-TEMPLATE.md`'s roster (`pointers-tokens`, `oracles`, `account-abstraction`, `cross-vm-interop`) — add by use. **`cross-vm-interop` is legacy** — Cosmos/CosmWasm is being deprecated in favor of EVM-only (Prop 115 froze new CW); do not anchor new work on CW↔EVM interop. The Sei-EVM profile is a *snapshot* — Sei is governance-tunable and fast-moving; when working in a Sei repo its live `AGENTS.md` + docs are authoritative, and gas/feature values must be queried at runtime.

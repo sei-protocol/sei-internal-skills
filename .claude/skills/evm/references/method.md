@@ -28,5 +28,5 @@ Grounded in the external canon (`sources.md`) and specialized by the Sei-EVM pro
 ## Design discipline (when authoring, not just reviewing)
 
 - Argue the **maximum scope you'd defend** in the contract domain, then name what you'd **cut first** for an MVP and the condition that un-defers it — the orchestrator/human picks the minimum (the established agent output-discipline).
-- A change touching an **event signature, storage layout, EIP-712 type hash, function selector, an address association, or a pointer registration** is a **one-way door** — design it as if you can't take it back, and flag it for human approval before finalizing.
+- A change touching an **event signature, storage layout, EIP-712 type hash, function selector, an address association, or a pointer registration** is a **one-way door** — design it as if you cannot take it back, and flag it for human approval before finalizing.
 - Reach for the profile's Sei reality over a generic one: entropy is a **VRF** (not `prevrandao`); gas is **estimated at runtime** (not a hard-coded constant); randomness/proof/finality/pending assumptions follow **Sei**, not L1 Ethereum.

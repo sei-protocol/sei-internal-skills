@@ -4,7 +4,7 @@
 
 ![Research architecture diagram](assets/research.png)
 
-Research answers a question with a durable, verified, lineage-threaded artifact instead of a chat reply that evaporates. Its core guarantee is the adversarial verify gate: no material finding ships unless a refutation pass tried to disprove it and failed, and anything that can't be confirmed or refuted is kept only under an `unverified` label. A vague question is refused and sharpened before any sweep begins.
+Research answers a question with a durable, verified, lineage-threaded artifact instead of a chat reply that evaporates. Its core guarantee is the adversarial verify gate: no material finding ships unless a refutation pass tried to disprove it and failed, and anything that cannot be confirmed or refuted is kept only under an `unverified` label. A vague question is refused and sharpened before any sweep begins.
 
 | | |
 |---|---|

@@ -24,7 +24,7 @@ Sections: [mental model](#the-mental-model--witnesses-vs-snapshot-providers-two-
 
 **When to use:** the engineer has a running chain in their namespace and wants
 to attach a follower **without replaying from genesis** — "add an RPC node with
-state sync", "bootstrap from my own chain", "don't replay 400k blocks". For a
+state sync", "bootstrap from my own chain", "do not replay 400k blocks". For a
 young chain (minutes–hours old), genesis replay is usually simpler and needs
 none of this; offer that first. State sync earns its setup on chains with real
 accumulated height or when the engineer is explicitly testing the state-sync
@@ -59,7 +59,7 @@ self-service: no platform PR.
    the interval at least once.
 3. **Same image as the chain** — `kubectl get seinetwork <id> -n eng-<alias> -o jsonpath='{.spec.image}'`.
 4. **The harbor CRD carries the field** — `kubectl explain seinode.spec.fullNode.snapshot.rpcServers`
-   exits 0. If it doesn't, the controller predates the feature: halt and
+   exits 0. If it does not, the controller predates the feature: halt and
    surface (the fallback is genesis replay, not improvisation).
 
 ## The spec shape
@@ -123,7 +123,7 @@ block-syncs the tail. Watch with
 |---|---|---|
 | Rejected at `kubectl apply` — minItems / pattern / duplicate | <2 witnesses, scheme prefix, missing port, comma in item, IPv6 | Fix the list; the admission message names the rule |
 | SeiNode condition `StateSyncReady=False / NoSyncersConfigured`, **no pod and no StatefulSet appear** | `stateSync: {}` set but no `rpcServers` and no registry entry for this chain (eng chains never have one). The controller deliberately holds StatefulSet creation while the gate blocks — this is the fixed version of the old stranded-Pending-pod failure | Add ≥2 `rpcServers`, or drop `stateSync` and genesis-replay. The condition message names both remediations |
-| Plan runs but the sidecar's state-sync configure task fails: "no reachable RPC witness" | Witness endpoints wrong/unreachable, or the chain members aren't up | Fix endpoints (read them verbatim from status); confirm members Running |
+| Plan runs but the sidecar's state-sync configure task fails: "no reachable RPC witness" | Witness endpoints wrong/unreachable, or the chain members are not up | Fix endpoints (read them verbatim from status); confirm members Running |
 | State sync starts, finds no snapshots, seid retries/aborts | No peer has actually produced a snapshot yet (young chain, interval not crossed) | Wait for the first snapshot interval, or genesis-replay instead |
 | Node syncs then halts on app-hash mismatch / wrong height | **Wrong-chain witness** — an endpoint on a different chain passed shape validation and supplied a foreign trust point. Shape is the ONLY admission validation; chain membership is not checked (sidecar-side assertion tracked as PLT-793) | Every `rpcServers` entry must be a member of `spec.chainId`'s chain. Diagnose via the sidecar container logs |
 | seid crash-loops from the very first boot: `LoadStateFromDBOrGenesisDocProvider(): fromProto: validatorSet proposer error: nil validator` | **PLT-794 (deterministic, not recoverable by wipe/reprovision)** — the ceremony-fresh genesis has no `validators` field and state sync skips InitChain, so node construction fails before state sync runs. Verified live 2026-07-08: reproduces identically on a pristine PVC | Drop the `snapshot` block and genesis-replay (the working path on eng chains until PLT-794 lands). Verify with `/genesis`: `has_validators: false` confirms this cause |

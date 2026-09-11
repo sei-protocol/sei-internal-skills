@@ -38,7 +38,7 @@ flagged for human approval, not asserted.
 
 **Authoring rules:**
 - **Cite both layers:** the repo pattern (a file path in `platform`/`sei-infra`) AND the external canon (`sources.md`) it specializes or overrides. A claim with neither is not a kit entry.
-- The **profile** (`sei-platform-profile.md`) holds the cross-cutting hard conventions — kits reference it, don't restate it.
+- The **profile** (`sei-platform-profile.md`) holds the cross-cutting hard conventions — kits reference it, do not restate it.
 - Where the fleet **overrides** a generic standard (Pod-Identity over IRSA, SOPS over CSI), say so explicitly and cite the generic as the floor (`sources.md`).
 - Keep review cues mapped to the six method dimensions so findings stay rankable. **Always write the dimension as `Dimension N (name)`** — keep the parenthetical name, never a bare `Dimension N`. The number→name map lives only in `method.md`, so a kit pulled into a windowed context must carry the name with it.
 

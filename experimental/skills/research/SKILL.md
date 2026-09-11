@@ -13,27 +13,27 @@ It composes the framework rather than reinventing it: it reuses `/xreview`'s **a
 
 ## Why this skill exists (read this first)
 
-Research outputs today are less reusable, less verifiable, and don't accrue into the bet↔design↔issue↔PR graph the way the rest of the stack does. The failure mode the spine prevents: an agent fans out a sweep, finds a plausible-sounding claim, and **ships it without refutation** because it "looks right" and the operator wants an answer. A research answer is only as good as the weakest unverified finding in it — so the differentiator is not the sweep (any agent can search), it is the **adversarial verify gate** and the **completeness pass**.
+Research outputs today are less reusable, less verifiable, and do not accrue into the bet↔design↔issue↔PR graph the way the rest of the stack does. The failure mode the spine prevents: an agent fans out a sweep, finds a plausible-sounding claim, and **ships it without refutation** because it "looks right" and the operator wants an answer. A research answer is only as good as the weakest unverified finding in it — so the differentiator is not the sweep (any agent can search), it is the **adversarial verify gate** and the **completeness pass**.
 
 ## Guardrails
 
 Refusal conditions — these hold under "just give me a quick answer" pressure:
 
-1. **No finding ships unverified.** Every material finding gets a refutation pass before it's trusted. A finding that survives refutation is **verified** (with the refutation move recorded — an *unattempted* refutation yields `unverified`, not `verified`); one the refutation *disproves* is **refuted** and dropped; one it can neither confirm nor disprove is **unverified**, kept only with that label. Never present an unverified finding as established.
-2. **Refuse a vague question; confirm scope before sweeping.** If the question doesn't name what a *useful answer* looks like (the decision it informs, the falsifiable claims sought), push back and sharpen it. Then **echo the scoped question** (decision + claims + scope boundary) and get the operator's go-ahead before the sweep — a sweep with no confirmed target returns noise.
-3. **Reuse the dissent primitive, don't invoke `/xreview`.** `/xreview` reviews *interface boundaries* (provider/consumer, COMPATIBLE/MISMATCH/MISSING) — that table doesn't map onto a research finding. `research` implements its **own** refutation pass *modeled on* xreview's assigned-dissent primitive (tag a skeptic to argue the finding is wrong). Do not call `/xreview` on findings.
-4. **Discover, don't decide.** Research surfaces findings + a recommendation; it does not capture a design decision (that's `/design`) or file work (that's `/issue`). Keep the artifact a *findings* artifact.
+1. **No finding ships unverified.** Every material finding gets a refutation pass before it is trusted. A finding that survives refutation is **verified** (with the refutation move recorded — an *unattempted* refutation yields `unverified`, not `verified`); one the refutation *disproves* is **refuted** and dropped; one it can neither confirm nor disprove is **unverified**, kept only with that label. Never present an unverified finding as established.
+2. **Refuse a vague question; confirm scope before sweeping.** If the question does not name what a *useful answer* looks like (the decision it informs, the falsifiable claims sought), push back and sharpen it. Then **echo the scoped question** (decision + claims + scope boundary) and get the operator's go-ahead before the sweep — a sweep with no confirmed target returns noise.
+3. **Reuse the dissent primitive, do not invoke `/xreview`.** `/xreview` reviews *interface boundaries* (provider/consumer, COMPATIBLE/MISMATCH/MISSING) — that table does not map onto a research finding. `research` implements its **own** refutation pass *modeled on* xreview's assigned-dissent primitive (tag a skeptic to argue the finding is wrong). Do not call `/xreview` on findings.
+4. **Discover, do not decide.** Research surfaces findings + a recommendation; it does not capture a design decision (that is `/design`) or file work (that is `/issue`). Keep the artifact a *findings* artifact.
 5. **Never launch a workstream; surface a too-wide sweep.** A research effort may be *checkpoint-gated by* a `/workstream` (an `outcome-alignment` gate after synthesis), but it never *launches* one. Inline covers **≤3 sweep angles**; if the question needs more, **surface the limit** rather than running a narrow sweep silently — the parallel-sweep Workflow engine is deferred from MVP.
 
 ## The method (four stages)
 
 ### 1. Scope
 
-State the question and what a useful answer is: the **decision it informs**, the **falsifiable claims** sought, and the **scope boundary** (what's in/out). Refuse a vague question (Guardrail 2). **Echo the scoped question to the operator and get go-ahead before the sweep** (Guardrail 2). Write the scoped question at the top of the artifact — it's the contract the completeness pass checks against.
+State the question and what a useful answer is: the **decision it informs**, the **falsifiable claims** sought, and the **scope boundary** (what's in/out). Refuse a vague question (Guardrail 2). **Echo the scoped question to the operator and get go-ahead before the sweep** (Guardrail 2). Write the scoped question at the top of the artifact — it is the contract the completeness pass checks against.
 
 ### 2. Multi-modal sweep
 
-Fan out searches, each blind to the others' angle, so one search angle's blind spot doesn't sink the whole effort. Canonical angles (pick the ones the question needs):
+Fan out searches, each blind to the others' angle, so one search angle's blind spot does not sink the whole effort. Canonical angles (pick the ones the question needs):
 
 - **by-source** — official docs / primary sources / specs
 - **by-entity** — the named tools, projects, people, prior art
@@ -47,12 +47,12 @@ Inline for ≤3 angles (the MVP norm). Broader sweeps want a Workflow (deferred)
 For each material finding, run a **refutation pass**: assign a skeptic stance and argue the finding is *wrong* — find the contradicting source, the stale citation, the overgeneralization, the sample-of-one. This reuses `/xreview`'s assigned-dissent primitive (a tagged red-team), applied to findings rather than boundaries (Guardrail 3). Outcome per finding:
 
 - **verified** — survived refutation; cite the source and note what the refutation tried and failed to do.
-- **refuted** — dropped; note why (so the next sweep doesn't re-surface it).
-- **unverified** — couldn't confirm or refute; kept *only if* labeled unverified, never presented as established.
+- **refuted** — dropped; note why (so the next sweep does not re-surface it).
+- **unverified** — could not confirm or refute; kept *only if* labeled unverified, never presented as established.
 
 ### 4. Completeness pass + synthesize
 
-Run **one** completeness pass: "what modality wasn't run, what claim is unverified, what source is unread, what part of the scoped question is unanswered?" **Report** the gaps; the human decides whether to run another sweep round (no auto-loop in MVP). Then synthesize: the findings (tagged), the gaps, and a recommendation that answers the scoped question's decision — **grounded only in verified findings** (unverified findings inform open questions, not the recommendation).
+Run **one** completeness pass: "what modality was not run, what claim is unverified, what source is unread, what part of the scoped question is unanswered?" **Report** the gaps; the human decides whether to run another sweep round (no auto-loop in MVP). Then synthesize: the findings (tagged), the gaps, and a recommendation that answers the scoped question's decision — **grounded only in verified findings** (unverified findings inform open questions, not the recommendation).
 
 ## The artifact
 
@@ -96,17 +96,17 @@ Capture in the DRI's designs repo — the engineer's `<name>-designs` repo, unde
 |---|---|
 | "This finding looks obviously right — verifying it wastes time." | Obvious-looking findings are exactly the ones that ship stale or overgeneralized. Run the refutation pass; cite what it tried and failed to do. |
 | "The operator wants an answer now — ship the sweep results." | A sweep is raw material, not an answer. Unverified findings shipped as established is the failure this skill exists to prevent. Label unverified as unverified. |
-| "I only found one source, but it's authoritative." | One source is a sample of one — the by-counter-thesis angle exists precisely to test it. Either corroborate or label unverified. |
-| "xreview is the verification skill — I'll just run `/xreview` on the findings." | xreview's boundary table doesn't fit findings. Reuse only its assigned-dissent *primitive*; run the refutation pass yourself. |
-| "I should capture this as a design so it threads lineage." | Research *discovers*; design *decides*. Capture a findings artifact; thread lineage the same way `/design` does, but don't masquerade findings as a decision. |
-| "I ran a quick refutation and nothing jumped out — that's verified." | A refutation that surfaces no recorded contradicting-source / freshness / overgeneralization / sample check was *not attempted*, not *passed*. No recorded refutation move → `unverified`, never `verified`. |
+| "I only found one source, but it is authoritative." | One source is a sample of one — the by-counter-thesis angle exists precisely to test it. Either corroborate or label unverified. |
+| "xreview is the verification skill — I will just run `/xreview` on the findings." | xreview's boundary table does not fit findings. Reuse only its assigned-dissent *primitive*; run the refutation pass yourself. |
+| "I should capture this as a design so it threads lineage." | Research *discovers*; design *decides*. Capture a findings artifact; thread lineage the same way `/design` does, but do not masquerade findings as a decision. |
+| "I ran a quick refutation and nothing jumped out — that is verified." | A refutation that surfaces no recorded contradicting-source / freshness / overgeneralization / sample check was *not attempted*, not *passed*. No recorded refutation move → `unverified`, never `verified`. |
 
 ## Halt Conditions
 
 Stop and surface rather than proceeding when:
 
 - **The question is vague** — refuse and sharpen it (the decision it informs, the falsifiable claims) before sweeping (Guardrail 2).
-- **A material finding can't be verified or refuted** — keep it only labeled *unverified*; never promote it to established.
+- **A material finding cannot be verified or refuted** — keep it only labeled *unverified*; never promote it to established.
 - **The completeness pass surfaces a gap that changes the recommendation** — report it; let the human decide whether to re-sweep (no auto-loop).
 - **The sweep needs >3 angles / broad parallelism** — note that an inline sweep is too narrow; the Workflow engine is deferred, so surface the limit rather than running an under-powered sweep silently.
 - **The operator asks to "turn this into a workstream"** — research never *launches* one (Guardrail 5); surface that launching a `/workstream` is the operator's call (research can be *gated by* one, e.g. an `outcome-alignment` checkpoint after synthesis).

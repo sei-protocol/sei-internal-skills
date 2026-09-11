@@ -4,11 +4,11 @@ Domain-agnostic across interview formats (a coding take-home, later a system-des
 
 ## 0. Load (the gate)
 
-Load `sei-hiring-profile.md` (the Sei bar — it can override a generic anchor) and the kit for the format. Missing kit → score on this method + first principles, flag the gap, don't invent anchors.
+Load `sei-hiring-profile.md` (the Sei bar — it can override a generic anchor) and the kit for the format. Missing kit → score on this method + first principles, flag the gap, do not invent anchors.
 
 ## 1. Read the whole artifact first
 
-Before scoring anything, read it all: source, tests, docs/README, commit history, the demo or CLI, and any notes the candidate sent. Two reasons: a score is only fair against the *whole* submission, and the **tailored verticals come from what they actually built** — you can't derive those from a skim. Note assumptions they stated, scope they cut deliberately, and where they signposted "if I had more time."
+Before scoring anything, read it all: source, tests, docs/README, commit history, the demo or CLI, and any notes the candidate sent. Two reasons: a score is only fair against the *whole* submission, and the **tailored verticals come from what they actually built** — you cannot derive those from a skim. Note assumptions they stated, scope they cut deliberately, and where they signposted "if I had more time."
 
 ## 2. Score the dimensions (behaviorally anchored, evidence-grounded)
 
@@ -34,10 +34,10 @@ The eight dimensions. The kit gives each its 1–4 **behavioral anchors** specia
 
 **Scoring discipline:**
 
-- **Evidence or it didn't happen.** Each score cites a specific observation (`mempool.go:add()` uses a slice + linear scan; `pool_test.go` covers the empty-pool and tie-break cases; the README states the fee-vs-timestamp assumption). No evidence → **can't-assess**, with what to probe live. Never an inferred number.
-- **Don't penalize un-asked scope.** If the prompt didn't ask for persistence, its absence isn't a low score — it's a live-discussion vertical (Dimension 7). Score what was asked; discuss what wasn't.
-- **AI use is expected, not penalized.** They were given AI. Dimension 8 reads *how* they used it (decomposition, verification, override), not *whether*. Polished AI-generated code with no evidence the candidate understands it is a **gap**, not a plus — that's exactly what the live discussion tests.
-- **Close calls are flagged, not forced.** When a dimension sits between two anchors, say so and name the deciding question for the human; don't manufacture false precision (BARS caveat — anchors reduce, don't erase, subjectivity).
+- **Evidence or it did not happen.** Each score cites a specific observation (`mempool.go:add()` uses a slice + linear scan; `pool_test.go` covers the empty-pool and tie-break cases; the README states the fee-vs-timestamp assumption). No evidence → **cannot-assess**, with what to probe live. Never an inferred number.
+- **Do not penalize un-asked scope.** If the prompt did not ask for persistence, its absence is not a low score — it is a live-discussion vertical (Dimension 7). Score what was asked; discuss what was not.
+- **AI use is expected, not penalized.** They were given AI. Dimension 8 reads *how* they used it (decomposition, verification, override), not *whether*. Polished AI-generated code with no evidence the candidate understands it is a **gap**, not a plus — that is exactly what the live discussion tests.
+- **Close calls are flagged, not forced.** When a dimension sits between two anchors, say so and name the deciding question for the human; do not manufacture false precision (BARS caveat — anchors reduce, do not erase, subjectivity).
 
 ## 3. Level signal + recommendation
 
@@ -56,8 +56,8 @@ The take-home is built in a vacuum; the **interview's value is the discussion** 
 2. **For each, write:** the **hook** (the specific thing in their code that opens the question), the **ask** (the question, in plain words), and **strong-vs-weak** (what a senior answer surfaces vs a shallow one). The kit's vertical seeds are the menu; the candidate's code picks which fire and sharpens them.
 3. **Rank by signal** — lead with the vertical that best separates levels for *this* submission.
 
-A vertical must trace to something they built or deliberately omitted. "How would you do consistent hashing?" only ships if their code hashes (or should). Generic resilience questions that don't connect to their work do not ship — they test nothing about this candidate.
+A vertical must trace to something they built or deliberately omitted. "How would you do consistent hashing?" only ships if their code hashes (or should). Generic resilience questions that do not connect to their work do not ship — they test nothing about this candidate.
 
 ## 5. Write it up (human-first)
 
-Render the output in the SKILL.md format, human-first: **lead with the recommendation + level + one-line why** (the interviewer who reads only that is oriented), then the scorecard, then the tailored verticals, then can't-assess. Distilled, decision-first, **plain words** — no ornate vocabulary, no jargon where a common word works. The evidence and verticals are the layer beneath the lead, for the reader who drills in. Crisp and information-dense; never a wall of text. **Fidelity bound (R6):** distill the altitude, never the deciding signal — a close call, a disqualifying gap, or the caveat the recommendation turns on rides in the lead's one-line why or one layer down, never compressed out of sight to keep the lead clean (R3/R4 outrank R6).
+Render the output in the SKILL.md format, human-first: **lead with the recommendation + level + one-line why** (the interviewer who reads only that is oriented), then the scorecard, then the tailored verticals, then cannot-assess. Distilled, decision-first, **plain words** — no ornate vocabulary, no jargon where a common word works. The evidence and verticals are the layer beneath the lead, for the reader who drills in. Crisp and information-dense; never a wall of text. **Fidelity bound (R6):** distill the altitude, never the deciding signal — a close call, a disqualifying gap, or the caveat the recommendation turns on rides in the lead's one-line why or one layer down, never compressed out of sight to keep the lead clean (R3/R4 outrank R6).

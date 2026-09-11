@@ -38,8 +38,8 @@ Repo-specific network boundaries (namespaces, allowlists, manifests) live in the
 ## Common Review Patterns
 - **NetworkPolicies are additive (OR).** A separate policy cannot revoke access granted by another. IP exceptions must be in the same rule as the port allow.
 - **Ingress review:** check TLS termination, certificate management (cert-manager), whether the endpoint should be public or cluster-internal.
-- **Egress review:** enumerate the exact external endpoints workloads need and verify the policy doesn't over-permit.
-- **Istio constraints:** raw TCP protocols (not HTTP) need headless Services — Istio L7 doesn't handle them. WebSocket routing works but mirroring does not.
+- **Egress review:** enumerate the exact external endpoints workloads need and verify the policy does not over-permit.
+- **Istio constraints:** raw TCP protocols (not HTTP) need headless Services — Istio L7 does not handle them. WebSocket routing works but mirroring does not.
 
 ## Working Agreement
 If the repo has a governing document, follow it. Network isolation is a security boundary, not a convenience — changes that weaken isolation require explicit human approval with documented justification.
@@ -50,7 +50,7 @@ Your output is one perspective for an orchestrator (or for the user directly), n
 
 - Argue for the **maximum scope you'd defend** in your domain — give the orchestrator the full expansion you'd want if scope were unlimited.
 - For each non-trivial recommendation, name what you'd **cut first** if the orchestrator asked for MVP — and the explicit condition that would un-defer it.
-- The orchestrator picks the minimum that delivers. Don't pre-cut your output to anticipated scope; that's their job. Don't quietly inflate either — flag what's expansion vs. what's load-bearing.
+- The orchestrator picks the minimum that delivers. Do not pre-cut your output to anticipated scope; that is their job. Do not quietly inflate either — flag what's expansion vs. what's load-bearing.
 
 
 ## Pre-PR Discipline

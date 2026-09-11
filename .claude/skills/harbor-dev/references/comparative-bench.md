@@ -7,7 +7,7 @@ Side-by-side bench of two `seid` images against identical sei-load configuration
 - **Each `seid` image runs its own chain.** A chain is the binary it executes; you cannot bench two binaries against one chain. Comparative bench therefore spins up two SeiNetworks + two follower SeiNode fleets, side `a` and side `b`.
 - **Both benches must use identical sei-load configuration.** Different profiles or durations turn the comparison into noise. The skill enforces parity: one resolved profile, one duration, one sei-load image, applied to both Jobs.
 - **Resource budget is ~2x a single bench.** Two ephemeral chains in one namespace = ~2x (4 validators + N rpc followers) seid pods + 2 sei-load Jobs. The cluster handles this fine on Karpenter scaling; no per-namespace resource gate, but worth flagging for engineers used to single-bench footprint.
-- **Result fetch runs in-cluster, not from the engineer's laptop.** The engineer's local AWS profile (resolved at preflight gate 3) doesn't have `s3:GetObject` on `harbor-validation-results/*` — only the in-cluster `engineer-service-account` does (via Pod Identity, scoped to `eng-<alias>/*` by session tag). The agent fetches both reports by running a one-shot `kubectl run` with `serviceAccountName: engineer-service-account`, then prints the report contents. See "Fetch + render the comparison" below.
+- **Result fetch runs in-cluster, not from the engineer's laptop.** The engineer's local AWS profile (resolved at preflight gate 3) does not have `s3:GetObject` on `harbor-validation-results/*` — only the in-cluster `engineer-service-account` does (via Pod Identity, scoped to `eng-<alias>/*` by session tag). The agent fetches both reports by running a one-shot `kubectl run` with `serviceAccountName: engineer-service-account`, then prints the report contents. See "Fetch + render the comparison" below.
 - **`<COMPARE_RUN_ID>` is the join key.** Same string in: branch name, both bench `<RUN_ID>`s, the four manifest dirs, the S3 prefix. The two side reports differ only by the `/a/` vs `/b/` segment.
 
 ## Inputs the agent gathers
@@ -59,7 +59,7 @@ fi
 
 `<chain-tag>` is the same for both sides — it identifies the comparison, not the side. Length budget: chain-id regex caps at 30 chars (`^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`) and the longest auto-suffix is `-a-rpc-<k>` (≥8 chars for a single-digit ordinal), so `<chain-tag>` itself must be ≤22 chars. Validate this **before** any rendering call (i.e., at input-resolution time, not when the `node apply --dry-run` rejects on regex mismatch).
 
-Auto-derivation can overflow easily. `harbor-pr-3399-vs-pr-3400` is 25 chars — already over the 22-char budget. Most cross-ticket compares (`harbor-plt-1234-vs-plt-5678`, 27 chars) overflow too. When the auto-derived tag is too long, prompt the engineer for an explicit `--tag` rather than truncating silently — anonymous chain IDs in Grafana / logs / cluster state can't be tied back to the work they served.
+Auto-derivation can overflow easily. `harbor-pr-3399-vs-pr-3400` is 25 chars — already over the 22-char budget. Most cross-ticket compares (`harbor-plt-1234-vs-plt-5678`, 27 chars) overflow too. When the auto-derived tag is too long, prompt the engineer for an explicit `--tag` rather than truncating silently — anonymous chain IDs in Grafana / logs / cluster state cannot be tied back to the work they served.
 
 ## Labels — every resource in the compare carries these
 
@@ -117,7 +117,7 @@ commonLabels:
   app.kubernetes.io/part-of: seictl-compare
 ```
 
-The agent appends `compare-<COMPARE_RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s top-level `resources:` list. Without that, the per-engineer Flux Kustomization doesn't see the new task dir.
+The agent appends `compare-<COMPARE_RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s top-level `resources:` list. Without that, the per-engineer Flux Kustomization does not see the new task dir.
 
 ## Per-side manifests
 
@@ -216,9 +216,9 @@ initContainers:
       limits:   { cpu: "100m", memory: "32Mi" }
 ```
 
-Substitute `<a-or-b>` with the side's letter at render time. The 10-minute deadline matches the follower-watch timeout — if the follower doesn't reach Running within that window, the bench Job fails fast with a clear DNS message rather than waiting on `activeDeadlineSeconds`.
+Substitute `<a-or-b>` with the side's letter at render time. The 10-minute deadline matches the follower-watch timeout — if the follower does not reach Running within that window, the bench Job fails fast with a clear DNS message rather than waiting on `activeDeadlineSeconds`.
 
-Profile substitution per side (same textual-substitution + jq-validate recipe as single-bench — the raw profile is deliberately not valid JSON, so jq can't parse it as input; see `sei-load-bench.md`):
+Profile substitution per side (same textual-substitution + jq-validate recipe as single-bench — the raw profile is deliberately not valid JSON, so jq cannot parse it as input; see `sei-load-bench.md`):
 
 ```sh
 # Side A
@@ -238,7 +238,7 @@ printf '%s' "${PROFILE_A}" | jq -e . >/dev/null   # hard gate: valid JSON
 
 Both sides use the same `<profile>.json` source — the substitution differs only in chain-id and endpoints. Identical `--duration`, `--track-receipts`, and post-summary flush settings.
 
-The agent enforces parity with a **positive must-match field list** rather than a byte-equal check (byte-equal is fragile against any future profile field that's allowed to vary, e.g., a `_meta.generatedAt` block). Required-equal fields:
+The agent enforces parity with a **positive must-match field list** rather than a byte-equal check (byte-equal is fragile against any future profile field that is allowed to vary, e.g., a `_meta.generatedAt` block). Required-equal fields:
 
 ```
 .workload, .targetTPS, .duration, .accountCount, .txTypes, .gasPrice,
@@ -358,7 +358,7 @@ The agent splits stdout on the `===== SIDE-A =====` / `===== SIDE-B =====` marke
 
 ### Metric extraction
 
-Sei-load emits a **result summary block** at the end of its stdout — TPS, latencies, transaction counts, error breakdown, all in a single coherent block. The agent doesn't have to parse the whole log or invent extraction heuristics; it locates the summary block per side and presents both directly. The summary's canonical fields cover everything the comparison needs:
+Sei-load emits a **result summary block** at the end of its stdout — TPS, latencies, transaction counts, error breakdown, all in a single coherent block. The agent does not have to parse the whole log or invent extraction heuristics; it locates the summary block per side and presents both directly. The summary's canonical fields cover everything the comparison needs:
 
 - **TPS achieved** vs target
 - **Latency P50 / P90 / P99** — submission-to-receipt
@@ -367,11 +367,11 @@ Sei-load emits a **result summary block** at the end of its stdout — TPS, late
 
 Strategy:
 
-1. **Locate the summary block.** It's the last contiguous block of structured output before EOF. The exact delimiter sei-load uses varies by version; if the agent can't find a recognized header, fall back to the last 50 lines (where the summary lives by convention).
+1. **Locate the summary block.** It is the last contiguous block of structured output before EOF. The exact delimiter sei-load uses varies by version; if the agent cannot find a recognized header, fall back to the last 50 lines (where the summary lives by convention).
 2. **Present both summary blocks verbatim** in the agent's output — engineers trust the source over a synthesized table. This is the always-on baseline.
 3. **Compute deltas for canonical fields** when both blocks parse cleanly. The delta table sits *above* the raw blocks as the primary at-a-glance signal; the blocks below are the audit trail.
 
-Never fabricate a missing field — if the summary block doesn't include something (older sei-load versions, parser drift), drop the row from the delta table rather than guessing.
+Never fabricate a missing field — if the summary block does not include something (older sei-load versions, parser drift), drop the row from the delta table rather than guessing.
 
 ### Output shape
 
@@ -405,7 +405,7 @@ The `Δ` column carries the numeric delta plus a value judgment. Mechanical rule
 
 The verbatim summary blocks below the delta table are the audit trail: any field the agent dropped from the table (parser miss, sei-load version drift) is still visible there.
 
-When the summary block can't be located on either side (sei-load failed before emitting it, or the agent doesn't recognize the format), fall back to:
+When the summary block cannot be located on either side (sei-load failed before emitting it, or the agent does not recognize the format), fall back to:
 
 ```
 Comparison: <imageA-tag> vs <imageB-tag>   (summary block not found)
@@ -433,7 +433,7 @@ Reports:
 8. **Render** — write the four sub-dirs and the aggregator kustomization.yaml. Append `compare-<COMPARE_RUN_ID>` to `engineers/<alias>/kustomization.yaml` `resources:` if not already present. Chain rendering uses `seictl network apply --dry-run | yq -P` for the SeiNetwork plus a `seictl node apply --dry-run | yq -P` loop for the N followers per side; bench rendering uses the templates from `references/sei-load-bench.md` per side.
 9. **Verify config parity** — read both bench ConfigMaps back, diff the substituted JSONs; abort the render if they differ on anything except `seiChainId` and `endpoints`. The whole point of the comparison is identical workload — silent drift breaks the result.
 10. **Commit + push** — branch `feat/eng-<alias>-compare-<COMPARE_RUN_ID>`. Message: `feat(eng/<alias>): compare <imageA-tag> vs <imageB-tag> (<COMPARE_RUN_ID>)`.
-11. **Open the PR** — surface the URL and halt: "Merge to start. Both chains spin up in parallel (~5 min), both benches run for `<DURATION>` minutes, then I'll fetch the reports and surface the comparison."
+11. **Open the PR** — surface the URL and halt: "Merge to start. Both chains spin up in parallel (~5 min), both benches run for `<DURATION>` minutes, then I will fetch the reports and surface the comparison."
 12. **Watch — networks parallel** — `seictl network watch <chain-tag>-a` and `<chain-tag>-b` concurrently, `--until=Ready --timeout=15m`. Halt the whole comparison if either reaches Failed.
 13. **Watch — follower fleets parallel** — loop `seictl node watch <chain-tag>-<a|b>-rpc-<k> --until=Running` over every follower on both sides (no `Ready` on a SeiNode).
 14. **Poll bench Jobs to terminal** — both `seiload-<COMPARE_RUN_ID>-a` and `-b` to `Complete` or `Failed`. Deadline `<DURATION> * 60 + 660` seconds.
@@ -449,10 +449,10 @@ Reports:
   - `git rm -r engineers/<alias>/compare-<COMPARE_RUN_ID>/chain-<a-or-b>/`
   - Edit `engineers/<alias>/compare-<COMPARE_RUN_ID>/kustomization.yaml` to remove the matching `- chain-<a-or-b>` line from `resources:`
   - Commit + push + merge; Flux prunes the SeiNetwork and all its follower SeiNodes on the failed side. The orphan followers were reconciling on their own until pruned.
-  - **Note:** `bench-<a-or-b>` references chain-side-specific RPC URLs (substituted at render-time), so removing only `bench-<a-or-b>` while keeping `chain-<a-or-b>` doesn't make the bench retryable against a fresh chain — re-deriving the URLs requires a fresh render. Teardown the chain *and* the bench together when the chain failed.
+  - **Note:** `bench-<a-or-b>` references chain-side-specific RPC URLs (substituted at render-time), so removing only `bench-<a-or-b>` while keeping `chain-<a-or-b>` does not make the bench retryable against a fresh chain — re-deriving the URLs requires a fresh render. Teardown the chain *and* the bench together when the chain failed.
 - **One bench `Complete` and the other `Failed`.** Still fetch both reports — the failed side's report is partial but informative. Surface the `Failed` reason from the Job condition (`activeDeadlineSeconds` / `backoffLimit` exhaustion) alongside the comparison table; flag that the comparison is degraded.
-- **Failed + still-running.** If side A reaches `Failed=True` while side B is still running, keep polling B to its terminal state — partial-pair results inform the engineer about whether the failure was image-specific or load-pattern-specific. Don't kill B early.
+- **Failed + still-running.** If side A reaches `Failed=True` while side B is still running, keep polling B to its terminal state — partial-pair results inform the engineer about whether the failure was image-specific or load-pattern-specific. Do not kill B early.
 - **In-cluster fetch returns `AccessDenied`.** Pod Identity session tag mismatch or namespace-prefix mismatch on the bucket key — the `engineer-service-account` policy scopes `s3:GetObject` to `harbor-validation-results/${aws:PrincipalTag/kubernetes-namespace}/*` via the Pod Identity session tag, so the resolved namespace must match the bucket prefix. Inspect `aws sts get-caller-identity` from inside the Pod and verify the bucket key starts with `eng-<alias>/`.
-- **In-cluster fetch returns `NoSuchKey`.** The upload sidecar didn't run on the failing side. Surface `kubectl logs -n eng-<alias> -l sei.io/compare-name=<COMPARE_RUN_ID>,sei.io/compare-side=<a|b> -c upload-results` to diagnose. Common cause: side terminated via `activeDeadlineSeconds` before the sidecar reached its `aws s3 cp` step.
+- **In-cluster fetch returns `NoSuchKey`.** The upload sidecar did not run on the failing side. Surface `kubectl logs -n eng-<alias> -l sei.io/compare-name=<COMPARE_RUN_ID>,sei.io/compare-side=<a|b> -c upload-results` to diagnose. Common cause: side terminated via `activeDeadlineSeconds` before the sidecar reached its `aws s3 cp` step.
 - **Bench config parity check fails** — the two substituted profile JSONs differ on a field other than `seiChainId` / `endpoints`. Halt before push; the rendered manifests would produce a non-comparable result. Surface the diff and ask the engineer to retry (usually a transient issue with side B's followers not yet publishing `.status.endpoint` when side A was substituted).
 - **PR push rejected** — same handling as single-bench; `git pull --rebase` and let the engineer resolve.

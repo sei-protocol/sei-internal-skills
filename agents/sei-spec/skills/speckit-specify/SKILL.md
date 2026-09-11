@@ -291,7 +291,7 @@ Report completion to the user with:
 
 - **Mandatory sections**: Must be completed for every feature
 - **Optional sections**: Include only when relevant to the feature
-- When a section doesn't apply, remove it entirely (don't leave as "N/A")
+- When a section does not apply, remove it entirely (do not leave as "N/A")
 
 ### For AI Generation
 
@@ -310,7 +310,7 @@ When creating this spec from a user prompt:
    - User types and permissions (if multiple conflicting interpretations possible)
    - Security/compliance requirements (when legally/financially significant)
 
-**Examples of reasonable defaults** (don't ask about these):
+**Examples of reasonable defaults** (do not ask about these):
 
 - Data retention: Industry-standard practices for the domain
 - Performance targets: Standard web/mobile app expectations unless specified

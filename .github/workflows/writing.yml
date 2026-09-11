@@ -4,10 +4,8 @@
 # touches. A finding on a line nobody edited never appears, so the findings this
 # repository already carries stay invisible until somebody edits that line.
 #
-# Most of them are one rule. ASD-STE100 does not allow contractions, and 1,525
-# of the 1,613 errors here are that one rule. The house style changes by
-# attrition, on the lines people are already editing, rather than in a sweep
-# nobody asked for.
+# On a push there is no diff, so the check reports every finding in the tree
+# and fails on any error. Keep the tree at zero errors; warnings do not fail.
 name: writing
 
 on:

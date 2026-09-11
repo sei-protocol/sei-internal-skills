@@ -30,7 +30,7 @@ disable-model-invocation: false
 - ✅ "Are accessibility requirements defined for keyboard navigation?" (coverage)
 - ✅ "Does the spec define what happens when logo image fails to load?" (edge cases)
 
-**Metaphor**: If your spec is code written in English, the checklist is its unit test suite. You're testing whether the requirements are well-written, complete, unambiguous, and ready for implementation - NOT whether the implementation works.
+**Metaphor**: If your spec is code written in English, the checklist is its unit test suite. You are testing whether the requirements are well-written, complete, unambiguous, and ready for implementation - NOT whether the implementation works.
 
 ## User Input
 
@@ -134,7 +134,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - If source docs are large, generate interim summary items instead of embedding raw text
 
 6. **Generate checklist** - Create "Unit Tests for Requirements":
-   - Create `FEATURE_DIR/checklists/` directory if it doesn't exist
+   - Create `FEATURE_DIR/checklists/` directory if it does not exist
    - Generate unique checklist filename:
      - Use short, descriptive name based on domain (e.g., `ux.md`, `api.md`, `security.md`)
      - Format: `[domain].md`

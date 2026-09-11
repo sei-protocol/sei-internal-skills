@@ -77,10 +77,10 @@ for x in items:
 # good
 result = [x * 2 for x in items if x > 0]
 ```
-Basis: tutorial §5.1.3 (comprehensions "more concise and readable"). Anchor: **none for the loop→comprehension rewrite — judgment-only**; the *adjacent* `C416` fires only on an *unnecessary* comprehension that's a plain copy (`[i for i in xs]` → `list(xs)`): **observed** `C416 Unnecessary list comprehension (rewrite using \`list()\`)`.
+Basis: tutorial §5.1.3 (comprehensions "more concise and readable"). Anchor: **none for the loop→comprehension rewrite — judgment-only**; the *adjacent* `C416` fires only on an *unnecessary* comprehension that is a plain copy (`[i for i in xs]` → `list(xs)`): **observed** `C416 Unnecessary list comprehension (rewrite using \`list()\`)`.
 
 ### §3 · Module-level function over a needless class
-A stateless operation is a function; don't wrap it in a class to feel object-oriented.
+A stateless operation is a function; do not wrap it in a class to feel object-oriented.
 
 ```python
 # bad — a class holding no state, one method
@@ -284,7 +284,7 @@ async def create_item(item: Item) -> Item:
 Basis: FastAPI tutorial/response-model. Anchor (observed): `ruff --select FAST001` on the bad → `FAST001 FastAPI route with redundant \`response_model\` argument`; the good passes `--select FAST` clean.
 
 ### §5 FA4 · Every `{param}` in the route path has a same-named arg
-A `{param}` in the path string with no matching function argument is silently unbound — the route can't receive it.
+A `{param}` in the path string with no matching function argument is silently unbound — the route cannot receive it.
 
 ```python
 # bad
@@ -300,7 +300,7 @@ async def read_thing(thing_id: int, query: str) -> dict:
 ```
 Basis: FastAPI tutorial/path-params (signature-name matching). Anchor (observed): `ruff --select FAST003` on the bad → `FAST003 Parameter \`thing_id\` appears in route path, but not in \`read_thing\` signature`; the good passes clean. (The separate `/users/me`-before-`/users/{id}` ordering footgun is judgment-only — no `FAST` rule covers it.)
 
-### §5 FA5 · Don't block the event loop in an `async def` route (correctness)
+### §5 FA5 · Do not block the event loop in an `async def` route (correctness)
 A sync call in an `async def` route stalls every concurrent request. Use a plain `def` route (FastAPI runs it in a threadpool) or an async client + `await`.
 
 ```python
@@ -318,14 +318,14 @@ import requests
 def get_data() -> dict:
     return requests.get("https://x/api").json()
 ```
-Basis: FastAPI `/async/` — "If you just don't know, use normal `def`." Anchor (observed): `ruff --select ASYNC` on the bad → `ASYNC251 Async functions should not call \`time.sleep\`` **and** `ASYNC210 Async functions should not call blocking HTTP methods`; the good is a plain `def` (no async context → the `ASYNC` rules don't apply).
+Basis: FastAPI `/async/` — "If you just do not know, use normal `def`." Anchor (observed): `ruff --select ASYNC` on the bad → `ASYNC251 Async functions should not call \`time.sleep\`` **and** `ASYNC210 Async functions should not call blocking HTTP methods`; the good is a plain `def` (no async context → the `ASYNC` rules do not apply).
 
 ---
 
 ## Type quality — requires a configured type checker (pack §5 TC1)
 
 ### §1 P2 · Public boundary annotated; types must match
-Annotate the exported surface; a type checker then catches mismatches a linter can't.
+Annotate the exported surface; a type checker then catches mismatches a linter cannot.
 
 ```python
 # bad — untyped boundary + a real mismatch
@@ -374,7 +374,7 @@ Basis: flake8-logging-format. Anchor (observed): `ruff --select G` → `G004 Log
 ## Formatting — defer to the formatter (pack §1 P11)
 
 ### §1 P11 · Let `black` own whitespace & quotes
-Don't hand-format; run the formatter. Line length is the project's configured value (black/Ruff default 88), not a hand-litigated 79.
+Do not hand-format; run the formatter. Line length is the project's configured value (black/Ruff default 88), not a hand-litigated 79.
 
 ```python
 # bad

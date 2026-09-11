@@ -39,7 +39,7 @@ refused or flagged for human approval / routed to `/gov-ops`, not asserted.
 
 **Authoring rules:**
 - **Cite the pin:** the controller/seictl path-at-sha, the LLD contract, `/gov-ops`, or `sei-skill` (`sources.md`). A claim with no pin is not a kit entry.
-- The **profile** (`sei-validator-profile.md`) holds the cross-cutting hard behavior — kits reference it, don't restate it.
+- The **profile** (`sei-validator-profile.md`) holds the cross-cutting hard behavior — kits reference it, do not restate it.
 - **Cite, never restate `/gov-ops`.** A fact `/gov-ops` owns (a gate, the GovVote fan-out template, the fee floor, the mainnet allowlist) is cited to §gov-ops — never re-written into a kit.
 - **Never cite the LLD for topology** — it is STALE there; take topology/signing from §controller.
 - Keep review cues mapped to the five method dimensions so findings stay rankable. **Always write the dimension as `Dimension N (name)`** — keep the parenthetical name, never a bare `Dimension N`. The number→name map lives only in `method.md`, so a kit pulled into a windowed context must carry the name with it.

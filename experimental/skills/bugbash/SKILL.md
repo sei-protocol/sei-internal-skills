@@ -21,7 +21,7 @@ This skill operates in **read-only mode** on the target component. Before any ac
 2. **Scope confirmation** — the skill requires an explicit target on first invocation (e.g., `/bugbash SeiNode controller`, `/bugbash review-runtime`). Without a target, the skill asks for one and refuses to proceed.
 3. **Refusal conditions** — this skill will refuse to run if:
    - No target component is named.
-   - The target's source path doesn't exist or can't be located in the repo.
+   - The target's source path does not exist or cannot be located in the repo.
    - A specialist proposes a code change during a pass — the orchestrator records the finding and reminds the specialist this is read-only.
 
 If a finding warrants an immediate fix, surface it to the user; do not edit code from inside this skill. The user can dispatch `/coral` or `/council` separately to act on a finding.
@@ -39,7 +39,7 @@ If the repo maintains an interface registry or equivalent source of truth, speci
 1. CWD is the target repo unless the user says otherwise.
 2. Read `CLAUDE.md` if present — repo conventions, governing principles, interface registry pointer.
 3. Read `.claude/agents/*.md` — the specialist roster. If absent, ask the user which experts to use.
-4. **Resolve-then-read the resume state, fail-LOUD (Design 13 §4).** The resume state and the findings log both live in the DRI repo, so before reading either, resolve the DRI repo via the `/design` resolver. If the DRI repo is **expected but can't be trusted** — present-but on an unexpected branch / mid-rebase / dirty-in-conflict / behind-remote / un-fetched, or **headless with no user to confirm the mode** → **HALT and surface** — never silently "start fresh," never conclude "no run in progress," never miss a resume point against a stale or wrong checkout. An unconfirmed read is `inconclusive ⇒ halt`. **Mode discriminator (resolves the HALT-vs-fallback question):** in the normal **DRI-repo mode** the in-repo `.bugbash/<target>.yaml` is migration-emptied, so it is **producer-write-only — never a session-start read source**, and an unreachable expected DRI repo HALTS. **Only when the user has confirmed no-DRI-repo mode** is the in-repo path the legitimate store, read normally (it is not emptied in that mode). The HALT is about an *expected-but-unreachable* DRI repo, not the confirmed-local mode. Once the store is resolved, check for prior state:
+4. **Resolve-then-read the resume state, fail-LOUD (Design 13 §4).** The resume state and the findings log both live in the DRI repo, so before reading either, resolve the DRI repo via the `/design` resolver. If the DRI repo is **expected but cannot be trusted** — present-but on an unexpected branch / mid-rebase / dirty-in-conflict / behind-remote / un-fetched, or **headless with no user to confirm the mode** → **HALT and surface** — never silently "start fresh," never conclude "no run in progress," never miss a resume point against a stale or wrong checkout. An unconfirmed read is `inconclusive ⇒ halt`. **Mode discriminator (resolves the HALT-vs-fallback question):** in the normal **DRI-repo mode** the in-repo `.bugbash/<target>.yaml` is migration-emptied, so it is **producer-write-only — never a session-start read source**, and an unreachable expected DRI repo HALTS. **Only when the user has confirmed no-DRI-repo mode** is the in-repo path the legitimate store, read normally (it is not emptied in that mode). The HALT is about an *expected-but-unreachable* DRI repo, not the confirmed-local mode. Once the store is resolved, check for prior state:
    - `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (resume state) — if it exists, a previous session left an in-progress run. Read it before acting.
    - The findings log at `designs/<arc>/bugbash/<target>.md` in the DRI repo (resolved fail-loud per the step above — **never read from the migration-emptied in-repo `docs/bugbash/` dir**, which would resume from a stale/empty log) — if it exists, it is the source of truth for what has already been reviewed.
 
@@ -49,7 +49,7 @@ When prior state exists, surface it to the user: "Found a bugbash in progress fo
 
 ### 1. Scope the Target
 
-Confirm the target component with the user. Ask for the root path (directory, package, CRD spec file, or interface boundary). Echo back: "Bugbashing `<target>` rooted at `<path>`. Read-only — I'll only write the findings log to `designs/<arc>/bugbash/<target>.md` and the resume state to `designs/<arc>/bugbash/<target>.yaml`, both in the DRI `<engineer>-designs` repo (in-repo `docs/bugbash/<target>.md` / `.bugbash/<target>.yaml` only if no DRI repo). Proceed?"
+Confirm the target component with the user. Ask for the root path (directory, package, CRD spec file, or interface boundary). Echo back: "Bugbashing `<target>` rooted at `<path>`. Read-only — I will only write the findings log to `designs/<arc>/bugbash/<target>.md` and the resume state to `designs/<arc>/bugbash/<target>.yaml`, both in the DRI `<engineer>-designs` repo (in-repo `docs/bugbash/<target>.md` / `.bugbash/<target>.yaml` only if no DRI repo). Proceed?"
 
 If the target is unclear or too broad ("the whole controller" with no narrowing), push back: bugbash works best on a single component or interface boundary. Suggest splitting.
 
@@ -73,7 +73,7 @@ A pass has four phases. See `references/loop-mechanics.md` for the full mechanic
 
 Each specialist returns up to 5 candidates. Append the union to a working set in `designs/<arc>/bugbash/<target>.yaml` (DRI-repo resume state; in-repo `.bugbash/<target>.yaml` fallback) under `pass-N.candidates:`.
 
-**3b. Merge (orchestrator).** Before the challenger phase, the orchestrator deduplicates the candidate set. Real findings overlap across expert lenses — e.g., a non-defensive template renderer surfaces as both a "future-template footgun" (k8s lens) and a "${VAR} injection vector" (security lens), but it's one finding. Walk every pair of candidates and merge when they share a root cause or cite the same file:line, attributing both finder experts on the merged candidate. The challenger then evaluates the merged finding once instead of N times. See `references/loop-mechanics.md#orchestrator-merge` for the merge rubric.
+**3b. Merge (orchestrator).** Before the challenger phase, the orchestrator deduplicates the candidate set. Real findings overlap across expert lenses — e.g., a non-defensive template renderer surfaces as both a "future-template footgun" (k8s lens) and a "${VAR} injection vector" (security lens), but it is one finding. Walk every pair of candidates and merge when they share a root cause or cite the same file:line, attributing both finder experts on the merged candidate. The challenger then evaluates the merged finding once instead of N times. See `references/loop-mechanics.md#orchestrator-merge` for the merge rubric.
 
 **3c. Challenger (parallel).** Each merged candidate is challenged by a *different* expert from the slate (never one of the finders), dispatched in parallel with the brief: "Try to refute this finding. Is it actually a bug? Already mitigated upstream? Out of scope for this target? Lower severity than it looks? Write a one-paragraph verdict: confirm / refute / downgrade. If you confirm or downgrade, propose a severity per `references/severity-rubric.md`." Confirmed and downgraded findings advance; refuted ones are dropped and recorded in state with the challenger's reasoning.
 
@@ -91,14 +91,14 @@ This is the loop's terminator — analogous to RALPHY's `<promise>COMPLETE</prom
 
 ### 5. Launch Verdict
 
-Dispatch every expert in the slate one final time with the full findings log and this brief: "Given the findings in the bugbash log (`designs/<arc>/bugbash/<target>.md` in the DRI repo, or the in-repo `docs/bugbash/<target>.md` fallback), post a launch verdict for the target. Choose one: **ship-it** (all blockers addressed or never present), **conditional** (ship-it if the following findings are closed: [IDs]), or **don't-ship** (the system is not safe to launch even if listed findings are addressed — explain why)."
+Dispatch every expert in the slate one final time with the full findings log and this brief: "Given the findings in the bugbash log (`designs/<arc>/bugbash/<target>.md` in the DRI repo, or the in-repo `docs/bugbash/<target>.md` fallback), post a launch verdict for the target. Choose one: **ship-it** (all blockers addressed or never present), **conditional** (ship-it if the following findings are closed: [IDs]), or **do not-ship** (the system is not safe to launch even if listed findings are addressed — explain why)."
 
 Append the verdicts as a `## Launch Verdict` section in the findings log (`designs/<arc>/bugbash/<target>.md` in the DRI repo; in-repo `docs/bugbash/<target>.md` fallback). The skill is **done** when:
 
 - Every expert posts ship-it, OR
-- Every expert posts ship-it OR conditional, AND every finding ID named across all conditionals is **Critical** or **High** severity (Mediums must be tracked but don't block launch).
+- Every expert posts ship-it OR conditional, AND every finding ID named across all conditionals is **Critical** or **High** severity (Mediums must be tracked but do not block launch).
 
-If any expert posts don't-ship, the skill reports the blocker to the user and stops. Don't-ship overrides everything — no launch until that expert is satisfied.
+If any expert posts do not-ship, the skill reports the blocker to the user and stops. Do not-ship overrides everything — no launch until that expert is satisfied.
 
 ### 6. Hand-off
 
@@ -116,7 +116,7 @@ Stop and report rather than auto-recovering when:
 
 - A specialist refuses to read the target (missing files, permissions). Report what was captured; ask the user to resolve.
 - The convergence counter never advances past 0 across 5+ passes — the target may be too broad. Report and suggest narrowing.
-- An expert posts don't-ship at the verdict round. Report the blocker; do not retry the verdict round automatically.
+- An expert posts do not-ship at the verdict round. Report the blocker; do not retry the verdict round automatically.
 - The DRI `<engineer>-designs` repo is **expected but unreachable/untrustworthy** at session start — present-but on an unexpected branch / mid-rebase / dirty-in-conflict / behind-remote, or headless with no user to confirm the mode. **HALT fail-loud** rather than read a migration-emptied in-repo `docs/bugbash/`/`.bugbash/` and resume from a stale or empty state. (When the user has **confirmed no-DRI-repo mode**, the in-repo path is the legitimate store and is read normally — the HALT is about an expected-but-unreachable DRI repo, not the confirmed-local mode.) (Design 13 §4)
 - The user interrupts mid-pass. State is in `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (in-repo `.bugbash/<target>.yaml` fallback); next invocation offers resume.
 
@@ -127,27 +127,27 @@ Pressure patterns that surface during long-running bugbashes and their counters.
 | Excuse | Reality |
 |---|---|
 | "We have enough findings — the launch decision is clear, stop now." | Convergence is mechanical (counter==2 plus verdict round). The expert slate owns the verdict, not the requester. "Enough material to decide" and "the loop has converged" are different things. |
-| "Just one more pass and we'll be done." | Convergence is two consecutive passes with zero new ≥ Medium findings, not a feeling. One more pass might surface a new finding that resets the counter — which is the point. |
+| "Just one more pass and we will be done." | Convergence is two consecutive passes with zero new ≥ Medium findings, not a feeling. One more pass might surface a new finding that resets the counter — which is the point. |
 | "Let me push the fix now — sitting on a known bug is malpractice." | Read-only is non-negotiable. Target mutation invalidates the run (the findings log no longer describes a single coherent thing). Record the finding, finish bugbash, then patch and start a fresh `/bugbash` to validate. |
-| "Accept the fix, restart the discovery cycle against the fixed version." | No reconvergence after fixes — that's a fresh `/bugbash` run, not the current one continued. Reconvergence rules out the "patch-and-rerun-the-same-loop" anti-pattern. |
-| "The team wants improvements / refactors / feature ideas captured here too." | Bugbash is adversarial review of *existing behavior*, not design or ideation. Hand off to `/coral` or `/council` for the design ideas; keep the findings log on its job. The verdict (ship-it / conditional / don't-ship) is incoherent on "the API could be cleaner." |
-| "Let me expand the target mid-run — we're already in the code." | Slate is fixed once chosen; widening the target invalidates convergence and over-runs the experts' context. Run a separate `/bugbash` for the adjacent target. |
-| "We don't need the challenger pass for this one — it's obviously a bug." | Discovery + challenger is the merge-and-refute step. "Obviously a bug" is the framing the challenger pass exists to test. Always run the challenger. |
+| "Accept the fix, restart the discovery cycle against the fixed version." | No reconvergence after fixes — that is a fresh `/bugbash` run, not the current one continued. Reconvergence rules out the "patch-and-rerun-the-same-loop" anti-pattern. |
+| "The team wants improvements / refactors / feature ideas captured here too." | Bugbash is adversarial review of *existing behavior*, not design or ideation. Hand off to `/coral` or `/council` for the design ideas; keep the findings log on its job. The verdict (ship-it / conditional / do not-ship) is incoherent on "the API could be cleaner." |
+| "Let me expand the target mid-run — we are already in the code." | Slate is fixed once chosen; widening the target invalidates convergence and over-runs the experts' context. Run a separate `/bugbash` for the adjacent target. |
+| "We do not need the challenger pass for this one — it is obviously a bug." | Discovery + challenger is the merge-and-refute step. "Obviously a bug" is the framing the challenger pass exists to test. Always run the challenger. |
 
 ## Red Flags — STOP and Reset
 
-Phrases that signal you're about to violate one of the bugbash defaults. If any of these surface in your own reasoning or a teammate's framing, stop and reset to the documented rule:
+Phrases that signal you are about to violate one of the bugbash defaults. If any of these surface in your own reasoning or a teammate's framing, stop and reset to the documented rule:
 
 - "We have enough" / "the verdict is clear"
 - "Just one more pass"
-- "I'll just fix this one"
+- "I will just fix this one"
 - "Let me restart the cycle against the fixed version"
 - "We should also capture these improvements"
 - "Let me expand the target"
-- "We don't need the challenger pass for this one"
-- "It's still in dev, the rule doesn't really apply"
+- "We do not need the challenger pass for this one"
+- "It is still in dev, the rule does not really apply"
 
-All of these mean: re-read the relevant SKILL.md section, apply the rule as written, and move forward. If the rule is genuinely wrong for this context, that's a SKILL.md edit through a PR — not a one-off override during a run.
+All of these mean: re-read the relevant SKILL.md section, apply the rule as written, and move forward. If the rule is genuinely wrong for this context, that is a SKILL.md edit through a PR — not a one-off override during a run.
 
 ## State Management
 
@@ -185,20 +185,20 @@ verdicts: {}  # populated at step 5
 
 **All process artifacts relocate to the DRI repo — lineage AND coordination state (Design 13 R3).** The findings **log** is a lineage artifact: it lives in the DRI `<engineer>-designs` repo at `designs/<arc>/bugbash/<target>.md` (in-repo `docs/bugbash/<target>.md` only as the no-DRI-repo fallback (with user confirmation)) — it is the canonical artifact for reviewers and downstream `/issue` filings. The resume **state** `<target>.yaml` (and `archive/`) is coordination state and now **also lives in the DRI repo** at `designs/<arc>/bugbash/<target>.yaml`, resolved via the same `/design` resolver (in-repo `.bugbash/<target>.yaml` only as the no-DRI-repo fallback (with user confirmation)). R3 reverses the earlier "state stays local" scope: the owner principle is "nothing sei-internal-skills-specific inside the repos we work on." Because the state is read at **session start**, the move is safe **only** under the fail-loud bootstrap contract (Design 13 §4): resolve the DRI repo first and **HALT** on an unresolvable / unexpected-branch / mid-rebase / dirty-in-conflict checkout rather than silently starting fresh — see "Check for prior state" above. This mirrors the council convention along the same axis: both lineage (design docs via `/design`) and coordination state (`workstream.yaml`/`escalations/`/`archive/`) now route into the DRI repo.
 
-When a run finishes (verdict converges), archive `designs/<arc>/bugbash/<target>.yaml` to `designs/<arc>/bugbash/archive/<date>-<target>.yaml` in the DRI repo (in-repo `.bugbash/archive/<date>-<target>.yaml` only as the no-DRI-repo fallback (with user confirmation)) so a fresh `/bugbash <target>` doesn't trip the "in-progress run detected" branch. In the DRI repo the archive is **committed** work-log (part of the engineer's knowledge base, per Design 13 R3); the old "gitignore `.bugbash/archive/`" guidance applies only to the in-repo no-DRI-repo fallback, which stays gitignored.
+When a run finishes (verdict converges), archive `designs/<arc>/bugbash/<target>.yaml` to `designs/<arc>/bugbash/archive/<date>-<target>.yaml` in the DRI repo (in-repo `.bugbash/archive/<date>-<target>.yaml` only as the no-DRI-repo fallback (with user confirmation)) so a fresh `/bugbash <target>` does not trip the "in-progress run detected" branch. In the DRI repo the archive is **committed** work-log (part of the engineer's knowledge base, per Design 13 R3); the old "gitignore `.bugbash/archive/`" guidance applies only to the in-repo no-DRI-repo fallback, which stays gitignored.
 
 ## Composition with Other Skills
 
 - **`/security-review`** — single-pass, security-only review of a diff or branch. Bugbash is broader (logic, ops, perf, validation, race conditions — not just security) and looped to convergence. Run `/security-review` for a PR; run `/bugbash` to harden a system before launch.
 - **`/coral`** — collaborative iteration on an idea. If `/coral` is going off the rails because the underlying system has too many unknown bugs, suggest pausing coral and running bugbash first.
 - **`/council`** — full-ceremony design and implementation. After bugbash produces blockers, the user may run `/council` to fix the Critical findings as a workstream.
-- **`/issue`** — files individual findings as tracked GitHub issues. Bugbash hands off; it doesn't auto-file.
+- **`/issue`** — files individual findings as tracked GitHub issues. Bugbash hands off; it does not auto-file.
 - **`/design`** — captures a design. If a finding requires re-designing a component (not just patching it), the user runs `/design` after bugbash to capture the redesign.
 
-## What Bugbash Doesn't Do
+## What Bugbash Does not Do
 
 - **No code edits.** Read-only. Findings include suggested fix sketches, not patches.
 - **No auto-issue-filing.** The user runs `/issue` per finding when they want it tracked outside the artifact.
-- **No new-system design.** If the target doesn't exist yet, that's a `/council` Product-tier job — not a bugbash.
+- **No new-system design.** If the target does not exist yet, that is a `/council` Product-tier job — not a bugbash.
 - **No PR review.** PR review is `/review`.
 - **No reconvergence after fixes.** Once shipping criteria are met and the team starts fixing findings, the bugbash run is done. To validate the fixes, start a fresh `/bugbash` run.

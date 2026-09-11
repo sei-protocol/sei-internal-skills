@@ -1,10 +1,10 @@
 # Sei + Kubernetes Signal Ladder
 
-The first signals to retrieve for any Sei-platform incident, in order. The lower rungs localize the failure and frequently reveal hypotheses you wouldn't have written. Never skip rungs to chase a favored hypothesis.
+The first signals to retrieve for any Sei-platform incident, in order. The lower rungs localize the failure and frequently reveal hypotheses you would not have written. Never skip rungs to chase a favored hypothesis.
 
 ## MVP deployment envelope (Grafana-MCP-only) — read first
 
-In the current sei-omnigent MVP your **only** signal source is the Grafana MCP: metrics (Prometheus) and logs (Loki). No shell, no `kubectl`, no `seid`, no `curl`, no node RPC. Read the rungs below through this mapping — don't attempt a denied command.
+In the current sei-omnigent MVP your **only** signal source is the Grafana MCP: metrics (Prometheus) and logs (Loki). No shell, no `kubectl`, no `seid`, no `curl`, no node RPC. Read the rungs below through this mapping — do not attempt a denied command.
 
 | Rung | MVP path | Tool |
 |---|---|---|
@@ -39,7 +39,7 @@ If you skip this, you will re-derive what describe already told you.
 
 For `CrashLoopBackOff`, `--previous` is non-negotiable. The current instance's logs are post-restart noise; the previous instance's logs contain the actual crash. Pair with current-instance logs for context.
 
-For long-running pods that haven't crashed but are misbehaving, drop `--previous` and bound with `--since=15m` (or whatever brackets the symptom).
+For long-running pods that have not crashed but are misbehaving, drop `--previous` and bound with `--since=15m` (or whatever brackets the symptom).
 
 ### 3. `seid status | jq '.sync_info'`
 
@@ -135,4 +135,4 @@ These are CometBFT-specific. They are not optional for a sei-chain investigation
 - **Quoting a dashboard without scoping to the incident window.** A 24-hour graph hides a 30-second incident. Bound to `±15 min` of onset.
 - **Inferring causation from aggregates.** A p99 spike correlates with a deploy — but the trace for the slow request shows it hit a different code path. Descend to per-request data before attributing.
 - **Skipping `--previous` on `kubectl logs` for crash loops.** The current-instance logs are post-restart noise. The previous instance's logs are where the crash is.
-- **Trusting `seid status` alone for a healthy-looking node that's actually misbehaving.** A node can be on the head height-wise and still be returning stale state from a corrupted SeiDB. Pair with a `eth_call`-equivalent state read and cross-check against a known-good peer.
+- **Trusting `seid status` alone for a healthy-looking node that is actually misbehaving.** A node can be on the head height-wise and still be returning stale state from a corrupted SeiDB. Pair with a `eth_call`-equivalent state read and cross-check against a known-good peer.

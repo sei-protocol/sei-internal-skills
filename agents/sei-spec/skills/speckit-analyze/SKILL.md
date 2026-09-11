@@ -245,7 +245,7 @@ After reporting, check if `.specify/extensions.yml` exists in the project root.
 ### Context Efficiency
 
 - **Minimal high-signal tokens**: Focus on actionable findings, not exhaustive documentation
-- **Progressive disclosure**: Load artifacts incrementally; don't dump all content into analysis
+- **Progressive disclosure**: Load artifacts incrementally; do not dump all content into analysis
 - **Token-efficient output**: Limit findings table to 50 rows; summarize overflow
 - **Deterministic results**: Rerunning without changes should produce consistent IDs and counts
 

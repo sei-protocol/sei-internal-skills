@@ -148,7 +148,7 @@ The stewards report on their **own axes**, not the boundary table:
 
 ## 4a. Cross-cutting risk lenses (mandatory by concern)
 
-§3/T2's "+ any cross-cutting specialist" pulls non-boundary specialists **discretionarily** — which is how a risk that isn't an interface boundary gets skipped (the dogfood lesson: a concurrency/race fix reviewed without the systems lens, because a race is not a boundary). For the two highest-consequence such concerns the pull is **mandatory, not discretionary** — wired off *what the change touches* (like the §4 stewards), not off a defect already being visible:
+§3/T2's "+ any cross-cutting specialist" pulls non-boundary specialists **discretionarily** — which is how a risk that is not an interface boundary gets skipped (the dogfood lesson: a concurrency/race fix reviewed without the systems lens, because a race is not a boundary). For the two highest-consequence such concerns the pull is **mandatory, not discretionary** — wired off *what the change touches* (like the §4 stewards), not off a defect already being visible:
 
 | Concern the change **touches** | Mandatory lens |
 |---|---|
@@ -172,7 +172,7 @@ These are **domain lenses** (they report boundary-style findings, not an addendu
 ## 5. Operator override (recorded, never silent)
 
 The operator may name the slate or the tier explicitly (e.g. "xreview this as T2, drop the
-prose-steward — it's a code-only refactor"). An override is **recorded in the ledger's Routing
+prose-steward — it is a code-only refactor"). An override is **recorded in the ledger's Routing
 section** with the operator's stated reason — never silent. Dropping a §4a mandatory
 concern-lens is such an override — allowed, but recorded with the reason like any slate edit
 (its default, unlike a pinned §4 steward's absence, is proceed-with-gap-named, not HALT).

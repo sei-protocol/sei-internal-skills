@@ -85,8 +85,8 @@ Add headroom for continued sync on top of whichever figure the steps above produ
 **Halt conditions**:
 
 - `aws s3 ls` returns `AccessDenied` from the laptop — SSO profile is wrong; re-run pre-flight gate 2.
-- No snapshots present under `s3://harbor-sei-snapshots/<chainID>/state-sync/` — snapshot-publisher hasn't run for that chain. Offer the engineer fresh-sync (omit the snapshot block) or pick a different chain.
-- Engineer pins a specific height that doesn't exist — surface the available heights via `aws s3 ls` and ask them to pick one (or use `0`).
+- No snapshots present under `s3://harbor-sei-snapshots/<chainID>/state-sync/` — snapshot-publisher has not run for that chain. Offer the engineer fresh-sync (omit the snapshot block) or pick a different chain.
+- Engineer pins a specific height that does not exist — surface the available heights via `aws s3 ls` and ask them to pick one (or use `0`).
 
 ## Pod Identity associations
 
@@ -118,7 +118,7 @@ Image digest resolution flow (used when the agent surfaces a digest in the plan 
 1. `aws ecr describe-images --repository-name sei/sei-chain --region us-east-2 --image-ids imageTag=<tag> --profile <chosen>` (`<chosen>` = the engineer's AWS profile from pre-flight gate 3)
 2. Extract `imageDetails[0].imageDigest`
 3. Short digest = `sha256:` stripped, first 12 chars
-4. Race-guard retry: 3 attempts, 60s sleep — sei-chain CI sometimes pushes after a request lands. Don't loop silently; surface the retry to the engineer.
+4. Race-guard retry: 3 attempts, 60s sleep — sei-chain CI sometimes pushes after a request lands. Do not loop silently; surface the retry to the engineer.
 
 `seictl network|node apply` itself does not enforce ECR-only images — `--image` accepts any ref the apiserver and downstream pull secrets can resolve. Pre-flight `--image` validation is the agent's responsibility, not the CLI's.
 
@@ -127,4 +127,4 @@ Image digest resolution flow (used when the agent surfaces a digest in the plan 
 - GitHub Actions OIDC role for autobake nightly: `arn:aws:iam::189176372795:role/harbor-autobake-gha`
 - Engineer IAM principals — SSO-assigned roles (e.g., `arn:aws:iam::189176372795:role/sso-engineer-<alias>`), mapped to k8s groups via `aws_eks_access_entry`.
 
-The onboarding PR shape doesn't depend on the SSO role's IAM permissions — it only writes to the platform repo.
+The onboarding PR shape does not depend on the SSO role's IAM permissions — it only writes to the platform repo.

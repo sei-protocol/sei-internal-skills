@@ -16,7 +16,7 @@ The end state pre-flight delivers:
 - kubectl can list `seinetworks` in `eng-<alias>` (proof of EKS access entry + RBAC)
 - `eng-<alias>` namespace exists and is reconciled by Flux
 
-That's the floor for `seictl network|node apply`. Below this floor, no procedure can proceed safely.
+That is the floor for `seictl network|node apply`. Below this floor, no procedure can proceed safely.
 
 `--iops`/`--throughput` sit above that floor rather than in it. They gate a storage-performance selection only, so a standard-tier render proceeds without them. Gate 1 check 4 covers them separately.
 
@@ -154,7 +154,7 @@ Halt until `command -v yq` returns 0.
 command -v flux
 ```
 
-**Why:** the post-merge reconcile pattern (`flux reconcile kustomization flux-system --with-source -n flux-system`) is the fast path from "PR merged" to "manifests applied in cluster." Without `flux`, the fallback is `kubectl annotate kustomization flux-system reconcile.fluxcd.io/requestedAt=$(date +%s) --overwrite -n flux-system`, which works but doesn't fetch the latest source revision in the same call.
+**Why:** the post-merge reconcile pattern (`flux reconcile kustomization flux-system --with-source -n flux-system`) is the fast path from "PR merged" to "manifests applied in cluster." Without `flux`, the fallback is `kubectl annotate kustomization flux-system reconcile.fluxcd.io/requestedAt=$(date +%s) --overwrite -n flux-system`, which works but does not fetch the latest source revision in the same call.
 
 **Recovery (in-band):**
 
@@ -174,35 +174,35 @@ curl -s https://fluxcd.io/install.sh | sudo bash
 
 #### Profile detection flow
 
-Engineers configure their own profiles; don't hardcode `sei` (or any other name). Resolution sequence:
+Engineers configure their own profiles; do not hardcode `sei` (or any other name). Resolution sequence:
 
 1. **`$AWS_PROFILE` is set in the environment** → respect it as an explicit choice. Validate via `aws sts get-caller-identity --profile $AWS_PROFILE` and continue. Echo:
    > Using `AWS_PROFILE=<value>` (from environment) — resolved as: `<arn>`.
 
 2. **`$AWS_PROFILE` is unset** → list configured profiles with `aws configure list-profiles`:
 
-   - **Zero profiles** → walk the engineer through profile setup using the canonical Sei SSO session below (don't make them guess the start URL/region). Halt until at least one profile exists.
+   - **Zero profiles** → walk the engineer through profile setup using the canonical Sei SSO session below (do not make them guess the start URL/region). Halt until at least one profile exists.
    - **Exactly one profile** → use it directly. Echo:
      > Using AWS profile `<name>` (only one configured) — resolved as: `<arn>`.
-   - **Multiple profiles** → present the list and ask the engineer to choose. Default the prompt to `sei` if it's among them (the most common harbor-account profile name); otherwise no default. Frame the prompt clearly:
-     > I'll use this AWS profile to authenticate kubectl + observe your harbor cluster resources. Which profile?
+   - **Multiple profiles** → present the list and ask the engineer to choose. Default the prompt to `sei` if it is among them (the most common harbor-account profile name); otherwise no default. Frame the prompt clearly:
+     > I will use this AWS profile to authenticate kubectl + observe your harbor cluster resources. Which profile?
      > - `sei` (suggested)
      > - `<other-1>`
      > - `<other-2>`
 
-3. **Once chosen**, the profile name is the session's profile. Every downstream AWS-touching invocation runs with `--profile <chosen>` — `aws eks update-kubeconfig …`, `aws ecr describe-images …`, `aws s3 …`. If the parent shell doesn't already export `AWS_PROFILE`, prepend `AWS_PROFILE=<chosen>` to Bash invocations to keep the choice consistent.
+3. **Once chosen**, the profile name is the session's profile. Every downstream AWS-touching invocation runs with `--profile <chosen>` — `aws eks update-kubeconfig …`, `aws ecr describe-images …`, `aws s3 …`. If the parent shell does not already export `AWS_PROFILE`, prepend `AWS_PROFILE=<chosen>` to Bash invocations to keep the choice consistent.
 
 The whole point: the engineer chose what's authenticating — they should be able to point at it in the echo.
 
 #### Why this gate exists
 
-harbor's EKS auth and ECR image pulls require live AWS credentials. SSO sessions expire (default 12h); refreshing is one command. Sessions that *look* alive (configured profile, recent login) but don't have the right *role* surface as `Forbidden` later — gate 5 catches that on the kubectl side; AWS-side permission gaps surface naturally per-operation.
+harbor's EKS auth and ECR image pulls require live AWS credentials. SSO sessions expire (default 12h); refreshing is one command. Sessions that *look* alive (configured profile, recent login) but do not have the right *role* surface as `Forbidden` later — gate 5 catches that on the kubectl side; AWS-side permission gaps surface naturally per-operation.
 
 **Recovery (out-of-band):** `aws sso login --profile <chosen>`. If `~/.aws/config` is empty (truly fresh laptop), route them through profile setup using the canonical Sei SSO session below.
 
 #### Canonical Sei SSO session
 
-A fresh-laptop engineer shouldn't have to guess the start URL or Identity Center region. Drop this `sso-session` block into `~/.aws/config`:
+A fresh-laptop engineer should not have to guess the start URL or Identity Center region. Drop this `sso-session` block into `~/.aws/config`:
 
 ```ini
 [sso-session sei]
@@ -237,7 +237,7 @@ kubectl config use-context harbor
 
 `<chosen>` is the profile resolved at gate 3, whatever its name — engineers configure their own, so never guess it. The first command is idempotent; the second sets the active context. Re-check both — `current-context` must return `harbor` (or the ARN form) before continuing.
 
-**Edge case — engineer prefers a non-default kubeconfig path:** respect `$KUBECONFIG`. The `update-kubeconfig` command writes to whichever file `$KUBECONFIG` points at (or `~/.kube/config` if unset). Don't override.
+**Edge case — engineer prefers a non-default kubeconfig path:** respect `$KUBECONFIG`. The `update-kubeconfig` command writes to whichever file `$KUBECONFIG` points at (or `~/.kube/config` if unset). Do not override.
 
 **Edge case — context drift mid-session:** if a later kubectl call returns an unexpected cluster's resource (or fails with `cluster.local` errors), re-run gates 4 + 5 and resume.
 
@@ -245,11 +245,11 @@ kubectl config use-context harbor
 
 **Verifies:** `kubectl auth can-i list seinetworks -n eng-<alias>` returns `yes`.
 
-**Why:** the EKS cluster authorizes principals via *access entries* — separate from kubeconfig presence. A fresh principal with a valid kubeconfig can still get `Forbidden` on every kubectl call until the access entry is added. The check is intentionally narrow (list SeiNetworks in the engineer's namespace) — that's exactly what `seictl network apply` and `seictl network watch` need. The eng-`<alias>` Role grants `seinetwork`/`seinode` CRUD; if the migration hasn't reached the Role, this gate false-negatives — verify the Role was migrated.
+**Why:** the EKS cluster authorizes principals via *access entries* — separate from kubeconfig presence. A fresh principal with a valid kubeconfig can still get `Forbidden` on every kubectl call until the access entry is added. The check is intentionally narrow (list SeiNetworks in the engineer's namespace) — that is exactly what `seictl network apply` and `seictl network watch` need. The eng-`<alias>` Role grants `seinetwork`/`seinode` CRUD; if the migration has not reached the Role, this gate false-negatives — verify the Role was migrated.
 
 **Recovery (out-of-band):** the platform team grants the access entry. Surface:
 
-> Your AWS principal can't list seinetworks in `eng-<alias>` on harbor. This means the EKS access entry isn't in place yet. Ask the platform team to add you — file a one-line request in `#harbor-onboarding` with your AWS principal ARN (the same one gate 3 echoed when it resolved your profile).
+> Your AWS principal cannot list seinetworks in `eng-<alias>` on harbor. This means the EKS access entry is not in place yet. Ask the platform team to add you — file a one-line request in `#harbor-onboarding` with your AWS principal ARN (the same one gate 3 echoed when it resolved your profile).
 
 Halt until the access entry lands. Same-day turnaround typically.
 
@@ -279,7 +279,7 @@ State the cost of that uncertainty alongside it. If the class turns out to be ab
 
 Halting on `Forbidden` would put the performance tier out of reach for the engineers this runbook serves. It would also blame the platform catalog for a Role gap.
 
-**Edge case — alias not yet known.** On a brand-new engineer, the alias is captured in First Run (gate 6 path) before they have an `eng-<alias>` namespace. Run this gate against the *resolved* alias from First Run; if the engineer is mid-onboarding (PR open but not merged), it may still pass on namespace-list reach even though the namespace doesn't exist yet — gate 6 owns the namespace-existence check.
+**Edge case — alias not yet known.** On a brand-new engineer, the alias is captured in First Run (gate 6 path) before they have an `eng-<alias>` namespace. Run this gate against the *resolved* alias from First Run; if the engineer is mid-onboarding (PR open but not merged), it may still pass on namespace-list reach even though the namespace does not exist yet — gate 6 owns the namespace-existence check.
 
 **Edge case — gate passes but `apply` later fails with `Forbidden`:** the access entry may be read-only. Surface that as a separate gap when `seictl network|node apply` returns `metav1.Status.reason=Forbidden`. The platform team escalates the access entry to write.
 
@@ -287,9 +287,9 @@ Halting on `Forbidden` would put the performance tier out of reach for the engin
 
 **Verifies:** `kubectl get namespace eng-<alias>` returns 0.
 
-**Why:** every workload the engineer creates lives in their namespace. If the namespace doesn't exist, `seictl network|node apply` fails immediately (`metav1.Status.reason=NotFound`).
+**Why:** every workload the engineer creates lives in their namespace. If the namespace does not exist, `seictl network|node apply` fails immediately (`metav1.Status.reason=NotFound`).
 
-**Recovery (out-of-band, with in-band lead):** if the engineer doesn't have an onboarding PR yet, route to **First Run** (capture the alias, generate the PR body, open the PR via `gh pr create`). Surface the PR URL and halt pending merge — Flux reconciles in ~60s once merged.
+**Recovery (out-of-band, with in-band lead):** if the engineer does not have an onboarding PR yet, route to **First Run** (capture the alias, generate the PR body, open the PR via `gh pr create`). Surface the PR URL and halt pending merge — Flux reconciles in ~60s once merged.
 
 If the PR is open but not merged, surface the URL and offer to poll until the namespace appears:
 
@@ -297,9 +297,9 @@ If the PR is open but not merged, surface the URL and offer to poll until the na
 gh pr list --repo sei-protocol/platform --search "head:onboard/<alias>" --json url,state
 ```
 
-Don't try to create the namespace yourself. The onboarding PR is the source of truth — base layer + replacements produce it as a Flux-reconciled artifact, not an agent-side `kubectl apply`.
+Do not try to create the namespace yourself. The onboarding PR is the source of truth — base layer + replacements produce it as a Flux-reconciled artifact, not an agent-side `kubectl apply`.
 
-**Edge case — PR was merged but Flux hasn't reconciled yet:**
+**Edge case — PR was merged but Flux has not reconciled yet:**
 
 ```sh
 flux reconcile kustomization clusters --with-source -n flux-system  # forces a fast reconcile
@@ -308,9 +308,9 @@ kubectl get kustomization -n flux-system | grep harbor
 
 Wait ~60s and re-check. If still missing, inspect the parent kustomization's status for reconciliation errors.
 
-**Edge case — namespace exists but RBAC isn't wired:** the base layer's `rbac.yaml` should have landed with the namespace. If `kubectl auth can-i` fails on workloads despite the namespace existing, check `kubectl get role,rolebinding -n eng-<alias>` — both should reference `<alias>` (post-replacement). If the role is missing or empty, the kustomization may have failed to apply the base; surface that and halt.
+**Edge case — namespace exists but RBAC is not wired:** the base layer's `rbac.yaml` should have landed with the namespace. If `kubectl auth can-i` fails on workloads despite the namespace existing, check `kubectl get role,rolebinding -n eng-<alias>` — both should reference `<alias>` (post-replacement). If the role is missing or empty, the kustomization may have failed to apply the base; surface that and halt.
 
-**Edge case — namespace exists but the SAs don't:** same answer. The base layer ships `engineer-service-account` and `seid-node` alongside the renamed `<alias>` reconciler SA. If any are absent, the kustomization didn't fully reconcile.
+**Edge case — namespace exists but the SAs do not:** same answer. The base layer ships `engineer-service-account` and `seid-node` alongside the renamed `<alias>` reconciler SA. If any are absent, the kustomization did not fully reconcile.
 
 ## Caching pre-flight within a session
 
@@ -327,7 +327,7 @@ Common drift modes:
 - **EKS access entry revoked.** Gate 5 fails. Unusual mid-session — surface and halt.
 - **Namespace deleted by another engineer / Flux re-reconcile.** Gate 6 fails. Surface and halt; the engineer decides whether to re-onboard or escalate.
 
-In every case, the recovery is to re-run the relevant gate and resume. Don't silently work around drift.
+In every case, the recovery is to re-run the relevant gate and resume. Do not silently work around drift.
 
 ## The full new-engineer walk-through
 
@@ -341,16 +341,16 @@ For a literal "fresh laptop" engineer, the first session looks like:
 6. Gate 4 fails (no kubeconfig). Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>` directly (using the gate-3 profile). Continue.
 7. Gate 5 fails (no access entry). Surface "ask platform team in #harbor-onboarding," halt.
 8. Engineer pings the channel, gets the access entry. Comes back, says "ok try again." Gate 5 now passes, so run its resource-CRD sub-gate here. This is the first point in the ramp that can reach the cluster.
-9. Gate 6 fails (namespace doesn't exist). Enter First Run: prompt for alias (default from `$USER`), validate the regex, generate the PR body following the fromtherain pattern, open the PR via `gh pr create`. Surface the PR URL and halt. "Merge this; ping me when done."
+9. Gate 6 fails (namespace does not exist). Enter First Run: prompt for alias (default from `$USER`), validate the regex, generate the PR body following the fromtherain pattern, open the PR via `gh pr create`. Surface the PR URL and halt. "Merge this; ping me when done."
 10. Engineer merges, says "merged."
 11. Poll gate 6 — namespace + RBAC + workload SA + Flux watcher all reconcile from the same merge (~60s). Once `kubectl get namespace eng-<alias>` returns 0, gate 6 passes.
-12. All gates pass. "You're on the rails. Try `spin up a chain of 4 validators with image X`."
+12. All gates pass. "You are on the rails. Try `spin up a chain of 4 validators with image X`."
 
 Total elapsed wall-clock: typically one platform-team turnaround (gate 5) plus one PR merge (gate 6). Pre-flight in the warm case (returning engineer): <2s.
 
 ## What pre-flight is *not* responsible for
 
-- **Provisioning the EKS access entry** (gate 5). That's a platform-team action. Pre-flight detects, surfaces, halts.
+- **Provisioning the EKS access entry** (gate 5). That is a platform-team action. Pre-flight detects, surfaces, halts.
 - **Granting AWS SSO permissions** (gate 3). The engineer's IdP / IAM Identity Center role determines what SSO returns. Pre-flight only verifies the session is live.
 - **Validating image refs** (`seictl network|node apply` does this when invoked — image not in registry surfaces as a `metav1.Status` on stderr). Pre-flight only confirms the registry is reachable; per-image digest resolution is a procedure step.
-- **Cluster headroom checks.** That's a procedure step in the chain-spinup flow, not a pre-flight gate.
+- **Cluster headroom checks.** That is a procedure step in the chain-spinup flow, not a pre-flight gate.

@@ -6,7 +6,7 @@ Each tier defines the exact sequence of steps the coordinator runs. The goal is 
 
 ## Tier 1: Product (New MVP / Major Subsystem)
 
-**When:** Building something that doesn't exist yet. Multiple new components, new interfaces, new deployment artifacts.
+**When:** Building something that does not exist yet. Multiple new components, new interfaces, new deployment artifacts.
 
 **Duration:** Days to weeks of agent work. Multiple sessions likely.
 
@@ -65,9 +65,9 @@ Run the Feature tier process for each component, in the same provider-first orde
 2. Identify which components are affected.
 3. For each affected component, identify which interfaces are touched.
 4. Classify each interface change:
-   - **New interface** — doesn't exist yet, needs to be added
+   - **New interface** — does not exist yet, needs to be added
    - **Modified interface** — exists but needs changes (check for one-way doors!)
-   - **Unchanged** — interface exists and isn't affected
+   - **Unchanged** — interface exists and is not affected
 5. Present impact analysis to the user, highlighting any one-way doors.
 
 ### Phase 2: Interface Source First
@@ -83,7 +83,7 @@ For each affected component:
 3. If the change warrants a new LLD section, add it. If small, update in place.
 
 ### Phase 4: xreview
-Run `/xreview` for every interface boundary touched. Focus on changed interfaces — don't re-review unchanged boundaries unless asked.
+Run `/xreview` for every interface boundary touched. Focus on changed interfaces — do not re-review unchanged boundaries unless asked.
 
 ### Phase 5: Implementation
 For each affected component, dispatch the owning specialist. Provider-first ordering.
@@ -101,7 +101,7 @@ For each affected component, dispatch the owning specialist. Provider-first orde
 
 ## Tier 3: Component (Single-Component Feature)
 
-**When:** A new feature or significant change within a single component. May touch interfaces at the boundary but doesn't require coordinated changes across multiple specialists.
+**When:** A new feature or significant change within a single component. May touch interfaces at the boundary but does not require coordinated changes across multiple specialists.
 
 **Duration:** 30 minutes to a few hours.
 

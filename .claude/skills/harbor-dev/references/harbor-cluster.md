@@ -48,4 +48,4 @@ SEI_GENESIS_BUCKET            harbor-sei-k8s-genesis-artifacts
 
 The controller watches `SeiNetwork` and `SeiNode` cluster-wide.
 
-> **Note (PLT-451):** the `SEI_GATEWAY_*` vars are *loaded* and most are **required at boot** (the controller's `Validate()` fails closed if they're unset), yet **no reconciler consumes them** — networking is GitOps-owned, not controller-orchestrated. So they're vestigial: don't expect the controller to act on them — but **don't delete them from the manager patch** without the coordinated controller-side `Validate()` change (PLT-451), or the controller fleet crashloops at startup.
+> **Note (PLT-451):** the `SEI_GATEWAY_*` vars are *loaded* and most are **required at boot** (the controller's `Validate()` fails closed if they are unset), yet **no reconciler consumes them** — networking is GitOps-owned, not controller-orchestrated. They are vestigial: do not expect the controller to act on them — but **do not delete them from the manager patch** without the coordinated controller-side `Validate()` change (PLT-451), or the controller fleet crashloops at startup.

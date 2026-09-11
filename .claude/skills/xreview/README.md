@@ -4,7 +4,7 @@
 
 ![Xreview architecture diagram](assets/xreview.png)
 
-Xreview takes a produced artifact — a design, plan, diff, or set of specialist outputs — and has the relevant specialists review it *independently* for consistency, gaps, and interface mismatches, synthesizing their findings into a committed review ledger. The one thing it guarantees: no passing verdict while any correctness-grade finding is open, and no "consistent" call that wasn't actually reached by independent, evidence-bearing review.
+Xreview takes a produced artifact — a design, plan, diff, or set of specialist outputs — and has the relevant specialists review it *independently* for consistency, gaps, and interface mismatches, synthesizing their findings into a committed review ledger. The one thing it guarantees: no passing verdict while any correctness-grade finding is open, and no "consistent" call that was not actually reached by independent, evidence-bearing review.
 
 | | |
 |---|---|

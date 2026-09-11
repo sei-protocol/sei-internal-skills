@@ -13,7 +13,7 @@ Common diagram types used in design documents, with snippets and "when to use" g
 | "What's the deployment topology?" | Flowchart with subgraphs |
 | "How long does each phase take?" | Gantt |
 
-If the design doesn't have a diagram-shaped question, **don't add a diagram**. A misleading diagram is worse than no diagram. Prefer prose or a code reference (`internal/planner/planner.go:621-628`).
+If the design does not have a diagram-shaped question, **do not add a diagram**. A misleading diagram is worse than no diagram. Prefer prose or a code reference (`internal/planner/planner.go:621-628`).
 
 ## Sequence diagrams — interaction across components
 
@@ -103,7 +103,7 @@ stateDiagram-v2
 
 ## ER-like flowcharts — data shape
 
-Mermaid has an `erDiagram` type, but it's strict about cardinality syntax. For loose data-shape sketches, a labeled flowchart often reads better:
+Mermaid has an `erDiagram` type, but it is strict about cardinality syntax. For loose data-shape sketches, a labeled flowchart often reads better:
 
 ```mermaid
 flowchart LR
@@ -174,7 +174,7 @@ gantt
     Mode switch                 :b1, after a2, 3w
 ```
 
-Skip if the design isn't time-bound. Most LLDs aren't.
+Skip if the design is not time-bound. Most LLDs are not.
 
 ## Verification comments
 

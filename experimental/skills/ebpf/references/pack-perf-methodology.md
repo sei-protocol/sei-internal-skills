@@ -25,16 +25,16 @@
 
 ## 3. divergences[] — where kernel-perf rejects general wisdom (the load-bearing section)
 
-- **"High CPU% means CPU-bound."** No — CPU% is *non-idle time*; a thread stalled on memory counts as "busy." Only IPC / stall-cycle PMCs distinguish retiring from stalled. → Don't conclude compute-bound from CPU%; check IPC (`< 1.0` ≈ memory-bound).
+- **"High CPU% means CPU-bound."** No — CPU% is *non-idle time*; a thread stalled on memory counts as "busy." Only IPC / stall-cycle PMCs distinguish retiring from stalled. → Do not conclude compute-bound from CPU%; check IPC (`< 1.0` ≈ memory-bound).
 - **"A closed-loop load test measures the tail."** No — if the generator backs off when the system stalls, measured p99 *understates* the real tail by the stall (coordinated omission), which is catastrophic for a latency-cliff investigation. → Any tail-latency benchmark uses an **open-loop / rate-controlled** harness (constant arrival, measure queueing), or explicitly corrects for CO.
 - **"eBPF replaces the in-process profiler."** No — for language-semantic heap/goroutine/allocation detail, `pprof` (etc.) wins; eBPF wins off-CPU + kernel-boundary + zero-instrumentation. → Pair them; for Go, kernel off-CPU stacks show *thread* (futex/netpoll) blocking, not goroutine identity — cross-check with `pprof` block/mutex profiles.
-- **"This eBPF code is over-engineered."** Verifier-forced idioms are not smells: the **512-byte stack** forces a per-CPU-array map for any non-trivial scratch struct; **bounded loops** (or `bpf_loop`) are required (no unbounded loops); `__always_inline` / map-of-maps are normal. → Don't flag verifier-mandated structure as over-engineering (the 1M-instruction + 512B-stack + bounded-loop limits are the constraint).
+- **"This eBPF code is over-engineered."** Verifier-forced idioms are not smells: the **512-byte stack** forces a per-CPU-array map for any non-trivial scratch struct; **bounded loops** (or `bpf_loop`) are required (no unbounded loops); `__always_inline` / map-of-maps are normal. → Do not flag verifier-mandated structure as over-engineering (the 1M-instruction + 512B-stack + bounded-loop limits are the constraint).
 - **"Attach a uprobe to the function."** On a stripped/optimized Go binary, uprobes are fragile (moved goroutine stacks, non-standard calling convention, missing symbols; uretprobes can corrupt the Go runtime). → Prefer kernel-side **tracepoints** (futex/block/sched/tcp) keyed by PID/cgroup; reserve uprobes for where language-semantic attribution is essential and symbols exist.
 - **"Aggregation is premature optimization."** Overhead = per-event cost × frequency. An event-streaming probe is **drain-bound** (ringbuf egress dominates); a map-aggregated probe is **event-rate-bound** (no egress). → On a hot path, aggregate in-kernel (histogram/count maps), read the map periodically — this is *why* `biolatency`/`runqlat` are cheap despite firing on every I/O/wakeup.
 
 ## 4. anti_patterns[]
 
-- **Guess-don't-measure** — cue: "probably blocked on the lock" with no probe. Rewrite: run `offcputime`/futex tracing; show the stack.
+- **Guess-do not-measure** — cue: "probably blocked on the lock" with no probe. Rewrite: run `offcputime`/futex tracing; show the stack.
 - **Closed-loop tail benchmark** — cue: a load generator that waits for a response before sending the next (backs off on stall). Rewrite: open-loop / rate-controlled harness.
 - **Unbounded hot-path probe** — cue: a high-frequency kprobe (per-packet/per-context-switch) streaming every event to userspace. Rewrite: in-kernel aggregation + rate-limit; prefer a stable tracepoint over a kprobe.
 - **uprobe on a hot Go function** — cue: a uretprobe/uprobe on a stripped Go binary's hot path. Rewrite: kernel tracepoint keyed by PID/cgroup; pair with `pprof`.

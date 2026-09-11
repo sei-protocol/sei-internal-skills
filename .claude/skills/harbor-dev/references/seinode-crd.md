@@ -21,13 +21,13 @@ The controller reconciles each `SeiNode` into:
 
 - `Pending` — not yet picked up by the controller
 - `Initializing` — task plan executing
-- `Running` — **terminal "up" phase.** Task plan complete, steady-state polling. **There is no `Ready` on a SeiNode** — an operator (or a `node watch --until=Ready`) that waits for `Ready` waits forever; `--until=Running` is the correct terminal. (`Ready` is a `SeiNetwork` phase, not a node phase.)
+- `Running` — **terminal "up" phase.** Task plan complete, steady-state polling. **A SeiNode has no `Ready`** — an operator (or a `node watch --until=Ready`) that waits for `Ready` waits forever; `--until=Running` is the correct terminal. (`Ready` is a `SeiNetwork` phase, not a node phase.)
 - `Failed` — terminal; operator must delete and recreate
 - `Terminating` — being torn down (finalizer running)
 
 **`Running` is discoverability, not serve-readiness.** It means config applied + sidecar self-marked ready, NOT that the EVM listener is accepting connections — there is a real post-Running window where `.status.endpoint` is published but a dial gets connection-refused. Before pointing a load tool at a follower, run `seictl node watch <name> --until=caught-up` (the SDK serve-readiness gate: `catching_up=false` with height>1, plus EVM serving when the node publishes an EVM endpoint).
 
-## Spec fields you'll touch (operator's view)
+## Spec fields you will touch (operator's view)
 
 The 10 fields engineers actually edit:
 
@@ -65,7 +65,7 @@ The apiserver rejects a re-apply that changes either, with `metav1.Status.reason
 
 A follower minted by `seictl node apply --network <X>` carries `metadata.labels{sei.io/seinetwork=<X>, sei.io/role=node}` — this is exactly what the fleet recipes match (`node list -l sei.io/seinetwork=<X>,sei.io/role=node`). The same contract is shared with seitask-rendered SeiNodes. A hand-rolled SeiNode that omits these labels is **invisible** to the fleet recipes. The SeiNetwork controller stamps the same `sei.io/seinetwork=<X>` plus `sei.io/role=validator` on the validators it generates.
 
-## Status fields you'll read when debugging
+## Status fields you will read when debugging
 
 The fields engineers actually read:
 
@@ -73,7 +73,7 @@ The fields engineers actually read:
 - `.status.endpoint.{evmJsonRpc, evmWs, tendermintRpc, tendermintRest}` — the node's published in-cluster service URLs (scalar leaves; present for `fullNode`/`archive`, **absent** for `validator`/`replayer`, which serve no EVM/REST). **Use these verbatim** — the controller owns the per-node headless DNS form; never reconstruct them. This is the field every follower read in the recipes depends on.
 - `.status.conditions[type=Ready]` — boolean readiness condition with `.message` for cause (a condition, distinct from the phase — the phase has no `Ready`)
 - `.status.plan[*].state` and `.status.plan[*].lastError` — per-task execution state; on terminal `Failed`, `.status.plan.failedTaskDetail.error` carries the cause
-- `.status.observedGeneration` — drift detection (controller hasn't seen latest spec yet)
+- `.status.observedGeneration` — drift detection (controller has not seen latest spec yet)
 
 ## Everything else
 
@@ -83,4 +83,4 @@ The full schema lives at:
 - `kubectl explain seinode.status.endpoint` (the published endpoint leaf)
 - `sei-protocol/sei-k8s-controller/api/v1alpha1/seinode_types.go` (source)
 
-Don't enumerate the schema here. This file documents the operator workflow, not the field list.
+Do not enumerate the schema here. This file documents the operator workflow, not the field list.

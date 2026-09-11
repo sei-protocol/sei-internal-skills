@@ -13,25 +13,25 @@ Evaluate a candidate's technical interview artifact so a hiring engineer gets, f
 
 A capable model can opine on a code sample. The skill's job is to make the opinion **consistent, fair, and decision-useful**: a **codified, behaviorally-anchored rubric** (so two reviewers converge instead of scoring on vibes), an **always-first Sei hiring-bar overlay** (so we level against *our* bar), and the discipline to **ground every score in the artifact** and **tailor the discussion to the candidate's own work**. It exists because the failure modes are predictable — halo/vibes scoring, generic canned questions, inflating a weak sample to be nice, and burying the signal in an unreadable wall of text.
 
-The method backbone is grounded in structured-interview research (see `references/sources.md`): structured scoring with behavioral anchors raises predictive validity and reduces bias (Google re:Work; BARS), and a take-home is a *work sample* — among the strongest single predictors of performance (Schmidt & Hunter). Anchors reduce bias; they don't erase it — calibration still matters.
+The method backbone is grounded in structured-interview research (see `references/sources.md`): structured scoring with behavioral anchors raises predictive validity and reduces bias (Google re:Work; BARS), and a take-home is a *work sample* — among the strongest single predictors of performance (Schmidt & Hunter). Anchors reduce bias; they do not erase it — calibration still matters.
 
 ## Guardrails
 
 Refusal conditions — they hold under "I read this 20 minutes before the call, just tell me yes or no":
 
 1. **Human-first, distilled output (the defining rule).** The primary customer is a human — the hiring engineer. Output is human-first: **lead with the decision** (hire read + level signal + one-line why), distilled to the right depth, **no jargon or ornate vocabulary**; the scorecard, evidence, and long tail layer *beneath*. A scannable half-page beats a complete-but-unreadable essay. (This is the inverse of writing for an agent — the reader has finite attention and a clock.) **Fidelity bound on the distillation (R6):** distill the *altitude*, never the deciding signal. If the recommendation turns on a close call, a disqualifying gap, or a load-bearing caveat, that nuance rides in the lead's one-line why or one disclosure-layer down — it is **never** compressed away to keep the lead clean (R3/R4 outrank R6). A summary that hides the reason the human would decide differently is the failure, not the goal.
-2. **Evidence-grounded; never fabricate a signal.** Every score cites a concrete observation from the artifact (a file, function, test, commit, or README line). No evidence → the dimension is **can't-assess**, never an inferred number. Do not credit a skill the artifact didn't demonstrate, and do not penalize the absence of something the prompt didn't ask for (note it as a live-discussion item instead).
-3. **Inform, don't decide (suggest-only).** Produce the read, a recommendation, and verticals; **the human makes the hire/level call.** Never frame a reject as final or auto-reject — surface it for the human. The skill reviews the artifact and proposes discussion; it never contacts the candidate or makes an offer.
+2. **Evidence-grounded; never fabricate a signal.** Every score cites a concrete observation from the artifact (a file, function, test, commit, or README line). No evidence → the dimension is **cannot-assess**, never an inferred number. Do not credit a skill the artifact did not demonstrate, and do not penalize the absence of something the prompt did not ask for (note it as a live-discussion item instead).
+3. **Inform, do not decide (suggest-only).** Produce the read, a recommendation, and verticals; **the human makes the hire/level call.** Never frame a reject as final or auto-reject — surface it for the human. The skill reviews the artifact and proposes discussion; it never contacts the candidate or makes an offer.
 4. **Profile- and kit-first.** Load `references/sei-hiring-profile.md` (the Sei bar — it can override the generic anchors) **and** the kit for the interview format **before** scoring. No kit for the format → say so, score on `method.md` + first principles, flag the gap; never invent a rubric or assert a level anchor from memory.
-5. **Tailored verticals, not canned.** Deep-dive verticals derive from *this* candidate's implementation (the kit's productionization seeds applied to their actual choices). A generic question that doesn't connect to something they built does not ship. Productionizing the system is the north star for the discussion.
-6. **Fair and consistent (anti-bias).** Apply the same behavioral anchors to every candidate; cite the rubric, not a gut feeling; 3 = the hire bar, 4 = bar-raising. Behaviorally-anchored scales reduce but don't eliminate bias (BARS caveat) — flag a genuinely close call for human calibration rather than forcing a confident number.
+5. **Tailored verticals, not canned.** Deep-dive verticals derive from *this* candidate's implementation (the kit's productionization seeds applied to their actual choices). A generic question that does not connect to something they built does not ship. Productionizing the system is the north star for the discussion.
+6. **Fair and consistent (anti-bias).** Apply the same behavioral anchors to every candidate; cite the rubric, not a gut feeling; 3 = the hire bar, 4 = bar-raising. Behaviorally-anchored scales reduce but do not eliminate bias (BARS caveat) — flag a genuinely close call for human calibration rather than forcing a confident number.
 
 ## The method (four stages)
 
 `references/method.md` holds the full method; the spine:
 
 1. **Load + read.** Load the profile + kit (Guardrail 4). Read the *whole* artifact first — code, tests, docs, commit history, the demo/CLI — before scoring anything.
-2. **Score.** Walk the kit's dimensions; assign each a 1–4 against its **behavioral anchors**; cite the evidence; mark can't-assess where the artifact is silent. 3 = hire bar, 4 = bar-raising.
+2. **Score.** Walk the kit's dimensions; assign each a 1–4 against its **behavioral anchors**; cite the evidence; mark cannot-assess where the artifact is silent. 3 = hire bar, 4 = bar-raising.
 3. **Level + recommend.** Map the scorecard onto the L4/5-vs-L6 lens (the scope / autonomy / ambiguity / productionization axes) and give a recommendation — a signal for the human.
 4. **Derive verticals + write up.** From *their* implementation, derive 3–5 tailored productionization verticals; then write the distilled, human-first summary in the output format below.
 
@@ -76,8 +76,8 @@ The lead (recommendation + level + why) is the load-bearing line — an intervie
 
 - **No artifact** — ask for the submission; never review from a résumé, a reputation, or memory.
 - **Asked for the hire decision itself** — surface the read; let the human decide.
-- **No kit for the format** — score on the method + first principles, flag the missing-kit gap; don't invent a rubric.
-- **The prompt/expected solution isn't known** — score what the artifact demonstrates on general engineering merit and flag that the format-specific anchors couldn't be applied.
+- **No kit for the format** — score on the method + first principles, flag the missing-kit gap; do not invent a rubric.
+- **The prompt/expected solution is not known** — score what the artifact demonstrates on general engineering merit and flag that the format-specific anchors could not be applied.
 
 ## What this skill defers
 

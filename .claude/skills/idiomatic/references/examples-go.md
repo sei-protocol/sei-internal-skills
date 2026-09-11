@@ -31,7 +31,7 @@ func New() *PG { return &PG{} }
 // in the consuming package, sized to what it uses:
 // type getter interface{ Get(id string) (Item, error) }
 ```
-Basis: Go Proverbs; GCR: Interfaces; GGSG: Decisions — Interfaces. Anchor: **none — judgment-only** (§7 marks D3 so; `ireturn` is a weak proxy that doesn't verify consumer-side placement). Do not offer a linter "to enforce it."
+Basis: Go Proverbs; GCR: Interfaces; GGSG: Decisions — Interfaces. Anchor: **none — judgment-only** (§7 marks D3 so; `ireturn` is a weak proxy that does not verify consumer-side placement). Do not offer a linter "to enforce it."
 
 ### Cross-cutting · Observability field on a domain type (§3 divergence + §4 anti-pattern)
 A field whose *only* reader is a metric label / log key couples the domain type to the metric taxonomy — the type churns whenever the taxonomy does. Map the sentinel → its string at the metric boundary instead. This also fixes a latent correctness bug: a `map[error]string` is keyed by `==` identity and **misses a `%w`-wrapped error**, silently emitting an empty label.
@@ -53,7 +53,7 @@ func severity(err error) string {
     }
 }
 ```
-Basis: §3 divergence (presentation belongs to its own layer) + §4 anti-pattern. Anchor: **none** — two findings, neither machine-checkable: the layering call is *judgment-only*; the `map[error]` identity miss (it can't see through `%w`, so a wrapped error gets an empty label) is a **correctness** defect — lead with it.
+Basis: §3 divergence (presentation belongs to its own layer) + §4 anti-pattern. Anchor: **none** — two findings, neither machine-checkable: the layering call is *judgment-only*; the `map[error]` identity miss (it cannot see through `%w`, so a wrapped error gets an empty label) is a **correctness** defect — lead with it.
 
 ### §3 · A little copying beats a premature helper / a new dependency
 DRY/SRP pushes extraction at the second repeat; Go prefers a little duplication over the wrong abstraction (and over a dependency pulled in to save a few lines).
@@ -67,7 +67,7 @@ func key(s string) string { return strutil.TrimLower(s) }
 // good — inline the two lines where they're used; no indirection, no dep
 key := strings.ToLower(strings.TrimSpace(s))
 ```
-Basis: §3 divergences (a-little-copying; premature-helper). Anchor: **none — judgment-only**. Don't recommend a helper for 2–3 line repeats unless they're a must-change-together correctness coupling.
+Basis: §3 divergences (a-little-copying; premature-helper). Anchor: **none — judgment-only**. Do not recommend a helper for 2–3 line repeats unless they are a must-change-together correctness coupling.
 
 ---
 
@@ -142,7 +142,7 @@ Basis: GGSG: Decisions — Copying / Receiver type. Anchor (observed): `go vet` 
 ## Error handling
 
 ### D2 · Wrap with `%w`, not `%v`; `%w` goes last — `errorlint`
-`%v` flattens the cause to a string, so callers can't `errors.Is`/`errors.As` it. Use `%w`, placed last — unless you're wrapping a sentinel to categorize, where the sentinel leads.
+`%v` flattens the cause to a string, so callers cannot `errors.Is`/`errors.As` it. Use `%w`, placed last — unless you are wrapping a sentinel to categorize, where the sentinel leads.
 
 ```go
 // bad — severs the chain
@@ -169,7 +169,7 @@ errors.New("parse config")
 Basis: GGSG: Decisions — Error strings; Best Practices — Adding information to errors. Anchor (observed): `staticcheck` → `ST1005: error strings should not be capitalized` **and** `… should not end with punctuation`. **The `"failed to"` filler is judgment-only** — `ST1005` catches capitalization/punctuation, not the redundant prefix; cite the GGSG heading and say no checkable rule covers it.
 
 ### D2 · In-band error sentinel — judgment-only
-Don't signal failure with a magic value; return a second result.
+Do not signal failure with a magic value; return a second result.
 
 ```go
 // bad — -1 means "not found"
@@ -247,10 +247,10 @@ ctx, cancel := context.WithCancel(parent)
 defer cancel()
 work(ctx)
 ```
-Basis: GCR: Contexts. Anchor (observed): `go vet` (default) → `the cancel function returned by context.WithCancel should be called, not discarded, to avoid a context leak`. (If the function instead *returns* a cancelable context, don't `defer cancel()` inside — return `(ctx, cancel)` and let the caller defer it, or you hand back an already-canceled context.)
+Basis: GCR: Contexts. Anchor (observed): `go vet` (default) → `the cancel function returned by context.WithCancel should be called, not discarded, to avoid a context leak`. (If the function instead *returns* a cancelable context, do not `defer cancel()` inside — return `(ctx, cancel)` and let the caller defer it, or you hand back an already-canceled context.)
 
 ### Anti-pattern · Ignored error return — `errcheck`
-Don't drop an error on the floor.
+Do not drop an error on the floor.
 
 ```go
 // bad

@@ -8,13 +8,13 @@ This document covers the mechanics: pass structure, the challenger pattern, seve
 
 A single round of expert review produces N parallel checklists. The findings each expert surfaces reflect their own initial reading of the system. What a loop adds:
 
-1. **Saturation evidence.** When a pass produces no new ≥ Medium findings, the experts have collectively seen everything they would have seen given enough time. One pass can't tell you the experts are done; two consecutive empty passes can.
+1. **Saturation evidence.** When a pass produces no new ≥ Medium findings, the experts have collectively seen everything they would have seen given enough time. One pass cannot tell you the experts are done; two consecutive empty passes can.
 2. **Cross-pollination.** Each pass, an expert reads the previous pass's findings before doing their next discovery round. Findings from one expert prime another to look at adjacent failure modes. This is most of the bug-bash effect.
 3. **Adversarial pressure on findings.** The challenger pass is the adversarial heart of bugbash — without it, you have a checklist. With it, each finding has had at least one other expert try to invalidate it.
 
 ## Pass structure
 
-Each pass has four phases, executed in order. The merge phase (Phase 2) was added after a dry-run found that 5 experts × 7 findings produced 35 candidates with substantial cross-lens overlap, and per-finding challenger dispatch didn't scale. Merging first cuts the challenger workload in half or more without losing signal.
+Each pass has four phases, executed in order. The merge phase (Phase 2) was added after a dry-run found that 5 experts × 7 findings produced 35 candidates with substantial cross-lens overlap, and per-finding challenger dispatch did not scale. Merging first cuts the challenger workload in half or more without losing signal.
 
 ### Phase 1: Discovery (parallel)
 
@@ -61,7 +61,7 @@ The orchestrator collects every expert's candidates into the working set for thi
 
 ### Phase 2: Merge (orchestrator)
 
-Real findings overlap across expert lenses. A non-defensive template renderer surfaces as both a "future-template footgun" (kubernetes lens) and a "${VAR} injection vector" (security lens) — same root cause, different framings. A kubeconfig that honors `users[].exec` plugins surfaces as both a "cluster-routing trust gap" (network lens) and an "arbitrary code execution vector" (security lens) — same code, different consequences.
+Real findings overlap across expert lenses. A non-defensive template renderer surfaces as both a "future-template footgun" (Kubernetes lens) and a "${VAR} injection vector" (security lens) — same root cause, different framings. A kubeconfig that honors `users[].exec` plugins surfaces as both a "cluster-routing trust gap" (network lens) and an "arbitrary code execution vector" (security lens) — same code, different consequences.
 
 If you skip merging, the challenger phase pays N times for one underlying finding. Worse, two challengers may give different verdicts for what is functionally the same issue, producing inconsistent severity in the final artifact.
 
@@ -135,13 +135,13 @@ Verdict outcomes:
 
 - **Confirm** — finding advances to triage with the challenger's proposed severity.
 - **Downgrade** — finding advances at reduced severity. Recorded in state with the original framing's implied severity vs. the downgraded value, for audit.
-- **Refute** — finding is dropped from the findings log. Recorded in the resume state `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (in-repo `.bugbash/<target>.yaml` fallback; Design 13 R3) under `refuted:` with the reason, so the next pass doesn't re-surface it.
+- **Refute** — finding is dropped from the findings log. Recorded in the resume state `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (in-repo `.bugbash/<target>.yaml` fallback; Design 13 R3) under `refuted:` with the reason, so the next pass does not re-surface it.
 
 A challenger may not propose a *different* finding while challenging — they either resolve the current candidate or pass. Drift here weakens the convergence test.
 
 #### Severity is assigned by the challenger, not the finder
 
-A dry-run against a small CLI surface found that finders consistently overstated severity through framing language ("Critical — silent broken-window…") even though the discovery brief told them not to assign severity formally. Those framings primed the challenger toward confirmation. Three of three sampled challengers downgraded or refuted, demonstrating that severity is best assigned by the expert who didn't write the original framing.
+A dry-run against a small CLI surface found that finders consistently overstated severity through framing language ("Critical — silent broken-window…") even though the discovery brief told them not to assign severity formally. Those framings primed the challenger toward confirmation. Three of three sampled challengers downgraded or refuted, demonstrating that severity is best assigned by the expert who did not write the original framing.
 
 The discovery brief's prohibition on severity hints is therefore non-negotiable. If a finder violates it, the orchestrator should either: (a) re-dispatch the finder with stricter framing, or (b) note the discovered severity hint and ignore it during the challenger brief, presenting the candidate to the challenger in neutral terms.
 
@@ -171,9 +171,9 @@ One empty pass can be coincidence. Two consecutive empty passes is a much strong
 
 ### Why ≥ Medium and not all severities
 
-Findings keep surfacing forever at the Low end — nitpicks, minor docs gaps, "this could be cleaner." Gating convergence on Lows means the loop never ends. The threshold is ≥ Medium because that's the severity floor for "things the team would care about before launch."
+Findings keep surfacing forever at the Low end — nitpicks, minor docs gaps, "this could be cleaner." Gating convergence on Lows means the loop never ends. The threshold is ≥ Medium because that is the severity floor for "things the team would care about before launch."
 
-If three passes in a row produce only Lows, the team is spending expert time on diminishing returns; that's the signal to converge.
+If three passes in a row produce only Lows, the team is spending expert time on diminishing returns; that is the signal to converge.
 
 ### When convergence stalls
 
@@ -181,9 +181,9 @@ If the convergence counter never advances past 0 after 5 passes, halt. The most 
 
 - Target is too broad — the experts keep finding new surfaces.
 - Slate is wrong — an expert who keeps surfacing irrelevant findings (out-of-domain) skews the counter.
-- The system genuinely isn't ready — the Critical/High count is large enough that the team should fix what's known before continuing the bash.
+- The system genuinely is not ready — the Critical/High count is large enough that the team should fix what's known before continuing the bash.
 
-Report and ask the user. Don't loop forever.
+Report and ask the user. Do not loop forever.
 
 ## Verdict round
 
@@ -219,8 +219,8 @@ The skill exits successful when:
 
 - **All ship-it.** Done.
 - **Mix of ship-it and conditional**, AND every finding ID named across all conditionals has severity Critical or High. The launch criteria are: close those items.
-- **Any don't-ship.** Skill halts. Report the blocker; do not retry the verdict round automatically. The user decides whether to address the structural concern (often by running `/council`) and re-run bugbash later.
-- **A conditional names a Medium or Low.** Push back: "Expert X named Item N (Medium) as a launch blocker. Mediums don't block launch by rubric. Either re-evaluate severity, re-evaluate the verdict, or escalate to the user." If the expert maintains the position, surface to the user — there may be a rubric gap.
+- **Any do not-ship.** Skill halts. Report the blocker; do not retry the verdict round automatically. The user decides whether to address the structural concern (often by running `/council`) and re-run bugbash later.
+- **A conditional names a Medium or Low.** Push back: "Expert X named Item N (Medium) as a launch blocker. Mediums do not block launch by rubric. Either re-evaluate severity, re-evaluate the verdict, or escalate to the user." If the expert maintains the position, surface to the user — there may be a rubric gap.
 
 ## State persistence
 
@@ -229,7 +229,7 @@ The skill is long-running by design — multi-session for a non-trivial target i
 Two important state invariants:
 
 1. **The findings log is append-only across sessions.** Item numbers stay stable. Resuming a run never reorders or renumbers.
-2. **The expert slate is fixed for a run.** Adding or removing an expert mid-run invalidates the convergence test (a new expert would surface findings the others missed but didn't reset the counter on). If the slate is wrong, archive the run and start over.
+2. **The expert slate is fixed for a run.** Adding or removing an expert mid-run invalidates the convergence test (a new expert would surface findings the others missed but did not reset the counter on). If the slate is wrong, archive the run and start over.
 
 ## Comparison to RALPHY
 

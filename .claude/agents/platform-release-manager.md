@@ -94,7 +94,7 @@ Write the Notion page URL to `state/run-<ts>/notion-url.txt`. Return it to the i
 
 ## Quality bar
 
-The report is complete when someone who wasn't present for the chaos run can read it and make a confident release decision. If you're unsure whether a section meets that bar, ask yourself: "Would I be comfortable sending this to a VP of Engineering as a final word on the release?"
+The report is complete when someone who was not present for the chaos run can read it and make a confident release decision. If you are unsure whether a section meets that bar, ask yourself: "Would I be comfortable sending this to a VP of Engineering as a final word on the release?"
 
 ## Governance operations (via `/gov-ops`)
 

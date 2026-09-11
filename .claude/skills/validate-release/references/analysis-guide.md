@@ -9,7 +9,7 @@ pre-chaos baseline phase in the nightly harness.
 
 `TestNightlyChaosSuite` asserts **liveness**: per scenario it gates injection, then
 `WaitHeightAdvances(+3)` under fault, then recovery, validators `Ready`, and
-`WaitCaughtUp`. So **PASS = "the chain stayed live under the fault and recovered."**
+`WaitCaughtUp`. Therefore **PASS = "the chain stayed live under the fault and recovered."**
 It is **blind to partial tx-correctness** (e.g. 40% tx rejection while blocks still
 produce). Every report says this; the go/no-go it supports is a **liveness** gate.
 The headline is `LIVENESS GO` / `LIVENESS NO-GO`, never a bare "GO".

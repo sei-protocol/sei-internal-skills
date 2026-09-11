@@ -15,7 +15,7 @@ The canonical body produced by `/design`. Section order is fixed; empty optional
 
 - **Status** lifecycle: `Draft` → `Under review` → `Accepted` → `Superseded by <new design path>`. The skill writes `Draft`; updates are manual.
 - **Date** is the date the design was first written. Not updated on revision (use git history for that).
-- **Issue** is the lineage primitive. If the design started from `/issue` or a coral/council session that referenced an issue, capture the ref here — `#<n>` for a GitHub issue, or `<IDENTIFIER> — <url>` for a Linear issue (carry the URL; the bare identifier isn't clickable). The skill auto-fills when invoked with `--issue <ref>`.
+- **Issue** is the lineage primitive. If the design started from `/issue` or a coral/council session that referenced an issue, capture the ref here — `#<n>` for a GitHub issue, or `<IDENTIFIER> — <url>` for a Linear issue (carry the URL; the bare identifier is not clickable). The skill auto-fills when invoked with `--issue <ref>`.
 - **Authors** defaults to the local git user; user can add collaborators (people who weighed in during the design session).
 
 ## Body sections (in order)
@@ -24,13 +24,13 @@ The canonical body produced by `/design`. Section order is fixed; empty optional
 
 Why does this design exist? What's in the world today that motivates it? Keep it factual, not aspirational — describe the system as it is, the constraint or gap that prompted the design, and any prior work the design builds on.
 
-If the source is a `/issue` body, the issue's **Problem** section is the starting point. The design pass may add deeper context (architecture details, code references) the issue didn't have.
+If the source is a `/issue` body, the issue's **Problem** section is the starting point. The design pass may add deeper context (architecture details, code references) the issue did not have.
 
-One to three paragraphs is right. If it's longer than that, the Background is doing the Design's job.
+One to three paragraphs is right. If it is longer than that, the Background is doing the Design's job.
 
 ### `## Goals` — required
 
-Bulleted list. Each item is a desired outcome — observable, ideally testable. Things the design is trying to *achieve*, not how it's going to do it.
+Bulleted list. Each item is a desired outcome — observable, ideally testable. Things the design is trying to *achieve*, not how it is going to do it.
 
 ```markdown
 - Mid-life SigningKey patches on Running validators trigger a controlled pod re-roll
@@ -38,7 +38,7 @@ Bulleted list. Each item is a desired outcome — observable, ideally testable. 
 - Drift detection is reusable for future spec-mutation cases (mode switch, etc.)
 ```
 
-If a goal can't be expressed as an outcome, it's probably a non-goal or a design choice — move it elsewhere.
+If a goal cannot be expressed as an outcome, it is probably a non-goal or a design choice — move it elsewhere.
 
 ### `## Acceptance criteria` — optional
 
@@ -59,7 +59,7 @@ Bulleted list of **falsifiable, observable** conditions the implementation must 
 
 ### `## Non-goals` — optional but strongly encouraged
 
-Bulleted list. Each item is something the design **won't** address, with brief reason. This is high-value content — it prevents reviewers from asking about those things and protects the design from scope creep during implementation.
+Bulleted list. Each item is something the design **will not** address, with brief reason. This is high-value content — it prevents reviewers from asking about those things and protects the design from scope creep during implementation.
 
 If the source is a `/issue` body, the issue's **Out of scope** section is the starting point.
 
@@ -83,7 +83,7 @@ Reference code with `path/to/file.go:LineNumber` so reviewers can click through.
 
 ### `## Alternatives considered` — optional but encouraged
 
-Bulleted list. Each item: the alternative, why it was considered, why it wasn't chosen. The point is to capture *reasoning*, not just options — six months later, this is what tells a future engineer why the chosen path was right (or not).
+Bulleted list. Each item: the alternative, why it was considered, why it was not chosen. The point is to capture *reasoning*, not just options — six months later, this is what tells a future engineer why the chosen path was right (or not).
 
 ```markdown
 - **Alt A: Add a dedicated reconciler.** Considered because it cleanly separates drift from initial deploy. Not chosen because it duplicates the StatefulSet rollout watcher already in `buildNodeUpdatePlan`.
@@ -94,7 +94,7 @@ If the design pass weighed exactly one option, this section can be omitted. But 
 
 ### `## Trade-offs` — optional but encouraged
 
-Bulleted list. Each item: a known cost or risk of the chosen design, with what it buys you. Honest about what you're giving up.
+Bulleted list. Each item: a known cost or risk of the chosen design, with what it buys you. Honest about what you are giving up.
 
 ```markdown
 - **Re-apply triggers a full StatefulSet rolling update**, not a surgical container restart. Costs ~30s of unavailability per rolling-update pass. Buys: reuse of existing rollout machinery; no new failure modes.

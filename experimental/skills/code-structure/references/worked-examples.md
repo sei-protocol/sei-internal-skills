@@ -2,7 +2,7 @@
 
 Real before → after deltas from this codebase. Each names the principle it
 demonstrates. They exist because the principles are easy to nod at and hard to apply —
-the judgment lives in the cases where the rule says *don't*.
+the judgment lives in the cases where the rule says *do not*.
 
 ---
 
@@ -47,7 +47,7 @@ not in the file you extracted it from.
 ---
 
 ## B. A load-bearing invariant, kept in place and trimmed
-*(Principle 4 — the case where the rule says don't extract and don't delete)*
+*(Principle 4 — the case where the rule says do not extract and do not delete)*
 
 A state-sync gate was resolved *before* the Failed/Paused early-returns so its status
 mutation rides whatever flush those exits already do. That is a sequencing dependency,
@@ -57,7 +57,7 @@ The comment was **kept at the call site** — not extracted, not deleted — and
 from seven lines to four.
 
 The test that decided it: *a competent engineer could reorder this and silently break
-the piggybacked flush.* So it stays.
+the piggybacked flush.* It stays.
 
 ---
 

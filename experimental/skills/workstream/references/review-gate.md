@@ -16,7 +16,7 @@ blinded dispatch, the assigned dissent, and the **review-ledger** schema + gate-
 review-gate is the **consumer**: it *invokes* the slate (the verify-to-convergence loop) and
 *reads* the review-ledger (the gate evaluation). 
 
-There is **one** coupling surface — `/xreview`'s **gate-read contract** (Design 08, *How it
+**One** coupling surface exists — `/xreview`'s **gate-read contract** (Design 08, *How it
 composes*). The review-gate reads exactly the latest round's header fields that contract names, and
 nothing else. Per Design 08's stated tie-break, **that contract is canonical**; the review-gate
 adapts to it and never re-derives review state. If the contract changes, the review-gate follows
@@ -115,7 +115,7 @@ re-review branch always fails *closed* (an `OpenFindings ≥ 1` round never merg
 declared terminal of its own. In the MVP the loop is **human-driven and serial** (the operator
 sequences each round), so an unbounded spin is implausible — that is the de-facto bound. The
 *mechanism* (a max-rounds-then-route-to-`on_fail`, or a no-progress detector that escalates when
-round N's open set isn't shrinking) is **deferred** — un-defer the moment `/workstream` ever drives
+round N's open set is not shrinking) is **deferred** — un-defer the moment `/workstream` ever drives
 the verify loop programmatically or unattended (the same trigger as the review-ledger's single-
 writer/locking deferral). Stated here so the next implementer does not inherit it as an unstated
 contract (mirrors the guard primitive's recursion bound).

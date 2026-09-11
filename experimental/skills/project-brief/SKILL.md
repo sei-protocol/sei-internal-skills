@@ -19,7 +19,7 @@ From the manager this exists to serve:
 
 > "It has got to be self contained, polished with link to external resources as
 > needed, written for human consumption first and foremost. Everything else: specs,
-> issues etc. stems from that. It's important that project itself is of super high
+> issues etc. stems from that. It is important that project itself is of super high
 > quality with little to no cognitive cycle."
 
 ## The one principle
@@ -96,7 +96,7 @@ This skill writes exactly two fields on one Linear project: `summary` and
    no bracketed slot, no note-to-self. This is the failure this skill exists to stop:
    in baseline testing it happened in two of three runs, and **both runs knew it was
    wrong while doing it** — one wrote, "three unfilled slots pasted into a live
-   project would be worse than the one-liner, because it looks finished and isn't."
+   project would be worse than the one-liner, because it looks finished and is not."
    A field with holes looks finished and is not. If a fact is missing, the gap goes
    to the human in conversation and the write does not happen. See step 5.
 
@@ -162,7 +162,7 @@ give yourself something to defend.
    - No section that repeats a rendered property.
    - Every hedge is gone or made concrete — no "should", "generally",
      "significantly", "aims to". Amazon's Bar Raisers call these weasel words and
-     read them as a tell: "a giveaway to your reader that you haven't got the detail."
+     read them as a tell: "a giveaway to your reader that you have not got the detail."
    - Every claim is either self-evident, sourced from material you actually read, or
      confirmed by the human this run.
 
@@ -183,7 +183,7 @@ your reasoning matches the left column, **stop**.
 
 | Excuse | Reality |
 |---|---|
-| "It isn't an issue list, it's sequencing / phases / a plan." | The baseline agent wrote *"restating it as prose is wasted space"* and then shipped four phases of issue IDs. Renaming the list does not change it. Name the meaning, not the identifiers. |
+| "It is not an issue list, it is sequencing / phases / a plan." | The baseline agent wrote *"restating it as prose is wasted space"* and then shipped four phases of issue IDs. Renaming the list does not change it. Name the meaning, not the identifiers. |
 | "A brief should say who owns it and when it ships." | Linear renders lead and target date directly above your text. You are competing with the property table and you will lose to it — it updates itself. |
 | "Placeholders are safer than a note nobody reads." | Both are wrong. The gap goes to the human in conversation, and the write waits. A field with holes looks finished and is not. |
 | "Status up top is what a busy reader wants." | A busy reader wants it — from the update, which is built for it and refreshed weekly. Put it here and you have written something that is false by next Thursday. |
@@ -191,9 +191,9 @@ your reasoning matches the left column, **stop**.
 | "Adding one parsable line for the pipeline is free." | It is redundancy, and redundancy is charged to the human reader in extraneous load. Linear's own fields are already structured and already current. |
 | "The spec says it better. Just link the spec." | The description is read in a list view, on a phone, by someone on-call, by a new hire in week one. None of them will open six pages to learn what this is. An abstract is not a duplicate of the paper. |
 | "Two other projects do it this way." | Two projects doing a thing is evidence two people were busy, not that it worked. Check whether anyone found them useful. |
-| "It's a long week and this is basically formatting." | The description is the artifact everything else stems from. Being tired is a reason to work fast; it is not a reason to assert what you have not checked. |
+| "It is a long week and this is basically formatting." | The description is the artifact everything else stems from. Being tired is a reason to work fast; it is not a reason to assert what you have not checked. |
 | "More detail signals more rigour." | Measured the other way: complexity *lowers* judged intelligence, mediated by processing difficulty (Oppenheimer 2006). Padding reads as not knowing. |
-| "I'll hedge — I'm not certain yet." | Uncertainty is content. Write the open question as an open question with a name and a date. A hedge hides it. |
+| "I will hedge — I'm not certain yet." | Uncertainty is content. Write the open question as an open question with a name and a date. A hedge hides it. |
 
 ## Red flags — stop and reset
 

@@ -74,11 +74,11 @@ Every finding follows this exact structure. Section order is fixed; section head
 
 ## Rules of the format
 
-- **No reordering.** Item N stays Item N forever. If a finding is later refuted in a follow-up bugbash, append a strikethrough note; don't delete or renumber.
+- **No reordering.** Item N stays Item N forever. If a finding is later refuted in a follow-up bugbash, append a strikethrough note; do not delete or renumber.
 - **No silent edits.** When updating a finding (severity changed at challenger pass, fix sketch refined), the orchestrator may rewrite the item, but the item number is permanent.
 - **Exact headers.** `Overview`, `Experts involved`, `Scenario`, `Impact / Risk / Priority`, `Issue`. Tooling and `/issue` will key off these.
 - **Severity is not optional.** Every item has one. See the rubric.
-- **Metrics are judicious.** The default is no metric. Add one only when the failure is silent and operationally consequential. If three items in a target want a metric, at least two of them probably don't actually need one — challenge the metric in the next pass.
+- **Metrics are judicious.** The default is no metric. Add one only when the failure is silent and operationally consequential. If three items in a target want a metric, at least two of them probably do not actually need one — challenge the metric in the next pass.
 - **Fix sketch is not a patch.** Bugbash is read-only. The sketch describes the shape of the fix, not the lines of code. Whoever picks up the issue does the actual implementation.
 - **Cite file:line in the Issue body.** Concrete pointers turn the artifact into a working document for the eventual fixer.
 

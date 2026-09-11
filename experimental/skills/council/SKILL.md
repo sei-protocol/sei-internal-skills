@@ -15,12 +15,12 @@ For single-system iteration with one or two experts, use `coral` — the lighter
 
 Council enforces full process when full process applies. Before any side-effecting action:
 
-1. **Scope-tier first.** No dispatch happens without an identified tier (Product / System / Component / Feature). When the tier is ambiguous, ask one focused question; don't dispatch on guesses.
+1. **Scope-tier first.** No dispatch happens without an identified tier (Product / System / Component / Feature). When the tier is ambiguous, ask one focused question; do not dispatch on guesses.
 2. **xreview is its own phase — and its own skill.** Specialists giving input during their individual dispatches is NOT xreview. Council runs xreview by invoking `/xreview` on the affected work, which produces a COMPATIBLE / MISMATCH / MISSING findings table. Resolve all MISMATCH and MISSING before proceeding.
 3. **Interface source of truth is authoritative.** If a spec or code conflicts with it, the source of truth wins. Update the source first, then specs and code conform.
 4. **Provider owns the interface.** Consumers adapt. When provider and consumer disagree, the provider's definition is canonical.
 5. **One-way doors require explicit user approval.** Persisted schema / field names, public API contracts, on-disk or wire data formats, signed or indexed identifiers, and anything the repo's governing document flags as irreversible — STOP and present before finalizing.
-6. **Force-coral when work is coral-sized.** If the work is single-component with no interface changes and doesn't warrant scope-tier ceremony, suggest `/coral` rather than running full process.
+6. **Force-coral when work is coral-sized.** If the work is single-component with no interface changes and does not warrant scope-tier ceremony, suggest `/coral` rather than running full process.
 7. **Session state reads fail-loud.** Coordination state (`workstream.yaml`/`escalations/`/`archive/`) lives in the DRI `<engineer>-designs` repo (Design 13 R3). At session start, resolve the DRI repo *first*; if the *expected* repo is unresolvable / on an unexpected branch / mid-rebase / behind-remote, or headless with no user to confirm the mode — **HALT and surface**, never silently start fresh or miss a live escalation (Design 13 §4).
 
 ## Locating the Target Repo and Its Conventions
@@ -60,7 +60,7 @@ Read `references/scope-tiers.md` for the detailed process per tier.
 
 ### The Four Tiers
 
-**Product** — An entirely new MVP or major subsystem that doesn't exist yet. Multiple new components need to be designed from scratch, new interfaces, new deployment artifacts. Days to weeks.
+**Product** — An entirely new MVP or major subsystem that does not exist yet. Multiple new components need to be designed from scratch, new interfaces, new deployment artifacts. Days to weeks.
 - Signals: "build a new…", "we need a whole new…", "design the system for…", "MVP for…"
 - Process: High-level design → component decomposition → full design cycle per component → xreview → implementation
 
@@ -68,21 +68,21 @@ Read `references/scope-tiers.md` for the detailed process per tier.
 - Signals: "add end-to-end support for…", "integrate X with Y", cross-component changes
 - Process: Impact analysis → interface source updates → design per affected component → xreview → implementation
 
-**Component** — A new feature or significant change scoped to a single component. Needs a low-level design to get right, but doesn't require cross-component coordination.
+**Component** — A new feature or significant change scoped to a single component. Needs a low-level design to get right, but does not require cross-component coordination.
 - Signals: "add X to the operator", "the review runtime needs…", "write the reconciliation loop for…"
 - Process: LLD draft by owning specialist → interface check → implementation
 
-**Feature** — Iterative work that's already defined (the design exists, interfaces are clear). Just write the code.
+**Feature** — Iterative work that is already defined (the design exists, interfaces are clear). Just write the code.
 - Signals: "implement the X handler", "write tests for…", "code up what's in the LLD"
 - Process: Read LLD + interface source → implement → verify interfaces
 
 ### When Scope Is Ambiguous
 
-Ask one focused question: "This sounds like it could be [tier A] or [tier B]. The difference is [what changes about the process]. Which feels right?" Don't ask more than one — make a judgment call with what you have.
+Ask one focused question: "This sounds like it could be [tier A] or [tier B]. The difference is [what changes about the process]. Which feels right?" Do not ask more than one — make a judgment call with what you have.
 
 ### When the Work Is Actually Coral-Sized
 
-If the work is clearly single-component with no interface changes and doesn't warrant scope-tier ceremony, suggest the user switch to `/coral`. Don't force full process on work that doesn't need it.
+If the work is clearly single-component with no interface changes and does not warrant scope-tier ceremony, suggest the user switch to `/coral`. Do not force full process on work that does not need it.
 
 ## Your Specialist Team
 
@@ -92,13 +92,13 @@ The specialist roster comes from `.claude/agents/` in the target repo. When disp
 3. "Read the interface source of truth before starting" (registry if present, relevant LLDs otherwise)
 4. What output you expect (spec, code, findings table)
 
-For xreview, invoke the `/xreview` skill — it dispatches the relevant specialists to independently review the work and synthesizes the findings table. Don't fold xreview into the individual dispatches; it is a distinct phase with a distinct output.
+For xreview, invoke the `/xreview` skill — it dispatches the relevant specialists to independently review the work and synthesizes the findings table. Do not fold xreview into the individual dispatches; it is a distinct phase with a distinct output.
 
 ## Dispatching Work
 
 ### Parallel vs Sequential
 
-Dispatch specialists in parallel when their work doesn't share interface boundaries. Sequentialize when there ARE dependencies — provider first, then consumer.
+Dispatch specialists in parallel when their work does not share interface boundaries. Sequentialize when there ARE dependencies — provider first, then consumer.
 
 Example — parallel safe:
 - specialist A adds an internal field (no external interface)
@@ -125,7 +125,7 @@ When work changes an interface:
 2. Then update specs and code to match
 3. Run `/xreview` to verify consistency
 
-Provider owns the interface — if there's a disagreement, the provider's definition wins and consumers adapt.
+Provider owns the interface — if there is a disagreement, the provider's definition wins and consumers adapt.
 
 ## Session Continuity
 
@@ -185,9 +185,9 @@ When a session starts, resolve the DRI repo fail-loud (Design 13 §4 — see Fou
 ### When to Checkpoint
 
 - After each phase in Product or System tier
-- When stopping mid-phase (user says "that's enough for now")
+- When stopping mid-phase (user says "that is enough for now")
 - After resolving escalations
-- Don't bother for Feature or Component tier — usually one session
+- Do not bother for Feature or Component tier — usually one session
 
 ## Design Escalation
 
@@ -224,7 +224,7 @@ When escalation files exist:
 
 ## One-Way Door Gate
 
-Some changes can't be reversed after deployment. Before finalizing any of these, STOP and present to the user for explicit approval:
+Some changes cannot be reversed after deployment. Before finalizing any of these, STOP and present to the user for explicit approval:
 
 - **Persisted schema / field names** — renaming after data is written or consumers depend on them requires migration
 - **Public API contracts** — request/response shapes, status codes, and error formats clients have integrated against
@@ -238,7 +238,7 @@ Format: "This involves a one-way door: [what's changing]. Once deployed, [conseq
 
 Stop and report rather than auto-recovering when:
 
-- **Escalations exist at session start** (`designs/<arc>/council/escalations/*` in the DRI repo) — read each, resolve or upgrade scope before any new work. If the *expected* DRI repo can't be resolved cleanly (present-but on unexpected branch / mid-rebase / dirty-in-conflict / behind-remote, or headless with no user to confirm the mode) → HALT fail-loud rather than assume no escalations; **never read the migration-emptied in-repo `.council/escalations/` and conclude "none."** (In confirmed no-DRI-repo mode the in-repo path is the legitimate store, read normally.) (Design 13 §4)
+- **Escalations exist at session start** (`designs/<arc>/council/escalations/*` in the DRI repo) — read each, resolve or upgrade scope before any new work. If the *expected* DRI repo cannot be resolved cleanly (present-but on unexpected branch / mid-rebase / dirty-in-conflict / behind-remote, or headless with no user to confirm the mode) → HALT fail-loud rather than assume no escalations; **never read the migration-emptied in-repo `.council/escalations/` and conclude "none."** (In confirmed no-DRI-repo mode the in-repo path is the legitimate store, read normally.) (Design 13 §4)
 - **xreview surfaces MISMATCH or MISSING** — halt until provider and consumer specs align with the interface source of truth
 - **Workstream-in-progress detected** at session start (`designs/<arc>/council/workstream.yaml` in the DRI repo — resolved fail-loud per §4, never read from the emptied in-repo dir; exists with unresolved phases) — surface and ask continue / new / archive
 - **Tier is genuinely ambiguous** — ask one focused question; if still ambiguous, halt and ask the user to scope
@@ -251,23 +251,23 @@ Pressure patterns that surface during full-ceremony work and the counters from t
 
 | Excuse | Reality |
 |---|---|
-| "We both know this is System tier — skip the scope-tier selection." | Scope-tier selection is the entry point that determines specialist slate AND one-way-door risk. State the tier, confirm in one question, then proceed — don't skip. |
+| "We both know this is System tier — skip the scope-tier selection." | Scope-tier selection is the entry point that determines specialist slate AND one-way-door risk. State the tier, confirm in one question, then proceed — do not skip. |
 | "The specialists already gave input in their dispatches — skip xreview." | Individual dispatch is NOT xreview. xreview reads provider + consumer + interface source and produces a findings table. Different phase, different output. |
-| "It's still in dev — the one-way-door rule is for prod." | The one-way-door gate is on change category, not deployment target. Dev-then-staging-then-prod is the path; the door's irreversibility lives in the *category* (persisted schema/field name, public API contract, on-disk/wire format, signed or indexed identifier), not the cluster. |
+| "It is still in dev — the one-way-door rule is for prod." | The one-way-door gate is on change category, not deployment target. Dev-then-staging-then-prod is the path; the door's irreversibility lives in the *category* (persisted schema/field name, public API contract, on-disk/wire format, signed or indexed identifier), not the cluster. |
 | "Just update the spec to match what got implemented — provider already shipped." | Provider owns the interface, but provider-owns means provider defines BEFORE shipping, not after. Retroactive spec updates to match drift = the spec is now the implementation's documentation, which is exactly the failure mode the interface source of truth prevents. Update spec first, then re-implement to match. |
-| "We can do interface changes parallel — they're separable." | Parallel dispatch is for work that doesn't share interface boundaries. If both touch the same interface, provider goes first and consumer follows. Sequential, not parallel. |
+| "We can do interface changes parallel — they are separable." | Parallel dispatch is for work that does not share interface boundaries. If both touch the same interface, provider goes first and consumer follows. Sequential, not parallel. |
 | "The escalation file is from last week — just skip it." | Escalations are scope re-classification signals — what looked like Component might be System if the fix touches interfaces. Resolve before new work, not after. |
-| "We don't need the workstream checkpoint — this is one session." | Product and System tiers usually aren't one session, even when they feel like they will be. Checkpoint per phase; the cost is small and the next-session pickup is much cheaper. |
+| "We do not need the workstream checkpoint — this is one session." | Product and System tiers usually are not one session, even when they feel like they will be. Checkpoint per phase; the cost is small and the next-session pickup is much cheaper. |
 
 ## Red Flags — STOP and Reset
 
-Phrases that signal you're about to violate a council default. If any surface in your own reasoning or a teammate's framing, stop and reset:
+Phrases that signal you are about to violate a council default. If any surface in your own reasoning or a teammate's framing, stop and reset:
 
 - "Skip the scope-tier"
 - "Just dispatch the specialists in parallel"
 - "We already cross-reviewed during the dispatch"
 - "Update the spec to match what shipped"
-- "It's still in dev, the rule doesn't apply"
+- "It is still in dev, the rule does not apply"
 - "Skip the workstream checkpoint — this is one session"
 - "The escalation is stale, skip it"
 - "Provider can adapt to consumer here"
@@ -291,5 +291,5 @@ For implementation work, include test results.
 - **YAGNI** — only features tracing to current-phase business needs
 - **Two-way doors only** — one-way doors require explicit justification and human approval
 - **Errors are interface** — every error is part of the public contract
-- **Tests prove interfaces** — if you can't write the test spec, the interface isn't clear enough
+- **Tests prove interfaces** — if you cannot write the test spec, the interface is not clear enough
 - **Provider owns the interface** — consumers adapt

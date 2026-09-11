@@ -16,7 +16,7 @@ The `platform` skill designs and reviews the Sei fleet's platform layer — the 
 ## What it does
 
 - Designs or reviews platform/infra artifacts against a citable corpus (OpenGitOps, Kustomize, Pod Security Standards, EKS, NSA/CISA) plus the always-first Sei-platform profile, scoring by six dimensions: security posture, secrets handling, GitOps-reconcilability, multi-cell structure, supply-chain integrity, and the cloud-identity boundary.
-- Cites every finding to a primary source and/or profile rule — never a naked "this isn't secure" — and stays copyright-clean.
+- Cites every finding to a primary source and/or profile rule — never a naked "this is not secure" — and stays copyright-clean.
 - The refusal that matters most: prod-cell, cloud-identity/IAM, KMS/SOPS, and Cilium CNI changes are one-way doors. The skill flags them for human approval and never asserts them as the fix.
 
 ## Reading the diagram

@@ -16,13 +16,13 @@ Used by `seictl network apply` to materialize the validator pool from the `genes
 
 - `Pending` — not yet picked up by the controller
 - `Initializing` — genesis ceremony + validator rollout in progress
-- `Ready` — **terminal "up" phase.** Genesis assembled, validator pool reconciled. `seictl network watch --until=Ready` matches this. (Distinct from a SeiNode, whose terminal is `Running` — don't carry one vocab onto the other.)
+- `Ready` — **terminal "up" phase.** Genesis assembled, validator pool reconciled. `seictl network watch --until=Ready` matches this. (Distinct from a SeiNode, whose terminal is `Running` — do not carry one vocab onto the other.)
 - `Paused` — reconciliation held
 - `Degraded` — running but below the expected validator readiness
 - `Failed` — terminal failure
 - `Terminating` — being torn down
 
-## Spec fields you'll touch (operator's view)
+## Spec fields you will touch (operator's view)
 
 The spec is flat (no `spec.template`):
 
@@ -31,7 +31,7 @@ The spec is flat (no `spec.template`):
 - `spec.replicas` — validator count (immutable; default 4 via the preset)
 - `spec.genesis.accounts[]` — funded accounts at genesis (`--genesis-account`)
 - `spec.genesis.overrides{}` — flat dotted cosmos-module keys patched into the assembled `app_state` after collect-gentxs; module must exist, sub-fields unchecked (`--genesis-override`). Wrong deeper field names are injected silently and crash every node at InitChain — take keys from a real genesis, never from upstream-Cosmos docs (see the Genesis params section + sharp-edge note in `seictl-cli.md`)
-- `spec.configOverrides{}` — per-node `config.toml`/`app.toml` overrides (the SeiNetwork equivalent of a SeiNode's `spec.overrides`; reached via `--set spec.configOverrides...`). There is **no `--override` flag** on `network apply`.
+- `spec.configOverrides{}` — per-node `config.toml`/`app.toml` overrides (the SeiNetwork equivalent of a SeiNode's `spec.overrides`; reached via `--set spec.configOverrides...`). `network apply` has **no `--override` flag**.
 - `spec.resources` — the seid container footprint for every validator in the pool (`--cpu` / `--memory`). Request-only; `requests` accepts **only** `cpu` and `memory`. **Create-only.**
 - `spec.dataVolume.storage` — the data-PVC size for each pool validator (`--storage`), at the nested path `spec.dataVolume.storage.resources.requests.storage`. **Create-only.**
 - `spec.dataVolume.storage.volumeAttributesClassName` — the storage performance selection for each pool validator, a sibling of the size path above. Names a platform-managed VolumeAttributesClass, which carries the gp3 IOPS and throughput. `network apply` resolves the name from the `--iops` and `--throughput` pair you supply. Unset means the standard tier. **Create-only.**
@@ -46,7 +46,7 @@ The resource fields are create-only for mechanical reasons, not policy. Each chi
 
 **`resources.limits`:** `limits` accepts only `memory`, and `limits.memory` must equal `requests.memory`. The CRD rejects a CPU limit outright. The controller derives the memory limit from the request, so a rendered CR normally carries no `limits` block; `seictl` refuses to render `spec.resources.limits.cpu` from any source.
 
-## Status fields you'll read when debugging
+## Status fields you will read when debugging
 
 - `.status.phase` — coarse-grained state (terminal "up" is `Ready`)
 - `.status.readyReplicas` / `.status.replicas` — validator-pool readiness math
@@ -74,4 +74,4 @@ On `Retain`, either set `deletionPolicy: Delete` in the manifest and merge that 
 - `kubectl explain seinetwork.spec --recursive` (live cluster)
 - `sei-protocol/sei-k8s-controller/api/v1alpha1/seinetwork_types.go` (source)
 
-Don't enumerate the schema here. This file documents the operator workflow, not the field list.
+Do not enumerate the schema here. This file documents the operator workflow, not the field list.

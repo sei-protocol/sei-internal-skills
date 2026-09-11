@@ -22,4 +22,4 @@ The systems skill reviews and designs code so it behaves well on the machine and
 
 ## Reading the diagram
 
-This is a layered-cake archetype: stacked knowledge sources composing upward into one agent. The lower layers are the citable standards corpus and the per-theme references; they feed the discipline spine (rank-by-consequence, cite-and-stay-clean, don't-duplicate-the-idiom-or-ops-lens), which in turn composes into the systems-engineer reviewer at the top. Read bottom-to-top as "sources -> theme references -> discipline -> agent"; the thin variant means the kit is a closed, fixed theme set rather than an open, pluggable one.
+This is a layered-cake archetype: stacked knowledge sources composing upward into one agent. The lower layers are the citable standards corpus and the per-theme references; they feed the discipline spine (rank-by-consequence, cite-and-stay-clean, do not-duplicate-the-idiom-or-ops-lens), which in turn composes into the systems-engineer reviewer at the top. Read bottom-to-top as "sources -> theme references -> discipline -> agent"; the thin variant means the kit is a closed, fixed theme set rather than an open, pluggable one.

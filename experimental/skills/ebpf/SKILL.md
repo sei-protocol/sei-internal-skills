@@ -20,26 +20,26 @@ A capable model already knows Brendan Gregg's USE method and the bcc/bpftrace to
 - It treats eBPF as a **replacement** for in-process profilers, losing the Go-semantic detail `pprof` gives.
 - It attaches a **high-frequency probe on a hot node** without bounding overhead — the verifier proves memory-safety and termination, never performance.
 
-So the value here is **not** a kernel-tracing textbook. It is the discipline that makes every perf claim measured-and-cited, every probe overhead-bounded and safe, and every privileged deploy gated. The pack is the tool→signal→concern checklist and the citable authority; the spine is the product.
+The value here is **not** a kernel-tracing textbook. It is the discipline that makes every perf claim measured-and-cited, every probe overhead-bounded and safe, and every privileged deploy gated. The pack is the tool→signal→concern checklist and the citable authority; the spine is the product.
 
 ## Guardrails
 
 Refusal conditions — these hold under time pressure, a senior voice anchoring on one theory, and a tidy-looking flamegraph:
 
-1. **Measure, don't assume — every signal is retrieved, not extrapolated.** No perf conclusion without the literal probe invocation + its verbatim output (a histogram, a folded stack, a count). "It's probably the lock" is a hypothesis to test with `offcputime`/futex tracing, never a finding. Paraphrased output is banned. (Inherits `/root-cause`'s evidence rule.)
-2. **No privileged eBPF on a shared/prod node without the one-way-door gate — attach OR deploy.** *Any* privileged eBPF attach is root-on-node: a DaemonSet, a one-shot Job, an ephemeral `bpftrace -e` one-liner, or pointing a pre-approved standing agent at a new target — all cross the gate equally. "It's just a read-only one-liner, not a deployment" is **not** an exemption (the gate is about the privileged kernel attach, not the verb). This skill *designs and authors* probes/harnesses; it never attaches or runs a privileged probe on a shared or production cluster without explicit human + security sign-off, and **never on a validator/consensus-critical node** at all.
+1. **Measure, do not assume — every signal is retrieved, not extrapolated.** No perf conclusion without the literal probe invocation + its verbatim output (a histogram, a folded stack, a count). "It is probably the lock" is a hypothesis to test with `offcputime`/futex tracing, never a finding. Paraphrased output is banned. (Inherits `/root-cause`'s evidence rule.)
+2. **No privileged eBPF on a shared/prod node without the one-way-door gate — attach OR deploy.** *Any* privileged eBPF attach is root-on-node: a DaemonSet, a one-shot Job, an ephemeral `bpftrace -e` one-liner, or pointing a pre-approved standing agent at a new target — all cross the gate equally. "It is just a read-only one-liner, not a deployment" is **not** an exemption (the gate is about the privileged kernel attach, not the verb). This skill *designs and authors* probes/harnesses; it never attaches or runs a privileged probe on a shared or production cluster without explicit human + security sign-off, and **never on a validator/consensus-critical node** at all.
 3. **Overhead is part of the probe — bound it before you attach.** Overhead = per-event cost × event frequency. A high-frequency kprobe or an event-streaming probe (no in-kernel aggregation) can perturb or DoS a hot node and skew the very measurement. Prefer in-kernel aggregation (map histograms), rate-limit, and measure overhead on a non-prod target first. The verifier guarantees memory-safety + termination, NOT low overhead.
 4. **Open-loop for tail latency.** A benchmark whose metric is p99/p99.9/tail MUST use an open-loop / coordinated-omission-resistant harness (constant arrival rate, measure queueing) — a closed-loop generator that backs off on stall understates the tail by the stall.
-5. **eBPF complements, never replaces, in-process profilers.** For language-semantic heap/goroutine/allocation detail, the in-process profiler (e.g. Go `pprof`) wins; eBPF wins on off-CPU, kernel-boundary, and zero-instrumentation correlation. Pair them; don't claim one replaces the other.
+5. **eBPF complements, never replaces, in-process profilers.** For language-semantic heap/goroutine/allocation detail, the in-process profiler (e.g. Go `pprof`) wins; eBPF wins on off-CPU, kernel-boundary, and zero-instrumentation correlation. Pair them; do not claim one replaces the other.
 
 ## Halt Conditions
 
 Stop and surface rather than proceeding when:
-- **The effect isn't stated measurably** (no baseline, "feels slow") — establish the observable + the USE-method resource sweep first; don't reach for a probe to go fishing.
-- **No pack for the substrate** — don't refuse and don't invent one; design on the method spine + first principles and flag the missing-pack gap (reduced confidence).
+- **The effect is not stated measurably** (no baseline, "feels slow") — establish the observable + the USE-method resource sweep first; do not reach for a probe to go fishing.
+- **No pack for the substrate** — do not refuse and do not invent one; design on the method spine + first principles and flag the missing-pack gap (reduced confidence).
 - **A privileged eBPF attach/run on a shared or production node is required** — a deploy OR an ephemeral one-liner; any privileged attach is root-on-node — STOP and route to the human + security one-way-door gate; never self-approve, and never on a validator.
-- **Probe overhead can't be bounded or measured on a safe target first** — don't attach on a hot/prod node; reduce to an aggregating probe or a non-prod rehearsal.
-- **A kernel probe target can't be resolved** (stripped binary, missing BTF, renamed symbol) — degrade to a kernel-side tracepoint or flag the gap; don't fabricate a working probe.
+- **Probe overhead cannot be bounded or measured on a safe target first** — do not attach on a hot/prod node; reduce to an aggregating probe or a non-prod rehearsal.
+- **A kernel probe target cannot be resolved** (stripped binary, missing BTF, renamed symbol) — degrade to a kernel-side tracepoint or flag the gap; do not fabricate a working probe.
 
 ## When to use / when not
 
@@ -70,7 +70,7 @@ Full protocol + the tool→signal→concern map live in `references/pack-perf-me
 
 The five guardrails above are the spine; they are not negotiable under time pressure, a senior theory, or a deadline. The two that fail silently if skipped:
 
-### Measure-don't-assume (Guardrail 1)
+### Measure-do not-assume (Guardrail 1)
 The highest-severity failure is a confident perf claim with no retrieved signal. When you notice yourself writing "probably", "likely blocked on", "the lock is the issue" about *system state* (not a prediction of a future measurement) — STOP and run the probe. Cite the tool call or tag the claim `unverified`.
 
 ### Overhead-bound + open-loop (Guardrails 3, 4)

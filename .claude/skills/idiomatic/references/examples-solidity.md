@@ -43,7 +43,7 @@ function claim() external {
     require(ok, "transfer failed");
 }
 ```
-Basis: Common Patterns (withdrawal); SWC-113. Anchor: **none — judgment-only** (the withdrawal-pattern design choice isn't detector-modeled).
+Basis: Common Patterns (withdrawal); SWC-113. Anchor: **none — judgment-only** (the withdrawal-pattern design choice is not detector-modeled).
 
 ---
 

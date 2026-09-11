@@ -95,7 +95,7 @@ A pack may carry an on-demand `examples-<lang>.md` of **original** good/bad pair
 
 ## Optional: language → specialist agent map
 
-When a finding needs judgment the static pack can't carry, the method dispatches a specialist agent. Record the mapping here as packs are added:
+When a finding needs judgment the static pack cannot carry, the method dispatches a specialist agent. Record the mapping here as packs are added:
 
 | language | specialist agent |
 |----------|------------------|

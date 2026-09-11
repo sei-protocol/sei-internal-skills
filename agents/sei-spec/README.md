@@ -43,7 +43,7 @@ as a user-facing name.
 `skills: none` switches off host-scope discovery only. Bundled skills load
 unconditionally: the spec parser calls `_discover_skills(root / "skills")` with no
 filter, while `discover_host_skills` returns an empty list the moment the filter is
-`none` (`omnigent/spec/parser.py`). So the vendored eight survive and the Coral
+`none` (`omnigent/spec/parser.py`). The vendored eight therefore survive and the Coral
 skills cannot leak in regardless of what sits on the runner's machine.
 
 This matters because Omnigent is not a separate lane from Claude Code.
@@ -89,7 +89,7 @@ toolset carries that. It is also the harness the live verification ran on.
 
 ## Registration
 
-There is no `POST /v1/agents`. The only route into the dropdown is
+No `POST /v1/agents` exists. The only route into the dropdown is
 `OMNIGENT_BUILTIN_AGENT_DIRS`, which names operator-supplied bundle paths the server
 materialises at startup. This directory is meant to be baked into the server image so
 the path is stable, the same way `xreview` and `root-cause` are.

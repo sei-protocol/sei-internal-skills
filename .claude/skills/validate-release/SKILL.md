@@ -111,7 +111,7 @@ Spawn `platform-release-manager` with `run_in_background: true`. Pass `RUN_TOKEN
 `GRAFANA_TOKEN`, `GRAFANA_BASE_URL`, `PROM_DS_UID`, `GRAFANA_DASHBOARD_UID`,
 `NOTION_DATABASE_ID`, and the state dir `state/run-<ISO-timestamp>/`.
 
-Tell the user: **"Generating the report for run `<RUN_TOKEN>`. I'll notify you when
+Tell the user: **"Generating the report for run `<RUN_TOKEN>`. I will notify you when
 the Notion page is ready — a few minutes. You can keep working."**
 
 ### Step 2 — Agent work (background)

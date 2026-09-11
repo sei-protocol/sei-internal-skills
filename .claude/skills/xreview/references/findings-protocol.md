@@ -22,9 +22,9 @@ The synthesized output of xreview (Step 4) and the research grounding the discip
 
 When a finding is MISMATCH, name the category — it sets the severity and the fix:
 
-- **Signature** — the shape doesn't line up: parameter count/order, endpoint path/verb, message fields, function arity. (Analog: `NoSuchMethodError` — a syntactic break.)
-- **Type** — same field, incompatible type or representation (int vs string, enum value sets that don't match, units).
-- **Error-contract** — the provider raises errors the consumer doesn't handle, or the consumer expects error semantics the provider doesn't honor. Errors are part of the interface.
+- **Signature** — the shape does not line up: parameter count/order, endpoint path/verb, message fields, function arity. (Analog: `NoSuchMethodError` — a syntactic break.)
+- **Type** — same field, incompatible type or representation (int vs string, enum value sets that do not match, units).
+- **Error-contract** — the provider raises errors the consumer does not handle, or the consumer expects error semantics the provider does not honor. Errors are part of the interface.
 - **Naming** — the same concept under different names across the boundary, or the same name meaning different things.
 - **Sequencing / behavioral** — shapes match but order, timing, idempotency, or state assumptions differ. The dangerous class — no syntactic error, fails at integration. (Analog: a semantic break with no compile error.)
 

@@ -8,7 +8,7 @@ This standard is language-general in spirit; the worked form below is Go (`doc.g
 
 ## When it applies
 
-A package must carry a pattern doc when it owns or threads a **non-trivial data structure with a lifecycle** — a plan, a state machine, a job/task graph, a cursor, a cross-package flow. Pure leaf utilities don't need one.
+A package must carry a pattern doc when it owns or threads a **non-trivial data structure with a lifecycle** — a plan, a state machine, a job/task graph, a cursor, a cross-package flow. Pure leaf utilities do not need one.
 
 ## Required sections
 
@@ -33,9 +33,9 @@ Each section is required; drop one only with an explicit `N/A — <reason>` line
 ## How it stays honest (in priority order)
 
 1. **Invariants are testable.** Every invariant should map to a named test or assertion. A documented invariant with no guarding test is a finding: *"documented but unguarded."*
-2. **`go doc` renders correctly.** `go doc ./internal/planner` must produce a clean synopsis and readable sections. Broken rendering (a list that doesn't parse) is a finding.
+2. **`go doc` renders correctly.** `go doc ./internal/planner` must produce a clean synopsis and readable sections. Broken rendering (a list that does not parse) is a finding.
 3. **No dangling references.** Exported symbols named in `doc.go` must exist — `gopls`/`go vet` catch dangling refs on rename.
-4. **No doc drift vs the agent file.** A "Key Pattern" in `CLAUDE.md` that isn't reflected in the owning package's `doc.go` is a finding — the agent file and the package doc must agree.
+4. **No doc drift vs the agent file.** A "Key Pattern" in `CLAUDE.md` that is not reflected in the owning package's `doc.go` is a finding — the agent file and the package doc must agree.
 
 ## Tooling (existing toolchain — no bespoke build)
 

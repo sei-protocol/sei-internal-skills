@@ -17,7 +17,7 @@ Bug bash is a read-only, looped hardening pass: a fixed slate of specialists adv
 
 - Dispatches 3-6 domain experts in parallel against one target, each surfacing up to 5 candidate findings — no fixes, no severity, just observations.
 - Merges overlapping candidates, then has a *different* expert challenge each one (confirm / refute / downgrade) before it earns a place in the log.
-- Loops until convergence: two consecutive passes with zero new findings of Medium or higher, then collects a per-expert launch verdict (ship-it / conditional / don't-ship).
+- Loops until convergence: two consecutive passes with zero new findings of Medium or higher, then collects a per-expert launch verdict (ship-it / conditional / do not-ship).
 - The guarantee that matters most: it stays read-only. It refuses to edit, create, or delete anything under the target's source tree — a found bug is recorded and handed off, never patched from inside the run.
 
 ## Reading the diagram

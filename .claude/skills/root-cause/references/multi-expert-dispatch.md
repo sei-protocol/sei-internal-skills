@@ -95,11 +95,11 @@ think it's lower probability.
 
 ## Anti-patterns
 
-- **"Quickly summarize what the other experts found so far."** The summary is the contamination. Don't.
+- **"Quickly summarize what the other experts found so far."** The summary is the contamination. Do not.
 - **Sequential dispatch.** A → review → B → review → C. By the time C is dispatched, A's hypothesis is the dominant frame. Always parallel.
 - **"What do you think of hypothesis X?"** as a brief. This is a confirmation question, not a hypothesis-generation question. Specialists are sycophantic to direct questions of this form.
-- **No designated dissenter.** Without it, you will get four-of-four agreement on a plausible-but-wrong hypothesis and no signal that you're in consensus theater.
-- **Treating consensus as evidence.** "All five experts agree" is evidence only if each one committed before seeing the others. Otherwise it's evidence of one well-chosen anchor.
+- **No designated dissenter.** Without it, you will get four-of-four agreement on a plausible-but-wrong hypothesis and no signal that you are in consensus theater.
+- **Treating consensus as evidence.** "All five experts agree" is evidence only if each one committed before seeing the others. Otherwise it is evidence of one well-chosen anchor.
 - **Skipping the merge step.** If the orchestrator privately picks a "winning" hypothesis from the submissions without surfacing the merged table to the specialists for joint discussion, the specialists never get to falsify each other's work.
 
 ## When the .claude/agents/ roster is sparse
@@ -110,4 +110,4 @@ Some repos have only one or two specialists defined. Options in priority order:
 2. **Dispatch the same specialist twice with different framings** — once with the standard brief, once as a red-team. Less ideal (same training data, same priors) but preserves the discipline.
 3. **Halt and ask the user.** If the roster cannot cover the affected surface and no acceptable substitute exists, surface the gap as a finding rather than dispatching a single specialist who'll inevitably anchor.
 
-The skill never accepts single-specialist conclusions on a cross-component incident. If the roster can't support multi-expert dispatch, the output is "we don't have the experts to investigate this rigorously; here's the gap" — not a single-expert verdict.
+The skill never accepts single-specialist conclusions on a cross-component incident. If the roster cannot support multi-expert dispatch, the output is "we do not have the experts to investigate this rigorously; here's the gap" — not a single-expert verdict.

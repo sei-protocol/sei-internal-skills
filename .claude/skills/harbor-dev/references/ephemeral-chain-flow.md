@@ -72,11 +72,11 @@ seictl node apply <name> \
 
 Auto-wired on the rendered CR (driven by `--network`):
 - `metadata.labels.sei.io/seinetwork: <chain-id>`, `metadata.labels.sei.io/role: node`
-- **`spec.peers[0].label.selector.sei.io/seinetwork: <chain-id>`** — the follower peers with every node in the namespace tagged with that network. So pointing the fleet at the genesis chain is "pass `--network <chain-id>`."
+- **`spec.peers[0].label.selector.sei.io/seinetwork: <chain-id>`** — the follower peers with every node in the namespace tagged with that network. Pointing the fleet at the genesis chain is "pass `--network <chain-id>`."
 
 `--chain-id` (the node's own chain) and `--network` (who to peer with) are independent flags; for an in-namespace ephemeral chain, pass the same value for both. This is the load-bearing piece: `--network <id>` is enough to wire each follower to the genesis validators — no hand-rolled `--set spec.peers...` plumbing.
 
-If an engineer asks for anything other than `genesis-chain` or `rpc` (archive node, single validator, fork-test), `apply` can't serve it — surface that and offer the hand-rolled-CR alternative.
+If an engineer asks for anything other than `genesis-chain` or `rpc` (archive node, single validator, fork-test), `apply` cannot serve it — surface that and offer the hand-rolled-CR alternative.
 
 ## Override and composition
 
@@ -98,7 +98,7 @@ Prefer the discrete resource flags over `--set spec.resources...`. `--set` bypas
 
 The storage-performance flags work the other way round from a name lookup: you supply the pair, and seictl resolves the VolumeAttributesClass that encodes it. `--set` cannot smuggle in a class name outside the supported set, and cannot pair a tier with a volume too small for its IOPS (see `seictl-cli.md` → *Storage performance*).
 
-Layering, lowest precedence first: preset YAML → discrete flags → `--set`. Maps merge per-key; lists replace wholesale. Server-side-apply dry-run validates the merged CR against the apiserver's schema (preset isn't enough — the cluster's CRD is the schema oracle).
+Layering, lowest precedence first: preset YAML → discrete flags → `--set`. Maps merge per-key; lists replace wholesale. Server-side-apply dry-run validates the merged CR against the apiserver's schema (preset is not enough — the cluster's CRD is the schema oracle).
 
 ### Snapshot bootstrap (RPC followers)
 
@@ -124,7 +124,7 @@ Eng-workspace chains are ephemeral consumers of `harbor-sei-snapshots`, not prod
 
 The controller publishes each node's reachability as `.status.endpoint.*` (in-cluster `svc` URLs) and stamps a per-node **headless Service** for peer connectivity. A SeiNetwork additionally gets a `<network>-internal` ClusterIP Service fronting its validator pool (published as `.status.internalService`, with composed `.status.endpoints` — aggregate URLs for Tendermint RPC/REST only; EVM is advertised per-pod because filters/subscriptions/finalized-tag reads pin to a node; the Service also carries an evm-http port, inert while the backend is validators-only since ModeValidator disables EVM). Beyond that the controller stops: it creates **no** load balancer, no ingress, no HTTPRoute — those were the old SND `spec.networking` concerns and are gone — and standalone followers get no aggregate of any kind. **All exposure topology is engineer-owned Flux YAML** in the task dir, alongside the CRs. This is deliberate — discoverability is the controller's job; exposure is a per-use-case choice the engineer makes explicit in git, reviewable and varying without a controller change.
 
-**The discoverability rule (load-bearing): use the published endpoint verbatim — never reconstruct the URL.** The controller owns the DNS form: the node's per-node **headless** Service at `<node-name>.<namespace>.svc` (e.g. `http://chaos-rpc-0.eng-<alias>.svc:8545`). A reconstructed URL desyncs the moment the controller changes its naming. Read `.status.endpoint` (recipe #1); don't synthesize it.
+**The discoverability rule (load-bearing): use the published endpoint verbatim — never reconstruct the URL.** The controller owns the DNS form: the node's per-node **headless** Service at `<node-name>.<namespace>.svc` (e.g. `http://chaos-rpc-0.eng-<alias>.svc:8545`). A reconstructed URL desyncs the moment the controller changes its naming. Read `.status.endpoint` (recipe #1); do not synthesize it.
 
 ### The decision rule, by use-case
 
@@ -168,7 +168,7 @@ seictl node list -n eng-<alias> -l sei.io/seinetwork=foo,sei.io/role=node -o jso
 `metav1.Status` on stderr; non-zero exit. Reasons:
 
 - `Timeout` — `--timeout` exceeded (default 15m). Inspect the last NDJSON line for partial status.
-- Terminal `Failed` phase — stderr lifts `.status.plan.failedTaskDetail.error` and the failing task name. Don't auto-retry; surface to the engineer.
+- Terminal `Failed` phase — stderr lifts `.status.plan.failedTaskDetail.error` and the failing task name. Do not auto-retry; surface to the engineer.
 - `Invalid` at parse — an illegal `--until` for the tree (e.g. `Ready` on a node). Fix the phase name.
 - Transient API failure — transport error from the watch connection; the `metav1.Status.message` carries the detail.
 
@@ -210,17 +210,17 @@ Engineer says: "spin up a chain of 4 validators with seid sha=abc, then add an R
 
 ## Halt conditions specific to this flow
 
-Stop and report (don't auto-remediate):
+Stop and report (do not auto-remediate):
 
-- **Render rejected by `--dry-run` with `metav1.Status.reason=Invalid`.** The would-be-applied CR fails schema validation. Surface the message; ask the engineer to inspect the `--set` paths or preset overrides. Don't push a broken CR to the workspace repo.
+- **Render rejected by `--dry-run` with `metav1.Status.reason=Invalid`.** The would-be-applied CR fails schema validation. Surface the message; ask the engineer to inspect the `--set` paths or preset overrides. Do not push a broken CR to the workspace repo.
 - **Re-apply rejected `Invalid` on an immutable field** — the apiserver rejects `network apply <same-name>` when `--chain-id`, `--replicas`, `--cpu`, `--memory`, `--storage`, `--iops`, or `--throughput` changes. `spec.genesis`, `spec.replicas`, `spec.resources`, and `spec.dataVolume.storage` are all admission-immutable. Delete + re-create; do not retry.
 - **`AlreadyExists` on cluster post-merge** — the engineer's PR proposed a name that already has a live CR (escape-hatch direct-apply, or stale workspace state). Surface the existing object's metadata; ask whether to pick a different name or `git rm` the old manifest first.
-- **Workspace-repo task path collision** — `engineers/<alias>/<task>/` already exists in the workspace repo. Don't silently overwrite. Halt and ask whether to reuse the dir (add new files alongside) or pick a different `<task>` name.
-- **Push rejected (non-fast-forward)** — engineer or another agent pushed to the same branch. Don't force-push. Halt; surface `git pull --rebase` and let the engineer resolve.
-- **Watch (post-merge) exits with `metav1.Status.reason=Timeout`.** Don't loop. Surface the last NDJSON line's `.status.plan.tasks[]` for the engineer to inspect.
+- **Workspace-repo task path collision** — `engineers/<alias>/<task>/` already exists in the workspace repo. Do not silently overwrite. Halt and ask whether to reuse the dir (add new files alongside) or pick a different `<task>` name.
+- **Push rejected (non-fast-forward)** — engineer or another agent pushed to the same branch. Do not force-push. Halt; surface `git pull --rebase` and let the engineer resolve.
+- **Watch (post-merge) exits with `metav1.Status.reason=Timeout`.** Do not loop. Surface the last NDJSON line's `.status.plan.tasks[]` for the engineer to inspect.
 - **Watch exits on terminal `Failed` phase.** Surface `.status.plan.failedTaskDetail.error` and the failing task name. Do not auto-retry — Failed means the controller gave up; the cause is structural.
 - **Image digest resolution fails** — image not in registry or auth missing. Stop and surface the recovery command per `references/image-resolution.md`.
-- **PR merge stuck** — engineer hasn't merged; agent isn't waiting indefinitely. Surface the PR URL and end the turn; the engineer pings back when ready.
+- **PR merge stuck** — engineer has not merged; agent is not waiting indefinitely. Surface the PR URL and end the turn; the engineer pings back when ready.
 
 ## Escape hatch: direct `seictl network|node apply` (rare)
 

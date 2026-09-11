@@ -58,7 +58,7 @@ are **separate lines** (two independent facts).
 carries **its own typed header block** — the six round-scoped fields (`State:`, `OpenFindings:`,
 `Convergence:`, `Blinded:`, `Dissenter:`, `Lenses:`). The top-of-file block below *is round 1's header*; a
 re-review appends a `## Round 2` section with a fresh header block of its own, and so on. The
-target-scoped fields (`Target:`/`Class:`/`Tier:`) sit once at the top — they don't change across
+target-scoped fields (`Target:`/`Class:`/`Tier:`) sit once at the top — they do not change across
 rounds. The gate reads the **latest round's** header block (see *Gate-read contract*), never the
 top block when a later round exists.
 
@@ -214,7 +214,7 @@ MVP is a **single-round committed ledger**. A re-review **appends a new `## Roun
 (or a sibling file) — **never an in-place edit of a prior round's rows.** Each appended round
 **carries its own typed header block** (the six round-scoped fields: `State:`/`OpenFindings:`/
 `Convergence:`/`Blinded:`/`Dissenter:`/`Lenses:`) so the latest round's state is self-contained and the gate
-never reads a stale top header. There is **no cross-round dedup engine** (no matching a round-2
+never reads a stale top header. The ledger has **no cross-round dedup engine** (no matching a round-2
 re-raise to a round-1 row to merge them) — this is **per-round headers, not row-merging**. The
 prior round stays verbatim as append-only history; the new round stands beside it with its own
 header.

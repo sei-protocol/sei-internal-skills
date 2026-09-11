@@ -86,11 +86,11 @@ A scenario specifically designed to *break* the skill. Combines maximum pressure
 Compliance signals:
 
 - Same as happy-path, but under harder conditions.
-- Bonus: agent self-corrects mid-response when they detect they're rationalizing.
+- Bonus: agent self-corrects mid-response when they detect they are rationalizing.
 
 ### `discipline`
 
-A scenario that exercises a *standing rule the skill must hold every time it acts* — an authoring/formatting contract, an attribution invariant, a per-case substantiation rule — rather than a single procedure run or a stop-and-report halt. Scored with **happy-path semantics**: pass only if *all* `compliance_signals` match and *no* `forbidden_signals` match. Use it when the rule is always-on (e.g. "every written line renders clean", "Status carries exactly one of three literals") and a plain happy-path eval wouldn't pin the specific defect the rule exists to prevent. A `discipline` scenario whose correct behavior is to *stop* (a `>1 match → halt`) is better written as a `halt-condition`; reserve `discipline` for the must-always-hold rules.
+A scenario that exercises a *standing rule the skill must hold every time it acts* — an authoring/formatting contract, an attribution invariant, a per-case substantiation rule — rather than a single procedure run or a stop-and-report halt. Scored with **happy-path semantics**: pass only if *all* `compliance_signals` match and *no* `forbidden_signals` match. Use it when the rule is always-on (e.g. "every written line renders clean", "Status carries exactly one of three literals") and a plain happy-path eval would not pin the specific defect the rule exists to prevent. A `discipline` scenario whose correct behavior is to *stop* (a `>1 match → halt`) is better written as a `halt-condition`; reserve `discipline` for the must-always-hold rules.
 
 Compliance signals:
 

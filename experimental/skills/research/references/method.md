@@ -23,11 +23,11 @@ Run searches whose angles are *blind to each other* so no single framing's blind
 | by-time | what changed in the last 12–24 months | stale conclusions from old material |
 | by-counter-thesis | sources arguing the *opposite* of the expected answer | confirmation bias / sample-of-one |
 
-Pick the angles the question needs (not all four mechanically). Inline for ≤3 angles. For each finding record **which angle surfaced it** and **a retrievable source** — a finding with no source is not a finding, it's a recollection.
+Pick the angles the question needs (not all four mechanically). Inline for ≤3 angles. For each finding record **which angle surfaced it** and **a retrievable source** — a finding with no source is not a finding, it is a recollection.
 
 ## Stage 3 — The refutation pass (the differentiator)
 
-This adapts `/xreview`'s **assigned-dissent primitive** — "tag exactly one reviewer to red-team and produce the strongest objection" — to findings. It does **not** use xreview's boundary table (provider/consumer/COMPATIBLE/MISMATCH/MISSING), which doesn't map onto a finding.
+This adapts `/xreview`'s **assigned-dissent primitive** — "tag exactly one reviewer to red-team and produce the strongest objection" — to findings. It does **not** use xreview's boundary table (provider/consumer/COMPATIBLE/MISMATCH/MISSING), which does not map onto a finding.
 
 Per material finding, take the skeptic stance and try to break it:
 
@@ -38,8 +38,8 @@ Per material finding, take the skeptic stance and try to break it:
 
 Outcome, recorded per finding:
 
-- **verified** — the refutation pass *ran* and failed to break the finding. Record (a) which refutation move was tried (contradicting-source / freshness / overgeneralization / sample-size) and (b) the specific source or reasoning that defeated it. **A refutation that was not attempted does not yield `verified` — it yields `unverified`.** "I didn't find a contradiction" with no recorded search is `unverified`, not `verified`.
-- **refuted** — dropped; note why once, so a later sweep round doesn't resurrect it.
+- **verified** — the refutation pass *ran* and failed to break the finding. Record (a) which refutation move was tried (contradicting-source / freshness / overgeneralization / sample-size) and (b) the specific source or reasoning that defeated it. **A refutation that was not attempted does not yield `verified` — it yields `unverified`.** "I did not find a contradiction" with no recorded search is `unverified`, not `verified`.
+- **refuted** — dropped; note why once, so a later sweep round does not resurrect it.
 - **unverified** — neither confirmed nor refuted; kept only with the `[unverified]` label, never presented as established.
 
 The bar (Guardrail 1): **no finding ships unverified.** "Unverified" is an allowed *label*, not an allowed *silent state*.
@@ -59,4 +59,4 @@ One pass, four questions against the scoped contract:
 
 See SKILL.md "The artifact" for the full template. Two rules that are easy to get wrong:
 
-- **Tag every finding** `[verified]` / `[unverified]` (refuted ones are dropped with a one-line note). An untagged finding reads as established — that's the failure mode.
+- **Tag every finding** `[verified]` / `[unverified]` (refuted ones are dropped with a one-line note). An untagged finding reads as established — that is the failure mode.

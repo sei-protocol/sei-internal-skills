@@ -22,7 +22,7 @@ One short paragraph or a few sentences. Include file paths and line numbers if t
 
 ### `## Impact` — required
 
-Who's affected, how badly, what breaks if we don't address it. This is the field that drives sizing and prioritization, so it must be specific.
+Who's affected, how badly, what breaks if we do not address it. This is the field that drives sizing and prioritization, so it must be specific.
 
 If multiple use cases motivate the issue, use sub-headings (`### Primary use case`, `### Future use case`). Otherwise a single paragraph.
 
@@ -39,13 +39,13 @@ A short list of personas — pulled from the target repo's `.claude/agents/` ros
 
 If the repo has no `.claude/agents/` roster, fall back to global Claude personas (e.g. `solidity-developer`, `security-specialist`). See `expert-routing.md` for the discovery rules.
 
-This field is required because it's the routing primitive — without it, issues sit unassigned or land with the wrong reviewer.
+This field is required because it is the routing primitive — without it, issues sit unassigned or land with the wrong reviewer.
 
 ### `## Proposed approach` — optional
 
 If the filer already has a sketch, capture it here. Code blocks, file:line references, and step lists are welcome.
 
-If the filer doesn't have a sketch, **omit the section entirely** rather than write `_TBD — needs design_` — an empty section signals false structure. The filer can re-open the issue with `/coral` later if they want a design pass before triage.
+If the filer does not have a sketch, **omit the section entirely** rather than write `_TBD — needs design_` — an empty section signals false structure. The filer can re-open the issue with `/coral` later if they want a design pass before triage.
 
 ### `## Acceptance criteria` — optional
 

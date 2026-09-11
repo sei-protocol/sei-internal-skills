@@ -26,7 +26,7 @@ Utility scripts for sei-internal-skills repo maintenance. Most are wrapped by Ma
 
 ## Get current in one command
 
-**Never cloned sei-internal-skills?** One line, straight over the wire — uses your `gh` auth (sei-internal-skills is an internal repo, so a bare `curl` won't authenticate):
+**Never cloned sei-internal-skills?** One line, straight over the wire — uses your `gh` auth (sei-internal-skills is an internal repo, so a bare `curl` will not authenticate):
 
 ```bash
 gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash

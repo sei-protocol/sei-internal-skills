@@ -19,7 +19,7 @@ The skill refuses that path. It enforces independent (blinded) review, evidence-
 
 xreview operates on **a concrete artifact, reviewed by independent specialists**. Before any verdict:
 
-1. **Artifact required.** Read the actual work under review — the design doc, the spec, the diff, the specialist outputs. If it can't be located or pasted, halt and ask for it. Never review from a summary, from memory, or from "what a spec like this usually contains." A synthesized verdict over an artifact you never read is fabrication.
+1. **Artifact required.** Read the actual work under review — the design doc, the spec, the diff, the specialist outputs. If it cannot be located or pasted, halt and ask for it. Never review from a summary, from memory, or from "what a spec like this usually contains." A synthesized verdict over an artifact you never read is fabrication.
 2. **Roster required.** xreview selects its domain lenses and **agent-stewards** (`prose-steward`, `idiomatic-reviewer`) from a `.claude/agents/` roster, so the calling repo must have one. Without it, halt and ask the user to point at a roster or invoke from a repo that has it. On a `skill-package` change one reviewer is additionally briefed as the **rubric lens**: it loads **this skill's own rubric**, `references/skill-package-rubric.md` (rules with ids and severities), runs `scripts/skill-package-checks.sh` for the static subset, and returns findings that **name rule ids**. The rubric is a file this skill owns, not a registry entry — so the *lens* has no absence check and cannot be dropped for being uninstalled, which is why it lives here rather than in a separate skill. The rubric *file* is a different object: a broken install can still truncate or omit it, and a lens that cannot read it **HALTs** (Halt Conditions). A rubric-lens verdict citing no rule id is not a rubric review; re-dispatch it. The slate is usually several specialists; when exactly one is genuinely relevant, run a single-reviewer pass but label it as such — a degenerate xreview, not dressed up as a full one.
 3. **Refusal conditions** — this skill will refuse to:
    - **Equate prior per-specialist dispatch with xreview.** "The specialists already gave input during design" describes the *production* of the work, not a review of the integrated whole. The seams between their contributions are exactly what no one has reviewed. Re-dispatch them against the final, combined artifact.
@@ -41,8 +41,8 @@ See `references/reviewer-dispatch.md` for the blinded dispatch contract, `refere
 You classify **from** the read artifact: Step 1's read-and-frame (artifact, boundaries,
 provider/consumer per boundary) produces exactly the inputs classification needs, so the `Class:`
 emission lands **as part of / immediately after** that first-turn framing — never before reading
-(you cannot classify an artifact you haven't read) and never skipped in favor of framing alone.
-There are not two first steps; there is one first turn whose output **must include** the
+(you cannot classify an artifact you have not read) and never skipped in favor of framing alone.
+The flow has one first turn, not two first steps, and its output **must include** the
 classification.
 
 As that first-turn output, and **before dispatching any reviewer**, emit:
@@ -65,9 +65,9 @@ xreview that dispatches reviewers without an emitted `Class:` is **non-compliant
 
 Non-negotiable. Every step exists to enforce one or more.
 
-1. **Read the artifact, review the whole.** You review what's actually written, and you review the *integrated* artifact — including the parts each specialist didn't author. The boundaries are the point.
+1. **Read the artifact, review the whole.** You review what's actually written, and you review the *integrated* artifact — including the parts each specialist did not author. The boundaries are the point.
 2. **Independent before synthesized.** Each reviewer commits findings before seeing peers'. Convergence only counts as corroboration if it was reached independently.
-3. **Findings carry evidence.** Every finding names the specific contract / field / signature / line. Provider owns the interface; consumers adapt — that's the tie-break when reviewers disagree.
+3. **Findings carry evidence.** Every finding names the specific contract / field / signature / line. Provider owns the interface; consumers adapt — that is the tie-break when reviewers disagree.
 4. **Resolve before pass.** A passing verdict requires *every* lens's correctness-grade findings closed — a MISMATCH/MISSING, a correctness-grade idiom *or* prose finding, or a per-lens DISSENT (including a pinned steward) — fixed or explicitly accepted-with-risk (see Step 5). A clean table with open findings is a lie.
 
 ## Procedure
@@ -86,8 +86,8 @@ between them. State, in this first turn:
 - **The classification (§0)** — emit `Class:`/`Tier:`/slate, derived *from* the artifact you just read and the boundaries you just framed. This is the HALT gate before any dispatch (Step 3).
 - **What "done" looks like** — a **committed review ledger** (`references/review-ledger.md`) whose latest-round `State:` is a passing terminal (`RESOLVED`/`RESOLVED-WITH-ACCEPTED-RISK`, `OpenFindings: 0`) or the `OPEN-BLOCKED` fail-to-human terminal — not merely an in-conversation findings table.
 
-If the artifact can't be read, halt (Guardrail #1) — you cannot classify or review what you
-haven't read. If the read-and-frame yields no resolvable `Class:`, halt (§0) before dispatching.
+If the artifact cannot be read, halt (Guardrail #1) — you cannot classify or review what you
+have not read. If the read-and-frame yields no resolvable `Class:`, halt (§0) before dispatching.
 
 ### Step 2 — Route the slate (per `references/slate-routing.md`)
 
@@ -101,7 +101,7 @@ The slate is **routed, not re-derived by hand.** Apply the shared routing table
 3. **Assemble the slate:** read `.claude/agents/` and pick the domain lenses whose combined
    domains cover the boundaries (provider + consumer per interface). Then **wire the mandatory
    concern-lenses mechanically per table §4a** (a change that *touches* the §4a surfaces pins
-   `systems-engineer` / `security-specialist`) — read the trigger list off §4a, don't restate it
+   `systems-engineer` / `security-specialist`) — read the trigger list off §4a, do not restate it
    here. The orchestrator's remaining judgment is *which domain specialists* cover the boundaries;
    the depth, the §4a concern-lenses, and the steward wiring are mechanical.
 4. **Auto-wire the stewards** by file-type-present (table §4) — the rule for `shared-stack` and
@@ -139,7 +139,7 @@ verdicts in the ledger), not the boundary table — see Step 4 and `references/r
 If only one specialist is genuinely relevant (a T1 `mechanical` pass), this is a single-reviewer
 pass — run it, but label the output accordingly, and **fold the dissent obligation into the one
 reviewer** (an adversarial pass; recorded as `Dissenter: <lens> (self, single-reviewer pass)`).
-Don't manufacture reviewers to look thorough; don't waive the dissent because the slate is one.
+Do not manufacture reviewers to look thorough; do not waive the dissent because the slate is one.
 
 ### Step 3 — Dispatch independent reviews (blinded)
 
@@ -147,9 +147,9 @@ Dispatch contract (mandatory — see `references/reviewer-dispatch.md` for the b
 
 - **Independent.** Each specialist reviews the same artifact without seeing peers' reviews. Do not summarize one reviewer's view into another's brief.
 - **Assigned dissent (default, not droppable).** Tag one reviewer red-team: their job is to argue the design is wrong and produce the strongest objection — picked as the lens *most likely to find the breaking boundary*, not the least busy. This is the **floor**, not an opt-in: the ledger's `Dissenter:` field is **required and never empty**, and a `Convergence: unanimous` verdict is only valid if a dissenter was assigned and still concluded RATIFY (unanimity without an assigned dissenter is consensus theater). A **T1 single-reviewer pass folds** the dissent into the one reviewer (an adversarial pass), recorded as `Dissenter: <lens> (self, single-reviewer pass)` — never waived.
-- **Structured brief.** Ask each reviewer: "Review this artifact for the boundaries you own or consume. For each, return COMPATIBLE / MISMATCH / MISSING with the specific contract/field/line as evidence. Name anything the design assumes but doesn't state." Not "take a look."
+- **Structured brief.** Ask each reviewer: "Review this artifact for the boundaries you own or consume. For each, return COMPATIBLE / MISMATCH / MISSING with the specific contract/field/line as evidence. Name anything the design assumes but does not state." Not "take a look."
 - **Evidence required.** Reject bare approval in the returned findings; re-dispatch if a reviewer returns "looks good" with nothing cited.
-- **Reachable.** Brief each reviewer with on-disk absolute paths or pasted content, never a `gh`/`git`/shell pointer — some reviewers are Read-only (`prose-steward` has no Bash) and can't fetch it, so the review halts or fabricates. The orchestrator materializes any remote artifact (a PR diff, a fetched doc) to disk before dispatch. See `references/reviewer-dispatch.md`.
+- **Reachable.** Brief each reviewer with on-disk absolute paths or pasted content, never a `gh`/`git`/shell pointer — some reviewers are Read-only (`prose-steward` has no Bash) and cannot fetch it, so the review halts or fabricates. The orchestrator materializes any remote artifact (a PR diff, a fetched doc) to disk before dispatch. See `references/reviewer-dispatch.md`.
 
 ### Step 4 — Synthesize into the review ledger
 
@@ -173,8 +173,8 @@ Merge the independent reviews into one de-duplicated boundary table inside the l
 |---|---|---|---|---|---|
 
 - **Status** is COMPATIBLE / MISMATCH / MISSING (see `references/findings-protocol.md` for mismatch categories: signature, type, error-contract, naming, sequencing/behavioral).
-- **Surface disagreement — don't smooth it.** If two reviewers reached opposite conclusions on the same boundary, that's a finding, not a rounding error. Record both and reason from first principles; provider-owns-the-interface is the tie-break, not seniority or recency.
-- **Convergence is corroboration only if independent.** If the reviews agree and were blinded, say the confidence is high. If they weren't blinded, downgrade and note it.
+- **Surface disagreement — do not smooth it.** If two reviewers reached opposite conclusions on the same boundary, that is a finding, not a rounding error. Record both and reason from first principles; provider-owns-the-interface is the tie-break, not seniority or recency.
+- **Convergence is corroboration only if independent.** If the reviews agree and were blinded, say the confidence is high. If they were not blinded, downgrade and note it.
 
 **Idiom and Prose findings ride in addenda, not the boundary table.** `idiomatic-reviewer` reports two-altitude idiom findings (design + surgical) keyed to files/packages; `prose-steward` reports dual-audience legibility findings (R1–R6) keyed to passages. Neither fits the COMPATIBLE / MISMATCH / MISSING boundary schema. Record idiom findings in a separate **Idiom addendum** and prose findings in a separate **Prose addendum** below the table (both defined in `references/review-ledger.md`), each carrying its cited basis and severity (correctness-grade / divergence-with-consequence / style). **Correctness-grade findings in either addendum gate the verdict per Step 5; pure-style ones are advisory.**
 
@@ -196,9 +196,9 @@ Merge the independent reviews into one de-duplicated boundary table inside the l
   same substitution `evals.json` already forbids one step earlier (back-filling rule ids from
   your own read instead of re-dispatching), and it is more tempting here, because by this point
   the fix is real and the objection genuinely looks closed.
-- **A steward's per-lens verdict and its advisory nits are different things — don't conflate them.** A steward whose *only* findings are pure-style **RATIFIES** (the nits ride advisory in its addendum, never gating). A per-lens **DISSENT** is, by definition, a non-style blocking objection — so a DISSENT is never "just style" and is never demoted to advisory to clear the gate. "The steward only had style nits" ⇒ RATIFY-with-advisory; "the steward DISSENTed" ⇒ blocks until resolved or accepted-with-risk. The advisory/blocking line is the *severity* of the finding, not the identity of the lens.
+- **A steward's per-lens verdict and its advisory nits are different things — do not conflate them.** A steward whose *only* findings are pure-style **RATIFIES** (the nits ride advisory in its addendum, never gating). A per-lens **DISSENT** is, by definition, a non-style blocking objection — so a DISSENT is never "just style" and is never demoted to advisory to clear the gate. "The steward only had style nits" ⇒ RATIFY-with-advisory; "the steward DISSENTed" ⇒ blocks until resolved or accepted-with-risk. The advisory/blocking line is the *severity* of the finding, not the identity of the lens.
 - Output: the committed ledger with its typed header `State:`, the verdict, the resolved items with what changed, and any accepted-with-risk items. Set `State:` per the enum in `references/review-ledger.md` — `RESOLVED` / `RESOLVED-WITH-ACCEPTED-RISK` are the only passing terminals; `OpenFindings:` is `0` for those.
-- If xreview can't reach a clean verdict — reviewers split, an artifact gap nobody can close — say so explicitly and set `State: OPEN-BLOCKED` with `OpenFindings: ≥1`: it **fails the gate to a human**. A split must **never** be relabeled `RESOLVED-WITH-ACCEPTED-RISK` to make the loop terminate (accepted-risk needs an operator decision on a *named* risk, not mere disagreement). A labeled open state beats a fabricated COMPATIBLE.
+- If xreview cannot reach a clean verdict — reviewers split, an artifact gap nobody can close — say so explicitly and set `State: OPEN-BLOCKED` with `OpenFindings: ≥1`: it **fails the gate to a human**. A split must **never** be relabeled `RESOLVED-WITH-ACCEPTED-RISK` to make the loop terminate (accepted-risk needs an operator decision on a *named* risk, not mere disagreement). A labeled open state beats a fabricated COMPATIBLE.
 
 ## Rationalization Table
 
@@ -247,13 +247,13 @@ Phrases that signal a rationalization is firing — in your reasoning or the use
 Stop and report to the user if:
 
 - `Class:` was not emitted before dispatch (§0) — no classification ⇒ no review. HALT and classify before dispatching any reviewer.
-- The artifact under review can't be located or pasted — never synthesize a review of work you haven't read.
-- The calling repo has no `.claude/agents/` roster and the user can't point at one.
+- The artifact under review cannot be located or pasted — never synthesize a review of work you have not read.
+- The calling repo has no `.claude/agents/` roster and the user cannot point at one.
 - The rubric lens cannot read `references/skill-package-rubric.md` — HALT. An unread rubric yields ids emitted from memory, which reads as a cited review and is not one.
 - `prose-steward` is absent from `.claude/agents/` on a `skill-package` change — HALT, not a silent drop (same posture as dropping the pin). Ask the operator, who may override with a stated reason.
 - A reviewer returns bare approval with no cited evidence — re-dispatch with the evidence requirement.
 - Reviewers were not blinded (saw each other's assessments first) — the convergence is invalid; re-run with independent briefs.
-- Reviewers split on a boundary and the provider-owns tie-break doesn't resolve it — surface the disagreement and ask the user / provider for the call.
+- Reviewers split on a boundary and the provider-owns tie-break does not resolve it — surface the disagreement and ask the user / provider for the call.
 - *Any* correctness-grade finding remains open — a MISMATCH/MISSING, a correctness-grade idiom *or* prose finding, or a per-lens DISSENT (including a pinned steward) — and the user has not explicitly accepted the risk. Do not stamp a passing ledger `State:` (`RESOLVED`/`RESOLVED-WITH-ACCEPTED-RISK`); set `OPEN` or `OPEN-BLOCKED` (see Rule 4 / Step 5).
 
 **Never declare COMPATIBLE to be helpful.** An honest OPEN verdict with named findings is the valuable output; a premature green light is the failure this skill exists to prevent.
@@ -264,7 +264,7 @@ Stop and report to the user if:
 - **`/council`** runs xreview as a distinct phase of its scope-tier process by invoking this skill — it does not perform xreview itself.
 <!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
 - **`/code-review`** is line-level diff correctness; **`/bugbash`** is adversarial hardening of a running system; **`/root-cause`** is incident investigation. xreview is consistency review of a produced artifact across the specialists who own its boundaries.
-- **`idiomatic-reviewer`** (the `/idiomatic` skill) is the **idiom-conformance** lens — does the code read native to its language, framework, and the package's documented patterns. It's a distinct axis from boundary consistency: xreview dispatches it as part of the slate when code is under review, and its findings ride in the Idiom addendum (correctness-grade blocks; style is advisory). It reviews idiom; it does not author the system or check boundaries.
+- **`idiomatic-reviewer`** (the `/idiomatic` skill) is the **idiom-conformance** lens — does the code read native to its language, framework, and the package's documented patterns. It is a distinct axis from boundary consistency: xreview dispatches it as part of the slate when code is under review, and its findings ride in the Idiom addendum (correctness-grade blocks; style is advisory). It reviews idiom; it does not author the system or check boundaries.
 
 ## Output
 

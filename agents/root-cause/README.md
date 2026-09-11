@@ -19,7 +19,7 @@ narrower envelope, and three assumptions differ for it:
   mutation classes are denied at the shell layer, a strictly stronger floor than
   the `blast_radius` backstop alone.
 - **Grafana MCP is the only signal source** — metrics (Prometheus) + logs (Loki)
-  via a loopback sidecar the *server* dials; no cluster API, no node RPC. So the
+  via a loopback sidecar the *server* dials; no cluster API, no node RPC. The
   runner has no *shell/OS/gh* mutating capability and no cluster/node credential
   to reach one; the Grafana MCP surface it *can* reach is held read-only by the
   sidecar flags (rollout gate 5 below), **not** by `deny_shell`. Out-of-envelope
@@ -147,7 +147,7 @@ PLT-715 prove-run hit exactly this halt (a bare stand-up with no host image).
 The headless `claude-native` runner gets the roster from the **host image**:
 `Dockerfile.host` bakes the repo's `.claude/` overlay — `.claude/agents/` (the
 specialist roster) + `.claude/skills/` (incl. `root-cause`) — into the runner's
-`/home/host/.claude`, the user-scope path claude-code loads from. So every
+`/home/host/.claude`, the user-scope path claude-code loads from. Every
 claude-native runner inherits the full multi-expert discipline; this bundle does
 not carry the roster itself (one maintenance point, minimal bundle), chosen over
 bundling per-agent or a headless-adapted single-expert variant. The bake is

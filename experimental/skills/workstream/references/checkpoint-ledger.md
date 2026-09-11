@@ -38,13 +38,13 @@ This is the contract. The agent does not silently add, drop, or relax an entry l
 | `design-approval` | a design has been captured via `/design`, cross-reviewed, **and given a `prose-steward` review** | the human signs off on the captured, reviewed, prose-reviewed-passed design before implementation |
 | `pr-sign-off` | a PR is ready (CI green); merging it or starting dependent work is next | the human confirms the merge / the go-ahead for dependent work |
 
-These cover the two most common human gates (sign off on *what we'll build*; sign off on *shipping it*). They are the default ledger.
+These cover the two most common human gates (sign off on *what we will build*; sign off on *shipping it*). They are the default ledger.
 
-**One-way-door approval is intentionally not a third canonical type.** Persisted schema/field names, wire/on-disk formats, signed or indexed identifiers, and prod-touching steps already have a gate in `council` (its one-way-door category). A workstream reuses that gate by reference — it does not re-canonize it. When council surfaces a one-way door, treat it as a checkpoint even if it wasn't pre-declared.
+**One-way-door approval is intentionally not a third canonical type.** Persisted schema/field names, wire/on-disk formats, signed or indexed identifiers, and prod-touching steps already have a gate in `council` (its one-way-door category). A workstream reuses that gate by reference — it does not re-canonize it. When council surfaces a one-way door, treat it as a checkpoint even if it was not pre-declared.
 
 ## Custom checkpoints
 
-A workstream may need a gate the canonical set doesn't name. Operators declare these inline. The only requirement: a custom checkpoint **carries the same `name`/`trigger`/`gate` triple** — no freeform "stop and check with me sometime" gates, which can't be enforced.
+A workstream may need a gate the canonical set does not name. Operators declare these inline. The only requirement: a custom checkpoint **carries the same `name`/`trigger`/`gate` triple** — no freeform "stop and check with me sometime" gates, which cannot be enforced.
 
 Common custom example:
 

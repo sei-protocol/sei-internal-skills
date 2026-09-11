@@ -2,7 +2,7 @@
 name: platform
 category: platform-infra
 model: claude-opus-5
-description: "Use when designing or reviewing platform/infra artifacts — Kustomize manifests, Flux GitOps, EKS cloud-auth, secrets, Pod Security, terraform cell provisioning — especially the Sei platform fleet: '/platform', 'review this manifest', 'is this GitOps-reconcilable', 'how should this secret be handled', 'wire cloud identity for X', 'design the cell overlay'. A citable corpus (OpenGitOps, Kustomize, Pod Security Standards, EKS, NSA/CISA hardening) + an always-first Sei-platform profile (Flux GitOps, two-layer Kustomize, EKS Pod Identity, SOPS + per-cell KMS, PSS + CEL VAP, Cilium/VPC-CNI) + pluggable kits. Backs the platform-engineer agent. NOT controller/CRD code (/kubernetes); NOT right-sizing/Karpenter/HPA (k8s-capacity-management); NOT telemetry-stack values/PromQL (observability agents); NOT node P2P/RPC (sei-network-specialist); NOT SLO/alerts/runbooks (sre-engineer). Designs/reviews the platform; doesn't operate it."
+description: "Use when designing or reviewing platform/infra artifacts — Kustomize manifests, Flux GitOps, EKS cloud-auth, secrets, Pod Security, terraform cell provisioning — especially the Sei platform fleet: '/platform', 'review this manifest', 'is this GitOps-reconcilable', 'how should this secret be handled', 'wire cloud identity for X', 'design the cell overlay'. A citable corpus (OpenGitOps, Kustomize, Pod Security Standards, EKS, NSA/CISA hardening) + an always-first Sei-platform profile (Flux GitOps, two-layer Kustomize, EKS Pod Identity, SOPS + per-cell KMS, PSS + CEL VAP, Cilium/VPC-CNI) + pluggable kits. Backs the platform-engineer agent. NOT controller/CRD code (/kubernetes); NOT right-sizing/Karpenter/HPA (k8s-capacity-management); NOT telemetry-stack values/PromQL (observability agents); NOT node P2P/RPC (sei-network-specialist); NOT SLO/alerts/runbooks (sre-engineer). Designs/reviews the platform; does not operate it."
 ---
 
 # Platform
@@ -20,10 +20,10 @@ The corpus is grounded in primary sources (`references/sources.md`) and stays co
 Refusal conditions — they hold under time pressure and a "just ship the manifest" urge:
 
 1. **Profile- and kit-first.** Load `references/sei-platform-profile.md` (the always-first overlay — it encodes the fleet's hard conventions and **overrides generic best-practice**) **and** the relevant kit before designing or reviewing. When working *in* the platform repo, read its `README.md` / `.agent/runbooks/` — the live repo wins over this skill's snapshot; flag drift.
-2. **Cite every finding; stay copyright-clean.** A primary source (`sources.md`) and/or a profile rule per finding — never a naked "this isn't secure." The generic external standard is the floor; the Sei profile is what *actually* applies here, and it overrides the generic where they differ (e.g. Pod-Identity over IRSA).
+2. **Cite every finding; stay copyright-clean.** A primary source (`sources.md`) and/or a profile rule per finding — never a naked "this is not secure." The generic external standard is the floor; the Sei profile is what *actually* applies here, and it overrides the generic where they differ (e.g. Pod-Identity over IRSA).
 3. **Suggest-when-reviewing; author-when-building.** As a review lens, produce findings the human/calling agent applies. As `platform-engineer` building manifests, write them — but flag one-way doors (below) for human approval before finalizing.
 4. **Prod / cloud-identity / secrets / CNI changes are one-way doors.** A change touching a prod cell, a Pod-Identity/IAM trust scope, a KMS/SOPS key boundary, a Cilium `cluster.id` / shared pod CIDR, or a published wire/secret format is irreversible or blast-radius-wide — flag for human approval; never assert it as the fix. (Council's one-way-door gate.)
-5. **Don't duplicate the adjacent lenses.** Controller/CRD code → `/kubernetes`. Capacity/scheduling (requests/limits, Karpenter NodePool, HPA) → `k8s-capacity-management`. Telemetry-stack *values*/PromQL → the observability agents (you own the HelmRelease plumbing + `valuesFrom`, they own the values' contents). NetworkPolicy *intent* / the Cilium datapath design → `network-specialist`; Sei node P2P/RPC → `sei-network-specialist`. SLOs/alerts/runbooks/incidents → `sre-engineer`. This skill is the *platform manifests, GitOps, cloud-auth, secrets, and IaC*.
+5. **Do not duplicate the adjacent lenses.** Controller/CRD code → `/kubernetes`. Capacity/scheduling (requests/limits, Karpenter NodePool, HPA) → `k8s-capacity-management`. Telemetry-stack *values*/PromQL → the observability agents (you own the HelmRelease plumbing + `valuesFrom`, they own the values' contents). NetworkPolicy *intent* / the Cilium datapath design → `network-specialist`; Sei node P2P/RPC → `sei-network-specialist`. SLOs/alerts/runbooks/incidents → `sre-engineer`. This skill is the *platform manifests, GitOps, cloud-auth, secrets, and IaC*.
 
 ## The method
 
@@ -52,7 +52,7 @@ The `platform-engineer` persona's first step loads `sei-platform-profile.md` + t
 ## Halt conditions
 
 - **No target** to design/review — ask for the manifest/IaC/repo; never review platform config from memory.
-- **A one-way door** (prod cell, cloud-identity/IAM scope, KMS/SOPS boundary, Cilium cluster.id / pod CIDR, wire/secret format) — flag for human approval, don't assert.
+- **A one-way door** (prod cell, cloud-identity/IAM scope, KMS/SOPS boundary, Cilium cluster.id / pod CIDR, wire/secret format) — flag for human approval, do not assert.
 - **The work is really another lens** — controller code (`/kubernetes`), capacity (`k8s-capacity-management`), telemetry values (observability agents), network intent (`network-specialist`/`sei-network-specialist`), or operating the system (`sre-engineer`) — redirect.
 
 ## What this skill defers

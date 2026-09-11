@@ -87,7 +87,7 @@ next lens does not rediscover them and file the nearest ill-fitting id:
 | R1 | block | static | All reference files live directly under `references/` (no `references/sub/foo.md`). **Scope:** within a single skill's own `references/` directory. Cross-skill refs via `../../<sibling-skill>/references/<file>.md` are permitted — see R5. |
 | R2 | warn | static | Reference files >100 lines have a Table of Contents (heading scan in first 50 lines) |
 | R3 | info | static | Cross-references to other skills use the skill name only (no `@skills/...` force-loads). Plain-markdown relative links to sibling skills are fine — see R5. |
-| R4 | warn | semantic | Reference files don't duplicate SKILL.md content — they extend it |
+| R4 | warn | semantic | Reference files do not duplicate SKILL.md content — they extend it |
 | R5 | info | semantic | Cross-skill references using `../../<sibling-skill>/references/<file>.md` (relative — note the double `../`: from inside a `references/` dir, a single `../` resolves to the skill root, not `.claude/skills/`, so it links to a path that does not exist) or `.claude/skills/<sibling>/references/<file>.md` (repo-root form) are permitted between skills in the same `.claude/skills/` directory when they encode a handoff contract or shared methodology (e.g. coral's handoff points at design/issue's coral-integration refs). These are documentation links, not force-loads — they do not violate R1. Surfaced as info-only so reviewers see the cross-skill coupling. |
 | R6 | info | semantic | A skill that declares a **cite/exemplar contract** in its references (a corpus directory whose paths are load-bearing cite targets, e.g. language's `references/exemplars/<vertical>/` per its `sources.md` cite vocabulary) may nest those corpus files one extra level. The contract file must document the path scheme. Scope: corpus/exemplar content only — the skill's own method/reference docs still obey R1. |
 | R7 | block | semantic | A `references/` file does not contradict `SKILL.md`. Where they diverge the divergence **is** the finding; where the reference declares itself authoritative on divergence, it is correctness-grade. |
@@ -163,7 +163,7 @@ When the team identifies a new convention:
 4. Update `scripts/skill-package-checks.sh` if the rule is checkable. If it is not, tag it `[semantic]` or `[pressure]` and say in the row what the rubric lens should look for — there is no separate checker to extend.
 5. State the rule so a reviewer can cite it and be wrong. A rule nobody can fail is not a rule.
 
-## Rules that don't appear here
+## Rules that do not appear here
 
 Things deliberately *not* checked:
 

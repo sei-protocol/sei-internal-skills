@@ -58,7 +58,7 @@ Integration test that crashes a SeiNode mid-reconcile and verifies (a) the contr
 
 **Metric:**
 
-`seinode_health_unknown_duration_seconds` (histogram, buckets up to 600s). Alert when p95 exceeds 120s — that means nodes are sitting Unknown longer than the fast-retry path should allow, which signals the fast-retry didn't activate. Operationally critical because the failure mode is silent.
+`seinode_health_unknown_duration_seconds` (histogram, buckets up to 600s). Alert when p95 exceeds 120s — that means nodes are sitting Unknown longer than the fast-retry path should allow, which signals the fast-retry did not activate. Operationally critical because the failure mode is silent.
 
 ## Item 2: Job ownership leak when SeiNode is deleted mid-job
 
@@ -103,7 +103,7 @@ E2E test that deletes a SeiNode while a long-running Job is in flight, then asse
 
 ### Scenario
 
-The runtime submits attestations to the on-chain SeiJobHook on every reconcile loop tick. There is no rate limiter or backoff on the submission path. If the controller enters a reconcile-loop fast cycle (e.g., due to Item 1's fast-retry behavior or a CRD spec change loop), it can submit attestations at up to 1 Hz per node.
+The runtime submits attestations to the on-chain SeiJobHook on every reconcile loop tick. The submission path has no rate limiter or backoff. If the controller enters a reconcile-loop fast cycle (e.g., due to Item 1's fast-retry behavior or a CRD spec change loop), it can submit attestations at up to 1 Hz per node.
 
 ### Impact / Risk / Priority
 
@@ -138,7 +138,7 @@ When the controller processes a job submission, it logs the full request payload
 
 ### Impact / Risk / Priority
 
-EIP-712 signatures are not secrets — they're verifiable on-chain — but logging them makes signature replay attacks easier if a log store is later compromised, and the signed payload may include addresses or domain separators that should not be aggregated to third-party log stores by policy. Downgraded from High to Medium because the signatures alone don't grant new authority (the on-chain contract enforces nonce / replay protection), but the logging hygiene gap is real.
+EIP-712 signatures are not secrets — they are verifiable on-chain — but logging them makes signature replay attacks easier if a log store is later compromised, and the signed payload may include addresses or domain separators that should not be aggregated to third-party log stores by policy. Downgraded from High to Medium because the signatures alone do not grant new authority (the on-chain contract enforces nonce / replay protection), but the logging hygiene gap is real.
 
 ### Issue
 
@@ -174,7 +174,7 @@ Operators creating a multi-replica SeiNode with a static-peer network config see
 
 ### Issue
 
-In `pkg/apis/seinode/v1/validation.go:88`, the validation webhook checks that `spec.replicas >= 1` and that `spec.networkConfig.peers` is non-empty when present, but does not check the *combination* of `replicas > 1` with a `networkConfig` that names static peers without per-replica scoping. The interface registry's SeiNode CRD spec at `sei-internal-skills/interface-registry.yaml#seinode-v1` documents that static peer configs are scoped per-replica only when `networkConfig.replicaScope: true`, but this field defaults to false and the webhook doesn't enforce the consequence.
+In `pkg/apis/seinode/v1/validation.go:88`, the validation webhook checks that `spec.replicas >= 1` and that `spec.networkConfig.peers` is non-empty when present, but does not check the *combination* of `replicas > 1` with a `networkConfig` that names static peers without per-replica scoping. The interface registry's SeiNode CRD spec at `sei-internal-skills/interface-registry.yaml#seinode-v1` documents that static peer configs are scoped per-replica only when `networkConfig.replicaScope: true`, but this field defaults to false and the webhook does not enforce the consequence.
 
 **Fix sketch:**
 

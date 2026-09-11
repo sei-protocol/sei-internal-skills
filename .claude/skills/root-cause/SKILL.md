@@ -50,11 +50,11 @@ State the observable in measurable terms. Required:
 
 - **What is happening** — the literal symptom, observable. Not "things are slow" — "p99 latency on `eth_call` rose from 80ms to 2.1s starting at 14:32 UTC on the four-validator chain in eng-bdchatham."
 - **When it started** — wall-clock onset, scoped to the smallest window you can defend.
-- **Baseline** — what was true before. If the system has no baseline, you do not know there's an incident; you have a feeling.
+- **Baseline** — what was true before. If the system has no baseline, you do not know there is an incident; you have a feeling.
 - **Blast radius** — which replicas, namespaces, regions, users. Localizes the search.
 - **Mitigations already attempted** — record them as data, not as causes.
 
-If any of these can't be stated concretely, halt. Demand the data first.
+If any of these cannot be stated concretely, halt. Demand the data first.
 
 ### Step 2 — Dispatch the expert slate
 
@@ -102,7 +102,7 @@ Status: confirms / falsifies / inconclusive
 
 **What this gate does and does not guarantee.** Running the gating command as the orchestrator closes *relayed-record fabrication* — a sub-agent (or the orchestrator paraphrasing one) cannot pass a verdict off on evidence that was never produced. It does **not** force the orchestrator to *enter* the gate: under the documented "narrate what the data probably shows" pressure, an orchestrator can still skip the retrieval and assert a verdict from prior context. Closing that — *skip-the-gate* — needs a checker external to the orchestrator's own attestation (an independent verifier agent, or a harness audit of the actual tool-call log) and is out of scope here (PLT-635 phase 2). Until then, hold the line manually: a ranked factor whose gating command does not appear as an actual tool call in this session is `unverified`.
 
-The Sei/K8s "first five commands" ladder (see `references/sei-k8s-signal-ladder.md`) is the floor — for any K8s-shaped incident, those signals are pulled before any hypothesis-specific query. They localize the failure and reveal hypotheses you wouldn't have written.
+The Sei/K8s "first five commands" ladder (see `references/sei-k8s-signal-ladder.md`) is the floor — for any K8s-shaped incident, those signals are pulled before any hypothesis-specific query. They localize the failure and reveal hypotheses you would not have written.
 
 ### Step 5 — Build the causal chain
 
@@ -144,11 +144,11 @@ Recommended next actions:
 - <action>, conditional on <signal>
 ```
 
-If the investigation can't reach Step 6 — too many surviving hypotheses, evidence gaps the team can't close — that is a valid output. Say so explicitly: "investigation paused, three hypotheses surviving, need access to X to falsify further." A clean punt with stated obstacles beats a fabricated conclusion.
+If the investigation cannot reach Step 6 — too many surviving hypotheses, evidence gaps the team cannot close — that is a valid output. Say so explicitly: "investigation paused, three hypotheses surviving, need access to X to falsify further." A clean punt with stated obstacles beats a fabricated conclusion.
 
 ### The loop — advance gates and survivor routing
 
-The six steps are a **loop the orchestrator drives**, not a single pass. Each step's halt/refusal conditions are **advance gates**: do not proceed to step N+1 until step N's gate reads true — Step 1's five fields present; Step 3's ≥2 hypotheses each with a falsification observation; Step 4's gating evidence as orchestrator-run records with none `unverified`; Step 6's multi-cause ranking with every factor traced to a Step-4 record. A gate that can't be satisfied is a halt, not something to narrate past.
+The six steps are a **loop the orchestrator drives**, not a single pass. Each step's halt/refusal conditions are **advance gates**: do not proceed to step N+1 until step N's gate reads true — Step 1's five fields present; Step 3's ≥2 hypotheses each with a falsification observation; Step 4's gating evidence as orchestrator-run records with none `unverified`; Step 6's multi-cause ranking with every factor traced to a Step-4 record. A gate that cannot be satisfied is a halt, not something to narrate past.
 
 After Step 4 falsification, the surviving-hypothesis count routes the loop:
 
@@ -167,15 +167,15 @@ Documented LLM failure modes during root-cause investigation. When you notice yo
 
 | Excuse | Reality |
 |--------|---------|
-| "The most likely cause is X — let me verify by fixing it." | A fix is not a test of a hypothesis. Write the falsification criterion **before** applying the fix, or you're confirming, not testing. |
-| "Based on the symptoms, the logs probably show…" | If you didn't run the command, you don't have evidence. Plausibility hallucination is the highest-severity failure mode here. Cite the tool call or tag it `unverified`. |
+| "The most likely cause is X — let me verify by fixing it." | A fix is not a test of a hypothesis. Write the falsification criterion **before** applying the fix, or you are confirming, not testing. |
+| "Based on the symptoms, the logs probably show…" | If you did not run the command, you do not have evidence. Plausibility hallucination is the highest-severity failure mode here. Cite the tool call or tag it `unverified`. |
 | "Restarting the pod fixed it, so the root cause was X." | A restart is evidence the system is *restartable*. Root cause must survive the next deploy. Mitigation ≠ explanation. |
-| "You're right, that's probably it — let me investigate that angle." | When a human supplies a hypothesis, it's both information *and* a poisoned anchor. Generate two independent alternatives before acting on it. |
-| "We're losing money every minute — let me skip ahead to the fix." | Urgency raises the cost of being wrong, which raises the required evidence per action. Skipping verification under time pressure is how teams ship the same incident twice. |
+| "You are right, that is probably it — let me investigate that angle." | When a human supplies a hypothesis, it is both information *and* a poisoned anchor. Generate two independent alternatives before acting on it. |
+| "We are losing money every minute — let me skip ahead to the fix." | Urgency raises the cost of being wrong, which raises the required evidence per action. Skipping verification under time pressure is how teams ship the same incident twice. |
 | "All five experts agree, so this is the cause." | Consensus is evidence only if each expert committed before seeing the others. If one expert saw the first's view, the others' agreement is sycophancy, not corroboration. |
-| "There's not enough information to determine the root cause." | After two hypothesis cycles, force a ranked commitment with explicit confidence, not a punt. Paralysis is also a failure mode. |
-| "It's probably a race condition." | A guess wearing a domain coat. State the race: which threads, which shared state, which observable interleaving. Otherwise drop it. |
-| "We've seen this before — it's the usual culprit." | Pattern-matching is fast and frequently wrong. Treat as a hypothesis (good), not as a conclusion (bad). Run the falsification observation. |
+| "Not enough information exists to determine the root cause." | After two hypothesis cycles, force a ranked commitment with explicit confidence, not a punt. Paralysis is also a failure mode. |
+| "It is probably a race condition." | A guess wearing a domain coat. State the race: which threads, which shared state, which observable interleaving. Otherwise drop it. |
+| "We have seen this before — it is the usual culprit." | Pattern-matching is fast and frequently wrong. Treat as a hypothesis (good), not as a conclusion (bad). Run the falsification observation. |
 | "The dashboards look fine." | Pre-aggregated metrics hide the connective tissue you need. Descend to raw events (logs, traces, request-level data) before declaring no problem. |
 
 See `references/rationalization-table.md` for the full table with literature citations.
@@ -187,7 +187,7 @@ Phrases that appear in your own reasoning when one of the rationalizations above
 - **"probably"**, **"likely"**, **"I'd expect"**, **"should be"**, **"would show"**, **"typically"** — when applied to *system state*, not to predictions about a future test.
 - **Passive voice on data sources**: "the logs indicate", "metrics suggest", "it appears that" — without a citation.
 - **"Let me just"**, **"quickly try"**, **"simply restart"**, **"go ahead and rollback"** — pre-action minimization.
-- **"You're right"**, **"good point"**, **"that makes sense"** — in response to a hypothesis (not in response to retrieved evidence).
+- **"You are right"**, **"good point"**, **"that makes sense"** — in response to a hypothesis (not in response to retrieved evidence).
 - **"Given the urgency"**, **"to save time"**, **"skipping ahead"** — explicit verification-skipping.
 - **"The team agrees"**, **"all experts converge"**, **"clearly the cause"** — consensus laundering.
 - **"Fixed by"** — as the *last* line of an RCA. Mitigation masquerading as explanation.
@@ -200,11 +200,11 @@ Phrases that appear in your own reasoning when one of the rationalizations above
 Stop and report to the user if:
 
 - The effect cannot be stated in measurable terms after two attempts to sharpen it.
-- The calling repo has no `.claude/agents/` roster and the user can't point at one.
+- The calling repo has no `.claude/agents/` roster and the user cannot point at one.
 - After Step 3, only one hypothesis survives the merge — single-hypothesis investigation is consensus-of-one, equally invalid.
 - Specialists' dispatch logs show they saw each other's outputs before committing — consensus theater. Re-run with proper blinding.
 - A specialist returns a hypothesis with no falsification observation — re-dispatch with that requirement.
-- Three retrieval attempts produce no verifiable evidence — the system isn't observable enough to investigate. Surface the observability gap as the finding; do not fabricate.
+- Three retrieval attempts produce no verifiable evidence — the system is not observable enough to investigate. Surface the observability gap as the finding; do not fabricate.
 - The investigation runs longer than the user's stated bound without converging — report surviving hypotheses, evidence gaps, and what would unblock progress.
 
 **Never auto-remediate without surfacing.** If the investigation reveals an obvious fix, propose it as a follow-up — do not apply it under cover of investigation.

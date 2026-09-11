@@ -22,5 +22,5 @@ spec-kit release.
 
 Formerly `sei_omnigent/agents/`, alongside the custom omnigent overlay package.
 The overlay is retired (the platform now runs vanilla omnigent directly); these
-bundles are the only part of `sei_omnigent/` that's still live, relocated here
+bundles are the only part of `sei_omnigent/` that is still live, relocated here
 as a standalone concern.

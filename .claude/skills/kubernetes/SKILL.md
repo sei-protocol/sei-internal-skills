@@ -2,7 +2,7 @@
 name: kubernetes
 category: platform-infra
 model: claude-opus-5
-description: "Use when designing or reviewing Kubernetes operator/controller code — CRDs, reconcilers, controller-runtime/kubebuilder, child-resource lifecycle, status/conditions — especially in sei-k8s-controller: '/kubernetes', 'design this CRD', 'review this reconciler', 'is this reconcile idempotent', 'will this status patch race'. A citable corpus (K8s API conventions, controller-runtime, CRD versioning) + an always-first Sei-controller profile (plan-driven reconcile, optimistic-lock status, always-present conditions, CEL immutability one-way-doors) + pluggable kits. Backs the kubernetes-specialist agent. NOT general Go idiom (/idiomatic); NOT right-sizing/Karpenter/HPA/scheduling (k8s-capacity-management); NOT manifests/Kustomize/GitOps/cloud-auth (/platform); NOT telemetry-stack/PromQL (observability agents); NOT Sei node P2P/RPC (sei-network-specialist). Designs/reviews the controller; doesn't run the cluster."
+description: "Use when designing or reviewing Kubernetes operator/controller code — CRDs, reconcilers, controller-runtime/kubebuilder, child-resource lifecycle, status/conditions — especially in sei-k8s-controller: '/kubernetes', 'design this CRD', 'review this reconciler', 'is this reconcile idempotent', 'will this status patch race'. A citable corpus (K8s API conventions, controller-runtime, CRD versioning) + an always-first Sei-controller profile (plan-driven reconcile, optimistic-lock status, always-present conditions, CEL immutability one-way-doors) + pluggable kits. Backs the kubernetes-specialist agent. NOT general Go idiom (/idiomatic); NOT right-sizing/Karpenter/HPA/scheduling (k8s-capacity-management); NOT manifests/Kustomize/GitOps/cloud-auth (/platform); NOT telemetry-stack/PromQL (observability agents); NOT Sei node P2P/RPC (sei-network-specialist). Designs/reviews the controller; does not run the cluster."
 ---
 
 # Kubernetes
@@ -11,7 +11,7 @@ Design and review Kubernetes **operator/controller** code so it is correct, idem
 
 ## Why this skill exists
 
-A capable model knows generic controller-runtime. The skill's job is the **citable upstream corpus** (the specific convention + source the model can't reliably reproduce) plus the **always-first Sei-controller profile** — the conventions this codebase enforces that *override* generic habit, the way `/idiomatic`'s repo profile outranks generic idiom. The failure mode it prevents: writing a plausible generic reconciler that violates the repo's hard rules (a non-optimistic-lock status write that silently drops a concurrent plan; a condition expressed by *removal*; a panic that crashes the manager; a CRD field change that breaks a live consumer).
+A capable model knows generic controller-runtime. The skill's job is the **citable upstream corpus** (the specific convention + source the model cannot reliably reproduce) plus the **always-first Sei-controller profile** — the conventions this codebase enforces that *override* generic habit, the way `/idiomatic`'s repo profile outranks generic idiom. The failure mode it prevents: writing a plausible generic reconciler that violates the repo's hard rules (a non-optimistic-lock status write that silently drops a concurrent plan; a condition expressed by *removal*; a panic that crashes the manager; a CRD field change that breaks a live consumer).
 
 The corpus is grounded in primary sources (`references/sources.md`) and stays copyright-clean: our-own-words checklists that cite, never reproduce.
 
@@ -19,11 +19,11 @@ The corpus is grounded in primary sources (`references/sources.md`) and stays co
 
 Refusal conditions — they hold under time pressure and a "just make it reconcile" urge:
 
-1. **Profile- and kit-first.** Load `references/sei-controller-profile.md` (the always-first overlay — it encodes the repo's hard conventions and **outranks** generic best-practice) **and** the relevant kit(s) before designing or reviewing. When working *in* a repo, also read its governing doc (`CLAUDE.md`) — the live repo wins over this skill's snapshot; flag drift, don't silently follow the stale copy.
-2. **Cite every finding; stay copyright-clean.** A primary source (`sources.md`) and/or the repo profile per finding — never a naked "this isn't idiomatic." Never reproduce reserved source text; summarize and link.
-3. **Suggest-when-reviewing; author-when-building.** As a *review* lens, produce findings the human/calling agent applies — don't rewrite their files. As the `kubernetes-specialist` *building* the system, write the code, but flag one-way doors (CRD field/semantics changes, event signatures) for human approval before finalizing.
+1. **Profile- and kit-first.** Load `references/sei-controller-profile.md` (the always-first overlay — it encodes the repo's hard conventions and **outranks** generic best-practice) **and** the relevant kit(s) before designing or reviewing. When working *in* a repo, also read its governing doc (`CLAUDE.md`) — the live repo wins over this skill's snapshot; flag drift, do not silently follow the stale copy.
+2. **Cite every finding; stay copyright-clean.** A primary source (`sources.md`) and/or the repo profile per finding — never a naked "this is not idiomatic." Never reproduce reserved source text; summarize and link.
+3. **Suggest-when-reviewing; author-when-building.** As a *review* lens, produce findings the human/calling agent applies — do not rewrite their files. As the `kubernetes-specialist` *building* the system, write the code, but flag one-way doors (CRD field/semantics changes, event signatures) for human approval before finalizing.
 4. **The CRD contract is a one-way door.** A served-version spec field, its validation, or its semantics cannot change incompatibly once a controller or user depends on it (the upstream compatibility law). Flag any such change for human approval and route evolution through a new version + storage-version/conversion strategy — never assert the breaking change as the fix.
-5. **Don't duplicate the adjacent lenses.** Pure Go idiom → `/idiomatic`. Capacity/scheduling (requests/limits, Karpenter, HPA, topology) → `k8s-capacity-management`. Manifests/Kustomize/GitOps/cloud-auth → `/platform`. Telemetry-stack values/PromQL → the observability agents. Sei node P2P/RPC → `sei-network-specialist`. This skill is the *controller code and its CRD contract*.
+5. **Do not duplicate the adjacent lenses.** Pure Go idiom → `/idiomatic`. Capacity/scheduling (requests/limits, Karpenter, HPA, topology) → `k8s-capacity-management`. Manifests/Kustomize/GitOps/cloud-auth → `/platform`. Telemetry-stack values/PromQL → the observability agents. Sei node P2P/RPC → `sei-network-specialist`. This skill is the *controller code and its CRD contract*.
 
 ## The method
 
@@ -55,7 +55,7 @@ The `kubernetes-specialist` persona's first step loads `sei-controller-profile.m
 ## Halt conditions
 
 - **No target** to design/review (no code, CRD, or spec) — ask for it; never review a controller from memory.
-- **A one-way door** (incompatible CRD-field/semantics change, an event/sidecar-contract change consumers depend on) — flag for human approval, don't assert it.
+- **A one-way door** (incompatible CRD-field/semantics change, an event/sidecar-contract change consumers depend on) — flag for human approval, do not assert it.
 - **The work is really another lens** — idiom (`/idiomatic`), capacity (`k8s-capacity-management`), manifests/GitOps (`/platform`), node networking (`sei-network-specialist`) — redirect rather than stretch this skill over it.
 
 ## What this skill defers

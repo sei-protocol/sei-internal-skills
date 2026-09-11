@@ -39,7 +39,7 @@ Before designing or reviewing:
 `ClusterIP: None`, `PublishNotReadyAddresses: true`. DNS: `{node-name}-0.{node-name}.{ns}.svc.cluster.local`. Exposes all ports. `PublishNotReadyAddresses` is critical — the sidecar queries peers' CometBFT RPC during `configure-peers` to learn node IDs before nodes are ready. Without it, peer resolution deadlocks. This layer is **all the controller provides for reachability**: the per-node headless Service + each node's published `.status.endpoint.*` (the scalar discoverability leaf). The aggregate/exposure layers below are no longer controller-created.
 
 **Layer 2 — Aggregate ClusterIP Service** (engineer-owned Flux, NOT controller):
-There is no SeiNodeDeployment and no controller-created per-deployment ClusterIP. If a round-robin VIP across a network's followers is wanted, the **engineer** renders a ClusterIP `Service` into their Flux manifests, selecting `sei.io/seinetwork: {network}, sei.io/role: node`. (Old SND `spec.networking` auto-created a `{group}-external` Service selecting `sei.io/nodedeployment`; that field and its automation are gone.) This is the controller-discoverability-not-LB principle: the controller publishes reachability, the engineer owns exposure topology in git.
+No SeiNodeDeployment exists, and the controller creates no per-deployment ClusterIP. If a round-robin VIP across a network's followers is wanted, the **engineer** renders a ClusterIP `Service` into their Flux manifests, selecting `sei.io/seinetwork: {network}, sei.io/role: node`. (Old SND `spec.networking` auto-created a `{group}-external` Service selecting `sei.io/nodedeployment`; that field and its automation are gone.) This is the controller-discoverability-not-LB principle: the controller publishes reachability, the engineer owns exposure topology in git.
 
 **Layer 3 — Gateway API HTTPRoute** (engineer-owned Flux, NOT controller-automatic):
 HTTPRoutes are no longer controller-automatic (that was SND `spec.networking`). When external access is needed, the **engineer** renders a Gateway-API `HTTPRoute` per protocol into their Flux dir. The recipe to follow: one route per protocol, hostname pattern `{network}.{protocol}.{gateway-domain}`; the **EVM route handles both HTTP (8545) and WebSocket (8546) via the `Upgrade: websocket` header match**; a **gRPC route must set `appProtocol: kubernetes.io/h2c` on the backend Service port** (see port topology) or Istio/Gateway-API mis-detects the protocol and the route breaks silently. Validators serve no query ports, so they get no routes.
@@ -80,7 +80,7 @@ Peer addresses: `nodeId@host:port` where nodeId is 20-byte hex hash of Ed25519 p
 3. Sidecar queries each peer at port 26657 `/status` to fetch CometBFT node ID
 4. Produces final `nodeId@host:26656` for CometBFT `persistent-peers`
 
-## Istio Service Mesh: What Works and What Doesn't
+## Istio Service Mesh: What Works and What Does not
 
 **Works through Istio L7**: CometBFT RPC (26657), REST (1317), gRPC (9090 with h2c), EVM HTTP RPC (8545).
 
@@ -144,7 +144,7 @@ Your output is one perspective for an orchestrator (or for the user directly), n
 
 - Argue for the **maximum scope you'd defend** in your domain — give the orchestrator the full expansion you'd want if scope were unlimited.
 - For each non-trivial recommendation, name what you'd **cut first** if the orchestrator asked for MVP — and the explicit condition that would un-defer it.
-- The orchestrator picks the minimum that delivers. Don't pre-cut your output to anticipated scope; that's their job. Don't quietly inflate either — flag what's expansion vs. what's load-bearing.
+- The orchestrator picks the minimum that delivers. Do not pre-cut your output to anticipated scope; that is their job. Do not quietly inflate either — flag what's expansion vs. what's load-bearing.
 
 
 ## Pre-PR Discipline

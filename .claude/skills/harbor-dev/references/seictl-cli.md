@@ -19,7 +19,7 @@ Canonical command reference for the engineer-facing surface. **`seictl network -
 
 The skill invokes the `network` and `node` subtrees above. The `workflow` and `task` subtrees are **imperative** — they operate on an existing node rather than declaring a new one, so they sit outside the GitOps-PR bring-up flow (see `seictl workflow state-sync` and `seictl task` below). The two differ in who executes: `workflow` creates a CR the controller executes; `task` posts straight to one pod's sidecar, controller uninvolved. The `local` commands are out of scope for engineer-facing intents.
 
-The pre-#133 cluster verbs (`context`, `onboard`, `bench up/down/list`) are gone — replaced by the preset-driven `network`/`node` trees below. The single `nodedeployment` (alias `nd`) tree that preceded these is also gone: `SeiNodeDeployment` was a fleet Kind that split into `SeiNetwork` (the genesis validator pool) + standalone `SeiNode` CRs (each follower). If a reference to any of those older names surfaces in older docs, it's stale.
+The pre-#133 cluster verbs (`context`, `onboard`, `bench up/down/list`) are gone — replaced by the preset-driven `network`/`node` trees below. The single `nodedeployment` (alias `nd`) tree that preceded these is also gone: `SeiNodeDeployment` was a fleet Kind that split into `SeiNetwork` (the genesis validator pool) + standalone `SeiNode` CRs (each follower). If a reference to any of those older names surfaces in older docs, it is stale.
 
 ## The two trees
 
@@ -161,7 +161,7 @@ Streams every event for the named CR as one NDJSON line on stdout. **Exits 0** w
 **Two phase vocabularies (the terminal phases differ), plus one non-phase sentinel:**
 
 - `seictl network watch --until=Ready` — `SeiNetworkPhase` reaches `Ready`. Common values: `Pending`, `Initializing`, `Ready`, `Degraded`, `Failed`, `Terminating`.
-- `seictl node watch --until=Running` — `SeiNodePhase` reaches `Running`. Common values: `Pending`, `Initializing`, `Running`, `Failed`, `Terminating`. **There is no `Ready` on a node** — `node watch --until=Ready` is rejected at parse with `Invalid`. An operator who waits for a node to reach `Ready` waits forever.
+- `seictl node watch --until=Running` — `SeiNodePhase` reaches `Running`. Common values: `Pending`, `Initializing`, `Running`, `Failed`, `Terminating`. **A node has no `Ready`** — `node watch --until=Ready` is rejected at parse with `Invalid`. An operator who waits for a node to reach `Ready` waits forever.
 - `seictl node watch --until=caught-up` — the **one legal non-phase sentinel, nodes only**: waits for `Running`, then gates on the SDK serve-readiness check (committed height>1 with `catching_up=false`, plus EVM serving when the node publishes an EVM endpoint). This is the post-state-sync and pre-load verification watch.
 
 The `--until` flag is **required**. Matching is exact against the phase set (plus the node-only `caught-up` sentinel); any other value errors `Invalid` at parse rather than timing out silently.
@@ -189,7 +189,7 @@ seictl workflow state-sync <node>
 
 **Required:** `<node>` (the target SeiNode's `metadata.name`). The workflow is named `<node>-state-sync` unless `--name` is given. Streams plan progress as NDJSON on stdout until a terminal phase.
 
-**`fullNode` targets only.** A SeiNode is exactly one mode (`fullNode` | `archive` | `replayer` | `validator` | `seed`, enforced by CRD CEL), and only `fullNode` is an eligible target. The workflow's own CEL can't see the target's mode at admission, so the refusal lands at adoption: the workflow fails **terminally** with a message naming the mode (`ReasonWorkflowTargetRejected`), which is why `kubectl wait --for=condition=Failed` resolves instead of parking Pending forever. A terminal refusal here never held the node and never wiped anything. Seed nodes are refused because they store no chain state to re-bootstrap.
+**`fullNode` targets only.** A SeiNode is exactly one mode (`fullNode` | `archive` | `replayer` | `validator` | `seed`, enforced by CRD CEL), and only `fullNode` is an eligible target. The workflow's own CEL cannot see the target's mode at admission, so the refusal lands at adoption: the workflow fails **terminally** with a message naming the mode (`ReasonWorkflowTargetRejected`), which is why `kubectl wait --for=condition=Failed` resolves instead of parking Pending forever. A terminal refusal here never held the node and never wiped anything. Seed nodes are refused because they store no chain state to re-bootstrap.
 
 **One workflow per node.** The node carries a single `status.adoptedWorkflow` pointer, and it is only ever consulted when nil — so while it is set, no other workflow for that node is even considered. A workflow queued behind an actively-executing one is seeded Pending (`ReasonWorkflowQueued`); one queued behind a **parked-Failed** workflow gets no status at all, because the adoption path it would be seeded from is never reached. A paused node or one mid-drift-plan (an image roll) defers adoption (`ReasonWorkflowTargetNotReady`) rather than racing it. This exclusivity is what makes the double-wipe scenario structurally impossible — see *Re-run and recovery*.
 
@@ -241,7 +241,7 @@ Unlike `network`/`node`, a `SeiNodeTaskWorkflow` is a one-shot, spec-immutable r
 
 - **Re-running a terminal workflow is refused by the CLI.** `seictl workflow state-sync` pre-flights the target on the watch path: if a **same-named** workflow is already `Complete` or `Failed`, it refuses with an actionable error rather than a silent no-op. The pre-flight is name-scoped — a `--name` run skips it entirely, so it is not a backstop against a wrong-target re-run. (A *changed* spec is separately rejected by the CRD's CEL — params are immutable.)
 - **A Failed workflow always holds the node not-ready until it is removed** (release is the terminal step, so failure can only happen while the node is held), so a mid-operation failure is a node outage, not just an unfinished task.
-- **Recovery is force-delete first, always.** Remove the Failed workflow — annotate `sei.io/force-delete-workflow=<reason>`, then `seictl workflow delete <name>` — which releases the node; only then re-run (same name, or `--name` for a fresh one). **The annotation is not optional today:** the controller's data-state verification is a stub that always reports unavailable (fail-closed by design), so an un-annotated delete parks the workflow `Terminating` with the node still held, emitting a `WorkflowDeleteHeld` warning event that names the annotation. Order doesn't matter — annotating a workflow already stuck `Terminating` releases it on the next poll (≤30s), so a delete-first mistake is recoverable without touching finalizers by hand. (A `Complete` workflow needs no annotation — its finalizer is reaped on the next reconcile of the target.)
+- **Recovery is force-delete first, always.** Remove the Failed workflow — annotate `sei.io/force-delete-workflow=<reason>`, then `seictl workflow delete <name>` — which releases the node; only then re-run (same name, or `--name` for a fresh one). **The annotation is not optional today:** the controller's data-state verification is a stub that always reports unavailable (fail-closed by design), so an un-annotated delete parks the workflow `Terminating` with the node still held, emitting a `WorkflowDeleteHeld` warning event that names the annotation. Order does not matter — annotating a workflow already stuck `Terminating` releases it on the next poll (≤30s), so a delete-first mistake is recoverable without touching finalizers by hand. (A `Complete` workflow needs no annotation — its finalizer is reaped on the next reconcile of the target.)
 - **A `--name` run is not a recovery for a Failed workflow** — but it is not a second wipe either. Adoption is exclusive (one `status.adoptedWorkflow` pointer per node), so while the Failed workflow holds the node the fresh workflow is never adopted: no plan is compiled, no `reset-data` runs, and the watch ends at `--timeout` (`reason=Timeout`) having changed nothing while the node stays held. The wasted 15m is the cost, not a stacked wipe. Remove the Failed workflow first, every time — that removal is what releases the node.
 
 ### Output and timeout
@@ -273,10 +273,10 @@ seictl task snapshot-upload [--node <name> | --chain <chain-id>]
 Submits one `snapshot-upload-once` with a fresh unique task ID and polls it to a terminal state. This is the procedure the per-(network, cluster) CronJob invokes daily — reach for it when an engineer needs an on-demand snapshot publish, not as part of chain bring-up.
 
 - **Target:** `--node` names one explicitly; `--chain` discovers a random pod labelled `sei.io/snapshot-publish=true,sei.io/chain=<chain>` (exact match). Mutually exclusive. When no pod carries the labels, discovery says so — fall back to `--node`.
-- **Exit codes are kubectl-wait-compatible:** 0 when the task ends `uploaded` **or** `noop` — a `noop` is healthy (the chain hasn't advanced a snapshot interval; the verb prints which outcome it was). Nonzero on a failed task, or on `--timeout`, where the task **may still be running server-side** — `seictl task delete <id>` cancels it.
+- **Exit codes are kubectl-wait-compatible:** 0 when the task ends `uploaded` **or** `noop` — a `noop` is healthy (the chain has not advanced a snapshot interval; the verb prints which outcome it was). Nonzero on a failed task, or on `--timeout`, where the task **may still be running server-side** — `seictl task delete <id>` cancels it.
 - **Defaults:** `--timeout` 2h15m, deliberately above the sidecar's own 2h upload deadline so the CLI bound never fires before the server's. `--poll-interval` 20s (sidecar-local, cheap).
 - **Output:** the terminal `TaskResult` as JSON on stdout; progress and the verdict on stderr.
-- **The fresh task ID is load-bearing.** The engine coalesces a reused ID onto an existing Completed row and never re-runs it — which is why the verb mints its own. Don't hand-craft a repeated ID via `submit` and expect a re-run.
+- **The fresh task ID is load-bearing.** The engine coalesces a reused ID onto an existing Completed row and never re-runs it — which is why the verb mints its own. Do not hand-craft a repeated ID via `submit` and expect a re-run.
 
 ### Raw verbs — thin wrappers over the sidecar client
 
@@ -287,7 +287,7 @@ Submits one `snapshot-upload-once` with a fresh unique task ID and polls it to a
 | `seictl task submit <type> --node <name> [--params '<json>']` | POST an arbitrary task; params validated server-side |
 | `seictl task delete <id> --node <name>` | Delete a task result, or **cancel** it if still running |
 
-`list` and `get` are the read side and are safe — they're a useful diagnosis path when a workflow step is parked (read the node's own task history rather than inferring from `.status.plan.tasks` alone).
+`list` and `get` are the read side and are safe — they are a useful diagnosis path when a workflow step is parked (read the node's own task history rather than inferring from `.status.plan.tasks` alone).
 
 **`submit` is a genuine escape hatch — treat it like the direct-apply escape hatch, not like a read.** It POSTs any task type the sidecar's wire protocol accepts, and that set includes destructive ones (`reset-data` among them). Submitted this way a task runs **without** the workflow recipe around it — no `mark-not-ready` hold, no `stop-seid` first, no ordering guarantee, and no adoption pointer telling the controller a node is occupied. Prefer `seictl workflow state-sync` for anything the recipe already covers, and require explicit engineer sign-off (naming node, namespace, and task type) before submitting a mutating task by hand.
 
@@ -484,4 +484,4 @@ When `--network <X>` is set, the renderer auto-wires:
 
 **The auto-wire is what makes "chain + RPC fleet on the same network" a one-shot.** Pass `--network <id>` (the genesis network's id) to each follower; no hand-rolled `--set spec.peers...` payload.
 
-`seictl network|node apply --preset` accepts only `genesis-chain` (network) or `rpc` (node). If an engineer asks for any other preset (archive, single validator, fork-test), it can't be served by `apply` — surface that and ask whether they want to hand-roll the CR YAML instead.
+`seictl network|node apply --preset` accepts only `genesis-chain` (network) or `rpc` (node). If an engineer asks for any other preset (archive, single validator, fork-test), it cannot be served by `apply` — surface that and ask whether they want to hand-roll the CR YAML instead.

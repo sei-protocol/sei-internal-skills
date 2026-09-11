@@ -46,11 +46,11 @@ When the profile and the language pack disagree:
 
 - **Correctness / divergence rules → profile wins.** The repo's documented mandate or exception overrides the generic idiom. This includes the *hard direction*: the profile can establish an **exception** to a rule the pack (and you) correctly know. Check for a documented exception before flagging any textbook anti-pattern.
 - **Pure style → pack fills silence.** Where the profile says nothing, apply the pack's style guidance — but style is lowest severity and never the headline.
-- **New one-way-door rules → flag for human, don't assert.** If reviewing would have you *introduce* a convention the repo hasn't decided (a field rename that's a wire-format change, a new condition-naming scheme), surface it as a question for human approval, not as a finding. One-way doors are the repo's call, not the reviewer's.
+- **New one-way-door rules → flag for human, do not assert.** If reviewing would have you *introduce* a convention the repo has not decided (a field rename that is a wire-format change, a new condition-naming scheme), surface it as a question for human approval, not as a finding. One-way doors are the repo's call, not the reviewer's.
 
 ## Citation and anti-hedge discipline (Rule 3)
 
-Every finding carries a basis: an authority from the pack (`authorities[]`) and/or a specific profile rule (CLAUDE.md line, `doc.go` section). Uncited idiom claims are opinions — drop them or cite them. Reject hedged non-findings ("probably fine if X"): resolve the assumption by reading the file, then flag or don't.
+Every finding carries a basis: an authority from the pack (`authorities[]`) and/or a specific profile rule (CLAUDE.md line, `doc.go` section). Uncited idiom claims are opinions — drop them or cite them. Reject hedged non-findings ("probably fine if X"): resolve the assumption by reading the file, then flag or do not.
 
 ## False-positive discipline
 

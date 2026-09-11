@@ -39,7 +39,7 @@ contract) that must be flagged for human approval, not asserted.
 
 **Authoring rules:**
 - **Cite both layers:** the repo pattern (a file path in sei-k8s-controller) AND the upstream canon (`sources.md`) it specializes. A claim with neither is not a kit entry.
-- The **profile** (`sei-controller-profile.md`) holds the cross-cutting hard conventions (optimistic-lock status, always-present conditions, no-panic) — kits reference it, don't restate it.
+- The **profile** (`sei-controller-profile.md`) holds the cross-cutting hard conventions (optimistic-lock status, always-present conditions, no-panic) — kits reference it, do not restate it.
 - Keep review cues mapped to the five method dimensions so findings stay rankable.
 
 ## Kit roster (shipped + deferred)

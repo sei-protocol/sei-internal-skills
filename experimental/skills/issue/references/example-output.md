@@ -16,7 +16,7 @@ CWD: `~/work/sei-k8s-controller`. The user has been discussing a gap they notice
 >
 > **User:** confirm.
 >
-> **Skill:** What's the issue, in one descriptive title? (No `feat:`/`fix:` prefix unless the repo uses that — checked recent issues, it doesn't.)
+> **Skill:** What's the issue, in one descriptive title? (No `feat:`/`fix:` prefix unless the repo uses that — checked recent issues, it does not.)
 >
 > **User:** Detect spec drift on Running nodes for mid-life SigningKey patch
 >
@@ -30,7 +30,7 @@ CWD: `~/work/sei-k8s-controller`. The user has been discussing a gap they notice
 >
 > **Skill:** Suggested experts from `.claude/agents/`: `kubernetes-specialist` (controller plan logic), `platform-engineer` (CRD field surface). Adjust?
 >
-> **User:** add `sei-network-specialist` — there's a seid restart in the loop.
+> **User:** add `sei-network-specialist` — there is a seid restart in the loop.
 >
 > **Skill:** Got it. Do you have a proposed mechanic, or leave it open for the assignee?
 >
@@ -111,4 +111,4 @@ Reuse the existing NodeUpdate plan shape ... [content as in #137]
 
 - **No "Background" section.** The standard format folds background into Problem. The reference issue uses Background as a header, but newer filings should use Problem — easier for triagers who scan top-down.
 - **No `_TBD — needs design_` placeholder.** This filer had a sketch, so Proposed approach is populated. If they hadn't, the section would be omitted entirely.
-- **Three experts is the cap.** This issue has a clean three-way split (controller / CRD / seid) so it's at the limit but not over. A fourth expert would be a signal to hand off to `/council`.
+- **Three experts is the cap.** This issue has a clean three-way split (controller / CRD / seid) so it is at the limit but not over. A fourth expert would be a signal to hand off to `/council`.

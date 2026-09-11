@@ -16,7 +16,7 @@ Council is the full-ceremony engineering coordinator: it convenes a panel of spe
 ## What it does
 
 - Assesses scope first and sizes the process to it — four tiers from Feature (just implement) up to Product (decompose and design from scratch); coral-sized work is handed back to `/coral`.
-- Dispatches specialists from the repo roster, sequentializing provider-before-consumer when they share an interface boundary and parallelizing only when they don't.
+- Dispatches specialists from the repo roster, sequentializing provider-before-consumer when they share an interface boundary and parallelizing only when they do not.
 - Runs `/xreview` as its own phase against provider, consumer, and the interface source of truth, and halts until every MISMATCH and MISSING is resolved.
 - Refuses to cross a one-way door — persisted schema/field names, public API contracts, on-disk or wire formats, signed or indexed identifiers — without explicit user approval, and reads session state fail-loud rather than silently starting fresh.
 

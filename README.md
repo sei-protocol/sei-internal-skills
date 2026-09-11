@@ -4,7 +4,7 @@
 
 # sei-internal-skills
 
-sei-internal-skills is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It's the centralized, version-controlled home for the workflows and personas that help us review code, investigate failures, operate releases, run ephemeral chains, and collaborate with specialist agents.
+sei-internal-skills is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It is the centralized, version-controlled home for the workflows and personas that help us review code, investigate failures, operate releases, run ephemeral chains, and collaborate with specialist agents.
 
 Skills and agents are authored once here and synced out to your user-scope (`~/.claude/`) and sibling repos, so the same `/xreview`, `/root-cause`, or `kubernetes-specialist` works the same way everywhere.
 
@@ -23,7 +23,7 @@ make bootstrap
 ```
 
 This runs:
-- `make sync-agents` — installs sei-internal-skills's portable agents into `~/.claude/agents/` so they're reachable from any cwd
+- `make sync-agents` — installs sei-internal-skills's portable agents into `~/.claude/agents/` so they are reachable from any cwd
 - `make sync-skills` — installs sei-internal-skills's portable skills into `~/.claude/skills/`
 - `make update-agent-permissions` — installs the canonical read-only allow-list (`gh` reads, GitHub WebFetch) into `./.claude/settings.json`
 
@@ -131,7 +131,7 @@ git mv experimental/skills/<name> .claude/skills/<name>   # promote (then: make 
 git mv .claude/skills/<name> experimental/skills/<name>   # park
 ```
 
-There is no third list to keep in step, which is what makes the boundary hold.
+No third list needs keeping in step, which is what makes the boundary hold.
 
 ### Retiring something
 
@@ -214,7 +214,7 @@ make sync-skills                                            # the `portable` set
 ./scripts/sync-skills.sh --categories all                   # everything syncable
 ```
 
-Claude Code discovers skills and agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/sei-internal-skills/` are **not** discovered. So the install is always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. 
+Claude Code discovers skills and agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/sei-internal-skills/` are **not** discovered. The install is therefore always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. 
 
 ## Repository structure
 
@@ -240,11 +240,11 @@ despite the name — those are omnigent server bundles, not Claude Code agent pe
 
 ## Where to start
 
-| If you're... | Start here |
+| If you are... | Start here |
 |---|---|
 | **Using the skills day to day** | `.claude/skills/README.md` (the catalog) |
 | **Authoring a new skill** | Pick the tier first ([`experimental/README.md`](experimental/README.md) — it is the default), then `.claude/skills/SKILL-TEMPLATE.md`, then the skill-package rubric |
-| **Looking for a skill that isn't installed** | [`experimental/README.md`](experimental/README.md), then `make sync-experimental` |
+| **Looking for a skill that is not installed** | [`experimental/README.md`](experimental/README.md), then `make sync-experimental` |
 | **Auditing an existing skill** | `/xreview` on the skill directory — it runs `.claude/skills/xreview/scripts/skill-package-checks.sh`, then reads the 52-rule rubric beside it |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
 | **Wanting exactly one thing** | [Just one piece](#just-one-piece) — the same installer, with a target |

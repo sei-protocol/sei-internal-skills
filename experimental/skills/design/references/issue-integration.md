@@ -8,7 +8,7 @@ How `/design` and `/issue` thread bidirectional lineage. The point is that someo
 
 **One issue can have zero or more designs.** A complex issue may need a system-tier design and a component-tier LLD. A simple issue may need none.
 
-**One design typically has zero or one source issue.** Designs that started from explicit asks have a source issue. Pure exploratory designs (sketching an architecture for a doc-only deliverable) don't.
+**One design typically has zero or one source issue.** Designs that started from explicit asks have a source issue. Pure exploratory designs (sketching an architecture for a doc-only deliverable) do not.
 
 **No issue has a "design field" in GitHub's or Linear's metadata.** Lineage lives in the bodies — design frontmatter has the issue ref, the issue's References section has `Design: <path>` and/or `Design: <PR-URL>`.
 
@@ -19,7 +19,7 @@ A design's source issue lives on **GitHub** or **Linear** (`/issue` files to eit
 | | GitHub | Linear |
 |---|---|---|
 | Ref format | `#<n>` (e.g. `#14`) | `<IDENTIFIER>` (e.g. `ENG-123`) |
-| Frontmatter `Issue:` | `#<n>` | `<IDENTIFIER> — <url>` (carry the URL; the bare identifier isn't a clickable link) |
+| Frontmatter `Issue:` | `#<n>` | `<IDENTIFIER> — <url>` (carry the URL; the bare identifier is not a clickable link) |
 | Fetch issue body | `gh issue view <n> --json body,title,number,url` | `get_issue` MCP tool (`id: <ref>`) → read `title`, `description`, `identifier`, `url` |
 | Reverse comment | `gh issue comment <n>` | `save_comment` MCP tool (`issueId: <identifier>`, `body`) |
 | Reverse body edit | `gh issue edit <n> --body-file` | `save_issue` MCP tool (`id: <identifier>`, `description`) |
@@ -31,12 +31,12 @@ Everything below applies to both; sink-specific commands are called out where th
 
 When `/design` is invoked with `--issue <ref>` or from a coral session that referenced an issue:
 
-- **Frontmatter** gets `**Issue:**` as a top-level field — `#<n>` for GitHub, `<IDENTIFIER> — <url>` for Linear (carry the URL so it's navigable). This is the canonical primitive.
+- **Frontmatter** gets `**Issue:**` as a top-level field — `#<n>` for GitHub, `<IDENTIFIER> — <url>` for Linear (carry the URL so it is navigable). This is the canonical primitive.
 - **References** section automatically includes the issue: `Issue #<n> — <title>` (GitHub) or `Issue <IDENTIFIER> — <title> (<url>)` (Linear).
 - **Background** is seeded from the issue's Problem section (the user can edit further).
 - **Non-goals** are seeded from the issue's Out of scope section.
 
-The forward link is set at creation time. It's a static reference — if the issue is renamed or moved, GitHub resolves via its issue redirect; for Linear, the stored URL plus the immutable identifier keep it navigable.
+The forward link is set at creation time. It is a static reference — if the issue is renamed or moved, GitHub resolves via its issue redirect; for Linear, the stored URL plus the immutable identifier keep it navigable.
 
 ## Reverse link: issue → design
 
@@ -47,11 +47,11 @@ After `/design` writes the file, the skill offers to update the source issue:
 >
 > Update issue <ref> with the design link?
 > 1. Add a comment: "Design captured: <full URL>"
-> 2. Edit the issue body's References to include the design's **full URL** — the design lives in a *separate* repo (Design 05), so a repo-relative path won't resolve on the code-repo issue
+> 2. Edit the issue body's References to include the design's **full URL** — the design lives in a *separate* repo (Design 05), so a repo-relative path will not resolve on the code-repo issue
 > 3. Both
-> 4. Skip — I'll update manually
+> 4. Skip — I will update manually
 
-**Default offer is option 1 (comment).** It's the lightest touch and doesn't require body-edit permissions or risk clobbering the issue's current state. The user can opt up to option 3 if they want the issue body to reflect the design as a permanent reference.
+**Default offer is option 1 (comment).** It is the lightest touch and does not require body-edit permissions or risk clobbering the issue's current state. The user can opt up to option 3 if they want the issue body to reflect the design as a permanent reference.
 
 **Option 1 (comment):**
 - **GitHub** — `gh issue comment <n> --body "Design captured: <relative-path>"`.
@@ -65,11 +65,11 @@ After `/design` writes the file, the skill offers to update the source issue:
 - *Comment path* — existing comments (GitHub: `gh issue view <n> --json comments`; Linear: `list_comments`).
 - *Body/description edit path* — the body/description you fetched in step (1) above (GitHub: the `body`; Linear: the `description` from `get_issue`), not the comment list.
 
-**Never fabricate the link.** If the comment/edit call fails or the backend (Linear MCP) is unavailable, report it and leave the lineage unthreaded — don't claim a link that wasn't written.
+**Never fabricate the link.** If the comment/edit call fails or the backend (Linear MCP) is unavailable, report it and leave the lineage unthreaded — do not claim a link that was not written.
 
 ## When the design lands as a PR
 
-The most common path: a design doc isn't a final artifact on its own — it lives in a PR alongside the implementation. In that case:
+The most common path: a design doc is not a final artifact on its own — it lives in a PR alongside the implementation. In that case:
 
 - The design doc path is `designs/<arc>/<slug>-lld.md` (or wherever).
 - The PR includes the design + the code that implements it.
@@ -80,7 +80,7 @@ The design's reverse link to the issue then goes through the PR. The design itse
 
 If the design is shipping ahead of implementation (design lands in its own PR), explicit reverse linking via comment matters more.
 
-**Linear caveat.** The auto-linking above is GitHub-specific: GitHub resolves `Closes #<n>` and back-links the merged PR on the issue for free. Linear has no `Closes #<n>` equivalent from a GitHub PR unless Linear's GitHub integration is configured (magic words / branch naming wired to the workspace). So for a Linear-tracked design, **don't assume the PR threads the lineage** — the explicit reverse link (comment via `save_comment`, or the description edit) is the primary thread, not an optional nicety. Offer it even when the design lands in a PR.
+**Linear caveat.** The auto-linking above is GitHub-specific: GitHub resolves `Closes #<n>` and back-links the merged PR on the issue for free. Linear has no `Closes #<n>` equivalent from a GitHub PR unless Linear's GitHub integration is configured (magic words / branch naming wired to the workspace). For a Linear-tracked design, then, **do not assume the PR threads the lineage** — the explicit reverse link (comment via `save_comment`, or the description edit) is the primary thread, not an optional nicety. Offer it even when the design lands in a PR.
 
 ## Multiple designs for one issue
 
@@ -90,7 +90,7 @@ A complex issue may produce a system-tier design and one or more component-tier 
 - Each design's References section can also link to the system-tier design (the parent), if one exists.
 - The issue's References section accumulates `- Design: <path>` lines.
 
-When an issue accumulates multiple design references, they should appear in design-tier order: system tier first, then component tier. The `/design` skill doesn't enforce order; the user can edit the References section to reflect the right hierarchy.
+When an issue accumulates multiple design references, they should appear in design-tier order: system tier first, then component tier. The `/design` skill does not enforce order; the user can edit the References section to reflect the right hierarchy.
 
 ## When a design is superseded
 
@@ -100,7 +100,7 @@ If a design gets replaced by a new design (e.g. v1 LLD → v2 LLD because a cons
 **Status:** Superseded by [<new design>](path/to/new-design-lld.md)
 ```
 
-This is a manual edit; `/design` doesn't manage status transitions. But a new design that supersedes an old one should:
+This is a manual edit; `/design` does not manage status transitions. But a new design that supersedes an old one should:
 
 - Add the old design path to its own References section as `Superseded design: <old-path>`.
 - Optionally edit the old design's status header.
@@ -115,11 +115,11 @@ If the user later decides to file an issue retroactively, they can:
 1. Run `/issue` to create the issue, referencing the design in its References section.
 2. Manually edit the design's frontmatter to add `Issue: #n`.
 
-`/design` doesn't auto-file the issue — that's the user's call.
+`/design` does not auto-file the issue — that is the user's call.
 
 ## Anti-patterns
 
-- **Don't comment on the issue without offering.** Auto-comments are noisy if the user already commented or doesn't want the design linked yet.
-- **Don't deep-edit the issue body.** Only the References section is safe to update programmatically. Anything else risks clobbering the user's state.
-- **Don't fabricate the issue ref if it's missing.** If a coral session didn't reference an issue, the design has no source issue. Don't ask the user to assign one — that's a separate decision.
-- **Don't update issue status / labels / milestone.** The design landing doesn't change the issue's state. Triagers (and the user) decide that.
+- **Do not comment on the issue without offering.** Auto-comments are noisy if the user already commented or does not want the design linked yet.
+- **Do not deep-edit the issue body.** Only the References section is safe to update programmatically. Anything else risks clobbering the user's state.
+- **Do not fabricate the issue ref if it is missing.** If a coral session did not reference an issue, the design has no source issue. Do not ask the user to assign one — that is a separate decision.
+- **Do not update issue status / labels / milestone.** The design landing does not change the issue's state. Triagers (and the user) decide that.

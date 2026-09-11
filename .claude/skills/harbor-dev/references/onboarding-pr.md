@@ -151,7 +151,7 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
 
 ## The agent's job
 
-1. **Prompt for the alias.** Default the prompt to `$USER` lowercased — don't silently use it. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias> --context harbor`: if the namespace already exists, the alias is taken — halt with "pick another, or contact the platform team if it's yours." Don't attempt partial-state recovery (separate runbook). Continue only when the alias is free.
+1. **Prompt for the alias.** Default the prompt to `$USER` lowercased — do not silently use it. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias> --context harbor`: if the namespace already exists, the alias is taken — halt with "pick another, or contact the platform team if it is yours." Do not attempt partial-state recovery (separate runbook). Continue only when the alias is free.
 2. **Render the four platform-repo files** from [`onboarding-pr-template.md`](./onboarding-pr-template.md) (Files 1–4) in a fresh clone of `sei-protocol/platform`, branched from `main` — never from a local working branch. Branch: `feat/engineers-<alias>-onboard`.
 
    Substring-replace `fromtherain` → `<alias>` in **Files 1 and 3** only. **Files 2 and 4 are append-only**: both are rosters that already name every onboarded engineer, so add one entry and leave the rest untouched. File 4's block shows `- eng-fromtherain` as a live entry, not a placeholder. Replace it and you drop that engineer's seiload scraping. That is the same failure this roster exists to prevent.
