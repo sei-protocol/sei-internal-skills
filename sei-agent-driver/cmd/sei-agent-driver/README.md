@@ -85,6 +85,18 @@ signal, so a caller never posts a stale file from a previous run.
   check is required, and it reports a change this tool could not read rather than a
   bad one.
 
+  The file also carries `decision`: the position this tool records, `approve`,
+  `comment` or `request_changes`, derived in the same reading as the conclusion. A
+  caller submits it as the review event verbatim and recomputes nothing from the
+  conclusion. It is `approve` only where nothing withholds — the reply affirmed it read
+  the diff, nothing blocks, and no pre-existing blocker stands unaccepted. An `approve`
+  the reply wrote beside a blocker records `request_changes`; beside an unaccepted
+  pre-existing blocker, or without a read count, it records `comment`. Wherever the
+  recorded decision parts from the word the reply wrote, the check summary opens with a
+  notice saying what was recorded and which finding decided it, and the same notice
+  rides in the published comment's footer, ahead of anything truncation removes. A
+  no-verdict run carries no `decision`.
+
   The file also carries a `threads` object, on the same reasoning as `counts`: it is
   no part of the check run GitHub publishes, and it rides here because this is the
   file a caller already reads.
@@ -118,6 +130,24 @@ signal, so a caller never posts a stale file from a previous run.
   repository-relative path — a space, an `@`, a leading `/` or a `..` falls back to
   the default rather than failing, so check the logged path if standards seem not to
   be applying. Read by the agent in its sandbox, not by this process.
+- `--accepted-file PATH` — a local copy of the standards file as it stands on the pull
+  request's **base** branch. Its `Accepted` section lists the pre-existing blockers
+  that do not withhold approval: a heading opening with the word `Accepted`, then one
+  bullet per condition, until the next heading. The text before an em dash or ` -- ` is
+  the phrase a finding must contain to match; what follows is the rationale, carried
+  into the check and the comment as the authority. A bullet under three words is
+  dropped, because two words name a category, not a condition.
+
+  ```markdown
+  ## Accepted pre-existing conditions
+  - pins `uci` to the feature branch — deliberate until PLT-1300 lands
+  ```
+
+  The caller fetches the file from the base ref, never the head. A pull request that
+  wrote its own acceptance would be handing itself the approval its blocker withholds,
+  and this process cannot see the repository to check. An accepted finding stays on the
+  page, marked accepted with its rationale; only the veto is lifted. An absent file
+  accepts nothing, and so does an unreadable one, with a warning.
 - `--extra-instructions TEXT` — additional guidance for this dispatch only. Carried
   into both the first prompt and the adopted one.
 - `--include-nits` — place nit-severity findings inline as well. Off by default. Off

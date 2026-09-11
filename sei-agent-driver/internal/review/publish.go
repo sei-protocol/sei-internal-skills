@@ -272,19 +272,26 @@ func fenceRun(trimmed string) int {
 	return 0
 }
 
-// footer names the comment's own provenance.
+// footer names the comment's own provenance, and the recorded position where the prose
+// above it may claim another.
 //
 // Actions logs expire and a pull request comment does not. So this is the only record
-// that makes a wrong-session or wrong-turn publish discoverable after the fact.
+// that makes a wrong-session or wrong-turn publish discoverable after the fact. The
+// decision it carries is the recorded one, and [Verdict.position] rides beside it
+// because the footer is what [RenderComment] keeps ahead of any cut.
 func (v Verdict) footer(sessionID string) string {
 	if v.SettledBy != "" {
 		return fmt.Sprintf(
 			"\n\n<sub>seidroid review · decision `%s` · settled by the scouts %s · no review turn ran</sub>\n",
 			v.Decision(), v.SettledBy)
 	}
+	position := ""
+	if p := v.position(); p != "" {
+		position = "\n\n" + p
+	}
 	return fmt.Sprintf(
-		"\n\n<sub>seidroid review · decision `%s` · session `%s` · turn `%s` · item `%s`</sub>\n",
-		v.Decision(), sessionID, v.TurnID, v.ItemID)
+		"%s\n\n<sub>seidroid review · decision `%s` · session `%s` · turn `%s` · item `%s`</sub>\n",
+		position, v.Decision(), sessionID, v.TurnID, v.ItemID)
 }
 
 // truncateBytes cuts to at most max bytes, preferring the last line break so the

@@ -37,19 +37,19 @@ func TestACutBodyIsBoundedAndClosed(t *testing.T) {
 		block string
 	}{
 		{"the ordinary cut", inFence,
-			"```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
+			"```json\n{\"read\":3,\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
 		// An oversize block, which the comment never carries: the cut is the prose's.
 		{"an oversized block the comment never carries", inFence,
-			"```json\n{\"decision\":\"approve\",\"summary\":\"" +
+			"```json\n{\"read\":3,\"decision\":\"approve\",\"summary\":\"" +
 				strings.Repeat("x", MaxBodyBytes) + "\"}\n```"},
 		{"a tilde block the cut lands in", inTildes,
-			"```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
+			"```json\n{\"read\":3,\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
 		{"a fence longer than its closer", inLongFence,
-			"```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
+			"```json\n{\"read\":3,\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
 		{"an HTML comment the cut lands in", inComment,
-			"```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
+			"```json\n{\"read\":3,\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
 		{"a CRLF reply the cut lands in", inCRLF,
-			"```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
+			"```json\n{\"read\":3,\"decision\":\"approve\",\"summary\":\"s\"}\n```"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -362,7 +362,7 @@ func TestTheNoticeSurvivesMarkupNoCloserCanFix(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			v := ParseVerdict(tc.prose +
-				"\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
+				"\n```json\n{\"read\":3,\"decision\":\"approve\",\"summary\":\"s\"}\n```")
 			v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
 			body := RenderComment(v, "conv_1")
 
@@ -418,7 +418,7 @@ func TestAnUncutReplyThatEndsOpenStillShowsItsFooter(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			v := ParseVerdict(tc.prose +
-				"\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
+				"\n```json\n{\"read\":3,\"decision\":\"approve\",\"summary\":\"s\"}\n```")
 			v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
 			body := RenderComment(v, "conv_1")
 
@@ -453,7 +453,7 @@ func TestTheUncutBoundCountsTheCloseItWillAppend(t *testing.T) {
 
 	mk := func(pad int) Verdict {
 		v := ParseVerdict("````go\n" + strings.Repeat("x", pad) +
-			"\nend\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
+			"\nend\n```json\n{\"read\":3,\"decision\":\"approve\",\"summary\":\"s\"}\n```")
 		v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
 		return v
 	}
@@ -510,7 +510,7 @@ func TestABalancedReplyThatFitsIsNotTruncated(t *testing.T) {
 					body = "```text\n" + strings.Repeat("x", pad) + "\n```"
 				}
 				v := ParseVerdict(body +
-					"\n```json\n{\"decision\":\"approve\",\"summary\":\"s\"}\n```")
+					"\n```json\n{\"read\":3,\"decision\":\"approve\",\"summary\":\"s\"}\n```")
 				v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
 				return v
 			}

@@ -134,6 +134,13 @@ func reviewCommand(log *slog.Logger) *cli.Command {
 					"(default " + review.DefaultGuidelinesFile + ")",
 			},
 			&cli.StringFlag{
+				Name: "accepted-file",
+				Usage: "local copy of the standards file as it stands on the pull request's " +
+					"BASE branch; its Accepted section lists the pre-existing blockers that " +
+					"do not withhold approval. Never the head's copy: a change would be " +
+					"accepting its own blocker",
+			},
+			&cli.StringFlag{
 				Name:  "extra-instructions",
 				Usage: "guidance this repository adds to every review",
 			},
@@ -238,6 +245,21 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	req.GuidelinesFile = cmd.String("guidelines-file")
 	req.ExtraInstructions = cmd.String("extra-instructions")
 	req.IncludeNits = cmd.Bool("include-nits")
+
+	// An acceptance list that cannot be read accepts nothing, and the review runs. That
+	// fails towards withholding an approval, which is the side a missing file should
+	// land on; the warning is how an operator learns why an accepted blocker still vetoed.
+	if path := cmd.String("accepted-file"); path != "" {
+		accepted, err := readAccepted(path)
+		if err != nil {
+			log.Warn("could not read the accepted conditions; nothing is accepted",
+				"path", path, "error", err)
+		}
+		req.Accepted = accepted
+		if len(accepted) > 0 {
+			log.Info("carrying the base branch's accepted conditions", "count", len(accepted))
+		}
+	}
 
 	// A history that cannot be read is not a reason to refuse the review. The
 	// review is still correct without it — it just repeats itself — where refusing
@@ -403,6 +425,9 @@ func verdictOf(result driver.Result) review.Verdict {
 // pull request like a review that never ran.
 func report(outPath, findingsPath, checkPath string, result driver.Result,
 	verdict review.Verdict, req review.Request) error {
+	// Stamped here, ahead of every reading below, so the decision on stdout and the one
+	// in the check file weigh the same acceptances.
+	verdict.Accepted = req.Accepted
 	payload := map[string]any{
 		"session_id":  result.SessionID,
 		"exit_code":   result.ExitCode,
@@ -410,6 +435,7 @@ func report(outPath, findingsPath, checkPath string, result driver.Result,
 	}
 	if result.Reply != nil || verdict.HasVerdict() {
 		payload["decision"] = verdict.Decision()
+		payload["said"] = verdict.Said()
 		payload["structured"] = verdict.Structured
 	}
 	if verdict.SettledBy != "" {
@@ -466,6 +492,19 @@ func report(outPath, findingsPath, checkPath string, result driver.Result,
 		return err
 	}
 	return writeCheckRun(checkPath, verdict, req.IncludeNits, plan)
+}
+
+// readAccepted loads the accepted pre-existing conditions from a copy of the standards
+// file. An absent file is a repository that keeps none, which is the common case.
+func readAccepted(path string) ([]string, error) {
+	blob, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	return review.ParseAccepted(string(blob)), nil
 }
 
 // readPriorThreads loads what this tool said on this pull request before.

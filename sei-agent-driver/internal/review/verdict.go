@@ -51,19 +51,35 @@ type Verdict struct {
 	// which is the only other way one is made. See [SettleByScouts].
 	SettledBy string
 
+	// Accepted is the base branch's list of accepted pre-existing conditions, from
+	// [ParseAccepted]. A pre-existing blocker matching one is reported and does not
+	// withhold approval. Nil when the repository keeps none.
+	Accepted []string
+
 	// Reason renders why Structured is nil, for the operator who has to act on
 	// it. Empty when there is a verdict.
 	Reason string
 }
 
-// Decision returns the verdict's decision, normalised. Empty when there is no
+// Said returns the decision word the reply wrote, normalised. Empty when there is no
 // verdict, which by construction is the only way it can be empty.
-func (v Verdict) Decision() string {
+//
+// It is what the agent claimed. [Verdict.Decision] is what this driver records, and
+// the two part exactly where the claim is not backed by what the reply wrote down.
+func (v Verdict) Said() string {
 	if v.Structured == nil {
 		return ""
 	}
 	return normalizeDecision(v.Structured["decision"])
 }
+
+// Decision returns the decision this driver records for the review: approve, comment
+// or request_changes. Empty when there is no verdict.
+//
+// Derived from the findings together with the conclusion, in one place, so the two
+// cannot disagree: see [Verdict.standing]. An approve beside an unaddressed blocker of
+// any origin is not recorded as approve.
+func (v Verdict) Decision() string { return v.standing().decision }
 
 // Summary returns the review's one- or two-sentence summary, empty when it wrote
 // none.
@@ -74,27 +90,66 @@ func (v Verdict) Summary() string {
 	return strings.TrimSpace(stringField(v.Structured, "summary"))
 }
 
-// CheckConclusion renders a GitHub check-run conclusion for this review.
+// CheckConclusion renders a GitHub check-run conclusion for this review: failure,
+// neutral or success. Empty when there is no verdict. See [Verdict.standing].
+func (v Verdict) CheckConclusion() string { return v.standing().conclusion }
+
+// standing is the position this driver records for a review: the decision GitHub is
+// told, the conclusion the check carries, and why, when the decision word the reply
+// wrote is not the one recorded.
+type standing struct {
+	decision   string
+	conclusion string
+	why        withheld
+}
+
+// withheld names the reason a recorded position departs from the word the reply wrote.
+type withheld int
+
+const (
+	// asSaid records the word the reply wrote.
+	asSaid withheld = iota
+	// byBlocker: the reply named something blocking under a softer word.
+	byBlocker
+	// byEmptyComment: a comment decision that wrote nothing down, the prompt's own
+	// read-failure signal.
+	byEmptyComment
+	// byUnreadDiff: the reply did not affirm it read the change.
+	byUnreadDiff
+	// byPreExisting: an unaccepted pre-existing blocker stands in the code touched.
+	byPreExisting
+)
+
+// standing derives the decision and the conclusion together, from the findings, once.
 //
-// Derived rather than asked for separately. The two say the same thing about the same
-// review, and one that could disagree with itself -- request_changes beside a passing
-// check -- leaves a reader no way to tell which is meant.
-//
-// What it derives from is the findings, with the decision able to escalate but not to
-// clear. A reply that says approve while it lists a blocker still fails: both readings
-// came from the same reply, so the one backed by what it actually wrote wins.
+// The decision word the reply wrote can escalate but not clear. A reply that says
+// approve while it lists a blocker is recorded as request_changes and fails: both
+// readings came from the same reply, so the one backed by what it actually wrote wins.
 //
 // Only a BLOCKER decides it. Non-blocking notes -- suggestions, nits, pre-existing
-// issues -- do not, because a review that has three suggestions and nothing blocking is
-// a review that says the change is fine. Gating on "found anything at all" made approval
-// unreachable for real work: the counts published beside the conclusion already tell the
-// reader there were three things to say, so the conclusion does not also have to.
-func (v Verdict) CheckConclusion() string {
+// suggestions -- do not, because a review that has three suggestions and nothing
+// blocking is a review that says the change is fine. Gating on "found anything at all"
+// made approval unreachable for real work: the counts published beside the conclusion
+// already tell the reader there were three things to say.
+//
+// The word approve is recorded only where nothing withholds it, so a caller that
+// submits the recorded decision submits an approval exactly when the check concludes
+// success on an approving reply. Every other case records comment: the reader is told
+// why by [Verdict.position], and GitHub is told nothing it would have to take back.
+func (v Verdict) standing() standing {
 	if !v.HasVerdict() {
-		return ""
+		return standing{}
 	}
-	if v.Decision() == "request_changes" || len(Blockers(v)) > 0 || v.hasBlockingFinding() {
-		return "failure"
+	said := v.Said()
+	if len(Blockers(v)) > 0 || v.hasBlockingFinding() {
+		why := byBlocker
+		if said == "request_changes" {
+			why = asSaid
+		}
+		return standing{"request_changes", "failure", why}
+	}
+	if said == "request_changes" {
+		return standing{"request_changes", "failure", asSaid}
 	}
 	// A comment decision with EMPTY buckets is the prompt's own read-failure signal: it
 	// tells the reply to say comment when the diff OR THE TREE could not be read, and a
@@ -105,8 +160,8 @@ func (v Verdict) CheckConclusion() string {
 	// clean -- it is the whole point of gating on blockers. The buckets separate the two
 	// meanings the one word carries: something written down is a review, nothing written
 	// down beside a soft decision is a review that did not happen.
-	if v.Decision() == "comment" && !v.wroteAnythingDown() {
-		return "neutral"
+	if said == "comment" && !v.wroteAnythingDown() {
+		return standing{"comment", "neutral", byEmptyComment}
 	}
 	// Deliberately not failing on pre_existing_issues, whatever severity they carry. A
 	// blocker the change did not introduce is already on the base branch, so failing
@@ -124,24 +179,31 @@ func (v Verdict) CheckConclusion() string {
 	// bad. And a reply from a session prompted before the field existed omits it without
 	// having done anything wrong.
 	if !v.readTheDiff() {
-		return "neutral"
+		return standing{"comment", "neutral", byUnreadDiff}
 	}
 	// A pre-existing BLOCKER stops short of success without failing. The check does not
-	// go red, for the reason above -- the author did not cause it. But a caller that
-	// approves on success would otherwise sign off a pull request while the review is
-	// saying a blocker sits in the file it touched. Neutral records no position either
-	// way, which is the honest one: nothing here blocks the change, and something in
-	// the file blocks a reader.
+	// go red, for the reason above -- the author did not cause it. But an approval would
+	// sign off a pull request while the review is saying a blocker sits in the file it
+	// touched, so none is recorded while one stands unaccepted. Neutral records no
+	// position either way, which is the honest one: nothing here blocks the change, and
+	// something in the file blocks a reader.
 	if v.hasPreExistingBlocker() {
-		return "neutral"
+		return standing{"comment", "neutral", byPreExisting}
 	}
-	return "success"
+	return standing{said, "success", asSaid}
 }
 
 // hasPreExistingBlocker reports whether the review named a blocker that the change did
-// not introduce.
+// not introduce and the base branch has not accepted.
+//
+// Accepted ones are filtered here, in Go, ahead of the veto -- not in the prompt. An
+// acceptance the model alone honoured would hold whenever the model chose to honour
+// it; see [ParseAccepted].
 func (v Verdict) hasPreExistingBlocker() bool {
 	for _, issue := range PreExisting(v) {
+		if issue.Accepted != "" {
+			continue
+		}
 		// Only an explicit suggestion clears. normalizeSeverity returns "" for a word it
 		// does not recognise -- critical, P0, or an absent field -- and every other rule
 		// reading a severity is rendering a COUNT, where treating the unknown as

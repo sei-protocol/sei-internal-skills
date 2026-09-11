@@ -18,6 +18,13 @@ type CheckRun struct {
 	// that says so.
 	Conclusion string `json:"conclusion"`
 
+	// Decision is the position this driver recorded -- approve, comment or
+	// request_changes -- for the caller to submit as the review event verbatim. Derived
+	// with Conclusion from one reading of the reply, so a caller that submits it never
+	// approves over a check that withheld; see [Verdict.Decision]. Empty on
+	// [BuildFailureCheck], where there is no decision to submit.
+	Decision string `json:"decision,omitempty"`
+
 	// Title is the one-line reading in the checks list.
 	Title string `json:"title"`
 
@@ -125,6 +132,7 @@ func BuildCheckRun(v Verdict, includeNits bool) (CheckRun, bool) {
 	counts := countFindings(v, includeNits)
 	return CheckRun{
 		Conclusion: v.CheckConclusion(),
+		Decision:   v.Decision(),
 		Title:      checkTitle(counts),
 		Summary:    checkSummary(v),
 		Counts:     &counts,
@@ -183,8 +191,9 @@ const maxCheckBullet = 2_000
 const maxSummaryProse = 4_000
 
 // maxCheckSection bounds what one bucket contributes, so a bucket that ran away cannot
-// evict the next one. Three of these and one maxSummaryProse fit inside maxCheckSummary
-// with room to spare, which is what makes every section reach the reader.
+// evict the next one. Three of these, one maxSummaryProse and the position notice fit
+// inside maxCheckSummary with room to spare, which is what makes every section reach
+// the reader.
 const maxCheckSection = 16_000
 
 // maxCheckEntries bounds how many entries one bucket renders, so a reply that looped
@@ -216,8 +225,12 @@ const checkProseTruncated = "\n\n_The review's summary was truncated here. " +
 // what makes the sanitising load-bearing here and not in the published comment. There
 // the agent's prose stands alone as the agent's prose. Here it sits beside framing it
 // must not be able to imitate, so every field goes through [defuseMarkup].
+//
+// The position notice leads, ahead of the review's own prose: where the prose says
+// "approving" over a check that withheld, the reader meets the recorded position first.
 func checkSummary(v Verdict) string {
 	sections := []string{
+		v.position(),
 		bulletSection("Blocking", "", Blockers(v)),
 		bulletSection("Non-blocking", "", NonBlockers(v)),
 		preExistingSection(PreExisting(v)),
@@ -310,6 +323,11 @@ func bulletSection(heading, lead string, items []string) string {
 func preExistingSection(issues []PreExistingIssue) string {
 	items := make([]string, 0, len(issues))
 	for _, issue := range issues {
+		if issue.Accepted != "" {
+			items = append(items, fmt.Sprintf("**%s, accepted** — %s (accepted on the base branch: %s)",
+				issue.Severity, issue.Body, issue.Accepted))
+			continue
+		}
 		items = append(items, fmt.Sprintf("**%s** — %s", issue.Severity, issue.Body))
 	}
 	return bulletSection("Pre-existing",

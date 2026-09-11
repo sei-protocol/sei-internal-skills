@@ -136,6 +136,59 @@ func TestReportWritesEachOutputOnItsOwnFlag(t *testing.T) {
 	}
 }
 
+// TestReportCarriesTheAcceptancesIntoTheCheck: the base branch's accepted list, read
+// off --accepted-file, reaches the verdict before the check is derived, so an accepted
+// pre-existing blocker records approve and an absent file accepts nothing.
+func TestReportCarriesTheAcceptancesIntoTheCheck(t *testing.T) {
+	dir := t.TempDir()
+	standards := filepath.Join(dir, "REVIEW.md")
+	if err := os.WriteFile(standards, []byte(
+		"## Accepted pre-existing conditions\n- pins uci to the feature branch\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	accepted, err := readAccepted(standards)
+	if err != nil || len(accepted) != 1 {
+		t.Fatalf("readAccepted = %q, %v; want one entry", accepted, err)
+	}
+	if none, err := readAccepted(filepath.Join(dir, "missing.md")); err != nil || none != nil {
+		t.Fatalf("readAccepted on an absent file = %q, %v; want nothing, nil", none, err)
+	}
+
+	result := driver.Result{SessionID: "s1", Reply: &driver.Reply{
+		Text: "Approving.\n\n```json\n{\"read\":9,\"decision\":\"approve\",\"summary\":\"s\"," +
+			"\"pre_existing_issues\":[{\"severity\":\"blocker\"," +
+			"\"body\":\"go.mod pins uci to the feature branch\"}]}\n```",
+		TurnID: "t1", ItemID: "i1",
+	}}
+	for _, tc := range []struct {
+		name     string
+		accepted []string
+		decision string
+	}{
+		{"unaccepted", nil, "comment"},
+		{"accepted on the base", accepted, "approve"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			check := filepath.Join(t.TempDir(), "check.json")
+			req := review.Request{Accepted: tc.accepted}
+			if err := report("", "", check, result, verdictOf(result), req); err != nil {
+				t.Fatalf("report: %v", err)
+			}
+			blob, err := os.ReadFile(check)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var got review.CheckRun
+			if err := json.Unmarshal(blob, &got); err != nil {
+				t.Fatal(err)
+			}
+			if got.Decision != tc.decision {
+				t.Errorf("check.decision = %q, want %q", got.Decision, tc.decision)
+			}
+		})
+	}
+}
+
 // TestReportPublishesAScoutSettledVerdict covers the path that runs no review turn:
 // the settled verdict has to travel through the same three files a turn's verdict
 // does, or the caller sees a run that exited 0 with nothing to post and reads it as
