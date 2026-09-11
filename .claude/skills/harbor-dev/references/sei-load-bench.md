@@ -7,8 +7,14 @@ Engineer-driven load tests run as a `Job` + `ConfigMap` pair under the engineer'
 - **Sei-load image is distroless** — no shell, no `aws-cli`, no `bash`. Main container cannot run a wrapper script. Upload happens from a separate sidecar.
 - **`engineer-service-account` is namespace-admin** in `eng-<alias>` (RoleBinding to built-in `admin` ClusterRole). Grants `pods/log get` (used by the sidecar) and S3 write via Pod Identity (`aws_iam_policy.engineer`, scoped to `harbor-validation-results/eng-<alias>/*`).
 - **Per-engineer Flux Kustomization SA has `update`+`patch` on `batch/jobs`** (sei-protocol/platform/clusters/harbor/engineers/base/rbac.yaml). Without those verbs, Flux's server-side apply fails on the second reconcile of any Job.
-- **Profile JSON has live placeholders** — `__SEI_CHAIN_ID__` and `__RPC_ENDPOINTS__` in `clusters/harbor/nightly/harness/profiles/*.json`. The agent must substitute both at render time. `__RPC_ENDPOINTS__` is the fleet of per-follower RPC URLs read across the network's `rpc` SeiNodes: `seictl node list -n eng-<alias> -l sei.io/seinetwork=<id>,sei.io/role=node -o json | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'`. Each follower publishes its own `.status.endpoint` (an object of per-protocol URL leaves — its stable per-node addresses); assemble the fleet across CRs, never reconstruct a URL. The SeiNetwork's `<network>-internal` ClusterIP fronts only its validator children (which serve no EVM), and EVM JSON-RPC/WS is surfaced per-pod by design — stateful EVM protocols do not load-balance behind kube-proxy — so the per-follower list is the correct target set, never an aggregate Service.
-- **The chain's rpc follower SeiNodes must be `Running` at render time.** Each follower's `.status.endpoint.evmJsonRpc` is published only after that SeiNode reaches `Running` (a SeiNode has no `Ready` phase — terminal is `Running`).
+- **Profile JSON has live placeholders** — `__SEI_CHAIN_ID__` and `__RPC_ENDPOINTS__` in `clusters/harbor/nightly/harness/profiles/*.json`. The agent must substitute both at render time. `__RPC_ENDPOINTS__` is the fleet of per-follower RPC URLs read across the network's `rpc` SeiNodes. Read it with:
+
+  ```sh
+  seictl node list -n eng-<alias> -l sei.io/seinetwork=<id>,sei.io/role=node -o json | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'
+  ```
+
+  Each follower publishes its own `.status.endpoint` (an object of per-protocol URL leaves — its stable per-node addresses). Assemble the fleet across CRs; never reconstruct a URL. The SeiNetwork's `<network>-internal` ClusterIP fronts only its validator children (which serve no EVM). Each pod surfaces its own EVM JSON-RPC/WS by design, because stateful EVM protocols do not load-balance behind kube-proxy. The per-follower list is therefore the correct target set, never an aggregate Service.
+- **The chain's rpc follower SeiNodes must show phase `Running` at render time.** Each follower publishes `.status.endpoint.evmJsonRpc` only after it reaches `Running` (a SeiNode has no `Ready` phase — `Running` is the terminal one).
 
 ## Inputs the agent gathers
 
@@ -24,7 +30,7 @@ Engineer-driven load tests run as a `Job` + `ConfigMap` pair under the engineer'
 
 Before writing any manifest:
 
-1. **At least one rpc follower SeiNode exists and is `Running`.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json | jq -r '[.items[].status.phase]'` shows at least one `Running` follower. Halt and ask the engineer to wait if not — per-follower URLs are not published otherwise (a SeiNode has no `Ready` phase — terminal is `Running`).
+1. **At least one rpc follower SeiNode is present and `Running`.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json | jq -r '[.items[].status.phase]'` shows at least one `Running` follower. Halt and ask the engineer to wait if not — per-follower URLs are not published otherwise (a SeiNode has no `Ready` phase — terminal is `Running`).
 2. **Fleet RPC URLs available.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'` returns a non-empty list (one URL per `Running` follower).
 3. **Image resolved + verified in registry** per `references/image-resolution.md`'s sei-load section.
 
@@ -234,8 +240,8 @@ The agent also appends `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml
 ## Why this upload pattern
 
 - **`shareProcessNamespace: true`** lets the sidecar see seiload's process by scanning `/proc/<pid>/comm`. When seiload exits — successfully, on error, or via SIGKILL from `activeDeadlineSeconds` — the comm scan returns empty and the sidecar moves to upload.
-- **Logs via Kubernetes API** — kubelet captures stdout in `/var/log/pods/...` regardless of how the container exited. The sidecar's `engineer-service-account` token has `pods/log get` (via the namespace-admin RoleBinding). Partial logs are uploaded on crash; nothing is silently lost.
-- **Bounded `MAX_WAIT`** — the sidecar cannot hang past `<DURATION_MINUTES> * 60 + 540` seconds, well inside the Job's `activeDeadlineSeconds`. If seiload truly wedges, the sidecar uploads whatever's there and exits; the Job completes (Failed if seiload is still running, Complete if both containers exited cleanly).
+- **Logs via Kubernetes API** — kubelet captures stdout in `/var/log/pods/...` regardless of how the container exited. The sidecar's `engineer-service-account` token has `pods/log get` (via the namespace-admin RoleBinding). The sidecar uploads partial logs on crash; nothing is silently lost.
+- **Bounded `MAX_WAIT`** — the sidecar cannot hang past `<DURATION_MINUTES> * 60 + 540` seconds, well inside the Job's `activeDeadlineSeconds`. If seiload truly wedges, the sidecar uploads whatever's there and exits. The Job completes (Failed if seiload is still running, Complete if both containers exited cleanly).
 - **No `ttlSecondsAfterFinished`** — Flux's `prune: true` on the per-engineer Kustomization re-creates Jobs cleaned up by TTL, causing them to re-run every reconcile interval. `git rm` against the workspace repo is the only cleanup mechanism.
 
 ## PR target + path
@@ -254,20 +260,20 @@ The agent appends `bench-<RUN_ID>` to `engineers/<alias>/kustomization.yaml`'s `
 
 ## Procedure
 
-**Canonical procedure: see `SKILL.md` → `Procedure: spin up a load test`.** This file carries the per-step templates, halt conditions, S3 conventions, and substitution recipes; the procedure steps themselves live in `SKILL.md` to keep the conversational entry path tight. When the procedure changes, edit `SKILL.md`. The named observation recipes referenced from step 11 (`bench:live-tail`, `bench:terminal-check`, `bench:teardown`) live in `references/cluster-inspection-recipes.md` under "Bench observation recipes (named)".
+**Canonical procedure: see `SKILL.md` → `Procedure: spin up a load test`.** This file carries the per-step templates, halt conditions, S3 conventions, and substitution recipes. The procedure steps themselves live in `SKILL.md` to keep the conversational entry path tight. When the procedure changes, edit `SKILL.md`. The named observation recipes referenced from step 11 (`bench:live-tail`, `bench:terminal-check`, `bench:teardown`) live in `references/cluster-inspection-recipes.md` under "Bench observation recipes (named)".
 
 ## seiload dies when its target node restarts
 
-seiload does **not** survive a restart of the node it streams from: the block-collector websocket drops (`Error: block collector: websocket: close 1006 (abnormal closure): unexpected EOF`), seiload exits, the upload sidecar flushes whatever partial report exists to S3, and the Job lands **Failed**. Any fleet-wide event that rolls SeiNode pods — a sidecar-image bump, a controller restart, a node update plan — kills every in-flight bench targeting those nodes.
+seiload does **not** survive a restart of the node it streams from. The block-collector websocket drops (`Error: block collector: websocket: close 1006 (abnormal closure): unexpected EOF`) and seiload exits. The upload sidecar flushes whatever partial report exists to S3, and the Job lands **Failed**. Any fleet-wide event that rolls SeiNode pods kills every in-flight bench targeting those nodes. Examples: a sidecar-image bump, a controller restart, a node update plan.
 
-No resume exists. Recovery is a **fresh run**: re-enter the bench flow so a new `<RUN_ID>` is minted (a Job's pod template is immutable and a Failed Job never re-runs, so the old name cannot be reused). Before starting it, confirm the chain is healthy again — every follower `Running` **and** block height advancing between two `/status` reads (`catching_up=false`) — or the new run dies the same way.
+No resume exists. Recovery is a **fresh run**: re-enter the bench flow so it mints a new `<RUN_ID>`. A Job's pod template is immutable and a Failed Job never re-runs, so nobody can reuse the old name. Before starting it, confirm the chain is healthy again, or the new run dies the same way. Healthy means every follower `Running` **and** block height advancing between two `/status` reads (`catching_up=false`).
 
 ## Halt conditions
 
 - **No rpc follower SeiNodes found.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json` returns an empty `.items`. The network exists but has no rpc followers yet. The engineer must apply at least one first, per `references/ephemeral-chain-flow.md` step 6 (PR-based or direct). Halt; do not attempt to render the bench. That recipe carries the create-only footprint and storage-performance flags; a bare command drops them.
 - **No follower `Running`** at render time. Per-follower URLs are not published. Surface each follower's phase + offer to poll (`seictl node watch <chain-id>-rpc-<k> --until=Running` per follower) before continuing.
 - **Endpoints absent** even though a follower is `Running`. Likely a pre-endpoint-publication race (`PhaseRunning` precedes a serving EVM listener). Sleep 30s and retry once; halt with the followers' full status if still empty.
-- **Parent `engineers/<alias>/kustomization.yaml` missing.** The per-engineer Flux Kustomization has nothing to aggregate the new `bench-<RUN_ID>/` task dir into; merging the PR is a no-op for Flux. Onboarding (or a prior teardown sequence) did not ship the parent kustomization. Halt; surface that the engineer's onboarding PR is incomplete or the parent file was removed manually.
+- **Parent `engineers/<alias>/kustomization.yaml` missing.** The per-engineer Flux Kustomization has nothing to aggregate the new `bench-<RUN_ID>/` task dir into; merging the PR is a no-op for Flux. Onboarding (or a prior teardown sequence) did not ship the parent kustomization. Halt; surface that the engineer's onboarding PR is incomplete or someone removed the parent file manually.
 - **Profile JSON not in platform repo.** Surface available profiles (`gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/harness/profiles --jq '.[].name'`); ask the engineer to pick.
 - **Bench-name collision** — `engineers/<alias>/bench-<RUN_ID>/` already exists with a closed PR. Halt and ask whether to bump the bench-tag or reuse.
 - **Sei-load image build workflow fails.** Surface `gh run view <id> --log-failed -R sei-protocol/sei-load`; do not retry blindly.

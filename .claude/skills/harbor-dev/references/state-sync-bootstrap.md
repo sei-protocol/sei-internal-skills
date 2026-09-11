@@ -7,13 +7,15 @@
 > **KNOWN ISSUE (PLT-794, open as of 2026-07-08): state-sync bootstrap does not
 > currently work on ceremony-fresh eng chains.** The assembled gentx genesis
 > carries no `validators` field (they materialize at InitChain, which state
-> sync skips), so seid dies deterministically on its very first boot —
+> sync skips). seid therefore dies deterministically on its first boot —
 > `LoadStateFromDBOrGenesisDocProvider(): ... nil validator` — before state
 > sync even starts. The control plane below (gate, witnesses, plan, PVC) all
 > works, and the genesis itself is canonical (empty validators + gentxs is the
-> standard Cosmos launch shape) — the defect is sei-tendermint's state-sync
-> boot path persisting a placeholder state it cannot re-read. Until PLT-794 lands,
-> **genesis replay is the working path for eng chains**; this recipe applies
+> standard Cosmos launch shape). The defect is sei-tendermint's state-sync
+> boot path persisting a placeholder state it cannot re-read.
+>
+> Until PLT-794 lands,
+> **genesis replay is the working path for eng chains**. This recipe applies
 > to chains whose genesis carries a validator set (e.g. export-style genesis).
 > Check `has_validators` via `/genesis` on any chain member before promising
 > this path.
@@ -23,9 +25,9 @@ Sections: [mental model](#the-mental-model--witnesses-vs-snapshot-providers-two-
 [after Flux applies](#what-happens-after-flux-applies) · [failure modes](#failure-modes-and-where-they-surface)
 
 **When to use:** the engineer has a running chain in their namespace and wants
-to attach a follower **without replaying from genesis** — "add an RPC node with
+to attach a follower **without replaying from genesis**. Typical asks: "add an RPC node with
 state sync", "bootstrap from my own chain", "do not replay 400k blocks". For a
-young chain (minutes–hours old), genesis replay is usually simpler and needs
+young chain (minutes–hours old), genesis replay is simpler and needs
 none of this; offer that first. State sync earns its setup on chains with real
 accumulated height or when the engineer is explicitly testing the state-sync
 path itself.
@@ -38,10 +40,10 @@ path itself.
   included — serves RPC on 26657, so any two chain members work.
 - **Snapshot chunks come over p2p (`:26656`) from snapshot-serving peers** —
   the `spec.peers` label selector rail, not `rpcServers`. At least one peer
-  must have snapshot creation enabled AND have already produced a snapshot
-  (snapshots appear only when the chain crosses the snapshot interval —
-  "creation enabled" on a chain below its first interval means zero snapshots
-  and the bootstrap finds nothing).
+  must have snapshot creation enabled AND have already produced a snapshot.
+  Snapshots appear only when the chain crosses the snapshot interval.
+  "Creation enabled" on a chain below its first interval means zero snapshots,
+  and the bootstrap finds nothing.
 
 Declaring `rpcServers` **replaces** the platform's canonical-syncer registry
 for that node — the registry (which only carries long-lived chains like
@@ -51,8 +53,8 @@ self-service: no platform PR.
 ## Preconditions (check before rendering)
 
 1. **The chain has ≥2 members serving RPC** — read their published endpoints
-   verbatim (never reconstruct DNS): recipe #1 in
-   `cluster-inspection-recipes.md` for followers, or for validators the
+   verbatim (never reconstruct DNS). For followers, use recipe #1 in
+   `cluster-inspection-recipes.md`. For validators, use the
    headless-service form visible in `kubectl get svc -n eng-<alias>`.
 2. **≥1 peer has produced a snapshot** — snapshot creation on (the chain's
    `storage.snapshot_interval` override or equivalent) and height has crossed
@@ -83,7 +85,7 @@ spec:
 
 `rpcServers` contract (admission-enforced): bare `host:port` — no scheme, no
 IPv6 literals, no commas inside an item; **minimum 2 entries**; duplicates
-rejected. A single-witness request is rejected at `kubectl apply` time, not at
+rejected. The apiserver rejects a single-witness request at `kubectl apply` time, not at
 runtime — CometBFT light-client verification needs two independent servers.
 
 Pass an explicit `--storage` sized for the chain you are syncing. The `rpc`
@@ -96,11 +98,11 @@ measurement order under "Snapshot discovery" in
 
 Render via `seictl node apply <id>-rpc-<k> --preset rpc --chain-id <id>
 --network <id> --image <ref> --cpu <cpu> --memory <mem> --storage <size>
-[--iops <iops> --throughput <tput>] -n eng-<alias> --dry-run` and add the
-`spec.fullNode.snapshot` block to the emitted YAML (check `seictl node apply
+[--iops <iops> --throughput <tput>] -n eng-<alias> --dry-run`. Then add the
+`spec.fullNode.snapshot` block to the emitted YAML. Check `seictl node apply
 --help` for current `--set` list-literal support before trying to express the
-list inline; hand-editing the rendered YAML and re-validating with
-`kubectl apply --dry-run=server -f <file>` is the reliable path). **Inspect the
+list inline. The reliable path: hand-edit the rendered YAML and re-validate with
+`kubectl apply --dry-run=server -f <file>`. **Inspect the
 dry-run/server response and confirm `rpcServers` survived** — a cluster whose
 CRD predates the field prunes it silently. A render that passed
 `--iops`/`--throughput` needs the same inspection for
@@ -109,10 +111,10 @@ drops for the same reason.
 
 ## What happens after Flux applies
 
-The controller's `StateSyncReady` gate resolves the witness set from the spec
-(condition message says "N rpc-servers declared on spec"), builds the init
-plan, creates the data PVC, and the pod schedules. The sidecar queries the
-witnesses for a trust point, writes `[statesync]` config, and seid pulls
+The controller's `StateSyncReady` gate resolves the witness set from the spec.
+The condition message says "N rpc-servers declared on spec", and the controller then builds the init
+plan. It creates the data PVC, and the pod schedules. The sidecar queries the
+witnesses for a trust point and writes `[statesync]` config. seid then pulls
 snapshot chunks over p2p from the label-selector peers, restores, and
 block-syncs the tail. Watch with
 `seictl node watch <id>-rpc-<k> --until=Running -n eng-<alias>`.
@@ -126,16 +128,16 @@ block-syncs the tail. Watch with
 | Plan runs but the sidecar's state-sync configure task fails: "no reachable RPC witness" | Witness endpoints wrong/unreachable, or the chain members are not up | Fix endpoints (read them verbatim from status); confirm members Running |
 | State sync starts, finds no snapshots, seid retries/aborts | No peer has actually produced a snapshot yet (young chain, interval not crossed) | Wait for the first snapshot interval, or genesis-replay instead |
 | Node syncs then halts on app-hash mismatch / wrong height | **Wrong-chain witness** — an endpoint on a different chain passed shape validation and supplied a foreign trust point. Shape is the ONLY admission validation; chain membership is not checked (sidecar-side assertion tracked as PLT-793) | Every `rpcServers` entry must be a member of `spec.chainId`'s chain. Diagnose via the sidecar container logs |
-| seid crash-loops from the very first boot: `LoadStateFromDBOrGenesisDocProvider(): fromProto: validatorSet proposer error: nil validator` | **PLT-794 (deterministic, not recoverable by wipe/reprovision)** — the ceremony-fresh genesis has no `validators` field and state sync skips InitChain, so node construction fails before state sync runs. Verified live 2026-07-08: reproduces identically on a pristine PVC | Drop the `snapshot` block and genesis-replay (the working path on eng chains until PLT-794 lands). Verify with `/genesis`: `has_validators: false` confirms this cause |
+| seid crash-loops from the first boot: `LoadStateFromDBOrGenesisDocProvider(): fromProto: validatorSet proposer error: nil validator` | **PLT-794 (deterministic, not recoverable by wipe/reprovision)** — the ceremony-fresh genesis has no `validators` field, and the state-sync path skips InitChain. Node construction therefore fails before state sync runs. Verified live 2026-07-08: reproduces identically on a pristine PVC | Drop the `snapshot` block and genesis-replay (the working path on eng chains until PLT-794 lands). Verify with `/genesis`: `has_validators: false` confirms this cause |
 
 The controller reports `StateSyncReady=True` on config alone — it does not
 probe witness liveness or chain membership. "Condition True + runtime failure
-in the sidecar logs" is the designed failure surface for bad endpoints; it is
+in the sidecar logs" is the designed failure surface for bad endpoints. It is
 strictly more debuggable than the pre-fix behavior (a Pending pod pointing at
-a PVC that would never exist), but it means the sidecar log, not the CR
-status, is where endpoint mistakes show up.
+a PVC that would never exist). But it means endpoint mistakes show up in the sidecar log, not the CR
+status.
 
-Never enable `spec.fullNode.snapshotGeneration` on the new follower to "help"
-— the snapshot-generation guardrail applies unchanged (eng-workspace followers
-are consumers, never publishers); the chain's existing members are the
+Never enable `spec.fullNode.snapshotGeneration` on the new follower to "help".
+The snapshot-generation guardrail applies unchanged (eng-workspace followers
+are consumers, never publishers). The chain's existing members are the
 snapshot source.
