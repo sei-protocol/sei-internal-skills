@@ -1,8 +1,10 @@
 # TypeScript idiom — worked examples
 
-Loaded **on demand** by the method (step 3) when a worked before/after teaches faster than the rule alone — most useful for the §3 *divergences* and the *judgment-only* dimensions. Each example pairs with a dimension in `language-pack-typescript.md`; cite the same authority and §7 anchor. **Consult a pair for the pattern and cite it — do not paste the block wholesale into a review.**
+The method (step 3) loads this file **on demand** when a worked before/after teaches faster than the rule alone. It helps most for the §3 *divergences* and the *judgment-only* dimensions. Each example pairs with a dimension in `language-pack-typescript.md`; cite the same authority and §7 anchor. **Consult a pair for the pattern and cite it — do not paste the block wholesale into a review.**
 
-These pairs are **original** (authored for this pack, not reproduced from any book — copyright-clean). For lint-anchored items, **"Anchor (observed)"** means the *bad* snippet was run through `eslint`/`tsc` and produced the quoted diagnostic, and the *good* snippet passed clean — so the cited check is real, correctly named, and fires where claimed. Each anchor line records the rule's **preset** and whether it **requires type info**: **a type-checked rule fails a build only when typed linting (`parserOptions.project`) is configured** — confirmed by running the tools (under plain `recommended` with no `project`, the T4 promise rules do **not** fire; `no-explicit-any` does). For judgment-only items there is no rule — cite the prose Basis and say no checkable rule exists; never fabricate one.
+These pairs are **original** (authored for this pack, not reproduced from any book — copyright-clean). For lint-anchored items, **"Anchor (observed)"** means the *bad* snippet ran through `eslint`/`tsc` and produced the quoted diagnostic, and the *good* snippet passed clean. The cited check is therefore real, correctly named, and fires where claimed.
+
+Each anchor line records the rule's **preset** and whether it **requires type info**. **A type-checked rule fails a build only when the repo configures typed linting (`parserOptions.project`).** Running the tools confirmed this: under plain `recommended` with no `project`, the T4 promise rules do **not** fire; `no-explicit-any` does. For judgment-only items there is no rule — cite the prose Basis and say no checkable rule exists; never fabricate one.
 
 How to read severity: a footgun marked **correctness** is a bug, not a style nit — lead with it. A **judgment-only** item has no machine-checkable anchor. Everything else is **style** — bundle it, never lead with it (pack §6).
 
@@ -36,14 +38,14 @@ export default class Client {}
 // good
 export class Client {}
 ```
-Basis: Google TS (Exports — do not use default exports). Anchor: **none — judgment-only** (the `import/no-default-export` rule lives in the separate `eslint-plugin-import`; whether default exports are allowed is a repo-profile call).
+Basis: Google TS (Exports — do not use default exports). Anchor: **none — judgment-only** (the `import/no-default-export` rule lives in the separate `eslint-plugin-import`; whether a repo allows default exports is a repo-profile call).
 
 ---
 
 ## Correctness footguns
 
 ### T4 · Floating / misused promise (correctness) — `no-misused-promises` (the `forEach(async)` shape) / `no-floating-promises` (a bare unhandled promise) — recommended-type-checked, **needs type info**
-An unhandled promise statement drops rejections and ordering.
+A promise statement left unhandled drops rejections and ordering.
 
 ```typescript
 // bad — the promise floats; refreshAll resolves before fetch completes
@@ -57,7 +59,7 @@ export async function refreshAll(urls: string[]): Promise<void> {
   await Promise.all(urls.map(async (u) => { cache.set(u, await fetch(u)); }));
 }
 ```
-Basis: typescript-eslint async docs. Anchor (observed): `eslint` → `Promise returned in function argument where a void return was expected` (`@typescript-eslint/no-misused-promises`) for the `forEach(async)` shape; a *bare* unhandled promise statement is `@typescript-eslint/no-floating-promises` (`Promises must be awaited, end with a call to .catch, … or be explicitly marked as ignored with the void operator`). **Both are recommended-type-checked and require `parserOptions.project`** — under plain `recommended` they do not fire (verified).
+Basis: typescript-eslint async docs. Anchor (observed): `eslint` → `Promise returned in function argument where a void return was expected` (`@typescript-eslint/no-misused-promises`) for the `forEach(async)` shape; a *bare* unhandled promise statement is `@typescript-eslint/no-floating-promises` (`Promises must be awaited, end with a call to .catch, … or be explicitly marked as ignored with the void operator`). **Both are recommended-type-checked and need `parserOptions.project`** — under plain `recommended` they do not fire (verified).
 
 ### T1 · `any` boundary + unsound `as` (correctness) — `no-explicit-any` (recommended)
 `any` stops checking and propagates; an `as` on unvalidated data asserts a shape that was never checked.
@@ -118,7 +120,7 @@ throw 'config missing';
 // good
 throw new Error('config missing');
 ```
-Basis: Google TS (throw Error not strings). Anchor (observed): `eslint` → `Expected an error object to be thrown` (`@typescript-eslint/only-throw-error`, **recommended-type-checked**, requires type info; this is the current name — it was `no-throw-literal`).
+Basis: Google TS (throw Error not strings). Anchor (observed): `eslint` → `Expected an error object to be thrown` (`@typescript-eslint/only-throw-error`, **recommended-type-checked**, requires type info; this is the current name — `no-throw-literal` is the old one).
 
 ---
 
@@ -140,7 +142,7 @@ function name(u: { name?: string } | null): string {
 ```
 Basis: Google TS (Non-null assertions). Anchor (observed): `eslint` → `Forbidden non-null assertion` (`@typescript-eslint/no-non-null-assertion`, **strict** preset, no type info).
 
-### T2 · `||` where `??` is meant — `prefer-nullish-coalescing` (stylistic-type-checked)
+### T2 · `||` where the intent is `??` — `prefer-nullish-coalescing` (stylistic-type-checked)
 `||` also replaces `0`/`''`/`false`; `??` replaces only `null`/`undefined`.
 
 ```typescript

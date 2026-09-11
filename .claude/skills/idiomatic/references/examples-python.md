@@ -1,10 +1,10 @@
 # Python idiom — worked examples
 
-Loaded **on demand** by the method (step 3) when a worked before/after teaches faster than the rule alone — most useful for the §3 *divergences* and the *judgment-only* dimensions. Each example pairs with a dimension in `language-pack-python.md`; cite the same authority and §7 anchor. **Consult a pair for the pattern and cite it — do not paste the block wholesale into a review.**
+The method (step 3) loads this file **on demand** when a worked before/after teaches faster than the rule alone. It helps most for the §3 *divergences* and the *judgment-only* dimensions. Each example pairs with a dimension in `language-pack-python.md`; cite the same authority and §7 anchor. **Consult a pair for the pattern and cite it — do not paste the block wholesale into a review.**
 
-These pairs are **original** (authored for this pack, not reproduced from any book/doc — copyright-clean). For lint-anchored items, **"Anchor (observed)"** quotes the diagnostic the *bad* snippet produced when run through `ruff` 0.15.17 / `mypy` 2.1.0 / `black` 26.5.1 — so the cited check is real, correctly named, and fires where claimed; the *good* snippet passes clean. For judgment-only items there is no rule — cite the prose Basis and say no checkable rule exists; never fabricate one.
+These pairs are **original** (authored for this pack, not reproduced from any book/doc — copyright-clean). For lint-anchored items, **"Anchor (observed)"** quotes the diagnostic the *bad* snippet produced under `ruff` 0.15.17 / `mypy` 2.1.0 / `black` 26.5.1. The cited check is therefore real, correctly named, and fires where claimed. The *good* snippet passes clean. For judgment-only items there is no rule — cite the prose Basis and say no checkable rule exists; never fabricate one.
 
-How to read severity (pack §6): a footgun marked **correctness** is a bug, lead with it; a **judgment-only** item has no machine-checkable anchor; everything else is **style** — bundle it, never lead. Most `ruff` rule-sets here are **opt-in** (not defaults) — confirm the repo selected them (pack §6 profile note) before citing as build-failing.
+How to read severity (pack §6): a footgun marked **correctness** is a bug, lead with it. A **judgment-only** item has no machine-checkable anchor. Everything else is **style** — bundle it, never lead. Most `ruff` rule-sets here are **opt-in** (not defaults) — confirm the repo selected them (pack §6 profile note) before citing as build-failing.
 
 ---
 
@@ -117,7 +117,7 @@ Basis: PEP 20 ("Explicit is better than implicit"). Anchor: **none — judgment-
 ## Lint-anchored footguns (correctness — lead with these)
 
 ### §1 P7 · Mutable default argument
-The default is created **once** at definition and shared across calls — mutating it leaks state between calls.
+Python creates the default **once** at definition and shares it across calls — mutating it leaks state between calls.
 
 ```python
 # bad
@@ -153,7 +153,7 @@ with contextlib.suppress(FileNotFoundError):  # absence is fine here
 Basis: PEP 8 (bare except); PEP 20 ("errors should never pass silently"). Anchor (observed): `ruff` → `E722 Do not use bare \`except\``.
 
 ### §1 P2 · Legacy typing forms
-On modern Python use builtin generics + `|` unions; `typing.List`/`Optional` are deprecated, non-idiomatic, and miss tooling improvements.
+On modern Python, use the builtin generics + `|` unions; `typing.List`/`Optional` carry a deprecation, read as non-idiomatic, and miss tooling improvements.
 
 ```python
 # bad
@@ -164,7 +164,10 @@ def first(xs: List[int]) -> Optional[int]: ...
 # good
 def first(xs: list[int]) -> int | None: ...
 ```
+<!-- The quoted ruff diagnostics below are verbatim; the passive is theirs. -->
+<!-- vale AgenticWriting.STE-Passive = NO -->
 Basis: PEP 585 (builtin generics), PEP 604 (`X | Y`). Anchor (observed): `ruff --select UP` → `UP045 Use \`X | None\` for type annotations`, `UP006 Use \`list\` instead of \`List\` for type annotation`, `UP035 \`typing.List\` is deprecated, use \`list\` instead`.
+<!-- vale AgenticWriting.STE-Passive = YES -->
 
 ### §1 P9 / P1 · Singleton & type comparison
 Compare singletons by identity; test type with `isinstance`.
@@ -196,7 +199,10 @@ cfg = os.path.join(base, "conf", "app.toml")
 from pathlib import Path
 cfg = Path(base) / "conf" / "app.toml"
 ```
+<!-- The quoted ruff diagnostic below is verbatim; the passive is theirs. -->
+<!-- vale AgenticWriting.STE-Passive = NO -->
 Basis: `pathlib` docs; flake8-use-pathlib. Anchor (observed): `ruff --select PTH` → `PTH118 \`os.path.join()\` should be replaced by \`Path\` with \`/\` operator`. (`PTH` is opt-in.)
+<!-- vale AgenticWriting.STE-Passive = YES -->
 
 ### §1 P8 · Wildcard import
 `import *` pollutes the namespace and defeats unused-import + undefined-name analysis.
@@ -211,7 +217,10 @@ print(getcwd())
 from os import getcwd
 print(getcwd())
 ```
+<!-- The PEP 8 quote and the ruff diagnostics below are verbatim; the passive is theirs. -->
+<!-- vale AgenticWriting.STE-Passive = NO -->
 Basis: PEP 8 (Imports — "wildcard imports should be avoided"). Anchor (observed): `F403 \`from os import *\` used; unable to detect undefined names`; `F405 \`getcwd\` may be undefined, or defined from star imports`.
+<!-- vale AgenticWriting.STE-Passive = YES -->
 
 ### §5 asyncio · Blocking the event loop / dangling task (correctness)
 Sync calls in an `async def` stall every coroutine; an unreferenced task can be GC'd mid-flight.
@@ -262,7 +271,9 @@ CommonsDep = Annotated[dict, Depends(common_params)]  # reusable; type preserved
 async def read_items(commons: CommonsDep) -> dict:
     return commons
 ```
-Basis: FastAPI tutorial/dependencies — "Prefer to use the `Annotated` version if possible." Anchor (observed): `ruff --select FAST002,B008` on the bad → `FAST002 FastAPI dependency without \`Annotated\`` **and** `B008 Do not perform function call \`Depends\` in argument defaults`; the good passes `--select FAST,B008` clean ("All checks passed!"). Note FA2: in a real FastAPI repo, exempt the `B008` false positive via `lint.flake8-bugbear.extend-immutable-calls = ["fastapi.Depends","fastapi.params.Depends", …]` — the `Annotated` form above needs no exemption.
+Basis: FastAPI tutorial/dependencies — "Prefer to use the `Annotated` version if possible." Anchor (observed): `ruff --select FAST002,B008` on the bad → `FAST002 FastAPI dependency without \`Annotated\``. It **also** reports `B008 Do not perform function call \`Depends\` in argument defaults`. The good passes `--select FAST,B008` clean ("All checks passed!").
+
+Note FA2: in a real FastAPI repo, exempt the `B008` false positive via `lint.flake8-bugbear.extend-immutable-calls = ["fastapi.Depends","fastapi.params.Depends", …]`. The `Annotated` form above needs no exemption.
 
 ### §5 FA3 · `response_model` only when output differs from the return type
 A `response_model=` that duplicates the return annotation is redundant; reserve it for the filtering/security case (return a richer object, declare a narrower output model).
@@ -354,7 +365,15 @@ def get_item() -> int:
     """Return the current item."""
     return 1
 ```
-Basis: PEP 8 (Naming), PEP 257 (Docstrings). Anchor (observed): `ruff --select N,ANN,D` → `N802 Function name \`getItem\` should be lowercase`; `ANN201 Missing return type annotation for public function`; `D103 Missing docstring in public function`. (`N`/`ANN`/`D` are opt-in; `D` needs a chosen convention.)
+<!-- The quoted ruff diagnostics below are verbatim; the noun cluster is theirs. -->
+<!-- vale AgenticWriting.STE-NounCluster = NO -->
+Basis: PEP 8 (Naming), PEP 257 (Docstrings). Anchor (observed): `ruff --select N,ANN,D` →
+- `N802 Function name \`getItem\` should be lowercase`
+- `ANN201 Missing return type annotation for public function`
+- `D103 Missing docstring in public function`
+
+(`N`/`ANN`/`D` are opt-in; `D` needs a chosen convention.)
+<!-- vale AgenticWriting.STE-NounCluster = YES -->
 
 ### §1 P9 · f-string in a logging call
 An f-string formats **eagerly**, even when the log level is disabled — wasted work and it defeats log aggregation by message template.

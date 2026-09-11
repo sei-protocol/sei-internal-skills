@@ -1,10 +1,12 @@
 # Solidity idiom — worked examples
 
-Loaded **on demand** by the method (step 3) when a worked before/after teaches faster than the rule alone — most useful for the §3 *divergences* and the *judgment-only* dimensions. Each example pairs with a dimension in `language-pack-solidity.md`; cite the same authority and §7 anchor. **Consult a pair for the pattern and cite it — do not paste the block wholesale into a review.**
+The method (step 3) loads this file **on demand** when a worked before/after teaches faster than the rule alone. It helps most for the §3 *divergences* and the *judgment-only* dimensions. Each example pairs with a dimension in `language-pack-solidity.md`; cite the same authority and §7 anchor. **Consult a pair for the pattern and cite it — do not paste the block wholesale into a review.**
 
-These pairs are **original** (authored for this pack, not reproduced from any source — copyright-clean). For lint-anchored items, **"Anchor (observed)"** means the *bad* snippet was run through `slither`/`solhint`/`solc` and produced the quoted diagnostic, and the *good* snippet **resolves that anchor** (compiles and no longer trips the cited detector/rule). (A fully zero-warning Solidity contract additionally needs config choices that are partly idiom-divergent — see the §7 caveat on `func-visibility` constructors and the immutable-naming tool conflict — so the good fragments target their cited anchor, not every orthogonal lint.) For Slither, the line records the detector's **Impact+Confidence** (weight by it — an `Informational`/`Optimization` detector is a signal, not a blocker). For judgment-only items there is no detector — cite the prose Basis + SWC-ID and say so; never fabricate one.
+These pairs are **original** (authored for this pack, not reproduced from any source — copyright-clean). For lint-anchored items, **"Anchor (observed)"** means the *bad* snippet ran through `slither`/`solhint`/`solc` and produced the quoted diagnostic. The *good* snippet **resolves that anchor** (compiles and no longer trips the cited detector/rule). (A fully zero-warning Solidity contract additionally needs config choices that are partly idiom-divergent. See the §7 caveat on `func-visibility` constructors and the immutable-naming tool conflict. The good fragments therefore target their cited anchor, not every orthogonal lint.)
 
-How to read severity: a footgun marked **[SEC→defer]** is an exploitable class — flag the **idiomatic form** and cite the detector, then hand the exploit-depth verdict to `security-specialist` (pack §5/SEC1); do not present this lens as a security audit. A **judgment-only** item has no machine-checkable anchor. Everything else is **idiom/gas** or **style** — bundle style, never lead with it.
+For Slither, the line records the detector's **Impact+Confidence** (weight by it — an `Informational`/`Optimization` detector is a signal, not a blocker). For judgment-only items there is no detector — cite the prose Basis + SWC-ID and say so; never fabricate one.
+
+How to read severity: a footgun marked **[SEC→defer]** is an exploitable class — flag the **idiomatic form** and cite the detector. Then hand the exploit-depth verdict to `security-specialist` (pack §5/SEC1); do not present this lens as a security audit. A **judgment-only** item has no machine-checkable anchor. Everything else is **idiom/gas** or **style** — bundle style, never lead with it.
 
 ---
 
@@ -126,7 +128,7 @@ function setOwner(address newOwner) external onlyOwner {
     owner = newOwner;
 }
 ```
-Basis: SWC (input validation). Anchor (observed): `slither` → `missing-zero-check` (**Low+Medium**; the detect-name; the wiki anchor reads "missing-zero-address-validation"). (Whether `setOwner` is gated at all is **[SEC→defer]** access-control — here shown already `onlyOwner`.)
+Basis: SWC (input validation). Anchor (observed): `slither` → `missing-zero-check` (**Low+Medium**; the detect-name; the wiki anchor reads "missing-zero-address-validation"). (Whether `setOwner` has a gate at all is **[SEC→defer]** access-control — here shown already `onlyOwner`.)
 
 ---
 
@@ -147,7 +149,7 @@ if (balances[msg.sender] < amount) revert InsufficientBalance(balances[msg.sende
 Basis: OpenZeppelin v5 custom-error idiom; Solidity 0.8.4. Anchor (observed): `solhint` → `GC: Use Custom Errors instead of require statements` (`gas-custom-errors`, recommended/warn).
 
 ### S7 · Const-able / immutable-able storage — `constable-states` / `immutable-states`
-A never-written var should be `constant`; a ctor-only var should be `immutable` — clearer and cheaper than a storage read.
+Mark a never-written var `constant` and a ctor-only var `immutable` — clearer and cheaper than a storage read.
 
 ```solidity
 // bad
