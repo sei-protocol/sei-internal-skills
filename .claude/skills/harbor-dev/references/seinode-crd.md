@@ -75,7 +75,7 @@ The fields engineers actually read:
 - `.status.conditions[type=Ready]` — boolean readiness condition with `.message` for cause (a condition, distinct from the phase — the phase has no `Ready`)
 - `.status.plan[*].state` and `.status.plan[*].lastError` — per-task execution state; on terminal `Failed`, `.status.plan.failedTaskDetail.error` carries the cause
 - `.status.observedGeneration` — drift detection (controller has not seen latest spec yet)
-- `.status.currentNodeIsolation` — the isolation the running pod was rolled with (`Shared` / `Dedicated`), stamped by the controller from the pod's `sei.io/dedicated-node` label. Empty means not yet observed, which never triggers a roll. Once set, a difference from the effective `spec.scheduling.nodeIsolation` builds a node-update plan that replaces the pod. A standalone SeiNode carries no `placement`/`workerNode` in status — read the pod: `kubectl get pod -l sei.io/node=<name> -o custom-columns='POD:.metadata.name,NODE:.spec.nodeName,PHASE:.status.phase'`.
+- `.status.currentNodeIsolation` — the isolation the running pod was rolled with (`Shared` / `Dedicated`), stamped by the controller from the pod's `sei.io/dedicated-node` label (the controller reuses one key for two jobs: as a legacy *annotation on the SeiNode* it is a request, as a *label on the pod* it records what was rolled). Empty means not yet observed, which never triggers a roll. Once set, a difference from the effective `spec.scheduling.nodeIsolation` builds a node-update plan that replaces the pod. A standalone SeiNode carries no `placement`/`workerNode` in status — read the pod: `kubectl get pod -l sei.io/node=<name> -o custom-columns='POD:.metadata.name,NODE:.spec.nodeName,PHASE:.status.phase'`.
 
 ## Everything else
 

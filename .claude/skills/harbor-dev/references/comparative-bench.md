@@ -139,7 +139,9 @@ CPU=4; MEM=32Gi; DISK=500Gi
 PERF=""
 # Node isolation: Dedicated on both sides unless the engineer opts out. A side
 # whose validators share a worker node with the other side's pods measures the
-# neighbour, not the image. Same value on all four render calls.
+# neighbour, not the image. Same value on all four render calls. Opting out
+# means ISO=Shared -- never ISO="": unlike $PERF above, $ISO is quoted, and
+# --node-isolation "" fails at render.
 ISO=Dedicated
 
 # Side A genesis network
