@@ -115,7 +115,7 @@ Flags:
 - `--track-receipts`, `--report-path` (text only; the sidecar uploads it), `--nodes N` (0 = all endpoints).
 - `--arrival-model`, `--max-in-flight`, `--inclusion-reap-after`.
 
-`--dry-run` mocks deploy and sends for a config smoke test. `/healthz` answers at bind. `/readyz` refuses through the startup phase (fund → deploy → prewarm) and reports which step is running. That phase can take minutes on a cold chain, so a `Running` pod that is not yet `Ready` is normal.
+`--dry-run` mocks deploy and sends for a config smoke test. The `healthz` endpoint answers at bind. The `readyz` endpoint refuses through the startup phase (fund → deploy → prewarm) and reports which step is running. That phase can take minutes on a cold chain, so a `Running` pod that is not yet `Ready` is normal.
 
 ## `<RUN_ID>` derivation and re-render determinism
 
