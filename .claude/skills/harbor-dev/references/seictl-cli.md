@@ -16,8 +16,10 @@ Canonical command reference for the engineer-facing surface. **`seictl network -
 | `seictl node` | cluster | Manage `SeiNode` CRs via the `rpc` preset |
 | `seictl workflow` | cluster | Re-bootstrap or migrate an **existing** SeiNode via a `SeiNodeTaskWorkflow` |
 | `seictl task` | cluster | Drive **one** node's sidecar task API directly (`/v0/tasks` through its in-pod kube-rbac-proxy) |
+| `seictl chaos` | render | `list` the harness fault catalog; `render` one fault as a Chaos Mesh manifest on stdout. No cluster access |
+| `seictl bench` | render | `render` the harness's seiload Job manifest on stdout. No cluster access |
 
-The skill invokes the `network` and `node` subtrees above. The `workflow` and `task` subtrees are **imperative**: they operate on an existing node rather than declaring a new one. They therefore sit outside the GitOps-PR bring-up flow (see `seictl workflow state-sync` and `seictl task` below). The two differ in who executes: `workflow` creates a CR the controller executes; `task` posts straight to one pod's sidecar, controller uninvolved. The `local` commands are out of scope for engineer-facing intents.
+The skill invokes the `network` and `node` subtrees above, and the `chaos`/`bench` render verbs when an experiment carries a fault or a bench (see `seictl chaos` / `seictl bench` below). The `workflow` and `task` subtrees are **imperative**: they operate on an existing node rather than declaring a new one. They therefore sit outside the GitOps-PR bring-up flow (see `seictl workflow state-sync` and `seictl task` below). The two differ in who executes: `workflow` creates a CR the controller executes; `task` posts straight to one pod's sidecar, controller uninvolved. The `local` commands are out of scope for engineer-facing intents.
 
 The pre-#133 cluster verbs (`context`, `onboard`, `bench up/down/list`) no longer exist; the preset-driven `network`/`node` trees below replace them. The single `nodedeployment` (alias `nd`) tree that preceded these is also gone: `SeiNodeDeployment` was a fleet Kind that split into `SeiNetwork` (the genesis validator pool) + standalone `SeiNode` CRs (each follower). If a reference to any of those older names surfaces in older docs, it is stale.
 
@@ -314,6 +316,21 @@ Submits one `snapshot-upload-once` with a fresh unique task ID and polls it to a
 `list` and `get` are the read side and are safe. They are a useful diagnosis path when a workflow step parks: read the node's own task history rather than inferring from `.status.plan.tasks` alone.
 
 **`submit` is a genuine escape hatch — treat it like the direct-apply escape hatch, not like a read.** It POSTs any task type the sidecar's wire protocol accepts, and that set includes destructive ones (`reset-data` among them). Submitted this way a task runs **without** the workflow recipe around it. That means no `mark-not-ready` hold, no `stop-seid` first, no ordering guarantee, and no adoption pointer telling the controller a node is busy. Prefer `seictl workflow state-sync` for anything the recipe already covers. Get explicit engineer sign-off (naming node, namespace, and task type) before submitting a mutating task by hand.
+
+## `seictl chaos` and `seictl bench` — render verbs
+
+Both print YAML to stdout, touch no cluster, and take no `--kubeconfig`/`-n`-as-context: `-n` here is the namespace *written into* the manifest. They import the controller's `harness/faults` and `harness/bench` packages, so the bytes are the ones the nightly suite applies. Arrive with seictl #256 (controller #558); no tag carried them at the time of writing. Probe `seictl chaos --help` before first use; an older binary fails at parse.
+
+```
+seictl chaos list [--output json]
+seictl chaos render <fault> --chain-id <CHAIN> --run-id <RUN> -n <NS> [--duration <Go duration>]
+seictl bench render --run-id <RUN> --chain-id <CHAIN> --image <ref> --profile-configmap <name> --duration <minutes>
+                    [-n <NS>] [--commit <sha>] [--workload <label>] [--deadline-seconds <n>]
+```
+
+- `chaos list` columns: name, kind, `duration`|`one-shot`, `one-validator`|`mesh-wide`, summary. `--output json` emits `[{Name, Kind, OneShot, MeshWide, Summary}]` — the catalog an agent should read rather than hard-coding the ten names. `network-latency` is the only `mesh-wide` entry (`references/chaos-faults.md`).
+- `chaos render` names the resource `<fault>-<RUN>` (`byzantine` renders `byzantine-corrupt-<RUN>`), labels it `sei.io/harness-run: <RUN>`, selects `sei.io/nodedeployment In [<CHAIN>]` and, for single-victim faults, `sei.io/node In [<CHAIN>-0]`. It refuses `--duration` on `pod-failure`/`container-kill` and requires it on the other eight; empty `--chain-id`/`--run-id`/`-n` are refused. Refusals are `metav1.Status` `BadRequest`.
+- `bench render` emits the **harness** Job: image `--image`, `--config /etc/seiload/profile.json` from ConfigMap `--profile-configmap` (key `profile.json`), `--duration=<n>m`, `--post-summary-flush-delay=45s`, `--track-receipts=true`, metrics on `9090`, env `SEILOAD_RUN_ID`/`SEILOAD_CHAIN_ID`/`SEILOAD_COMMIT_ID`/`SEILOAD_WORKLOAD`; `activeDeadlineSeconds` defaults to `(duration + 15) * 60`, `--deadline-seconds` overrides and a negative value is refused. It does **not** render the ConfigMap, and it is not the two-container upload Job in `references/sei-load-bench.md` — that template adds the `aws-cli` sidecar that pushes `report.log` to S3. Use `bench render` when the run is Prometheus-only (the harness shape) or as the base to add the upload sidecar to; keep the profile ConfigMap from the bench reference either way. Pass `--image` by digest: the harness pin is `tag@sha256:…`.
 
 ## Conventions across the surface
 
