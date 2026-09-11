@@ -226,7 +226,7 @@ spec:
       templateType: Serial
       deadline: 40m
       children: [rpc-up, warmup, partition, settle, kill]
-    - name: rpc-up                # readiness gate: the observer answers JSON-RPC, so genesis is over and validators exist to fault
+    - name: rpc-up                # readiness gate: the observer answers JSON-RPC, so genesis completed; it does NOT prove every validator pod is scheduled
       templateType: StatusCheck
       deadline: 20m
       statusCheck:
@@ -282,7 +282,7 @@ spec:
             - {key: sei.io/nodedeployment, operator: In, values: ["<CHAIN>"]}
 ```
 
-`StatusCheck` criteria match the HTTP status only, so `200` means the RPC answers, not that height advances; on an empty-blocks-off chain the height stays `0x0` until load and this gate still passes, which is the intended "validators exist" check. A Workflow template's `deadline` is the fault duration for a duration-bearing kind. Every nested selector still needs `namespaces: ["<NS>"]` — the admission policy walks the templates. Read Workflow progress with `kubectl get workflow exp-<RUN> -n <NS> -o jsonpath='{.status.conditions}'` and the child `WorkflowNode` objects (`kubectl get workflownode -n <NS> -l chaos-mesh.org/workflow=exp-<RUN>`).
+`StatusCheck` criteria match the HTTP status only, so `200` means the RPC answers, not that height advances; on an empty-blocks-off chain the height stays `0x0` until load and this gate still passes, which is the intended "genesis completed" check. It proves the observer, not the validators: a Dedicated pool with one pod stuck `Pending` on capacity still serves RPC from the others, and a fault would then hit a 3-of-4 quorum (see the f=1 rule). In the one-PR path, run the recipe #9 placement check (`.status.nodes[*].placement` all `Scheduled`) between the merge and the first fault — the `StatusCheck` does not do it for you — and if Dedicated capacity is uncertain before you open the PR, take the two-PR path so the Chaos CRs merge only after placement is confirmed. A Workflow template's `deadline` is the fault duration for a duration-bearing kind. Every nested selector still needs `namespaces: ["<NS>"]` — the admission policy walks the templates. Read Workflow progress with `kubectl get workflow exp-<RUN> -n <NS> -o jsonpath='{.status.conditions}'` and the child `WorkflowNode` objects (`kubectl get workflownode -n <NS> -l chaos-mesh.org/workflow=exp-<RUN>`).
 
 The `warmup` `Suspend` is bench ramp only, never the readiness gate: the `StatusCheck` ahead of it absorbs a cold image pull or a Dedicated pool waiting on capacity, so size `warmup` from the load profile's ramp, not from time-to-`Ready`. The two-PR path remains the choice when the engineer wants to inspect the chain by hand before the first fault.
 

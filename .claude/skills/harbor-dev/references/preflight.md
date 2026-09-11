@@ -266,7 +266,7 @@ kubectl explain seinetwork.spec.configValues --context=harbor
 kubectl explain seinetwork.spec.scheduling.nodeIsolation --context=harbor
 ```
 
-Both fields landed on controller main after `c3fabbf` (#530/#538 and #547). On a non-zero exit, halt every render that uses the field; the alternative is a chain with no values or a Shared pool that was promised Dedicated, and both look healthy. Ask the platform team to advance the pin. Never drop the field and continue.
+Both fields landed on controller main after `c3fabbf` (#530/#538 and #547) and are present at the `7da9946` pin the CRD references cite. On a non-zero exit, halt every render that uses the field; the alternative is a chain with no values or a Shared pool that was promised Dedicated, and both look healthy. Ask the platform team to advance the pin. Never drop the field and continue.
 
 **Storage-performance sub-gate.** A render that also passes `--iops`/`--throughput` needs two more things on the cluster, and each one gets its own probe:
 
