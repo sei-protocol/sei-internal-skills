@@ -45,11 +45,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 **Check for extension hooks (before checklist generation)**:
 - Check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_checklist` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- If the YAML does not parse or is invalid, skip hook checking silently and continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
+
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
+
 - When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
@@ -74,7 +76,7 @@ You **MUST** consider the user input before proceeding (if not empty).
     Wait for the result of the hook command before proceeding to the Execution Steps.
     ```
     After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+- If nothing registers a hook, or `.specify/extensions.yml` does not exist, skip silently
 
 ## Execution Steps
 
@@ -85,21 +87,22 @@ You **MUST** consider the user input before proceeding (if not empty).
 2. **IF EXISTS**: Load `.specify/memory/constitution.md` for project principles and governance constraints.
 
 3. **Clarify intent (dynamic)**: Derive up to THREE initial contextual clarifying questions (no pre-baked catalog). They MUST:
-   - Be generated from the user's phrasing + extracted signals from spec/plan/tasks
+   - Come from the user's phrasing + extracted signals from spec/plan/tasks
    - Only ask about information that materially changes checklist content
-   - Be skipped individually if already unambiguous in `$ARGUMENTS`
+   - Go unasked individually if already unambiguous in `$ARGUMENTS`
    - Prefer precision over breadth
 
    Generation algorithm:
-   1. Extract signals: feature domain keywords (e.g., auth, latency, UX, API), risk indicators ("critical", "must", "compliance"), stakeholder hints ("QA", "review", "security team"), and explicit deliverables ("a11y", "rollback", "contracts").
+   1. Extract signals: feature domain keywords (e.g., auth, latency, UX, API), risk indicators ("critical", "must", "compliance"), and stakeholder hints ("QA", "review", "security team"). Also extract explicit deliverables ("a11y", "rollback", "contracts").
    2. Cluster signals into candidate focus areas (max 4) ranked by relevance.
    3. Identify probable audience & timing (author, reviewer, QA, release) if not explicit.
    4. Detect missing dimensions: scope breadth, depth/rigor, risk emphasis, exclusion boundaries, measurable acceptance criteria.
    5. Formulate questions chosen from these archetypes:
+
       - Scope refinement (e.g., "Should this include integration touchpoints with X and Y or stay limited to local module correctness?")
       - Risk prioritization (e.g., "Which of these potential risk areas should receive mandatory gating checks?")
       - Depth calibration (e.g., "Is this a lightweight pre-commit sanity list or a formal release gate?")
-      - Audience framing (e.g., "Will this be used by the author only or peers during PR review?")
+      - Audience framing (e.g., "Will the author use this alone, or will peers use it during PR review?")
       - Boundary exclusion (e.g., "Should we explicitly exclude performance tuning items this round?")
       - Scenario class gap (e.g., "No recovery flows detected—are rollback / partial failure paths in scope?")
 
@@ -114,7 +117,7 @@ You **MUST** consider the user input before proceeding (if not empty).
    - Audience: Reviewer (PR) if code-related; Author otherwise
    - Focus: Top 2 relevance clusters
 
-   Output the questions (label Q1/Q2/Q3). After answers: if ≥2 scenario classes (Alternate / Exception / Recovery / Non-Functional domain) remain unclear, you MAY ask up to TWO more targeted follow‑ups (Q4/Q5) with a one-line justification each (e.g., "Unresolved recovery path risk"). Do not exceed five total questions. Skip escalation if user explicitly declines more.
+   Output the questions (label Q1/Q2/Q3). After answers, check the four scenario classes: Alternate, Exception, Recovery, and Non-Functional domain. If ≥2 of them remain unclear, you MAY ask up to TWO more targeted follow‑ups (Q4/Q5). Give a one-line justification each (e.g., "Unresolved risk in the recovery path"). Do not exceed five total questions. Skip escalation if user explicitly declines more.
 
 4. **Understand user request**: Combine `$ARGUMENTS` + clarifying answers:
    - Derive checklist theme (e.g., security, review, deploy, ux)
@@ -140,7 +143,7 @@ You **MUST** consider the user input before proceeding (if not empty).
      - Format: `[domain].md`
    - File handling behavior:
      - If file does NOT exist: Create new file and number items starting from CHK001
-     - If file exists: Append new items to existing file, continuing from the last CHK ID (e.g., if last item is CHK015, start new items at CHK016)
+     - If file exists: Append new items to existing file, continuing from the last CHK ID. Example: if the last item is CHK015, start new items at CHK016
    - Never delete or replace existing checklist content - always preserve and append
 
    **CORE PRINCIPLE - Test the Requirements, Not the Implementation**:
@@ -195,7 +198,7 @@ You **MUST** consider the user input before proceeding (if not empty).
 
    Clarity:
    - "Is 'fast loading' quantified with specific timing thresholds? [Clarity, Spec §NFR-2]"
-   - "Are 'related episodes' selection criteria explicitly defined? [Clarity, Spec §FR-5]"
+   - "Does the spec explicitly define the selection criteria for 'related episodes'? [Clarity, Spec §FR-5]"
    - "Is 'prominent' defined with measurable visual properties? [Ambiguity, Spec §FR-4]"
 
    Consistency:
@@ -305,7 +308,7 @@ Sample items:
 Sample items:
 
 - "Are authentication requirements specified for all protected resources? [Coverage]"
-- "Are data protection requirements defined for sensitive information? [Completeness]"
+- "Are requirements for data protection defined for sensitive information? [Completeness]"
 - "Is the threat model documented and requirements aligned to it? [Traceability]"
 - "Are security requirements consistent with compliance obligations? [Consistency]"
 - "Are security failure/breach response requirements defined? [Gap, Exception Flow]"
@@ -335,22 +338,24 @@ Sample items:
 **Key Differences:**
 
 - Wrong: Tests if the system works correctly
-- Correct: Tests if the requirements are written correctly
+- Correct: Tests whether the author wrote the requirements correctly
 - Wrong: Verification of behavior
 - Correct: Validation of requirement quality
 - Wrong: "Does it do X?"
-- Correct: "Is X clearly specified?"
+- Correct: "Is X specified with measurable criteria?"
 
 ## Post-Execution Checks
 
 **Check for extension hooks (after checklist generation)**:
 Check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.after_checklist` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- If the YAML does not parse or is invalid, skip hook checking silently and continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
+
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
+
 - When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
@@ -373,4 +378,4 @@ Check if `.specify/extensions.yml` exists in the project root.
     EXECUTE_COMMAND: {command}
     ```
     After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+- If nothing registers a hook, or `.specify/extensions.yml` does not exist, skip silently
