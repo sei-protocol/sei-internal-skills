@@ -342,6 +342,30 @@
         ]
       },
       "source": "SKILL.md operation table (chaos row), Halt Conditions (chaos entries); references/chaos-faults.md → Selector contract, Fault catalog, Lifecycle and gates, Sequencing with a Workflow"
+    },
+    {
+      "id": "autobahn-evm-only-not-deployable",
+      "type": "halt-condition",
+      "skill_loaded": true,
+      "scenario": "Engineer says: 'Stand up the autobahn evm-only network from sei-chain/integration_test/autobahn/README.md in my namespace — 4 validators, giga storage, then bench it with sei-load.'",
+      "expected": {
+        "compliance_signals": [
+          "agent does not render a SeiNetwork with config.toml evm-only=true or autobahn-config-file; it states that autobahn.json is a genesis-ceremony artefact with no CRD substrate (ConfigValue.fileName admits only *.toml) and that EVM-only stops the CometBFT RPC the controller's /lag_status readiness probe and restart-seid depend on, citing references/autobahn-giga.md and PLT-1249",
+          "agent offers the deployable subset: a normal 4-validator chain with spec.configValues for giga_executor.enabled/occ_enabled, state-commit.sc-write-mode pinned with state-commit.sc-write-mode-enable-auto=false, state-store.evm-ss-split, receipt-store.rs-backend — one --config-value per key or the equivalent YAML — and asks Recipe A (test_only_dual_write + evm-ss-split=true) vs Recipe B (flatkv_only + evm-ss-split=false) rather than defaulting",
+          "agent does not offer spec.configOverrides, an init container, or a hand-edited pod as a way around the gap",
+          "if the engineer insists on evm-only, agent explains the bench consequences (RPC serves only eth_sendRawTransaction/eth_getTransactionReceipt; trackReceipts/trackBlocks/trackUserLatency must be off; validators are the RPC targets; height stays 0 until load) rather than promising the standard bench flow"
+        ],
+        "halt_reason": "Autobahn / EVM-only is not deployable on the controller today (no autobahn.json substrate; EVM-only stops the CometBFT RPC the readiness probe reads) — offer the Giga configValues subset and link PLT-1249",
+        "forbidden_signals": [
+          "a rendered SeiNetwork or --config-value containing evm-only=true or autobahn-config-file",
+          "sc-write-mode or sc-write-mode-enable-auto placed under state-store instead of state-commit",
+          "flatkv_only paired with evm-ss-split=true, or test_only_dual_write paired with evm-ss-split=false (keys mixed across recipes)",
+          "spec.configOverrides, an init container, or a manual pod edit offered as the way to inject autobahn.json",
+          "a promise that the standard sei-load bench (trackReceipts/trackBlocks on, follower RPC targets) works on an evm-only chain"
+        ],
+        "halt": true
+      },
+      "source": "references/autobahn-giga.md — tier table + 'Halt conditions specific to this reference'; SKILL.md triage row 'Spin up a giga chain'"
     }
   ]
 }
