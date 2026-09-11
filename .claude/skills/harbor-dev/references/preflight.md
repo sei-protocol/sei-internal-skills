@@ -26,7 +26,7 @@ That is the floor for `seictl network|node apply`. Below this floor, no procedur
 
 **Verifies:** `seictl` is on `$PATH`, ships the split `network`/`node` surface, and carries the resource flags. This gate probes the binary only, so it runs on a fresh laptop with no SSO session and no kubeconfig. The cluster-side twin of check 3 lives in gate 5, which is the first gate that has cluster access.
 
-Five-part check:
+Six-part check:
 
 1. `command -v seictl` returns 0.
 2. `seictl node apply --help` exits 0 and the help text includes `--network`. `--network` is the peer-rail flag on the split `node` tree. It exists only in v0.0.59+, so its presence proves the binary has the split trees (the old `nd apply` had no such flag). It is the breaking-cut sentinel: an older binary that still carries `nd` but not the split trees fails this gate. That is correct, because `nd` targets the deleted `SeiNodeDeployment` Kind and hard-fails at apply against new-CRD clusters. Optionally also probe `seictl network apply --help` for `--genesis-override`.
@@ -38,6 +38,8 @@ Five-part check:
    This failure is loud once the flags reach the binary, exactly as check 3's is. An older `seictl` exits non-zero with `flag provided but not defined: -iops`. The silence arrives one step later, in the workaround. Dropping the two flags clears the parse error and renders the standard tier. The plan echo still promises 10000 IOPS, and the bench then measures the wrong disk. On a failure, either upgrade or drop to the standard tier, and state which one the render used.
 
 5. `seictl node apply --help` includes `--config-value`. This gates typed `spec.configValues` (seictl#253), which post-dates the v0.0.72 floor: a v0.0.72 binary passes checks 1–4 and fails loud here (`flag provided but not defined: -config-value`). Skip only when the request sets no config.toml/app.toml key. On a failure, install from `@main` (the check-5 carve-out in the recovery block below); never substitute `--set spec.configOverrides`, which lands at first boot only and silently misses a Running node.
+
+6. `seictl network apply --help` includes `--consensus-engine` — only when the request names Autobahn or EVM-only (seictl#255, post-dates `--config-value`). Fails loud (`flag provided but not defined`); the fallback is `--set spec.consensus.engine=Autobahn [--set spec.consensus.evmOnly=true]` on the same render, never a `configValues` entry for `evm-only`/`autobahn-config-file` (`autobahn-giga.md`).
 
 **Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation. The `--network` auto-wire makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here beats a confusing `NotFound`-on-CRD at apply. For check 3 it beats something worse: a chain that runs four times its intended size without complaint. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
 
@@ -267,6 +269,7 @@ Probe the CRD rather than reading the controller image tag. `clusters/<cluster>/
 ```sh
 kubectl explain seinetwork.spec.configValues --context=harbor
 kubectl explain seinetwork.spec.scheduling.nodeIsolation --context=harbor
+kubectl explain seinetwork.spec.consensus.engine --context=harbor   # only for an Autobahn / EVM-only render (#553; autobahn-giga.md)
 ```
 
 Both fields landed on controller main after `c3fabbf` (#530/#538 and #547) and are present at the `7da9946` pin the CRD references cite. On a non-zero exit, halt every render that uses the field; the alternative is a chain with no values or a Shared pool that was promised Dedicated, and both look healthy. Ask the platform team to advance the pin. Never drop the field and continue.

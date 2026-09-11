@@ -385,6 +385,10 @@ kubectl exec <pod> -c seid -- grep -A2 '^\[evm\]' /sei/config/app.toml
 
 An empty `currentConfigValuesHash` on a Running node means it predates the feature: edits wait for the next image roll (`NodeUpdateInProgress` reason `ConfigBaselineUnobserved`). Triage in `troubleshooting-seinode.md` → *ConfigValuesValid=False / configValues edit produced no restart*.
 
+## Consensus engine (`--consensus-engine`, `--evm-only`)
+
+Both `network apply` and `node apply` (seictl#255). `--consensus-engine Tendermint|Autobahn` (case-insensitive, rendered canonical) sets `spec.consensus.engine`; `--evm-only` sets `spec.consensus.evmOnly: true` and is refused without `--consensus-engine Autobahn` — locally, after `--set` has run, so `--set spec.consensus.engine=Tendermint` cannot smuggle the pair past it. Both omitted leaves `spec.consensus` absent (controller default Tendermint). **Repeat both on every re-apply**, same force-ownership reason as `--node-isolation`: an apply that omits them drops `spec.consensus`, and the apiserver refuses that as a create-only change on an Autobahn object rather than reverting it. A follower joining an Autobahn chain needs `--consensus-engine Autobahn` too, or `configure-genesis` never fetches `autobahn.json`. Full recipe, controller-owned keys and EVM-only caveats: `autobahn-giga.md`.
+
 ## Node isolation (`--node-isolation`)
 
 Present on both `network apply` and `node apply`, identical semantics. Writes `spec.scheduling.nodeIsolation`; on a SeiNetwork the controller copies the block into every validator child.
@@ -540,7 +544,7 @@ Two upstream-Cosmos-shaped keys that do NOT exist on sei have caused exactly thi
 
 **Verify after Ready** (cheap, do it): from a validator pod, `seid q gov params voting` (or read `/genesis` on 26657) confirms the override landed. A throwaway proposal submitted with the full min-deposit proves the voting window behaviorally.
 
-**Not reachable via this flag:** `consensus_params.*` (CometBFT consensus params, sibling to `app_state` in `genesis.json`, not under any cosmos module). `block.max_gas`, `validator.pub_key_types`, etc. are not currently reachable through `spec.genesis.overrides`.
+**Not reachable via this flag:** `consensus_params.*` (CometBFT consensus params, sibling to `app_state` in `genesis.json`, not under any cosmos module). `block.max_gas`, `validator.pub_key_types`, etc. are not reachable through `spec.genesis.overrides`; they live in `spec.genesis.consensusParams` (controller #553), which has no dedicated flag yet — render it with `--set 'spec.genesis.consensusParams={"block":{"max_gas":"35000000"}}'` or in the YAML (`autobahn-giga.md`).
 
 Distinct from `--set spec.configOverrides...`, which targets per-node `config.toml`/`app.toml` applied at config-apply time.
 
