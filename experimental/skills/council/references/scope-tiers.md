@@ -13,24 +13,24 @@ Each tier defines the exact sequence of steps the coordinator runs. The goal is 
 **Process:**
 
 ### Phase 0: Resume Check
-Resolve the DRI repo fail-loud first (Design 13 §4 — see SKILL.md Foundation). If `designs/<arc>/council/workstream.yaml` in the DRI repo exists with this effort (resolved fail-loud above — never read from the migration-emptied in-repo dir), resume from the last in_progress phase. Tell the user what's already done and what's next.
+Resolve the DRI repo fail-loud first (Design 13 §4 — see SKILL.md Foundation). If `designs/<arc>/council/workstream.yaml` in the DRI repo exists with this effort, resume from the last in_progress phase. Read it from the repo resolved fail-loud above — never from the migration-emptied in-repo dir. Tell the user what's already done and what's next.
 
 ### Phase 1: High-Level Design
 1. Read the repo's governing document and the interface source of truth (registry if present, existing LLDs otherwise).
 2. Draft a high-level design covering:
    - Purpose and business need (must trace to current-phase goals)
-   - Component decomposition — which new components are needed
+   - Component decomposition — which new components the design needs
    - Interface map — which components talk to each other, who provides what
    - Deployment model — how it runs
    - Security model — credentials, auth, network, blast radius
-3. Capture the high-level design via `/design`, which lands it in the DRI `<engineer>-designs` repo at `designs/<arc>/<slug>.md` (Design 13 — a council design is a lineage artifact; it does **not** save to the code repo's conventional location or `.council/designs/`, which is deprecated).
+3. Capture the high-level design via `/design`, which lands it in the DRI `<engineer>-designs` repo at `designs/<arc>/<slug>.md` (Design 13). A council design is a lineage artifact. It does **not** save to the code repo's conventional location or to the deprecated `.council/designs/`.
 4. Present to user for review before proceeding.
 
 ### Phase 2: Component Design (repeat per component)
-For each component identified in Phase 1, run the Component tier process below. Order matters — design providers before consumers so interfaces are defined when consumers need them.
+For each component identified in Phase 1, run the Component tier process below. Order matters — design providers before consumers so the interfaces exist when consumers need them.
 
 ### Phase 3: xreview
-After all component LLDs are drafted:
+After every component LLD has a draft:
 1. For each interface boundary, run `/xreview` (it dispatches the relevant specialists for independent review).
 2. Collect findings into a xreview document.
 3. Save to the repo's conventional xreview location.
@@ -48,13 +48,13 @@ Run the Feature tier process for each component, in the same provider-first orde
 
 **Checkpointing:** Write `designs/<arc>/council/workstream.yaml` in the DRI repo (in-repo `.council/workstream.yaml` only as the no-DRI-repo fallback, with user confirmation; Design 13 R3) after each phase. Product tier always spans sessions — the checkpoint is critical. On completion, archive to `designs/<arc>/council/archive/` in the DRI repo (in-repo `.council/archive/` only as the no-DRI-repo fallback, with user confirmation).
 
-**Escalation handling:** If a specialist files an escalation during Phase 4, the coordinator pauses implementation, assesses the escalation, resolves it (potentially updating the LLD and interface source), then resumes. The workstream file records this.
+**Escalation handling:** If a specialist files an escalation during Phase 4, the coordinator pauses implementation, assesses the escalation, and resolves it. Resolution may update the LLD and interface source. Then the coordinator resumes. The workstream file records this.
 
 ---
 
 ## Tier 2: System (Multi-Component Feature)
 
-**When:** A feature that spans multiple existing components. Existing interfaces may need to change or new interfaces may be added.
+**When:** A feature that spans multiple existing components. Existing interfaces may need to change, or the feature may add new interfaces.
 
 **Duration:** Hours to a day of agent work.
 
@@ -62,10 +62,10 @@ Run the Feature tier process for each component, in the same provider-first orde
 
 ### Phase 1: Impact Analysis
 1. Read the governing document and interface source of truth.
-2. Identify which components are affected.
-3. For each affected component, identify which interfaces are touched.
+2. Identify which components the feature affects.
+3. For each affected component, identify which interfaces the feature touches.
 4. Classify each interface change:
-   - **New interface** — does not exist yet, needs to be added
+   - **New interface** — does not exist yet, needs adding
    - **Modified interface** — exists but needs changes (check for one-way doors!)
    - **Unchanged** — interface exists and is not affected
 5. Present impact analysis to the user, highlighting any one-way doors.
@@ -93,7 +93,7 @@ For each affected component, dispatch the owning specialist. Provider-first orde
 2. Run tests for all affected components.
 3. Present summary with interface change log.
 
-**Checkpointing:** Write `designs/<arc>/council/workstream.yaml` in the DRI repo (in-repo `.council/workstream.yaml` only as the no-DRI-repo fallback, with user confirmation; Design 13 R3) after Phases 1, 2, and 4. System tier may span sessions if many components are affected. On completion, archive.
+**Checkpointing:** Write `designs/<arc>/council/workstream.yaml` in the DRI repo after Phases 1, 2, and 4 (Design 13 R3). In-repo `.council/workstream.yaml` is the no-DRI-repo fallback only, with user confirmation. System tier may span sessions if the feature affects many components. On completion, archive.
 
 **Escalation handling:** Same as Product tier — pause, assess, resolve, resume.
 
@@ -101,7 +101,7 @@ For each affected component, dispatch the owning specialist. Provider-first orde
 
 ## Tier 3: Component (Single-Component Feature)
 
-**When:** A new feature or significant change within a single component. May touch interfaces at the boundary but does not require coordinated changes across multiple specialists.
+**When:** A new feature or significant change within a single component. May touch interfaces at the boundary but does not need coordinated changes across multiple specialists.
 
 **Duration:** 30 minutes to a few hours.
 
@@ -136,7 +136,7 @@ Quick check: does the implementation match the LLD and interface source? Run tes
 
 ## Tier 4: Feature (Implementation Only)
 
-**When:** Design is done, interfaces are defined, just write the code.
+**When:** The design exists, the interfaces exist, just write the code.
 
 **Duration:** Minutes to an hour.
 
@@ -177,4 +177,4 @@ Dispatch the owning specialist with:
 | Interface changes needed | System (if multi-component) or Component (if single) |
 | No interface changes, scoped work | Feature (or consider `/coral`) |
 
-When in doubt, ask: "Does this change require coordinated updates across multiple components?" If yes → System or Product. If no → Component or Feature (or coral).
+When in doubt, ask: "Does this change need coordinated updates across multiple components?" If yes → System or Product. If no → Component or Feature (or coral).

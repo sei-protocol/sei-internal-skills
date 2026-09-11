@@ -25,18 +25,18 @@ A design's source issue lives on **GitHub** or **Linear** (`/issue` files to eit
 | Reverse body edit | `gh issue edit <n> --body-file` | `save_issue` MCP tool (`id: <identifier>`, `description`) |
 | Idempotency check | `gh issue view <n> --json comments` | `list_comments` MCP tool (`issueId: <identifier>`) |
 
-Everything below applies to both; sink-specific commands are called out where they differ.
+Everything below applies to both; the text calls out sink-specific commands where they differ.
 
 ## Forward link: design → issue
 
-When `/design` is invoked with `--issue <ref>` or from a coral session that referenced an issue:
+When `/design` runs with `--issue <ref>` or from a coral session that referenced an issue:
 
 - **Frontmatter** gets `**Issue:**` as a top-level field — `#<n>` for GitHub, `<IDENTIFIER> — <url>` for Linear (carry the URL so it is navigable). This is the canonical primitive.
 - **References** section automatically includes the issue: `Issue #<n> — <title>` (GitHub) or `Issue <IDENTIFIER> — <title> (<url>)` (Linear).
-- **Background** is seeded from the issue's Problem section (the user can edit further).
-- **Non-goals** are seeded from the issue's Out of scope section.
+- **Background** seeds from the issue's Problem section (the user can edit further).
+- **Non-goals** seed from the issue's Out of scope section.
 
-The forward link is set at creation time. It is a static reference — if the issue is renamed or moved, GitHub resolves via its issue redirect; for Linear, the stored URL plus the immutable identifier keep it navigable.
+The forward link lands at creation time. It is a static reference. If the issue changes name or moves, GitHub resolves via its issue redirect. For Linear, the stored URL plus the immutable identifier keep it navigable.
 
 ## Reverse link: issue → design
 
@@ -47,11 +47,11 @@ After `/design` writes the file, the skill offers to update the source issue:
 >
 > Update issue <ref> with the design link?
 > 1. Add a comment: "Design captured: <full URL>"
-> 2. Edit the issue body's References to include the design's **full URL** — the design lives in a *separate* repo (Design 05), so a repo-relative path will not resolve on the code-repo issue
+> 2. Edit the issue body's References to include the design's **full URL**. The design lives in a *separate* repo (Design 05), so a repo-relative path will not resolve on the code-repo issue
 > 3. Both
 > 4. Skip — I will update manually
 
-**Default offer is option 1 (comment).** It is the lightest touch and does not require body-edit permissions or risk clobbering the issue's current state. The user can opt up to option 3 if they want the issue body to reflect the design as a permanent reference.
+**Default offer is option 1 (comment).** It is the lightest touch and does not need body-edit permissions or risk clobbering the issue's current state. The user can opt up to option 3 if they want the issue body to reflect the design as a permanent reference.
 
 **Option 1 (comment):**
 - **GitHub** — `gh issue comment <n> --body "Design captured: <relative-path>"`.
@@ -65,7 +65,7 @@ After `/design` writes the file, the skill offers to update the source issue:
 - *Comment path* — existing comments (GitHub: `gh issue view <n> --json comments`; Linear: `list_comments`).
 - *Body/description edit path* — the body/description you fetched in step (1) above (GitHub: the `body`; Linear: the `description` from `get_issue`), not the comment list.
 
-**Never fabricate the link.** If the comment/edit call fails or the backend (Linear MCP) is unavailable, report it and leave the lineage unthreaded — do not claim a link that was not written.
+**Never fabricate the link.** If the comment/edit call fails or the backend (Linear MCP) is unavailable, report it and leave the lineage unthreaded. Do not claim a link that never landed.
 
 ## When the design lands as a PR
 
@@ -76,11 +76,13 @@ The most common path: a design doc is not a final artifact on its own — it liv
 - The PR description references the source issue (standard `Closes #<n>`).
 - The issue, after merge, has the merged PR auto-linked by GitHub.
 
-The design's reverse link to the issue then goes through the PR. The design itself only needs the forward link (`Issue: #n` in frontmatter) — the issue's reverse link to the design is implied by the PR linkage.
+The design's reverse link to the issue then goes through the PR. The design itself only needs the forward link (`Issue: #n` in frontmatter) — the PR linkage implies the issue's reverse link to the design.
 
 If the design is shipping ahead of implementation (design lands in its own PR), explicit reverse linking via comment matters more.
 
-**Linear caveat.** The auto-linking above is GitHub-specific: GitHub resolves `Closes #<n>` and back-links the merged PR on the issue for free. Linear has no `Closes #<n>` equivalent from a GitHub PR unless Linear's GitHub integration is configured (magic words / branch naming wired to the workspace). For a Linear-tracked design, then, **do not assume the PR threads the lineage** — the explicit reverse link (comment via `save_comment`, or the description edit) is the primary thread, not an optional nicety. Offer it even when the design lands in a PR.
+**Linear caveat.** The auto-linking above is GitHub-specific: GitHub resolves `Closes #<n>` and back-links the merged PR on the issue for free. Linear has no `Closes #<n>` equivalent from a GitHub PR unless the workspace has Linear's GitHub integration in place. That integration is magic words / branch naming wired to the workspace.
+
+For a Linear-tracked design, then, **do not assume the PR threads the lineage**. The explicit reverse link (comment via `save_comment`, or the description edit) is the primary thread, not an optional nicety. Offer it even when the design lands in a PR.
 
 ## Multiple designs for one issue
 
@@ -94,7 +96,7 @@ When an issue accumulates multiple design references, they should appear in desi
 
 ## When a design is superseded
 
-If a design gets replaced by a new design (e.g. v1 LLD → v2 LLD because a constraint changed), the old design's status changes to:
+If a new design replaces an old one (e.g. v1 LLD → v2 LLD because a constraint changed), the old design's status changes to:
 
 ```
 **Status:** Superseded by [<new design>](path/to/new-design-lld.md)

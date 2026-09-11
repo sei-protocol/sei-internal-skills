@@ -19,9 +19,9 @@ Council enforces full process when full process applies. Before any side-effecti
 2. **xreview is its own phase — and its own skill.** Specialists giving input during their individual dispatches is NOT xreview. Council runs xreview by invoking `/xreview` on the affected work, which produces a COMPATIBLE / MISMATCH / MISSING findings table. Resolve all MISMATCH and MISSING before proceeding.
 3. **Interface source of truth is authoritative.** If a spec or code conflicts with it, the source of truth wins. Update the source first, then specs and code conform.
 4. **Provider owns the interface.** Consumers adapt. When provider and consumer disagree, the provider's definition is canonical.
-5. **One-way doors require explicit user approval.** Persisted schema / field names, public API contracts, on-disk or wire data formats, signed or indexed identifiers, and anything the repo's governing document flags as irreversible — STOP and present before finalizing.
+5. **One-way doors need explicit user approval.** Persisted schema / field names, public API contracts, on-disk or wire data formats, and signed or indexed identifiers all count. Anything the repo's governing document flags as irreversible counts too. STOP and present before finalizing.
 6. **Force-coral when work is coral-sized.** If the work is single-component with no interface changes and does not warrant scope-tier ceremony, suggest `/coral` rather than running full process.
-7. **Session state reads fail-loud.** Coordination state (`workstream.yaml`/`escalations/`/`archive/`) lives in the DRI `<engineer>-designs` repo (Design 13 R3). At session start, resolve the DRI repo *first*; if the *expected* repo is unresolvable / on an unexpected branch / mid-rebase / behind-remote, or headless with no user to confirm the mode — **HALT and surface**, never silently start fresh or miss a live escalation (Design 13 §4).
+7. **Session state reads fail-loud.** Coordination state (`workstream.yaml`/`escalations/`/`archive/`) lives in the DRI `<engineer>-designs` repo (Design 13 R3). At session start, resolve the DRI repo *first*. If the *expected* repo is unresolvable / on an unexpected branch / mid-rebase / behind-remote — **HALT and surface** (Design 13 §4). Same if the run is headless with no user to confirm the mode. Never silently start fresh or miss a live escalation.
 
 ## Locating the Target Repo and Its Conventions
 
@@ -31,18 +31,26 @@ Before doing anything, identify the target repo and load its conventions:
 2. Read `CLAUDE.md` if present — it establishes the repo's constitution, key conventions, and any skill references.
 3. Read `AGENTS.md` if present — it often lists the expert roster and cross-component interface ownership.
 4. Read `.claude/agents/*.md` — the specialist agents available for dispatch. If absent, ask the user which experts to use or whether to proceed without a roster.
-5. Check for workstream state. Coordination state now lives in the DRI `<engineer>-designs` repo at `designs/<arc>/council/{workstream.yaml,escalations,archive}`, resolved via the `/design` resolver. **Resolve-then-read, fail-LOUD (Design 13 §4):** resolve the DRI repo *first*; if it is **unresolvable, on an unexpected branch, mid-rebase, dirty-in-conflict, or behind-remote / un-fetched → HALT and surface** — never silently "start fresh," never conclude "no work in progress," never miss a live escalation. In a **non-interactive (headless/cron)** run where the resolver would fall to "ask," there is no user → **HALT (blocked)**, do not proceed. **The in-repo `.council/` path is producer-write-only — it is NEVER a session-start read source: a read that cannot resolve the *expected* DRI repo HALTS, it does not read the (migration-emptied) in-repo dir and conclude "nothing pending."** (In **confirmed no-DRI-repo mode** the in-repo path is the legitimate store, read normally — the HALT is about an expected-but-unreachable DRI repo, not the confirmed-local mode.) Then:
+5. Check for workstream state. Coordination state now lives in the DRI `<engineer>-designs` repo at `designs/<arc>/council/{workstream.yaml,escalations,archive}`, resolved via the `/design` resolver. **Resolve-then-read, fail-LOUD (Design 13 §4):** resolve the DRI repo *first*. If it is **unresolvable, on an unexpected branch, mid-rebase, dirty-in-conflict, or behind-remote / un-fetched → HALT and surface**. Never silently "start fresh," never conclude "no work in progress," never miss a live escalation. In a **non-interactive (headless/cron)** run where the resolver would fall to "ask," there is no user → **HALT (blocked)**, do not proceed.
+
+   **The in-repo `.council/` path is producer-write-only — it is NEVER a session-start read source.** **A read that cannot resolve the *expected* DRI repo HALTS. It does not read the (migration-emptied) in-repo dir and conclude "nothing pending."** (In **confirmed no-DRI-repo mode** the in-repo path is the legitimate store; read it normally. The HALT is about an expected-but-unreachable DRI repo, not the confirmed-local mode.) Then:
    - `designs/<arc>/council/workstream.yaml` in the DRI repo — if it exists, a previous session left work in progress. Read it before acting.
-   - `designs/<arc>/council/escalations/` in the DRI repo — files here mean a specialist flagged a design problem during implementation; the fail-loud read above is the interlock that preserves them as a safety gate after the move. Address before starting new work.
+   - `designs/<arc>/council/escalations/` in the DRI repo — files here mean a specialist flagged a design problem during implementation. The fail-loud read above is the interlock that preserves them as a safety gate after the move. Address before starting new work.
 6. Interface discipline (optional but recommended):
-   - If the repo maintains a machine-readable interface registry, it is authoritative. All cross-component interfaces are defined there first, then specs and code conform.
+   - If the repo maintains a machine-readable interface registry, it is authoritative. Every cross-component interface lands there first, then specs and code conform.
    - If absent, interface discipline lives in LLDs directly. Same principle: provider owns the interface, consumers adapt.
 
-If the repo has a config file (`.council.yaml` or similar) specifying output paths for design docs or workstreams, honor those paths — **except** for the design-doc output and the coordination state, which both relocate to the DRI repo. A council design is a **lineage artifact** and is captured via `/design`, which lands it in the DRI's `<engineer>-designs` repo at `designs/<arc>/<slug>.md` (Design 13 — process-artifact relocation). It does **not** land in `.council/designs/` or a config-driven in-repo path; `.council/designs/` is **deprecated**. Coordination state — `workstream.yaml`, `escalations/`, `archive/` — now **also relocates to the DRI repo** at `designs/<arc>/council/{workstream.yaml,escalations,archive}`, resolved via the same `/design` resolver (Design 13 R3 — all process artifacts, incl. coordination state, leave the code repo; the in-repo `.council/` path is a **producer-write fallback only** when no DRI repo resolves — **never a session-start read source**). Because this state is read at session start, the read is **fail-loud** per Design 13 §4 (see "Locating the Target Repo" step 5 and "Foundation" below).
+If the repo has a config file (`.council.yaml` or similar) specifying output paths for design docs or workstreams, honor those paths. The **exceptions** are the design-doc output and the coordination state; those two relocate to the DRI repo. A council design is a **lineage artifact**. `/design` captures it and lands it in the DRI's `<engineer>-designs` repo at `designs/<arc>/<slug>.md` (Design 13 — process-artifact relocation). It does **not** land in `.council/designs/` or a config-driven in-repo path; treat `.council/designs/` as **deprecated**.
+
+Coordination state — `workstream.yaml`, `escalations/`, `archive/` — now **also relocates to the DRI repo** at `designs/<arc>/council/{workstream.yaml,escalations,archive}`, resolved via the same `/design` resolver (Design 13 R3 — all process artifacts, incl. coordination state, leave the code repo). The in-repo `.council/` path is a **producer-write fallback only** when no DRI repo resolves — **never a session-start read source**. The session-start read of this state is **fail-loud** per Design 13 §4. See "Locating the Target Repo" step 5 and "Foundation" below.
 
 ## Foundation: Read Before Acting
 
-**Session-start state lives in the DRI repo and is read fail-loud (Design 13 §4).** The `workstream.yaml` and `escalations/` read below resolve from `designs/<arc>/council/` in the DRI `<engineer>-designs` repo via the `/design` resolver. Resolve the DRI repo *first*; if it is **unresolvable, on an unexpected branch, mid-rebase, dirty-in-conflict, or behind-remote / un-fetched → HALT and surface** — never silently "start fresh," never conclude "no work in progress," never miss a live escalation. In a **non-interactive (headless/cron)** run where the resolver would fall to "ask," there is no user → **HALT (blocked)**. **The in-repo `.council/` path is producer-write-only — never a session-start read source; a read that cannot resolve the *expected* DRI repo HALTS rather than reading the migration-emptied in-repo dir.** (In **confirmed no-DRI-repo mode** the in-repo path is the legitimate store, read normally — the HALT is about an expected-but-unreachable DRI repo.) The escalation read in particular is a safety interlock: this fail-loud read is what keeps it loud after the move.
+**Session-start state lives in the DRI repo; read it fail-loud (Design 13 §4).** The `workstream.yaml` and `escalations/` read below resolve from `designs/<arc>/council/` in the DRI `<engineer>-designs` repo via the `/design` resolver. Resolve the DRI repo *first*. If it is **unresolvable, on an unexpected branch, mid-rebase, dirty-in-conflict, or behind-remote / un-fetched → HALT and surface**. Never silently "start fresh," never conclude "no work in progress," never miss a live escalation. In a **non-interactive (headless/cron)** run where the resolver would fall to "ask," there is no user → **HALT (blocked)**.
+
+**The in-repo `.council/` path is producer-write-only — never a session-start read source.** **A read that cannot resolve the *expected* DRI repo HALTS rather than reading the migration-emptied in-repo dir.** (In **confirmed no-DRI-repo mode** the in-repo path is the legitimate store; read it normally. The HALT is about an expected-but-unreachable DRI repo.)
+
+The escalation read in particular is a safety interlock: this fail-loud read is what keeps it loud after the move.
 
 Every task starts by reading, in order:
 1. `designs/<arc>/council/workstream.yaml` in the DRI repo — if it exists
@@ -60,7 +68,7 @@ Read `references/scope-tiers.md` for the detailed process per tier.
 
 ### The Four Tiers
 
-**Product** — An entirely new MVP or major subsystem that does not exist yet. Multiple new components need to be designed from scratch, new interfaces, new deployment artifacts. Days to weeks.
+**Product** — An entirely new MVP or major subsystem that does not exist yet. Multiple new components need design from scratch, plus new interfaces and new deployment artifacts. Days to weeks.
 - Signals: "build a new…", "we need a whole new…", "design the system for…", "MVP for…"
 - Process: High-level design → component decomposition → full design cycle per component → xreview → implementation
 
@@ -68,7 +76,7 @@ Read `references/scope-tiers.md` for the detailed process per tier.
 - Signals: "add end-to-end support for…", "integrate X with Y", cross-component changes
 - Process: Impact analysis → interface source updates → design per affected component → xreview → implementation
 
-**Component** — A new feature or significant change scoped to a single component. Needs a low-level design to get right, but does not require cross-component coordination.
+**Component** — A new feature or significant change scoped to a single component. Needs a low-level design to get right, but does not need cross-component coordination.
 - Signals: "add X to the operator", "the review runtime needs…", "write the reconciliation loop for…"
 - Process: LLD draft by owning specialist → interface check → implementation
 
@@ -78,11 +86,11 @@ Read `references/scope-tiers.md` for the detailed process per tier.
 
 ### When Scope Is Ambiguous
 
-Ask one focused question: "This sounds like it could be [tier A] or [tier B]. The difference is [what changes about the process]. Which feels right?" Do not ask more than one — make a judgment call with what you have.
+Ask one focused question: "This sounds like either [tier A] or [tier B]. The difference is [what changes about the process]. Which feels right?" Do not ask more than one — make a judgment call with what you have.
 
 ### When the Work Is Actually Coral-Sized
 
-If the work is clearly single-component with no interface changes and does not warrant scope-tier ceremony, suggest the user switch to `/coral`. Do not force full process on work that does not need it.
+If the work is single-component with no interface changes and does not warrant scope-tier ceremony, suggest the user switch to `/coral`. Do not force full process on work that does not need it.
 
 ## Your Specialist Team
 
@@ -116,7 +124,7 @@ After any work touching interface boundaries, run a xreview by invoking the `/xr
 
 `/xreview` dispatches the relevant specialists for independent review and synthesizes a findings table: COMPATIBLE / MISMATCH / MISSING. Resolve all MISMATCH and MISSING before proceeding.
 
-When the reviewed work includes **code or an implementation** (not solely specs/LLDs), `/xreview` adds `idiomatic-reviewer` to the slate for the idiom-conformance lens — does the code read native to its language and the package's documented patterns. Its findings ride in a separate Idiom addendum; **correctness-grade idiom findings block the same as a MISMATCH** (style findings are advisory). This is inherited automatically — council does not dispatch `idiomatic-reviewer` itself.
+When the reviewed work includes **code or an implementation** (not solely specs/LLDs), `/xreview` adds `idiomatic-reviewer` to the slate for the idiom-conformance lens. That lens asks: does the code read native to its language and the package's documented patterns? Its findings ride in a separate Idiom addendum; **correctness-grade idiom findings block the same as a MISMATCH** (style findings are advisory). Council inherits this automatically — it does not dispatch `idiomatic-reviewer` itself.
 
 ### Interface Changes
 
@@ -129,7 +137,7 @@ Provider owns the interface — if there is a disagreement, the provider's defin
 
 ## Session Continuity
 
-Work spanning multiple sessions (Product and System tiers especially) needs a checkpoint file at `designs/<arc>/council/workstream.yaml` in the DRI `<engineer>-designs` repo (in-repo `.council/workstream.yaml` only as the no-DRI-repo fallback (with user confirmation); Design 13 R3).
+Work spanning multiple sessions (Product and System tiers especially) needs a checkpoint file at `designs/<arc>/council/workstream.yaml` in the DRI `<engineer>-designs` repo (Design 13 R3). Use in-repo `.council/workstream.yaml` only as the no-DRI-repo fallback, with user confirmation.
 
 ### Writing Checkpoints
 
@@ -177,7 +185,7 @@ escalations: []
 
 ### Reading Checkpoints
 
-When a session starts, resolve the DRI repo fail-loud (Design 13 §4 — see Foundation; a read that cannot resolve the DRI repo HALTS, it does not read the migration-emptied in-repo dir) and, if `designs/<arc>/council/workstream.yaml` exists:
+When a session starts, resolve the DRI repo fail-loud (Design 13 §4 — see Foundation). A read that cannot resolve the DRI repo HALTS; it does not read the migration-emptied in-repo dir. Then, if `designs/<arc>/council/workstream.yaml` exists:
 1. Read it and tell the user: "Found an in-progress workstream: [description]. Currently in [phase] — [progress]. Continue, or start something new?"
 2. If continuing: skip completed phases, resume the in_progress phase
 3. If starting new work: archive the old workstream to `designs/<arc>/council/archive/{date}-{description}.yaml` in the DRI repo (in-repo `.council/archive/` fallback) and start fresh
@@ -187,11 +195,11 @@ When a session starts, resolve the DRI repo fail-loud (Design 13 §4 — see Fou
 - After each phase in Product or System tier
 - When stopping mid-phase (user says "that is enough for now")
 - After resolving escalations
-- Do not bother for Feature or Component tier — usually one session
+- Do not bother for Feature or Component tier — typically one session
 
 ## Design Escalation
 
-When a specialist discovers during implementation that the design is wrong, they write a file to `designs/<arc>/council/escalations/{timestamp}-{component}.md` in the DRI `<engineer>-designs` repo (in-repo `.council/escalations/` only as the no-DRI-repo fallback (with user confirmation); Design 13 R3):
+When a specialist discovers during implementation that the design is wrong, they write a file to `designs/<arc>/council/escalations/{timestamp}-{component}.md` in the DRI `<engineer>-designs` repo (Design 13 R3). In-repo `.council/escalations/` is the no-DRI-repo fallback only, with user confirmation. The file:
 
 ```markdown
 # Escalation: {brief title}
@@ -217,16 +225,16 @@ When a specialist discovers during implementation that the design is wrong, they
 ### Coordinator Handles Escalations
 
 When escalation files exist:
-1. Read each and assess: does this require a scope-tier upgrade? (What started as Component might now be System if the fix touches interfaces.)
-2. If interface changes are needed: update the interface source first, then dispatch the fix.
+1. Read each and assess: does this need a scope-tier upgrade? (What started as Component might now be System if the fix touches interfaces.)
+2. If the fix needs interface changes: update the interface source first, then dispatch the fix.
 3. If internal: dispatch the owning specialist to fix within their component.
 4. After resolution: move the file to `designs/<arc>/council/escalations/resolved/` in the DRI repo (in-repo `.council/escalations/resolved/` fallback) — resolved escalations move there as lineage.
 
 ## One-Way Door Gate
 
-Some changes cannot be reversed after deployment. Before finalizing any of these, STOP and present to the user for explicit approval:
+Some changes are irreversible after deployment. Before finalizing any of these, STOP and present to the user for explicit approval:
 
-- **Persisted schema / field names** — renaming after data is written or consumers depend on them requires migration
+- **Persisted schema / field names** — renaming after data lands or consumers depend on them requires migration
 - **Public API contracts** — request/response shapes, status codes, and error formats clients have integrated against
 - **On-disk or wire data formats** — serialization layouts that existing data or peers depend on
 - **Identifiers and signatures** — anything other systems index, sign, or cache (stable IDs, content hashes, signed tokens)
@@ -238,26 +246,26 @@ Format: "This involves a one-way door: [what's changing]. Once deployed, [conseq
 
 Stop and report rather than auto-recovering when:
 
-- **Escalations exist at session start** (`designs/<arc>/council/escalations/*` in the DRI repo) — read each, resolve or upgrade scope before any new work. If the *expected* DRI repo cannot be resolved cleanly (present-but on unexpected branch / mid-rebase / dirty-in-conflict / behind-remote, or headless with no user to confirm the mode) → HALT fail-loud rather than assume no escalations; **never read the migration-emptied in-repo `.council/escalations/` and conclude "none."** (In confirmed no-DRI-repo mode the in-repo path is the legitimate store, read normally.) (Design 13 §4)
+- **Escalations exist at session start** (`designs/<arc>/council/escalations/*` in the DRI repo) — read each, resolve or upgrade scope before any new work. If the *expected* DRI repo does not resolve cleanly → HALT fail-loud rather than assume no escalations. Unclean: present-but on unexpected branch / mid-rebase / dirty-in-conflict / behind-remote, or headless with no user to confirm the mode. **Never read the migration-emptied in-repo `.council/escalations/` and conclude "none."** (In confirmed no-DRI-repo mode the in-repo path is the legitimate store, read normally.) (Design 13 §4)
 - **xreview surfaces MISMATCH or MISSING** — halt until provider and consumer specs align with the interface source of truth
-- **Workstream-in-progress detected** at session start (`designs/<arc>/council/workstream.yaml` in the DRI repo — resolved fail-loud per §4, never read from the emptied in-repo dir; exists with unresolved phases) — surface and ask continue / new / archive
+- **Workstream-in-progress detected** at session start — surface and ask continue / new / archive. The signal: `designs/<arc>/council/workstream.yaml` in the DRI repo exists with unresolved phases. Resolve it fail-loud per §4, never read from the emptied in-repo dir.
 - **Tier is genuinely ambiguous** — ask one focused question; if still ambiguous, halt and ask the user to scope
 - **One-way door triggers without approval pending** — never proceed silently
 - **Specialist refuses dispatch** (missing files, missing roster) — halt and surface what's needed
 
 ## Rationalization Table
 
-Pressure patterns that surface during full-ceremony work and the counters from this skill. These mostly fire when work has grown past its planned tier, the room is fatigued, or someone is impatient with the process.
+Pressure patterns that surface during full-ceremony work and the counters from this skill. These fire when work has grown past its planned tier, fatigue has set in, or someone is impatient with the process.
 
 | Excuse | Reality |
 |---|---|
 | "We both know this is System tier — skip the scope-tier selection." | Scope-tier selection is the entry point that determines specialist slate AND one-way-door risk. State the tier, confirm in one question, then proceed — do not skip. |
 | "The specialists already gave input in their dispatches — skip xreview." | Individual dispatch is NOT xreview. xreview reads provider + consumer + interface source and produces a findings table. Different phase, different output. |
-| "It is still in dev — the one-way-door rule is for prod." | The one-way-door gate is on change category, not deployment target. Dev-then-staging-then-prod is the path; the door's irreversibility lives in the *category* (persisted schema/field name, public API contract, on-disk/wire format, signed or indexed identifier), not the cluster. |
-| "Just update the spec to match what got implemented — provider already shipped." | Provider owns the interface, but provider-owns means provider defines BEFORE shipping, not after. Retroactive spec updates to match drift = the spec is now the implementation's documentation, which is exactly the failure mode the interface source of truth prevents. Update spec first, then re-implement to match. |
+| "It is still in dev — the one-way-door rule is for prod." | The one-way-door gate is on change category, not deployment target. Dev-then-staging-then-prod is the path. The door's irreversibility lives in the *category*, not the cluster. Categories: persisted schema/field name, public API contract, on-disk/wire format, signed or indexed identifier. |
+| "Just update the spec to match what got implemented — provider already shipped." | Provider owns the interface, but provider-owns means provider defines BEFORE shipping, not after. Retroactive spec updates to match drift = the spec is now the implementation's documentation. That is exactly the failure mode the interface source of truth prevents. Update spec first, then re-implement to match. |
 | "We can do interface changes parallel — they are separable." | Parallel dispatch is for work that does not share interface boundaries. If both touch the same interface, provider goes first and consumer follows. Sequential, not parallel. |
 | "The escalation file is from last week — just skip it." | Escalations are scope re-classification signals — what looked like Component might be System if the fix touches interfaces. Resolve before new work, not after. |
-| "We do not need the workstream checkpoint — this is one session." | Product and System tiers usually are not one session, even when they feel like they will be. Checkpoint per phase; the cost is small and the next-session pickup is much cheaper. |
+| "We do not need the workstream checkpoint — this is one session." | Product and System tiers seldom fit in one session, even when they feel like they will. Checkpoint per phase; the cost is small and the next-session pickup is much cheaper. |
 
 ## Red Flags — STOP and Reset
 
@@ -277,7 +285,7 @@ All of these mean: re-read the relevant SKILL.md section, apply the rule as writ
 ## Output Expectations
 
 Every task ends with:
-1. **What was done** — files created or modified, with paths
+1. **What you did** — files created or modified, with paths
 2. **Interface changes** — any updates, with before/after
 3. **xreview results** — the findings table if applicable
 4. **One-way doors** — any decisions that need human sign-off
@@ -289,7 +297,7 @@ For implementation work, include test results.
 
 - **Interfaces first** — the primary deliverable is exact signatures, types, errors, and contracts
 - **YAGNI** — only features tracing to current-phase business needs
-- **Two-way doors only** — one-way doors require explicit justification and human approval
+- **Two-way doors only** — one-way doors need explicit justification and human approval
 - **Errors are interface** — every error is part of the public contract
 - **Tests prove interfaces** — if you cannot write the test spec, the interface is not clear enough
 - **Provider owns the interface** — consumers adapt
