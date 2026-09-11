@@ -128,11 +128,54 @@ func TestReportWritesEachOutputOnItsOwnFlag(t *testing.T) {
 		Text:   "A review.\n\n```json\n{\"decision\":\"comment\",\"summary\":\"s\"}\n```",
 		TurnID: "t1", ItemID: "i1",
 	}}
-	if err := report("", "", check, result, review.Request{}); err != nil {
+	if err := report("", "", check, result, verdictOf(result), review.Request{}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 	if _, err := os.Stat(check); err != nil {
 		t.Errorf("the check run was not written without --out: %v", err)
+	}
+}
+
+// TestReportPublishesAScoutSettledVerdict covers the path that runs no review turn:
+// the settled verdict has to travel through the same three files a turn's verdict
+// does, or the caller sees a run that exited 0 with nothing to post and reads it as
+// a review that never happened.
+func TestReportPublishesAScoutSettledVerdict(t *testing.T) {
+	dir := t.TempDir()
+	out := filepath.Join(dir, "verdict.md")
+	findings := filepath.Join(dir, "findings.json")
+	check := filepath.Join(dir, "check.json")
+
+	req := review.Request{Scouts: []review.ScoutResult{{Name: "codex", Lines: 12, Inert: true}}}
+	verdict, ok := review.SettleByScouts(req)
+	if !ok {
+		t.Fatal("SettleByScouts refused an inert clean reading")
+	}
+	result := driver.Result{ExitCode: driver.ExitOK, TeardownOK: true}
+	if err := report(out, findings, check, result, verdict, req); err != nil {
+		t.Fatalf("report: %v", err)
+	}
+
+	body, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("the verdict was not written: %v", err)
+	}
+	if !strings.Contains(string(body), "settled by the scouts codex") {
+		t.Errorf("the published comment does not say the scouts decided it:\n%s", body)
+	}
+	blob, err := os.ReadFile(check)
+	if err != nil {
+		t.Fatalf("the check run was not written: %v", err)
+	}
+	var run review.CheckRun
+	if err := json.Unmarshal(blob, &run); err != nil {
+		t.Fatalf("check.json: %v", err)
+	}
+	if run.Conclusion != "success" {
+		t.Errorf("Conclusion = %q, want success", run.Conclusion)
+	}
+	if _, err := os.Stat(findings); !os.IsNotExist(err) {
+		t.Errorf("a findings file exists for a verdict that placed nothing: %v", err)
 	}
 }
 
@@ -147,7 +190,7 @@ func TestReportClearsAnEarlierRunsOutputs(t *testing.T) {
 	}
 
 	// A run that reached no verdict: nothing to publish.
-	if err := report(out, "", "", driver.Result{SessionID: "s2"}, review.Request{}); err != nil {
+	if err := report(out, "", "", driver.Result{SessionID: "s2"}, verdictOf(driver.Result{SessionID: "s2"}), review.Request{}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 	if _, err := os.Stat(out); !os.IsNotExist(err) {
@@ -259,7 +302,7 @@ func TestBothCallersActOnARefusedClear(t *testing.T) {
 
 	t.Run("report refuses", func(t *testing.T) {
 		out := undeletable(t, "report-out")
-		err := report(out, "", "", driver.Result{SessionID: "s1"}, review.Request{})
+		err := report(out, "", "", driver.Result{SessionID: "s1"}, verdictOf(driver.Result{SessionID: "s1"}), review.Request{})
 		if err == nil {
 			t.Fatal("report returned nil on an output it could not clear; the caller " +
 				"publishes on presence, so an earlier verdict posts as this run's")
@@ -328,7 +371,7 @@ func TestCheckJSONCarriesTheCounts(t *testing.T) {
 		Text:   "A review.\n\n```json\n" + block + "\n```",
 		TurnID: "t1", ItemID: "i1",
 	}}
-	if err := report("", findings, check, result, review.Request{IncludeNits: true}); err != nil {
+	if err := report("", findings, check, result, verdictOf(result), review.Request{IncludeNits: true}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -397,7 +440,7 @@ func TestANoVerdictRunStillHandsTheCallerACheckRun(t *testing.T) {
 		ExitCode:  driver.ExitNoVerdict,
 		Reply:     &driver.Reply{Text: "I read the diff and it looks fine to me.", TurnID: "t1"},
 	}
-	if err := report(out, findings, check, result, review.Request{IncludeNits: true}); err != nil {
+	if err := report(out, findings, check, result, verdictOf(result), review.Request{IncludeNits: true}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -455,7 +498,7 @@ func TestTheFailureCheckQuotesTheDriversOwnReason(t *testing.T) {
 		ExitCode:  driver.ExitNoVerdict,
 		Reply:     &driver.Reply{Text: "here is the diff", Reason: refusal},
 	}
-	if err := report("", "", check, result, review.Request{IncludeNits: true}); err != nil {
+	if err := report("", "", check, result, verdictOf(result), review.Request{IncludeNits: true}); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -494,7 +537,7 @@ func TestARunWithNoReplyNamesWhyRatherThanBlamingTheReply(t *testing.T) {
 
 			check := filepath.Join(t.TempDir(), "check.json")
 			result := driver.Result{SessionID: "s1", ExitCode: tc.exitCode}
-			if err := report("", "", check, result, review.Request{IncludeNits: true}); err != nil {
+			if err := report("", "", check, result, verdictOf(result), review.Request{IncludeNits: true}); err != nil {
 				t.Fatalf("report: %v", err)
 			}
 			blob, err := os.ReadFile(check)
@@ -539,7 +582,7 @@ func TestCheckJSONCarriesTheThreadPlan(t *testing.T) {
 		{ID: restated, File: "a.go", Line: 9, Body: "a nil deref"},
 	}}
 
-	if err := report("", "", check, result, req); err != nil {
+	if err := report("", "", check, result, verdictOf(result), req); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -601,7 +644,7 @@ func TestFindingsJSONCarriesTheSupersededLinkage(t *testing.T) {
 		{ID: restated, File: "a.go", Line: 9, Body: "a nil deref"},
 	}}
 
-	if err := report("", findings, check, result, req); err != nil {
+	if err := report("", findings, check, result, verdictOf(result), req); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -669,7 +712,7 @@ func TestAnOlderCallersCheckJSONPlansNothing(t *testing.T) {
 		{File: "a.go", Line: 4, Body: "a leak"},
 	}}
 
-	if err := report("", "", check, result, req); err != nil {
+	if err := report("", "", check, result, verdictOf(result), req); err != nil {
 		t.Fatalf("report: %v", err)
 	}
 
@@ -716,7 +759,7 @@ func TestTheReportedRefusalsCarryTheirTotal(t *testing.T) {
 	}}
 
 	printed := captureStdout(t, func() {
-		if err := report("", "", "", result, review.Request{}); err != nil {
+		if err := report("", "", "", result, verdictOf(result), review.Request{}); err != nil {
 			t.Fatalf("report: %v", err)
 		}
 	})
@@ -753,7 +796,7 @@ func TestACleanReviewReportsNoRefusals(t *testing.T) {
 	}}
 
 	printed := captureStdout(t, func() {
-		if err := report("", "", "", result, review.Request{}); err != nil {
+		if err := report("", "", "", result, verdictOf(result), review.Request{}); err != nil {
 			t.Fatalf("report: %v", err)
 		}
 	})
