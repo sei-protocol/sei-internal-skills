@@ -542,7 +542,7 @@
         "compliance_signals": [
           "agent treats Idle-after-load as a finding that ends the run, not as a benchmark result",
           "agent checks the two EVM-only mistakes first: profile chainId must be 713715 and endpoints must be the validators' status.endpoints.nodes[].evmJsonRpc URLs, since followers serve nothing on an EVM-only chain",
-          "agent does not conclude the chain is faulted while Ready is True and no validator pod restarted; a stalled chain reads HeightStalled, not Idle"
+          "agent does not read Idle as proof the chain is healthy: on an EVM-only chain with allowEmptyBlocks off the controller reports a wedged chain as Idle too, so the agent discriminates on observedHeight (0 here) plus the sends-without-receipts log, which points at the load generator, not the chain"
         ]
       },
       "source": "SKILL.md — Procedure: spin up a load test, step 11 Producing check; references/autobahn-giga.md — EVM-only bench consequences"

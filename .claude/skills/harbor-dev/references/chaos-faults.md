@@ -73,7 +73,7 @@ seictl chaos render network-partition --chain-id <CHAIN> --run-id <RUN> -n <NS> 
 seictl chaos render pod-failure       --chain-id <CHAIN> --run-id <RUN> -n <NS>                  > chaos-pod-failure.yaml
 ```
 
-`render` touches no cluster; it prints YAML to stdout. It refuses `--duration` on a one-shot fault and refuses its absence on a duration-bearing one, and it rejects a `--duration` that does not parse as a Go duration or is not positive (`2`, `0s`, `-1m`). `--namespace` is required. `--chain-id` and `--run-id` must be DNS-1123 labels (lowercase alphanumerics and `-`, ≤63 characters) because they land in resource names and label values; the generated name `<fault>-<run-id>` must itself fit 63 characters, so a long run token fails at render, not at admission. Every refusal is a `metav1.Status` `BadRequest` on stderr, so parse `.reason`, do not grep. Pin the seictl version that rendered the file in the experiment's PR description; that is the template provenance.
+`render` touches no cluster; it prints YAML to stdout. It refuses `--duration` on a one-shot fault and refuses its absence on a duration-bearing one, and it rejects a `--duration` that does not parse as a Go duration or is not positive (`2`, `0s`, `-1m`). `--namespace` is required. `--chain-id` and `--run-id` must be DNS-1123 labels (lowercase alphanumerics and `-`, ≤63 characters) because they land in resource names and label values; the generated name must itself fit 63 characters — `<fault>-<run-id>` for most faults, `byzantine-corrupt-<run-id>` for `byzantine`, so size the token against the longest name you will render, so a long run token fails at render, not at admission. Every refusal is a `metav1.Status` `BadRequest` on stderr, so parse `.reason`, do not grep. Pin the seictl version that rendered the file in the experiment's PR description; that is the template provenance.
 
 | Name | Kind / action | Shape | Duration |
 |---|---|---|---|
@@ -158,7 +158,9 @@ provision(4 validators + 1 unfaulted RPC follower)
 → Flux applies the Chaos CR
 → gate AllInjected=True                    (fault reached its targets)
 → assert the follower's height advances by ≥3 while the fault is active,
-  and the SeiNetwork `Producing` condition stays `HeightAdvancing` (`HeightStalled` is the halt)
+  and the SeiNetwork `Producing` condition stays `HeightAdvancing` (`HeightStalled` is the halt;
+  an empty-blocks-off Autobahn chain needs load running for this gate — without it the height
+  sits at 0 and the condition reads `Idle`, which is neither the halt nor a pass)
 → gate AllRecovered=True                   (duration-bearing faults only)
 → require every validator pod Ready
 → verify the follower is caught up
