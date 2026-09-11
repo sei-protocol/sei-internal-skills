@@ -54,6 +54,10 @@ type Request struct {
 	// [ParseAccepted] read it from the standards file. The caller reads that file from
 	// the base and never from the head; see ParseAccepted for why. Nil accepts nothing.
 	Accepted []string
+
+	// AcceptedFrom names the ref Accepted was read from, e.g. "main", for the check and
+	// the notice to show. The driver cannot verify it; it records what the caller says.
+	AcceptedFrom string
 }
 
 // maxScoutDetail bounds one rendered finding. A scout's detail is unbounded model

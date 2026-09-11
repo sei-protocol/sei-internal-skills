@@ -74,9 +74,18 @@ func (v Verdict) acceptedPosition() string {
 	if len(named) == 0 {
 		return ""
 	}
-	return "**Accepted pre-existing blocker** — listed under Accepted in the base " +
-		"branch's review standards, so it is reported and does not withhold approval: " +
-		joinNamed(named)
+	return fmt.Sprintf("**Accepted pre-existing blocker** — listed under Accepted in %s's "+
+		"review standards, so it is reported and does not withhold approval: %s",
+		v.acceptedSource(), joinNamed(named))
+}
+
+// acceptedSource names where the acceptances were read from: the ref the caller
+// reported, or "the base branch" when it reported none.
+func (v Verdict) acceptedSource() string {
+	if v.AcceptedFrom == "" {
+		return "the base branch"
+	}
+	return "`" + positionText(v.AcceptedFrom) + "`"
 }
 
 // preExistingBlockers names every pre-existing issue that withholds approval, which is

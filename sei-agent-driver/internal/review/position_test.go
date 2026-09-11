@@ -270,10 +270,37 @@ func TestAcceptanceMatchingFoldsForm(t *testing.T) {
 		"pins 'uci' to the feature branch":                         true,
 		"pins uci to a tag":                                        false,
 		"":                                                         false,
+		"go.mod no longer pins uci to the feature branch":                  false,
+		"the module is untagged, so go.mod pins uci to the feature branch": true,
+		"pins uci to the feature branch and leaks the token":               false,
+		"pins uci to the feature branch; the token is logged":              false,
+		"pins uci to the feature branch, which has no tag":                 true,
 	} {
 		if got := acceptanceFor(body, accepted) != ""; got != want {
 			t.Errorf("acceptanceFor(%q) matched = %v, want %v", body, got, want)
 		}
+	}
+}
+
+func TestTheAcceptedSourceIsRecorded(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":40,"decision":"approve","summary":"s",
+	  "pre_existing_issues":[
+	    {"severity":"blocker","body":"go.mod pins uci to the feature branch"}]}`)
+	v.Accepted = []string{"pins uci to the feature branch"}
+	check, _ := BuildCheckRun(v, false)
+	if check.AcceptedFrom != "" || !strings.Contains(check.Summary, "accepted on the base branch:") {
+		t.Errorf("with no ref reported, want the base branch named:\n%s", check.Summary)
+	}
+	v.AcceptedFrom = "main"
+	check, _ = BuildCheckRun(v, false)
+	if check.AcceptedFrom != "main" || !strings.Contains(check.Summary, "accepted on `main`:") {
+		t.Errorf("AcceptedFrom = %q; want main in the check and the section:\n%s",
+			check.AcceptedFrom, check.Summary)
+	}
+	if notice := v.position(); !strings.Contains(notice, "listed under Accepted in `main`'s") {
+		t.Errorf("the notice does not name the ref:\n%s", notice)
 	}
 }
 

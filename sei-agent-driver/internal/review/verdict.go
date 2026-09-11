@@ -56,6 +56,10 @@ type Verdict struct {
 	// withhold approval. Nil when the repository keeps none.
 	Accepted []string
 
+	// AcceptedFrom is the ref the caller read Accepted from, as it reported it, so the
+	// check and the notice show where an acceptance came from. Empty when unreported.
+	AcceptedFrom string
+
 	// Reason renders why Structured is nil, for the operator who has to act on
 	// it. Empty when there is a verdict.
 	Reason string

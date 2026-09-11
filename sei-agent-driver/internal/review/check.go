@@ -25,6 +25,11 @@ type CheckRun struct {
 	// [BuildFailureCheck], where there is no decision to submit.
 	Decision string `json:"decision,omitempty"`
 
+	// AcceptedFrom is the ref the caller reported reading the Accepted list from, so a
+	// reader of the check sees which branch's acceptances weighed on Decision. Empty
+	// when the caller reported none.
+	AcceptedFrom string `json:"accepted_from,omitempty"`
+
 	// Title is the one-line reading in the checks list.
 	Title string `json:"title"`
 
@@ -131,11 +136,12 @@ func BuildCheckRun(v Verdict, includeNits bool) (CheckRun, bool) {
 	}
 	counts := countFindings(v, includeNits)
 	return CheckRun{
-		Conclusion: v.CheckConclusion(),
-		Decision:   v.Decision(),
-		Title:      checkTitle(counts),
-		Summary:    checkSummary(v),
-		Counts:     &counts,
+		Conclusion:   v.CheckConclusion(),
+		Decision:     v.Decision(),
+		AcceptedFrom: v.AcceptedFrom,
+		Title:        checkTitle(counts),
+		Summary:      checkSummary(v),
+		Counts:       &counts,
 	}, true
 }
 
@@ -233,7 +239,7 @@ func checkSummary(v Verdict) string {
 		v.position(),
 		bulletSection("Blocking", "", Blockers(v)),
 		bulletSection("Non-blocking", "", NonBlockers(v)),
-		preExistingSection(PreExisting(v)),
+		preExistingSection(PreExisting(v), v.acceptedSource()),
 	}
 	out := make([]string, 0, len(sections))
 	for _, s := range sections {
@@ -320,12 +326,12 @@ func bulletSection(heading, lead string, items []string) string {
 // Every entry goes through the same bullet as the others. Both fields are model text,
 // and a severity or a body carrying a newline forges a section here as readily as a
 // blocker does.
-func preExistingSection(issues []PreExistingIssue) string {
+func preExistingSection(issues []PreExistingIssue, source string) string {
 	items := make([]string, 0, len(issues))
 	for _, issue := range issues {
 		if issue.Accepted != "" {
-			items = append(items, fmt.Sprintf("**%s, accepted** — %s (accepted on the base branch: %s)",
-				issue.Severity, issue.Body, issue.Accepted))
+			items = append(items, fmt.Sprintf("**%s, accepted** — %s (accepted on %s: %s)",
+				issue.Severity, issue.Body, source, issue.Accepted))
 			continue
 		}
 		items = append(items, fmt.Sprintf("**%s** — %s", issue.Severity, issue.Body))

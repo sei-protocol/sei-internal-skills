@@ -138,7 +138,12 @@ signal, so a caller never posts a stale file from a previous run.
   bullet per condition, until the next heading. The text before an em dash or ` -- ` is
   the phrase a finding must contain to match; what follows is the rationale, carried
   into the check and the comment as the authority. A bullet under three words is
-  dropped, because two words name a category, not a condition.
+  dropped, because two words name a category, not a condition. A phrase matches only
+  where it carries the finding: not where the finding negates it (`no longer pins uci
+  to the feature branch`) and not where the finding goes on to a second claim (`pins
+  uci to the feature branch and leaks the token`). Both fail closed — the blocker
+  withholds and the notice names it — so reword the entry or the finding rather than
+  expecting a wider match.
 
   ```markdown
   ## Accepted pre-existing conditions
@@ -150,6 +155,11 @@ signal, so a caller never posts a stale file from a previous run.
   and this process cannot see the repository to check. An accepted finding stays on the
   page, marked accepted with its rationale; only the veto is lifted. An absent file
   accepts nothing, and so does an unreadable one, with a warning.
+- `--base-standards-ref REF` — the ref the caller read `--base-standards-file` from,
+  e.g. `main`. Recorded as `accepted_from` in the check file and named beside every
+  accepted finding in the check summary and the comment's notice, so a workflow that
+  handed over the head's copy shows it on the pull request. Unverified: this process
+  records what the caller says. Empty renders as "the base branch".
 - `--extra-instructions TEXT` — additional guidance for this dispatch only. Carried
   into both the first prompt and the adopted one.
 - `--include-nits` — place nit-severity findings inline as well. Off by default. Off

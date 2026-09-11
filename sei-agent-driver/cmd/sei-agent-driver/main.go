@@ -142,6 +142,12 @@ func reviewCommand(log *slog.Logger) *cli.Command {
 					"head's copy, which would let a change accept its own blocker",
 			},
 			&cli.StringFlag{
+				Name: "base-standards-ref",
+				Usage: "the ref --base-standards-file was read from, e.g. main; recorded in " +
+					"check.json and named beside every accepted finding so a wrong ref " +
+					"shows on the pull request",
+			},
+			&cli.StringFlag{
 				Name:  "extra-instructions",
 				Usage: "guidance this repository adds to every review",
 			},
@@ -257,9 +263,10 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 				"path", path, "error", err)
 		}
 		req.Accepted = accepted
+		req.AcceptedFrom = cmd.String("base-standards-ref")
 		if err == nil {
 			log.Info("read the base branch's accepted conditions", "path", path,
-				"count", len(accepted))
+				"ref", req.AcceptedFrom, "count", len(accepted))
 		}
 	}
 
@@ -430,6 +437,7 @@ func report(outPath, findingsPath, checkPath string, result driver.Result,
 	// Stamped here, ahead of every reading below, so the decision on stdout and the one
 	// in the check file weigh the same acceptances.
 	verdict.Accepted = req.Accepted
+	verdict.AcceptedFrom = req.AcceptedFrom
 	payload := map[string]any{
 		"session_id":  result.SessionID,
 		"exit_code":   result.ExitCode,
