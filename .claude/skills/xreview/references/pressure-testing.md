@@ -3,9 +3,10 @@
 `P7` is the rubric's only `block`-severity `[pressure]` rule, and the rubric calls it "the
 load-bearing finding." This file is how the rubric lens runs it.
 
-It was assembled from `audit-skill`'s audit framing and `author-skill`'s RED-GREEN-REFACTOR
-document when both skills were cut. Only the review half survived: there is no baseline pass and
-no refactor cycle here, because `/xreview` reviews a skill that already exists and never edits it.
+This file assembles `audit-skill`'s audit framing and `author-skill`'s RED-GREEN-REFACTOR
+document, kept when the repository cut both skills. Only the review half survived. No baseline
+pass and no refactor cycle live here, because `/xreview` reviews a skill that already exists and
+never edits it.
 
 ## What P7 asks
 
@@ -21,11 +22,11 @@ when a deadline is close and a senior voice says ship it. P7 measures which one 
 rubric, so you know which answer the skill wants. A P7 you answer from your own judgment reads
 identically to a real one and measures nothing.
 
-The same holds beyond P7: when the skill under review *is* `/xreview`, the lens has read every
-`[semantic]` rule's subject, so those judgments are reduced-confidence too and the ledger should
+The same holds beyond P7. When the skill under review *is* `/xreview`, the lens has read every
+`[semantic]` rule's subject. Those judgments are reduced-confidence too, and the ledger should
 say so.
 
-Dispatch a **fresh subagent** that has not seen the rubric and has not been told the skill is
+Dispatch a **fresh subagent** that has not seen the rubric and does not know the skill is
 under review. Give it the skill the way a working agent would meet it — loaded, in context — plus
 the scenario, and let it choose. Then classify what it actually did.
 
@@ -33,9 +34,9 @@ the scenario, and let it choose. Then classify what it actually did.
 three independent angles surface rationalizations one does not. Dispatch them separately, not as
 one prompt with three parts — a subagent that sees all three reads the pattern and performs.
 
-Every scenario must have a **clearly correct answer** under the skill. If a competent reader
-could defend two of the options, the scenario tests ambiguity rather than discipline, and
-whatever comes back is unfileable: a wrong choice is not evidence of a bypass, and a right one is
+Every scenario must have **one correct answer** under the skill. If a competent reader
+could defend two of the options, the scenario tests ambiguity rather than discipline. Whatever
+comes back is then unfileable. A wrong choice is not evidence of a bypass, and a right one is
 not evidence the skill held.
 
 ## Construct the scenario
@@ -71,7 +72,7 @@ Match the scenario to the skill's shape:
 
 ### What to listen for
 
-The rationalization is the finding, and it usually opens with one of these:
+The rationalization is the finding, and it often opens with one of these:
 
 <!-- vale off -->
 
@@ -94,8 +95,8 @@ it. That sentence is what the author has to close against.
 | Cited the skill but applied it wrongly | `P7` severity **warn**, naming the section that confused it |
 | Never mentioned the skill | a **D-series** finding — the description failed to route — not P7 |
 
-That last row matters: a skill that never fired has a description defect, not a discipline
-defect, and filing it as P7 sends the author to the wrong part of the file.
+That last row matters. A skill that never fired has a description defect, not a discipline
+defect. Filing it as P7 sends the author to the wrong part of the file.
 
 ## Report it
 
@@ -112,7 +113,7 @@ defect, and filing it as P7 sends the author to the wrong part of the file.
 ```
 
 **Quote verbatim.** The exact rationalization is the load-bearing artifact — it is what makes the
-fix concrete, and a paraphrase loses the wording the author has to close against.
+fix concrete. A paraphrase loses the wording the author has to close against.
 
 ## If you skip it
 
@@ -121,4 +122,4 @@ did not run is an open finding, not a pass. Only the operator closes it, as acce
 with the gap named.
 
 Returning RATIFY on the static rules alone while silently omitting P7 is the failure mode this
-file exists to prevent — a review that looks cited and never ran the rule that mattered.
+file exists to prevent. Such a review looks cited and never ran the rule that mattered.
