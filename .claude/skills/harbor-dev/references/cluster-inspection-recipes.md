@@ -195,14 +195,18 @@ kubectl get seinode -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=v
 kubectl get pod -n eng-<alias> -l sei.io/node=<chain-id>-rpc-<k> \
   -o custom-columns='POD:.metadata.name,NODE:.spec.nodeName,PHASE:.status.phase'
 
-# Every Sei-managed pod in the namespace, grouped by worker node (any count > 1 = shared box)
-kubectl get pod -n eng-<alias> -l sei.io/nodedeployment -o custom-columns='NODE:.spec.nodeName,POD:.metadata.name' --no-headers \
-  | sort | awk '{c[$1]++; p[$1]=p[$1]" "$2} END {for (n in c) if (c[n]>1) print n":"p[n]}'
+# Every Sei-managed pod in the namespace, grouped by worker node (any count > 1 = shared box).
+# `sei.io/node` is the label the controller stamps on every SeiNode pod — validator and
+# follower alike — and the key Dedicated anti-affinity matches on; `sei.io/nodedeployment`
+# marks validator pods only and would leave followers out of the check. Unbound pods
+# report `<none>` and are dropped so two Pending pods do not print as one shared box.
+kubectl get pod -n eng-<alias> -l sei.io/node -o custom-columns='NODE:.spec.nodeName,POD:.metadata.name' --no-headers \
+  | grep -v '^<none>' | sort | awk '{c[$1]++; p[$1]=p[$1]" "$2} END {for (n in c) if (c[n]>1) print n":"p[n]}'
 ```
 
 Reading the table:
 
-- **Clean** — every row `Scheduled`, every `workerNode` distinct, **and** the all-pods grouping prints nothing (no validator shares a worker node with one of the chain's own RPC followers, with a seiload pod, or with any other Sei pod). `.status.nodes[*]` covers validators only, so the first two checks alone bless a `Shared` pool whose validator sits next to the follower seiload drives. For a bench chain, also require `WANT` and `ROLLED` both `Dedicated` on every validator; a `Shared` bench is a result the engineer accepted in words, not a default. Then the measurement window may open.
+- **Clean** — every row `Scheduled`, every `workerNode` distinct, **and** the all-pods grouping prints nothing (no validator shares a worker node with one of the chain's own RPC followers, or with any other SeiNode pod in the namespace; a seiload Job pod carries no `sei.io/node` label, so read its `.spec.nodeName` separately if it must not share a box). The grouping is namespace-scoped while `Dedicated` anti-affinity is cluster-wide, so it proves the engineer's own cell is clean, not that another tenant's pod is absent — the anti-affinity is what guarantees that. `.status.nodes[*]` covers validators only, so the first two checks alone bless a `Shared` pool whose validator sits next to the follower seiload drives. For a bench chain, also require `WANT` and `ROLLED` both `Dedicated` on every validator; a `Shared` bench is a result the engineer accepted in words, not a default. Then the measurement window may open.
 - **A `Pending` row** — the pod is unbound. On a `Dedicated` pool that is a capacity shortfall: no worker node without a Sei pod exists. `kubectl describe pod <name>-0 -n eng-<alias>` shows the scheduler's `FailedScheduling` reason (`didn't match pod anti-affinity rules`). Surface it as a capacity ask to platform; do not delete the pod, do not re-apply, and do not flip the CR to `Shared` unless the engineer accepts a shared run.
 - **A repeated `workerNode`** — two validators share bandwidth and CPU. Expected on `Shared`; impossible on `Dedicated` once both are `Scheduled`. If you see it, read `WANT`: `Dedicated` with `ROLLED` still `Shared` means a roll is pending or the controller is behind; `WANT` empty means a later `apply` without `--node-isolation` dropped the field through server-side apply (`references/seictl-cli.md`), and the fix is to re-apply with the flag. Any bench number taken in this state measures the neighbour.
 - **`WANT` ≠ `ROLLED`** — an isolation change is in flight; the controller replaces the pod on its next node-update plan. Wait for `ROLLED` to match before benching.
