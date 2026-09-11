@@ -24,11 +24,13 @@ You **MUST** consider the user input before proceeding (if not empty).
 
 - Check if `.specify/extensions.yml` exists in the project root.
 - If it exists, read it and look for entries under the `hooks.before_converge` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- If the YAML does not parse or is invalid, skip hook checking silently and continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
+
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
+
 - When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
 - For each executable hook, output the following based on its `optional` flag:
   - **Optional hook** (`optional: true`):
@@ -55,17 +57,17 @@ You **MUST** consider the user input before proceeding (if not empty).
 
     Wait for the result of the hook command before proceeding to the Goal.
     ```
-    After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
+    After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session. The invocation may differ from the literal `{command}` id shown above. For example, a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`. Emitting the block alone does not run the hook.
 
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+- If nothing registers a hook, or `.specify/extensions.yml` does not exist, skip silently
 
 ## Goal
 
 Close the gap between what a feature's specification, plan, and tasks call for and what the
 codebase currently implements. Read `spec.md`, `plan.md`, and `tasks.md` as the **sole
-source of intent** (with the constitution as governing constraints), assess the current
-state of the code, determine which requirements, acceptance criteria, plan decisions, and
-existing tasks are unmet, incomplete, or only partially satisfied, and **append each piece
+source of intent**, with the constitution as governing constraints. Assess the current
+state of the code. Determine which requirements, acceptance criteria, plan decisions, and
+existing tasks are unmet, incomplete, or only partially satisfied. Then **append each piece
 of remaining work as a new, traceable task** at the bottom of `tasks.md` so that
 `/speckit-implement` can complete it. This command MUST run only after
 `/speckit-implement` has run on the current `tasks.md`, and after `/speckit-tasks` has produced a complete `tasks.md`.
@@ -102,9 +104,10 @@ Run `.specify/scripts/bash/check-prerequisites.sh --json --require-tasks --inclu
 - PLAN = FEATURE_DIR/plan.md
 - TASKS = FEATURE_DIR/tasks.md
 - CONSTITUTION = `.specify/memory/constitution.md` (if present)
-If `spec.md`, `plan.md`, or `tasks.md` is missing, STOP with a clear, actionable message naming the
-prerequisite command to run (`/speckit-specify` for a missing spec, `/speckit-plan` for a missing plan,
-`/speckit-tasks` for missing tasks). Do not produce partial output.
+
+If `spec.md`, `plan.md`, or `tasks.md` is missing, STOP with a clear, actionable message.
+Name the prerequisite command to run (`/speckit-specify` for a missing spec, `/speckit-plan`
+for a missing plan, `/speckit-tasks` for missing tasks). Do not produce partial output.
 For single quotes in args like "I'm Groot", use escape syntax: e.g 'I'\''m Groot' (or double-quote if possible: "I'm Groot").
 
 ### 2. Load Artifacts (Progressive Disclosure)
@@ -123,7 +126,7 @@ Load only the minimal necessary context from each artifact:
 
 - Architecture/stack choices and technical decisions
 - Data Model references
-- Phases and named touch-points (files/components the plan says will be created or edited)
+- Phases and named touch-points (files/components the plan says someone will create or edit)
 - Technical constraints
 
 **From tasks.md:**
@@ -142,9 +145,9 @@ Create an internal model (do not echo raw artifacts):
 - **Requirements inventory**: one stable key per FR-### / SC-### / user-story acceptance
   scenario (e.g. `US1/AC2`), plus the plan decisions and constitution principles that
   impose buildable obligations.
-- **Code-scope map**: from the file paths named in `plan.md` and `tasks.md`, plus a keyword
-  search for the concepts each requirement describes, derive the set of source files and
-  components in scope for assessment. Bound the assessment to these — do **not** infer
+- **Code-scope map**: start from the file paths named in `plan.md` and `tasks.md`, plus a
+  keyword search for the concepts each requirement describes. Derive the set of source files
+  and components in scope for assessment. Bound the assessment to these — do **not** infer
   scope beyond what the artifacts define.
 
 ### 4. Assess the Codebase and Classify Findings
@@ -157,9 +160,9 @@ For each item in the intent inventory, inspect the current code in scope and pro
   acceptance criterion / plan decision.
 - **`contradicts`**: the code does something that conflicts with stated intent or a
   constitution MUST principle.
-- **`unrequested`**: the code contains work not called for by the spec, plan, or tasks
-  (surfaced for awareness — converge does **not** delete code, it only appends a task to
-  review/justify or remove it).
+- **`unrequested`**: the code contains work not called for by the spec, plan, or tasks.
+  Converge surfaces it for awareness: it does **not** delete code, and only appends a task
+  to review/justify or remove it.
 
 Each `Finding` records: a stable id, the `source-ref` it traces to, the `gap-type`, a
 severity, and a short human-readable description with the evidence (the file/area observed).
@@ -219,7 +222,7 @@ Append to the **end** of `tasks.md`, per the append contract:
 
    `<gap-type>` is one of `missing`, `partial`, `contradicts`, `unrequested`.
 
-   Constitution-violation tasks MUST be emitted first and described as
+   You MUST emit constitution-violation tasks first and describe them as
    `CRITICAL`.
 4. Never reuse or renumber existing IDs. If a prior Convergence phase exists, add a new,
    separately-numbered one below it — do not touch the old one.
@@ -228,26 +231,28 @@ Append to the **end** of `tasks.md`, per the append contract:
 
 - Do **not** modify `tasks.md` at all — no empty phase header.
 - Report: **"✅ Converged — the implementation satisfies the spec, plan, and tasks."**
-- Include the summary counts of what was checked.
+- Include the summary counts of what the run checked.
 
 ### 8. Provide Next Actions (Handoff)
 
-- On `tasks_appended`: state how many tasks were appended under which phase, and recommend
-  running `/speckit-implement` to complete them; note that a follow-up converge
+- On `tasks_appended`: state how many tasks the run appended under which phase. Recommend
+  running `/speckit-implement` to complete them, and note that a follow-up converge
   run will find fewer or no remaining items.
-- On `converged`: recommend proceeding to review / opening a PR. No further implement pass
-  is needed for this feature's specified scope.
+- On `converged`: recommend proceeding to review / opening a PR. This feature's specified
+  scope needs no further implement pass.
 
 ### 9. Check for extension hooks
 
 After producing the result, check if `.specify/extensions.yml` exists in the project root.
 
 - If it exists, read it and look for entries under the `hooks.after_converge` key
-- If the YAML cannot be parsed or is invalid, skip hook checking silently and continue normally
+- If the YAML does not parse or is invalid, skip hook checking silently and continue normally
 - Filter out hooks where `enabled` is explicitly `false`. Treat hooks without an `enabled` field as enabled by default.
 - For each remaining hook, do **not** attempt to interpret or evaluate hook `condition` expressions:
+
   - If the hook has no `condition` field, or it is null/empty, treat the hook as executable
   - If the hook defines a non-empty `condition`, skip the hook and leave condition evaluation to the HookExecutor implementation
+
 - Report the convergence outcome (`converged` or `tasks_appended`) in-session before listing
   any hooks, so users can decide whether to run optional follow-up commands.
 - When constructing command invocations from hook command names, replace dots (`.`) with hyphens (`-`). For example, `speckit.git.commit` → `/speckit-git-commit`.
@@ -274,6 +279,6 @@ After producing the result, check if `.specify/extensions.yml` exists in the pro
     Executing: `/{command}`
     EXECUTE_COMMAND: {command}
     ```
-    After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session (the invocation may differ from the literal `{command}` id shown above, e.g. a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`). Emitting the block alone does not run the hook.
+    After emitting the block above you MUST actually invoke the hook and wait for it to finish before continuing. Run it the same way you would run the command yourself in this agent/session. The invocation may differ from the literal `{command}` id shown above. For example, a skills-mode agent runs it as `/skill:speckit-...` or `$speckit-...`. Emitting the block alone does not run the hook.
 
-- If no hooks are registered or `.specify/extensions.yml` does not exist, skip silently
+- If nothing registers a hook, or `.specify/extensions.yml` does not exist, skip silently

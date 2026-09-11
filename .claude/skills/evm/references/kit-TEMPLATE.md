@@ -39,7 +39,7 @@ must be flagged for human approval, not asserted.
 
 **Authoring rules:**
 - **Cite both layers:** the Sei pattern (a file:line in `sei-chain`, or a Sei docs path) AND the external canon (`sources.md`) it specializes or overrides. A claim with neither is not a kit entry.
-- The **profile** (`sei-evm-profile.md`) holds the cross-cutting hard conventions — kits reference it, don't restate it.
+- The **profile** (`sei-evm-profile.md`) holds the cross-cutting hard conventions — kits reference it, do not restate it.
 - Where Sei **overrides** a generic EVM assumption (prevrandao, gas, proofs, finality), say so explicitly and cite the generic as the floor (`sources.md`).
 - Keep review cues mapped to the six method dimensions so findings stay rankable. **Always write the dimension as `Dimension N (name)`** — keep the parenthetical name, never a bare `Dimension N`. The number→name map lives only in `method.md`, so a kit pulled into a windowed context must carry the name with it.
 - **Hand exploit-depth/severity to `security-specialist` and pure idiom to `idiomatic-reviewer`** — surface the cue + detector, defer the verdict (the boundary the profile names).
@@ -52,12 +52,12 @@ Shipped:
 - `kit-address-association.md` — dual 0x↔bech32, association, the `CanAddressReceive` cast trap, HD coin-type, `usei`↔`wei` value handling, failure receipts.
 - `kit-foundry-tooling.md` — forge/cast/anvil/chisel, fuzz/invariant/fork testing, deploy + `verify-contract`, Sei RPC/chain-IDs, Slither/Aderyn.
 - `kit-upgrade-safety.md` — ERC-1967/7201, UUPS vs Transparent, OZ Upgrades storage-layout checks, the v4→v5 storage-brick hazard.
-- `kit-evm-indexing-events.md` — receiving on-chain events for agentic consumers: the cross-VM synthetic-log/bloom trap, no-pending, instant-finality (no reorg), failure receipts, indexer options, event design.
-- `kit-randomness-vrf.md` — Pyth Entropy V2 commit-reveal VRF (the answer to "prevrandao isn't random").
-- `kit-delegated-authority.md` — scoped/revocable/time-bounded on-chain authority: ERC-7710/7715 caveat delegation on ERC-4337 session keys, the W3 boundary, the capability-grant pattern, registry hardening, the Sei self-deploy reality.
+- `kit-evm-indexing-events.md` — receiving on-chain events for agentic consumers. Covers: the cross-VM synthetic-log/bloom trap, no-pending, instant-finality (no reorg), failure receipts, indexer options, event design.
+- `kit-randomness-vrf.md` — Pyth Entropy V2 commit-reveal VRF (the answer to "prevrandao is not random").
+- `kit-delegated-authority.md` — scoped/revocable/time-bounded on-chain authority. Covers: ERC-7710/7715 caveat delegation on ERC-4337 session keys, the W3 boundary, the capability-grant pattern, registry hardening, the Sei self-deploy reality.
 
 Deferred (add as a conforming kit when first encountered — the corpus grows by use):
-- `kit-pointers-tokens` — native/IBC-denom→ERC20 pointers (first-class), CW20/CW721 pointers (legacy, already-deployed CW only), pointerview/pointer precompiles, versioned/no-pointer-to-pointer, USDC/LayerZero bridging.
-- `kit-oracles` — Pyth / Chainlink Data Streams / API3 / RedStone (the native oracle precompile is deprecated).
+- `kit-pointers-tokens` — native/IBC-denom→ERC20 pointers (first-class), CW20/CW721 pointers (legacy, already-deployed CW only). Also: pointerview/pointer precompiles, versioned/no-pointer-to-pointer, USDC/LayerZero bridging.
+- `kit-oracles` — Pyth / Chainlink Data Streams / API3 / RedStone (Sei deprecated the native oracle precompile).
 - `kit-account-abstraction` — general ERC-4337 wallet mechanics (bundler/paymaster/gas-sponsorship) + EIP-7702 SetCode; Thirdweb/Particle/Pimlico smart wallets. *(The 4337 session-key-as-delegation-substrate is already covered in `kit-delegated-authority`; this deferred kit is the broader wallet/paymaster surface.)*
-- `kit-cross-vm-interop` — the `wasmd` precompile + `wasmbinding` (CW↔EVM), the 1-hop write rule. **Legacy — Cosmos/CosmWasm is being deprecated; do not anchor new work here.**
+- `kit-cross-vm-interop` — the `wasmd` precompile + `wasmbinding` (CW↔EVM), the 1-hop write rule. **Legacy — Sei is deprecating Cosmos/CosmWasm; do not anchor new work here.**

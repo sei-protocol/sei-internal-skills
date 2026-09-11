@@ -7,21 +7,21 @@ description: "Use when reviewing or designing code/architecture for systems-leve
 
 # Systems
 
-Review and design code so it **behaves well on the machine and over time** — reliable under failure, performant under load, observable when it breaks, safe by construction, and durable at its interfaces. A *reference/technique* skill with a discipline spine. It is the operating manual for the `systems-engineer` agent and is also directly invocable (`/systems-review <target>`).
+Review and design code so it **behaves well on the machine and over time**. That means reliable under failure, performant under load, observable when it breaks, safe by construction, and durable at its interfaces. A *reference/technique* skill with a discipline spine. It is the operating manual for the `systems-engineer` agent and is also directly invocable (`/systems-review <target>`).
 
 ## Why this skill exists
 
-A capable model already knows most systems principles. The skill's job is **not** a textbook — it's the **citable corpus** (the specific authority + the specific cue the model can't reliably reproduce from memory) plus the **discipline to rank findings by consequence under load** and not cry wolf. The standards corpus is grounded in the open canon (see `references/sources.md`) and stays copyright-clean: our-own-words checklists that point at sources, never reproduce them.
+A capable model already knows most systems principles. The skill's job is **not** a textbook. It is the **citable corpus**: the specific authority + the specific cue the model cannot reliably reproduce from memory. On top sits the **discipline to rank findings by consequence under load** and not cry wolf. The standards corpus rests on the open canon (see `references/sources.md`) and stays copyright-clean: our-own-words checklists that point at sources, never reproduce them.
 
 ## Guardrails
 
 Refusal conditions — they hold under time pressure and a checklist-completion urge:
 
-1. **No consequence → no finding** (Rule 1). Never flag a rule that doesn't bite for this system's load/criticality.
+1. **No consequence → no finding** (Rule 1). Never flag a rule that does not bite for this system's load/criticality.
 2. **Cite every finding; stay copyright-clean.** An authority and/or repo rule per finding; never reproduce or closely-reword reserved source text.
 3. **Suggest-only.** Never rewrite the author's files — produce findings the human/calling agent applies.
-4. **Don't duplicate the idiom or ops lens** (Rule 3). Idiom → `/idiomatic`; operating the live system → the ops agents.
-5. **One-way doors are flagged, not asserted.** A change to a published API/wire format goes to human approval.
+4. **Do not duplicate the idiom or ops lens** (Rule 3). Idiom → `/idiomatic`; operating the live system → the ops agents.
+5. **Flag one-way doors, never assert them.** A change to a published API/wire format goes to human approval.
 
 ## When to use / when not
 
@@ -40,8 +40,8 @@ Idiom ⊂ systems quality: `/idiomatic` answers "does it read native"; `/systems
 
 ## The method
 
-1. **Identify the work's systems surface** and load the relevant reference(s): `reliability` (remote calls, retries, queues, failure handling), `observability` (does it expose how it's doing), `performance` (hot paths, concurrency, latency), `safety-quality` (invariants, bounds, untrusted input), `api-design` (a published/wire interface).
-2. **Apply on top of the `/idiomatic` pass** — don't re-flag idiom (that's the other lens).
+1. **Identify the work's systems surface** and load the relevant reference(s). `reliability` (remote calls, retries, queues, failure handling). `observability` (does it expose how it is doing). `performance` (hot paths, concurrency, latency). `safety-quality` (invariants, bounds, untrusted input). `api-design` (a published/wire interface).
+2. **Apply on top of the `/idiomatic` pass** — do not re-flag idiom (that is the other lens).
 3. **Rank every finding by consequence under load** (severity model in each reference): correctness/safety > consequence-under-load > advisory.
 4. **Cite every finding** (an authority from `sources.md` and/or a repo rule) and suggest the fix. Suggest-only — never rewrite the author's files.
 
@@ -49,13 +49,13 @@ Idiom ⊂ systems quality: `/idiomatic` answers "does it read native"; `/systems
 
 Three non-negotiable rules.
 
-### Rule 1 — Rank by consequence-under-load; don't flag rules that don't bite here
-Every finding names the failure mode it prevents *for this system's actual load and criticality* (a retry storm, a cardinality explosion, an irreversible API break). A rule with no plausible consequence for *this* target is trivia, not a finding. On a system that's already sound, the answer is *"behaves well — no findings."* Demanding circuit breakers on a one-shot batch job, p99 hedging on a cron, or static allocation on a control-plane CRD is crying wolf — and a reviewer that cries wolf gets muted.
+### Rule 1 — Rank by consequence-under-load; do not flag rules that do not bite here
+Every finding names the failure mode it prevents *for this system's actual load and criticality*. Examples: a retry storm, a cardinality explosion, an irreversible API break. A rule with no plausible consequence for *this* target is trivia, not a finding. On a system that is already sound, the answer is *"behaves well — no findings."* Demanding circuit breakers on a one-shot batch job, p99 hedging on a cron, or static allocation on a control-plane CRD is crying wolf. A reviewer that cries wolf gets muted.
 
 ### Rule 2 — Cite every finding; stay copyright-clean
-Every finding names a canonical authority (Google SRE, AWS Builder's Library, OTel semconv, TIGER STYLE, Google AIP…) and/or a repo rule. No naked "this won't scale." The citation is a link, **never reproduced or closely-reworded reserved text** — half the sources are reserved (cite-only); copyright discipline is a spine rule here, not a footnote. An irreversible change (API/wire format) is **flagged for human approval**, not asserted.
+Every finding names a canonical authority (Google SRE, AWS Builder's Library, OTel semconv, TIGER STYLE, Google AIP…) and/or a repo rule. No naked "this will not scale." The citation is a link, **never reproduced or closely-reworded reserved text**. Half the sources carry reserved rights (cite-only), so copyright discipline is a spine rule here, not a footnote. **Flag an irreversible change (API/wire format) for human approval**; never assert it.
 
-### Rule 3 — Don't duplicate the idiom or the ops lens
+### Rule 3 — Do not duplicate the idiom or the ops lens
 "Reads native" → `/idiomatic`. "Operate/run the live system" (postmortems, on-call, runtime cluster tuning) → the ops agents. `/systems` reviews how the *code and architecture* behave on the machine and over time — nothing else. Comment and documentation discipline is a contract rule — see AGENTS.md → Output discipline — not a systems finding.
 
 ### Rationalization table
@@ -64,11 +64,11 @@ Every finding names a canonical authority (Google SRE, AWS Builder's Library, OT
 |---|---|
 | "Add a circuit breaker / hedge / breaker here too." (on a batch job / cron) | Rule 1. Name the consequence under *this* load. No consequence → not a finding. |
 | "This is clean code, but let me list some systems nits to be thorough." | Rule 1. On a sound system, say "behaves well — no findings." Padding gets the reviewer muted. |
-| "I'll quote the SRE Book / the article to make the point." | Rule 2. Cite-and-link; never reproduce reserved text. Summarize the idea in your own words. |
-| "The function's a bit long / the name's off." | Rule 3. That's `/idiomatic`. Don't duplicate the idiom lens. |
-| "The comment narrates what got removed — I'll raise it here." | Rule 3. Comment and documentation discipline is a contract rule (AGENTS.md → Output discipline), not a systems finding. |
-| "Let me also tune the alert / write the runbook." | Rule 3. That's `sre-engineer`. This skill reviews the code, not the running system. |
-| "I'll just rename the API field to fix it." | Rule 2. A wire-format change is a one-way door — flag for human approval, don't assert. |
+| "I will quote the SRE Book / the article to make the point." | Rule 2. Cite-and-link; never reproduce reserved text. Summarize the idea in your own words. |
+| "The function's a bit long / the name's off." | Rule 3. That is `/idiomatic`. Do not duplicate the idiom lens. |
+| "The comment narrates what got removed — I will raise it here." | Rule 3. Comment and documentation discipline is a contract rule (AGENTS.md → Output discipline), not a systems finding. |
+| "Let me also tune the alert / write the runbook." | Rule 3. That is `sre-engineer`. This skill reviews the code, not the running system. |
+| "I will just rename the API field to fix it." | Rule 2. A wire-format change is a one-way door — flag for human approval, do not assert. |
 
 ## Output format
 
@@ -102,11 +102,11 @@ The `systems-engineer` persona's first step loads the relevant `/systems` refere
 
 Stop and ask / escalate rather than proceeding when:
 
-- **No target artifact** to review (the code/design can't be read) — halt and ask; never review from memory.
+- **No target artifact** to review (you cannot read the code/design) — halt and ask; never review from memory.
 <!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
-- **The work is really another lens** — idiom (`/idiomatic`), line-level correctness (`/code-review`), or operating the live system (the ops agents) — redirect rather than stretch this skill over it.
+- **The work is really another lens** — idiom (`/idiomatic`), line-level correctness (`/code-review`), or operating the live system (the ops agents). Redirect rather than stretch this skill over it.
 - **A finding would set a one-way door** (API/wire-format change) — stop and escalate to a human instead of asserting the fix.
 
 ## What this skill defers
 
-Culture/process corpus (DORA, postmortems, incident command) — not a reviewable code artifact; stays with `sre-engineer`. A pluggable `_TEMPLATE` — the theme set is closed (not an open set like languages); un-defer if a 6th theme is genuinely needed by a second author. `/coral` + `/council` dispatch wiring — un-defer when standalone is validated. Per-theme specialist-agent dispatch for deep calls — un-defer when a finding needs a reasoning persona the checklist can't carry.
+Culture/process corpus (DORA, postmortems, incident command) — not a reviewable code artifact; stays with `sre-engineer`. A pluggable `_TEMPLATE` — the theme set stays fixed (not an open set like languages). Un-defer it if a second author genuinely needs a 6th theme. `/coral` + `/council` dispatch wiring — un-defer once standalone use proves out. Per-theme specialist-agent dispatch for deep calls — un-defer when a finding needs a reasoning persona the checklist cannot carry.

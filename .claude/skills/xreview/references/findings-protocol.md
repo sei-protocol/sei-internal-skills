@@ -22,23 +22,23 @@ The synthesized output of xreview (Step 4) and the research grounding the discip
 
 When a finding is MISMATCH, name the category — it sets the severity and the fix:
 
-- **Signature** — the shape doesn't line up: parameter count/order, endpoint path/verb, message fields, function arity. (Analog: `NoSuchMethodError` — a syntactic break.)
-- **Type** — same field, incompatible type or representation (int vs string, enum value sets that don't match, units).
-- **Error-contract** — the provider raises errors the consumer doesn't handle, or the consumer expects error semantics the provider doesn't honor. Errors are part of the interface.
+- **Signature** — the shape does not line up: parameter count/order, endpoint path/verb, message fields, function arity. (Analog: `NoSuchMethodError` — a syntactic break.)
+- **Type** — same field, incompatible type or representation (int vs string, enum value sets that do not match, units).
+- **Error-contract** — the provider raises errors the consumer does not handle, or the consumer expects error semantics the provider does not honor. Errors are part of the interface.
 - **Naming** — the same concept under different names across the boundary, or the same name meaning different things.
 - **Sequencing / behavioral** — shapes match but order, timing, idempotency, or state assumptions differ. The dangerous class — no syntactic error, fails at integration. (Analog: a semantic break with no compile error.)
 
 ## Verdict
 
-- **COMPATIBLE (overall)** — every boundary is COMPATIBLE; no open MISMATCH/MISSING. State the confidence: high if reviewers were blinded and independent, lower (and say why) if not.
-- **OPEN (N findings)** — one or more MISMATCH/MISSING unresolved and not yet accepted. List each with what would close it. This is a legitimate, valuable output — not a failure to be smoothed into a green light.
+- **COMPATIBLE (overall)** — every boundary is COMPATIBLE; no open MISMATCH/MISSING. State the confidence: high if the dispatch blinded the reviewers and kept them independent, lower (and say why) if not.
+- **OPEN (N findings)** — one or more MISMATCH/MISSING unresolved and not yet accepted. List each with what would close it. This is a legitimate, valuable output — not a failure to smooth into a green light.
 
 Resolved findings move provider-first: update the interface source / provider definition, then the consumer adapts, then re-check.
 
-## Research grounding (why the discipline is shaped this way)
+## Research grounding (why the discipline has this shape)
 
 - **Independent preparation is the engine.** Fagan inspection's individual-preparation phase — reviewers commit findings before the group meeting — drove its high defect-detection rates. xreview's blinded dispatch replicates it. (Fagan inspection.)
-- **A confident voice anchors a group.** In Asch's conformity experiments ~75% conformed to an obviously-wrong majority at least once; a single independent dissenter restored judgment. Hence blinded reviews + an assigned dissenter. (Asch conformity experiments.)
+- **A confident voice anchors a group.** In Asch's conformity experiments ~75% conformed to a unanimous wrong majority at least once; a single independent dissenter restored judgment. Hence blinded reviews + an assigned dissenter. (Asch conformity experiments.)
 - **Rubber-stamping is the default failure.** "LGTM" approvals train teams to treat review as noise; evidence-bearing findings are the counter. (Code-review practice literature.)
-- **Multi-agent LLMs collapse into sycophantic consensus** when they see each other's outputs before committing — sometimes scoring *below* a single agent, and LLM judges can prefer a persuasive falsehood. Independence + evidence-anchored synthesis (not rhetorical synthesis) are the mitigations. (Multi-agent LLM debate / sycophancy literature, e.g. arXiv 2509.23055, 2509.05396; CONSENSAGENT, ACL 2025.)
-- **Provider owns the interface; consumer adapts.** API-evolution practice: additive, backward-compatible change preserves consumers; breaking change is a MAJOR (SemVer) event. Mismatch categories above mirror compatibility-checker break classes. (API versioning / backward-compatibility practice.)
+- **Multi-agent LLMs collapse into sycophantic consensus** when they see each other's outputs before committing, sometimes scoring *below* a single agent. An LLM judge can also prefer a persuasive falsehood. Independence + evidence-anchored synthesis (not rhetorical synthesis) are the mitigations. (Multi-agent LLM debate / sycophancy literature, e.g. arXiv 2509.23055, 2509.05396; CONSENSAGENT, ACL 2025.)
+- **Provider owns the interface; consumer adapts.** API-evolution practice: additive, backward-compatible change preserves consumers; breaking change is a MAJOR (SemVer) event. The mismatch categories above mirror the break classes of a compatibility checker. (API versioning / backward-compatibility practice.)

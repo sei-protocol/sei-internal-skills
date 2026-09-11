@@ -3,7 +3,7 @@
 Seven sections, in this order. Every one is mandatory. Write `None.` rather than
 dropping a heading, so a reader can tell an empty section from a forgotten one.
 
-The shape is `PLT-646` generalised. It was chosen because it already works in
+The shape is `PLT-646` generalised. We chose it because it already works in
 this project, not because it is a standard.
 
 ```markdown
@@ -49,8 +49,8 @@ The spec path, related issues, and the files a reader should open first.
 
 ## What governs each section
 
-No open standard defines a ticket's sections. The seven below are ours, and they
-have to be stated, not named. What goes *inside* them is anchored:
+No open standard defines a ticket's sections. The seven below are our own, so this
+file states them rather than naming them. What goes *inside* them has anchors:
 
 | Section | Anchor that governs it |
 |---|---|
@@ -65,18 +65,18 @@ have to be stated, not named. What goes *inside* them is anchored:
 
 Underneath all of it: **ISO/IEC/IEEE 29148:2018**, clause 6.4, which covers
 converting stakeholder requirements into technical, testable work items and user
-stories, and recommends a traceability matrix linking each requirement to its
+stories. It also recommends a traceability matrix linking each requirement to its
 origin, design, and tests. Paywalled — cite it, never reproduce it, and do not
 assume a model resolves it without a probe.
 <https://www.iso.org/standard/72089.html>
 
 ## Field mapping
 
-Everything comes from the spec. Nothing is authored here.
+Everything comes from the spec. Nothing originates here.
 
 | Ticket section | Spec source |
 |---|---|
-| Title | User story brief title, prefixed with the feature when it is not obvious |
+| Title | The brief title of the user story, prefixed with the feature when it is not obvious |
 | Problem | The story's plain-language journey, restated as the current gap |
 | Impact | **Why this priority** |
 | Relevant experts | Chosen from the agent roster by the work's domain |
@@ -96,7 +96,7 @@ Descriptive, and readable on a board with no other context.
 - Weak: `User Story 3` — carries nothing outside the spec.
 - Weak: `Fix the SDK` — names no mechanism.
 
-A bracketed prefix is allowed where it classifies real follow-on work:
+A bracketed prefix is fine where it classifies real follow-on work:
 `[follow-up]`, `[hardening]`. Do not invent new prefixes.
 
 ## What a missing input means

@@ -1,12 +1,12 @@
 # project-brief
 
 Authors the two text fields on a Linear Project — the one-line `summary` and the
-`description` — so a person who opens the project understands it without opening
+`description`. A person who opens the project then understands it without opening
 anything else.
 
-Replaces the aggregation skills that were retired when Linear Views and Pulse took
+Replaces the aggregation skills that retired when Linear Views and Pulse took
 over their job. Those assembled a second surface from many projects; this one makes a
-single project good enough that no second surface is needed.
+single project good enough that nobody needs a second surface.
 
 ## The bar it enforces
 
@@ -22,7 +22,9 @@ else. Adding words does not make it self-contained; removing the reader's
 dependencies does.
 
 That resolves the apparent conflict between "write it verbose" and Linear's own "aim
+<!-- vale AgenticWriting.STE-Passive = NO -->
 for brevity — short specs are more likely to be read." Both forbid padding. Verbose
+<!-- vale AgenticWriting.STE-Passive = YES -->
 means complete, not long.
 
 ## What it refuses
@@ -42,14 +44,14 @@ means complete, not long.
 
 ## Testing
 
-Built with the since-cut `/author-skill`. Three max-pressure scenarios were run against subagents
+Built with the since-cut `/author-skill`. Three max-pressure scenarios ran against subagents
 without the skill (deadline + authority; sunk-cost spec + social proof; dual-audience
-parser pressure), and every rationalization in the skill's table is quoted from what
+parser pressure). Every rationalization in the skill's table quotes what
 those agents actually said. The same three scenarios were re-run with the skill
 loaded; all three halted rather than fabricate.
 
-Two REFACTOR cycles followed, both from defects the testers found in the skill itself:
-its examples were drawn from the same domains as the test scenarios and read as
+Two REFACTOR cycles followed, both from defects the testers found in the skill itself.
+Its examples came from the same domains as the test scenarios and read as
 pasteable facts, and its override clause covered only one guardrail. See
 `evals/evals.json`.
 

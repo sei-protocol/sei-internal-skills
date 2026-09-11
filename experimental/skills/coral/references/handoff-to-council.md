@@ -6,29 +6,29 @@ Coral is for lightweight iteration. Council is for full-ceremony work. When any 
 
 - ≥3 components affected → council (System tier likely)
 - ≥2 interface boundaries touched → council
-- Any new interface being *defined* (as opposed to consumed) → council
+- Any new interface the work *defines* (as opposed to consumes) → council
 
 ## One-Way Doors
 
 Immediate handoff, regardless of size:
 
-- Persisted schema / field names (after data is written or consumers depend on them)
+- Persisted schema / field names (after data lands or consumers depend on them)
 - Public API contracts (request/response shapes, status codes, error formats)
 - On-disk or wire data formats
 - Signed or indexed identifiers (stable IDs, content hashes, signed tokens)
 - Anything the repo's CLAUDE.md flags as irreversible
 
-Script: "This touches a one-way door: [what]. Warrants full council process — I'll hand off unless you want to stay in coral with you gating it manually."
+Script: "This touches a one-way door: [what]. Warrants full council process — I will hand off unless you want to stay in coral with you gating it manually."
 
 ## Duration Signals
 
-- User says "this is bigger than I thought" / "let's do this properly" / "we should design this"
-- Work clearly won't complete in one session
-- Experts start asking for design documents that don't exist
+- User says "this is bigger than I thought" / "let us do this properly" / "we should design this"
+- Work will not complete in one session
+- Experts start asking for design documents that do not exist
 
 ## Interface Changes
 
-Anything requiring an interface-registry update (where a registry exists) → council. Coral doesn't edit the registry.
+Anything requiring an interface-registry update (where a registry exists) → council. Coral does not edit the registry.
 
 ## What Coral Keeps Handling
 
@@ -41,6 +41,6 @@ Anything requiring an interface-registry update (where a registry exists) → co
 
 ## Handoff Script Examples
 
-- "Now touching 3 components (A, B, C) with interface changes between A→B. That's System tier — hand off to /council?"
+- "Now touching 3 components (A, B, C) with interface changes between A→B. That is System tier — hand off to /council?"
 - "You just mentioned renaming a persisted field other systems depend on. One-way door. Hand off to /council for the gate, or handle it here with you gating manually?"
-- "You said 'let's design this properly' — that's a council cue. Hand off?"
+- "You said 'let us design this properly' — that is a council cue. Hand off?"

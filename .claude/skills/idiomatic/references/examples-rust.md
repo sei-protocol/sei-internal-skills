@@ -1,10 +1,12 @@
 # Rust idiom — worked examples
 
-Loaded **on demand** by the method (step 3) when a worked before/after teaches faster than the rule alone — most useful for the §3 *divergences* (counterintuitive) and the *judgment-only* dimensions (no lint to lean on). Each example pairs with a dimension in `language-pack-rust.md`; cite the same authority and §7 anchor. **Consult a pair for the pattern and cite it — do not paste the block wholesale into a review.**
+The method (step 3) loads this file **on demand** when a worked before/after teaches faster than the rule alone. It helps most for the §3 *divergences* (counterintuitive) and the *judgment-only* dimensions (no lint to lean on). Each example pairs with a dimension in `language-pack-rust.md`; cite the same authority and §7 anchor. **Consult a pair for the pattern and cite it — do not paste the block wholesale into a review.**
 
-These pairs are **original** (authored for this pack, not reproduced from any book — copyright-clean). For lint-anchored items, **"Anchor (observed)"** means the *bad* snippet was run through `cargo clippy` and produced the quoted diagnostic **and the *good* snippet passed clean** — so the cited check is real, correctly named, and fires where claimed. The line also records, in bold, whether the lint is **on by default** or **off by default**: **read that bold token, not the group name, to decide whether to cite the lint as build-failing** — the group (`style`/`complexity`/`suspicious`/`restriction`/`pedantic`/`nursery`) explains *why* a lint is on or off but is not the on/off source of truth. So: an *(observed)* anchor's quoted diagnostic is verbatim-real — cite it as-is when it's **on by default**; when it's **off by default**, note the crate must opt in (`#![warn(...)]`). For judgment-only items there is no lint — cite the prose Basis and say no checkable rule exists; never fabricate one.
+These pairs are **original** (authored for this pack, not reproduced from any book — copyright-clean). For lint-anchored items, **"Anchor (observed)"** means the *bad* snippet ran through `cargo clippy` and produced the quoted diagnostic, **and the *good* snippet passed clean**. The cited check is therefore real, correctly named, and fires where claimed.
 
-How to read severity: a footgun marked **correctness** is a bug, not a style nit — lead with it. A **judgment-only** item has no machine-checkable anchor. Everything else is **style** — bundle it, never lead with it (pack §6). The Rust-specific trap: a lint being *named* doesn't mean it *fires* — `restriction`/`pedantic`/`nursery` lints and rustc `missing_docs` are off by default.
+The line also records, in bold, whether the lint is **on by default** or **off by default**. **Read that bold token, not the group name, to decide whether to cite the lint as build-failing.** The group (`style`/`complexity`/`suspicious`/`restriction`/`pedantic`/`nursery`) explains *why* a lint is on or off but is not the on/off source of truth. So: an *(observed)* anchor's quoted diagnostic is verbatim-real — cite it as-is when it is **on by default**. When it is **off by default**, note the crate must opt in (`#![warn(...)]`). For judgment-only items there is no lint — cite the prose Basis and say no checkable rule exists; never fabricate one.
+
+How to read severity: a footgun marked **correctness** is a bug, not a style nit — lead with it. A **judgment-only** item has no machine-checkable anchor. Everything else is **style** — bundle it, never lead with it (pack §6). The Rust-specific trap: a *named* lint does not always *fire* — `restriction`/`pedantic`/`nursery` lints and rustc `missing_docs` are off by default.
 
 ---
 
@@ -25,7 +27,7 @@ fn transfer(from: AccountId, to: AccountId, amount: u64) { /* ... */ }
 Basis: Programming Rust ch. Enums and Patterns; API Guidelines C-NEWTYPE, C-CUSTOM-TYPE. Anchor: **none — judgment-only** (no lint flags a transposable pair of same-typed args).
 
 ### R3 · Errors are values — `Result` + `?`, not a match-ladder
-Don't hand-write the propagation a `?` expresses.
+Do not hand-write the propagation a `?` expresses.
 
 ```rust
 // bad — manual match-ladder
@@ -37,7 +39,7 @@ let cfg = parse(raw)?;
 ```
 Basis: Programming Rust ch. Error Handling; Rust Book ch.9; API Guidelines C-QUESTION-MARK. Anchor: **none — judgment-only** (idiom, not a lint).
 
-### R1 · Don't `.clone()` to silence the borrow checker
+### R1 · Do not `.clone()` to silence the borrow checker
 A clone added to dodge a borrow error is a smell, not a fix — restructure the scope or borrow.
 
 ```rust
@@ -51,14 +53,14 @@ println!("{name}");
 process(&user);
 println!("{}", user.name);
 ```
-Basis: Programming Rust ch. Ownership/References. Anchor: **none — judgment-only** (`redundant_clone` is **nursery — off by default and FP-prone**; don't claim it fires, and never *suggest* a clone to dodge a lifetime).
+Basis: Programming Rust ch. Ownership/References. Anchor: **none — judgment-only** (`redundant_clone` is **nursery — off by default and FP-prone**; do not claim it fires). Never *suggest* a clone to dodge a lifetime.
 
 ---
 
 ## Correctness / consequence footguns
 
 ### R8 · Mutex guard held across `.await` (correctness) — `await_holding_lock`
-A `std::sync::MutexGuard` held across an `.await` makes the future `!Send` (won't spawn on a multi-thread runtime) and serializes every task on the lock across the await.
+A `std::sync::MutexGuard` held across an `.await` makes the future `!Send` (will not spawn on a multi-thread runtime) and serializes every task on the lock across the await.
 
 ```rust
 // bad — guard live across the await point
@@ -180,7 +182,7 @@ let n = v.len();
 Basis: pack R6. Anchor (observed): `cargo clippy` (default) → `called \`.iter().count()\` on a \`Vec\`` (`clippy::iter_count`, **on by default** — complexity).
 
 ### R7 · `new()` without `Default` — `new_without_default`
-A zero-arg `new()` should be paired with a `Default` impl.
+A zero-arg `new()` needs a matching `Default` impl.
 
 ```rust
 // bad

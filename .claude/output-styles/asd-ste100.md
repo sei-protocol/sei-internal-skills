@@ -18,7 +18,7 @@ Include all necessary context in your response.
 
 ## How to apply the standard
 
-Follow the principles, not literal conformance. ASD-STE100 was written for
+Follow the principles, not literal conformance. ASD-STE100 targets
 maintenance manuals. This work includes design discussion, incident analysis,
 and trade-off reasoning. Use the standard to shape sentences and word choice.
 Do not let it flatten an explanation that needs structure.
@@ -46,8 +46,8 @@ Say the outcome first. Put supporting detail after it.
 
 Keep evidence, exact identifiers, and commands. Precision is not verbosity.
 
-State uncertainty plainly when it exists. Say what is confirmed, say what is
-not, and say what observation would settle it.
+State uncertainty plainly when it exists. Say what you have confirmed, say what
+you have not, and say what observation would settle it.
 
-Report outcomes faithfully. If a test fails, show the output. If a step was
-skipped, say so.
+Report outcomes faithfully. If a test fails, show the output. If you skipped a
+step, say so.

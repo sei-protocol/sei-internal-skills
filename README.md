@@ -4,9 +4,9 @@
 
 # sei-internal-skills
 
-sei-internal-skills is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It's the centralized, version-controlled home for the workflows and personas that help us review code, investigate failures, operate releases, run ephemeral chains, and collaborate with specialist agents.
+sei-internal-skills is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It is the centralized, version-controlled home for those workflows and personas. They help us review code, investigate failures, operate releases, run ephemeral chains, and collaborate with specialist agents.
 
-Skills and agents are authored once here and synced out to your user-scope (`~/.claude/`) and sibling repos, so the same `/xreview`, `/root-cause`, or `kubernetes-specialist` works the same way everywhere.
+You author skills and agents once here and sync them out to your user-scope (`~/.claude/`) and sibling repos. The same `/xreview`, `/root-cause`, or `kubernetes-specialist` then works the same way everywhere.
 
 ## Setup
 
@@ -23,11 +23,11 @@ make bootstrap
 ```
 
 This runs:
-- `make sync-agents` — installs sei-internal-skills's portable agents into `~/.claude/agents/` so they're reachable from any cwd
+- `make sync-agents` — installs sei-internal-skills's portable agents into `~/.claude/agents/` so they are reachable from any cwd
 - `make sync-skills` — installs sei-internal-skills's portable skills into `~/.claude/skills/`
 - `make update-agent-permissions` — installs the canonical read-only allow-list (`gh` reads, GitHub WebFetch) into `./.claude/settings.json`
 
-The canonical permission set is **strictly read-only by design**. Mutating patterns (`gh issue create`, `gh pr merge`, `aws delete-*`, `kubectl apply`, etc.) are rejected by `make verify-agent-permissions`, which CI runs on every PR that touches the permission files. Local additions for your own workflow go in `.claude/settings.local.json` (gitignored).
+The canonical permission set is **strictly read-only by design**. `make verify-agent-permissions` rejects mutating patterns (`gh issue create`, `gh pr merge`, `aws delete-*`, `kubectl apply`, etc.), and CI runs it on every PR that touches the permission files. Local additions for your own workflow go in `.claude/settings.local.json` (gitignored).
 
 Run `make` with no args to list all targets.
 
@@ -63,14 +63,14 @@ a style is the request to use it. It takes effect in your next session, or after
 `/clear` in the current one.
 
 It will not overwrite a style you already chose. If `outputStyle` is already set to
-something else, that gets reported and left alone. Every other key in `settings.json`
-is preserved, the file is backed up before the write, and a `settings.json` that does
-not parse is refused rather than guessed at. A symlinked `settings.json` is edited
-through rather than replaced, so a dotfiles setup stays linked.
+something else, that gets reported and left alone. It keeps every other key in
+`settings.json` and backs the file up before the write. It refuses a `settings.json`
+that does not parse rather than guessing at it. It edits through a symlinked
+`settings.json` rather than replacing it, so a dotfiles setup stays linked.
 `--no-activate output-style` installs the file and stops.
 
-`gh` is required rather than `curl` because sei-internal-skills is internal, so the fetch
-needs its auth. Same trust model as the installer one-liner above.
+The fetch needs `gh` rather than `curl` because sei-internal-skills is internal, so it
+needs `gh` auth. Same trust model as the installer one-liner above.
 
 **What it will not do:** delete anything, or install a second resource you did not
 name. Only `output-style` writes `settings.json`; a skill or agent never does. Ask for a skill and you get that skill — not its
@@ -119,25 +119,25 @@ The boundary between them is the point.
 
 The core is what every teammate installs, so anything added there costs everyone the
 effort of filtering past it. That is the whole reason for the split: **a new skill starts
-in `experimental/`** unless it clears the bar of serving an engineering team beyond its
-author on ordinary work.
+in `experimental/`** unless it clears one bar. The bar: serving an engineering team
+beyond its author on ordinary work.
 
 The exclusion is structural, not a setting. `sync-skills.sh` and `sync-agents.sh` read
-`.claude/skills/` and `.claude/agents/` and nothing else, so a resource is excluded *by
-living in* `experimental/`. Parking and promoting are the same one-line operation:
+`.claude/skills/` and `.claude/agents/` and nothing else, so *living in*
+`experimental/` excludes a resource. Parking and promoting are the same one-line operation:
 
 ```sh
 git mv experimental/skills/<name> .claude/skills/<name>   # promote (then: make verify-catalog)
 git mv .claude/skills/<name> experimental/skills/<name>   # park
 ```
 
-There is no third list to keep in step, which is what makes the boundary hold.
+No third list needs keeping in step, which is what makes the boundary hold.
 
 ### Retiring something
 
-Syncing never deletes — a target-only file is usually your own work, and a sync that
+Syncing never deletes — a target-only file is often your own work, and a sync that
 pruned by difference would eat it. The cost is that *retiring* a resource does not
-un-install it: after the slim-down, every environment that had ever synced still
+un-install it. After the slim-down, every environment that had ever synced still
 carried the removed skills, and Claude Code kept discovering them.
 
 `make prune-retired` closes that gap. It reports; it does not act:
@@ -147,19 +147,19 @@ make prune-retired          # report what is stale. Deletes nothing.
 make prune-retired-apply    # actually remove them
 ```
 
-It distinguishes two kinds. **Retired** resources are gone from the repo entirely
-(recoverable only from the archive) and are listed by hand in the script, so retiring
-something is reviewed in a diff. **Parked** ones still live in `experimental/`, so
-removing them is reversible with `make sync-experimental` — that list is derived at
-runtime and cannot drift.
+It distinguishes two kinds. **Retired** resources have left the repo entirely
+(recoverable only from the archive), and the script lists them by hand. A reviewer
+therefore sees a retirement in a diff. **Parked** ones still live in `experimental/`, so
+`make sync-experimental` reverses their removal — the script derives that list at
+runtime, and it cannot drift.
 
-It will never remove a resource in the current core, or one it does not recognize —
-a skill you authored yourself is reported and left alone. `make update` runs the
+It will never remove a resource in the current core, or one it does not recognize.
+It reports a skill you authored yourself and leaves it alone. `make update` runs the
 check and prints a one-line hint when something is stale, but never deletes.
 
-A prior generation of this repo carried 33 skills and 22 agents, including several
-product explorations. Those were cut in 2026-08 and preserved with full history in a
-private snapshot rather than deleted outright.
+A prior generation of this repo carried 33 skills and 22 agents, including
+product explorations. The 2026-08 slim-down cut them and preserved them with full
+history in a private snapshot rather than deleting them outright.
 
 ## What's in here
 
@@ -197,7 +197,7 @@ dispatched for a task).
 
 `make update` installs the styles into `~/.claude/output-styles/` but leaves every one of
 them **off**. Activating a style rewrites assistant behavior in every session and every
-repo, so that choice belongs to you, not to the installer — and writing it automatically
+repo, so that choice belongs to you, not to the installer. Writing it automatically
 would overwrite anyone who already picked a different style.
 
 Shipped: **ASD-STE100** — Simplified Technical English. Short sentences, active voice, one
@@ -206,7 +206,7 @@ put `"outputStyle": "ASD-STE100"` in `~/.claude/settings.json`.
 
 ## Organization & selective sync
 
-Skills and agents are grouped into **domains** for navigation and selective install — e.g. `code-quality` (`/idiomatic`, `/systems`), `release-operations` (`/gov-ops`, `/validate-release`), `platform-infra`, `investigation`, and so on. The domain is **metadata, not directory structure**: each skill/agent carries a `category:` in its frontmatter, the catalogs ([`.claude/skills/README.md`](.claude/skills/README.md), [`AGENTS.md`](AGENTS.md)) group by it, and the sync scripts let you install one domain at a time:
+**Domains** group skills and agents for navigation and selective install — e.g. `code-quality` (`/idiomatic`, `/systems`), `release-operations` (`/gov-ops`, `/validate-release`), `platform-infra`, `investigation`, and so on. The domain is **metadata, not directory structure**. Each skill/agent carries a `category:` in its frontmatter, and the catalogs ([`.claude/skills/README.md`](.claude/skills/README.md), [`AGENTS.md`](AGENTS.md)) group by it. The sync scripts let you install one domain at a time:
 
 ```sh
 make sync-skills                                            # the `portable` set (default)
@@ -214,7 +214,7 @@ make sync-skills                                            # the `portable` set
 ./scripts/sync-skills.sh --categories all                   # everything syncable
 ```
 
-Claude Code discovers skills and agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/sei-internal-skills/` are **not** discovered. So the install is always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. 
+Claude Code discovers skills and agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/sei-internal-skills/` are **not** discovered. The install is therefore always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains.
 
 ## Repository structure
 
@@ -236,15 +236,15 @@ assets/                     # Repo logo used by this README
 ```
 
 The two `.claude/` trees and `experimental/` are the tier split. `agents/` is unrelated
-despite the name — those are omnigent server bundles, not Claude Code agent personas.
+despite the name — those are omnigent server bundles, not agent personas for Claude Code.
 
 ## Where to start
 
-| If you're... | Start here |
+| If you are... | Start here |
 |---|---|
 | **Using the skills day to day** | `.claude/skills/README.md` (the catalog) |
 | **Authoring a new skill** | Pick the tier first ([`experimental/README.md`](experimental/README.md) — it is the default), then `.claude/skills/SKILL-TEMPLATE.md`, then the skill-package rubric |
-| **Looking for a skill that isn't installed** | [`experimental/README.md`](experimental/README.md), then `make sync-experimental` |
+| **Looking for a skill that is not installed** | [`experimental/README.md`](experimental/README.md), then `make sync-experimental` |
 | **Auditing an existing skill** | `/xreview` on the skill directory — it runs `.claude/skills/xreview/scripts/skill-package-checks.sh`, then reads the 52-rule rubric beside it |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
 | **Wanting exactly one thing** | [Just one piece](#just-one-piece) — the same installer, with a target |
@@ -253,9 +253,9 @@ despite the name — those are omnigent server bundles, not Claude Code agent pe
 ## Contributing & conventions
 
 - **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the skill or component in scope (e.g. `feat(xreview): ...`, `docs(readme): ...`).
-- **Output discipline.** Follow the Output discipline in `AGENTS.md` for PR bodies and in-code comments — conclusion first, an in-body comment at 4 lines or fewer, a header at 20 or fewer.
+- **Output discipline.** Follow the Output discipline in `AGENTS.md` for PR bodies and in-code comments. Conclusion first, an in-body comment at 4 lines or fewer, a header at 20 or fewer.
 - **Pre-PR discipline.** Before `gh pr create`, re-read the diff and the planned body against the Output discipline in `AGENTS.md`.
-- **Edit skills here, not in `~/.claude/`.** User-scope copies are overwritten on the next sync. Change a skill in sei-internal-skills and PR it.
+- **Edit skills here, not in `~/.claude/`.** The next sync overwrites user-scope copies. Change a skill in sei-internal-skills and PR it.
 
 ## Documentation map
 
@@ -266,5 +266,5 @@ despite the name — those are omnigent server bundles, not Claude Code agent pe
 | `AGENTS.md` | Agent roster + how the skills dispatch them |
 | `.claude/skills/README.md` | Skill catalog and cross-repo sync guidance |
 | `.claude/skills/SKILL-TEMPLATE.md` | Authoring standard for new skills |
-| `experimental/README.md` | What is parked, why, and how to promote or park a resource |
+| `experimental/README.md` | What sits parked, why, and how to promote or park a resource |
 | `scripts/README.md` | What each script does and when CI vs. humans run them |

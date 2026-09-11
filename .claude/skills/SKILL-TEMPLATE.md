@@ -2,9 +2,9 @@
 
 This document defines the canonical shape for skills that codify a team process. Read it before authoring a new procedural skill; use it as a checklist in review.
 
-A **procedural skill** executes a fixed sequence of steps with side effects on external systems (clusters, CI, deployments, on-chain state, etc.). It is different from an orchestration skill like `/council` or `/coral`, which coordinate agents and don't typically have side effects themselves.
+A **procedural skill** executes a fixed sequence of steps with side effects on external systems (clusters, CI, deployments, on-chain state, etc.). It is different from an orchestration skill like `/council` or `/coral`, which coordinate agents and do not typically have side effects themselves.
 
-Procedural skills live at **project scope** (`<repo>/.claude/skills/<name>/`) unless they're truly repo-agnostic, in which case they live at user scope (`~/.claude/skills/<name>/`). The default is project scope.
+Procedural skills live at **project scope** (`<repo>/.claude/skills/<name>/`) unless they are truly repo-agnostic, in which case they live at user scope (`~/.claude/skills/<name>/`). The default is project scope.
 
 **In sei-internal-skills, pick the tier before you pick the shape.** This repo ships a focused
 **core** (`.claude/skills/`) that every teammate installs, and parks everything else in
@@ -32,7 +32,7 @@ update. Everything below applies identically to both tiers.
     .gitkeep
 ```
 
-Claude Code discovers skills as direct subdirectories of `.claude/skills/`. Nested folders are NOT discovered. Logical grouping across skills happens in `.claude/skills/README.md` (the catalog), not in directory structure. This is also why `experimental/` parks a skill: it is not a nested group under `.claude/skills/` but a sibling tree the sync scripts never read, so exclusion needs no flag and cannot drift.
+Claude Code discovers skills as direct subdirectories of `.claude/skills/`. Nested folders are NOT discovered. Logical grouping across skills happens in `.claude/skills/README.md` (the catalog), not in directory structure. This is also why `experimental/` parks a skill: it is not a nested group under `.claude/skills/` but a sibling tree the sync scripts never read. Exclusion therefore needs no flag and cannot drift.
 
 ## SKILL.md Anatomy
 
@@ -47,7 +47,7 @@ description: "<one sentence purpose. Concrete trigger phrases. Anti-triggers —
 ---
 ```
 
-Description crafting is the highest-leverage work in a skill — it's the only thing that routes invocation:
+Description crafting is the highest-value work in a skill — it is the only thing that routes invocation:
 
 - **Triggers** — exact phrases a user would say. Not synonyms, not intent-level paraphrases. The runtime matches on the text.
 - **Anti-triggers** — "NOT for production clusters", "SKIP if X", "do NOT use when Y". Prevent over-matching.
@@ -72,7 +72,7 @@ This skill operates on **<scope>** only. Before any side-effecting action:
 See `references/guardrails.md` for the detailed safety model.
 ```
 
-If you can't write the guardrails stanza, the skill isn't safe to author. Write it first.
+If you cannot write the guardrails stanza, the skill is not safe to author. Write it first.
 
 ### 3. Preconditions
 
@@ -81,8 +81,8 @@ What must be true before the skill runs: tools available, env vars set, auth sta
 ### 4. Procedure (the main body)
 
 The step-by-step procedure. Each step:
-- Calls a script from `scripts/` — don't embed shell commands in prose
-- Names what it's doing and which signal it's capturing
+- Calls a script from `scripts/` — do not embed shell commands in prose
+- Names what it is doing and which signal it is capturing
 - Specifies success criteria for that step
 - References the halt conditions that would fire
 
@@ -104,7 +104,7 @@ Stop and report to the user if:
 
 ### 6. State Management
 
-Per-run state lives in `state/run-<ISO-timestamp>/`. Every script writes to this directory. On interrupted runs, the next invocation detects incomplete state and offers resume / archive / start-fresh. Summary artifacts are written to a user-facing location (outside `state/`) only after the full procedure succeeds.
+Per-run state lives in `state/run-<ISO-timestamp>/`. Every script writes to this directory. On interrupted runs, the next invocation detects incomplete state and offers resume / archive / start-fresh. Scripts write summary artifacts to a user-facing location (outside `state/`) only after the full procedure succeeds.
 
 ### 7. Summary
 
@@ -136,14 +136,14 @@ If the skill produces an artifact, the template defines the format. Keep it cons
 
 - `state/run-<ISO-timestamp>/<step-or-subject>.yaml` — per-step state
 - `state/run-<ts>/audit.log` — timestamped log of every command, exit code, output
-- `state/` is **gitignored**. Only the final artifact (at its user-facing path) gets committed.
+- `.gitignore` **covers `state/`**. Only the final artifact (at its user-facing path) gets committed.
 - Runs must be resumable. Next invocation reads `state/` → detects latest incomplete run → offers resume.
 
 ## Permission Pre-Approval
 
 Pre-approve the skill's happy-path Bash patterns in `.claude/settings.json` or `.claude/settings.local.json` so the skill runs without permission prompts on its normal path. Document in SKILL.md (or a README):
 
-- Which Bash command patterns should be allowlisted (e.g., `kubectl get pods -n <ns>` but not `kubectl delete *`)
+- Which Bash command patterns the allowlist should admit (e.g., `kubectl get pods -n <ns>` but not `kubectl delete *`)
 - Which tools to leave interactive (anything destructive, anything outside the skill's declared scope)
 - Env vars the skill relies on
 
@@ -155,7 +155,7 @@ Minimum bar: two evals in `evals/evals.json`:
 1. **Happy path** — scripted run that verifies the skill executes the full procedure and produces the expected artifact.
 2. **Halt condition** — scripted run that triggers a halt condition and verifies the skill stops and reports rather than proceeding.
 
-Additional evals as the skill's surface area grows.
+More evals as the skill's surface area grows.
 
 ## Authoring Checklist
 
@@ -163,16 +163,16 @@ When creating a new procedural skill:
 
 - [ ] Skill name is slash-command-friendly (kebab-case, short).
 - [ ] Description field has triggers AND anti-triggers AND sibling redirects.
-- [ ] Guardrails stanza drafted FIRST. If you can't articulate what the skill refuses to do, stop and think again.
+- [ ] Guardrails stanza drafted FIRST. If you cannot articulate what the skill refuses to do, stop and think again.
 - [ ] Procedure broken into discrete steps. Each step → one script under `scripts/`.
-- [ ] Halt conditions written. The "stop, don't auto-remediate" list is explicit.
+- [ ] Halt conditions written. The "stop, do not auto-remediate" list is explicit.
 - [ ] Summary template drafted (if the skill produces an artifact).
 - [ ] State convention followed — `state/` gitignored, run-ID subdir, audit.log.
 - [ ] Happy-path permissions pre-approved in `settings.json` or documented.
 - [ ] At least one happy-path eval and one halt-path eval.
 - [ ] Tier chosen deliberately — core (`.claude/skills/`) or `experimental/skills/`.
 - [ ] Catalogued in the tier's catalog — `.claude/skills/README.md` for core, `experimental/README.md` for experimental.
-- [ ] `state/` is covered by `.gitignore` (`.claude/skills/*/state/` or `experimental/skills/*/state/`).
+- [ ] `.gitignore` covers `state/` (`.claude/skills/*/state/` or `experimental/skills/*/state/`).
 - [ ] For a core skill only: `category:` maps to a sync alias (`make verify-catalog` fails closed otherwise).
 
 ## Anti-Patterns
@@ -181,7 +181,7 @@ Things that signal a procedural skill is going wrong:
 
 - **Shell commands in SKILL.md prose** — the SKILL.md is documentation, not a script. Put commands in `scripts/`.
 - **Vague trigger phrases** — "use this when working on the platform." Too broad; will over-match. Be specific.
-- **Missing anti-triggers** — if there's ANY scope where invoking this skill would be wrong, the description must say so.
+- **Missing anti-triggers** — if there is ANY scope where invoking this skill would be wrong, the description must say so.
 - **Auto-remediation** — the skill detects a problem and "just fixes it." Almost always wrong. Halt and ask.
 - **Embedded secrets or cluster identifiers** — these belong in env vars or config, never checked into the skill.
 - **No state directory** — the skill runs, something goes wrong, you have nothing to debug. Always write state.

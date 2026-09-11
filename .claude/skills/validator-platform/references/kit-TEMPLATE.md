@@ -39,17 +39,17 @@ refused or flagged for human approval / routed to `/gov-ops`, not asserted.
 
 **Authoring rules:**
 - **Cite the pin:** the controller/seictl path-at-sha, the LLD contract, `/gov-ops`, or `sei-skill` (`sources.md`). A claim with no pin is not a kit entry.
-- The **profile** (`sei-validator-profile.md`) holds the cross-cutting hard behavior — kits reference it, don't restate it.
-- **Cite, never restate `/gov-ops`.** A fact `/gov-ops` owns (a gate, the GovVote fan-out template, the fee floor, the mainnet allowlist) is cited to §gov-ops — never re-written into a kit.
+- The **profile** (`sei-validator-profile.md`) holds the cross-cutting hard behavior — kits reference it, do not restate it.
+- **Cite, never restate `/gov-ops`.** Cite a fact `/gov-ops` owns to §gov-ops — never re-write it into a kit. Those facts are a gate, the GovVote fan-out template, the fee floor, and the mainnet allowlist.
 - **Never cite the LLD for topology** — it is STALE there; take topology/signing from §controller.
 - Keep review cues mapped to the five method dimensions so findings stay rankable. **Always write the dimension as `Dimension N (name)`** — keep the parenthetical name, never a bare `Dimension N`. The number→name map lives only in `method.md`, so a kit pulled into a windowed context must carry the name with it.
 
 ## Kit roster (shipped + deferred)
 
 Shipped:
-- `kit-platform-machinery.md` — the canonical home for ALL controller-behavior invariants: ownership, sidecar execution at `:8443`, idempotency-per-kind, per-kind result location, task-ID re-join vs delete-recreate, `requirePhase` terminality, structural RPC pin.
-- `kit-seinodetask-gov-manifests.md` — authoring + GitOps-applying the 3 gov kinds as per-node manifests: camelCase payloads, integer-as-JSON-string + param-struct-as-JSON-object traps, the keyring resolution ladder, the per-node fan-out (cite `/gov-ops` `fan-out.md` template + fee floor), poll/verify-on-chain.
-- `kit-shadow-comparison.md` — driving the shadow `result-export` task in comparison mode against a node ALREADY running the supported shadow features, then reading results: the 9 params (`canonicalRpc` is the discriminator), the typed-client gap (the EVM/migration params need the RAW params map / `/v0/tasks` POST, not `ResultExportTask`), the L0/L1/L2 + touched-keys + watermark model, `migrationMode` (AppHash divergence expected), and reading S3 (`*.compare.ndjson.gz`, `divergence-{h}.report.json.gz`) + Prom (`seictl_shadow_*`). Node shadow-readiness is a precondition, not taught here.
+- `kit-platform-machinery.md` — the canonical home for ALL controller-behavior invariants. It covers ownership, sidecar execution at `:8443`, idempotency-per-kind, and per-kind result location. It covers task-ID re-join vs delete-recreate, `requirePhase` terminality, and the structural RPC pin.
+- `kit-seinodetask-gov-manifests.md` — authoring + GitOps-applying the 3 gov kinds as per-node manifests. It covers camelCase payloads and the integer-as-JSON-string + param-struct-as-JSON-object traps. It covers the keyring resolution ladder, the per-node fan-out (cite `/gov-ops` `fan-out.md` template + fee floor), and poll/verify-on-chain.
+- `kit-shadow-comparison.md` — driving the shadow `result-export` task in comparison mode against a node ALREADY running the supported shadow features, then reading results. It covers the 9 params (`canonicalRpc` is the discriminator) and the typed-client gap (the EVM/migration params need the RAW params map / `/v0/tasks` POST, not `ResultExportTask`). It covers the L0/L1/L2 + touched-keys + watermark model and `migrationMode` (AppHash divergence expected). It covers reading S3 (`*.compare.ndjson.gz`, `divergence-{h}.report.json.gz`) + Prom (`seictl_shadow_*`). Node shadow-readiness is a precondition, not taught here.
 
 Deferred (add as a conforming kit when first encountered — the corpus grows by use):
 - `kit-gitops-networking` — the SeiNetwork/SeiNode + manual-NLB/HTTPRoute model (per-node networking, the cross-region NLB/HTTPRoute wiring). **Deferred — un-defer at M2 (`/harbor-dev`)**, which reuses `kit-platform-machinery` + this networking model. (Shares a seam with `/platform` cell-networking + `sei-network-specialist` — keep to the validator-platform operator side.)

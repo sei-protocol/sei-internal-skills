@@ -14,7 +14,7 @@ It writes to:
 It does **not**:
 - Apply, delete, or modify any Kubernetes object (read-only kubectl: `get jobs`, `logs`)
 - Launch a Job or run the chaos suite (that is the deferred phase-2 driver)
-- Modify the platform repo or access production chain nodes
+- Modify the platform repo or access the chain nodes of production
 
 ## Pre-flight checks
 
@@ -46,7 +46,7 @@ Before any side-effecting action (S3 write, Notion push):
 The only interactive gate is **before dispatching the background agent**. Once
 dispatched, `platform-release-manager` runs unattended and pushes the Notion page
 **without further interaction** — an interactive pre-push confirm is impossible for a
-background agent. So `/validate-release` echoes the scope and waits for explicit
+background agent. `/validate-release` therefore echoes the scope and waits for explicit
 `confirm` up front (SKILL.md Step 0 / Guardrails step 4):
 
 ```
@@ -58,7 +58,7 @@ Notion DB:     <NOTION_DATABASE_ID>
 Type 'confirm' to proceed, or anything else to abort.
 ```
 
-Wait for explicit `confirm` before dispatching the agent. There is **no** second confirm
+Wait for explicit `confirm` before dispatching the agent. **No** second confirm exists
 before the Notion write — the pre-dispatch `confirm` authorizes the whole run.
 
 ## Refusal conditions

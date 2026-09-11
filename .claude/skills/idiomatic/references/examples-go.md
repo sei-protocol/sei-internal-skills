@@ -1,8 +1,10 @@
 # Go idiom — worked examples
 
-Loaded **on demand** by the method (step 3) when a worked before/after teaches faster than the rule alone — most useful for the §3 *divergences* (counterintuitive), the correctness footguns, and the *judgment-only* dimensions (no lint to lean on). Each example pairs with a dimension in `language-pack-go.md`; cite the same authority and §7 anchor. **Consult a pair for the pattern and cite it — do not paste the block wholesale into a review.**
+The method (step 3) loads this **on demand** when a worked before/after teaches faster than the rule alone. Most useful for the §3 *divergences* (counterintuitive), the correctness footguns, and the *judgment-only* dimensions (no lint to lean on). Each example pairs with a dimension in `language-pack-go.md`; cite the same authority and §7 anchor. **Consult a pair for the pattern and cite it — do not paste the block wholesale into a review.**
 
-These pairs are **original** (authored for this pack, not reproduced from any book — copyright-clean). For lint-anchored items, **"Anchor (observed)"** means the *bad* snippet was run through the named tool and produced the quoted diagnostic, and the *good* snippet passed clean — so the cited check is real, correctly named, and fires where claimed. So: an *(observed)* anchor's quoted diagnostic is verbatim-real — cite it as-is. For judgment-only items there is no tool — the example exists precisely because no linter catches it; cite the prose Basis and say no checkable rule exists.
+These pairs are **original** (authored for this pack, not reproduced from any book — copyright-clean). For lint-anchored items, **"Anchor (observed)"** means the named tool ran on the *bad* snippet and produced the quoted diagnostic. The *good* snippet passed clean. The cited check is therefore real, correctly named, and fires where claimed. So: an *(observed)* anchor's quoted diagnostic is verbatim-real — cite it as-is.
+
+For judgment-only items there is no tool — the example exists precisely because no linter catches it. Cite the prose Basis and say no checkable rule exists.
 
 How to read severity: a footgun marked **correctness** is a bug, not a style nit — lead with it. A **judgment-only** item has no machine-checkable anchor; flag it on the prose authority and say so (never fabricate an ID — §7). Everything else is **style** — bundle it, never lead with it (pack §6).
 
@@ -31,10 +33,10 @@ func New() *PG { return &PG{} }
 // in the consuming package, sized to what it uses:
 // type getter interface{ Get(id string) (Item, error) }
 ```
-Basis: Go Proverbs; GCR: Interfaces; GGSG: Decisions — Interfaces. Anchor: **none — judgment-only** (§7 marks D3 so; `ireturn` is a weak proxy that doesn't verify consumer-side placement). Do not offer a linter "to enforce it."
+Basis: Go Proverbs; GCR: Interfaces; GGSG: Decisions — Interfaces. Anchor: **none — judgment-only** (§7 marks D3 so; `ireturn` is a weak proxy that does not verify consumer-side placement). Do not offer a linter "to enforce it."
 
 ### Cross-cutting · Observability field on a domain type (§3 divergence + §4 anti-pattern)
-A field whose *only* reader is a metric label / log key couples the domain type to the metric taxonomy — the type churns whenever the taxonomy does. Map the sentinel → its string at the metric boundary instead. This also fixes a latent correctness bug: a `map[error]string` is keyed by `==` identity and **misses a `%w`-wrapped error**, silently emitting an empty label.
+A field whose *only* reader is a metric label / log key couples the domain type to the metric taxonomy. The type churns whenever the taxonomy does. Map the sentinel → its string at the metric boundary instead. This also fixes a latent correctness bug: a `map[error]string` uses `==` identity as its key and **misses a `%w`-wrapped error**, silently emitting an empty label.
 
 ```go
 // bad — the error carries its own metric label, and lookup is by map identity
@@ -53,10 +55,10 @@ func severity(err error) string {
     }
 }
 ```
-Basis: §3 divergence (presentation belongs to its own layer) + §4 anti-pattern. Anchor: **none** — two findings, neither machine-checkable: the layering call is *judgment-only*; the `map[error]` identity miss (it can't see through `%w`, so a wrapped error gets an empty label) is a **correctness** defect — lead with it.
+Basis: §3 divergence (presentation belongs to its own layer) + §4 anti-pattern. Anchor: **none** — two findings, neither machine-checkable. The layering call is *judgment-only*. The `map[error]` identity miss (it cannot see through `%w`, so a wrapped error gets an empty label) is a **correctness** defect — lead with it.
 
 ### §3 · A little copying beats a premature helper / a new dependency
-DRY/SRP pushes extraction at the second repeat; Go prefers a little duplication over the wrong abstraction (and over a dependency pulled in to save a few lines).
+DRY/SRP pushes extraction at the second repeat. Go prefers a little duplication over the wrong abstraction (and over a dependency pulled in to save a few lines).
 
 ```go
 // bad — a one-call indirection and a dependency to dedupe two trivial lines
@@ -67,14 +69,14 @@ func key(s string) string { return strutil.TrimLower(s) }
 // good — inline the two lines where they're used; no indirection, no dep
 key := strings.ToLower(strings.TrimSpace(s))
 ```
-Basis: §3 divergences (a-little-copying; premature-helper). Anchor: **none — judgment-only**. Don't recommend a helper for 2–3 line repeats unless they're a must-change-together correctness coupling.
+Basis: §3 divergences (a-little-copying; premature-helper). Anchor: **none — judgment-only**. Do not recommend a helper for 2–3 line repeats unless they are a must-change-together correctness coupling.
 
 ---
 
 ## Correctness footguns
 
 ### D13 · Shadowed `err` (correctness) — `shadow`
-A `:=` in an inner block re-declares `err`; if the outer `err` is read afterward, the inner assignment is lost.
+A `:=` in an inner block re-declares `err`; a later read of the outer `err` never sees the inner assignment.
 
 ```go
 // bad — inner err shadows the outer; the final `return ..., err` reads the stale outer value
@@ -135,14 +137,14 @@ func use(g guarded) int { return g.n }
 // good — pass a pointer
 func use(g *guarded) int { return g.n }
 ```
-Basis: GGSG: Decisions — Copying / Receiver type. Anchor (observed): `go vet` (default) → `use passes lock by value: <pkg>.guarded contains sync.Mutex` (golangci-lint's govet prints the same with a `copylocks:` prefix). **Name is `copylocks` (plural)** — `go vet -copylock` is rejected.
+Basis: GGSG: Decisions — Copying / Receiver type. Anchor (observed): `go vet` (default) → `use passes lock by value: <pkg>.guarded contains sync.Mutex` (golangci-lint's govet prints the same with a `copylocks:` prefix). **Name is `copylocks` (plural)** — `go vet` rejects `-copylock`.
 
 ---
 
 ## Error handling
 
 ### D2 · Wrap with `%w`, not `%v`; `%w` goes last — `errorlint`
-`%v` flattens the cause to a string, so callers can't `errors.Is`/`errors.As` it. Use `%w`, placed last — unless you're wrapping a sentinel to categorize, where the sentinel leads.
+`%v` flattens the cause to a string, so callers cannot `errors.Is`/`errors.As` it. Use `%w`, placed last — unless you are wrapping a sentinel to categorize, where the sentinel leads.
 
 ```go
 // bad — severs the chain
@@ -169,7 +171,7 @@ errors.New("parse config")
 Basis: GGSG: Decisions — Error strings; Best Practices — Adding information to errors. Anchor (observed): `staticcheck` → `ST1005: error strings should not be capitalized` **and** `… should not end with punctuation`. **The `"failed to"` filler is judgment-only** — `ST1005` catches capitalization/punctuation, not the redundant prefix; cite the GGSG heading and say no checkable rule covers it.
 
 ### D2 · In-band error sentinel — judgment-only
-Don't signal failure with a magic value; return a second result.
+Do not signal failure with a magic value; return a second result.
 
 ```go
 // bad — -1 means "not found"
@@ -200,7 +202,7 @@ return x
 Basis: GCR: Indent Error Flow; GGSG: Decisions — Indent error flow. Anchor (observed): `golangci-lint` (`revive`) → `indent-error-flow: if block ends with a return statement, so drop this else and outdent its block`. **Caveat:** revive is not default-on and its rule names are version-dependent.
 
 ### D8 · Named results only to enable a naked return — `nakedret`
-Name results only to disambiguate same-typed returns or for a deferred-closure assignment — not just so the final `return` can be naked; and naked returns only in short functions.
+Name results only to disambiguate same-typed returns or for a deferred-closure assignment — not just to allow a naked final `return`. Use naked returns only in short functions.
 
 ```go
 // bad — names exist only for the naked return; reader must scroll to learn what `return` yields
@@ -247,10 +249,10 @@ ctx, cancel := context.WithCancel(parent)
 defer cancel()
 work(ctx)
 ```
-Basis: GCR: Contexts. Anchor (observed): `go vet` (default) → `the cancel function returned by context.WithCancel should be called, not discarded, to avoid a context leak`. (If the function instead *returns* a cancelable context, don't `defer cancel()` inside — return `(ctx, cancel)` and let the caller defer it, or you hand back an already-canceled context.)
+Basis: GCR: Contexts. Anchor (observed): `go vet` (default) → `the cancel function returned by context.WithCancel should be called, not discarded, to avoid a context leak`. (If the function instead *returns* a cancelable context, do not `defer cancel()` inside — return `(ctx, cancel)` and let the caller defer it, or you hand back an already-canceled context.)
 
 ### Anti-pattern · Ignored error return — `errcheck`
-Don't drop an error on the floor.
+Do not drop an error on the floor.
 
 ```go
 // bad
@@ -282,6 +284,6 @@ import (
     "github.com/some/dep"
 )
 ```
-Basis: GGSG: Decisions — Import grouping; Best Practices — Import ordering. Anchor (observed): `gci` is a **formatter** in golangci-lint v2 — checked with `golangci-lint fmt --diff` (it regroups stdlib above third-party with a blank line and sorts within each group). `gofmt` alone does **not** enforce the inter-group blank line.
+Basis: GGSG: Decisions — Import grouping; Best Practices — Import ordering. Anchor (observed): `gci` is a **formatter** in golangci-lint v2 — checked with `golangci-lint fmt --diff`. It regroups stdlib above third-party with a blank line and sorts within each group. `gofmt` alone does **not** enforce the inter-group blank line.
 
 ---

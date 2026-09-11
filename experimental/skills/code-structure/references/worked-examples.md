@@ -1,8 +1,8 @@
 # Worked examples
 
 Real before → after deltas from this codebase. Each names the principle it
-demonstrates. They exist because the principles are easy to nod at and hard to apply —
-the judgment lives in the cases where the rule says *don't*.
+demonstrates. They exist because the principles are easy to nod at and hard to apply.
+The judgment lives in the cases where the rule says *do not*.
 
 ---
 
@@ -41,15 +41,15 @@ func shouldHoldInitialStatefulSet(node *seiv1alpha1.SeiNode) bool {
 ```
 
 **The placement rule this establishes:** the extracted predicate lands in the file that
-owns the concern — an STS predicate goes to `statefulset.go`, next to its siblings —
-not in the file you extracted it from.
+owns the concern, not in the file you extracted it from. An STS predicate goes to
+`statefulset.go`, next to its siblings.
 
 ---
 
 ## B. A load-bearing invariant, kept in place and trimmed
-*(Principle 4 — the case where the rule says don't extract and don't delete)*
+*(Principle 4 — the case where the rule says do not extract and do not delete)*
 
-A state-sync gate was resolved *before* the Failed/Paused early-returns so its status
+The reconciler resolves a state-sync gate *before* the Failed/Paused early-returns so its status
 mutation rides whatever flush those exits already do. That is a sequencing dependency,
 and it is invisible from call order.
 
@@ -57,14 +57,14 @@ The comment was **kept at the call site** — not extracted, not deleted — and
 from seven lines to four.
 
 The test that decided it: *a competent engineer could reorder this and silently break
-the piggybacked flush.* So it stays.
+the piggybacked flush.* It stays.
 
 ---
 
 ## C. Deliberately not extracted, with the un-defer condition stated
 *(Principle 5, guardrail 4)*
 
-Two things were left inline on purpose:
+Two things stayed inline on purpose:
 
 - **A snapshot bundle** (`before` / `statusBase` / `observedPhase` / `prev*`).
   Extracting it into a struct would thread that struct through an existing
@@ -91,7 +91,7 @@ if !holdInitialSTS && !holdForWorkflow {
 
 so the diff proves only the right-hand sides became named calls. Inlining to
 `if !shouldHoldInitialStatefulSet(node) && !adoptedWorkflowIsExecuting(node)` is a fine
-follow-up — **once equivalence is established, not in the diff that has to prove it.**
+follow-up — **once the diff has proven equivalence, not in the diff that has to prove it.**
 
 ### The result shape
 
@@ -126,8 +126,8 @@ A reader can follow that top-to-bottom without a guide. That is the bar.
 ```
 
 The owner's correction: the node-info exchange is still part of the handshake, and
-after it, liveness is monitored by pings. What the deadline defends against is a
-**network connectivity problem, not a malicious peer** — a malicious peer can open a
+after it, pings monitor liveness. What the deadline defends against is a
+**network connectivity problem, not a malicious peer**. A malicious peer can open a
 connection and keep it alive without sending anything useful anyway.
 
 **After:**
@@ -139,7 +139,7 @@ connection and keep it alive without sending anything useful anyway.
 ```
 
 **The code did not change.** The comment had claimed a defense the change does not
-provide, and the honest reason — the exchange belongs to the handshake — is both
+provide. The honest reason — the exchange belongs to the handshake — is both
 simpler and correct. A rationale is part of the code's contract with its next editor.
 
 ---
@@ -204,10 +204,10 @@ One config validation, three review rounds:
    **made the guards run at all.**
 
 Each earlier fix sat one level below the path everything actually took. The repo's own
-`AGENTS.md` states the rule that was being violated:
+`AGENTS.md` states the rule each fix violated:
 
 > "Guard at the choke point, never at each caller. A guard repeated at every call site
-> is a convention the next caller can forget, where a guard at the single function
+> is a convention the next caller can forget. A guard at the single function
 > every path passes through is an invariant they cannot."
 
 ---
@@ -215,9 +215,9 @@ Each earlier fix sat one level below the path everything actually took. The repo
 ## I. Staleness created by reversing a decision
 *(Principle 11)*
 
-A config key was changed from unrendered to rendered in a generated template. Left
+A change flipped a config key from unrendered to rendered in a generated template. Left
 behind **in the same branch**: a test still named
-`TestHiddenP2PKnobsStillParseFromExistingConfig`, a comment describing both keys as
+`TestHiddenP2PKnobsStillParseFromExistingConfig`. Also a comment describing both keys as
 hidden, and a PR description claiming the key was "not rendered."
 
 Three review rounds went to staleness the reversal should have swept in its own commit.

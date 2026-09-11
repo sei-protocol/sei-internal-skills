@@ -9,9 +9,9 @@ description: "Use when an engineer wants to understand a complex problem in the 
 
 Disciplined investigation of complex problems. Multi-expert. Hypothesis-first. Signal-gated. Multi-cause.
 
-This skill exists because **incident investigation collapses under pressure**. Under time, urgency, sunk cost, or a senior voice anchoring on one theory, an agent's natural path is: latch onto the first plausible explanation, narrate what the data "probably shows," propose a restart, declare done. That path is fast. It is also how teams ship the same incident three times.
+This skill exists because **incident investigation collapses under pressure**. Under time, urgency, sunk cost, or a senior voice anchoring on one theory, an agent takes the natural path. It latches onto the first plausible explanation, narrates what the data "probably shows," proposes a restart, and declares done. That path is fast. It is also how teams ship the same incident three times.
 
-The skill refuses that path. It enforces a six-step loop where every step is gated on retrieved evidence, every hypothesis carries a falsification criterion, and every finding is multi-cause.
+The skill refuses that path. It enforces a six-step loop. Retrieved evidence gates every step, every hypothesis carries a falsification criterion, and every finding is multi-cause.
 
 ## Guardrails
 
@@ -20,13 +20,13 @@ This skill operates on **active investigation, not live mitigation**. Before any
 1. **Context check** — the calling repo MUST have a `.claude/agents/` roster (the skill is multi-expert by design). Without a roster, halt and ask the user to point at one or invoke from a repo that has one.
 2. **Scope confirmation** — name the system under investigation and the observable effect in the first turn. If the user cannot state the effect ("things feel slow" without a measurable signal), halt and demand a sharper effect statement before generating hypotheses.
 3. **Refusal conditions** — this skill will refuse to:
-   - **Advance from hypothesis to conclusion without retrieved evidence.** Every signal cited must include the literal command + verbatim output, or be tagged `unverified`. Paraphrased logs are banned.
+   - **Advance from hypothesis to conclusion without retrieved evidence.** Every signal cited must include the literal command + verbatim output, or carry the `unverified` tag. The skill bans paraphrased logs.
    - **Declare a cause without a falsification attempt.** Each candidate cause requires a stated observation that would force dropping it. If falsification was never attempted, halt and run it.
    - **Treat a mitigation as a cause.** Restart, rollback, scale-up, kill-pod are restoration actions. They explain the system is *restartable*, not why it broke. "Fixed by rolling back" is not a root-cause finding.
    - **File a single-expert conclusion on a cross-component incident.** If the effect spans ≥2 specialty boundaries (e.g., controller + Sei networking + cloud infra), the investigation must dispatch parallel, **blinded**, hypothesis-first experts. Serial single-expert work on a cross-component incident is a halt.
    - **Accept consensus theater.** If experts return aligned conclusions but their dispatch logs show they saw each other's work before committing, the consensus is invalid. Re-run with proper blinding.
    - **Fire on live incident response.** The skill is for *investigation discipline*, not incident command. If users are actively impacted and no mitigation is in place, redirect: mitigate first, investigate second. The skill belongs after the bleeding has stopped — or in parallel, by a separate person from the on-call.
-   - **Fire on problems outside the Sei platform stack.** The in-scope systems are listed in the trigger description. For a problem in another domain, redirect to the right tool rather than forcing a low-confidence cross-domain investigation.
+   - **Fire on problems outside the Sei platform stack.** The trigger description lists the in-scope systems. For a problem in another domain, redirect to the right tool rather than forcing a low-confidence cross-domain investigation.
 
 See `references/multi-expert-dispatch.md` for the dispatch contract, `references/falsifiability-checklist.md` for the falsification rules, `references/sei-k8s-signal-ladder.md` for the signal hierarchy, and `references/rationalization-table.md` for the full failure-mode catalog with citations.
 
@@ -36,25 +36,25 @@ These are non-negotiable. Every step in the procedure exists to enforce one or m
 
 1. **Signals before hypotheses.** Before you generate a hypothesis, you have looked at data. The first move is always `kubectl describe` / `seid status` / a bounded Prometheus query — not an opinion.
 2. **Hypotheses before evidence.** Before you go looking for confirming data, write down at least two competing hypotheses. Evidence-gathering with one hypothesis in mind is confirmation bias wearing investigation clothes.
-3. **Evidence is retrieved, not extrapolated.** If you cite a log line, you ran the command. If you cite a metric, you ran the query. "The logs probably show…" is fabrication, not evidence. Every signal carries provenance.
-4. **Falsification before conclusion.** For every candidate cause, name the observation that would force you to drop it. Then try to obtain that observation. A hypothesis you cannot cleanly falsify is a hunch.
+3. **Evidence comes from retrieval, not extrapolation.** If you cite a log line, you ran the command. If you cite a metric, you ran the query. "The logs probably show…" is fabrication, not evidence. Every signal carries provenance.
+4. **Falsification before conclusion.** For every candidate cause, name the observation that would force you to drop it. Then try to get that observation. A hypothesis you cannot cleanly falsify is a hunch.
 5. **Multi-cause, not root cause.** Complex systems fail through *combinations*. The output is a ranked set of contributing factors with confidence levels, mechanisms, and remaining uncertainty. If you find yourself writing one bullet labeled "the root cause," you have not done the work.
 
 ## Procedure
 
-The orchestrator runs the loop. Specialists do their domain work. Both are bound by the Five Rules.
+The orchestrator runs the loop. Specialists do their domain work. The Five Rules bind both.
 
 ### Step 1 — Establish the effect
 
 State the observable in measurable terms. Required:
 
-- **What is happening** — the literal symptom, observable. Not "things are slow" — "p99 latency on `eth_call` rose from 80ms to 2.1s starting at 14:32 UTC on the four-validator chain in eng-bdchatham."
+- **What is happening** — the literal symptom, observable. Not "things are slow". Instead: "p99 latency on `eth_call` rose from 80ms to 2.1s starting at 14:32 UTC on the four-validator chain in eng-bdchatham."
 - **When it started** — wall-clock onset, scoped to the smallest window you can defend.
-- **Baseline** — what was true before. If the system has no baseline, you do not know there's an incident; you have a feeling.
+- **Baseline** — what was true before. If the system has no baseline, you do not know there is an incident; you have a feeling.
 - **Blast radius** — which replicas, namespaces, regions, users. Localizes the search.
 - **Mitigations already attempted** — record them as data, not as causes.
 
-If any of these can't be stated concretely, halt. Demand the data first.
+If you cannot state any of these concretely, halt. Demand the data first.
 
 ### Step 2 — Dispatch the expert slate
 
@@ -73,8 +73,8 @@ Dispatch contract (mandatory):
 
 - **Parallel.** Specialists work simultaneously, not in series.
 - **Blinded.** Each specialist commits their hypothesis list before seeing peers' outputs. The orchestrator does not summarize one expert's view into another's brief.
-- **Assigned dissent.** One specialist is tagged red-team — their job is to argue against the emerging consensus and produce the strongest counter-hypothesis. If no one fills this role, you will get consensus theater.
-- **Hypothesis-first brief.** Each specialist is asked: "Given the effect statement, what are the *top three* mechanisms that could produce this signature, ranked by likelihood, with a falsification observation for each?" Not "investigate this."
+- **Assigned dissent.** One specialist carries the red-team tag — their job is to argue against the emerging consensus and produce the strongest counter-hypothesis. If no one fills this role, you will get consensus theater.
+- **Hypothesis-first brief.** Ask each specialist: "Given the effect statement, what are the *top three* mechanisms that could produce this signature? Rank them by likelihood, with a falsification observation for each." Not "investigate this."
 
 See `references/multi-expert-dispatch.md` for the full briefing template and anti-patterns.
 
@@ -85,11 +85,11 @@ Each specialist returns: 2–3 hypotheses, each with a proposed mechanism and a 
 | # | Hypothesis | Proposed by | Mechanism | Falsification observation |
 |---|------------|-------------|-----------|---------------------------|
 
-No hypothesis is acted on until at least two are on the table. Single-hypothesis investigation is a halt.
+Act on no hypothesis until at least two are on the table. Single-hypothesis investigation is a halt.
 
 ### Step 4 — Retrieve evidence
 
-For each hypothesis, run its falsification observation. **The proposing specialist designs the observation** — the command and the expected shape of the answer — but the **orchestrator runs the decisive gating command itself**, so the evidence that advances the step is the orchestrator's own harness-captured tool result, not a record relayed back by a sub-agent. This is *provenance, not shape*: a `Command`/`Output` block a sub-agent returns is forgeable prose; output the orchestrator *caused* is not — the harness, not the model, produced those bytes, and the orchestrator cannot make it return output for a command it never ran. Every gating retrieval produces a record:
+For each hypothesis, run its falsification observation. **The proposing specialist designs the observation** — the command and the expected shape of the answer. The **orchestrator runs the decisive gating command itself**. The evidence that advances the step is therefore the orchestrator's own harness-captured tool result, not a record relayed back by a sub-agent. This is *provenance, not shape*: a `Command`/`Output` block a sub-agent returns is forgeable prose; output the orchestrator *caused* is not. The harness, not the model, produced those bytes, and the orchestrator cannot make it return output for a command it never ran. Every gating retrieval produces a record:
 
 ```
 Hypothesis #N
@@ -100,16 +100,18 @@ Interpretation: <what this shows, what it doesn't show>
 Status: confirms / falsifies / inconclusive
 ```
 
-**What this gate does and does not guarantee.** Running the gating command as the orchestrator closes *relayed-record fabrication* — a sub-agent (or the orchestrator paraphrasing one) cannot pass a verdict off on evidence that was never produced. It does **not** force the orchestrator to *enter* the gate: under the documented "narrate what the data probably shows" pressure, an orchestrator can still skip the retrieval and assert a verdict from prior context. Closing that — *skip-the-gate* — needs a checker external to the orchestrator's own attestation (an independent verifier agent, or a harness audit of the actual tool-call log) and is out of scope here (PLT-635 phase 2). Until then, hold the line manually: a ranked factor whose gating command does not appear as an actual tool call in this session is `unverified`.
+**What this gate does and does not guarantee.** Running the gating command as the orchestrator closes *relayed-record fabrication*. A sub-agent (or the orchestrator paraphrasing one) cannot pass a verdict off on evidence that never existed.
 
-The Sei/K8s "first five commands" ladder (see `references/sei-k8s-signal-ladder.md`) is the floor — for any K8s-shaped incident, those signals are pulled before any hypothesis-specific query. They localize the failure and reveal hypotheses you wouldn't have written.
+It does **not** force the orchestrator to *enter* the gate. Under the documented "narrate what the data probably shows" pressure, an orchestrator can still skip the retrieval and assert a verdict from prior context. Closing that — *skip-the-gate* — needs a checker external to the orchestrator's own attestation. That means an independent verifier agent, or a harness audit of the actual tool-call log. It is out of scope here (PLT-635 phase 2). Until then, hold the line manually: a ranked factor whose gating command does not appear as an actual tool call in this session is `unverified`.
+
+The Sei/K8s "first five commands" ladder (see `references/sei-k8s-signal-ladder.md`) is the floor — for any K8s-shaped incident, pull those signals before any hypothesis-specific query. They localize the failure and reveal hypotheses you would not have written.
 
 ### Step 5 — Build the causal chain
 
-Surviving hypotheses (those not falsified) are assembled into a dependency graph. Required elements:
+Assemble the surviving hypotheses (those not falsified) into a dependency graph. Required elements:
 
 - **Temporality** — the proposed cause precedes the effect. Verify with timestamps.
-- **Mechanism** — *how* the cause produces the effect, step by step. "X correlates with Y" is not a mechanism; "X exhausts the FD table, the next accept() returns EMFILE, the listener crashes, peer count drops, consensus stalls" is.
+- **Mechanism** — *how* the cause produces the effect, step by step. "X correlates with Y" is not a mechanism. "X exhausts the FD table, the next accept() returns EMFILE, the listener crashes, peer count drops, consensus stalls" is.
 - **Consistency** — does the signal reproduce across replicas, regions, restarts? If only one instance shows it, name why.
 - **Counterfactual** — would the effect have occurred without this cause? Use this only if you have a way to test it (rollback, replay, bisect, controlled rollout). Otherwise mark as speculation.
 - **Contributing factors** — what else is on the path. The chain has multiple nodes; name them all.
@@ -144,18 +146,25 @@ Recommended next actions:
 - <action>, conditional on <signal>
 ```
 
-If the investigation can't reach Step 6 — too many surviving hypotheses, evidence gaps the team can't close — that is a valid output. Say so explicitly: "investigation paused, three hypotheses surviving, need access to X to falsify further." A clean punt with stated obstacles beats a fabricated conclusion.
+If the investigation cannot reach Step 6 — too many surviving hypotheses, evidence gaps the team cannot close — that is a valid output. Say so explicitly: "investigation paused, three hypotheses surviving, need access to X to falsify further." A clean punt with stated obstacles beats a fabricated conclusion.
 
 ### The loop — advance gates and survivor routing
 
-The six steps are a **loop the orchestrator drives**, not a single pass. Each step's halt/refusal conditions are **advance gates**: do not proceed to step N+1 until step N's gate reads true — Step 1's five fields present; Step 3's ≥2 hypotheses each with a falsification observation; Step 4's gating evidence as orchestrator-run records with none `unverified`; Step 6's multi-cause ranking with every factor traced to a Step-4 record. A gate that can't be satisfied is a halt, not something to narrate past.
+The six steps are a **loop the orchestrator drives**, not a single pass. Each step's halt/refusal conditions are **advance gates**: do not proceed to step N+1 until step N's gate reads true. The gates:
+
+- Step 1's five fields present.
+- Step 3's ≥2 hypotheses, each with a falsification observation.
+- Step 4's gating evidence as orchestrator-run records with none `unverified`.
+- Step 6's multi-cause ranking with every factor traced to a Step-4 record.
+
+A gate that you cannot satisfy is a halt, not something to narrate past.
 
 After Step 4 falsification, the surviving-hypothesis count routes the loop:
 
 | Survivors after Step 4 | Transition |
 |------------------------|------------|
-| **0** (all falsified) | the effect statement or signal ladder is wrong — re-enter **Step 1** (re-frame); at the iteration cap, punt naming the mis-frame as the obstacle |
-| **1** | proceed to Steps 5–6 — a single surviving factor is a valid conclusion (distinct from Step 3's "only one hypothesis at merge," which is a halt) |
+| **0** (all falsified) | the effect statement or signal ladder is wrong — re-enter **Step 1** (re-frame). At the iteration cap, punt naming the mis-frame as the obstacle |
+| **1** | proceed to Steps 5–6 — a single surviving factor is a valid conclusion. Distinct from Step 3's "only one hypothesis at merge," which is a halt |
 | **>1, a falsification observation remains unrun** | re-enter **Step 2** (re-dispatch with the survivor set) — carry it forward so the loop compounds |
 | **>1, no further evidence obtainable** | Step 6 / clean punt — the observability gap is the finding |
 
@@ -167,15 +176,15 @@ Documented LLM failure modes during root-cause investigation. When you notice yo
 
 | Excuse | Reality |
 |--------|---------|
-| "The most likely cause is X — let me verify by fixing it." | A fix is not a test of a hypothesis. Write the falsification criterion **before** applying the fix, or you're confirming, not testing. |
-| "Based on the symptoms, the logs probably show…" | If you didn't run the command, you don't have evidence. Plausibility hallucination is the highest-severity failure mode here. Cite the tool call or tag it `unverified`. |
+| "The most likely cause is X — let me verify by fixing it." | A fix is not a test of a hypothesis. Write the falsification criterion **before** applying the fix, or you are confirming, not testing. |
+| "Based on the symptoms, the logs probably show…" | If you did not run the command, you do not have evidence. Plausibility hallucination is the highest-severity failure mode here. Cite the tool call or tag it `unverified`. |
 | "Restarting the pod fixed it, so the root cause was X." | A restart is evidence the system is *restartable*. Root cause must survive the next deploy. Mitigation ≠ explanation. |
-| "You're right, that's probably it — let me investigate that angle." | When a human supplies a hypothesis, it's both information *and* a poisoned anchor. Generate two independent alternatives before acting on it. |
-| "We're losing money every minute — let me skip ahead to the fix." | Urgency raises the cost of being wrong, which raises the required evidence per action. Skipping verification under time pressure is how teams ship the same incident twice. |
+| "You are right, that is probably it — let me investigate that angle." | When a human supplies a hypothesis, it is both information *and* a poisoned anchor. Generate two independent alternatives before acting on it. |
+| "We are losing money every minute — let me skip ahead to the fix." | Urgency raises the cost of being wrong, which raises the required evidence per action. Skipping verification under time pressure is how teams ship the same incident twice. |
 | "All five experts agree, so this is the cause." | Consensus is evidence only if each expert committed before seeing the others. If one expert saw the first's view, the others' agreement is sycophancy, not corroboration. |
-| "There's not enough information to determine the root cause." | After two hypothesis cycles, force a ranked commitment with explicit confidence, not a punt. Paralysis is also a failure mode. |
-| "It's probably a race condition." | A guess wearing a domain coat. State the race: which threads, which shared state, which observable interleaving. Otherwise drop it. |
-| "We've seen this before — it's the usual culprit." | Pattern-matching is fast and frequently wrong. Treat as a hypothesis (good), not as a conclusion (bad). Run the falsification observation. |
+| "Not enough information exists to determine the root cause." | After two hypothesis cycles, force a ranked commitment with explicit confidence, not a punt. Paralysis is also a failure mode. |
+| "It is probably a race condition." | A guess wearing a domain coat. State the race: which threads, which shared state, which observable interleaving. Otherwise drop it. |
+| "We have seen this before — it is the usual culprit." | Pattern-matching is fast and frequently wrong. Treat as a hypothesis (good), not as a conclusion (bad). Run the falsification observation. |
 | "The dashboards look fine." | Pre-aggregated metrics hide the connective tissue you need. Descend to raw events (logs, traces, request-level data) before declaring no problem. |
 
 See `references/rationalization-table.md` for the full table with literature citations.
@@ -187,9 +196,9 @@ Phrases that appear in your own reasoning when one of the rationalizations above
 - **"probably"**, **"likely"**, **"I'd expect"**, **"should be"**, **"would show"**, **"typically"** — when applied to *system state*, not to predictions about a future test.
 - **Passive voice on data sources**: "the logs indicate", "metrics suggest", "it appears that" — without a citation.
 - **"Let me just"**, **"quickly try"**, **"simply restart"**, **"go ahead and rollback"** — pre-action minimization.
-- **"You're right"**, **"good point"**, **"that makes sense"** — in response to a hypothesis (not in response to retrieved evidence).
+- **"You are right"**, **"good point"**, **"that makes sense"** — in response to a hypothesis (not in response to retrieved evidence).
 - **"Given the urgency"**, **"to save time"**, **"skipping ahead"** — explicit verification-skipping.
-- **"The team agrees"**, **"all experts converge"**, **"clearly the cause"** — consensus laundering.
+- **"The team agrees"**, **"all experts converge"**, **"evidently the cause"** — consensus laundering.
 - **"Fixed by"** — as the *last* line of an RCA. Mitigation masquerading as explanation.
 - **"More investigation needed"** — as a terminal state. Paralysis punt.
 
@@ -199,12 +208,12 @@ Phrases that appear in your own reasoning when one of the rationalizations above
 
 Stop and report to the user if:
 
-- The effect cannot be stated in measurable terms after two attempts to sharpen it.
-- The calling repo has no `.claude/agents/` roster and the user can't point at one.
+- The user cannot state the effect in measurable terms after two attempts to sharpen it.
+- The calling repo has no `.claude/agents/` roster and the user cannot point at one.
 - After Step 3, only one hypothesis survives the merge — single-hypothesis investigation is consensus-of-one, equally invalid.
 - Specialists' dispatch logs show they saw each other's outputs before committing — consensus theater. Re-run with proper blinding.
 - A specialist returns a hypothesis with no falsification observation — re-dispatch with that requirement.
-- Three retrieval attempts produce no verifiable evidence — the system isn't observable enough to investigate. Surface the observability gap as the finding; do not fabricate.
+- Three retrieval attempts produce no verifiable evidence — the system is not observable enough to investigate. Surface the observability gap as the finding; do not fabricate.
 - The investigation runs longer than the user's stated bound without converging — report surviving hypotheses, evidence gaps, and what would unblock progress.
 
 **Never auto-remediate without surfacing.** If the investigation reveals an obvious fix, propose it as a follow-up — do not apply it under cover of investigation.
@@ -214,7 +223,7 @@ Stop and report to the user if:
 - **Live incident command.** Mitigate first, investigate after. The on-call's job is to restore service; this skill's job is to explain what happened, ideally not on the critical path.
 - **Postmortem doc capture.** Out of scope by design (deferred). The skill produces a conversational summary; converting it into a `docs/postmortems/` artifact is a future companion skill.
 - **Single-expert deep-dive.** If the problem is genuinely contained to one specialist's domain and the user knows it, just `/coral` that specialist directly.
-- **Fix-it work.** Once the contributing factors are identified, fixing them is its own engagement. The skill ends at the ranked conclusion + recommended actions.
+- **Fix-it work.** Once you have identified the contributing factors, fixing them is its own engagement. The skill ends at the ranked conclusion + recommended actions.
 - **Cover domains outside the Sei platform stack.** Out of scope per the trigger description. A problem in another domain gets a redirect to the right tool, not a forced cross-domain investigation.
 
 ## Output (end-of-session summary)
@@ -223,4 +232,6 @@ One paragraph in chat: the effect, the top contributing factor(s) with confidenc
 
 Example:
 
-> Effect: `eth_call` p99 latency rose from 80ms to 2.1s on the four-validator chain at 14:32 UTC. Contributing factors: (high confidence) sei-chain mempool re-check on every block after a SeiDB compaction stall — mechanism is compaction blocked the EVM state read path, mempool re-check fell behind, JSON-RPC backed up on state reads; (medium) the affected nodes had `--db-backend=goleveldb` from a stale ConfigMap. Evidence: `seid status` showed `latest_block_height` advancing but `catching_up: false` paired with a 30-second AppHash log gap; `kubectl describe pod` showed no resource pressure; SeiDB compaction logs showed the stall. Remaining uncertainty: whether the compaction was triggered by the snapshot interval or by a peer-replay storm — would need state-sync metrics from 14:25–14:32 to disambiguate. Recommended: (a) pin db-backend in the SeiNodeDeployment template, (b) add a compaction-duration alert, (c) defer the state-sync question to a focused follow-up.
+> Effect: `eth_call` p99 latency rose from 80ms to 2.1s on the four-validator chain at 14:32 UTC. Contributing factors: (high confidence) sei-chain mempool re-check on every block after a SeiDB compaction stall. Mechanism: compaction blocked the EVM state read path, mempool re-check fell behind, JSON-RPC backed up on state reads. Second factor (medium): the affected nodes had `--db-backend=goleveldb` from a stale ConfigMap.
+>
+> Evidence: `seid status` showed `latest_block_height` advancing but `catching_up: false` paired with a 30-second AppHash log gap; `kubectl describe pod` showed no resource pressure; SeiDB compaction logs showed the stall. Remaining uncertainty: whether the snapshot interval or a peer-replay storm triggered the compaction. Closing it needs state-sync metrics from 14:25–14:32. Recommended: (a) pin db-backend in the SeiNodeDeployment template, (b) add a compaction-duration alert. Then (c) defer the state-sync question to a focused follow-up.

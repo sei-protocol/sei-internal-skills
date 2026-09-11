@@ -8,7 +8,7 @@ Step 6 of the procedure, when the user picks **Linear** at the sink prompt. The 
 
 ## Preconditions (checked here, not upfront)
 
-The Linear MCP tools must be connected and authenticated — at minimum `list_teams` and `save_issue` (others below are used when offered). They are interactively-authenticated and **may be absent in headless / cron runs**. If a Linear tool isn't available, say so plainly and fall back to the GitHub sink or print the body. **Never fabricate a Linear identifier or URL.**
+The Linear MCP tools need a live, authenticated connection — at minimum `list_teams` and `save_issue` (the others below come into play when offered). They are interactively-authenticated and **may be absent in headless / cron runs**. If a Linear tool is not available, say so plainly and fall back to the GitHub sink or print the body. **Never fabricate a Linear identifier or URL.**
 
 ## Field mapping
 
@@ -19,19 +19,21 @@ The Linear MCP tools must be connected and authenticated — at minimum `list_te
 | — (Linear requires a team) | `team` (required — resolved interactively, below) |
 | References URLs (optional) | left inline in the body; optionally also added as `links` attachments if the user asks |
 
-`Relevant experts` stays in the Markdown body exactly as rendered (the `.claude/agents` persona names) — Linear has no native concept for it, and that's fine; it's routing prose, not metadata.
+`Relevant experts` stays in the Markdown body exactly as rendered (the `.claude/agents` persona names). Linear has no native concept for it, and that is fine; it is routing prose, not metadata.
 
 ## Procedure
 
-1. **Resolve the team — always ask, never guess.** Call the `list_teams` tool and present the names; the user picks one. Linear requires a team and there is no safe default, so do not infer it from the repo or pick silently — this holds **even on a coral/council handoff**: the team is always interactively resolved, so the orchestrator should not promise a pre-filled Linear destination. If the user already named a team in their invocation ("file this in Linear under Platform"), confirm that team appears in the `list_teams` result and use it; **if the named team isn't in the result** (typo, renamed, no access), say so and present the actual list to pick from — never fall back to a first/default team.
+1. **Resolve the team — always ask, never guess.** Call the `list_teams` tool and present the names; the user picks one. Linear requires a team and there is no safe default, so do not infer it from the repo or pick silently. This holds **even on a coral/council handoff**: the team resolution is always interactive, so the orchestrator should not promise a pre-filled Linear destination.
 
-2. **Offer optional fields — offer, don't force.** After the team is chosen, offer (in one prompt, all optional):
+   If the user already named a team in their invocation ("file this in Linear under Platform"), confirm the `list_teams` result contains it, then use it. **If the named team is not in the result** (typo, renamed, no access), say so and present the actual list to pick from. Never fall back to a first/default team.
+
+2. **Offer optional fields — offer, do not force.** After the user picks the team, offer (in one prompt, all optional):
    - **Project** (`project`) — call the `list_projects` tool (scoped to the team) if the user wants to attach one.
    - **Labels** (`labels`) — call the `list_issue_labels` tool (scoped to the team); pass label names or IDs.
    - **Priority** (`priority`) — `0` None, `1` Urgent, `2` High, `3` Medium, `4` Low.
    - **Assignee** (`assignee`) — user ID / name / email / "me".
 
-   These are MCP tool calls, not CLI commands — there is no Linear CLI. If a list comes back long, ask the user to name the project/label rather than enumerating dozens. Skip any the user doesn't want. Don't block on them; a title + team + description is a complete Linear issue.
+   These are MCP tool calls, not CLI commands — there is no Linear CLI. If a list comes back long, ask the user to name the project/label rather than enumerating dozens. Skip any the user does not want. Do not block on them; a title + team + description is a complete Linear issue.
 
 
 3. **Create.** Call `save_issue` **without `id`** (passing `id` updates an existing issue — only create here):
@@ -40,17 +42,19 @@ The Linear MCP tools must be connected and authenticated — at minimum `list_te
    - `description` — the rendered body, as literal Markdown.
    - plus any optional fields the user chose.
 
-4. **Echo the result.** Report the returned issue **identifier** (e.g. `ENG-123`) and its URL. This identifier is the "next workstream" pointer the orchestrator records on a coral/council handoff. **If `save_issue` returns without an identifier or URL**, report what it did return ("created, but couldn't read back the identifier") and surface the raw response — never synthesize a plausible `ENG-NNN` or URL to fill the gap.
+4. **Echo the result.** Report the returned issue **identifier** (e.g. `ENG-123`) and its URL. This identifier is the "next workstream" pointer the orchestrator records on a coral/council handoff. **If `save_issue` returns without an identifier or URL**, report what it did return ("created, but could not read back the identifier") and surface the raw response. Never synthesize a plausible `ENG-NNN` or URL to fill the gap.
 
 ## Guardrails specific to this path
 
-- **Always create, never update.** `/issue` files *new* issues. Do not pass `id` to `save_issue` — that would mutate an existing ticket. Updating/triaging existing issues is out of scope *for this skill* (see SKILL.md "What this skill doesn't do"). (`/design` legitimately *does* update via `save_issue id` to thread its reverse link — that's a different skill's job, not this one's.)
-- **One issue per invocation.** Same as the GitHub path — if a session produced multiple deferred slices, the user picks which to file; don't batch-create.
-- **No fabricated identifiers.** If creation fails or the MCP is unavailable, surface the failure and offer GitHub / print. A made-up `ENG-NNN` is worse than an honest "couldn't reach Linear."
-- **One sink, one issue per invocation.** No cross-posting the same issue to both GitHub and Linear, and no parent/sub-issue (`parentId`) linking — both are deferred. Un-defer when a user actually asks; until then, file one issue to one sink.
+- **Always create, never update.** `/issue` files *new* issues. Do not pass `id` to `save_issue` — that would mutate an existing ticket. Updating/triaging existing issues is out of scope *for this skill* (see SKILL.md "What this skill does not do"). (`/design` legitimately *does* update via `save_issue id` to thread its reverse link — that is a different skill's job, not this one's.)
+- **One issue per invocation.** Same as the GitHub path — if a session produced multiple deferred slices, the user picks which to file; do not batch-create.
+- **No fabricated identifiers.** If creation fails or the MCP is unavailable, surface the failure and offer GitHub / print. A made-up `ENG-NNN` is worse than an honest "could not reach Linear."
+- **One sink, one issue per invocation.** No cross-posting the same issue to both GitHub and Linear, and no parent/sub-issue (`parentId`) linking — both stay deferred. Un-defer when a user actually asks; until then, file one issue to one sink.
 
 ## Lineage with `/design`
 
 GitHub issues thread to designs via `#<n>`. Linear issues use an identifier (e.g. `ENG-123`) instead.
 
-`/design` consumes both: `/design --issue ENG-123` detects the Linear identifier, fetches the issue via the Linear `get_issue` MCP tool, seeds the design from its body, records `**Issue:** ENG-123 — <url>` in the design frontmatter, and reverse-links via a Linear comment (`save_comment`) or a description edit (`save_issue`). So the `--issue` lineage flow works for Linear-tracked work just as it does for GitHub. One difference to know: GitHub gets free PR back-linking (`Closes #<n>`), while Linear's PR linkage depends on its GitHub integration being configured — so for Linear the explicit reverse comment/description link is the primary thread, not an optional extra. See `.claude/skills/design/references/issue-integration.md` ("Two sources: GitHub and Linear").
+`/design` consumes both. `/design --issue ENG-123` detects the Linear identifier, fetches the issue via the Linear `get_issue` MCP tool, and seeds the design from its body. It records `**Issue:** ENG-123 — <url>` in the design frontmatter, and reverse-links via a Linear comment (`save_comment`) or a description edit (`save_issue`). The `--issue` lineage flow therefore works for Linear-tracked work just as it does for GitHub.
+
+One difference to know: GitHub gets free PR back-linking (`Closes #<n>`), while Linear's PR linkage depends on a configured GitHub integration. For Linear, then, the explicit reverse comment/description link is the primary thread, not an optional extra. See `.claude/skills/design/references/issue-integration.md` ("Two sources: GitHub and Linear").

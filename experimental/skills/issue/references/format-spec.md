@@ -1,12 +1,12 @@
 # Standard Issue Format
 
-The canonical body produced by `/issue`. Section order is fixed; empty optional sections are omitted entirely (no placeholder headers). The body is **sink-agnostic** — the same Markdown becomes a GitHub issue body or a Linear issue `description`. See `linear-integration.md` for the Linear-specific create path and field mapping.
+The canonical body produced by `/issue`. Section order does not vary; omit empty optional sections entirely (no placeholder headers). The body is **sink-agnostic** — the same Markdown becomes a GitHub issue body or a Linear issue `description`. See `linear-integration.md` for the Linear-specific create path and field mapping.
 
 Anchor example: [sei-protocol/sei-k8s-controller#137](https://github.com/sei-protocol/sei-k8s-controller/issues/137).
 
 ## Title
 
-A descriptive sentence. NOT a Conventional-Commits prefix (`feat:` / `fix:`) unless the target repo's recent issues clearly use that style — for the GitHub sink, sample with `gh issue list --repo <target> --limit 10 --state all` before defaulting. (Linear has no title-prefix convention to match — a descriptive sentence is always right there.)
+A descriptive sentence. NOT a Conventional-Commits prefix (`feat:` / `fix:`) unless the target repo's recent issues use that style — for the GitHub sink, sample with `gh issue list --repo <target> --limit 10 --state all` before defaulting. (Linear has no title-prefix convention to match — a descriptive sentence is always right there.)
 
 Good: "Detect spec drift on Running nodes for mid-life SigningKey patch"
 Bad: "fix: signing key patch is silent no-op"
@@ -22,7 +22,7 @@ One short paragraph or a few sentences. Include file paths and line numbers if t
 
 ### `## Impact` — required
 
-Who's affected, how badly, what breaks if we don't address it. This is the field that drives sizing and prioritization, so it must be specific.
+Who's affected, how badly, what breaks if we do not address it. This is the field that drives sizing and prioritization, so it must be specific.
 
 If multiple use cases motivate the issue, use sub-headings (`### Primary use case`, `### Future use case`). Otherwise a single paragraph.
 
@@ -39,13 +39,13 @@ A short list of personas — pulled from the target repo's `.claude/agents/` ros
 
 If the repo has no `.claude/agents/` roster, fall back to global Claude personas (e.g. `solidity-developer`, `security-specialist`). See `expert-routing.md` for the discovery rules.
 
-This field is required because it's the routing primitive — without it, issues sit unassigned or land with the wrong reviewer.
+This field is mandatory because it is the routing primitive — without it, issues sit unassigned or land with the wrong reviewer.
 
 ### `## Proposed approach` — optional
 
 If the filer already has a sketch, capture it here. Code blocks, file:line references, and step lists are welcome.
 
-If the filer doesn't have a sketch, **omit the section entirely** rather than write `_TBD — needs design_` — an empty section signals false structure. The filer can re-open the issue with `/coral` later if they want a design pass before triage.
+If the filer does not have a sketch, **omit the section entirely** rather than write `_TBD — needs design_` — an empty section signals false structure. The filer can re-open the issue with `/coral` later if they want a design pass before triage.
 
 ### `## Acceptance criteria` — optional
 
@@ -79,11 +79,11 @@ PRs, prior issues, design docs, runbooks. Bullet list with descriptive labels (n
 - Design: `designs/seinode-signing-key/seinode-mid-life-signing-key-drift-lld.md`
 ```
 
-When this issue gets picked up and a coral/council session produces a design via **`/design`**, the `Design: <path>` line should be added back here so the issue → design lineage is discoverable from either direction. The `/design` skill offers to do this automatically; otherwise add it manually after the design lands.
+When a pickup of this issue leads a coral/council session to produce a design via **`/design`**, add the `Design: <path>` line back here. That keeps the issue → design lineage discoverable from either direction. The `/design` skill offers to do this automatically; otherwise add it manually after the design lands.
 
 ## Section selection cheat-sheet
 
-| Issue type | Required | Usually included | Often omitted |
+| Issue type | Required | Typically included | Often omitted |
 |---|---|---|---|
 | Bug report | Problem, Impact, Relevant experts | References | Proposed approach, Out of scope |
 | Feature ask | Problem, Impact, Relevant experts | Acceptance criteria, Out of scope | Proposed approach (unless filer has a sketch) |

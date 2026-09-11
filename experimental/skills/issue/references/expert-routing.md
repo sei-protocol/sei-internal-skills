@@ -8,9 +8,9 @@ How `/issue` discovers and suggests the **Relevant experts** field. The point of
    - If CWD is the target repo, read the directory directly.
    - If targeting a different repo, the user is the source of truth — ask them which experts apply, or proceed with global personas.
 
-2. **`AGENTS.md` at repo root** (if present). Often contains a curated table mapping work types to personas — much higher signal than scanning `.claude/agents/` blindly. Read this first when it exists.
+2. **`AGENTS.md` at repo root** (if present). Often contains a curated table that maps work types to personas — much higher signal than scanning `.claude/agents/` blindly. Read this first when it exists.
 
-3. **Global Claude personas** (fallback). The standard set: `kubernetes-specialist`, `platform-engineer`, `solidity-developer`, `network-specialist`, `security-specialist`, `tee-specialist`, `product-engineer`, `product-manager`, `opentelemetry-expert`. Also Sei-specific: `sei-network-specialist`. Use these names verbatim — they're recognized by `coral` / `council`.
+3. **Global Claude personas** (fallback). The standard set: `kubernetes-specialist`, `platform-engineer`, `solidity-developer`, `network-specialist`, `security-specialist`, `tee-specialist`, `product-engineer`, `product-manager`, `opentelemetry-expert`. Also Sei-specific: `sei-network-specialist`. Use these names verbatim — `coral` / `council` recognize them.
 
 4. **Repo-specific personas.** Some repos have their own (e.g. `sei-network-specialist` in sei-k8s-controller). When a repo has its own, prefer it over a generic equivalent.
 
@@ -36,9 +36,9 @@ Match the issue's **surface area** to personas, not the issue's **wording**.
 
 - **1 expert** — most issues. Single surface area, clean ownership.
 - **2 experts** — issue spans a clean boundary (e.g. operator + manifest, or contract + indexer). Pick the boundary, not "everyone who might care."
-- **3 experts** — cap. If the issue genuinely needs more, that's a signal it should be a /council workstream, not a single issue. Flag this to the user before filing.
+- **3 experts** — cap. If the issue genuinely needs more, that is a signal it should be a /council workstream, not a single issue. Flag this to the user before filing.
 
-The point is routing, not credit. Don't pad the list to acknowledge people.
+The point is routing, not credit. Do not pad the list to acknowledge people.
 
 ## Confirm before rendering
 

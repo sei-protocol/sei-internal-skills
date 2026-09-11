@@ -1,8 +1,8 @@
 # Example Output
 
-This is an illustrative example of the bugbash findings log (`designs/<arc>/bugbash/<target>.md` in the DRI repo; in-repo `docs/bugbash/<target>.md` fallback) mid-run, with five findings logged. It uses the user-provided "Item 5: incomplete validation on SeiNode networkconfig with replicas" example, surrounded by representative Items 1–4 to show the shape of a real artifact.
+This is an illustrative example of the bugbash findings log (`designs/<arc>/bugbash/<target>.md` in the DRI repo; in-repo `docs/bugbash/<target>.md` fallback) mid-run, with five findings logged. It uses the user-provided "Item 5: incomplete validation on SeiNode networkconfig with replicas" example. Representative Items 1–4 surround it to show the shape of a real artifact.
 
-The findings here are illustrative, not real findings against any production system. Some items reference an on-chain attestation flow and an interface registry purely as sample subject matter to show the finding shape — they do not describe sei-internal-skills, which is a skills/agents library, not an on-chain system.
+The findings here are illustrative, not real findings against any production system. Some items reference an on-chain attestation flow and an interface registry purely as sample subject matter to show the finding shape. They do not describe sei-internal-skills, which is a skills/agents library, not an on-chain system.
 
 ---
 
@@ -36,15 +36,15 @@ The findings here are illustrative, not real findings against any production sys
 
 ### Scenario
 
-When the controller reconciles a SeiNode, it polls the node's gRPC endpoint to verify health. If the gRPC dial fails (network partition, node restarting, port not yet bound), the error is logged at debug level and reconciliation marks the node Healthy=Unknown but continues. Subsequent reconciles within the requeue interval see the cached Unknown state and do not re-poll.
+When the controller reconciles a SeiNode, it polls the node's gRPC endpoint to verify health. If the gRPC dial fails (network partition, node restarting, port not yet bound), the controller logs the error at debug level. Reconciliation marks the node Healthy=Unknown but continues. Subsequent reconciles within the requeue interval see the cached Unknown state and do not re-poll.
 
 ### Impact / Risk / Priority
 
-A node that has crashed and is unreachable can sit in Unknown state for the full requeue interval (up to 10 minutes) without any alert firing or any retry attempt. Operators have no visibility into the unreachable state because the only log line is at debug level. Critical because a "silent broken-window" on the core health invariant the controller exists to maintain — operators trust Healthy reporting and act on it.
+A node that has crashed and is unreachable can sit in Unknown state for the full requeue interval (up to 10 minutes). No alert fires and no retry happens. Operators have no visibility into the unreachable state because the only log line is at debug level. Critical because a "silent broken-window" on the core health invariant the controller exists to maintain — operators trust Healthy reporting and act on it.
 
 ### Issue
 
-In `pkg/controllers/seinode/reconcile.go:184`, the gRPC dial result is checked but the error is logged with `klog.V(4)` and reconciliation proceeds with `Healthy: Unknown`. The requeue interval at line 312 is 10 minutes regardless of whether the prior status was Unknown vs. Healthy. The interface registry lists `seinode.health.unknown` as a transient state that requires re-polling on the next requeue, but the cache check at line 198 short-circuits the re-poll.
+In `pkg/controllers/seinode/reconcile.go:184`, the code checks the gRPC dial result but logs the error with `klog.V(4)`, and reconciliation proceeds with `Healthy: Unknown`. The requeue interval at line 312 is 10 minutes regardless of whether the prior status was Unknown vs. Healthy. The interface registry lists `seinode.health.unknown` as a transient state that requires re-polling on the next requeue. But the cache check at line 198 short-circuits the re-poll.
 
 **Fix sketch:**
 
@@ -54,13 +54,13 @@ In `pkg/controllers/seinode/reconcile.go:184`, the gRPC dial result is checked b
 
 **Test coverage:**
 
-Integration test that crashes a SeiNode mid-reconcile and verifies (a) the controller observes Unknown within 60s, (b) the controller re-polls at the fast interval, and (c) the operator-visible status updates within 90s. The existing test in `controllers/seinode/reconcile_test.go:TestHealthCheck` only covers the dial-success path.
+Integration test that crashes a SeiNode mid-reconcile and verifies three things. (a) The controller observes Unknown within 60s. (b) The controller re-polls at the fast interval. (c) The operator-visible status updates within 90s. The existing test in `controllers/seinode/reconcile_test.go:TestHealthCheck` only covers the dial-success path.
 
 **Metric:**
 
-`seinode_health_unknown_duration_seconds` (histogram, buckets up to 600s). Alert when p95 exceeds 120s — that means nodes are sitting Unknown longer than the fast-retry path should allow, which signals the fast-retry didn't activate. Operationally critical because the failure mode is silent.
+`seinode_health_unknown_duration_seconds` (histogram, buckets up to 600s). Alert when p95 exceeds 120s. That means nodes are sitting Unknown longer than the fast-retry path should allow, which signals the fast-retry did not activate. Operationally critical because the failure mode is silent.
 
-## Item 2: Job ownership leak when SeiNode is deleted mid-job
+## Item 2: Job ownership leak when a SeiNode deletion lands mid-job
 
 ### Overview
 
@@ -72,24 +72,24 @@ Integration test that crashes a SeiNode mid-reconcile and verifies (a) the contr
 
 ### Scenario
 
-A SeiNode resource is deleted while a child K8s Job (e.g., a snapshot operation) is still running. The controller's finalizer removes the SeiNode but does not delete or mark the Job for cleanup. The Job continues to run, attempting to write to a volume that may have been released, and consuming cluster resources for the full job timeout.
+Someone deletes a SeiNode resource while a child K8s Job (e.g., a snapshot operation) is still running. The controller's finalizer removes the SeiNode but does not delete or mark the Job for cleanup. The Job continues to run, attempting to write to a volume that may no longer belong to it. It consumes cluster resources for the full job timeout.
 
 ### Impact / Risk / Priority
 
-The orphaned Job consumes CPU and memory until its activeDeadlineSeconds elapses (default 1 hour). On a multi-tenant cluster, this is observable resource waste. Recovery is automatic (Job eventually times out and the GC sweeps it) but slow and noisy. Downgraded from Critical to High because the failure recovers without manual intervention; the original Critical framing assumed the Job could write to a reused volume, but the volume's reclaim policy prevents reuse before the Job exits.
+The orphaned Job consumes CPU and memory until its activeDeadlineSeconds elapses (default 1 hour). On a multi-tenant cluster, this is observable resource waste. Recovery is automatic (Job eventually times out and the GC sweeps it) but slow and noisy. Downgraded from Critical to High because the failure recovers without manual intervention. The original Critical framing assumed the Job could write to a reused volume. The reclaim policy of the volume prevents reuse before the Job exits.
 
 ### Issue
 
-`pkg/controllers/seinode/finalizer.go:67` removes the SeiNode object's finalizer once the on-chain release event is observed. It does not enumerate child Jobs (via owner reference or the `tide.sei.io/seinode` label) before doing so. The interface registry lists the Job-cleanup contract under SeiNode finalizer responsibilities.
+`pkg/controllers/seinode/finalizer.go:67` removes the SeiNode object's finalizer once it observes the on-chain release event. It does not enumerate child Jobs (via owner reference or the `tide.sei.io/seinode` label) before doing so. The interface registry lists the Job-cleanup contract under SeiNode finalizer responsibilities.
 
 **Fix sketch:**
 
 - Before removing the finalizer, list Jobs with `app.kubernetes.io/instance=<seinode>` and either delete them with foreground propagation, or set `activeDeadlineSeconds=30` to force cleanup.
-- Add a wait state in the finalizer that requeues until child Jobs are gone, with a max-wait of 5 minutes before forcing.
+- Add a wait state in the finalizer that requeues until no child Jobs remain, with a max-wait of 5 minutes before forcing.
 
 **Test coverage:**
 
-E2E test that deletes a SeiNode while a long-running Job is in flight, then asserts the Job is cleaned up within the max-wait window. Existing finalizer tests only cover the no-Jobs-running path.
+E2E test that deletes a SeiNode while a long-running Job is in flight. It then asserts the Job disappears within the max-wait window. Existing finalizer tests only cover the no-Jobs-running path.
 
 ## Item 3: Missing rate limit on attestation submission
 
@@ -103,11 +103,11 @@ E2E test that deletes a SeiNode while a long-running Job is in flight, then asse
 
 ### Scenario
 
-The runtime submits attestations to the on-chain SeiJobHook on every reconcile loop tick. There is no rate limiter or backoff on the submission path. If the controller enters a reconcile-loop fast cycle (e.g., due to Item 1's fast-retry behavior or a CRD spec change loop), it can submit attestations at up to 1 Hz per node.
+The runtime submits attestations to the on-chain SeiJobHook on every reconcile loop tick. The submission path has no rate limiter or backoff. If the controller enters a reconcile-loop fast cycle, it can submit attestations at up to 1 Hz per node. Item 1's fast-retry behavior or a CRD spec change loop can trigger such a cycle.
 
 ### Impact / Risk / Priority
 
-At cluster scale (100+ SeiNodes), this can saturate the EVM RPC endpoint with redundant calls and incur unnecessary gas spend. No current security bypass — the attestations are still valid — but the design assumes a much lower submission rate, and a bug elsewhere in the controller could weaponize this into a self-DoS or unintended cost spike.
+At cluster scale (100+ SeiNodes), this can saturate the EVM RPC endpoint with redundant calls and incur unnecessary gas spend. No current security bypass — the attestations are still valid — but the design assumes a much lower submission rate. A bug elsewhere in the controller could weaponize this into a self-DoS or unintended cost spike.
 
 ### Issue
 
@@ -138,7 +138,7 @@ When the controller processes a job submission, it logs the full request payload
 
 ### Impact / Risk / Priority
 
-EIP-712 signatures are not secrets — they're verifiable on-chain — but logging them makes signature replay attacks easier if a log store is later compromised, and the signed payload may include addresses or domain separators that should not be aggregated to third-party log stores by policy. Downgraded from High to Medium because the signatures alone don't grant new authority (the on-chain contract enforces nonce / replay protection), but the logging hygiene gap is real.
+EIP-712 signatures are not secrets — they are verifiable on-chain. But logging them makes signature replay attacks easier if an attacker later compromises a log store. The signed payload may also include addresses or domain separators that policy keeps out of third-party log stores. Downgraded from High to Medium because the signatures alone do not grant new authority (the on-chain contract enforces nonce / replay protection). But the logging hygiene gap is real.
 
 ### Issue
 
@@ -174,11 +174,11 @@ Operators creating a multi-replica SeiNode with a static-peer network config see
 
 ### Issue
 
-In `pkg/apis/seinode/v1/validation.go:88`, the validation webhook checks that `spec.replicas >= 1` and that `spec.networkConfig.peers` is non-empty when present, but does not check the *combination* of `replicas > 1` with a `networkConfig` that names static peers without per-replica scoping. The interface registry's SeiNode CRD spec at `sei-internal-skills/interface-registry.yaml#seinode-v1` documents that static peer configs are scoped per-replica only when `networkConfig.replicaScope: true`, but this field defaults to false and the webhook doesn't enforce the consequence.
+In `pkg/apis/seinode/v1/validation.go:88`, the validation webhook checks that `spec.replicas >= 1` and that `spec.networkConfig.peers` is non-empty when present. It does not check the *combination* of `replicas > 1` with a `networkConfig` that names static peers without per-replica scoping. The interface registry's SeiNode CRD spec at `sei-internal-skills/interface-registry.yaml#seinode-v1` documents that static peer configs apply per-replica only when `networkConfig.replicaScope: true`. But this field defaults to false and the webhook does not enforce the consequence.
 
 **Fix sketch:**
 
-- Add a webhook validation rule: if `spec.replicas > 1` AND `spec.networkConfig.peers` is set AND `spec.networkConfig.replicaScope != true`, reject with a clear error message naming the conflict.
+- Add a webhook validation rule: if `spec.replicas > 1` AND `spec.networkConfig.peers` has a value AND `spec.networkConfig.replicaScope != true`, reject with a clear error message naming the conflict.
 - Update the CRD's `kubebuilder:validation` annotations to express the constraint where possible.
 - Document the interaction in the SeiNode reference doc with a concrete example of the failing config and the fix.
 
@@ -188,4 +188,4 @@ Webhook unit test in `pkg/apis/seinode/v1/validation_test.go` covering the four-
 
 ---
 
-*This artifact is mid-run; the convergence counter is currently 1 (last pass produced no new ≥ Medium findings, but the prior pass produced this Item 5). The Launch Verdict section will be appended once convergence_counter reaches 2.*
+*This artifact is mid-run; the convergence counter is currently 1. The last pass produced no new ≥ Medium findings, but the prior pass produced this Item 5. The orchestrator will append the Launch Verdict section once convergence_counter reaches 2.*

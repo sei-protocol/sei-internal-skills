@@ -16,7 +16,7 @@ The format is not invented. It is the shape of `PLT-646`, generalised.
 
 This skill creates issues in a real tracker. Before any write:
 
-1. **Confirm before filing.** Render every issue in full, then require the word
+1. **Confirm before filing.** Render every issue in full, then wait for the word
    `confirm`. Never file on the first call.
 2. **Never guess the team or project.** Both come from `.specify/linear.json`.
    With no config, stop and say what is missing. Never file into whichever team
@@ -38,11 +38,11 @@ This skill creates issues in a real tracker. Before any write:
 
 `/tasks-to-linear` is a kernel that files one issue per user story with no
 lineage and no format. **It does not ship in this repository** — it reaches a
-machine by another route, so do not assume it is installed.
+machine by another route, so do not assume it is present.
 
 This skill is the layer that kernel's design anticipated. **It supersedes the
-kernel for Sei work** — it does not call it, because a project cannot be
-attached after creation without an update, and the kernel forbids updates. Use
+kernel for Sei work** and does not call it. Attaching a project after creation
+takes an update, and the kernel forbids updates. Use
 the kernel in a repository that wants issues with no lineage.
 
 ## Preconditions

@@ -2,29 +2,29 @@
 
 The third gate kind, alongside the human `checkpoint` and the signal `guard`. A **review-gate**
 makes *"merge once the reviewer slate is unanimously RATIFY (zero open concerns) and the declared
-automated checks pass"* a **declarable, enforceable** primitive — the gate operators reach for when
-they delegate `pr-sign-off` to expert-consensus + CI.
+automated checks pass"* a **declarable, enforceable** primitive. It is the gate operators reach for
+when they delegate `pr-sign-off` to expert-consensus + CI.
 
 It is the machine counterpart of `pr-sign-off`, the way a `guard` is the machine counterpart of a
-human-watched cutover: it discharges the *routine* merge the operator pre-authorized; the human
+human-watched cutover. It discharges the *routine* merge the operator pre-authorized; the human
 still owns every one-way door.
 
 ## Compose, never reimplement — the one-direction coupling
 
-`/xreview` (PLT-535 / Design 08) is the **provider**: it owns the slate, the routing, the
+`/xreview` (PLT-535 / Design 08) is the **provider**. It owns the slate, the routing, the
 blinded dispatch, the assigned dissent, and the **review-ledger** schema + gate-read contract. The
 review-gate is the **consumer**: it *invokes* the slate (the verify-to-convergence loop) and
 *reads* the review-ledger (the gate evaluation). 
 
-There is **one** coupling surface — `/xreview`'s **gate-read contract** (Design 08, *How it
+**One** coupling surface exists — `/xreview`'s **gate-read contract** (Design 08, *How it
 composes*). The review-gate reads exactly the latest round's header fields that contract names, and
 nothing else. Per Design 08's stated tie-break, **that contract is canonical**; the review-gate
 adapts to it and never re-derives review state. If the contract changes, the review-gate follows
 it — there are not two contracts.
 
 > **Never reimplement** the slate, the routing, the steward-wiring, or the review-ledger schema
-> here. If you find yourself defining how a round is dispatched or what the ledger header looks
-> like, stop — that is `/xreview`'s, and duplicating it forks the contract.
+> here. If you find yourself defining how `/xreview` dispatches a round or what the ledger header
+> looks like, stop. That is `/xreview`'s, and duplicating it forks the contract.
 
 ## The ledger entry
 
@@ -41,33 +41,37 @@ A third entry kind in the workstream's checkpoint ledger, declared up front:
 
 ## The gate evaluation (fail-closed — reads the ledger, never the transcript)
 
-When the ship step is reached and a `review-gate` was declared, evaluate it:
+When the workstream reaches the ship step and the ledger declares a `review-gate`, evaluate it:
 
-1. **Compute the review-ledger path** from the target (PLT-535's target-derivable rule — no
-   registry, no handoff token). The ledger lives in the DRI repo at `designs/<arc>/xreview/<slug>.md`
-   (Design 13): for a design-doc target the arc is the target's own path segment; for a code-PR/diff
+1. **Compute the review-ledger path** from the target — PLT-535's target-derivable rule, no
+   registry, no handoff token. The ledger lives in the DRI repo at `designs/<arc>/xreview/<slug>.md`
+   (Design 13). For a design-doc target the arc is the target's own path segment. For a code-PR/diff
    target the arc is the code repo's **default arc** (repo identity → fixed arc, e.g. `sei-internal-skills` →
-   `sei-internal-skills-stack`). The gate checks **two deterministic candidate paths** — that DRI-repo path,
-   then the in-repo `.xreview/<slug>.md` fallback (where the producer writes when no DRI repo was
-   resolvable) — both computable with no prompt, per `/xreview/references/review-ledger.md`; absent
+   `sei-internal-skills-stack`).
+
+   The gate checks **two deterministic candidate paths**: that DRI-repo path,
+   then the in-repo `.xreview/<slug>.md` fallback. The producer writes to the fallback when no DRI repo
+   was resolvable. Both are computable with no prompt, per `/xreview/references/review-ledger.md`; absent
    from **both** ⇒ fail closed.
 2. **Read the latest round's header block** and apply `/xreview`'s passing-terminal gate-read
-   **verbatim** (the provider's ledger-validity check — see the *Gate-read contract* table in
-   `/xreview/references/review-ledger.md`; this gate reads that table, it does not re-list or
-   re-derive it):
+   **verbatim**. That is the provider's ledger-validity check — see the *Gate-read contract* table in
+   `/xreview/references/review-ledger.md`. This gate reads that table; it does not re-list or
+   re-derive it. The table's conditions:
    - `State:` is a passing terminal (`RESOLVED` | `RESOLVED-WITH-ACCEPTED-RISK`), **and**
    - `OpenFindings:` parses to integer `0`, **and**
    - `Convergence:` is present + parseable + in-enum, **and**
-   - `Dissenter:` is non-empty (a dissenter was assigned), **and**
+   - `Dissenter:` is non-empty (`/xreview` assigned a dissenter), **and**
    - cross-field consistency holds (a passing terminal with `OpenFindings ≠ 0`, or `OPEN-BLOCKED`
      with `OpenFindings: 0`, is a self-contradictory header that fails closed).
 
-   **Then apply the review-gate's *consensus refinement*: the latest round's `Convergence:` must be
-   `unanimous`.** A review-gate is a *consensus* gate — a recorded `Convergence: split` latest round
-   means the slate has not converged to consensus and is **not merge-ready**, so it does not satisfy
-   the gate even with `OpenFindings: 0`. This is not a fork of the provider's contract: per
-   `/xreview`'s own rule a *resolved* split is re-recorded `unanimous` (and a genuinely
-   unresolved split is `OPEN-BLOCKED`, `OpenFindings ≥ 1`), so requiring `unanimous` rejects only a
+   **Then apply the review-gate's *consensus refinement*: the latest round's `Convergence:` must read
+   `unanimous`.** A review-gate is a *consensus* gate. A recorded `Convergence: split` latest round
+   means the slate has not converged to consensus and is **not merge-ready**. It therefore does not
+   satisfy the gate even with `OpenFindings: 0`.
+
+   This is not a fork of the provider's contract. Per
+   `/xreview`'s own rule a *resolved* split is re-recorded `unanimous`, and a genuinely
+   unresolved split is `OPEN-BLOCKED`, `OpenFindings ≥ 1`. Requiring `unanimous` therefore rejects only a
    non-consensus / ill-formed `split`-with-zero-open round — never a legitimately-converged ledger.
    The provider check answers "is this a valid resolved ledger"; the consensus refinement is the
    review-gate's own merge policy layered on top.
@@ -80,23 +84,27 @@ When the ship step is reached and a `review-gate` was declared, evaluate it:
 **Fail-closed is the load-bearing property.** Two sources of FAIL, kept distinct:
 
 - **Provider-owned (the contract this gate reads verbatim — `/xreview`'s gate-read contract):**
-  an **absent** review-ledger, an **unparseable / missing** field, an **out-of-enum** `Convergence`,
-  an **empty** `Dissenter`, a **self-contradictory** header (e.g. `State: RESOLVED` with
-  `OpenFindings: 3`), **or a malformed latest round** — which, per that contract, *includes* an
-  out-of-sequence `Round:` / round-number gap, and **never falls back** to an earlier round.
+  - an **absent** review-ledger;
+  - an **unparseable / missing** field;
+  - an **out-of-enum** `Convergence`;
+  - an **empty** `Dissenter`;
+  - a **self-contradictory** header (e.g. `State: RESOLVED` with `OpenFindings: 3`);
+  - **or a malformed latest round** — which, per that contract, *includes* an out-of-sequence
+    `Round:` / round-number gap, and **never falls back** to an earlier round.
 - **The review-gate's own consensus refinement (not the provider's — the provider *passes*
-  `Convergence: split` as in-enum):** a `Convergence: split` latest round fails *this gate* because
-  a split is not merge-ready consensus, even though it passes the provider's ledger-validity check.
+  `Convergence: split` as in-enum).** A `Convergence: split` latest round fails *this gate* because
+  a split is not merge-ready consensus. It fails even though it passes the provider's ledger-validity
+  check.
 
 Any of the above ⇒ the gate **FAILS**, identical to `State: OPEN`. A grep that finds `RESOLVED`
 without cross-checking the count, or a chat assertion that "the reviewers ratified it," is exactly
-the error this gate forbids — the committed ledger is the only evidence. (Do not "correct" the
-provider's enum to reject `split`; the provider legitimately passes it, and other consumers may
-merge on a resolved split — the `split`-rejection is *this* gate's policy, not the contract's.)
+the error this gate forbids. The committed ledger is the only evidence. (Do not "correct" the
+provider's enum to reject `split`. The provider legitimately passes it, and other consumers may
+merge on a resolved split. The `split`-rejection is *this* gate's policy, not the contract's.)
 
 ## The verify-to-convergence loop (lifecycle step 3)
 
-The review-gate's *pass condition* is produced by the verify loop. The loop **composes**
+The verify loop produces the review-gate's *pass condition*. The loop **composes**
 `/xreview`:
 
 ```
@@ -109,26 +117,27 @@ loop:
   else (open findings):        apply the fixes → re-invoke /xreview (it appends a NEW round) → repeat
 ```
 
-**Loop bound (the open-findings branch is bounded by the human-driven serial model — MVP).** The
+**Loop bound (the human-driven serial model bounds the open-findings branch — MVP).** The
 re-review branch always fails *closed* (an `OpenFindings ≥ 1` round never merges), but it has no
-*progress* bound: a fix→re-review cycle that keeps surfacing new findings without splitting has no
+*progress* bound. A fix→re-review cycle that keeps surfacing new findings without splitting has no
 declared terminal of its own. In the MVP the loop is **human-driven and serial** (the operator
-sequences each round), so an unbounded spin is implausible — that is the de-facto bound. The
-*mechanism* (a max-rounds-then-route-to-`on_fail`, or a no-progress detector that escalates when
-round N's open set isn't shrinking) is **deferred** — un-defer the moment `/workstream` ever drives
+sequences each round), so an unbounded spin is implausible. That is the de-facto bound.
+
+The *mechanism* stays **deferred**. It is a max-rounds-then-route-to-`on_fail`, or a no-progress detector that
+escalates when round N's open set is not shrinking. Un-defer it the moment `/workstream` ever drives
 the verify loop programmatically or unattended (the same trigger as the review-ledger's single-
 writer/locking deferral). Stated here so the next implementer does not inherit it as an unstated
 contract (mirrors the guard primitive's recursion bound).
 
-- The loop's record **is** the review-ledger's appended rounds (per-round headers, per-lens
-  verdicts, rejected-findings). The workstream keeps **no second convergence log** — "show that
-  done was met" = point at the review-ledger and show its latest round passes the gate-read
+- The loop's record **is** the review-ledger's appended rounds: per-round headers, per-lens
+  verdicts, rejected-findings. The workstream keeps **no second convergence log**. "Show that
+  the loop met done" = point at the review-ledger and show its latest round passes the gate-read
   contract.
 - The terminals are exactly the review-ledger's terminals: `RESOLVED` /
   `RESOLVED-WITH-ACCEPTED-RISK` (converged) or `OPEN-BLOCKED` (fails to a human; **never** relabeled
-  to terminate the loop).
+  to stop the loop).
 - The workstream **sequences** the rounds and **applies** the fixes; `/xreview` owns *how*
-  each round is dispatched and recorded. That is the compose/reimplement line.
+  it dispatches and records each round. That is the compose/reimplement line.
 
 ## What the review-gate is NOT
 
@@ -147,4 +156,6 @@ contract (mirrors the guard primitive's recursion bound).
 
 ## The pre-merge drift check shares this seam
 
-When the captured `/design` carries **acceptance criteria**, the same ship seam additionally runs the **pre-merge drift check** (owning definition: SKILL.md "The pre-merge drift check") — it is a *facet* of this gate, not a separate gate kind. It matters here because it **reuses this gate's resolution machinery**: the criteria + the `Design` section are read from the captured design by the **identical target-derivable rule** the review-gate uses (the DRI-repo `designs/<arc>/` path + the in-repo fallback, Design 13) — no separate registry. The drift check is fail-closed on an unconfirmable criterion (`inconclusive ⇒ surface`, never a silent pass), the same posture as this gate's ledger read; a **Missing** criterion blocks like an open finding, while **design-staleness** is surfaced informationally and does **not** block. A design with no acceptance criteria skips the check (absence is not a failure). If this gate's resolution rule changes, the drift check's provenance changes with it — they are one seam.
+When the captured `/design` carries **acceptance criteria**, the same ship seam additionally runs the **pre-merge drift check**. Its owning definition is SKILL.md "The pre-merge drift check". It is a *facet* of this gate, not a separate gate kind. It matters here because it **reuses this gate's resolution machinery**.
+
+The check reads the criteria + the `Design` section from the captured design by the **identical target-derivable rule** the review-gate uses. That rule is the DRI-repo `designs/<arc>/` path + the in-repo fallback (Design 13) — no separate registry. The drift check is fail-closed on an unconfirmable criterion (`inconclusive ⇒ surface`, never a silent pass), the same posture as this gate's ledger read. A **Missing** criterion blocks like an open finding, while **design-staleness** surfaces informationally and does **not** block. A design with no acceptance criteria skips the check (absence is not a failure). If this gate's resolution rule changes, the drift check's provenance changes with it — they are one seam.

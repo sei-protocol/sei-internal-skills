@@ -1,7 +1,9 @@
 # Project Technical Names and Technical Verbs.
 # ASD-STE100 allows a Technical Name that the project defines. Putting it here
 # makes the decision reviewable in Git instead of implicit in a prompt.
-Kubernetes
+# Kubernetes carries both cases: `/kubernetes` is a skill and `name: kubernetes`
+# its frontmatter key, and Vale.Terms cannot exempt an identifier.
+[Kk]ubernetes
 Vale
 ASD-STE100
 Diátaxis
@@ -10,9 +12,9 @@ OpenSTE
 STEMG
 ConfigMap
 [Ii]diomatic
-reconcile
-reconciler
-idempotent
+[Rr]econcile
+[Rr]econciler
+[Ii]dempotent
 [Ee]val
 [Ee]vals
 [Ee]xplainability

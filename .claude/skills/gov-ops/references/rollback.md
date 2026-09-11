@@ -1,13 +1,13 @@
 # Gov-Ops — Rollback
 
 The skill *executes* only "submit the pre-staged revert proposal," which is re-entry into
-SKILL steps 2–6. There is no fast rollback.
+SKILL steps 2–6. No fast rollback exists.
 
 ## Revert proposal
 
 Staged in pre-flight (SKILL step 1) by snapshotting the **current live value** of each target
-`subspace/key` **before** the change applies — byte-exact, so the revert can't re-introduce an
-encoding error. The revert is a normal param-change back to those values and **faces a full
+`subspace/key` **before** the change applies. The snapshot is byte-exact, so the revert cannot
+re-introduce an encoding error. The revert is a normal param-change back to those values and **faces a full
 voting cycle** (submit → fan votes → tally) under the same `voting_period`. Rollback is not
 immediate; set incident expectations accordingly.
 

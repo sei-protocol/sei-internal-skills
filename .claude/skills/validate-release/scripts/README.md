@@ -1,9 +1,9 @@
 # validate-release scripts
 
 Each script handles one logical step. All are standalone — run them directly for
-debugging. `chaoslib.py` is the shared module (the 10-scenario set, `chaos-<token>-
-<scenario>` parsing + base36 ordering, and the Thanos-aware Prometheus query path);
-it is imported, not run.
+debugging. `chaoslib.py` is the shared module; the other scripts import it, and nothing runs it directly.
+It holds the 10-scenario set, `chaos-<token>-<scenario>` parsing + base36 ordering, and the
+Thanos-aware query path for Prometheus.
 
 ## Scripts
 

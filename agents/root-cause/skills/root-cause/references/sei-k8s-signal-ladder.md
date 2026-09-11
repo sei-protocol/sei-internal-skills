@@ -1,10 +1,10 @@
 # Sei + Kubernetes Signal Ladder
 
-The first signals to retrieve for any Sei-platform incident, in order. The lower rungs localize the failure and frequently reveal hypotheses you wouldn't have written. Never skip rungs to chase a favored hypothesis.
+The first signals to retrieve for any Sei-platform incident, in order. The lower rungs localize the failure and frequently reveal hypotheses you would not have written. Never skip rungs to chase a favored hypothesis.
 
 ## MVP deployment envelope (Grafana-MCP-only) — read first
 
-In the current sei-omnigent MVP your **only** signal source is the Grafana MCP: metrics (Prometheus) and logs (Loki). No shell, no `kubectl`, no `seid`, no `curl`, no node RPC. Read the rungs below through this mapping — don't attempt a denied command.
+In the current sei-omnigent MVP your **only** signal source is the Grafana MCP: metrics (Prometheus) and logs (Loki). No shell, no `kubectl`, no `seid`, no `curl`, no node RPC. Read the rungs below through this mapping — do not attempt a denied command.
 
 | Rung | MVP path | Tool |
 |---|---|---|
@@ -16,7 +16,7 @@ In the current sei-omnigent MVP your **only** signal source is the Grafana MCP: 
 
 Datasource UIDs: **`prometheus`** (metrics), **`loki`** (logs). Bound every query to ±15 min of onset.
 
-**Out of envelope → punt cleanly (Step 6), never fake.** Pod object-state/events, raw CometBFT round-state, `pprof`, `kubectl top`/node views, and `seid query` are unreachable here. If a hypothesis's decisive gate needs one, state the obstacle ("requires a cluster-state/RPC signal deferred to the read-only-k8s increment") — the metric substitutes above *localize*, they do not stand in for a raw object/RPC read at a final gate. Never substitute a weaker signal silently or fabricate output.
+**Out of envelope → punt cleanly (Step 6), never fake.** Pod object-state/events, raw CometBFT round-state, `pprof`, `kubectl top`/node views, and `seid query` are unreachable here. If a hypothesis's decisive gate needs one, state the obstacle ("requires a cluster-state/RPC signal deferred to the read-only-k8s increment"). The metric substitutes above *localize*. They do not stand in for a raw object/RPC read at a final gate. Never substitute a weaker signal silently or fabricate output.
 
 ## The first five commands
 
@@ -39,7 +39,7 @@ If you skip this, you will re-derive what describe already told you.
 
 For `CrashLoopBackOff`, `--previous` is non-negotiable. The current instance's logs are post-restart noise; the previous instance's logs contain the actual crash. Pair with current-instance logs for context.
 
-For long-running pods that haven't crashed but are misbehaving, drop `--previous` and bound with `--since=15m` (or whatever brackets the symptom).
+For long-running pods that have not crashed but are misbehaving, drop `--previous` and bound with `--since=15m` (or whatever brackets the symptom).
 
 ### 3. `seid status | jq '.sync_info'`
 
@@ -51,7 +51,7 @@ Separates three failure classes:
 
 - `catching_up: false` + `latest_block_height` advancing → node is alive and on the head. Problem is elsewhere (RPC, mempool, app layer).
 - `catching_up: true` → node is behind. Investigate state sync, peer connectivity, disk I/O.
-- `latest_block_height` static → node is wedged. Investigate consensus (next rung).
+- `latest_block_height` static → node has wedged. Investigate consensus (next rung).
 
 ### 4. `curl -s :26657/net_info | jq '.result.peers | length'` + `curl -s :26657/dump_consensus_state | jq '.result.round_state'`
 
@@ -59,7 +59,7 @@ Separates three failure classes:
 
 Peer count answers "am I isolated?" `dump_consensus_state` answers "do I see the same proposal/votes as the rest of the network at this height?"
 
-Per Sei docs and CometBFT operational guidance, **AppHash mismatch** is a frequent root cause that *presents* as peer-connection symptoms — the node disconnects from peers because it computed a different state root and they reject its votes. Always grep the previous logs for `apphash` (case-insensitive) before blaming networking.
+Per Sei docs and CometBFT operational guidance, **AppHash mismatch** is a frequent root cause that *presents* as peer-connection symptoms. The node disconnects from peers because it computed a different state root and they reject its votes. Always grep the previous logs for `apphash` (case-insensitive) before blaming networking.
 
 ### 5. Prometheus query bounded to the incident window
 
@@ -77,14 +77,14 @@ sum(rate(http_requests_total{job=~"<svc>",status=~"5.."}[1m]))
 histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{job=~"<svc>"}[1m])) by (le))
 ```
 
-Aggregates here are for **localization**, not for declaring root cause. If the answer matters, descend from the metric to the trace to the log line — pre-aggregated metrics permanently discard the connective tissue you need to attribute the spike to a specific request.
+Aggregates here are for **localization**, not for declaring root cause. If the answer matters, descend from the metric to the trace to the log line. Pre-aggregated metrics permanently discard the connective tissue you need to attribute the spike to a specific request.
 
 ## Ladder extensions
 
 For harder incidents:
 
 - **`kubectl get events -n <ns> --sort-by=.lastTimestamp`** — cluster-level context the pod's own Events section misses (controller messages, admission webhook denials, autoscaler decisions).
-- **`seid query staking validator $(seid tendermint show-validator)`** — verify the validator is bonded and participating with non-zero voting power. A bonded validator whose voting power dropped to zero is invisible to consensus.
+- **`seid query staking validator $(seid tendermint show-validator)`** — verify the validator holds bonded status and participates with non-zero voting power. A bonded validator whose voting power dropped to zero is invisible to consensus.
 - **`kubectl top pod -n <ns> --containers`** + **`kubectl describe node <node>`** — resource pressure at the pod and node level. Combined with the USE-method lens below.
 - **`go tool pprof` against `http://<pod>:<pprof-port>/debug/pprof/profile`** — CPU/heap profiles when the symptom is "process is hot" or "memory growing." Requires pprof exposed in the controller / sidecar / sei-chain binary.
 
@@ -98,7 +98,7 @@ For every resource: **U**tilization, **S**aturation, **E**rrors. Check errors fi
 
 Resources to enumerate for a Sei node:
 
-- CPU (utilization, run-queue saturation, throttling errors if cgroup limits are set)
+- CPU (utilization, run-queue saturation, throttling errors if cgroup limits exist)
 - Memory (utilization, swap pressure, OOM events)
 - Disk (utilization for SeiDB, iowait saturation, IO errors)
 - Network (bandwidth utilization, TX/RX queue saturation, packet drops)
@@ -122,8 +122,8 @@ Latency, Traffic, Errors, Saturation. RED + an explicit saturation read. Use thi
 
 USE/RED/Golden Signals do not cover **consensus participation**. For sei-chain, the fourth axis is:
 
-- Block height progression (is `latest_block_height` monotonically advancing?)
-- Voting power participation (is this validator's vote being included?)
+- Block height progression (does `latest_block_height` advance monotonically?)
+- Voting power participation (does the network include this validator's vote?)
 - AppHash consistency (does this node's AppHash match peers at the same height?)
 - Round count per height (rounds > 0 means consensus is struggling)
 
@@ -135,4 +135,4 @@ These are CometBFT-specific. They are not optional for a sei-chain investigation
 - **Quoting a dashboard without scoping to the incident window.** A 24-hour graph hides a 30-second incident. Bound to `±15 min` of onset.
 - **Inferring causation from aggregates.** A p99 spike correlates with a deploy — but the trace for the slow request shows it hit a different code path. Descend to per-request data before attributing.
 - **Skipping `--previous` on `kubectl logs` for crash loops.** The current-instance logs are post-restart noise. The previous instance's logs are where the crash is.
-- **Trusting `seid status` alone for a healthy-looking node that's actually misbehaving.** A node can be on the head height-wise and still be returning stale state from a corrupted SeiDB. Pair with a `eth_call`-equivalent state read and cross-check against a known-good peer.
+- **Trusting `seid status` alone for a healthy-looking node that is actually misbehaving.** A node can be on the head height-wise and still be returning stale state from a corrupted SeiDB. Pair with a `eth_call`-equivalent state read and cross-check against a known-good peer.

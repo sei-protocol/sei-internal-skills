@@ -16,7 +16,7 @@ The motivation is collaboration, not spec discipline. Discipline was already
 available through the Coral skills. What failed was sharing, because the artifacts
 sat on a branch someone had to find and check out, and in practice nobody
 collaborated. Omnigent's co-drive model puts the conversation and the artifacts in
-the same place, so a teammate who attaches has their messages execute on the
+the same place. A teammate who attaches has their messages execute on the
 runner's machine.
 
 ## Layout
@@ -43,25 +43,25 @@ as a user-facing name.
 `skills: none` switches off host-scope discovery only. Bundled skills load
 unconditionally: the spec parser calls `_discover_skills(root / "skills")` with no
 filter, while `discover_host_skills` returns an empty list the moment the filter is
-`none` (`omnigent/spec/parser.py`). So the vendored eight survive and the Coral
+`none` (`omnigent/spec/parser.py`). The vendored eight therefore survive and the Coral
 skills cannot leak in regardless of what sits on the runner's machine.
 
 This matters because Omnigent is not a separate lane from Claude Code.
-`~/.claude/skills/` is scanned unconditionally for a host-scope agent, so a session
+Omnigent scans `~/.claude/skills/` unconditionally for a host-scope agent. A session
 in a Spec Kit repo would otherwise discover both the Spec Kit skills and the Coral
-skills, and with the default filter the model reaches for Coral on exactly the
+skills. With the default filter, the model reaches for Coral on exactly the
 deliberation-heavy work where Coral is stronger.
 
 A name allowlist (`skills: [<eight names>]`) was the earlier design and is wrong for
 this. It resolves against the runner host's filesystem at session time rather than
-against the bundle, so it enumerates nothing on a machine that never ran
-`specify init`, two engineers can run different method bodies, and a list of names
-carries no content integrity.
+against the bundle. It therefore enumerates nothing on a machine that never ran
+`specify init`, and two engineers can run different method bodies. A list of names
+also carries no content integrity.
 
 ### Hermetic Against Coral, Not Hermetic Generally
 
 A live enumeration returned the eight vendored skills namespaced `sei-spec:speckit-*`
-and zero Coral skills, from a working directory where ten Coral skills are visible to
+and zero Coral skills. The working directory it ran in exposes ten Coral skills to
 any host-scope agent. It also returned nine skills that are in neither the bundle nor
 `~/.claude/skills/`: `dataviz`, `simplify`, `loop`, `schedule`, `claude-api`,
 `artifact-design`, `artifact-capabilities`, `update-config`, `keybindings-help`. Those
@@ -89,26 +89,26 @@ toolset carries that. It is also the harness the live verification ran on.
 
 ## Registration
 
-There is no `POST /v1/agents`. The only route into the dropdown is
+No `POST /v1/agents` exists. The only route into the dropdown is
 `OMNIGENT_BUILTIN_AGENT_DIRS`, which names operator-supplied bundle paths the server
-materialises at startup. This directory is meant to be baked into the server image so
-the path is stable, the same way `xreview` and `root-cause` are.
+materialises at startup. The server image should bake this directory in so the path
+is stable, the same way it bakes `xreview` and `root-cause`.
 
 Three properties an operator has to accept:
 
 1. Registration runs only at lifespan startup, so every version bump restarts the
    shared multi-tenant server process.
-2. It is keyed on directory name and refreshes in place, so it is mutable-latest
+2. Registration keys on directory name and refreshes in place, so it is mutable-latest
    rather than versioned. Rollback is redeploy plus restart, and there is no
    addressable `sei-spec@v1`.
-3. A bad path is logged and skipped rather than fatal, so a typo yields the agent
+3. The server logs and skips a bad path rather than failing, so a typo yields the agent
    silently absent from an otherwise healthy server. Asserting `GET /v1/agents`
    after the restart is the only thing that catches this.
 
 ## Session Shape
 
-A managed session is opened with `workspace` set to a git URL carrying an optional
-branch fragment, Docker build-context style:
+An engineer opens a managed session with `workspace` set to a git URL carrying an
+optional branch fragment, Docker build-context style:
 
     https://github.com/sei-protocol/<repo>.git#<branch>
 
@@ -117,18 +117,20 @@ clone, which is what `cwd: .` resolves to. Everything the flow needs is therefor
 repository content plus the runner image, not the engineer's machine.
 
 The agent owns git. Spec Kit computes a feature branch name but performs no git
-operations at all, so the branch, the commits, and the push are the agent's to make.
-It commits after each phase, pushes, and opens a draft pull request once `spec.md`
-exists. That last part is load-bearing rather than tidiness: the sandbox is ephemeral,
-the server retains the conversation but not the files, so an artifact that is never
-pushed is gone when the session ends. The pull request is also what makes the work
+operations at all. The branch, the commits, and the push are therefore the agent's to
+make. It commits after each phase, pushes, and opens a draft pull request once
+`spec.md` exists.
+
+That last part is load-bearing rather than tidiness. The sandbox is ephemeral, and the
+server retains the conversation but not the files. An artifact that nobody pushes
+vanishes when the session ends. The pull request is also what makes the work
 readable to someone who was never in the session.
 
 If the repository has no `.specify/`, the agent scaffolds it with
 `specify init . --integration claude` and commits it. That requires the `specify` CLI
 in the runner image. Note that `specify init` also writes `.claude/skills/speckit-*`
-into the repository, which is inert for this agent because `skills: none` suppresses
-host scope, and useful to anyone running Claude Code in that repo directly.
+into the repository. That copy is inert for this agent because `skills: none`
+suppresses host scope, and useful to anyone running Claude Code in that repo directly.
 
 ## The Writing Contract, Stated In The Prompt And Gated In The Sandbox
 
@@ -166,41 +168,41 @@ prompt is an anchor and not a control.
 
 The bundle sets `os_env.type: caller_process` and deliberately declares no sandbox,
 write scoping, or credential posture. Declaring one would be pointless, because
-`enforce_sandbox` never returns DENY: it returns ALLOW carrying a data override that
+`enforce_sandbox` never returns DENY. It returns ALLOW carrying a data override that
 merges the admin sandbox over whatever the agent asked for.
 
-On seigent that override is a real boundary. The sandbox provider is `kubernetes`,
+On seigent that override is a real boundary. The sandbox provider is `kubernetes`, and
 runner pods land in `omnigent-sandboxes` under a deliberately powerless
-`omnigent-runner` service account, and they are pinned to an IMDS hop-limited nodepool
-so sandbox code cannot reach the node's instance role. Harness and git credentials
+`omnigent-runner` service account. The deploy pins those pods to an IMDS hop-limited
+nodepool, so sandbox code cannot reach the node's instance role. Harness and git credentials
 arrive as a mounted rotating token rather than as ambient laptop credentials.
 
-That is a materially better posture than the laptop-runner topology this work was
-originally scoped against, where the agent would have run unsandboxed with the
+That is a materially better posture than the laptop-runner topology this work
+originally targeted. In that topology the agent would have run unsandboxed with the
 engineer's own credentials. The executor safety floor is still tracked separately
 under PLT-872, and two things about the current posture are worth holding onto.
 `write_paths` bounds writes and not reads, so a sandboxed agent can still read what
-its token can read. And the mechanism that makes the admin sandbox win is that admin
-defaults are concatenated last in the policy builder, an ordering invariant that is
-undocumented upstream and fragile to reordering.
+its token can read. And the admin sandbox wins for one reason: the policy builder
+concatenates admin defaults last. That ordering invariant is undocumented upstream
+and fragile to reordering.
 
 One consequence of the never-DENY behavior is easy to misread. `enforce_sandbox` never returns DENY. It
-returns ALLOW with a data override that merges the admin sandbox over the agent's, so
-an agent-supplied `sandbox: {type: none}` is silently overridden rather than refused,
-and any acceptance test phrased as "is refused" will observe a successful session and
-mislead you. What protects that override from an agent-supplied one is that admin
-defaults are concatenated last in the policy builder, an ordering invariant that is
-undocumented upstream and fragile to reordering.
+returns ALLOW with a data override that merges the admin sandbox over the agent's. An
+agent-supplied `sandbox: {type: none}` therefore loses silently rather than drawing a
+refusal. Any acceptance test that expects a refusal will observe a successful
+session and mislead you. The policy builder protects that override by concatenating
+admin defaults last, an ordering invariant that is undocumented upstream and fragile
+to reordering.
 
 ## Known Limits
 
-These were argued through review and accepted, so they are recorded here rather than
-left to be rediscovered.
+Review argued these through and accepted them, so this section records them rather
+than leaving them for a later engineer to rediscover.
 
 - **Drift defence is weaker than Coral's.** `converge` treats the artifacts as the
-  sole source of intent and must not modify them, so it cannot detect a stale spec,
+  sole source of intent and must not modify them. It cannot detect a stale spec,
   only drag correct code back toward one. `analyze` runs before implementation and
-  never reads code. Neither is fail-closed. Excluding `constitution` compounds this,
+  never reads code, and neither is fail-closed. Excluding `constitution` compounds this,
   because constitution conflicts are the only automatically-CRITICAL class in either
   skill. Human PR review is the backstop.
 - **`converge`'s clean branch can be a false green.** It asserts the implementation
@@ -208,7 +210,7 @@ left to be rediscovered.
   stale spec that green light is actively misleading. This is the risk spec-driven
   development adds rather than one it removes.
 - **Nothing decides whether a task deserves the ceremony.** Choosing the agent is
-  itself the commitment, and it is made before the task is described. The
+  itself the commitment, and the engineer commits before describing the task. The
   one-sentence rule and the one-way-door stop in the prompt are advisory, because
   they are prompt-level.
 - **One active feature per session, now enforced rather than hoped for.**

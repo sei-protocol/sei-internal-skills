@@ -4,7 +4,7 @@ How `/design` plugs into the orchestration skills. This document is the contract
 
 ## Why this exists
 
-Coral and council sessions that produce *designs* (vs. code patches or quick answers) generate a lot of high-signal context that often dies with the session: which specialists weighed in, what alternatives were considered, what got cut for YAGNI, what's still open. Without `/design`, that context survives only in chat or git history. The integration makes "capture the design as a tracked doc" a one-step move at handoff.
+Coral and council sessions that produce *designs* (vs. code patches or quick answers) generate a lot of high-signal context that often dies with the session. Which specialists weighed in, what alternatives the session considered, what got cut for YAGNI, what's still open. Without `/design`, that context survives only in chat or git history. The integration makes "capture the design as a tracked doc" a one-step move at handoff.
 
 ## When the orchestrator should offer `/design`
 
@@ -14,19 +14,19 @@ Coral / council should *proactively* surface `/design` when **the deliverable is
 |---|---|
 | Synthesis pass produced an LLD or architecture sketch | This IS the artifact; capture it before context decays |
 | Council closed a workstream with a final design | The workstream's whole point was to produce this; record it |
-| User says "let's write this up" / "we should document this" | They're explicitly asking for a doc |
-| One-way door surfaced and a decision was made | The decision is worth a permanent record |
-| Multiple alternatives were weighed before picking one | The reasoning is what matters six months later — capture it |
+| User says "let us write this up" / "we should document this" | They are explicitly asking for a doc |
+| One-way door surfaced and the session reached a decision | The decision is worth a permanent record |
+| The session weighed multiple alternatives before picking one | The reasoning is what matters six months later — capture it |
 
-The orchestrator phrases it as an offer: *"Want me to capture this as a design doc in your designs repo (`designs/<arc>/<slug>.md`), or `docs/designs/` here if you have none?"* — user opts in.
+The orchestrator phrases it as an offer. *"Want me to capture this as a design doc in your designs repo (`designs/<arc>/<slug>.md`), or `docs/designs/` here if you have none?"* The user opts in.
 
 ## `/design` vs `/issue` at the handoff
 
-Both skills can fire from the same session. They're complementary, not competing:
+Both skills can fire from the same session. They are complementary, not competing:
 
 | Skill | Captures | When |
 |---|---|---|
-| **`/design`** | The design itself — Background, Goals, **Acceptance criteria** (when the work will be implemented + verified), Decisions, Diagrams, Alternatives, Trade-offs | Always, when the deliverable IS a design |
+| **`/design`** | The design itself — Background, Goals, **Acceptance criteria** (when the work will go on to implementation + verification), Decisions, Diagrams, Alternatives, Trade-offs | Always, when the deliverable IS a design |
 | **`/issue`** | Deferred follow-up work — phase 2, scope cuts, sibling workstreams | When the synthesis surfaces a "deferred — when X" or a phase 2 |
 
 Common pattern: a coral session produces a design AND surfaces a deferred slice. The orchestrator offers BOTH:
@@ -46,7 +46,7 @@ When both fire, threading the lineage matters:
 
 ## What the orchestrator passes to `/design`
 
-The orchestrator has the session in head. Pre-fill, don't re-prompt. The skill's procedure step 3 is short-circuited when these are provided:
+The orchestrator has the session in head. Pre-fill, do not re-prompt. The skill's procedure step 3 short-circuits when the orchestrator provides these:
 
 | Design field | Pulled from |
 |---|---|
@@ -57,10 +57,10 @@ The orchestrator has the session in head. Pre-fill, don't re-prompt. The skill's
 | **Goals** | What the session set out to achieve. Often the orchestrator's framing of the slice. |
 | **Non-goals** | Explicit scope cuts during synthesis. If the issue had Out-of-scope, those carry through too. |
 | **Design** | The synthesized output — the meat of what the specialists produced and the orchestrator picked. Include code/file references the specialists pointed at. Generate plausible mermaid diagrams from interaction patterns the specialists described; mark them for verification. |
-| **Alternatives** | Specialist suggestions that were weighed and not taken — this is high-value content, capture it with the *why-not*. |
+| **Alternatives** | Specialist suggestions the session weighed and did not take — this is high-value content, capture it with the *why-not*. |
 | **Trade-offs** | Costs/risks the YAGNI pass acknowledged. "Specialists give max scope; orchestrator picks min" — the cuts ARE trade-offs worth recording. |
 | **Open questions** | Anything the session left unresolved. Useful for review. |
-| **References** | Source issue (if any), branch/PR being designed against, related prior PRs, runbooks. |
+| **References** | Source issue (if any), branch/PR the design targets, related prior PRs, runbooks. |
 
 ## Example handoff
 
@@ -76,7 +76,7 @@ The orchestrator has the session in head. Pre-fill, don't re-prompt. The skill's
 
 **User:** yes.
 
-**`/design` is invoked with pre-fill:**
+**Coral invokes `/design` with pre-fill:**
 
 ```
 title: SeiNode mid-life SigningKey drift detection

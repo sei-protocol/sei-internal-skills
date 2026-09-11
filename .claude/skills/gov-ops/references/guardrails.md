@@ -13,7 +13,7 @@ The target chain may live in a `prod-*` cluster, so a `prod`-pattern refuse is w
 | `prod` (eu-central-1) | `arctic-1` | `arctic-1` | ❌ **REFUSE** | co-hosts `pacific-1` (mainnet) + `atlantic-2`; a namespace typo reaches mainnet |
 | any context | mainnet (`pacific-1`) | — | ❌ **REFUSE** | this skill is not for mainnet governance |
 
-Operator extends this table per chain; an entry is required before the skill will run. Pre-flight also asserts `seid status` → `network` == expected and `catching_up == false`, and **pins that RPC endpoint** for every subsequent tx.
+Operator extends this table per chain; the skill will not run without an entry. Pre-flight also asserts `seid status` → `network` == expected and `catching_up == false`, and **pins that RPC endpoint** for every subsequent tx.
 
 ## The fail-closed gates
 

@@ -4,7 +4,7 @@ How `/issue` plugs into the orchestration skills. This document is the contract 
 
 ## Why this exists
 
-Coral and council sessions produce a lot of high-signal context: the original ask, what specialists argued for, what the orchestrator cut, what got deferred and why. Without `/issue`, that context dies with the session — the next pickup either re-derives it or never starts. The integration makes "bootstrap the next workstream as a tracked issue" a one-step move at handoff.
+Coral and council sessions produce a lot of high-signal context. The original ask, what specialists argued for, what the orchestrator cut, what got deferred and why. Without `/issue`, that context dies with the session — the next pickup either re-derives it or never starts. The integration makes "bootstrap the next workstream as a tracked issue" a one-step move at handoff.
 
 ## When the orchestrator should offer `/issue`
 
@@ -12,28 +12,28 @@ Coral / council should *proactively* surface `/issue` at these moments:
 
 | Moment | Why |
 |---|---|
-| Synthesis turns up a "deferred — when X" line | The trigger condition (`X`) and the deferred slice are exactly what the issue's Out of scope + Problem fields capture. Don't lose them. |
-| User explicitly cuts scope ("not now, but file it") | The user just *asked* for a file action. Don't make them re-state the slice. |
+| Synthesis turns up a "deferred — when X" line | The trigger condition (`X`) and the deferred slice are exactly what the issue's Out of scope + Problem fields capture. Do not lose them. |
+| User explicitly cuts scope ("not now, but file it") | The user just *asked* for a file action. Do not make them re-state the slice. |
 | End of a coral session with an obvious phase 2 | Phase 2 will get picked up by someone — could be the same user next week, could be a teammate. The issue is the handoff. |
-| One-way door surfaces but isn't being walked through | The design discussion that produced "we'd want to think harder before doing X" needs to land somewhere durable. |
-| Council closes a workstream with a sibling identified | The sibling workstream gets a tracking issue so the council session that opens it isn't starting cold. |
+| One-way door surfaces but nobody walks through it | The design discussion that produced "we'd want to think harder before doing X" needs to land somewhere durable. |
+| Council closes a workstream with a sibling identified | The sibling workstream gets a tracking issue so the council session that opens it is not starting cold. |
 
-The orchestrator phrases it as an offer, not a default action: *"Want me to file this as an issue so it's ready for next pickup?"* — user opts in. The sink (GitHub or Linear) is chosen at the create step, not at the offer — the handoff offer stays sink-neutral. Note: if the user picks Linear, the team is always resolved interactively (no session inference), so don't promise a pre-filled Linear destination on a handoff.
+The orchestrator phrases it as an offer, not a default action. *"Want me to file this as an issue so it is ready for next pickup?"* The user opts in. The user picks the sink (GitHub or Linear) at the create step, not at the offer — the handoff offer stays sink-neutral. Note: if the user picks Linear, the skill always resolves the team interactively (no session inference). Do not promise a pre-filled Linear destination on a handoff.
 
 ## What the orchestrator passes to `/issue`
 
-The orchestrator has the session in head. Pre-fill, don't re-prompt. The skill's procedure step 2 is short-circuited when these are provided:
+The orchestrator has the session in head. Pre-fill, do not re-prompt. The skill's procedure step 2 short-circuits when the orchestrator provides these:
 
 | Issue field | Pulled from |
 |---|---|
 | **Title** | The deferred slice's name as the orchestrator referred to it. Make it descriptive, not a label. |
 | **Problem** | Observable behavior or gap that motivates the slice. From the original ask + what surfaced during specialist dispatch — *not* the proposed fix. |
-| **Impact** | Why this was cut rather than dropped. The case for "this matters, just not now." If the answer is "we don't know yet," that's a sign the issue shouldn't be filed — it's not actually a deferred workstream. |
+| **Impact** | Why the session cut this rather than dropped it. The case for "this matters, just not now." An answer of "we do not know yet" signals not to file the issue. It is not actually a deferred workstream. |
 | **Relevant experts** | The specialists already on the workstream + any adjacent personas the next pickup will need. Cap at 3; if more, the work is council-sized. |
-| **Proposed approach** | Whatever sketch the specialists produced that informed the cut. Often a few sentences and a code-pointer or two. If there isn't one, omit the section — don't fabricate. |
+| **Proposed approach** | Whatever sketch the specialists produced that informed the cut. Often a few sentences and a code-pointer or two. If there is not one, omit the section — do not fabricate. |
 | **Acceptance criteria** | If the synthesis produced an "if we did this, we'd want X to be true" list, include it. Otherwise omit; the next pickup defines it. |
-| **Out of scope** | Critical for deferred-slice issues. What this issue *won't* touch — usually the things the *current* slice already covered, or the things deferred even further out. |
-| **References** | The current PR/branch, the design doc the slice was discussed in, prior issues, runbooks. |
+| **Out of scope** | Critical for deferred-slice issues. What this issue *will not* touch — in most cases the things the *current* slice already covered, or the things deferred even further out. |
+| **References** | The current PR/branch, the design doc that discussed the slice, prior issues, runbooks. |
 
 ## Example handoff
 
@@ -41,13 +41,13 @@ The orchestrator has the session in head. Pre-fill, don't re-prompt. The skill's
 
 **Coral's offer at end of session:**
 
-> The single-shot deployment is captured in the PR. We deferred mid-life SigningKey patch detection — the trigger to un-defer is "pacific-1 needs zero-downtime cutover."
+> The PR captures the single-shot deployment. We deferred mid-life SigningKey patch detection — the trigger to un-defer is "pacific-1 needs zero-downtime cutover."
 >
 > Want me to file that as an issue to bootstrap the follow-up workstream? I can pre-fill from the design pass we just did.
 
 **User:** yes.
 
-**`/issue` is invoked with pre-fill:**
+**Coral invokes `/issue` with pre-fill:**
 
 ```
 title: Detect spec drift on Running nodes for mid-life SigningKey patch
@@ -75,20 +75,20 @@ references:
   - LLD §11 (deferred entry)
 ```
 
-The user reviews the rendered body, adjusts one sentence, confirms. Issue is filed. Coral's session summary records the URL as the next workstream pointer.
+The user reviews the rendered body, adjusts one sentence, confirms. The skill files the issue. Coral's session summary records the URL as the next workstream pointer.
 
-**Result:** when Brandon (or a teammate) picks the issue up next quarter, they walk into the same context the original session had — without re-deriving it, and without Brandon having to remember he had it.
+**Result:** when Brandon (or a teammate) picks the issue up next quarter, they walk into the same context the original session had. No re-deriving it, and Brandon does not have to remember he had it.
 
 ## What the orchestrator should NOT do
 
-- **Don't auto-file without offering.** Always ask. The user owns when context becomes a tracked artifact.
-- **Don't fabricate fields.** If a field doesn't have session signal, omit it rather than write a placeholder. `_TBD_` lines are anti-signal.
-- **Don't expand the slice during the handoff.** The issue captures what was deferred, not a re-imagining of it. If the user wants to grow the slice, that's a new coral session.
-- **Don't file multiple issues from one session reflexively.** If a session genuinely produced multiple deferred slices, ask the user which to file individually — most of the time only one or two are worth tracking.
+- **Do not auto-file without offering.** Always ask. The user owns when context becomes a tracked artifact.
+- **Do not fabricate fields.** If a field does not have session signal, omit it rather than write a placeholder. `_TBD_` lines are anti-signal.
+- **Do not expand the slice during the handoff.** The issue captures the deferred slice, not a re-imagining of it. If the user wants to grow the slice, that is a new coral session.
+- **Do not file multiple issues from one session reflexively.** If a session genuinely produced multiple deferred slices, ask the user which to file individually. Most of the time only one or two are worth tracking.
 
 ## Coral / council attribution
 
-Issues filed via this handoff are otherwise indistinguishable from standalone-filed issues. There's no automatic "filed via /coral" label or footer — the body speaks for itself. If a session produced an issue, that's a normal artifact; the workflow trail is in git history (the branch the session was working on) and PRs, not in issue metadata.
+Issues filed via this handoff are otherwise indistinguishable from standalone-filed issues. No automatic "filed via /coral" label or footer exists — the body speaks for itself. If a session produced an issue, that is a normal artifact. The workflow trail is in git history (the branch the session was working on) and PRs, not in issue metadata.
 
 ## Sibling skill: `/design`
 
@@ -100,6 +100,6 @@ Issues filed via this handoff are otherwise indistinguishable from standalone-fi
 Both can fire from the same handoff. When they do, thread the lineage:
 
 - The new issue's References section gets a `Design: <path>` line if the session also produced a design.
-- The design's frontmatter gets `Issue: #<n>` if the session also filed an issue (atypical — usually the issue exists *first* and the design is captured during a later pickup; but if both fire from one session, the design references the *new* issue).
+- The design's frontmatter gets `Issue: #<n>` if the session also filed an issue. (Atypical — in most cases the issue exists *first* and a later pickup captures the design. But if both fire from one session, the design references the *new* issue.)
 
-Most common pattern: an issue is filed in session 1, picked up in session 2 where a design pass runs and `/design` captures the LLD threading back to the issue. The two-skill flow at the same handoff (filing a new issue AND capturing its design simultaneously) is rarer but supported.
+Most common pattern: session 1 files an issue. Session 2 picks it up, runs a design pass, and `/design` captures the LLD threading back to the issue. The two-skill flow at the same handoff (filing a new issue AND capturing its design simultaneously) is rarer but supported.
