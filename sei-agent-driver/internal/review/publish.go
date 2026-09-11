@@ -277,6 +277,11 @@ func fenceRun(trimmed string) int {
 // Actions logs expire and a pull request comment does not. So this is the only record
 // that makes a wrong-session or wrong-turn publish discoverable after the fact.
 func (v Verdict) footer(sessionID string) string {
+	if v.SettledBy != "" {
+		return fmt.Sprintf(
+			"\n\n<sub>seidroid review · decision `%s` · settled by the scouts %s · no review turn ran</sub>\n",
+			v.Decision(), v.SettledBy)
+	}
 	return fmt.Sprintf(
 		"\n\n<sub>seidroid review · decision `%s` · session `%s` · turn `%s` · item `%s`</sub>\n",
 		v.Decision(), sessionID, v.TurnID, v.ItemID)
