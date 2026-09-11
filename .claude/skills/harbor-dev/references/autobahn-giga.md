@@ -18,7 +18,9 @@ Last verified 2026-09-11 against sei-chain `main` (`sei-tendermint/node/public.g
 
 `spec.configValues[]` is the SeiNetwork's typed `{fileName, key, value}` overlay, applied to every validator's generated TOML (controller spec 002/003, `api/v1alpha1/seinetwork_types.go:ConfigValue`; `fileName` must match `^[A-Za-z0-9_-]+\.toml$`, `key` is dotted, `value` is JSON — no `null`). It is the **only** config surface that works on a Running network: `spec.configOverrides` is applied on the init path and is a no-op afterwards. `seictl network apply --config-value <file>.toml:<dotted.key>=<value>` renders one entry per flag; the flag ships in seictl#253 and is absent from `v0.0.72`, so probe `seictl network apply --help | grep -q -- --config-value` first — a binary without it fails at render with `flag provided but not defined`. Full field/flag semantics land with sei-internal-skills#434 (`seinetwork-crd.md`, `seictl-cli.md`); until it merges this paragraph is the definition.
 
-The README's validators run "the production-shaped Giga storage manager: FlatKV for EVM state, littidx for receipts, littblock for blocks." On a Cosmos+CometBFT chain the equivalent, taken from `step4_config_override.sh`, is:
+The README's validators run "the production-shaped Giga storage manager: FlatKV for EVM state, littidx for receipts, littblock for blocks." On a Cosmos+CometBFT chain `step4_config_override.sh` offers two fresh-boot storage recipes. `sc-write-mode` and `evm-ss-split` are coupled — the script never sets one without the other — so take a recipe **whole**; ask the engineer which one before rendering (the rules below say what each measures).
+
+Recipe A — dual-write (`GIGA_STORAGE=true`): FlatKV written alongside memiavl, execution still reads memiavl.
 
 ```yaml
 spec:
@@ -26,14 +28,27 @@ spec:
     # executor
     - {fileName: app.toml, key: giga_executor.enabled,     value: true}
     - {fileName: app.toml, key: giga_executor.occ_enabled, value: true}
-    # storage — SC layer, table [state-commit] (sei-db/config/toml.go). Pin the mode, or
+    # SC layer, table [state-commit] (sei-db/config/toml.go). Pin the mode, or
     # `sc-write-mode-enable-auto` (default true) forces `auto` and silently ignores the explicit value.
-    # <MODE> is a decision, not a default: `test_only_dual_write` or `flatkv_only` — see the rules below.
-    - {fileName: app.toml, key: state-commit.sc-write-mode,             value: "<MODE>"}
+    - {fileName: app.toml, key: state-commit.sc-write-mode,             value: "test_only_dual_write"}
     - {fileName: app.toml, key: state-commit.sc-write-mode-enable-auto, value: false}
-    # storage — SS layer, table [state-store]
+    # SS layer, table [state-store] — true only with dual-write
     - {fileName: app.toml, key: state-store.evm-ss-split, value: true}
     # receipts
+    - {fileName: app.toml, key: receipt-store.rs-backend, value: "pebble"}
+```
+
+Recipe B — FlatKV-only (`GIGA_FLATKV_ONLY=true`): the post-migration terminal state, booted directly; this is the FlatKV read path.
+
+```yaml
+spec:
+  configValues:
+    - {fileName: app.toml, key: giga_executor.enabled,     value: true}
+    - {fileName: app.toml, key: giga_executor.occ_enabled, value: true}
+    - {fileName: app.toml, key: state-commit.sc-write-mode,             value: "flatkv_only"}
+    - {fileName: app.toml, key: state-commit.sc-write-mode-enable-auto, value: false}
+    # flatkv_only allocates no split store; step4 forces this false
+    - {fileName: app.toml, key: state-store.evm-ss-split, value: false}
     - {fileName: app.toml, key: receipt-store.rs-backend, value: "pebble"}
 ```
 
@@ -42,8 +57,8 @@ spec:
 Rules, each with its consequence:
 
 - **`sc-write-mode` values are a closed enum** — `memiavl_only`, `migrate_evm`, `evm_migrated`, `migrate_all_but_bank`, `all_migrated_but_bank`, `migrate_bank`, `flatkv_only`, `test_only_dual_write`, `auto` (`sei-db/config/sc_config.go`). A typo is accepted by the CRD (the value is opaque JSON) and rejected by seid at boot, so the validator pool crash-loops after genesis. Copy the literal.
-- **Pick one storage mode per chain and say which.** `step4` exposes two fresh-boot modes: `GIGA_STORAGE=true` → `test_only_dual_write` + `evm-ss-split` (execution still reads EVM state from memiavl while FlatKV is written alongside — this measures write amplification, not the FlatKV read path; "test clusters only, never testnet/mainnet"), and `GIGA_FLATKV_ONLY=true` → `flatkv_only` (the post-migration terminal state, booted directly; this is the FlatKV read path). `GIGA_MIGRATE_FROM_MEMIAVL` (`memiavl_only` → `migrate_evm` mid-run) is the runner-driven migration path, not a bench topology. Ask which path the bench is about before filling `<MODE>`; a copied default silently benches the wrong one.
-- **Giga storage is an on-disk format decision; it is create-time for a SeiNetwork.** A day-2 `configValues` edit restarts every validator in place with the new `app.toml`, but a store opened as memiavl does not become FlatKV on restart. Changing the validator pool's storage mode means a new chain. The one sanctioned per-node exception is a **follower**: `seictl workflow state-sync <node> --migration GigaStore --backend <pebbledb|rocksdb>` (`seictl-cli.md`, *Store migration*) resyncs the node onto the giga store with its own gates — engineer sign-off, `--dry-run` first, escalate on a shared follower. It is destructive and per-SeiNode; it does not apply to a SeiNetwork's validators.
+- **Pick one recipe per chain and say which.** Recipe A measures write amplification, not the FlatKV read path ("test clusters only, never testnet/mainnet"); Recipe B measures the FlatKV read path. `GIGA_MIGRATE_FROM_MEMIAVL` (`memiavl_only` + `evm-ss-split = false` → `migrate_evm` mid-run) is the runner-driven migration path, not a bench topology. Mixing keys across recipes (`flatkv_only` + `evm-ss-split = true`) is a pair the script never emits and the CRD will not refuse. Ask which path the bench is about before rendering; a copied default silently benches the wrong one.
+- **Giga storage is an on-disk format decision; it is create-time for a SeiNetwork.** A day-2 `configValues` edit restarts every validator in place with the new `app.toml` — all of them together, so block production stops until >2/3 of voting power is back — but a store opened as memiavl does not become FlatKV on restart. Changing the validator pool's storage mode means a new chain. The one sanctioned per-node exception is a **follower**: `seictl workflow state-sync <node> --migration GigaStore --backend <pebbledb|rocksdb>` (`seictl-cli.md`, *Store migration*) resyncs the node onto the giga store with its own gates — engineer sign-off, `--dry-run` first, escalate on a shared follower. It is destructive and per-SeiNode; it does not apply to a SeiNetwork's validators.
 - **Defaults drift.** `step4` writes `[giga_executor]` explicitly "because the Go config defaults it on, so a node that never writes the section silently runs giga regardless." Whatever the engineer wants — on **or off** — write it; never rely on omission, or an A/B bench compares two identical executors.
 - **Pin the storage knobs on both sides of a comparative bench.** `comparative-bench.md` substitutes image per side; storage/executor knobs must be identical unless they *are* the variable. State which one it is in the experiment dir README.
 
@@ -51,8 +66,10 @@ Verification after `Running` — check the storage keys, not just the executor s
 
 ```sh
 kubectl exec <validator-0-pod> -n eng-<alias> -c seid -- sh -c \
-  'awk "/^\\[/{s=\$0} /^(enabled|occ_enabled|sc-write-mode|sc-write-mode-enable-auto|evm-ss-split|rs-backend) *=/{print s, \$0}" /root/.sei/config/app.toml'
-# expect: [giga_executor] enabled = true · [state-commit] sc-write-mode = "<MODE>" · [state-commit] sc-write-mode-enable-auto = false · [state-store] evm-ss-split = true · [receipt-store] rs-backend = "pebble"
+  'awk "/^\\[/{s=\$0} /^(enabled|occ_enabled|sc-write-mode|sc-write-mode-enable-auto|evm-ss-split|rs-backend) *=/{print s, \$0}" \$HOME/.sei/config/app.toml'
+# $HOME is /home/nonroot in controller-rendered pods (platform.HomeDir); the data PVC is mounted at $HOME/.sei.
+# expect, Recipe A: [giga_executor] enabled = true · [state-commit] sc-write-mode = "test_only_dual_write" · [state-commit] sc-write-mode-enable-auto = false · [state-store] evm-ss-split = true · [receipt-store] rs-backend = "pebble"
+# expect, Recipe B: same, with sc-write-mode = "flatkv_only" and evm-ss-split = false
 ```
 
 Every line must match the CR under the expected table. A key printed under a different table, or absent, is the silent-`auto` failure; a mismatch with the CR means `config-patch` did not land — read `.status.plan` per `troubleshooting-seinode.md`. `ConfigValuesValid=False` on the SeiNode means the entry failed CRD-side validation and never reached the file.
@@ -87,5 +104,5 @@ Even though Tier 3 is not deployable today, engineers read the README and will p
 - Engineer asks for Autobahn or EVM-only on harbor → state the tier table verdict, offer Tier 1 (Giga on CometBFT) as the deployable subset, link PLT-1249. Do not render a SeiNetwork with `evm-only = true`.
 - `sc-write-mode` value not in the enum above → refuse to render; a wrong literal is a post-genesis crash-loop of the whole pool.
 - Request to flip storage mode on a `Running` SeiNetwork → refuse the in-place `configValues` edit; it is a new chain. A single follower is the exception, via the gated `seictl workflow state-sync --migration GigaStore` path only.
-- `<MODE>` left as a placeholder or copied without asking → stop and ask dual-write vs flatkv_only; they bench different code paths.
+- Storage recipe copied without asking, or keys mixed across recipes (`flatkv_only` with `evm-ss-split = true`) → stop and ask Recipe A vs B; they bench different code paths.
 - `[giga_executor]` omitted on one side of a comparative bench → add it explicitly to both sides before rendering.
