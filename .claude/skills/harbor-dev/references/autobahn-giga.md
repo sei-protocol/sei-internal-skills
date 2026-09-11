@@ -102,6 +102,10 @@ spec:
   consensus:
     engine: Autobahn      # Tendermint when omitted
     evmOnly: true         # drop this line for Tier 2 (Autobahn + Cosmos app)
+    autobahn:             # optional; omitted keeps gen-autobahn-config defaults (400ms / false / 2000)
+      blockInterval: 400ms
+      allowEmptyBlocks: false
+      maxTxsPerBlock: 2000  # 1..2000; 2000 is the protocol ceiling, only lowering it has an effect
   genesis:
     chainId: <chain-id>
     consensusParams: {block: {max_gas: "35000000"}}   # top-level genesis.consensus_params; overrides cannot reach it
@@ -116,10 +120,10 @@ How each README step lands, and the rule it carries:
 
 | README step | Where it lives now | Rule |
 |---|---|---|
-| `seid tendermint gen-autobahn-config node_0 … node_3` | `assemble-genesis` builds `autobahn.json` from every validator's uploaded identity (`validator_pubkey`, `node_pubkey`, in-cluster `autobahn_address`/`evmrpc_url`) with the generator's defaults — `max_txs_per_block 2000`, `block_interval 400ms`, `view_timeout 1.5s`, `allow_empty_blocks false`, `block_db` retention `30s` — and uploads it **before** `genesis.json` | These defaults are not tunable from the CRD yet. An engineer who needs a different `block_interval` or `allow_empty_blocks: true` gets a "not yet" and a PLT-1259 follow-up, not a `configValues` entry — `autobahn.json` is not TOML |
+| `seid tendermint gen-autobahn-config node_0 … node_3` | `assemble-genesis` builds `autobahn.json` from every validator's uploaded identity (`validator_pubkey`, `node_pubkey`, in-cluster `autobahn_address`/`evmrpc_url`) with the generator's defaults — `max_txs_per_block 2000`, `block_interval 400ms`, `view_timeout 1.5s`, `allow_empty_blocks false`, `block_db` retention `30s` — and uploads it **before** `genesis.json` | `block_interval`, `allow_empty_blocks` and `max_txs_per_block` are tunable through `spec.consensus.autobahn` (create-only; example above). `view_timeout` and `block_db` are not. Never a `configValues` entry — `autobahn.json` is not TOML |
 | `autobahn-config-file`, `evm-only`, `[rpc] laddr = ""`, `[api]`/`[grpc]`/`[grpc-web] enable = false` | Controller-owned overlay (`internal/planner/consensus_overlay.go`), merged after `configValues` | A `configValues` entry on any of these keys fails plan build (`this key is set by spec.consensus and cannot be overridden`) and the node never leaves `Initializing`; `spec.overrides` on the listener keys is refused by CEL at apply. Remove the entry, do not fight it |
 | `consensus_params.block.max_gas = 35000000` | `spec.genesis.consensusParams` (nested JSON, deep-merged over `seid init`'s `consensus_params`; `null` anywhere is refused) | Quote the number: genesis stores `max_gas` as a string |
-| `seid start --inv-check-period 0 --freeze-height 0` | Still fixed by the controller's StatefulSet `Command` | PLT-1250 |
+| `seid start --inv-check-period 0 --freeze-height 0` | Nothing: both values are `seid start` defaults (`inv-check-period` is discarded by `app.New`), and `spec.freeze` is the typed freeze-height surface | No field, by design (controller #557) |
 | Chain ID `713715` | Compile-time `config.AutobahnEVMOnlyChainID`; the EVM-only app ignores `app_state` | Do not add `evm.params.chain_id` "to match" — no effect in EVM-only, and on a Tier-1 chain it moves the EVM chain ID off the default `713714` |
 
 Rules, each with its consequence:
@@ -155,14 +159,14 @@ Engineers read the README and phrase requests in its terms. These assumptions el
 - **RPC surface is two methods.** `giga/evmonly/rpc` serves `eth_sendRawTransaction` and `eth_getTransactionReceipt` on `:8545`; every other `eth_*` returns method-not-found. That kills the `eth_blockNumber` follower probe, the `rpc-up` `StatusCheck` and the "follower height +3 under fault" liveness gate in `chaos-faults.md`, and `seiload` `trackReceipts` (the inclusion tracker is `SubscribeNewHead` + `eth_getBlockByNumber`, `sei-load/stats/inclusion_tracker.go`), `trackBlocks`, `trackUserLatency`. The nightly `autobahn_evm_only.json` profile keeps all three off for that reason; inclusion is confirmed out-of-band with `cast receipt <hash>`.
 - **Validators serve EVM.** The `sei-load-bench.md` rule "target RPC followers, never validators" is a Cosmos-chain rule; in EVM-only mode the validator *is* the RPC (`:8545` on the validator pod). A follower SeiNode has no role. The per-validator URLs are published — `seictl network get <chain-id> -n eng-<alias> -o json | jq -r '[.status.endpoints.nodes[].evmJsonRpc | select(.)]'` (`internal/controller/seinetwork/endpoints.go`; the same leaf exists on a CometBFT network, where nothing answers on it) — use them verbatim as the profile's `endpoints` once the count equals `replicas` (`select(.)` drops a validator that has not published yet), and skip `sei-load-bench.md`'s "at least one Running follower" gate, which never passes here.
 - **Profile `chainId` is `713715`.** The EVM-only app runs the compile-time `AutobahnEVMOnlyChainID`, not a genesis value, and `seiload` signs with the envelope `chainId` (`sei-load-bench.md`, *Profile shape* — only the fee cap resolves from the chain). A Tier-1-shaped profile carrying `713714` has every transaction rejected for wrong chain ID, which looks like a dead RPC. The nightly `autobahn_evm_only.json` carries `713715`; copy it.
-- **Height 0 until load.** `allow_empty_blocks: false` means a healthy idle chain sits at height 0 — any "Ready = producing" gate (spec 007 / PLT-1251) must carve this out.
+- **Height 0 until load.** `allow_empty_blocks: false` (the default) means a healthy idle chain sits at height 0. The controller reports this as `Ready` with `Producing=False/Idle` (`seinetwork-crd.md`): gate the bench start on `Ready`, and expect `Producing` to flip to `HeightAdvancing` only once `seiload` sends. `HeightStalled` on an Autobahn chain means `allowEmptyBlocks: true` was set and blocks stopped — a real fault. Applies to Tier 2 as well as Tier 3.
 - **No funding block.** Absent addresses read as `2^200` wei, so sender accounts need no funding — but only in EVM-only. A Tier-1 Giga chain on a vanilla image still needs funded senders (`seiload` `funding.rootKeyFile`) or a mock-balances image.
 - **Throughput arithmetic.** `offered TPS ≈ desired tx/block × 2.5` at 400 ms; per-block cap `min(2000, floor(35_000_000 / tx gas))` → 1,666 for 21k-gas transfers. Useful for sizing `settings.tps` on any 400 ms-block chain, not just EVM-only.
 
 ## Halt conditions specific to this reference
 
 - Engineer asks for Autobahn or EVM-only on a cell whose CRD gate (above) fails → offer Tier 1 (Giga on CometBFT) as the deployable subset, ask the platform team to advance the controller pin. Never render `evm-only = true` or `autobahn-config-file` through `configValues` — on a new controller it is refused at plan build, on an old one it is a pod that never reads Ready.
-- Engineer asks for a non-default `autobahn.json` field (`block_interval`, `allow_empty_blocks`, `max_txs_per_block`) → not expressible; say so and file it as a PLT-1259 follow-up rather than editing the file in the pod.
+- Engineer asks for a non-default `autobahn.json` field → `spec.consensus.autobahn.{blockInterval, allowEmptyBlocks, maxTxsPerBlock}` in the manifest (controller #555; `kubectl explain seinetwork.spec.consensus.autobahn` is the gate, and there is no seictl flag). Create-only: a change is a new chain. Any other `autobahn.json` field is not expressible; say so rather than editing the file in the pod. `maxTxsPerBlock` above 2000 is refused by the CRD; the protocol clamps there anyway.
 - Follower requested on an EVM-only chain → ask what it is for; the validators serve `:8545` and a follower serves nothing the bench reads.
 - `sc-write-mode` value not in the enum above → refuse to render; a wrong literal is a post-genesis crash-loop of the whole pool.
 - Request to flip storage mode on a `Running` SeiNetwork → refuse the in-place `configValues` edit; it is a new chain. A single follower is the exception, via the gated `seictl workflow state-sync --migration GigaStore` path only.

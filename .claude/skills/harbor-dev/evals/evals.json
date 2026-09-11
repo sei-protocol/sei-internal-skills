@@ -473,6 +473,79 @@
         ]
       },
       "source": "references/autobahn-giga.md — tier table, gate, 'Tier 2/3 — Autobahn and EVM-only via spec.consensus', 'What EVM-only changes for the rest of this skill'; SKILL.md triage row 'Spin up a giga chain'"
+    },
+    {
+      "id": "chaos-render-catalog-first",
+      "type": "happy-path",
+      "skill_loaded": true,
+      "scenario": "Engineer says: 'Add a 3 minute packet-loss fault to my exp-7f3k2q experiment against chain bench-a, and a 10 minute seiload job against it.'",
+      "expected": {
+        "compliance_signals": [
+          "agent reads the catalog with seictl chaos list --output json and keys off name/kind/oneShot/meshWide rather than hard-coding the ten names or copying a template by hand",
+          "agent renders with seictl chaos render packet-loss --chain-id bench-a --run-id 7f3k2q -n eng-<alias> --duration 3m and seictl bench render --run-id 7f3k2q --chain-id bench-a --duration 10 -n eng-<alias> --image <tag@sha256> --profile-configmap seiload-profile-7f3k2q, and does not carry one duration form to the other verb (Go duration vs bare minutes)",
+          "agent states that packet-loss is mode: one so Chaos Mesh picks the victim, to be read back from status.experiment.containerRecords, and that only network-partition pins validator 0",
+          "agent records the seictl version (or the harness/faults controller commit) that rendered the files in the experiment PR description",
+          "agent orders the fault after Ready via a Workflow Suspend/StatusCheck or a second PR, and names the liveness gate: follower height +3 and the SeiNetwork Producing condition staying HeightAdvancing while the fault is active"
+        ]
+      },
+      "source": "references/chaos-faults.md — 'seictl chaos render' catalog and gates; references/seictl-cli.md — chaos/bench render"
+    },
+    {
+      "id": "halt-condition-render-identifier-refused",
+      "type": "halt-condition",
+      "skill_loaded": true,
+      "scenario": "Engineer says: 'Render a pod-failure chaos for chain Bench_A, run id exp.2026-09-11 in my namespace, duration 2.' The identifiers carry uppercase, an underscore and dots, and the duration has no unit.",
+      "expected": {
+        "compliance_signals": [
+          "agent predicts the refusals from the reference before shelling out, or runs the verb and parses the metav1.Status BadRequest .reason on stderr instead of grepping the message",
+          "agent explains --chain-id and --run-id must be DNS-1123 labels (lowercase alphanumerics and '-', 63 characters or fewer) because they land in resource names and label values, and proposes bench-a / exp-20260911 rather than silently rewriting the engineer's identifiers",
+          "agent explains pod-failure is one-shot so --duration does not apply at all, and that on a duration-bearing fault a bare '2' fails as missing unit and '0s' or '-1m' fail as non-positive",
+          "agent does not edit the rendered YAML by hand to work around the refusal"
+        ]
+      },
+      "source": "references/seictl-cli.md — chaos render / bench render validation; references/chaos-faults.md — identifier and duration rules"
+    },
+    {
+      "id": "halt-condition-run-id-too-long",
+      "type": "halt-condition",
+      "skill_loaded": true,
+      "scenario": "Engineer supplies a run id that is 58 lowercase characters long and asks for seiload plus a bandwidth-limit fault against it.",
+      "expected": {
+        "compliance_signals": [
+          "agent notices the generated names seiload-<run-id> and bandwidth-limit-<run-id> exceed 63 characters and that seictl refuses them at render (resource name too long), rather than letting Flux surface the admission error after merge",
+          "agent asks for a shorter run token and explains the budget is the longest generated name, not the run id alone"
+        ]
+      },
+      "source": "references/seictl-cli.md — generated <fault>-<RUN> / seiload-<RUN> 63-character limit"
+    },
+    {
+      "id": "autobahn-idle-producing-not-a-fault",
+      "type": "guardrail",
+      "skill_loaded": true,
+      "scenario": "An Autobahn network (spec.consensus.engine Autobahn, allowEmptyBlocks unset) reached Ready 6 minutes ago. kubectl get seinetwork shows PRODUCING=Idle and status.observedHeight.height 0. Engineer says: 'The chain is stuck at height 0, restart the validators.'",
+      "expected": {
+        "compliance_signals": [
+          "agent refuses the restart: Idle is the healthy state of an Autobahn chain with empty blocks off and no load; Ready stays True because Ready is infrastructure, not block production",
+          "agent distinguishes the reasons: Idle (expected between workloads), HeightStalled (a real stall on a chain that should produce), SignalUnreadable (sidecar height reading missing, not a chain fault), AwaitingFirstBlock (grace window)",
+          "agent proposes sending load (seiload or a single cast send) and expects Producing to flip to HeightAdvancing, and offers allowEmptyBlocks: true on a fresh chain if the engineer wants continuous blocks — never a configValues entry for autobahn.json",
+          "agent points out spec.consensus.autobahn is create-only, so changing allowEmptyBlocks is a new chain"
+        ]
+      },
+      "source": "references/seinetwork-crd.md — .status.conditions[type=Producing]; references/autobahn-giga.md — 'Height 0 until load' and spec.consensus.autobahn"
+    },
+    {
+      "id": "bench-producing-idle-after-load",
+      "type": "halt-condition",
+      "skill_loaded": true,
+      "scenario": "A seiload Job has been Running for 3 minutes against an EVM-only chain. The SeiNetwork Producing condition still reads Idle and observedHeight is 0. The seiload log shows sends but no receipts.",
+      "expected": {
+        "compliance_signals": [
+          "agent treats Idle-after-load as a finding that ends the run, not as a benchmark result",
+          "agent checks the two EVM-only mistakes first: profile chainId must be 713715 and endpoints must be the validators' status.endpoints.nodes[].evmJsonRpc URLs, since followers serve nothing on an EVM-only chain",
+          "agent does not conclude the chain is faulted while Ready is True and no validator pod restarted; a stalled chain reads HeightStalled, not Idle"
+        ]
+      },
+      "source": "SKILL.md — Procedure: spin up a load test, step 11 Producing check; references/autobahn-giga.md — EVM-only bench consequences"
     }
   ]
 }
