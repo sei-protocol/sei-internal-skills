@@ -31,7 +31,7 @@ References `../base`, sets `alias=<alias>` via `configMapGenerator`, runs `repla
 - `Namespace` → `tide.sei.io/owner` and `toolkit.fluxcd.io/tenant` labels aliased.
 - `ServiceAccount name: engineer-service-account` and `name: seid-node` → `tide.sei.io/owner` label aliased.
 
-A second `replacements:` block substitutes `eng-tenant` → `eng-<alias>` (delimiter `-`, index 1) for namespace fields, and `engineers/tenant` → `engineers/<alias>` (delimiter `/`, index 2) for the Flux Kustomization's `spec.path`. The RoleBinding `subjects.0.namespace` aliasing rejects `controller-configmaps-writer`: that binding's subject is the controller SA in `sei-k8s-controller-system`, which must stay literal (aliasing it would point the grant at a non-existent namespace).
+A second `replacements:` block substitutes `eng-tenant` → `eng-<alias>` (delimiter `-`, index 1) for namespace fields, and `engineers/tenant` → `engineers/<alias>` (delimiter `/`, index 2) for the Flux Kustomization's `spec.path`. The RoleBinding `subjects.0.namespace` aliasing rejects `controller-configmaps-writer`: that binding's subject is the controller SA in `sei-k8s-controller-system`, which must stay literal. Aliasing it would point the grant at a non-existent namespace.
 
 Literal content in [`onboarding-pr-template.md`](./onboarding-pr-template.md) → File 1. Substring-replace `fromtherain` → `<alias>`.
 
@@ -49,7 +49,7 @@ resources:
   - <alias>
 ```
 
-Append `<alias>` to `resources`. Alphabetical if the existing list is sorted.
+Append `<alias>` to `resources`. Alphabetical if the existing list has a sort order.
 
 
 ## Per-engineer Terraform (file 3)
@@ -87,7 +87,7 @@ Literal shape in [`onboarding-pr-template.md`](./onboarding-pr-template.md) → 
 | `sync.yaml` | Flux `Kustomization` `tenant` watching `harbor-engineering-workspace` GitRepository at `./engineers/tenant`. |
 | `engineer-service-account.yaml` | `engineer-service-account` ServiceAccount with `tide.sei.io/cell-type=personal` and `tide.sei.io/owner=tenant` labels. |
 | `seid-node-sa.yaml` | `seid-node` ServiceAccount with the same labels. |
-| `controller-configmaps-rbac.yaml` | `node-configmaps-writer` Role (configmaps CRUD) + `controller-configmaps-writer` RoleBinding granting the controller SA (`sei-k8s-controller-manager@sei-k8s-controller-system`) configmaps write here — for the rbac-proxy/workflow-vars ConfigMaps it manages (the controller's ClusterRole is read-only on configmaps; PLT-471). |
+| `controller-configmaps-rbac.yaml` | `node-configmaps-writer` Role (configmaps CRUD) + `controller-configmaps-writer` RoleBinding granting the controller SA (`sei-k8s-controller-manager@sei-k8s-controller-system`) configmaps write here, for the rbac-proxy/workflow-vars ConfigMaps it manages. The controller's ClusterRole is read-only on configmaps (PLT-471). |
 
 Shared Terraform at `terraform/aws/189176372795/eu-central-1/harbor/`:
 
@@ -151,7 +151,7 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
 
 ## The agent's job
 
-1. **Prompt for the alias.** Default the prompt to `$USER` lowercased — do not silently use it. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias> --context harbor`: if the namespace already exists, the alias is taken — halt with "pick another, or contact the platform team if it is yours." Do not attempt partial-state recovery (separate runbook). Continue only when the alias is free.
+1. **Prompt for the alias.** Default the prompt to `$USER` lowercased — do not silently use it. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias> --context harbor`: if the namespace already exists, another engineer holds the alias. Halt with "pick another, or contact the platform team if it is yours." Do not attempt partial-state recovery (separate runbook). Continue only when the alias is free.
 2. **Render the four platform-repo files** from [`onboarding-pr-template.md`](./onboarding-pr-template.md) (Files 1–4) in a fresh clone of `sei-protocol/platform`, branched from `main` — never from a local working branch. Branch: `feat/engineers-<alias>-onboard`.
 
    Substring-replace `fromtherain` → `<alias>` in **Files 1 and 3** only. **Files 2 and 4 are append-only**: both are rosters that already name every onboarded engineer, so add one entry and leave the rest untouched. File 4's block shows `- eng-fromtherain` as a live entry, not a placeholder. Replace it and you drop that engineer's seiload scraping. That is the same failure this roster exists to prevent.
