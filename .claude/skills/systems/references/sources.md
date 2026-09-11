@@ -1,6 +1,6 @@
 # Sources & licensing
 
-The authorities cited across the `/systems` references, with links and licensing. **Cite by the short name** used in the checklists. Copyright rule: the references are our-own-words checklists that *point at* these sources — never reproduce or closely-reword reserved text. **Openly-licensed** sources (Apache-2.0 / CC-BY) may be adapted with attribution; **reserved** sources are cite-and-link only.
+The authorities cited across the `/systems` references, with links and licensing. **Cite by the short name** used in the checklists. Copyright rule: the references are our-own-words checklists that *point at* these sources — never reproduce or closely-reword reserved text. You may adapt **openly-licensed** sources (Apache-2.0 / CC-BY) with attribution; **reserved** sources are cite-and-link only.
 
 | Short name | URL | Openness |
 |---|---|---|
