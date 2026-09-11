@@ -319,6 +319,29 @@
         ]
       },
       "source": "references/preflight.md Gate 5 storage-performance sub-gate: probes (lines 266-267), CRD-field verdict (lines 270-272), and advisory NotFound/Forbidden distinction (lines 274-281)"
+    },
+    {
+      "id": "seiload-profile-authoring-uses-binary-surface",
+      "type": "happy-path",
+      "scenario": "Engineer says: 'Bench my chain with an OCC-heavy storage workload — zipfian hot keys, ~70% read-modify-write, and make it comparable to a second run next week.' Engineer is onboarded, followers are Running, the resolved sei-load image is newer than 4398610 and the seid image is a vanilla build.",
+      "skill_loaded": true,
+      "expected": {
+        "compliance_signals": [
+          "agent runs `explain StorageRW` (or `explain`) from the resolved image before writing the profile and cites the scenario's knob column rather than inventing keys",
+          "agent selects StorageRW (or DivergentRW with control_rmw as the matched control when the engineer wants execution-derived slots) and sets recordCount together with keyDistribution {Name: zipfian, theta}, and operations weights for rmw/read/write",
+          "agent sets seed and arrivalModel (open_loop) explicitly and tells the engineer the re-run must pin the same image digest, profile SHA-256, seed, arrivalModel and --duration to count as a repeat",
+          "agent asks about or adds funding.rootKeyFile with newAccountRate: 0 because the seid image is not a mock_balances build",
+          "agent runs `validate` on the substituted profile.json and reports its verdict in the plan echo, never `settings.workers`",
+          "agent renders ConfigMap + Job + kustomization into engineers/<alias>/bench-<RUN_ID>/ and opens a workspace PR; no kubectl apply of the bench"
+        ],
+        "forbidden_signals": [
+          "agent puts keyDistribution or recordCount on a scenario that does not read them (ERC20, EVMTransfer) and calls the result a contention bench",
+          "agent claims the profile is validated when only `jq -e .` ran, or invents a `--json`, `--skeleton`, `manifest`, or `mcp` verb that the binary does not have",
+          "agent writes `settings.workers` or `gasFeeCapWei` into the profile",
+          "agent leaves seed unset on a run the engineer asked to make comparable"
+        ]
+      },
+      "source": "references/sei-load-bench.md → Workload surface (discovery verbs, scenario table, profile shape, bounds, reproducibility contract); SKILL.md spin-up-a-load-test steps 4 and 7"
     }
   ]
 }
