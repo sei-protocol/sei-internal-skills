@@ -35,13 +35,13 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 ### writing-quality
 | Agent | Scope |
 |-------|-------|
-| `prose-steward` | Prose steward — reviews org artifacts (design docs/HLDs, PRDs, 1-pagers, pull-request bodies) so they read correctly for the human who has to act on them. Profile-first (repo `CLAUDE.md` writing conventions outrank its own doctrine), citation-tier honest (Cited findings carry `Basis:`; Stated-opinion is advisory-only, never blocking), suggest-only. Pinned unconditionally by `/xreview` on any `skill-package` change. NOT code idiom (`idiomatic-reviewer`), NOT scope (`product-manager`). |
+| `prose-steward` | Prose steward — reviews org artifacts (design docs/HLDs, PRDs, 1-pagers, pull-request bodies). The artifact must read correctly for the human who has to act on it. Profile-first (repo `CLAUDE.md` writing conventions outrank its own doctrine), citation-tier honest (Cited findings carry `Basis:`; Stated-opinion is advisory-only, never blocking), suggest-only. Pinned unconditionally by `/xreview` on any `skill-package` change. NOT code idiom (`idiomatic-reviewer`), NOT scope (`product-manager`). |
 
 ### code-quality
 | Agent | Scope |
 |-------|-------|
-| `idiomatic-reviewer` | Idiomatic-conformance review, language-pluggable. Digests the repo's agent files + `doc.go` into a local idiom profile that outranks generic idiom, overlays a per-language pack, emits two-altitude (design + surgical) cited findings. Reviews for idiom; does **not** author the system (that is the language specialist, e.g. `kubernetes-specialist`). Backed by the `/idiomatic` skill. |
-| `systems-engineer` | Systems software engineer — builds **and** reviews high-performance, reliable, observable, maintainable application code/architectures. Owns "how software behaves on the machine and over time": perf (CPU/mem/I/O/concurrency/latency), failure-modes-by-design (timeouts, back-pressure, idempotency, graceful degradation), observability-by-design, Linux/OS behavior, maintainability. Hooks into the `/idiomatic` standards (idiom ⊂ systems quality) and leans on `idiomatic-reviewer` for the pure idiom pass. Builds/reviews code; does **not** run the platform (→ `sre-engineer` / `platform-engineer` / observability agents). |
+| `idiomatic-reviewer` | Idiomatic-conformance review, language-pluggable. Digests the repo's agent files + `doc.go` into a local idiom profile that outranks generic idiom. Overlays a per-language pack, emits two-altitude (design + surgical) cited findings. Reviews for idiom; does **not** author the system (that is the language specialist, e.g. `kubernetes-specialist`). Backed by the `/idiomatic` skill. |
+| `systems-engineer` | Systems software engineer — builds **and** reviews high-performance, reliable, observable, maintainable application code/architectures. Owns "how software behaves on the machine and over time". That covers perf (CPU/mem/I/O/concurrency/latency) and failure-modes-by-design (timeouts, back-pressure, idempotency, graceful degradation). It also covers observability-by-design, Linux/OS behavior, and maintainability. Hooks into the `/idiomatic` standards (idiom ⊂ systems quality) and leans on `idiomatic-reviewer` for the pure idiom pass. Builds/reviews code; does **not** run the platform (→ `sre-engineer` / `platform-engineer` / observability agents). |
 
 ### product-management
 | Agent | Scope |
@@ -60,15 +60,15 @@ installed by default — `sei-interview-expert` (with `/interview`). Opt in with
 
 The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
-The operating doctrine — engineering principles, output discipline, the workflow skills and when each applies, the xreview discipline, and the key rules — is the `sei-internal-skills-managed` block below. It is maintained once in `scripts/sei-internal-skills-doctrine.md` and distributed to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
+The operating doctrine — engineering principles, output discipline, the workflow skills and when each applies, the xreview discipline, and the key rules — is the `sei-internal-skills-managed` block below. `scripts/sei-internal-skills-doctrine.md` holds it once and the sync carries it to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
 
 ## Install
 
-The fastest path is `make bootstrap` from the repo root, which runs `make sync-agents`, `make sync-skills`, `make sync-output-styles`, and `make update-agent-permissions`. See the README's Setup section for the full flow.
+`make bootstrap` from the repo root is the fastest path, and it runs `make sync-agents`, `make sync-skills`, `make sync-output-styles`, and `make update-agent-permissions`. See the README's Setup section for the full flow.
 
 This installs the **core** only. The agents and skills under [`experimental/`](./experimental/README.md) never ride along — opt in by name with `make sync-experimental`.
 
-Agents and skills travel the same way — sei-internal-skills is the canonical home, and the sync scripts push them out to user-scope (`~/.claude/`) and sibling repos.
+Agents and skills travel the same way. sei-internal-skills is the canonical home, and the sync scripts push them out to user-scope (`~/.claude/`) and sibling repos.
 
 For sibling-repo or finer-grained installs, call the scripts directly:
 
@@ -96,18 +96,18 @@ For sibling-repo or finer-grained installs, call the scripts directly:
 ./scripts/sync-skills.sh --target ~/ --dry-run
 ```
 
-Categories: `portable` (default), `sei`, `all`. Both scripts are non-destructive by default — they refuse to overwrite changed files in the target unless `--force` is passed. The Make targets pass `--force` so subsequent runs pick up sei-internal-skills updates cleanly.
+Categories: `portable` (default), `sei`, `all`. Both scripts are non-destructive by default — they refuse to overwrite changed files in the target unless you pass `--force`. The Make targets pass `--force` so subsequent runs pick up sei-internal-skills updates cleanly.
 
 <!-- BEGIN sei-internal-skills-managed (do not edit; managed by sei-internal-skills sync scripts) -->
 ## Operating with sei-internal-skills resources
 
-This package consumes portable Claude Code skills and specialist agents authored in Sei's sei-internal-skills library and installed under `.claude/`. The skills are invoked as the slash-commands below; the agents are dispatched by those skills. What follows is the opinionated doctrine for operating with them — the *way* to work, not a description of the library.
+This package consumes portable Claude Code skills and specialist agents authored in Sei's sei-internal-skills library and installed under `.claude/`. Invoke the skills as the slash-commands below; those skills dispatch the agents. What follows is the opinionated doctrine for operating with them — the *way* to work, not a description of the library.
 
 ### Engineering principles
 
 - **Interfaces first** — the primary deliverable of a design is exact signatures, types, errors, and contracts. Implementation guidance is secondary.
 - **YAGNI** — only build what traces to a current-phase need. Everything else is explicitly deferred, not silently omitted.
-- **Two-way doors only** — prefer reversible decisions. One-way doors (irreversible choices: persisted schema/field names, public API contracts, on-disk or wire formats, anything other systems come to depend on) require explicit human approval before finalizing.
+- **Two-way doors only** — prefer reversible decisions. One-way doors need explicit human approval before finalizing. Those are the irreversible choices: persisted schema/field names, public API contracts, on-disk or wire formats, anything other systems come to depend on.
 - **Errors are interface** — every error condition is part of the public contract.
 - **Provider owns the interface** — when a provider and consumer disagree, the provider's definition is canonical and consumers adapt.
 
@@ -116,17 +116,17 @@ This package consumes portable Claude Code skills and specialist agents authored
 - **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the component in scope.
 - **Comments & documentation.** Present-state only — never change/history/why-removed
   inline; that belongs in the commit or the pull request. Top-located: package, file or
-  type documentation, not the body. **An in-body comment runs to 4 lines or fewer. A
+  type documentation, not the body. **An in-body comment runs to 4 lines or fewer, and a
   file or package header runs to 20 or fewer.** Those two numbers are the rule; "sparingly"
-  is not checkable and a bound that cannot be violated knowingly is not a bound.
-  *No gate checks either number.* They are stated and recorded as uncheckable rather than
-  implied to be enforced.
-- **PR bodies and in-code prose.** Conclusion first (BLUF). Cut a sentence whose removal
+  is not checkable and a bound nobody can knowingly violate is not a bound.
+  *No gate checks either number*, so this document states and records them as uncheckable
+  rather than implying enforcement.
+- **PR bodies and in-code prose.** Conclusion first (BLUF); cut a sentence whose removal
   changes nothing a reviewer would do next. Open on the load-bearing noun, never a wind-up.
   Make every verb do work — no "serves to", "aims to", "is responsible for", "allows us
-  to". Collapse hedges. Do not restate a name a signature already carries: delete the
-  comment rather than shorten it. Prefer one concrete example over one paragraph. Treat a
-  heading as a budget, not a structure tax.
+  to" — and collapse hedges. Do not restate a name a signature already carries: delete the
+  comment rather than shorten it. Prefer one concrete example over one paragraph, and treat
+  a heading as a budget, not a structure tax.
 
 ### Using the skills
 
@@ -134,29 +134,29 @@ This package consumes portable Claude Code skills and specialist agents authored
 - **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
 - **`/idiomatic`** and **`/systems`** — review code for language/package idiom, then for systems-level quality on top. Idiom ⊂ systems quality; run them in that order.
 
-Further workflow skills — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — are **experimental** and ship only on opt-in (`make sync-experimental`). Use them when they are installed; never assume they are.
+Further workflow skills — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — are **experimental** and ship only on opt-in (`make sync-experimental`). Use them when your environment has them; never assume it does.
 
 ### xreview discipline
 
 When the relevant specialists review a produced artifact (design, plan, diff, or a set of expert outputs):
 
-- **Blinded and independent** — each reviewer commits its findings before seeing the others'; no reviewer's view is summarized into another's brief.
-- **An assigned dissenter** — one reviewer is tasked to argue against the emerging consensus and surface the strongest counter-case.
+- **Blinded and independent** — each reviewer commits its findings before seeing the others'; no brief summarizes another reviewer's view.
+- **An assigned dissenter** — one reviewer must argue against the emerging consensus and surface the strongest counter-case.
 - **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) *and*, for doc artifacts, the prose axis (`prose-steward`) — not domain experts alone.
 - **Automated review is co-equal** — treat an automated reviewer (e.g. Cursor Bugbot) as a peer input, not noise; an unresolved flag blocks.
-- **Confirmed-consensus iteration** — after a fix, re-dispatch the reviewer that raised the finding to confirm closure; merge only on unanimous sign-off with no open concerns. `/xreview` owns the procedure.
+- **Confirmed-consensus iteration** — after a fix, re-dispatch the reviewer that raised the finding to confirm closure. Merge only on unanimous sign-off with no open concerns. `/xreview` owns the procedure.
 
 ### Key rules
 
 - **Provider owns the interface.** Consumers adapt.
 - **YAGNI.** Only features tracing to current-phase needs.
 - **Errors are interface.** Every error is part of the public contract.
-- **One-way-door gate.** Irreversible decisions require explicit human approval before finalizing.
+- **One-way-door gate.** Irreversible decisions need explicit human approval before finalizing.
 - **Conventional commits.** Reference the component in scope.
 
 ### Roles, not roster
 
-Specialists are dispatched by the workflow skills above; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions are named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose). The full roster of available specialists lives in the synced `.claude/agents/` files.
+The workflow skills above dispatch the specialists; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions carry named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose). The full roster of available specialists lives in the synced `.claude/agents/` files.
 <!-- END sei-internal-skills-managed -->
 
 ## Writing
