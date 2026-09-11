@@ -2,8 +2,8 @@
 
 How `platform-release-manager` translates the live-harness signal into a
 release-quality narrative. The **outcome is the Job-log verdict** (authoritative);
-metrics are *supporting context, not an independent second opinion* — there is no
-pre-chaos baseline phase in the nightly harness.
+metrics are *supporting context, not an independent second opinion*. The nightly
+harness has no pre-chaos baseline phase.
 
 ## What a PASS means (read this first)
 
@@ -68,28 +68,30 @@ Each scenario carries a metric summary. Quote exact numbers; label them as *cont
 Computed on `tendermint_consensus_height{component="validators"}` as **set-level
 advancement**: max validator height at window-end > window-start, still advancing in
 the final N samples. This is restart-aware — a restarted validator returns as a **new
-`pod`/`instance_name` series**, so a single node restart (expected in
-`pod-failure`/`container-kill`) does not read as a halt, and a real halt (the set
-stops advancing) is caught even though height is a gauge (a `rate()`-based check would
-be fooled by the counter-reset-looking gauge drop). Narrate a metric-observed halt as
-supporting the log verdict — and when the log says PASS but metrics show a halt, flag
+`pod`/`instance_name` series**. A single node restart (expected in
+`pod-failure`/`container-kill`) therefore does not read as a halt. The check still
+catches a real halt (the set stops advancing) even though height is a gauge. The
+counter-reset-looking gauge drop would fool a `rate()`-based check.
+
+Narrate a metric-observed halt as
+supporting the log verdict. When the log says PASS but metrics show a halt, flag
 the disagreement for the reader rather than overriding the log.
 
-For a genuine liveness loss: explain the BFT reasoning — Tendermint chooses safety over
-liveness when 2f+1 cannot be maintained; the chain stops rather than risk divergence.
+For a genuine liveness loss: explain the BFT reasoning. Tendermint chooses safety over
+liveness when it cannot maintain 2f+1; the chain stops rather than risk divergence.
 
 ### Block time
 
 `histogram_quantile(0.95, ...block_interval_seconds_bucket...)` reported as a
-**bucket-bounded p95** (bounded by histogram bucket edges — not a precise worst-case),
-with a **height-derived mean** interval as the always-present fallback. Quote both when
+**bucket-bounded p95** (bounded by histogram bucket edges — not a precise worst-case).
+A **height-derived mean** interval is the always-present fallback. Quote both when
 present: "p95 block interval ~ Xs (bucket-bounded); height-derived mean ~ Ys."
 
 ### TPS and mempool (transparency-only — NOT release signals)
 
 `sei_cosmos_throughput_transaction_count` and `tendermint_mempool_size` are **~0 by
-design**: the chaos suite runs **no load generator** (seiload is benchmark-only), so
-there is no throughput to measure and the mempool stays empty. Carry these values for
+design**: the chaos suite runs **no load generator** (seiload is benchmark-only). No
+throughput exists to measure, and the mempool stays empty. Carry these values for
 transparency only — **never narrate a TPS "degradation shape" or a mempool
 "backpressure" note**. The chaos release signals are **halt + block-interval**;
 throughput is the **deferred phase-2 benchmark report**.
@@ -103,11 +105,11 @@ marker; never present a `PARTIAL`/`NO DATA` cell as a clean measurement.
 ## Fault-family narratives (for the "Release Significance" paragraph)
 
 - **Infrastructure** (pod-failure, container-kill): controller recovery without human
-  intervention; a single restart is expected, not a halt.
+  intervention; expect a single restart, not a halt.
 - **Network** (partition, packet-loss, latency, bandwidth-limit): gossip resilience;
   did the chain slow or halt; did gossip route around dropped edges.
 - **Resource** (cpu-stress, memory-stress): does hardware pressure bleed into consensus
-  timing; usually not unless a pod is OOM-killed.
+  timing; not in the common case, unless a pod is OOM-killed.
 - **Adversarial** (byzantine, time-skew): protocol-layer defense. Time-skew: BFT-time
   uses the median of validator vote timestamps, so minority clock drift is irrelevant.
   Byzantine: stacked defense (MAC, TCP checksum, application-layer validation).
@@ -116,7 +118,7 @@ marker; never present a `PARTIAL`/`NO DATA` cell as a clean measurement.
 
 Write it LAST, <=4 short paragraphs:
 1. **Recommendation** — one sentence: `LIVENESS GO` / `LIVENESS NO-GO`, with the
-   tx-correctness caveat. If the headline is suppressed, say so and recommend a re-run —
+   tx-correctness caveat. If the report suppresses the headline, say so and recommend a re-run —
    never invent a verdict.
 2. **Coverage** — fault families exercised and the overall liveness result.
 3. **Notable findings** — FAILs, metric/verdict disagreements, `NO DATA`/`PARTIAL`
@@ -127,7 +129,7 @@ Write it LAST, <=4 short paragraphs:
 
 **Summary** — one sentence: fault injected + log outcome.
 **Key Signals** — the metric annotation with exact numbers, labeled as supporting
-context; the provenance marker; BFT reasoning when a halt is observed.
+context; the provenance marker; BFT reasoning when the metrics show a halt.
 **Release Significance** — what liveness failure mode a PASS rules out; what a FAIL
 would mean for production.
 [Panels: block-time, TPS, mempool]

@@ -8,10 +8,10 @@ description: "Produces a truthful chaos release report from a real nightly harne
 # validate-release
 
 Turn a real nightly chaos run into one executive-quality Notion report and a
-clear **liveness** go/no-go. The report names the release image under test,
-reports each scenario's authoritative PASS/FAIL from the harness Job log, and
-annotates it with the raw harbor chaos release signals (halt + block-interval)
-scoped to the run window. One invocation = one Notion page. (TPS + mempool are
+clear **liveness** go/no-go. The report names the release image under test and
+reports each scenario's authoritative PASS/FAIL from the harness Job log. It
+annotates that verdict with the raw harbor release signals for chaos (halt +
+block-interval) scoped to the run window. One invocation = one Notion page. (TPS + mempool sit at
 ~0 by design — chaos runs no load generator — carried transparency-only.)
 
 **Scope of the verdict:** `TestNightlyChaosSuite` asserts *liveness* — the chain
@@ -22,15 +22,15 @@ carries the "tx-correctness not validated" caveat inline.
 ## Data model (what the live harness emits)
 
 - **Metrics** — raw harbor series via the federated `prometheus-prod` datasource
-  (prod `thanos-query` fans out to harbor). Live-confirmed names:
+  (prod `thanos-query` fans out to harbor); live-confirmed names:
   `tendermint_consensus_height`, `tendermint_consensus_block_interval_seconds_bucket`,
   `sei_cosmos_throughput_transaction_count`, `tendermint_mempool_size`. Forced to
-  raw resolution (`max_source_resolution=0`). NOT the prod-scoped chaos
-  recording rules (empty for harbor). Series are **ephemeral** — every query is
+  raw resolution (`max_source_resolution=0`); NOT the prod-scoped chaos
+  recording rules (empty for harbor). Series are **ephemeral**; every query is
   time-scoped to the run window, never instant-now. The chaos release signals are
-  **halt + block-interval**; `sei_cosmos_throughput_transaction_count` and
+  **halt + block-interval**. `sei_cosmos_throughput_transaction_count` and
   `tendermint_mempool_size` are **~0 by design** (the chaos suite runs no load
-  generator; seiload is benchmark-only) — carried transparency-only, NOT release
+  generator; seiload is benchmark-only). The report carries them transparency-only, NOT as release
   signals; throughput is the deferred phase-2 benchmark report.
 - **Verdict + release image** — the harness Job (harbor, ns `nightly`): the release
   image `SEID_IMAGE_CHAOS` from the Job **spec env**, and each authoritative
@@ -99,8 +99,8 @@ confirmation, then Claude stays free; the agent notifies on completion.
 
 First run `scripts/check-grafana.sh` — halt on non-zero exit and surface the
 service-account setup steps. This MUST precede discovery: `resolve-run.py` queries
-the federated datasource and needs `GRAFANA_TOKEN`, so a missing/401 token caught
-here gives the setup guidance instead of a terse Prometheus error mid-discovery.
+the federated datasource and needs `GRAFANA_TOKEN`. A missing/401 token caught
+here gives the setup guidance instead of a terse Prometheus error in the middle of discovery.
 Then run `scripts/resolve-run.py [--run <token>] [--out state/run-<ts>/]`. With no
 `--run`, it lists the recent runs discovered in Prometheus and returns the latest
 token. Echo the scope block and wait for `confirm`.
@@ -121,11 +121,11 @@ the Notion page is ready — a few minutes. You can keep working."**
    Per-scenario stats dict; distinguishes `NO DATA` from measured 0; marks a cell
    `PARTIAL` on a Thanos partial response.
 2. `scripts/collect-run-log.py --run <TOKEN> --out state/run-<ts>/run-log/` — joins
-   the token to the nightly Job by **window-containment + log-verification** (a Job
-   whose run window contains the decoded UnixNano AND whose log references this run's
-   `chaos-<token>-` chains; no match → VERDICT UNAVAILABLE), extracts `SEID_IMAGE_CHAOS`
-   from the Job spec and the per-scenario `--- PASS|FAIL` lines from the log,
-   reconciles against the 10-scenario set (missing → `DID NOT RUN`), and flags a
+   the token to the nightly Job by **window-containment + log-verification**. The Job
+   must have a run window that contains the decoded UnixNano AND a log that references this run's
+   `chaos-<token>-` chains; no match → VERDICT UNAVAILABLE. It extracts `SEID_IMAGE_CHAOS`
+   from the Job spec and the per-scenario `--- PASS|FAIL` lines from the log. It
+   reconciles against the 10-scenario set (missing → `DID NOT RUN`) and flags a
    truncated log read.
 3. `scripts/compute-stats.py --run-log state/run-<ts>/run-log/ --metrics-dir
    state/run-<ts>/metrics/ --out state/run-<ts>/verdicts/` — per-scenario outcome =
@@ -138,13 +138,13 @@ the Notion page is ready — a few minutes. You can keep working."**
    — uploads PNGs to S3 and writes the scenario→panel→presigned-URL map to
    `panels/image-urls.yaml` (the run token is the S3 namespace). The `--out` is
    REQUIRED: `push-notion.py` reads `panels/image-urls.yaml`; without it the URLs
-   only print to stdout and panel embeds are dropped from the Notion page.
+   only print to stdout and the Notion page loses its panel embeds.
 6. Report assembly — the agent narrates `verdicts/*.json` (no arithmetic); see
    `references/analysis-guide.md`.
 7. `scripts/push-notion.py --run <TOKEN> --state-dir state/run-<ts>/` — assembles the
-   report. Authoring rules for a line that renders cleanly and stays re-matchable on
-   edit are `references/notion-flavored-markdown.md` (this skill owns them; it is the
-   only core skill that writes Notion).
+   report. `references/notion-flavored-markdown.md` holds the authoring rules for a line that renders cleanly and stays re-matchable on
+   edit. This skill owns them; it is the
+   only core skill that writes Notion.
    Notion payload (headline + run-identity header + per-cell provenance markers);
    triggers `mcp__claude_ai_Notion__notion-create-pages`.
 
@@ -181,7 +181,7 @@ Per-run state in `state/run-<ISO-timestamp>/`:
 - `verdicts/<scenario>.json` + `verdicts/summary.json` — joined outcomes + headline
 - `panels/` — rendered PNGs + `image-urls.yaml`
 
-State is gitignored. On an interrupted run, the next invocation detects the incomplete
+The repo gitignores state. On an interrupted run, the next invocation detects the incomplete
 state dir and offers: resume from the last completed step / archive and start fresh.
 
 ## Summary

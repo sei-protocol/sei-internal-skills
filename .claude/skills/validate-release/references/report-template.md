@@ -1,7 +1,7 @@
 # Notion Report Template
 
 Structure of the Notion page created by `platform-release-manager`. The agent fills
-placeholders; this template is static. Written to be shared with engineering leadership.
+placeholders; this template is static. Written for engineering leadership to read.
 It is a **liveness** report — the headline reads `LIVENESS GO` / `LIVENESS NO-GO`, never
 a bare "GO", and carries the tx-correctness caveat inline.
 
@@ -54,12 +54,13 @@ Job:            <job_name>
 ### 3. Executive Summary (heading 1)
 
 Four paragraphs max. See `analysis-guide.md`. Paragraph 1 = the recommendation +
-liveness scope; 2 = fault-family coverage; 3 = notable findings (FAILs, metric/verdict
-disagreements, NO DATA / PARTIAL cells, DID NOT RUN gaps); 4 = the decision.
+liveness scope; 2 = fault-family coverage; 3 = notable findings; 4 = the decision.
+Notable findings are FAILs, metric/verdict disagreements, NO DATA / PARTIAL cells, and
+DID NOT RUN gaps.
 
 ### 4. What Was Tested (heading 2)
 
-| Family | Scenarios | What's being exercised |
+| Family | Scenarios | What it exercises |
 |---|---|---|
 | Infrastructure | pod-failure, container-kill | Controller recovery paths |
 | Network | network-partition, packet-loss, network-latency, bandwidth-limit | p2p gossip resilience |
@@ -90,7 +91,7 @@ delta, tproxy logs. A scenario whose injection evidence is absent reports
 - TPS / mempool: `~0 by design` — chaos runs no load generator; transparency-only,
   NOT a release signal (do not narrate a degradation shape or backpressure)
 
-Include BFT reasoning when a halt is observed. If the provenance is `NO DATA` /
+Include BFT reasoning when the metrics show a halt. If the provenance is `NO DATA` /
 `PARTIAL` / `VERDICT-GC'd`, say so directly — never present it as a clean measurement.
 
 **Release Significance** — what liveness failure mode a PASS rules out; what a FAIL
@@ -125,4 +126,4 @@ Panel images: s3://harbor-validation-results/chaos-suite-reports/<TOKEN>/
 - Quote actual numbers in every "Key Signals" section; label metrics as supporting context.
 - Apply BFT theory explicitly when it explains a halt.
 - Never dress a `NO DATA` / `PARTIAL` / verdict-unavailable cell as a clean pass.
-- If the headline is suppressed, the page states it plainly and recommends a re-run.
+- If the report suppresses the headline, the page states it plainly and recommends a re-run.

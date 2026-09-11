@@ -14,7 +14,7 @@ It writes to:
 It does **not**:
 - Apply, delete, or modify any Kubernetes object (read-only kubectl: `get jobs`, `logs`)
 - Launch a Job or run the chaos suite (that is the deferred phase-2 driver)
-- Modify the platform repo or access production chain nodes
+- Modify the platform repo or access the chain nodes of production
 
 ## Pre-flight checks
 
