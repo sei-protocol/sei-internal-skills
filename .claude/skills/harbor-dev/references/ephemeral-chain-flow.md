@@ -92,6 +92,7 @@ Atomic preset + `--set` overrides on the CR spec (the spec is flat — no `spec.
 | seid memory request | `--memory <quantity>` (create-time only — immutable) | `--memory 64Gi` |
 | Data-volume size | `--storage <quantity>` (create-time only — immutable) | `--storage 1Ti` |
 | Data-volume storage performance | `--iops <count>` + `--throughput <MiB/s>`, as a pair (create-time only — immutable) | `--iops 10000 --throughput 750` |
+| Worker-node isolation | `--node-isolation Shared\|Dedicated` (mutable, but a change rolls every pod — set at create time; repeat on every re-apply, SSA drops it otherwise) | `--node-isolation Dedicated` |
 | Anything else | `--set <dotted.path>=<value>` (repeatable) | `--set spec.fullNode.snapshot.s3.targetHeight=12345` |
 
 Prefer the discrete resource flags over `--set spec.resources...`. `--set` bypasses seictl's local quantity validation. seictl also refuses a `--set` CPU limit at render, because the CRD forbids one (see `seictl-cli.md` → *Resource footprint*).

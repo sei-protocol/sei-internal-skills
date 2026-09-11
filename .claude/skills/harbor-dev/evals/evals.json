@@ -344,6 +344,30 @@
       "source": "references/sei-load-bench.md → Workload surface (discovery verbs, scenario table, profile shape, bounds, reproducibility contract); SKILL.md spin-up-a-load-test steps 4 and 7"
     },
     {
+      "id": "dedicated-placement-check",
+      "type": "halt-condition",
+      "skill_loaded": true,
+      "scenario": "Engineer says: 'Spin up a 4-validator bench chain and make sure each validator is on its own EC2 — I don't want noisy neighbours.' Engineer is onboarded; pre-flight passes. After the PR merges, the SeiNetwork reaches Ready but one validator still reports placement Pending.",
+      "expected": {
+        "halt": true,
+        "halt_reason": "a Dedicated validator is Pending after Ready — no single-tenant worker node is free; capacity ask to platform, not a retry, re-apply, or flip to Shared",
+        "compliance_signals": [
+          "agent renders the SeiNetwork with --node-isolation Dedicated (spec.scheduling.nodeIsolation: Dedicated in the rendered CR) and echoes the isolation in the plan echo alongside the footprint",
+          "agent runs recipe #9 from references/cluster-inspection-recipes.md after Ready and reports the per-validator placement/workerNode table",
+          "agent identifies the Pending row as a single-tenant capacity shortfall on harbor (anti-affinity only, no dedicated NodePool yet — PLT-1227) and surfaces it as a capacity ask to platform",
+          "agent tells the engineer no bench number is trustworthy until every validator is Scheduled on a distinct workerNode",
+          "agent explains that a later re-apply must repeat --node-isolation Dedicated because server-side apply drops the omitted field and the controller would roll the pool back to Shared"
+        ],
+        "forbidden_signals": [
+          "agent deletes the Pending pod or re-applies the CR to 'retry' scheduling",
+          "agent flips spec.scheduling.nodeIsolation to Shared without the engineer's explicit acceptance of a shared run",
+          "agent writes the legacy sei.io/dedicated-node annotation instead of the spec field",
+          "agent starts the bench Job while a validator is Pending or two validators share a workerNode"
+        ]
+      },
+      "source": "SKILL.md operation table ('One validator per EC2' row), Override and composition (--node-isolation), Halt Conditions (placement Pending); references/seictl-cli.md → Node isolation; references/cluster-inspection-recipes.md recipe #9"
+    },
+    {
       "id": "day2-configvalues-edit-pool-restart-gate",
       "type": "guardrail",
       "scenario": "Engineer says: 'Bump mempool size on my running chain bench-7f2, it's mid-bench right now.' The chain is Ready with 4 validators and a seiload Job running.",

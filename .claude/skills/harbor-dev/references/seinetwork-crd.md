@@ -35,6 +35,7 @@ The spec is flat (no `spec.template`):
 - `spec.resources` — the seid container footprint for every validator in the pool (`--cpu` / `--memory`). Request-only; `requests` accepts **only** `cpu` and `memory`. **Create-only.**
 - `spec.dataVolume.storage` — the data-PVC size for each pool validator (`--storage`), at the nested path `spec.dataVolume.storage.resources.requests.storage`. **Create-only.**
 - `spec.dataVolume.storage.volumeAttributesClassName` — the storage performance selection for each pool validator, a sibling of the size path above. Names a platform-managed VolumeAttributesClass, which carries the gp3 IOPS and throughput. `network apply` resolves the name from the `--iops` and `--throughput` pair you supply. Unset means the standard tier. **Create-only.**
+- `spec.scheduling.nodeIsolation` — `Shared` or `Dedicated` (`--node-isolation`), copied into every validator child. `Dedicated` places each validator alone on a worker node via required pod anti-affinity against every Sei-managed pod in the cluster; a pool of 4 needs 4 free single-tenant worker nodes or its pods sit `Pending`. Unset (no schema default) resolves to `Shared`. **Mutable, and a change rolls every validator pod at once** — set it at create time. See `seictl-cli.md` → *Node isolation*.
 
 ## Immutability (the new `updateStrategy`-class trap)
 
@@ -50,6 +51,7 @@ The resource fields are create-only for mechanical reasons, not policy. Each chi
 
 - `.status.phase` — coarse-grained state (`Ready` is the terminal "up")
 - `.status.readyReplicas` / `.status.replicas` — validator-pool readiness math
+- `.status.nodes[*].{name, phase, currentImage, placement, workerNode}` — per-validator report. `placement` is `Scheduled` when the child's pod is bound to a worker node, else `Pending`; `workerNode` names the Kubernetes node (one EC2 instance on harbor) and is empty while `Pending`. Read from the pods on every reconcile, so a reschedule shows up on the next pass. Two validators naming the same `workerNode` share its bandwidth and CPU — on a `Dedicated` pool that never happens once both are `Scheduled`; on `Shared` it is the normal outcome. A `Ready` network with a `Pending` row is a Dedicated child waiting on capacity. Recipe #9 in `cluster-inspection-recipes.md` prints the table.
 - `.status.plan[*]` — genesis-assembly + rollout plan; on terminal `Failed`, `.status.plan.failedTaskDetail.error` carries the cause, and `seictl network watch` lifts it to stderr
 - `.status.observedGeneration` — drift detection
 
