@@ -32,7 +32,7 @@ update. Everything below applies identically to both tiers.
     .gitkeep
 ```
 
-Claude Code discovers skills as direct subdirectories of `.claude/skills/`. Nested folders are NOT discovered. Logical grouping across skills happens in `.claude/skills/README.md` (the catalog), not in directory structure. This is also why `experimental/` parks a skill: it is not a nested group under `.claude/skills/` but a sibling tree the sync scripts never read, so exclusion needs no flag and cannot drift.
+Claude Code discovers skills as direct subdirectories of `.claude/skills/`. Nested folders are NOT discovered. Logical grouping across skills happens in `.claude/skills/README.md` (the catalog), not in directory structure. This is also why `experimental/` parks a skill: it is not a nested group under `.claude/skills/` but a sibling tree the sync scripts never read. Exclusion therefore needs no flag and cannot drift.
 
 ## SKILL.md Anatomy
 
@@ -47,7 +47,7 @@ description: "<one sentence purpose. Concrete trigger phrases. Anti-triggers —
 ---
 ```
 
-Description crafting is the highest-leverage work in a skill — it is the only thing that routes invocation:
+Description crafting is the highest-value work in a skill — it is the only thing that routes invocation:
 
 - **Triggers** — exact phrases a user would say. Not synonyms, not intent-level paraphrases. The runtime matches on the text.
 - **Anti-triggers** — "NOT for production clusters", "SKIP if X", "do NOT use when Y". Prevent over-matching.
@@ -104,7 +104,7 @@ Stop and report to the user if:
 
 ### 6. State Management
 
-Per-run state lives in `state/run-<ISO-timestamp>/`. Every script writes to this directory. On interrupted runs, the next invocation detects incomplete state and offers resume / archive / start-fresh. Summary artifacts are written to a user-facing location (outside `state/`) only after the full procedure succeeds.
+Per-run state lives in `state/run-<ISO-timestamp>/`. Every script writes to this directory. On interrupted runs, the next invocation detects incomplete state and offers resume / archive / start-fresh. Scripts write summary artifacts to a user-facing location (outside `state/`) only after the full procedure succeeds.
 
 ### 7. Summary
 
@@ -136,14 +136,14 @@ If the skill produces an artifact, the template defines the format. Keep it cons
 
 - `state/run-<ISO-timestamp>/<step-or-subject>.yaml` — per-step state
 - `state/run-<ts>/audit.log` — timestamped log of every command, exit code, output
-- `state/` is **gitignored**. Only the final artifact (at its user-facing path) gets committed.
+- `.gitignore` **covers `state/`**. Only the final artifact (at its user-facing path) gets committed.
 - Runs must be resumable. Next invocation reads `state/` → detects latest incomplete run → offers resume.
 
 ## Permission Pre-Approval
 
 Pre-approve the skill's happy-path Bash patterns in `.claude/settings.json` or `.claude/settings.local.json` so the skill runs without permission prompts on its normal path. Document in SKILL.md (or a README):
 
-- Which Bash command patterns should be allowlisted (e.g., `kubectl get pods -n <ns>` but not `kubectl delete *`)
+- Which Bash command patterns the allowlist should admit (e.g., `kubectl get pods -n <ns>` but not `kubectl delete *`)
 - Which tools to leave interactive (anything destructive, anything outside the skill's declared scope)
 - Env vars the skill relies on
 
@@ -155,7 +155,7 @@ Minimum bar: two evals in `evals/evals.json`:
 1. **Happy path** — scripted run that verifies the skill executes the full procedure and produces the expected artifact.
 2. **Halt condition** — scripted run that triggers a halt condition and verifies the skill stops and reports rather than proceeding.
 
-Additional evals as the skill's surface area grows.
+More evals as the skill's surface area grows.
 
 ## Authoring Checklist
 
@@ -172,7 +172,7 @@ When creating a new procedural skill:
 - [ ] At least one happy-path eval and one halt-path eval.
 - [ ] Tier chosen deliberately — core (`.claude/skills/`) or `experimental/skills/`.
 - [ ] Catalogued in the tier's catalog — `.claude/skills/README.md` for core, `experimental/README.md` for experimental.
-- [ ] `state/` is covered by `.gitignore` (`.claude/skills/*/state/` or `experimental/skills/*/state/`).
+- [ ] `.gitignore` covers `state/` (`.claude/skills/*/state/` or `experimental/skills/*/state/`).
 - [ ] For a core skill only: `category:` maps to a sync alias (`make verify-catalog` fails closed otherwise).
 
 ## Anti-Patterns

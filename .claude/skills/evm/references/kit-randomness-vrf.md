@@ -2,7 +2,7 @@
 
 ## 1. What this concern is
 
-On-chain randomness on Sei must come from a **verifiable random function (VRF)**, not a block opcode. The generic EVM habit — "use `block.prevrandao` (post-Merge) or `blockhash`" — is **wrong on Sei**: `block.prevrandao` is **derived from block time** (profile §3), so it is predictable and griefable. The profile names this trap repeatedly; this kit is the **answer**: Pyth Entropy V2, a commit-reveal VRF with an on-chain callback. *Cited:* sei-docs `evm/vrf/pyth-network-vrf.mdx`; profile §3; `sources.md` §sei.
+On-chain randomness on Sei must come from a **verifiable random function (VRF)**, not a block opcode. The generic EVM habit — "use `block.prevrandao` (post-Merge) or `blockhash`" — is **wrong on Sei**: `block.prevrandao` **derives from block time** (profile §3), so it is predictable and griefable. The profile names this trap repeatedly; this kit is the **answer**: Pyth Entropy V2, a commit-reveal VRF with an on-chain callback. *Cited:* sei-docs `evm/vrf/pyth-network-vrf.mdx`; profile §3; `sources.md` §sei.
 
 ## 2. The pattern (how Sei does it)
 
@@ -19,9 +19,9 @@ On-chain randomness on Sei must come from a **verifiable random function (VRF)**
 
 ## 4. Review cues
 
-- **Dimension 1 (security & exploitability):** no opcode/header randomness; randomness comes from the VRF callback, not the request; the callback is access-restricted and request-matched; outcome cannot be predicted or griefed at request time. *Basis:* profile §3; `sources.md` §ethtrust.
-- **Dimension 4 (external-call & value handling):** the request is funded from a runtime `getFeeV2()` quote; callback re-entrancy considered (CEI). *Basis:* `sources.md` §trailofbits.
+- **Dimension 1 (security & exploitability):** no opcode/header randomness; randomness comes from the VRF callback, not the request. The callback is access-restricted and request-matched; nobody can predict or grief the outcome at request time. *Basis:* profile §3; `sources.md` §ethtrust.
+- **Dimension 4 (external-call & value handling):** a runtime `getFeeV2()` quote funds the request; callback re-entrancy considered (CEI). *Basis:* `sources.md` §trailofbits.
 
 ## 5. One-way doors in this concern
 
-- **A deployed contract's randomness source** (the Entropy provider/address it is bound to) is a published dependency — switching providers post-deploy on a non-upgradeable contract is not possible; flag a hard-coded VRF dependency in a non-upgradeable contract for human review.
+- **A deployed contract's randomness source** (the Entropy provider/address it binds to) is a published dependency. Switching providers post-deploy on a non-upgradeable contract is not possible. Flag a hard-coded VRF dependency in a non-upgradeable contract for human review.
