@@ -4,7 +4,7 @@
 
 ![Research architecture diagram](assets/research.png)
 
-Research answers a question with a durable, verified, lineage-threaded artifact instead of a chat reply that evaporates. Its core guarantee is the adversarial verify gate: no material finding ships unless a refutation pass tried to disprove it and failed, and anything that cannot be confirmed or refuted is kept only under an `unverified` label. A vague question is refused and sharpened before any sweep begins.
+Research answers a question with a durable, verified, lineage-threaded artifact instead of a chat reply that evaporates. Its core guarantee is the adversarial verify gate: no material finding ships unless a refutation pass tried to disprove it and failed. Anything the pass can neither confirm nor refute stays only under an `unverified` label. The skill refuses a vague question and sharpens it before any sweep begins.
 
 | | |
 |---|---|
@@ -15,11 +15,11 @@ Research answers a question with a durable, verified, lineage-threaded artifact 
 
 ## What it does
 
-- Scopes the question — the decision it informs, the falsifiable claims, the in/out boundary — and refuses to sweep until that scope is echoed and confirmed.
-- Fans out a multi-modal sweep (by-source, by-entity, by-time, by-counter-thesis), recording per finding which angle surfaced it and the retrievable source.
+- Scopes the question — the decision it informs, the falsifiable claims, the in/out boundary. Refuses to sweep until it has echoed that scope and the user has confirmed it.
+- Fans out a multi-modal sweep (by-source, by-entity, by-time, by-counter-thesis). Records per finding which angle surfaced it and the retrievable source.
 - Adversarially verifies each finding via an assigned-skeptic refutation pass, then runs one completeness pass and synthesizes a recommendation grounded only in verified findings.
 - The refusal that matters most: no finding ships unverified — an unattempted refutation yields `unverified`, never `verified`.
 
 ## Reading the diagram
 
-This is a linear-pipeline: the four stages run left-to-right as ordered boxes — Scope, Sweep, Verify, Synthesize — and the arrows between them are the gates work must pass to advance. The fan of arrows entering Verify is the multi-angle sweep converging; the refutation gate at Verify is the narrow point where unverified findings are held back rather than flowing through. The scoped question on the left is the contract the completeness pass checks against before synthesis on the right.
+This is a linear-pipeline. The four stages run left-to-right as ordered boxes — Scope, Sweep, Verify, Synthesize. The arrows between them are the gates work must pass to advance. The fan of arrows entering Verify is the multi-angle sweep converging. The refutation gate at Verify is the narrow point that holds back unverified findings rather than letting them flow through. The scoped question on the left is the contract the completeness pass checks against before synthesis on the right.
