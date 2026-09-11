@@ -130,9 +130,11 @@ signal, so a caller never posts a stale file from a previous run.
   repository-relative path — a space, an `@`, a leading `/` or a `..` falls back to
   the default rather than failing, so check the logged path if standards seem not to
   be applying. Read by the agent in its sandbox, not by this process.
-- `--accepted-file PATH` — a local copy of the standards file as it stands on the pull
-  request's **base** branch. Its `Accepted` section lists the pre-existing blockers
-  that do not withhold approval: a heading opening with the word `Accepted`, then one
+- `--base-standards-file PATH` — a local copy of the same standards file as it stands
+  on the pull request's **base** branch, for this process to read. `--guidelines-file`
+  names what the agent reads for guidance in its sandbox; this is what the driver
+  enforces, and the driver cannot fetch it itself. Its `Accepted` section lists the
+  pre-existing blockers that do not withhold approval: a heading opening with the word `Accepted`, then one
   bullet per condition, until the next heading. The text before an em dash or ` -- ` is
   the phrase a finding must contain to match; what follows is the rationale, carried
   into the check and the comment as the authority. A bullet under three words is

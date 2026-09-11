@@ -137,7 +137,7 @@ func TestReportWritesEachOutputOnItsOwnFlag(t *testing.T) {
 }
 
 // TestReportCarriesTheAcceptancesIntoTheCheck: the base branch's accepted list, read
-// off --accepted-file, reaches the verdict before the check is derived, so an accepted
+// off --base-standards-file, reaches the verdict before the check is derived, so an accepted
 // pre-existing blocker records approve and an absent file accepts nothing.
 func TestReportCarriesTheAcceptancesIntoTheCheck(t *testing.T) {
 	dir := t.TempDir()

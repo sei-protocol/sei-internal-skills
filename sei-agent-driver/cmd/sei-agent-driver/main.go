@@ -130,15 +130,16 @@ func reviewCommand(log *slog.Logger) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name: "guidelines-file",
-				Usage: "repository standards file to read from the base branch " +
+				Usage: "repository-relative path of the standards file the AGENT reads for " +
+					"guidance, in its sandbox, from the base branch " +
 					"(default " + review.DefaultGuidelinesFile + ")",
 			},
 			&cli.StringFlag{
-				Name: "accepted-file",
-				Usage: "local copy of the standards file as it stands on the pull request's " +
-					"BASE branch; its Accepted section lists the pre-existing blockers that " +
-					"do not withhold approval. Never the head's copy: a change would be " +
-					"accepting its own blocker",
+				Name: "base-standards-file",
+				Usage: "local copy of that standards file as it stands on the pull request's " +
+					"BASE branch, for THIS process to enforce: its Accepted section lists " +
+					"the pre-existing blockers that do not withhold approval. Never the " +
+					"head's copy, which would let a change accept its own blocker",
 			},
 			&cli.StringFlag{
 				Name:  "extra-instructions",
@@ -249,7 +250,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	// An acceptance list that cannot be read accepts nothing, and the review runs. That
 	// fails towards withholding an approval, which is the side a missing file should
 	// land on; the warning is how an operator learns why an accepted blocker still vetoed.
-	if path := cmd.String("accepted-file"); path != "" {
+	if path := cmd.String("base-standards-file"); path != "" {
 		accepted, err := readAccepted(path)
 		if err != nil {
 			log.Warn("could not read the accepted conditions; nothing is accepted",
