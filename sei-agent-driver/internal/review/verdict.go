@@ -46,6 +46,11 @@ type Verdict struct {
 	TurnID string
 	ItemID string
 
+	// SettledBy names the scouts whose readings decided this verdict in place of a
+	// review turn, as "codex, cursor". Empty on every verdict a review turn wrote,
+	// which is the only other way one is made. See [SettleByScouts].
+	SettledBy string
+
 	// Reason renders why Structured is nil, for the operator who has to act on
 	// it. Empty when there is a verdict.
 	Reason string

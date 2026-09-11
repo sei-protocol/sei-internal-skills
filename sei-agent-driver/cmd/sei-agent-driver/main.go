@@ -303,7 +303,7 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 			}
 		}
 		result := d.Close(ctx, review.New(req))
-		if err := report("", "", "", result, req); err != nil {
+		if err := report("", "", "", result, verdictOf(result), req); err != nil {
 			return &exitError{code: driver.ExitConfig, err: err}
 		}
 		if result.ExitCode != driver.ExitOK {
@@ -322,10 +322,24 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	req.Scouts = gatherScouts(ctx, d, req, specs,
 		cfg.RunDeadline*scoutShareNum/scoutShareDenom, log)
 
+	// A diff every scout read as inert and clean is settled on their readings, and the
+	// review turn -- the run's whole cost -- is not spent. Anything short of that
+	// unanimity runs the turn; see [review.SettleByScouts].
+	if verdict, ok := review.SettleByScouts(req); ok {
+		log.Info("the scouts settled the review; no review turn runs",
+			"scouts", verdict.SettledBy, "decision", verdict.Decision())
+		result := driver.Result{ExitCode: driver.ExitOK, TeardownOK: true}
+		if err := report(cmd.String("out"), cmd.String("findings-out"),
+			cmd.String("check-out"), result, verdict, req); err != nil {
+			return &exitError{code: driver.ExitConfig, err: err}
+		}
+		return nil
+	}
+
 	result := d.Run(ctx, review.New(req))
 
 	if err := report(cmd.String("out"), cmd.String("findings-out"),
-		cmd.String("check-out"), result, req); err != nil {
+		cmd.String("check-out"), result, verdictOf(result), req); err != nil {
 		// The run's own outcome wins: ExitConfig here would relabel a review that
 		// timed out as one rejected before it started.
 		code := result.ExitCode
@@ -343,11 +357,33 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	return nil
 }
 
-// report parses the driver's reply into a verdict, prints the machine-readable
-// result, and when asked writes the verdict text for the caller to post.
+// verdictOf reads the driver's reply into a verdict.
 //
 // Parsing lives here rather than in the driver because what counts as an answer
 // is the workload's. The driver attributes a reply to a turn and stops.
+func verdictOf(result driver.Result) review.Verdict {
+	if result.Reply == nil {
+		// No reply at all, which is a different thing from one this driver could not
+		// read, and the check run says so. An operator reading only the summary has to
+		// be able to tell a run deadline or a transport fault from a review that
+		// answered in prose.
+		return review.Verdict{Reason: noReplyReason(result.ExitCode)}
+	}
+	verdict := review.ParseVerdict(result.Reply.Text)
+	verdict.TurnID = result.Reply.TurnID
+	verdict.ItemID = result.Reply.ItemID
+	// Why there is no verdict is the actionable half of a no-verdict run. The driver's
+	// own reason wins when it had one: it names a failure the text cannot show, like a
+	// reply refused for carrying a credential. Settled onto the verdict, so stdout and
+	// the failure check quote one string.
+	if !verdict.HasVerdict() {
+		verdict.Reason = firstNonEmpty(result.Reply.Reason, verdict.Reason)
+	}
+	return verdict
+}
+
+// report prints the machine-readable result, and when asked writes the verdict
+// text for the caller to post.
 //
 // --out is written only on a *structured* verdict, and the emphasis is the whole
 // point. Its absence is how the caller tells "ready to post" from "nothing to
@@ -366,37 +402,22 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 // that ran and could not be read publishes nothing at all, which reads on the
 // pull request like a review that never ran.
 func report(outPath, findingsPath, checkPath string, result driver.Result,
-	req review.Request) error {
+	verdict review.Verdict, req review.Request) error {
 	payload := map[string]any{
 		"session_id":  result.SessionID,
 		"exit_code":   result.ExitCode,
 		"teardown_ok": result.TeardownOK,
 	}
-	var verdict review.Verdict
-	if result.Reply != nil {
-		verdict = review.ParseVerdict(result.Reply.Text)
-		verdict.TurnID = result.Reply.TurnID
-		verdict.ItemID = result.Reply.ItemID
+	if result.Reply != nil || verdict.HasVerdict() {
 		payload["decision"] = verdict.Decision()
 		payload["structured"] = verdict.Structured
-		// Why there is no verdict is the actionable half of a no-verdict run, so it
-		// travels in the payload rather than only in the logs. The driver's own
-		// reason wins when it had one: it names a failure the text cannot show,
-		// like a reply refused for carrying a credential.
-		//
-		// Settled onto the verdict, so stdout and the failure check below quote one
-		// string. Two derivations of the same reason are two things that disagree in
-		// front of the operator reading both.
-		if !verdict.HasVerdict() {
-			verdict.Reason = firstNonEmpty(result.Reply.Reason, verdict.Reason)
-			payload["reason"] = verdict.Reason
-		}
-	} else {
-		// No reply at all, which is a different thing from one this driver could not
-		// read, and the check run says so. An operator reading only the summary has to
-		// be able to tell a run deadline or a transport fault from a review that
-		// answered in prose.
-		verdict.Reason = noReplyReason(result.ExitCode)
+	}
+	if verdict.SettledBy != "" {
+		payload["settled_by"] = verdict.SettledBy
+	}
+	// Why there is no verdict is the actionable half of a no-verdict run, so it travels
+	// in the payload rather than only in the logs.
+	if !verdict.HasVerdict() {
 		payload["reason"] = verdict.Reason
 	}
 	// Read once, here, and spent twice: the caller acts on the plan through the check
@@ -850,5 +871,7 @@ func runScout(
 		return res
 	}
 	res.Findings = parsed.Findings
+	res.Lines = parsed.Lines
+	res.Inert = parsed.Inert
 	return res
 }

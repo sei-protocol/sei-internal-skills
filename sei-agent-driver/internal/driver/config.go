@@ -190,8 +190,10 @@ func (c Config) MarshalJSON() ([]byte, error) {
 // these rather than accept a zero, and a zero here is not a slow timeout but an
 // already-expired one.
 const (
-	// DefaultRunDeadline bounds a whole run.
-	DefaultRunDeadline = 1200 * time.Second
+	// DefaultRunDeadline bounds a whole run. Sized with headroom over an ordinary
+	// review turn, which runs to 1000 seconds or so on a large diff; a deadline it
+	// grazes ends the run with no verdict, which costs more than the minutes saved.
+	DefaultRunDeadline = 1800 * time.Second
 
 	// DefaultRequestTimeout bounds one request a host times for itself.
 	DefaultRequestTimeout = 30 * time.Second
