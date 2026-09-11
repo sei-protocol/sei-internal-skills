@@ -2,7 +2,7 @@
 
 Read this when an engineer wants to inject a fault into their own chain: "partition validator 0", "add 200ms latency", "kill a validator mid-bench", "run the chaos suite against my image". The fault is a Chaos Mesh CR committed next to the chain and the bench in `harbor-engineering-workspace`. Flux applies it; Chaos Mesh injects it; Flux prune removes it. No `kubectl apply`, no agent sleep loop.
 
-The catalog, selector contract, and gates below come from the controller's integration harness (`sei-k8s-controller` `test/integration/faults/*.yaml.tmpl`, `chaos_test.go`, `chaossuite_test.go`, `chaos_deferred_test.go`). The nightly release suite runs the same ten faults, so an engineer's experiment and the release gate share one fault vocabulary.
+The catalog, selector contract, and gates below come from the controller's fault package (`sei-k8s-controller` `harness/faults/*.yaml.tmpl` and `faults.go`; the nightly suite in `test/integration/chaos_test.go` / `chaossuite_test.go` renders from it, `chaos_deferred_test.go` names what it leaves out). `seictl chaos render` renders the same package, so an engineer's experiment and the release gate share one template, not one vocabulary copied twice. Controller #558 / seictl #256 introduced both; before those land the templates live at `test/integration/faults/` and the CLI has no `chaos` tree.
 
 ## Platform preconditions
 
@@ -62,7 +62,18 @@ Prometheus and `kubectl get <kind> -l sei.io/harness-run=<RUN_ID>` correlate the
 
 ## Fault catalog (active, ten)
 
-Placeholders: `<NS>` = `eng-<alias>`, `<CHAIN>` = the SeiNetwork name, `<RUN>` = run token, `<DUR>` = duration (harness default `3m`). Every entry below is the harness template with those substitutions. `mode: one` picks one validator at random; the chain holds because the committee is 4 and `f=1`.
+Placeholders: `<NS>` = `eng-<alias>`, `<CHAIN>` = the SeiNetwork name, `<RUN>` = run token, `<DUR>` = duration (harness default `3m`). Every entry below is the harness template with those substitutions. Eight faults are `mode: one` — Chaos Mesh picks one validator at random; `network-partition` pins validator `<CHAIN>-0` as the isolated side. Either way one validator is faulted and the chain holds because the committee is 4 and `f=1`. The one exception is `network-latency`: it is **mesh-wide** — every validator link, with no `sei.io/node` narrowing on either side (`mode: all` alone does not mark it; the partition's target side is `mode: all` too, narrowed by `NotIn`) — survivable because the slowdown is symmetric, not because quorum is preserved — `seictl chaos list` prints `mesh-wide` in its scope column for it and `one-validator` for the other nine.
+
+Render, do not copy:
+
+```bash
+seictl chaos list                       # name, kind, duration|one-shot, scope, summary
+seictl chaos list --output json         # same catalog, machine-readable (Name, Kind, OneShot, MeshWide, Summary)
+seictl chaos render network-partition --chain-id <CHAIN> --run-id <RUN> -n <NS> --duration <DUR> > chaos-network-partition.yaml
+seictl chaos render pod-failure       --chain-id <CHAIN> --run-id <RUN> -n <NS>                  > chaos-pod-failure.yaml
+```
+
+`render` touches no cluster; it prints YAML to stdout. It refuses `--duration` on a one-shot fault and refuses its absence on a duration-bearing one, and it rejects an empty `--chain-id`/`--run-id`/`--namespace` — every refusal is a `metav1.Status` `BadRequest` on stderr, so parse `.reason`, do not grep. Pin the seictl version that rendered the file in the experiment's PR description; that is the template provenance.
 
 | Name | Kind / action | Shape | Duration |
 |---|---|---|---|
@@ -126,7 +137,7 @@ spec:
       - {key: sei.io/nodedeployment, operator: In, values: ["<CHAIN>"]}
 ```
 
-Copy the other eight from `sei-k8s-controller/test/integration/faults/<name>.yaml.tmpl`, replacing `{{.RunID}}`, `{{.Namespace}}`, `{{.ChainID}}`, `{{.Duration}}`. Do not hand-tune a fault's numbers for a first run; the harness values are the ones the release gate has passed under.
+The two shapes above are what `seictl chaos render` emits for those names; render the other eight the same way. On a seictl without the `chaos` tree, copy `sei-k8s-controller/harness/faults/<name>.yaml.tmpl` (`test/integration/faults/` on a controller before #558), replacing `{{.RunID}}`, `{{.Namespace}}`, `{{.ChainID}}`, `{{.Duration}}`. Do not hand-tune a fault's numbers for a first run; the harness values are the ones the release gate has passed under.
 
 ## Deferred faults (do not render)
 
@@ -135,7 +146,7 @@ Copy the other eight from `sei-k8s-controller/test/integration/faults/<name>.yam
 
 ## The `f=1` rule
 
-Every catalog fault targets **one** validator of a **four**-validator committee (or, for latency, degrades all links symmetrically). Tendermint needs more than 2/3 of voting power; with 4 equal validators the chain tolerates exactly one faulty node. Two validators faulted at once, or any single victim on a 3-validator chain of equal power (losing one leaves exactly 2/3, which is not more than 2/3), halts the chain — that is a different experiment (liveness loss), not a degradation measurement. Render `mode: one` / a single-victim selector on a 4-validator pool unless the engineer explicitly asks for a halt.
+Every catalog fault targets **one** validator of a **four**-validator committee (or, for latency, degrades all links symmetrically). Tendermint needs more than 2/3 of voting power; with 4 equal validators the chain tolerates exactly one faulty node. Two validators faulted at once, or any single victim on a 3-validator chain of equal power (losing one leaves exactly 2/3, which is not more than 2/3), halts the chain — that is a different experiment (liveness loss), not a degradation measurement. Keep the template's selector (`mode: one`, or the partition's `<CHAIN>-0` pin) on a 4-validator pool unless the engineer explicitly asks for a halt.
 
 ## Lifecycle and gates
 
@@ -289,12 +300,13 @@ The `warmup` `Suspend` is bench ramp only, never the readiness gate: the `Status
 ## Interpreting a run
 
 - **Liveness only.** These faults and gates prove the chain kept producing and recovered. They do not prove transaction correctness; the bench's `report.log` shows throughput and latency under the fault, nothing about state.
-- **Bench numbers under a fault are a degradation measurement, not a baseline.** Report them against a same-image, no-fault run with the same footprint and isolation. A comparison of two images under a fault needs both sides to carry an identical Chaos CR with the same `<DUR>` and the same victim ordinal.
+- **Bench numbers under a fault are a degradation measurement, not a baseline.** Report them against a same-image, no-fault run with the same footprint and isolation. A comparison of two images under a fault needs both sides to carry an identical Chaos CR with the same `<DUR>`. `network-partition` pins the victim (`<CHAIN>-0`) so that holds by construction; a `mode: one` fault picks at random per run, so record each side's victim from `status.experiment.containerRecords` and say so in the comparison — or, when the ordinal matters, add `sei.io/node In [<CHAIN>-0]` to the pod selector of the rendered CR in **both runs** (one selector; never mirror it onto a `target`, which would make source and target the same pod and inject nothing) and note the hand-edit next to the seictl version pin in the PR description.
 - **The follower is the witness.** It is never a target; if it stalls, the chain stalled. A follower with `sei.io/nodedeployment` in its labels would be a mis-rendered node, not a follower.
 - **Read the Chaos CR's events before the chain's.** `kubectl describe <kind> <name>` shows selector resolution, injection per target, and recovery; a fault that never injected produces a clean run that means nothing.
 
 ## What is not here yet
 
-- `seictl` has no `chaos render` or `bench render` verb (PLT-1248). Render from the harness templates by substitution until it lands.
-- Fault templates are not published as a versioned artefact; the harness directory in `sei-k8s-controller` main is the source of truth. Pin the commit you copied from in the experiment's PR description.
+- `seictl chaos render` / `bench render` arrive with seictl #256 (controller #558 is on main); no seictl tag carried them at the time of writing. Probe `seictl chaos --help` before the first use in a session; an older binary fails at parse. Until then render by substitution from `harness/faults/` (or `test/integration/faults/` before #558).
+- Fault templates are not published as a versioned artefact; the `harness/faults` package on `sei-k8s-controller` main is the source of truth and seictl pins one commit of it in `go.mod`. Record the seictl version (or the controller commit you copied from) in the experiment's PR description.
+- No `seictl` MCP server exists yet; the render verbs are the surface an MCP tool would wrap (PLT-1248 follow-up).
 - A Dedicated pool with a validator `Pending` on capacity (the placement gate command under *Lifecycle and gates*; `kubectl get pods -o wide` with an empty `NODE` column on an older controller) is not a chain to run chaos on; the fault lands on three validators and `f=1` no longer holds.
