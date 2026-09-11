@@ -368,7 +368,7 @@ The default footprint is roughly a quarter of the mainnet validator shape (16 CP
 **Provenance for the controller-side claims in this section.** Those claims are:
 
 - the CEL limits and immutability rules
-- the `OnDelete` image-only drift detection
+- the `OnDelete` StatefulSets and their drift set (seid image, sidecar image, node isolation)
 - the Get-then-Create ensure-data-pvc task
 - the per-mode 16 CPU / 128Gi default
 

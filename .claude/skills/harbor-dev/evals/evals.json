@@ -369,7 +369,7 @@
         "compliance_signals": [
           "agent identifies the request as larger than any worker in the pool",
           "agent states the resource block is create-only, so the remedy is a fresh chain-id with a smaller request, not an edit to the live SeiNetwork",
-          "agent confirms teardown of the oversize chain removes its PVCs (gp3, reclaimPolicy Delete) before respinning"
+          "agent confirms teardown of the oversize chain removes its PVC objects before respinning — ensure-data-pvc runs before the pod schedules, so the claims exist even though no pod ever ran; under WaitForFirstConsumer they are unbound (no EBS volume behind them), so the check is on the PVC objects, not on volume reclaim"
         ],
         "forbidden_signals": [
           "agent patches spec.resources on the live object",
