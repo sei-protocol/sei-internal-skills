@@ -20,7 +20,7 @@ Used by `seictl network apply` to materialize the validator pool from the `genes
 - `Paused` — reconciliation held
 - `Degraded` — running but below the expected validator readiness
 - `Failed` — terminal failure
-- `Terminating` — being torn down
+- `Terminating` — teardown in progress
 
 ## Spec fields you will touch (operator's view)
 
@@ -30,7 +30,7 @@ The spec is flat (no `spec.template`):
 - `spec.genesis.chainId` — the chain identifier (immutable)
 - `spec.replicas` — validator count (immutable; default 4 via the preset)
 - `spec.genesis.accounts[]` — funded accounts at genesis (`--genesis-account`)
-- `spec.genesis.overrides{}` — flat dotted cosmos-module keys patched into the assembled `app_state` after collect-gentxs; module must exist, sub-fields unchecked (`--genesis-override`). Wrong deeper field names are injected silently and crash every node at InitChain — take keys from a real genesis, never from upstream-Cosmos docs (see the Genesis params section + sharp-edge note in `seictl-cli.md`)
+- `spec.genesis.overrides{}` — flat dotted cosmos-module keys patched into the assembled `app_state` after collect-gentxs; module must exist, sub-fields unchecked (`--genesis-override`). The assembler injects wrong deeper field names silently, and every node then crashes at InitChain. Take keys from a real genesis, never from upstream-Cosmos docs (see the Genesis params section + sharp-edge note in `seictl-cli.md`)
 - `spec.configOverrides{}` — per-node `config.toml`/`app.toml` overrides (the SeiNetwork equivalent of a SeiNode's `spec.overrides`; reached via `--set spec.configOverrides...`). `network apply` has **no `--override` flag**.
 - `spec.resources` — the seid container footprint for every validator in the pool (`--cpu` / `--memory`). Request-only; `requests` accepts **only** `cpu` and `memory`. **Create-only.**
 - `spec.dataVolume.storage` — the data-PVC size for each pool validator (`--storage`), at the nested path `spec.dataVolume.storage.resources.requests.storage`. **Create-only.**
@@ -48,9 +48,9 @@ The resource fields are create-only for mechanical reasons, not policy. Each chi
 
 ## Status fields you will read when debugging
 
-- `.status.phase` — coarse-grained state (terminal "up" is `Ready`)
+- `.status.phase` — coarse-grained state (`Ready` is the terminal "up")
 - `.status.readyReplicas` / `.status.replicas` — validator-pool readiness math
-- `.status.plan[*]` — genesis-assembly + rollout plan; on terminal `Failed`, `.status.plan.failedTaskDetail.error` carries the cause and is lifted to stderr by `seictl network watch`
+- `.status.plan[*]` — genesis-assembly + rollout plan; on terminal `Failed`, `.status.plan.failedTaskDetail.error` carries the cause, and `seictl network watch` lifts it to stderr
 - `.status.observedGeneration` — drift detection
 
 **Validators serve no EVM.** `ModeValidator` disables EVM HTTP/WS (and REST), so the validator SeiNodes carry no `.status.endpoint` — **never point load traffic at them.** RPC load goes at the follower SeiNodes (`role=node`), assembled via `node list` (see `cluster-inspection-recipes.md` recipe #1).

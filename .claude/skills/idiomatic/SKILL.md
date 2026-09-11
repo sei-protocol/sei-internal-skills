@@ -7,13 +7,13 @@ description: "Use when reviewing or refining code to make it idiomatic to its la
 
 # Idiomatic
 
-Review and refine code so it reads **native** — to its language, to its framework, and above all to the **package it lives in**. This is a *technique* skill (a how-to you adapt to context) with a *discipline spine* (three rules that survive pressure). The technique is the two-altitude method; the spine is what stops a capable reviewer from confidently applying a generic idiom that this package has deliberately overridden.
+Review and refine code so it reads **native** — to its language, to its framework, and above all to the **package it lives in**. This is a *technique* skill (a how-to you adapt to context) with a *discipline spine* (three rules that survive pressure). The technique is the two-altitude method. The spine is what stops a capable reviewer from confidently applying a generic idiom that this package has deliberately overridden.
 
 This skill is the operating manual for the `idiomatic-reviewer` agent and is also directly invocable.
 
 ## Why this skill exists (read this first)
 
-A capable model already knows Effective Go, Clean Code, and the common framework conventions. Pressure-testing showed it applies them well **when it reads the repo's own rules** — and applies them *confidently wrong* when it does not. The failure mode is not ignorance of idiom; it is **skipping the package's documented conventions and exceptions**. Concretely, in testing, a reviewer told "the team follows Kubernetes conventions strictly" recommended collapsing sei-k8s-controller's `SeiNodeTask` `Ready`+`Failed` condition pair to a single condition — a change that would break the `kubectl wait` consumer contract the repo documents as the reason that pair exists.
+A capable model already knows Effective Go, Clean Code, and the common framework conventions. Pressure-testing showed it applies them well **when it reads the repo's own rules** — and applies them *confidently wrong* when it does not. The failure mode is not ignorance of idiom; it is **skipping the package's documented conventions and exceptions**. Concretely, in testing, a reviewer told "the team follows Kubernetes conventions strictly" recommended collapsing sei-k8s-controller's `SeiNodeTask` `Ready`+`Failed` condition pair to a single condition. That change would break the `kubectl wait` consumer contract the repo documents as the reason that pair exists.
 
 The value of this skill is **not** a Go textbook. It is the discipline that makes local convention win, every finding carry a citation, and clean code get a clean bill of health. The language pack is a checklist and a source of citations; the spine is the product.
 
@@ -22,17 +22,17 @@ The value of this skill is **not** a Go textbook. It is the discipline that make
 Refusal conditions — these hold under time pressure, authority, and a tidy-looking diff:
 
 1. **No profile → no findings.** Do not emit a single finding before reading the repo's `CLAUDE.md`/`AGENTS.md` and the target package's `doc.go`. You cannot apply local convention you never read.
-2. **Never assert a one-way-door rule.** If reviewing would *introduce* a convention the repo has not decided (a field rename that is a wire-format change, a new enum value, a new condition-naming scheme), flag it for human approval — do not write it as a finding.
+2. **Never assert a one-way-door rule.** If reviewing would *introduce* a convention the repo has not decided, flag it for human approval — do not write it as a finding. Examples: a field rename that is a wire-format change, a new enum value, a new condition-naming scheme.
 3. **Suggest-only.** Never rewrite the author's files. Output is findings the human or calling agent applies.
-4. **No uncited findings, no hedges.** Every finding cites an authority and/or a repo rule; "probably fine if X" is not a finding (resolve the assumption, then flag or do not).
+4. **No uncited findings, no hedges.** Every finding cites an authority and/or a repo rule. "Probably fine if X" is not a finding (resolve the assumption, then flag or do not).
 5. **Do not flag clean code.** On idiomatic code the output is "reads native — no findings." Manufacturing nits gets the reviewer muted.
 
 ## Halt Conditions
 
 Stop and escalate rather than proceeding when:
 
-- **Cannot build a profile** (no agent files, no `doc.go`): do not refuse — review on first principles and **flag the missing-profile gap**; mark findings as reduced-confidence.
-- **No language pack for the detected language:** do not refuse and do not invent a pack — review against the profile + first principles and flag the missing-pack gap (see the rationalization table).
+- **Cannot build a profile** (no agent files, no `doc.go`): do not refuse — review on first principles and **flag the missing-profile gap**. Mark findings as reduced-confidence.
+- **No language pack for the detected language:** do not refuse and do not invent a pack. Review against the profile + first principles and flag the missing-pack gap (see the rationalization table).
 - **A finding would set a one-way door:** stop and escalate to a human / the language specialist instead of asserting it.
 
 ## When to use / when not
@@ -47,7 +47,7 @@ Stop and escalate rather than proceeding when:
 | Building/designing the controller, CRD, or system | dispatch the language specialist (e.g. `kubernetes-specialist`) |
 
 <!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
-A correct-but-unidiomatic function passes `/code-review` and is exactly what `/idiomatic` is for. A non-idiomatic finding that proves durable and mechanical should **graduate** into a lint rule or the contract — this skill is the *discovery* surface, not a gate.
+A correct-but-unidiomatic function passes `/code-review` and is exactly what `/idiomatic` is for. A non-idiomatic finding that proves durable and mechanical should **graduate** into a lint rule or the contract. This skill is the *discovery* surface, not a gate.
 
 ## The method (four steps)
 
@@ -55,8 +55,8 @@ Full protocol in `references/method.md`. In short:
 
 1. **Build the package idiom profile — FIRST, always.** Read the repo's governing docs (`CLAUDE.md`, `AGENTS.md`) and the target package's own docs (`doc.go`, package README) before reading the diff for findings. Extract declared conventions, prohibitions, mandates, the framework fingerprint, and **stated exceptions**. See `references/package-profile.md`. **No profile → no findings.**
 2. **Overlay the language pack.** Detect the language (build manifest → `go.mod`/`package.json`/`Cargo.toml`/`pyproject.toml`; else file-extension majority; else the agent-file's stated primary language). Load `references/language-pack-<lang>.md`. The pack supplies idiom dimensions, citable authorities, and the language's *divergences* from general principles. If no pack exists for the language, say so and review only against the profile + first-principles, flagging the gap.
-3. **Produce two-altitude feedback.** Separate **Design** (boundaries, ownership, abstraction level, idiom-divergence with runtime consequence) from **Surgical** (line-level idiom fixes). A reader must be able to apply surgical fixes without reading the design discussion. Rank by the severity model: correctness > idiom-divergence-with-runtime-consequence > style. When a worked before/after would land a finding faster than the rule alone (especially a counterintuitive divergence or a judgment-only call), the pack may carry an on-demand `examples-<lang>.md` — consult it for the pattern, do not paste it wholesale.
-4. **Check the data-structure documentation.** If the package owns a non-trivial data structure with a lifecycle (a plan, a state machine, a cross-package flow), check it carries a `doc.go` meeting the standard in `references/datastructure-standard.md`. Recommend or draft one; flag invariants that are documented but unguarded by a test, and CLAUDE.md "Key Patterns" missing from the owning package's `doc.go` (doc drift).
+3. **Produce two-altitude feedback.** Separate **Design** (boundaries, ownership, abstraction level, idiom-divergence with runtime consequence) from **Surgical** (line-level idiom fixes). A reader must be able to apply surgical fixes without reading the design discussion. Rank by the severity model: correctness > idiom-divergence-with-runtime-consequence > style. Sometimes a worked before/after lands a finding faster than the rule alone (especially a counterintuitive divergence or a judgment-only call). For those, the pack may carry an on-demand `examples-<lang>.md` — consult it for the pattern, do not paste it wholesale.
+4. **Check the data-structure documentation.** If the package owns a non-trivial data structure with a lifecycle (a plan, a state machine, a cross-package flow), check it carries a `doc.go`. The standard lives in `references/datastructure-standard.md`. Recommend or draft one. Flag invariants the docs state but no test guards, and CLAUDE.md "Key Patterns" missing from the owning package's `doc.go` (doc drift).
 
 ## The discipline spine
 
@@ -68,15 +68,17 @@ Three rules. They are not negotiable under time pressure, authority, or a tidy-l
 
 ### Rule 2 — Local profile overrides generic idiom (including establishing exceptions)
 
-When the profile and the language pack disagree, **the profile wins** for correctness and divergence rules; the pack fills silence. Critically, this runs in the hard direction too: **the profile can establish an exception to a rule you correctly know.** Never label a pattern an anti-pattern without first checking whether the repo documents it as intentional. A new *one-way-door* idiom rule you would add (a naming convention, a field rename, a wire-format change) is **flagged for human approval**, not asserted as a finding.
+When the profile and the language pack disagree, **the profile wins** for correctness and divergence rules. The pack fills silence. Critically, this runs in the hard direction too: **the profile can establish an exception to a rule you correctly know.** Never label a pattern an anti-pattern without first checking whether the repo documents it as intentional. Any new *one-way-door* idiom rule (a naming convention, a field rename, a wire-format change) goes to a human for **approval**. Do not assert it as a finding.
 
 ### Rule 3 — Cite every finding; no hedges
 
 Every finding names its basis: a language-idiom authority (e.g. "Effective Go: Errors") **and/or** a specific repo rule (`CLAUDE.md` line / `doc.go` section). No naked "this is more idiomatic." And no escape-hatch hedges — "probably fine if X is available elsewhere" is not a finding. Either the cited basis holds (it is a finding) or it does not (it is not). If you must assume to flag, go read the file and resolve the assumption first.
 
-**Machine-checkable anchors come from the pack, not from memory.** When you cite a lint rule (a linter ID or analyzer name — e.g. `staticcheck ST1005`, `go vet shadow`, a Clippy lint), cite it **only** from the language pack's lint-anchor section, and carry the pack's caveat (a check may be off-by-default or version-dependent). Do **not** assert a check ID from training memory — a wrong, falsifiable ID handed to an author destroys the review's credibility. If the pack marks a dimension *judgment-only* (no checkable rule exists), say exactly that and cite the prose authority; never invent an ID to satisfy a "show me a checkable rule" challenge.
+**Machine-checkable anchors come from the pack, not from memory.** When you cite a lint rule (a linter ID or analyzer name), cite it **only** from the language pack's lint-anchor section. Examples: `staticcheck ST1005`, `go vet shadow`, a Clippy lint. Carry the pack's caveat (a check may be off-by-default or version-dependent). Do **not** assert a check ID from training memory — a wrong, falsifiable ID handed to an author destroys the review's credibility.
 
-**False-positive discipline (the make-or-break gate):** on clean, idiomatic code, the correct output is *"reads native — no findings"* plus, optionally, a short "deliberately not flagging (vetted)" list. A reviewer that manufactures nits to look thorough gets muted, and its real findings get ignored with it. Thoroughness is measured by what you *vetted and rejected*, not by the length of the list.
+If the pack marks a dimension *judgment-only* (no checkable rule exists), say exactly that and cite the prose authority. Never invent an ID to satisfy a "show me a checkable rule" challenge.
+
+**False-positive discipline (the make-or-break gate):** on clean, idiomatic code, the correct output is *"reads native — no findings"*. Optionally add a short "deliberately not flagging (vetted)" list. A reviewer that manufactures nits to look thorough gets muted, and its real findings get ignored with it. What you *vetted and rejected* measures thoroughness, not the length of the list.
 
 ### Rationalization table
 
