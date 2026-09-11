@@ -80,7 +80,7 @@ The executive summary should be readable by someone who has not seen the per-sce
 
 Structure per `references/report-template.md`. Key principles:
 - **Lead with the liveness recommendation**, not methodology; include the run-identity header (token, release image, run age vs the 15d bound)
-- **Group by fault family** in the What-Was-Tested table
+- **Group by fault family** in the Test Coverage table
 - **Quote actual numbers**, labeled as supporting context — "p95 block interval ~1.55s (bucket-bounded)" not "block time degraded"
 - **Interpret halts with BFT theory** — when the validator set stopped advancing, explain the safety-over-liveness tradeoff
 - **Never dress a NO DATA / PARTIAL / verdict-unavailable cell as a clean pass**; carry the per-cell provenance marker

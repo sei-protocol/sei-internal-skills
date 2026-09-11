@@ -58,7 +58,7 @@ liveness scope; 2 = fault-family coverage; 3 = notable findings; 4 = the decisio
 Notable findings are FAILs, metric/verdict disagreements, NO DATA / PARTIAL cells, and
 DID NOT RUN gaps.
 
-### 4. What Was Tested (heading 2)
+### 4. Test Coverage (heading 2)
 
 | Family | Scenarios | What it exercises |
 |---|---|---|

@@ -2,7 +2,17 @@
 
 How `/design` and `/issue` thread bidirectional lineage. The point is that someone reading EITHER artifact can navigate to the other — no detective work, no chat archaeology.
 
-**Contents:** [Lineage primitives](#the-lineage-primitives) · [Two sources: GitHub and Linear](#two-sources-github-and-linear) · [Forward link](#forward-link-design--issue) · [Reverse link](#reverse-link-issue--design) · [When the design lands as a PR](#when-the-design-lands-as-a-pr) · [Multiple designs for one issue](#multiple-designs-for-one-issue) · [When a design is superseded](#when-a-design-is-superseded) · [Design without a source issue](#design-without-a-source-issue) · [Anti-patterns](#anti-patterns)
+**Contents:**
+
+- [Lineage primitives](#the-lineage-primitives)
+- [Two sources: GitHub and Linear](#two-sources-github-and-linear)
+- [Forward link](#forward-link-design--issue)
+- [Reverse link](#reverse-link-issue--design)
+- [When the design lands as a PR](#when-the-design-lands-as-a-pr)
+- [Multiple designs for one issue](#multiple-designs-for-one-issue)
+- [When a newer design supersedes one](#when-a-newer-design-supersedes-one)
+- [Design without a source issue](#design-without-a-source-issue)
+- [Anti-patterns](#anti-patterns)
 
 ## The lineage primitives
 
@@ -94,7 +104,7 @@ A complex issue may produce a system-tier design and one or more component-tier 
 
 When an issue accumulates multiple design references, they should appear in design-tier order: system tier first, then component tier. The `/design` skill does not enforce order; the user can edit the References section to reflect the right hierarchy.
 
-## When a design is superseded
+## When a newer design supersedes one
 
 If a new design replaces an old one (e.g. v1 LLD → v2 LLD because a constraint changed), the old design's status changes to:
 

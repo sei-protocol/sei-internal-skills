@@ -14,7 +14,9 @@ Structured-interview research grounds the evaluation method. Citations are **cit
 
 ## Dimensions & leveling
 
+<!-- vale AgenticWriting.STE-Passive = NO -->
 - **F4 — Coding-eval dimensions converge.** Industry coding evaluation splits into Communication, Problem Solving (incl. trade-off analysis), Technical Competency (correct/clean implementation), and Testing/Verification. *Tech Interview Handbook, "How candidates are evaluated"* — https://www.techinterviewhandbook.org/coding-interview-rubrics/ .
+<!-- vale AgenticWriting.STE-Passive = YES -->
 - **F5 — A concrete coding-eval BARS template exists.** Four tiers (`Excellent` / `Good` / `Fair` / `Poor`) anchored by observable behaviors. *Holloway, "The Holloway Guide to Technical Recruiting and Hiring — Building Rubrics"* — https://www.holloway.com/g/technical-recruiting-hiring/sections/building-rubrics . Paid/licensed — cite the URL, do not copy the rubric body.
 - **F6 — Leveling axes.** Scope / autonomy / ambiguity / influence separate IC (L4 autonomous on moderate components) from senior/staff (L6 owns vision, "pivots more towards design than implementation"). *levels.fyi Standard SWE Level Framework* — https://www.levels.fyi/blog/swe-level-framework.html .
 

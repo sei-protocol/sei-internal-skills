@@ -22,7 +22,9 @@ else. Adding words does not make it self-contained; removing the reader's
 dependencies does.
 
 That resolves the apparent conflict between "write it verbose" and Linear's own "aim
+<!-- vale AgenticWriting.STE-Passive = NO -->
 for brevity — short specs are more likely to be read." Both forbid padding. Verbose
+<!-- vale AgenticWriting.STE-Passive = YES -->
 means complete, not long.
 
 ## What it refuses

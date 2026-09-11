@@ -214,7 +214,7 @@ make sync-skills                                            # the `portable` set
 ./scripts/sync-skills.sh --categories all                   # everything syncable
 ```
 
-Claude Code discovers skills and agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/sei-internal-skills/` are **not** discovered. The install is therefore always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains. 
+Claude Code discovers skills and agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/sei-internal-skills/` are **not** discovered. The install is therefore always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains.
 
 ## Repository structure
 
