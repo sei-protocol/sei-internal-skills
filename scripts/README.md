@@ -1,6 +1,6 @@
 # scripts/
 
-Utility scripts for sei-internal-skills repo maintenance. Most are wrapped by Make targets at the repo root (`make help`); the scripts can also be run directly when you need finer-grained control.
+Utility scripts for sei-internal-skills repo maintenance. Make targets at the repo root wrap most of them (`make help`); run a script directly when you need finer-grained control.
 
 | Script | Purpose | Runs from |
 |--------|---------|-----------|
@@ -44,11 +44,11 @@ make update     # fast-forward this checkout + sync ALL skills/agents/output-sty
 
 These are the only commands you need to keep your environment current. `make bootstrap` installs only the **portable** set into a *consumer* repo (external use); for your own `~/.claude` use `make update` (or the over-the-wire one-liner above).
 
-**Single source of truth:** which alias (`portable` / `sei` / sei-internal-skills-local) a skill or agent belongs to is **derived from its own `category:` frontmatter** via the small domain→alias map at the top of each sync script — there is no hand-maintained per-item list to drift. Add a skill/agent with a mapped `category:` and it syncs automatically. `make verify-catalog` (run in CI) fails closed if any item's category maps to no alias, so a miscategorized resource is caught, never silently dropped.
+**Single source of truth:** a skill or agent's own **`category:` frontmatter** decides which alias (`portable` / `sei` / sei-internal-skills-local) it belongs to. The small domain→alias map at the top of each sync script resolves it, so no hand-maintained per-item list can drift. Add a skill/agent with a mapped `category:` and it syncs automatically. `make verify-catalog` (run in CI) fails closed if any item's category maps to no alias. It catches a miscategorized resource instead of silently dropping one.
 
 ## `sync-agents.sh`
 
-Copies agent personas from `.claude/agents/` to a target `.claude/agents/` directory — typically user-level (`~/`) or a sibling repo. Membership is derived from each agent's `category:` frontmatter; the domain→alias map at the top of the script is the only hand-maintained categorization.
+Copies agent personas from `.claude/agents/` to a target `.claude/agents/` directory — typically user-level (`~/`) or a sibling repo. Each agent's `category:` frontmatter decides membership; the domain→alias map at the top of the script is the only hand-maintained categorization.
 
 ```bash
 # Sync portable agents to user-level (default category)
@@ -81,7 +81,9 @@ Sibling of `sync-agents.sh` — same shape, same flags. Copies skills from `.cla
 ./scripts/sync-skills.sh --target ~/ --dry-run
 ```
 
-Categories: skill **domains** in the core (`workflow`, `investigation`, `code-quality`, `platform-infra`, `blockchain`, `writing-quality`, `output-quality`, `release-operations`, `engineer-self-service`) or **aliases** `portable` (default), `sei`, `all`. `output-quality` (brevity, pr-quality) is sei-internal-skills-local and never synced outward. Skills under `experimental/skills/` are outside every domain and alias — this script never reads that tree, so a domain used only by parked skills (`hardening`, `performance`, `project-management`, `recruiting`, `workstream-bootstrap`) resolves to nothing until one is promoted. `--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script; only a new/renamed **domain** (or a change to which alias it belongs to) needs a script edit.
+Categories: skill **domains** in the core, or **aliases** `portable` (default), `sei`, `all`. The core domains are `workflow`, `investigation`, `code-quality`, `platform-infra`, `blockchain`, `writing-quality`, `output-quality`, `release-operations`, `engineer-self-service`. `output-quality` (brevity, pr-quality) is sei-internal-skills-local and never syncs outward. Skills under `experimental/skills/` sit outside every domain and alias — this script never reads that tree. A domain that only parked skills use (`hardening`, `performance`, `project-management`, `recruiting`, `workstream-bootstrap`) resolves to nothing until somebody promotes one.
+
+`--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script. Only a new/renamed **domain**, or a change to the alias it belongs to, needs a script edit.
 
 ## `update-agent-permissions.sh` + `verify-agent-permissions.sh` + `agent-permissions.json`
 
@@ -104,6 +106,6 @@ make verify-agent-permissions
 
 `agent-permissions.json` is the source of truth — edit it to add or remove canonical patterns. Both scripts read it. The verify script also runs in CI on PRs that touch `.claude/settings.json` or any of these files (`.github/workflows/verify-agent-permissions.yml`).
 
-**Read-only invariant.** The verify script enforces a deny-list across allow patterns: no `gh issue create / close / delete / edit`, no `gh pr create / merge / close / edit`, no `gh api -X POST/PUT/DELETE/PATCH` (or `--method` equivalents), no `aws ... <write-verb>-...` (delete-, put-, create-, update-, terminate-, etc.), no `kubectl <subcmd>` other than `get/describe/logs/top/explain/version/api-resources/api-versions`, no `flux <subcmd>` other than `get/describe/version/check`. The shared `.claude/settings.json` stays read-only forever; user-specific mutating patterns belong in `.claude/settings.local.json` (gitignored).
+**Read-only invariant.** The verify script enforces a deny-list across allow patterns. No `gh issue create / close / delete / edit`, no `gh pr create / merge / close / edit`, and no `gh api -X POST/PUT/DELETE/PATCH` (or `--method` equivalents). No `aws ... <write-verb>-...` (`delete-`, `put-`, `create-`, `update-`, `terminate-`, and the rest). No `kubectl <subcmd>` other than `get/describe/logs/top/explain/version/api-resources/api-versions`, and no `flux <subcmd>` other than `get/describe/version/check`. The shared `.claude/settings.json` stays read-only forever; user-specific mutating patterns belong in `.claude/settings.local.json` (gitignored).
 
 Drift is also a fail condition: `permissions.allow` in `.claude/settings.json` must equal the canonical set exactly. Local additions go in `settings.local.json`; CI fails the PR otherwise.
