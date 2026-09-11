@@ -38,6 +38,20 @@ func TestNewSubstitutesANonPositiveRunDeadline(t *testing.T) {
 	}
 }
 
+// TestDefaultRunDeadlineLeavesHeadroomOverAnOrdinaryReview pins the default against
+// the longest review turn observed on a large diff. A deadline the turn grazes ends a
+// run that was about to answer with exit 3 and no verdict, so the default has to
+// clear that mark by a margin and not by minutes.
+func TestDefaultRunDeadlineLeavesHeadroomOverAnOrdinaryReview(t *testing.T) {
+	t.Parallel()
+
+	const observedLongest = 1029 * time.Second
+	if DefaultRunDeadline < observedLongest*3/2 {
+		t.Errorf("DefaultRunDeadline = %v, want at least 1.5x the %v review turn observed",
+			DefaultRunDeadline, observedLongest)
+	}
+}
+
 // TestAZeroRunDeadlineDoesNotReportATimeout is the consequence, through Run rather
 // than through the field: the exit code a caller branches on must not say the agent
 // was slow when the driver never asked it anything.

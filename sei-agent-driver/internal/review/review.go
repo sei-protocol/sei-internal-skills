@@ -81,6 +81,14 @@ type ScoutResult struct {
 	// and found nothing, which is an answer.
 	Findings []Finding
 
+	// Lines is how many lines of diff it read. Positive on every result that did not
+	// fail: a scout reporting zero is recorded as failed, with Note saying so.
+	Lines int
+
+	// Inert is the scout's claim that the diff touches no executable surface. It is
+	// weighed by [SettleByScouts] and nowhere else.
+	Inert bool
+
 	// Note records why this scout contributed nothing, and is empty when it
 	// contributed normally.
 	//
