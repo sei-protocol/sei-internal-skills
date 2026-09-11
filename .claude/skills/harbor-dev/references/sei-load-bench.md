@@ -49,7 +49,16 @@ docker run --rm -v "$PWD/profile.json:/p/profile.json:ro" $IMG validate /p/profi
 #   → ok: 5 scenario(s), 5 runnable   (parse + Scenario.Validate + registry check + weight check; sends nothing)
 ```
 
-`explain` prints Markdown; there is no `--json` schema, `--skeleton`, `manifest`, or `mcp` verb yet (PLT-1245 tracks them). The image is distroless: `validate` and `explain` are the only agent-facing verbs, and `--help` is the flag inventory. Local `docker` with GHCR auth is the default path; probe `docker info >/dev/null && docker pull $IMG` first. Without it, run the same verb in-cluster against the rendered ConfigMap and read the log: `kubectl run seiload-validate-<RUN_ID> -n eng-<alias> --context=harbor --rm -i --restart=Never --image=$IMG --overrides='{"spec":{"containers":[{"name":"v","image":"'$IMG'","args":["validate","/p/profile.json"],"volumeMounts":[{"name":"p","mountPath":"/p"}]}],"volumes":[{"name":"p","configMap":{"name":"bench-<RUN_ID>-profile"}}]}}'` — a one-off Pod in your own namespace, not a GitOps resource, and the ConfigMap must already be applied by Flux, so this is a post-merge check that gates the Job PR, not the ConfigMap PR. Neither path available → the strict decoder at Job start is the first check; say so in the plan echo.
+`explain` prints Markdown; there is no `--json` schema, `--skeleton`, `manifest`, or `mcp` verb yet (PLT-1245 tracks them). The image is distroless: `validate` and `explain` are the only agent-facing verbs, and `--help` is the flag inventory. Local `docker` with GHCR auth is the default path; probe `docker info >/dev/null && docker pull $IMG` first. Without it, run the same verb in-cluster **before the PR**, from a throwaway ConfigMap you create by hand — not the GitOps one (`seiload-profile-<RUN_ID>` only exists after the bench PR merges, and the Job in that same PR is already sending load by then, so mounting it can never gate anything):
+
+```sh
+kubectl create configmap seiload-validate-<RUN_ID> -n eng-<alias> --context=harbor --from-file=profile.json=./profile.json
+kubectl run seiload-validate-<RUN_ID> -n eng-<alias> --context=harbor --rm -i --restart=Never --image=$IMG \
+  --overrides='{"spec":{"containers":[{"name":"v","image":"'$IMG'","args":["validate","/p/profile.json"],"volumeMounts":[{"name":"p","mountPath":"/p"}]}],"volumes":[{"name":"p","configMap":{"name":"seiload-validate-<RUN_ID>"}}]}}'
+kubectl delete configmap seiload-validate-<RUN_ID> -n eng-<alias> --context=harbor
+```
+
+Both objects are one-offs in your own namespace, never committed. `--rm` deletes the Pod on exit, so the verdict is what the attached `-i` stream prints — there is no `kubectl logs` afterwards; capture the output in the same command. Neither path available → the strict decoder at Job start is the first check; say so in the plan echo and do not call the profile validated.
 
 **Capability gate.** `docker run --rm $IMG validate --help` exits 0 when the verbs exist and non-zero when they do not; that exit code is the gate, not a commit comparison (`4398610` is the commit that introduced them — provenance, not a version to order against). Fall back to the `jq -e .` syntax gate and say so in the plan echo. The strict decoder at Job start is then the first real check. Never call a profile "validated" on an image that could not validate it.
 
