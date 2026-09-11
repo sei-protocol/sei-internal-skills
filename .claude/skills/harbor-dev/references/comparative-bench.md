@@ -247,7 +247,7 @@ The agent enforces parity with a **positive must-match field list** rather than 
 
 Plus: `--duration` flag in the Job spec, `--track-receipts` flag, `--post-summary-flush-delay`, container `resources` block, follower fleet size (N rpc SeiNodes) on each side.
 
-Field list lives in a single source-of-truth array in the skill's render path. Updates need a deliberate edit rather than a pattern match. Allowed-to-differ: `.seiChainId`, `.endpoints`. Anything else differing → halt and surface the offending field.
+Field list lives in a single source-of-truth array in the skill's render path. Updates need a deliberate edit rather than a pattern match. Allowed-to-differ: `.seiChainID`, `.endpoints`. Anything else differing → halt and surface the offending field.
 
 ## Why one PR
 
@@ -431,7 +431,7 @@ Reports:
 6. **Verify no CR name collisions** — `kubectl get seinetwork,seinode -n eng-<alias>` for the two planned SeiNetworks + their planned follower SeiNodes. Halt on any match.
 7. **Plan echo & confirm** — both image digests + source refs, both chain-ids, profile, duration, `<COMPARE_RUN_ID>`, target workspace path, both expected S3 keys, total estimated runtime. Estimate the runtime as `<DURATION> + ~6 min` for chain spinup + upload. Wait for confirmation.
 8. **Render** — write the four sub-dirs and the aggregator kustomization.yaml. Append `compare-<COMPARE_RUN_ID>` to `engineers/<alias>/kustomization.yaml` `resources:` if not already present. Chain rendering uses `seictl network apply --dry-run | yq -P` for the SeiNetwork plus a `seictl node apply --dry-run | yq -P` loop for the N followers per side; bench rendering uses the templates from `references/sei-load-bench.md` per side.
-9. **Verify config parity** — read both bench ConfigMaps back, diff the substituted JSONs; abort the render if they differ on anything except `seiChainId` and `endpoints`. The whole point of the comparison is identical workload — silent drift breaks the result.
+9. **Verify config parity** — read both bench ConfigMaps back, diff the substituted JSONs; abort the render if they differ on anything except `seiChainID` and `endpoints`. The whole point of the comparison is identical workload — silent drift breaks the result.
 10. **Commit + push** — branch `feat/eng-<alias>-compare-<COMPARE_RUN_ID>`. Message: `feat(eng/<alias>): compare <imageA-tag> vs <imageB-tag> (<COMPARE_RUN_ID>)`.
 11. **Open the PR** — surface the URL and halt: "Merge to start. Both chains spin up in parallel (~5 min), both benches run for `<DURATION>` minutes, then I will fetch the reports and surface the comparison."
 12. **Watch — networks parallel** — `seictl network watch <chain-tag>-a` and `<chain-tag>-b` concurrently, `--until=Ready --timeout=15m`. Halt the whole comparison if either reaches Failed.
@@ -454,5 +454,5 @@ Reports:
 - **Failed + still-running.** If side A reaches `Failed=True` while side B is still running, keep polling B to its terminal state. Partial-pair results inform the engineer about whether the failure was image-specific or load-pattern-specific. Do not kill B early.
 - **In-cluster fetch returns `AccessDenied`.** A mismatch in the session tag of Pod Identity, or a namespace-prefix mismatch on the bucket key. The `engineer-service-account` policy scopes `s3:GetObject` to `harbor-validation-results/${aws:PrincipalTag/kubernetes-namespace}/*` via the session tag of Pod Identity. The resolved namespace must therefore match the bucket prefix. Inspect `aws sts get-caller-identity` from inside the Pod and verify the bucket key starts with `eng-<alias>/`.
 - **In-cluster fetch returns `NoSuchKey`.** The upload sidecar did not run on the failing side. Surface `kubectl logs -n eng-<alias> -l sei.io/compare-name=<COMPARE_RUN_ID>,sei.io/compare-side=<a|b> -c upload-results` to diagnose. Common cause: side terminated via `activeDeadlineSeconds` before the sidecar reached its `aws s3 cp` step.
-- **Parity check of the bench config fails** — the two substituted profile JSONs differ on a field other than `seiChainId` / `endpoints`. Halt before push; the rendered manifests would produce a non-comparable result. Surface the diff and ask the engineer to retry. The common cause is transient: side B's followers had not yet published `.status.endpoint` when the agent substituted side A.
+- **Parity check of the bench config fails** — the two substituted profile JSONs differ on a field other than `seiChainID` / `endpoints`. Halt before push; the rendered manifests would produce a non-comparable result. Surface the diff and ask the engineer to retry. The common cause is transient: side B's followers had not yet published `.status.endpoint` when the agent substituted side A.
 - **PR push rejected** — same handling as single-bench; `git pull --rebase` and let the engineer resolve.

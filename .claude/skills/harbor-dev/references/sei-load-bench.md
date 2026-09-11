@@ -36,7 +36,7 @@ Before writing any manifest:
 
 ## Workload surface — what a profile can say
 
-Source of truth is the `seiload` binary itself (sei-protocol/sei-load `main` at `4398610` or newer). Ask it before writing or editing a profile; do not write a knob from memory.
+Source of truth is the `seiload` binary itself (verbs introduced in sei-protocol/sei-load `main` at `4398610`; probe the image, do not compare SHAs). Ask it before writing or editing a profile; do not write a knob from memory.
 
 ### Discovery verbs (run from the resolved image, no checkout, no chain)
 
@@ -44,13 +44,14 @@ Source of truth is the `seiload` binary itself (sei-protocol/sei-load `main` at 
 IMG=ghcr.io/sei-protocol/sei-load@sha256:<digest>          # the image the Job will run
 docker run --rm $IMG explain                                # whole embedded docs/workload-spec.md
 docker run --rm $IMG explain StorageRW                      # one scenario section; unknown name lists the valid ones
-docker run --rm -v "$PWD:/p:ro" $IMG validate /p/profile.json
+docker run --rm -v "$PWD/profile.json:/p/profile.json:ro" $IMG validate /p/profile.json   # one file, never $PWD: a staged root key must not enter the container
+# validate needs the *substituted* profile — the raw one holds [__RPC_ENDPOINTS__] and is not JSON
 #   → ok: 5 scenario(s), 5 runnable   (parse + Scenario.Validate + registry check + weight check; sends nothing)
 ```
 
-`explain` prints Markdown; there is no `--json` schema, `--skeleton`, `manifest`, or `mcp` verb yet (PLT-1245 tracks them). The image is distroless: `validate` and `explain` are the only agent-facing verbs, and `--help` is the flag inventory. In a cluster, the same verbs run as a one-off Pod with the profile ConfigMap mounted. Prefer the local `docker run` when the laptop has GHCR auth.
+`explain` prints Markdown; there is no `--json` schema, `--skeleton`, `manifest`, or `mcp` verb yet (PLT-1245 tracks them). The image is distroless: `validate` and `explain` are the only agent-facing verbs, and `--help` is the flag inventory. Local `docker` with GHCR auth is the default path; probe `docker info >/dev/null && docker pull $IMG` first. Without it, run the same verb in-cluster against the rendered ConfigMap and read the log: `kubectl run seiload-validate-<RUN_ID> -n eng-<alias> --context=harbor --rm -i --restart=Never --image=$IMG --overrides='{"spec":{"containers":[{"name":"v","image":"'$IMG'","args":["validate","/p/profile.json"],"volumeMounts":[{"name":"p","mountPath":"/p"}]}],"volumes":[{"name":"p","configMap":{"name":"bench-<RUN_ID>-profile"}}]}}'` — a one-off Pod in your own namespace, not a GitOps resource, and the ConfigMap must already be applied by Flux, so this is a post-merge check that gates the Job PR, not the ConfigMap PR. Neither path available → the strict decoder at Job start is the first check; say so in the plan echo.
 
-**Capability gate.** Images older than `4398610` have no `explain`/`validate` — `docker run --rm $IMG validate --help` exits non-zero. Fall back to the `jq -e .` syntax gate and say so in the plan echo. The strict decoder at Job start is then the first real check. Never call a profile "validated" on an image that could not validate it.
+**Capability gate.** `docker run --rm $IMG validate --help` exits 0 when the verbs exist and non-zero when they do not; that exit code is the gate, not a commit comparison (`4398610` is the commit that introduced them — provenance, not a version to order against). Fall back to the `jq -e .` syntax gate and say so in the plan echo. The strict decoder at Job start is then the first real check. Never call a profile "validated" on an image that could not validate it.
 
 ### The eleven scenarios (`generator/scenarios/factory.go`)
 
@@ -74,20 +75,20 @@ docker run --rm -v "$PWD:/p:ro" $IMG validate /p/profile.json
 
 ### Profile shape
 
-- **Envelope** (`config.LoadConfig`): `chainId`, `seiChainID` (note the capital `ID`), `endpoints` (required; sending shards across them), `receiptEndpoint`, `accounts`, `scenarios[]`, `mockDeploy`, `settings`, `funding`, `reportPath`, `seed`. `gasFeeCapWei` is *not* a field — the fee cap resolves from the chain at startup.
+- **Envelope** (`config.LoadConfig`): `chainId`, `seiChainID` (the Go tag is `seiChainID`; `encoding/json` matches keys case-insensitively, so `seiChainId` in an older profile is accepted too — write `seiChainID`, as the nightly profiles do), `endpoints` (required; sending shards across them), `receiptEndpoint`, `accounts` (`config.AccountConfig`: `count`, `newAccountRate`), `scenarios[]`, `mockDeploy`, `settings`, `funding`, `reportPath`, `seed`. `gasFeeCapWei` is *not* a field — the fee cap resolves from the chain at startup.
 - **Scenario entry** (`config.Scenario`): `name`, `weight` (selection weight across scenarios), `accounts`, `gasPicker`, `gasFeeCapPicker`, `gasTipCapPicker`, `keyDistribution`, `sizeDistribution`, `recordCount`, `sizeBuckets`, `operations`, `fanout`, `targetSpace`, `contractKey`, `contractAddress`, `forceDeploy`.
 - **Discriminated unions key on `Name`** — the only PascalCase key on the surface:
 
   ```json
-  "keyDistribution": { "Name": "zipfian", "theta": 0.9 }     "gasPicker": { "Name": "fixed",  "Gas": 120000 }
-  "keyDistribution": { "Name": "uniform" }                    "gasPicker": { "Name": "random", "Min": 100000, "Max": 200000 }
+  { "keyDistribution": { "Name": "zipfian", "theta": 0.9 }, "gasPicker": { "Name": "fixed",  "Gas": 120000 } }
+  { "keyDistribution": { "Name": "uniform" },               "gasPicker": { "Name": "random", "Min": 100000, "Max": 200000 } }
   ```
 
   `theta` on `uniform` is silently dropped. Omitted, `null`, `{}` and `{"Name":""}` all mean unset.
 - **Settings** (`config.Settings`, CLI flag > file > default via Viper): `tps`, `statsInterval`, `inclusionReapAfter` (≥ `1s`), `bufferSize`, `trackReceipts`, `trackBlocks`, `trackUserLatency`, `prewarm`, `rampUp`, `targetGas`, `numBlocksToWrite`, `postSummaryFlushDelay`, `arrivalModel`, `gasMargin`, `gasFeeCapMultiplier`, `maxInFlight`. **`workers` is not a key** — the strict decoder rejects it (that is the nightly-profile bug PLT-1254 fixed).
 - **Arrival model**: `arrivalModel: "open_loop"` schedules tx *i* at t₀ + i/λ and drops on overrun (the coordinated-omission fix; `maxInFlight` bounds it); `closed_loop` is the legacy lockstep baseline. Use `open_loop` for latency claims, `closed_loop` only to reproduce an old run.
 - **`seed`**: fixes the PRNG so two runs draw the same sequence. Set it, and keep it equal across the two sides of a comparative bench; otherwise the A/B difference includes sampling noise.
-- **Funding** (`config.FundingConfig`): `rootKeyFile` (preferred, a mounted Secret — not `rootKeyEnv`, which lands in `/proc/<pid>/environ`), `fundAmountWei` (a decimal **string**), `batchSize`. Requires `newAccountRate: 0`. **A chain built from a vanilla `seid` image has zero-balance generated accounts** — every value-sending scenario fails on the first tx unless the profile funds them or the seid image is a `mock_balances` build. Ask which one the engineer's image is before rendering; the nightly profiles assume the mock build.
+- **Funding** (`config.FundingConfig`): `rootKeyFile` (preferred, a mounted Secret — not `rootKeyEnv`, which lands in `/proc/<pid>/environ`), `fundAmountWei` (a decimal **string**), `batchSize`. Requires `accounts.newAccountRate: 0` on the envelope and on every `scenarios[].accounts` that sets one (`config/funding.go`: on-demand accounts cannot be funded; a non-zero rate is refused at load). **A chain built from a vanilla `seid` image has zero-balance generated accounts** — every value-sending scenario fails on the first tx unless the profile funds them or the seid image is a `mock_balances` build. Ask which one the engineer's image is before rendering; the nightly profiles assume the mock build.
 
 ### Bounds and cross-field rules (`Scenario.Validate` rejects; nothing clamps)
 
@@ -96,7 +97,7 @@ docker run --rm -v "$PWD:/p:ro" $IMG validate /p/profile.json
 | `recordCount` | ≤ 10,000,000 (`MaxRecordCount`); set together with `keyDistribution` or refused |
 | `sizeBuckets` | pad ≤ 128 KiB (`MaxCalldataPadBytes`); set together with `sizeDistribution` or refused |
 | `fanout` | ≤ 64 (`MaxFanout`), default 8 |
-| `targetSpace` | ≥ the **effective** fanout (default 1,048,576) — `targetSpace: 4` with no `fanout` is refused against the default 8 |
+| `targetSpace` | default 1,048,576; must be ≥ the **effective** `fanout` — `targetSpace: 4` with no `fanout` is refused against fanout's default 8 |
 | zipfian `theta` | in [0, 1) |
 | `random` gas picker | `Min < Max` |
 | `contractAddress` / `forceDeploy` | mutually exclusive |
@@ -104,7 +105,7 @@ docker run --rm -v "$PWD:/p:ro" $IMG validate /p/profile.json
 
 ### Reproducibility contract
 
-The binary freezes operation names, their declaration order, per-scenario config keys and the per-scenario PRNG draw order; saved workloads key on `config_sha256`. Pin in the PR description: image digest, profile SHA-256 (`sha256sum` of the substituted `profile.json`), `seed`, `arrivalModel`, `--duration`. A re-run that changes any of them is a new experiment, not a repeat.
+The binary freezes operation names, their declaration order, per-scenario config keys and the per-scenario PRNG draw order; saved workloads key on `config_sha256`. Pin in the PR description: image digest, profile SHA-256 (`sha256sum` of the **pre-substitution** profile — the substituted file differs on every chain-id and endpoint list, so its hash never matches across valid reruns), `seed`, `arrivalModel`, `--duration`. A re-run that changes any of them is a new experiment, not a repeat.
 
 ### Job flags that come from the binary, not from taste
 
@@ -159,7 +160,7 @@ data:
     <PROFILE_JSON_SUBSTITUTED>
 ```
 
-`<PROFILE_JSON_SUBSTITUTED>` is the content of `clusters/harbor/nightly/harness/profiles/<profile>.json` with `seiChainId` set to the chain-id and `endpoints` set to the per-pod RPC URLs. The raw profile is deliberately **not valid JSON** — `"endpoints": [__RPC_ENDPOINTS__]` carries a bare placeholder inside the brackets — so jq cannot parse it as input. Substitute textually, then hard-validate the result with jq before it lands in the ConfigMap:
+`<PROFILE_JSON_SUBSTITUTED>` is the content of `clusters/harbor/nightly/harness/profiles/<profile>.json` with `seiChainID` set to the chain-id and `endpoints` set to the per-pod RPC URLs. The raw profile is deliberately **not valid JSON** — `"endpoints": [__RPC_ENDPOINTS__]` carries a bare placeholder inside the brackets — so jq cannot parse it as input. Substitute textually, then hard-validate the result with jq before it lands in the ConfigMap:
 
 ```sh
 RPC_ENDPOINTS=$(seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json \

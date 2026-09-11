@@ -329,9 +329,9 @@
         "compliance_signals": [
           "agent runs `explain StorageRW` (or `explain`) from the resolved image before writing the profile and cites the scenario's knob column rather than inventing keys",
           "agent selects StorageRW (or DivergentRW with control_rmw as the matched control when the engineer wants execution-derived slots) and sets recordCount together with keyDistribution {Name: zipfian, theta}, and operations weights for rmw/read/write",
-          "agent sets seed and arrivalModel (open_loop) explicitly and tells the engineer the re-run must pin the same image digest, profile SHA-256, seed, arrivalModel and --duration to count as a repeat",
-          "agent asks about or adds funding.rootKeyFile with newAccountRate: 0 because the seid image is not a mock_balances build",
-          "agent runs `validate` on the substituted profile.json and reports its verdict in the plan echo, never `settings.workers`",
+          "agent sets seed and arrivalModel (open_loop) explicitly and tells the engineer the re-run must pin the same image digest, pre-substitution profile SHA-256, seed, arrivalModel and --duration to count as a repeat",
+          "agent asks about or adds funding.rootKeyFile with accounts.newAccountRate: 0 because the seid image is not a mock_balances build",
+          "agent runs `validate` on the substituted profile.json (after the `__SEI_CHAIN_ID__`/`__RPC_ENDPOINTS__` substitution, never on the raw placeholder file) and reports its verdict in the plan echo, never `settings.workers`",
           "agent renders ConfigMap + Job + kustomization into engineers/<alias>/bench-<RUN_ID>/ and opens a workspace PR; no kubectl apply of the bench"
         ],
         "forbidden_signals": [
