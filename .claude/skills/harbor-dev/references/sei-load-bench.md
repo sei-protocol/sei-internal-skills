@@ -34,6 +34,99 @@ Before writing any manifest:
 2. **Fleet RPC URLs available.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'` returns a non-empty list (one URL per `Running` follower).
 3. **Image resolved + verified in registry** per `references/image-resolution.md`'s sei-load section.
 
+## Workload surface — what a profile can say
+
+Source of truth is the `seiload` binary itself (verbs introduced in sei-protocol/sei-load `main` at `4398610`; probe the image, do not compare SHAs). Ask it before writing or editing a profile; do not write a knob from memory.
+
+### Discovery verbs (run from the resolved image, no checkout, no chain)
+
+```sh
+IMG=ghcr.io/sei-protocol/sei-load@sha256:<digest>          # the image the Job will run
+docker run --rm $IMG explain                                # whole embedded docs/workload-spec.md
+docker run --rm $IMG explain StorageRW                      # one scenario section; unknown name lists the valid ones
+docker run --rm -v "$PWD/profile.json:/p/profile.json:ro" $IMG validate /p/profile.json   # one file, never $PWD: a staged root key must not enter the container
+# validate needs the *substituted* profile — the raw one holds [__RPC_ENDPOINTS__] and is not JSON
+#   → ok: 5 scenario(s), 5 runnable   (parse + Scenario.Validate + registry check + weight check; sends nothing)
+```
+
+`explain` prints Markdown; there is no `--json` schema, `--skeleton`, `manifest`, or `mcp` verb yet (PLT-1245 tracks them). The image is distroless: `validate` and `explain` are the only agent-facing verbs, and `--help` is the flag inventory. Local `docker` with GHCR auth is the default path; probe `docker info >/dev/null && docker pull $IMG` first. Without it, run the same verb in-cluster **before the PR**, from a throwaway ConfigMap you create by hand (the one imperative write this skill permits: own namespace, named for the run, deleted in the same breath, never committed — name it in the plan echo alongside the renders) — not the GitOps one (`seiload-profile-<RUN_ID>` only exists after the bench PR merges, and the Job in that same PR is already sending load by then, so mounting it can never gate anything):
+
+```sh
+kubectl create configmap seiload-validate-<RUN_ID> -n eng-<alias> --context=harbor --from-file=profile.json=./profile.json &&
+  kubectl run seiload-validate-<RUN_ID> -n eng-<alias> --context=harbor --rm -i --restart=Never --image=$IMG \
+    --overrides='{"spec":{"containers":[{"name":"v","image":"'$IMG'","args":["validate","/p/profile.json"],"volumeMounts":[{"name":"p","mountPath":"/p"}]}],"volumes":[{"name":"p","configMap":{"name":"seiload-validate-<RUN_ID>"}}]}}'
+kubectl delete configmap seiload-validate-<RUN_ID> -n eng-<alias> --context=harbor --ignore-not-found   # always, even after an abort or a failed run
+```
+
+Both objects are one-offs in your own namespace, never committed. `--rm` deletes the Pod on exit, so the verdict is what the attached `-i` stream prints — there is no `kubectl logs` afterwards; capture the output in the same command. Neither path available → the strict decoder at Job start is the first check; say so in the plan echo and do not call the profile validated.
+
+**Capability gate.** `docker run --rm $IMG validate --help` exits 0 when the verbs exist and non-zero when they do not; that exit code is the gate, not a commit comparison (`4398610` is the commit that introduced them — provenance, not a version to order against). Fall back to the `jq -e .` syntax gate and say so in the plan echo. The strict decoder at Job start is then the first real check. Never call a profile "validated" on an image that could not validate it.
+
+### The eleven scenarios (`generator/scenarios/factory.go`)
+
+| Scenario | Exercises | Knobs it reads |
+|---|---|---|
+| `EVMTransfer` | native transfers | fixed shape |
+| `EVMTransferFast` | reduced-work send path, values multiples of 1e12, no tip | fixed shape |
+| `EVMTransferNoop` | zero-value self-transfer (one account) | fixed shape |
+| `ERC20` | token transfers against a deployed ERC20 | `gasPicker`, contract selection |
+| `ERC20Noop` | ERC20 calls touching no balance | fixed shape |
+| `ERC20Conflict` | transfers contending on one balance slot | fixed shape |
+| `ERC721` | mints with unique token IDs | fixed shape |
+| `AMM` | both legs of one swap pair, contending on reserves | `operations` (`swap_a_to_b`, `swap_b_to_a`; weights are repetition counts) |
+| `Disperse` | one tx fanning out to many recipients | fixed shape |
+| `StorageRW` | read/write/rmw on caller-chosen slots — the **cheap** OCC retry | full set: `recordCount`+`keyDistribution`, `sizeBuckets`+`sizeDistribution`, `operations` (`rmw`,`read`,`write`) |
+| `DivergentRW` | slots derived during execution from contended state — the **expensive** OCC retry | full set + `fanout`, `targetSpace`, `operations` (`divergent_rmw`,`divergent_read`,`control_rmw`) |
+
+`Prewarm` is a label, not a selectable scenario. `StorageRW` vs `DivergentRW` is the contention-shape comparison an OCC/Giga bench wants; `control_rmw` is `DivergentRW`'s matched control arm.
+
+**The binary accepts and ignores a knob the scenario does not read** (open gap, PLT-1245 R-DESC-2). `keyDistribution` on `ERC20` validates, runs, and measures the unconfigured baseline. Before you put a contention knob in a profile, confirm the scenario is in the "reads it" column. Otherwise the run reports a number nobody can attribute.
+
+### Profile shape
+
+- **Envelope** (`config.LoadConfig`): `chainId`, `seiChainID` (the Go tag is `seiChainID`; `encoding/json` matches keys case-insensitively, so `seiChainId` in an older profile is accepted too — write `seiChainID`, as the nightly profiles do), `endpoints` (required; sending shards across them), `receiptEndpoint`, `accounts` (`config.AccountConfig`: `count`, `newAccountRate`), `scenarios[]`, `mockDeploy`, `settings`, `funding`, `reportPath`, `seed`. `gasFeeCapWei` is *not* a field — the fee cap resolves from the chain at startup.
+- **Scenario entry** (`config.Scenario`): `name`, `weight` (selection weight across scenarios), `accounts`, `gasPicker`, `gasFeeCapPicker`, `gasTipCapPicker`, `keyDistribution`, `sizeDistribution`, `recordCount`, `sizeBuckets`, `operations`, `fanout`, `targetSpace`, `contractKey`, `contractAddress`, `forceDeploy`.
+- **Discriminated unions key on `Name`** — the only PascalCase key on the surface:
+
+  ```json
+  { "keyDistribution": { "Name": "zipfian", "theta": 0.9 }, "gasPicker": { "Name": "fixed",  "Gas": 120000 } }
+  { "keyDistribution": { "Name": "uniform" },               "gasPicker": { "Name": "random", "Min": 100000, "Max": 200000 } }
+  ```
+
+  `theta` on `uniform` is silently dropped. Omitted, `null`, `{}` and `{"Name":""}` all mean unset.
+- **Settings** (`config.Settings`, CLI flag > file > default via Viper): `tps`, `statsInterval`, `inclusionReapAfter` (≥ `1s`), `bufferSize`, `trackReceipts`, `trackBlocks`, `trackUserLatency`, `prewarm`, `rampUp`, `targetGas`, `numBlocksToWrite`, `postSummaryFlushDelay`, `arrivalModel`, `gasMargin`, `gasFeeCapMultiplier`, `maxInFlight`. **`workers` is not a key** — the strict decoder rejects it (that is the nightly-profile bug PLT-1254 fixed).
+- **Arrival model**: `arrivalModel: "open_loop"` schedules tx *i* at t₀ + i/λ and drops on overrun (the coordinated-omission fix; `maxInFlight` bounds it); `closed_loop` is the legacy lockstep baseline. Use `open_loop` for latency claims, `closed_loop` only to reproduce an old run.
+- **`seed`**: fixes the PRNG so two runs draw the same sequence. Set it, and keep it equal across the two sides of a comparative bench; otherwise the A/B difference includes sampling noise.
+- **Funding** (`config.FundingConfig`): `rootKeyFile` (preferred, a mounted Secret — not `rootKeyEnv`, which lands in `/proc/<pid>/environ`), `fundAmountWei` (a decimal **string**), `batchSize`. Requires `accounts.newAccountRate: 0` on the envelope and on every `scenarios[].accounts` that sets one (`config/funding.go`: on-demand accounts cannot be funded; a non-zero rate is refused at load). **A chain built from a vanilla `seid` image has zero-balance generated accounts** — every value-sending scenario fails on the first tx unless the profile funds them or the seid image is a `mock_balances` build. Ask which one the engineer's image is before rendering; the nightly profiles assume the mock build.
+
+### Bounds and cross-field rules (`Scenario.Validate` rejects; nothing clamps)
+
+| Rule | Value / shape |
+|---|---|
+| `recordCount` | ≤ 10,000,000 (`MaxRecordCount`); set together with `keyDistribution` or refused |
+| `sizeBuckets` | pad ≤ 128 KiB (`MaxCalldataPadBytes`); set together with `sizeDistribution` or refused |
+| `fanout` | ≤ 64 (`MaxFanout`), default 8 |
+| `targetSpace` | default 1,048,576; must be ≥ the **effective** `fanout` — `targetSpace: 4` with no `fanout` is refused against fanout's default 8 |
+| zipfian `theta` | in [0, 1) |
+| `random` gas picker | `Min < Max` |
+| `contractAddress` / `forceDeploy` | mutually exclusive |
+| unknown key | `DisallowUnknownFields`, reported against the scenario carrying it; case-variant and repeated keys still slip through |
+
+### Reproducibility contract
+
+The binary freezes operation names, their declaration order, per-scenario config keys and the per-scenario PRNG draw order; saved workloads key on `config_sha256`. Pin in the PR description: image digest, profile SHA-256 (`sha256sum` of the **pre-substitution** profile — the substituted file differs on every chain-id and endpoint list, so its hash never matches across valid reruns), `seed`, `arrivalModel`, `--duration`. A re-run that changes any of them is a new experiment, not a repeat.
+
+### Job flags that come from the binary, not from taste
+
+Flags:
+
+- `--duration` — 0 = run until SIGTERM; always set it in a Job.
+- `--post-summary-flush-delay` — default 25s; the template uses 45s so Prometheus scrapes the summary before exit.
+- `--track-receipts`, `--report-path` (text only; the sidecar uploads it), `--nodes N` (0 = all endpoints).
+- `--arrival-model`, `--max-in-flight`, `--inclusion-reap-after`.
+
+`--dry-run` mocks deploy and sends for a config smoke test. The `healthz` endpoint answers at bind. The `readyz` endpoint refuses through the startup phase (fund → deploy → prewarm) and reports which step is running. That phase can take minutes on a cold chain, so a `Running` pod that is not yet `Ready` is normal.
+
 ## `<RUN_ID>` derivation and re-render determinism
 
 `<RUN_ID> = <bench-tag>-<UTC-timestamp>` on first render. Branch name is `feat/eng-<alias>-bench-<RUN_ID>`. On any re-render against the same engineer + bench-tag, the agent reuses `<RUN_ID>` from the existing branch. `gh pr list --head` requires an exact branch name, so filter via `--json` + `jq` startswith:
@@ -76,7 +169,7 @@ data:
     <PROFILE_JSON_SUBSTITUTED>
 ```
 
-`<PROFILE_JSON_SUBSTITUTED>` is the content of `clusters/harbor/nightly/harness/profiles/<profile>.json` with `seiChainId` set to the chain-id and `endpoints` set to the per-pod RPC URLs. The raw profile is deliberately **not valid JSON** — `"endpoints": [__RPC_ENDPOINTS__]` carries a bare placeholder inside the brackets — so jq cannot parse it as input. Substitute textually, then hard-validate the result with jq before it lands in the ConfigMap:
+`<PROFILE_JSON_SUBSTITUTED>` is the content of `clusters/harbor/nightly/harness/profiles/<profile>.json` with `seiChainID` set to the chain-id and `endpoints` set to the per-pod RPC URLs. The raw profile is deliberately **not valid JSON** — `"endpoints": [__RPC_ENDPOINTS__]` carries a bare placeholder inside the brackets — so jq cannot parse it as input. Substitute textually, then hard-validate the result with jq before it lands in the ConfigMap:
 
 ```sh
 RPC_ENDPOINTS=$(seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json \
