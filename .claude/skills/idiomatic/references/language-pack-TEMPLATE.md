@@ -1,6 +1,6 @@
 # Language pack contract (TEMPLATE)
 
-A language pack is **data** the method loads. Every pack must provide the six required sections below, in this order, so the method stays language-agnostic — plus an optional-but-recommended §7 `lint_anchors[]` (see below; the Go pack carries one). **Adding a language = drop one file conforming to this template** at `references/language-pack-<lang>.md` and (optionally) map the language to a specialist agent.
+A language pack is **data** the method loads. Every pack must provide the six required sections below, in this order, so the method stays language-agnostic. Add the optional-but-recommended §7 `lint_anchors[]` too (see below; the Go pack carries one). **Adding a language = drop one file conforming to this template** at `references/language-pack-<lang>.md` and (optionally) map the language to a specialist agent.
 
 This section schema is a **soft one-way door**: changing it churns every existing pack. Revise deliberately.
 
@@ -91,11 +91,11 @@ Three rules make this section trustworthy:
 
 ## Optional: worked examples companion (`examples-<lang>.md`)
 
-A pack may carry an on-demand `examples-<lang>.md` of **original** good/bad pairs (authored for the pack — never reproduced from a book or doc). Most valuable for the §3 divergences and the §7 judgment-only dimensions, where a before/after teaches faster than the rule. For any lint-anchored pair, **verify the anchor by actually running the tool** on the bad snippet and record the observed diagnostic — that keeps §7's check IDs demonstrated, not asserted (the Go examples caught a mis-named analyzer this way). The method loads it in step 3 on demand, not every review.
+A pack may carry an on-demand `examples-<lang>.md` of **original** good/bad pairs (authored for the pack — never reproduced from a book or doc). Most valuable for the §3 divergences and the §7 judgment-only dimensions, where a before/after teaches faster than the rule. For any lint-anchored pair, **verify the anchor by actually running the tool** on the bad snippet and record the observed diagnostic. That keeps §7's check IDs demonstrated, not asserted (the Go examples caught a mis-named analyzer this way). The method loads it in step 3 on demand, not every review.
 
 ## Optional: language → specialist agent map
 
-When a finding needs judgment the static pack cannot carry, the method dispatches a specialist agent. Record the mapping here as packs are added:
+When a finding needs judgment the static pack cannot carry, the method dispatches a specialist agent. Record the mapping here as you add packs:
 
 | language | specialist agent |
 |----------|------------------|
