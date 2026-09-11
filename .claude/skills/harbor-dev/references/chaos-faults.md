@@ -68,12 +68,12 @@ Render, do not copy:
 
 ```bash
 seictl chaos list                       # name, kind, duration|one-shot, scope, summary
-seictl chaos list --output json         # same catalog, machine-readable (Name, Kind, OneShot, MeshWide, Summary)
+seictl chaos list --output json         # same catalog, machine-readable: [{name, kind, oneShot, meshWide, summary}]
 seictl chaos render network-partition --chain-id <CHAIN> --run-id <RUN> -n <NS> --duration <DUR> > chaos-network-partition.yaml
 seictl chaos render pod-failure       --chain-id <CHAIN> --run-id <RUN> -n <NS>                  > chaos-pod-failure.yaml
 ```
 
-`render` touches no cluster; it prints YAML to stdout. It refuses `--duration` on a one-shot fault and refuses its absence on a duration-bearing one, and it rejects an empty `--chain-id`/`--run-id`/`--namespace` — every refusal is a `metav1.Status` `BadRequest` on stderr, so parse `.reason`, do not grep. Pin the seictl version that rendered the file in the experiment's PR description; that is the template provenance.
+`render` touches no cluster; it prints YAML to stdout. It refuses `--duration` on a one-shot fault and refuses its absence on a duration-bearing one, and it rejects a `--duration` that does not parse as a Go duration or is not positive (`2`, `0s`, `-1m`). `--namespace` is required. `--chain-id` and `--run-id` must be DNS-1123 labels (lowercase alphanumerics and `-`, ≤63 characters) because they land in resource names and label values; the generated name must itself fit 63 characters — `<fault>-<run-id>` for most faults, `byzantine-corrupt-<run-id>` for `byzantine`, so size the token against the longest name you will render, so a long run token fails at render, not at admission. Every refusal is a `metav1.Status` `BadRequest` on stderr, so parse `.reason`, do not grep. Pin the seictl version that rendered the file in the experiment's PR description; that is the template provenance.
 
 | Name | Kind / action | Shape | Duration |
 |---|---|---|---|
@@ -157,7 +157,10 @@ provision(4 validators + 1 unfaulted RPC follower)
 → SeiNetwork Ready, followers Running, every validator placement Scheduled (command below)
 → Flux applies the Chaos CR
 → gate AllInjected=True                    (fault reached its targets)
-→ assert the follower's height advances by ≥3 while the fault is active
+→ assert the follower's height advances by ≥3 while the fault is active,
+  and the SeiNetwork `Producing` condition stays `HeightAdvancing` (`HeightStalled` is the halt;
+  an empty-blocks-off Autobahn chain needs load running for this gate — without it the height
+  sits at 0 and the condition reads `Idle`, which is neither the halt nor a pass)
 → gate AllRecovered=True                   (duration-bearing faults only)
 → require every validator pod Ready
 → verify the follower is caught up
@@ -293,7 +296,7 @@ spec:
             - {key: sei.io/nodedeployment, operator: In, values: ["<CHAIN>"]}
 ```
 
-`StatusCheck` criteria match the HTTP status only, so `200` means the RPC answers, not that height advances; on an empty-blocks-off chain the height stays `0x0` until load and this gate still passes, which is the intended "genesis completed" check. It proves the observer, not the validators: a Dedicated pool with one pod stuck `Pending` on capacity still serves RPC from the others, and a fault would then hit a 3-of-4 quorum (see the f=1 rule). Nothing in the manifest gates on placement: Flux applies the Workflow at merge and it advances on its own, so in the one-PR path the placement precondition (`.status.nodes[*].placement` all `Scheduled`, the `kubectl get seinetwork` recipe in *Lifecycle and gates*) is a manual check the operator must land before the first fault fires — that is the moment the observer first answers plus the `warmup` `Suspend` (5m above), bounded above by the `StatusCheck` `deadline` (20m); that window is the whole budget, and missing it means the fault fires against whatever scheduled. **Default to the two-PR path whenever the pool is `Dedicated`** (capacity is unknowable before the SeiNetwork is applied); use the one-PR path only for a `Shared` pool, or a Dedicated pool whose placement you have already confirmed on a live run. A Workflow template's `deadline` is the fault duration for a duration-bearing kind. Every nested selector still needs `namespaces: ["<NS>"]` — the admission policy walks the templates. Read Workflow progress with `kubectl get workflow exp-<RUN> -n <NS> -o jsonpath='{.status.conditions}'` and the child `WorkflowNode` objects (`kubectl get workflownode -n <NS> -l chaos-mesh.org/workflow=exp-<RUN>`).
+`StatusCheck` criteria match the HTTP status only, so `200` means the RPC answers, not that height advances; on an empty-blocks-off chain the height stays `0x0` until load and this gate still passes, which is the intended "genesis completed" check (the controller reports the same state as `Producing=False/Idle`, `seinetwork-crd.md`). It proves the observer, not the validators: a Dedicated pool with one pod stuck `Pending` on capacity still serves RPC from the others, and a fault would then hit a 3-of-4 quorum (see the f=1 rule). Nothing in the manifest gates on placement: Flux applies the Workflow at merge and it advances on its own, so in the one-PR path the placement precondition (`.status.nodes[*].placement` all `Scheduled`, the `kubectl get seinetwork` recipe in *Lifecycle and gates*) is a manual check the operator must land before the first fault fires — that is the moment the observer first answers plus the `warmup` `Suspend` (5m above), bounded above by the `StatusCheck` `deadline` (20m); that window is the whole budget, and missing it means the fault fires against whatever scheduled. **Default to the two-PR path whenever the pool is `Dedicated`** (capacity is unknowable before the SeiNetwork is applied); use the one-PR path only for a `Shared` pool, or a Dedicated pool whose placement you have already confirmed on a live run. A Workflow template's `deadline` is the fault duration for a duration-bearing kind. Every nested selector still needs `namespaces: ["<NS>"]` — the admission policy walks the templates. Read Workflow progress with `kubectl get workflow exp-<RUN> -n <NS> -o jsonpath='{.status.conditions}'` and the child `WorkflowNode` objects (`kubectl get workflownode -n <NS> -l chaos-mesh.org/workflow=exp-<RUN>`).
 
 The `warmup` `Suspend` is bench ramp only, never the readiness gate: the `StatusCheck` ahead of it absorbs a cold image pull or a Dedicated pool waiting on capacity, so size `warmup` from the load profile's ramp, not from time-to-`Ready`. The two-PR path remains the choice when the engineer wants to inspect the chain by hand before the first fault.
 
@@ -306,7 +309,7 @@ The `warmup` `Suspend` is bench ramp only, never the readiness gate: the `Status
 
 ## What is not here yet
 
-- `seictl chaos render` / `bench render` arrive with seictl #256 (controller #558 is on main); no seictl tag carried them at the time of writing. Probe `seictl chaos --help` before the first use in a session; an older binary fails at parse. Until then render by substitution from `harness/faults/` (or `test/integration/faults/` before #558).
+- `seictl chaos render` / `bench render` are on seictl main (#256, templates from controller #558); the newest tag at the time of writing, `v0.0.72`, predates them. Probe `seictl chaos --help` before the first use in a session; an older binary fails at parse. Without the verbs, build from source (`preflight.md`) or substitute into `harness/faults/` by hand as described under the catalog.
 - Fault templates are not published as a versioned artefact; the `harness/faults` package on `sei-k8s-controller` main is the source of truth and seictl pins one commit of it in `go.mod`. Record the seictl version (or the controller commit you copied from) in the experiment's PR description.
 - `seictl mcp` (seictl #257) exposes these verbs as `chaos_list` / `chaos_render` / `bench_render` MCP tools; prefer them when the host has them (`references/seictl-cli.md`, *`seictl mcp`*). Like the render verbs, the newest tag at the time of writing predates them.
 - A Dedicated pool with a validator `Pending` on capacity (the placement gate command under *Lifecycle and gates*; `kubectl get pods -o wide` with an empty `NODE` column on an older controller) is not a chain to run chaos on; the fault lands on three validators and `f=1` no longer holds.
