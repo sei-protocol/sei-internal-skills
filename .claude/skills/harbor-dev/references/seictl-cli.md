@@ -372,7 +372,7 @@ The default footprint is roughly a quarter of the mainnet validator shape (16 CP
 - the Get-then-Create ensure-data-pvc task
 - the per-mode 16 CPU / 128Gi default
 
-Verified against `sei-k8s-controller` main @ `c3fabbf` on 2026-09-10. The sources read were `api/v1alpha1/seinode_types.go`, `api/v1alpha1/seinetwork_types.go`, and the generated CRDs under `config/crd/`. A reader cannot check these from the CLI alone. If one ever looks wrong, re-verify against the controller rather than against `seictl --help`.
+Verified against `sei-k8s-controller` main @ `7da9946` on 2026-09-10. The sources read were `api/v1alpha1/seinode_types.go`, `api/v1alpha1/seinetwork_types.go`, and the generated CRDs under `config/crd/`. A reader cannot check these from the CLI alone. If one ever looks wrong, re-verify against the controller rather than against `seictl --help`.
 
 ## Storage performance (`--iops` / `--throughput`)
 

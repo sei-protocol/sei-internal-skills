@@ -42,7 +42,7 @@ The spec is flat (no `spec.template`):
 
 The resource fields are create-only for mechanical reasons, not policy. Each child StatefulSet uses `OnDelete` with image-only drift detection, so a changed footprint never reaches a running pod. The controller creates each data PVC once and never updates it, so a changed size never reaches the volume. The VolumeAttributesClass name binds at that same provision, so a re-selected tier never reaches it either. Resizing a pool is therefore a new chain — `delete`, fresh chain-id, re-create — and the pool's data PVCs go with it.
 
-**Provenance:** the resource immutability reasons and the limits rules here come from `sei-k8s-controller` main @ `c3fabbf` (2026-09-10) — `api/v1alpha1/seinetwork_types.go` plus the shared `DataVolume*` types, and the generated `config/crd/sei.io_seinetworks.yaml`.
+**Provenance:** the resource immutability reasons and the limits rules here come from `sei-k8s-controller` main @ `7da9946` (2026-09-10) — `api/v1alpha1/seinetwork_types.go` plus the shared `DataVolume*` types, and the generated `config/crd/sei.io_seinetworks.yaml`. Re-verified at that commit: `spec.configValues` (#530/#538), `spec.scheduling.nodeIsolation` and `.status.nodes[*].{placement,workerNode}` (#547), `spec.deletionPolicy` default `Delete` (#542). A cluster pinned before any of those prunes the field in silence — probe with `kubectl explain` (preflight.md gate 5) before relying on it.
 
 **`resources.limits`:** `limits` accepts only `memory`, and `limits.memory` must equal `requests.memory`. The CRD rejects a CPU limit outright. The controller derives the memory limit from the request, so a rendered CR normally carries no `limits` block; `seictl` refuses to render `spec.resources.limits.cpu` from any source.
 
