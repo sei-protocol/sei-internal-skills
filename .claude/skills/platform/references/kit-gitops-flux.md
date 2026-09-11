@@ -2,13 +2,13 @@
 
 ## 1. What this concern is
 
-The fleet's reconcile spine is **Flux CD v2**: a `GitRepository(main)` feeds a root `Kustomization` per cell, which Flux continuously reconciles (pull-based, prune-on, SOPS-decrypting). The generic "kubectl apply / Helm install from CI" push model is wrong here — nothing is applied imperatively; the cluster converges to git. *Cited:* `clusters/prod/flux-system/gotk-sync.yaml`; `sources.md` §opengitops.
+The fleet's reconcile spine is **Flux CD v2**: a `GitRepository(main)` feeds a root `Kustomization` per cell, which Flux continuously reconciles (pull-based, prune-on, SOPS-decrypting). The generic "kubectl apply / Helm install from CI" push model is wrong here — nobody applies anything imperatively; the cluster converges to git. *Cited:* `clusters/prod/flux-system/gotk-sync.yaml`; `sources.md` §opengitops.
 
 ## 2. The pattern (how this fleet does it)
 
 - **The topology.** One `GitRepository` (branch `main`) → one root `Kustomization` per `clusters/<cell>` with `prune: true`, `interval: 10m`, `decryption: { provider: sops }`. *Cited:* `clusters/prod/flux-system/`.
-- **Ordering is NOT `spec.dependsOn` between Kustomizations.** Ordering is (a) resource order within a `kustomization.yaml`, then (b) **HelmRelease-level `dependsOn`** (e.g. karpenter's HelmRelease `dependsOn` cilium, patched in via the `cni-cilium` Component). The fleet has essentially no inter-Kustomization `dependsOn`. *Cited:* `clusters/base/cni-cilium/kustomization.yaml`.
-- **HelmReleases** (`helm.toolkit.fluxcd.io/v2`) ship as inline HelmRelease + HelmRepository pairs with a pinned chart version and `valuesFrom` a ConfigMap — cert-manager, kube-prometheus-stack, Karpenter (OCI), Cilium, istiod, external-dns. **This skill owns the HelmRelease shell + version pin + `valuesFrom`; the observability agents own the values' *contents*.** *Cited:* `clusters/prod/monitoring/prometheus-operator.yaml`, `clusters/base/kube-system/karpenter.yaml`.
+- **Ordering is NOT `spec.dependsOn` between Kustomizations.** Ordering is (a) resource order within a `kustomization.yaml`, then (b) **HelmRelease-level `dependsOn`**. Example: karpenter's HelmRelease `dependsOn` cilium, patched in via the `cni-cilium` Component. The fleet has essentially no inter-Kustomization `dependsOn`. *Cited:* `clusters/base/cni-cilium/kustomization.yaml`.
+- **HelmReleases** (`helm.toolkit.fluxcd.io/v2`) ship as inline HelmRelease + HelmRepository pairs with a pinned chart version and `valuesFrom` a ConfigMap. Those are cert-manager, kube-prometheus-stack, Karpenter (OCI), Cilium, istiod, external-dns. **This skill owns the HelmRelease shell + version pin + `valuesFrom`; the observability agents own the values' *contents*.** *Cited:* `clusters/prod/monitoring/prometheus-operator.yaml`, `clusters/base/kube-system/karpenter.yaml`.
 - **Splitting a Kustomization** uses a two-commit adopt-then-orphan cutover (so Flux does not prune mid-move). *Cited:* `cell-bootstrap.md`.
 
 ## 3. Anti-patterns / failure modes

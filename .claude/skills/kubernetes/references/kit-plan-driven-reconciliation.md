@@ -2,14 +2,14 @@
 
 ## 1. What this concern is
 
-Every sei-k8s-controller reconciler is **plan-driven and level-triggered**: it builds an ordered `TaskPlan` from observed state, **persists that plan to `.status.plan` before executing anything**, then drives the plan's tasks. The generic mental model — "diff desired vs actual and imperatively apply the delta inline" — is wrong here: side effects are mediated through an explicit, observable plan, and plan-building is separated from plan-execution. *Cited:* `internal/planner/doc.go`; `sources.md` §reconcile (level-based), §api-conventions.
+Every sei-k8s-controller reconciler is **plan-driven and level-triggered**. It builds an ordered `TaskPlan` from observed state, **persists that plan to `.status.plan` before executing anything**, then drives the plan's tasks. The generic mental model — "diff desired vs actual and imperatively apply the delta inline" — is wrong here. An explicit, observable plan mediates every side effect, and plan-building stays separate from plan-execution. *Cited:* `internal/planner/doc.go`; `sources.md` §reconcile (level-based), §api-conventions.
 
 ## 2. The pattern (how this repo does it)
 
 The reconcile loop is three phases under the profile's single-patch status discipline:
 
 1. **Resolve** — `ResolvePlan` / `ForGroup` reads current state and builds an ordered `TaskPlan` of `PlannedTask`s. The **planner owns conditions/phase**; it sets `TargetPhase` (empty = retry, non-empty = terminal `FailedPhase`). *Cited:* `internal/planner/`, profile §4.
-2. **Persist atomically** — when a freshly built plan differs from `.status.plan`, the controller **flushes it and requeues immediately (`ResultRequeueImmediate`) WITHOUT executing** — so an observer (and a restart) sees the plan before any side effect. *Cited:* `internal/controller/node/controller.go:146-166`.
+2. **Persist atomically** — when a freshly built plan differs from `.status.plan`, the controller **flushes it and requeues immediately (`ResultRequeueImmediate`) WITHOUT executing**. An observer (and a restart) thus sees the plan before any side effect. *Cited:* `internal/controller/node/controller.go:146-166`.
 3. **Execute** — on the next reconcile, `Executor.ExecutePlan` drives each task. The executor is **stateless per reconcile** and **never writes the cluster** — it mutates only in-memory status (plan/task state, phase). Each task implements `Execute` (idempotent submit) / `Status` (poll) / `Err`, with `Terminal(err)` distinguishing a terminal failure from a transient one (retry with bounded backoff). Deterministic UUIDv5 task IDs let a restarted controller rejoin an in-flight task. *Cited:* `internal/task/task.go:48-77,132-138`, `internal/planner/doc.go`.
 
 All status mutations across the phases accumulate in the single `obj.DeepCopy()` snapshot and flush through **one** `MergeFromWithOptimisticLock` patch (profile §2).
@@ -30,5 +30,5 @@ All status mutations across the phases accumulate in the single `obj.DeepCopy()`
 
 ## 5. One-way doors in this concern
 
-- **The `.status.plan` / `TaskPlan` shape** is consumed by observers, alerts, and restart-rejoin logic — a change to its structure or the phase-transition semantics is a contract change; flag for human approval.
+- **The `.status.plan` / `TaskPlan` shape** feeds observers, alerts, and restart-rejoin logic. A change to its structure or the phase-transition semantics is a contract change; flag for human approval.
 - **Task-ID determinism** (the UUIDv5 derivation) is a restart-rejoin contract — changing the derivation orphans in-flight tasks on upgrade. Flag it.
