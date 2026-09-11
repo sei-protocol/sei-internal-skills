@@ -351,13 +351,17 @@ Commands never `cd`, never modify `~/.kube/config`, never set env vars in the ca
 
 `spec.configValues` is a list of `{fileName, key, value}` entries the controller overlays on a node's generated `config.toml` / `app.toml` (SeiNetwork and SeiNode alike). It is the **day-2** config surface: an edit reaches a Running node. `spec.overrides` / `spec.configOverrides` are init-path only (see *configOverrides edits never reach a Running node* in `troubleshooting-seinode.md`); prefer `--config-value` for anything that may need to change after first boot.
 
+**The two surfaces take keys in different vocabularies — translate, never copy.** A `spec.overrides` key is a *unified sei-config schema* path (`storage.state_commit.write_mode`, `network.rpc.pprof_listen_address`); config-apply silently rejects anything else. A `--config-value` key is the *raw TOML path inside the named file* (`app.toml:state-commit.sc-write-mode`, `config.toml:rpc.pprof_laddr`), exactly as it appears in `/sei/config/<file>`. Carrying a unified key into `--config-value` writes a key seid does not know, and the failure surfaces late — at `config-validate`, or as a silently ignored table. Worked pair for pprof: override `spec.overrides."network.rpc.pprof_listen_address"="0.0.0.0:6060"` ⇔ config value `--config-value config.toml:rpc.pprof_laddr=0.0.0.0:6060`. Confirm a raw key by reading the rendered file on a running pod before you write it.
+
+**Minimum version.** `--config-value` arrives with seictl#253, which post-dates the v0.0.72 floor the rest of this skill assumes; no tag carried it at the time of writing. Pre-flight Gate 1 check 5 probes `seictl node apply --help` for `--config-value`; an older binary fails loud at parse (`flag provided but not defined: -config-value`). Upgrade (`go install ...@latest` once a tag ships, else `@main`); do not fall back to `--set spec.configOverrides`, which lands at first boot only.
+
 ```
 --config-value <file>.toml:<dotted.key>=<value>      # repeatable
 ```
 
 **Typing.** The value is parsed as JSON first, so `true`, `400`, `1.5`, `["a","b"]`, `{"x":1}` and `"quoted"` keep their type; a value that is not valid JSON (`async`, `0.0.0.0:8545`, `100ms`) is stored as a string. Integral numbers stay exact `int64` — large chain IDs and gas limits do not lose precision. The CR carries the typed value (`value: 400`, not `value: "400"`), and seid receives a typed TOML key. Quote a numeric string that must stay a string (`--config-value app.toml:evm.some_id='"713715"'`).
 
-**Rejected at render** — fix these before the PR, they never reach the cluster: empty value; `null` (top-level or nested in an array/object — the controller refuses both); `fileName` not matching `^[A-Za-z0-9_-]+\.toml$` (≤64 chars — so `autobahn.json` is not expressible here); `key` not matching dotted `^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$` (≤256 chars); more than **100** entries; two entries with the same `(fileName, key)` already present in the spec (from a preset or `--set`).
+**Rejected at render** — fix these before the PR, they never reach the cluster: empty value; `null` (top-level or nested in an array/object — the controller refuses both); `fileName` not matching `^[A-Za-z0-9_-]+\.toml$` (≤64 chars — so `autobahn.json` is not expressible here); `key` not matching dotted `^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*$` (≤256 chars); more than **100** entries; a spec whose *pre-existing* list (preset or `--set spec.configValues=[...]`) already names one `(fileName, key)` twice — seictl refuses to build on a list the controller would reject. Repeating a `--config-value` for an identity that is already in the list is **not** a rejection; it replaces the entry (next paragraph).
 
 **Merge by identity.** `--config-value` merges into the existing list by `(fileName, key)`: an existing entry with the same identity is replaced in place, new ones append in flag order. This runs **after** `--set`, so a preset's or `--set`'s entries survive; `--set spec.configValues=[...]` alone replaces the list wholesale.
 
@@ -377,7 +381,7 @@ kubectl get seinode <name> -o jsonpath='{.status.currentConfigValuesHash}{"\n"}{
 kubectl exec <pod> -c seid -- grep -A2 '^\[evm\]' /sei/config/app.toml
 ```
 
-An empty `currentConfigValuesHash` on a Running node means it predates the feature: edits wait for the next image roll (`NodeUpdateInProgress` reason `ConfigBaselineUnobserved`). Triage in `troubleshooting-seinode.md` → *ConfigValuesValid=False*.
+An empty `currentConfigValuesHash` on a Running node means it predates the feature: edits wait for the next image roll (`NodeUpdateInProgress` reason `ConfigBaselineUnobserved`). Triage in `troubleshooting-seinode.md` → *ConfigValuesValid=False / configValues edit produced no restart*.
 
 ## Resource footprint (`--cpu` / `--memory` / `--storage`)
 

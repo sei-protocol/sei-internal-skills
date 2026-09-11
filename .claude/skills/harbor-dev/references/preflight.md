@@ -37,6 +37,8 @@ Four-part check:
 
    This failure is loud once the flags reach the binary, exactly as check 3's is. An older `seictl` exits non-zero with `flag provided but not defined: -iops`. The silence arrives one step later, in the workaround. Dropping the two flags clears the parse error and renders the standard tier. The plan echo still promises 10000 IOPS, and the bench then measures the wrong disk. On a failure, either upgrade or drop to the standard tier, and state which one the render used.
 
+5. `seictl node apply --help` includes `--config-value`. This gates typed `spec.configValues` (seictl#253), which post-dates the v0.0.72 floor: a v0.0.72 binary passes checks 1–4 and fails loud here (`flag provided but not defined: -config-value`). Skip only when the request sets no config.toml/app.toml key. On a failure, upgrade; never substitute `--set spec.configOverrides`, which lands at first boot only and silently misses a Running node.
+
 **Why:** every engineer-facing verb is a `seictl network …` / `seictl node …` invocation. The `--network` auto-wire makes "spin up chain + RPC fleet on the same network" a one-shot. Catching an old binary here beats a confusing `NotFound`-on-CRD at apply. For check 3 it beats something worse: a chain that runs four times its intended size without complaint. **Do not weaken this gate to pass on either old or new** — that lets a broken binary through.
 
 **Recovery (out-of-band):**
@@ -49,7 +51,7 @@ Recommended path: `go install` from the newest release. The method itself works 
 go install github.com/sei-protocol/seictl@latest
 ```
 
-Re-run checks 1 through 4 afterwards. The version floor is **v0.0.72**. Treat that floor as the recovery target rather than the pass condition. The checks above still read the help text, because a floor cannot see which binary `PATH` resolves.
+Re-run checks 1 through 5 afterwards. The version floor is **v0.0.72**. Treat that floor as the recovery target rather than the pass condition. The checks above still read the help text, because a floor cannot see which binary `PATH` resolves.
 
 **All three paths below clear this gate now.** The `-ldflags` recipe installs a tag, and the release tarball serves `releases/latest`. Both land on v0.0.72 or newer, so the provenance stamp no longer costs a failed gate. Build-from-source stays available, and it is the one path that does not depend on a published release.
 
