@@ -478,13 +478,19 @@
       "id": "mcp-tools-preferred-with-server-check",
       "type": "tool-selection",
       "skill_loaded": true,
-      "scenario": "The agent's host lists MCP tools chaos_render and network_render from a seictl server. The engineer asks for a 4-validator chain plus a 3-minute network-partition fault, PR-based.",
+      "scenario": "The agent's host lists MCP tools chaos_render and network_render from a seictl server. The engineer asks for a 4-validator chain with two configValues plus a 3-minute network-partition fault, PR-based.",
       "expected": {
         "compliance_signals": [
-          "agent calls network_render and chaos_render rather than shelling out to seictl, and writes the returned manifest fields into the exp-<RUN_ID> directory",
+          "agent calls network_render and chaos_render rather than shelling out to seictl, passes namespace and the repeatable inputs under their singular names (configValue: [...]), and writes the returned manifest fields into the exp-<RUN_ID> directory",
           "agent still runs kubectl apply --dry-run=server (or seictl network apply --dry-run) on the rendered SeiNetwork before opening the PR, because network_render is client-side and CRD/CEL refusals surface only at the apiserver",
           "agent does not run a server check on the chaos manifest as a gate, since chaos_render matches the offline CLI verb; it passes duration as a Go duration string (3m), not minutes",
           "agent falls back to the CLI verbs, not to a hand-written manifest, if a tool call is unavailable"
+        ],
+        "forbidden_signals": [
+          "agent hand-writes the SeiNetwork or Chaos-Mesh manifest instead of calling a tool or the CLI verb",
+          "agent opens the PR without a server-side dry run of the SeiNetwork",
+          "agent passes duration as an integer or minutes (3, 180) to chaos_render, or a Go duration to bench_render durationMinutes",
+          "agent passes configValues/sets (plural) and treats an empty or refused result as success"
         ]
       },
       "source": "SKILL.md — seictl flags, MCP tools bullet; references/seictl-cli.md — `seictl mcp`"

@@ -123,7 +123,7 @@ The agent appends `compare-<COMPARE_RUN_ID>` to `engineers/<alias>/kustomization
 
 ### Chain CRs (`chain-a/` and `chain-b/`)
 
-Render with `seictl network apply --dry-run` (the SeiNetwork) + a loop of `seictl node apply --dry-run` (the followers), same recipe as single-chain (`references/ephemeral-chain-flow.md`) — including its resource-resolution step:
+Render with `seictl network apply --dry-run` (the SeiNetwork) + a loop of `seictl node apply --dry-run` (the followers) — or the `network_render` / `node_render` MCP tools when present — same recipe as single-chain (`references/ephemeral-chain-flow.md`) — including its resource-resolution step:
 
 ```sh
 # Resolve ONE footprint and reuse it for both sides. Default 4 CPU / 32Gi / 500Gi.
@@ -436,7 +436,7 @@ Reports:
 5. **Resolve profile + duration** — defaults `nightly_evm_transfer` / 10 min. Both sides use the same values.
 6. **Verify no CR name collisions** — `kubectl get seinetwork,seinode -n eng-<alias>` for the two planned SeiNetworks + their planned follower SeiNodes. Halt on any match.
 7. **Plan echo & confirm** — both image digests + source refs, both chain-ids, profile, duration, `<COMPARE_RUN_ID>`, target workspace path, both expected S3 keys, total estimated runtime. Estimate the runtime as `<DURATION> + ~6 min` for chain spinup + upload. Wait for confirmation.
-8. **Render** — write the four sub-dirs and the aggregator kustomization.yaml. Append `compare-<COMPARE_RUN_ID>` to `engineers/<alias>/kustomization.yaml` `resources:` if not already present. Chain rendering uses `seictl network apply --dry-run | yq -P` for the SeiNetwork plus a `seictl node apply --dry-run | yq -P` loop for the N followers per side; bench rendering uses the templates from `references/sei-load-bench.md` per side.
+8. **Render** — write the four sub-dirs and the aggregator kustomization.yaml. Append `compare-<COMPARE_RUN_ID>` to `engineers/<alias>/kustomization.yaml` `resources:` if not already present. Chain rendering uses `seictl network apply --dry-run | yq -P` for the SeiNetwork plus a `seictl node apply --dry-run | yq -P` loop for the N followers per side (or the `network_render` / `node_render` MCP tools, which return YAML directly); bench rendering uses the templates from `references/sei-load-bench.md` per side.
 9. **Verify config parity** — read both bench ConfigMaps back, diff the substituted JSONs; abort the render if they differ on anything except `seiChainID` and `endpoints`. The whole point of the comparison is identical workload — silent drift breaks the result.
 10. **Commit + push** — branch `feat/eng-<alias>-compare-<COMPARE_RUN_ID>`. Message: `feat(eng/<alias>): compare <imageA-tag> vs <imageB-tag> (<COMPARE_RUN_ID>)`.
 11. **Open the PR** — surface the URL and halt: "Merge to start. Both chains spin up in parallel (~5 min), both benches run for `<DURATION>` minutes, then I will fetch the reports and surface the comparison."
