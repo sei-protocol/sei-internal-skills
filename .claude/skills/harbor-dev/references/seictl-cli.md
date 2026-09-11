@@ -333,6 +333,23 @@ seictl bench render --run-id <RUN> --chain-id <CHAIN> --image <ref> --profile-co
 - `--duration` is a Go duration on `chaos render` (`3m`, `90s`) and a bare integer of minutes on `bench render` (`--duration 10`). The two land in one experiment directory, so do not carry one value across: `chaos render … --duration 10` is refused (`missing unit in duration`), and `bench render --duration 10m` fails flag parsing.
 - `bench render` emits the **harness** Job: `-n` is optional and an omitted value leaves `metadata.namespace` out of the manifest, so the Job lands wherever it is applied — under Flux that is the Kustomization's target namespace. Always pass `-n eng-<alias>` so the file is self-describing next to the chaos CRs, which require it. Image `--image`, `--config /etc/seiload/profile.json` from ConfigMap `--profile-configmap` (key `profile.json`), `--duration=<n>m`, `--post-summary-flush-delay=45s`, `--track-receipts=true`, metrics on `9090`, env `SEILOAD_RUN_ID`/`SEILOAD_CHAIN_ID`/`SEILOAD_COMMIT_ID`/`SEILOAD_WORKLOAD`; `activeDeadlineSeconds` defaults to `(duration + 15) * 60`, `--deadline-seconds` overrides and a negative value is refused. It does **not** render the ConfigMap, and it is not the two-container upload Job in `references/sei-load-bench.md` — that template adds the `aws-cli` sidecar that pushes `report.log` to S3. Use `bench render` when the run is Prometheus-only (the harness shape) or as the base to add the upload sidecar to; keep the profile ConfigMap from the bench reference either way. Pass `--image` by digest: the harness pin is `tag@sha256:…`.
 
+## `seictl mcp` — the render verbs as MCP tools
+
+`seictl mcp` (seictl #257; probe `seictl mcp --help`, an older binary fails at parse) serves the offline verbs over stdio as Model Context Protocol tools. When the host exposes them (a `seictl` entry under `mcpServers`, command `seictl`, args `["mcp"]`), **call the tool instead of shelling out**: the inputs are JSON-schema'd (no `--help` parsing, no shell quoting), a success returns `{manifest: "<YAML>"}` ready to write into the experiment directory, and a refusal comes back as `isError: true` with the same `metav1.Status` JSON the CLI prints to stderr (`reason: BadRequest`, `message` naming the field). Without the tools, use the CLI verbs above — same templates, same validation, same output.
+
+| tool | CLI equivalent | input fields |
+|---|---|---|
+| `chaos_list` | `seictl chaos list --output json` | none |
+| `chaos_render` | `seictl chaos render <fault> …` | `fault`, `chainId`, `runId`, `namespace`, `duration` (Go duration; omit on a one-shot fault) |
+| `bench_render` | `seictl bench render …` | `runId`, `chainId`, `image`, `profileConfigMap`, `durationMinutes` (integer), `namespace`, `commit`, `workload`, `deadlineSeconds` |
+| `network_render` | `seictl network apply --dry-run` | `preset`, `name`, `namespace`, `chainId`, `image`, `replicas`, `cpu`/`memory`/`storage`/`iops`/`throughput`, `nodeIsolation`, `consensusEngine`, `evmOnly`, `sets`, `configValues`, `genesisAccounts`, `genesisOverrides` |
+| `node_render` | `seictl node apply --dry-run` | as above minus `replicas`/genesis, plus `network`, `externalAddress`, `overrides` |
+
+Two differences from the CLI that change what you do next:
+
+- `network_render` / `node_render` are **client-side**. They run seictl's own parsing and preset validation and emit the CR as YAML with no server-side fields (skip the `yq del(...)` strip), but the apiserver never sees it, so a CRD-level refusal (`Invalid` — CEL immutability, an unknown field on an older controller) surfaces only at Flux apply. Keep a server check before the PR: `kubectl apply --dry-run=server -f <file> -n eng-<alias>`, or the CLI `--dry-run`. `chaos_render` / `bench_render` have no such gap — the CLI verbs are offline too.
+- The two duration fields keep their CLI units: `duration` is a Go duration string, `durationMinutes` an integer. Do not carry one value across.
+
 ## Conventions across the surface
 
 ### Output shape
