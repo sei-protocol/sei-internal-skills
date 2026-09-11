@@ -8,7 +8,7 @@ What the skill (and seictl) assume about AWS resources.
 |---|---|
 | Account | `189176372795` |
 | EKS region | `eu-central-1` |
-| ECR region | `us-east-2` (cross-region — sei-chain images are pushed there) |
+| ECR region | `us-east-2` (cross-region — sei-chain CI pushes images there) |
 
 ## S3 buckets
 
@@ -26,7 +26,7 @@ What the skill (and seictl) assume about AWS resources.
 
 Use this when an engineer wants to bootstrap an RPC fleet from a state-sync snapshot instead of a fresh sync (much faster for `pacific-1` / `atlantic-2`). Engineers have read access via SSO (pre-flight gate 2). SeiNode pods read via Pod Identity (`aws_iam_policy.seid_node_engineer`). Bucket lives in `eu-central-1`.
 
-**Layout**: `s3://harbor-sei-snapshots/<chainID>/state-sync/<height>.tar.gz`. A `latest.txt` pointer is published per chain — useful for engineers picking a target height, but **the sidecar does not read it on restore** (see Mechanism below).
+**Layout**: `s3://harbor-sei-snapshots/<chainID>/state-sync/<height>.tar.gz`. Each chain publishes a `latest.txt` pointer — useful for engineers picking a target height, but **the sidecar does not read it on restore** (see Mechanism below).
 
 **List available snapshot heights**:
 
@@ -95,9 +95,9 @@ EKS Pod Identity is the auth mechanism on harbor. All Pod Identity associations 
 Per `eng-<alias>` namespace (created by the engineer's onboarding `terraform/.../harbor/engineers/<alias>.tf`):
 
 - `eng-<alias>/seid-node` → `aws_iam_policy.seid_node_engineer` (snapshot read, genesis r/w).
-- `eng-<alias>/engineer-service-account` → `aws_iam_policy.engineer` (S3 `PutObject` and `ListBucket` on `harbor-validation-results/${aws:PrincipalTag/kubernetes-namespace}/*` — auto-scoped per namespace via Pod Identity session tag — plus ECR auth and `sei/sei-chain` image read).
+- `eng-<alias>/engineer-service-account` → `aws_iam_policy.engineer` (S3 `PutObject` and `ListBucket` on `harbor-validation-results/${aws:PrincipalTag/kubernetes-namespace}/*` — auto-scoped per namespace via the session tag of Pod Identity — plus ECR auth and `sei/sei-chain` image read).
 
-Pre-existing platform Pod Identity associations:
+Pre-existing Pod Identity associations for the platform:
 
 - `nightly/seid-node` → `aws_iam_policy.seid_node`.
 - `nightly/workload-service-account` → `aws_iam_policy.nightly_workload`.

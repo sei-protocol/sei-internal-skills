@@ -14,7 +14,7 @@ If a recipe below disagrees with `kubectl explain` on a live cluster, **`kubectl
 
 ## Resource-level conventions
 
-- **Two Kinds**: `seinetwork` (the genesis validator pool, one per chain) and `seinode` (a single node — each follower is a standalone SeiNode; the controller also generates the network's validators as SeiNodes).
+- **Two Kinds**: `seinetwork` (the genesis validator pool, one per chain) and `seinode` (a single node — each follower is a standalone SeiNode). The controller also generates the network's validators as SeiNodes.
 - **Namespace**: every recipe assumes `-n eng-<alias>`. Drop the `-n` flag at your peril; `-A` is correct only for cross-namespace platform queries (rare for an engineer's session).
 - **Network-identity labels** (the producer↔consumer contract):
   - `sei.io/seinetwork=<id>` — present on every SeiNode (validator or follower) belonging to the network.
@@ -26,7 +26,9 @@ If a recipe below disagrees with `kubectl explain` on a live cluster, **`kubectl
 
 ### 1. RPC endpoints for a chain — point load tools here, not at validators
 
-Returns the fleet of per-follower EVM JSON-RPC URLs for the network. These are the URLs `sei-load`, ad-hoc curl tests, and Foundry should target. **Validators serve no EVM (`ModeValidator` disables EVM HTTP/WS) — never point load traffic at them.** Each follower is one SeiNode publishing its own `.status.endpoint` URLs; the fleet is assembled *across* CRs via `node list`, not from a single object. The network's controller-created aggregate (`<network>-internal` ClusterIP, published as `.status.internalService`) fronts only its validator children — no EVM there — and the network's composed `.status.endpoints` surfaces EVM per-pod only, because stateful EVM protocols (filters, subscriptions, finalized-tag reads) do not load-balance behind kube-proxy. The follower fleet is therefore always assembled across SeiNode CRs; a round-robin VIP over followers would be an engineer-owned Flux Service (see the networking section in `ephemeral-chain-flow.md`), and load tools should not want one.
+Returns the fleet of per-follower EVM JSON-RPC URLs for the network. These are the URLs `sei-load`, ad-hoc curl tests, and Foundry should target. **Validators serve no EVM (`ModeValidator` disables EVM HTTP/WS) — never point load traffic at them.** Each follower is one SeiNode publishing its own `.status.endpoint` URLs; `node list` assembles the fleet *across* CRs, not from a single object. The network's controller-created aggregate (`<network>-internal` ClusterIP, published as `.status.internalService`) fronts only its validator children — no EVM there. The network's composed `.status.endpoints` surfaces EVM per-pod only, because stateful EVM protocols (filters, subscriptions, finalized-tag reads) do not load-balance behind kube-proxy.
+
+The follower fleet therefore always comes from SeiNode CRs. A round-robin VIP over followers would be an engineer-owned Flux Service (see the networking section in `ephemeral-chain-flow.md`), and load tools should not want one.
 
 ```sh
 # Fleet of per-follower EVM JSON-RPC URLs
@@ -46,7 +48,7 @@ seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node
   | jq -r '.items[].status.endpoint.evmWs | select(.)'
 ```
 
-`select(.)` drops a matched follower whose `.status.endpoint` is unset (not yet `Running`); the **selector** `sei.io/seinetwork=<id>,sei.io/role=node` does the real fleet-scoping at the apiserver (validators are `role=validator` and excluded). **Use the published URLs verbatim — never reconstruct them** (the controller owns the per-node headless DNS form, e.g. `http://<chain-id>-rpc-0.eng-<alias>.svc:8545`).
+`select(.)` drops a matched follower with no `.status.endpoint` yet (not yet `Running`); the **selector** `sei.io/seinetwork=<id>,sei.io/role=node` does the real fleet-scoping at the apiserver (validators are `role=validator` and excluded). **Use the published URLs verbatim — never reconstruct them** (the controller owns the per-node headless DNS form, e.g. `http://<chain-id>-rpc-0.eng-<alias>.svc:8545`).
 
 If `.items` is empty, no follower nodes exist for the network yet. Render one first, per `ephemeral-chain-flow.md` step 6. That recipe carries the create-only footprint and storage-performance flags.
 
@@ -123,7 +125,7 @@ A spec image set 30s ago but pods still on the old image is a normal mid-rollout
 
 ### 6. A follower's stable URL (no round-robin needed)
 
-A SeiNode is a single node with its own headless Service, so its `.status.endpoint.evmJsonRpc` **is** the stable per-follower URL — there is no per-pod array to index. For WS subscription affinity or gRPC streaming where you want one fixed target, list the fleet (recipe #1) and pick a follower; its published URL stays put.
+A SeiNode is a single node with its own headless Service, so its `.status.endpoint.evmJsonRpc` **is** the stable per-follower URL. No per-pod array exists to index. For WS subscription affinity or gRPC streaming where you want one fixed target, list the fleet (recipe #1) and pick a follower. Its published URL stays put.
 
 ```sh
 # Every follower's name + its stable EVM HTTP URL
@@ -148,7 +150,7 @@ kubectl get seinode <name> -n eng-<alias> \
   -o jsonpath='{.status.conditions[-1:].type}: {.status.conditions[-1:].message}'
 ```
 
-### 8. Flux Kustomization Ready state — "is the engineer fully wired?"
+### 8. Flux `Kustomization` Ready state — "is the engineer fully wired?"
 
 The per-engineer Flux Kustomization lives at `<alias>` in the `eng-<alias>` namespace (not `flux-system`). Used during onboarding verification (post-merge of the platform-repo PR) and during incident triage when a workspace push is not reconciling.
 
@@ -181,7 +183,7 @@ kubectl logs -n eng-<alias> -l sei.io/bench-name=<RUN_ID> -c seiload -f
 
 Returns: streaming stdout of the seiload container. Terminates when the Job pod terminates. Use during the active `<DURATION>` window when the engineer wants to watch generation rate, error rate, or RPC latency drift in real time.
 
-If `kubectl logs` returns `No resources found`, the bench Job has not been scheduled yet — Flux may not have reconciled the merged PR, or the parent kustomization is broken. Cross-check with recipe #8 (Flux Kustomization Ready state).
+If `kubectl logs` returns `No resources found`, the bench Job has not landed on the cluster yet. Flux may not have reconciled the merged PR, or the parent kustomization has failed. Cross-check with recipe #8 (Flux `Kustomization` Ready state).
 
 ### `bench:terminal-check` — has the Job hit a terminal state?
 
@@ -202,11 +204,11 @@ git rm -r engineers/<alias>/bench-<RUN_ID>/
 git commit + push
 ```
 
-After the PR merges, Flux prunes the Job + ConfigMap on next reconcile. PVCs / Pods cascade per k8s deletion propagation. The `<RUN_ID>` task dir is removed from the engineer's workspace tree.
+After the PR merges, Flux prunes the Job + ConfigMap on next reconcile. PVCs / Pods cascade per k8s deletion propagation. The teardown PR removes the `<RUN_ID>` task dir from the engineer's workspace tree.
 
 ## When a recipe does not match observed output
 
-The SeiNetwork/SeiNode status surface is a public contract (per the type comments in `sei-protocol/sei-k8s-controller`'s `api/v1alpha1/`), but it does evolve. If a recipe's jsonpath returns nothing on a live CR that is clearly populated, in priority order:
+The SeiNetwork/SeiNode status surface is a public contract (per the type comments in `sei-protocol/sei-k8s-controller`'s `api/v1alpha1/`), but it does evolve. If a recipe's jsonpath returns nothing on a live CR that has that field populated, in priority order:
 
 1. `kubectl explain seinetwork.status.<field-path>` / `kubectl explain seinode.status.<field-path>` to confirm the field still exists with the assumed name.
 2. `kubectl get seinetwork|seinode <name> -n eng-<alias> -o yaml` and grep for the field — sometimes the optionals collapse and the path needs a `?(@...)` filter.
