@@ -72,6 +72,11 @@ type PreExistingIssue struct {
 
 	// Body identifies the location and the impact in one line.
 	Body string `json:"body"`
+
+	// Accepted is the base branch's acceptance this issue matched, verbatim, and empty
+	// when it matched none. An accepted issue is still reported and does not withhold
+	// approval. See [ParseAccepted].
+	Accepted string `json:"accepted,omitempty"`
 }
 
 // severityAliases maps the older vocabulary onto the current one. A session
@@ -300,7 +305,12 @@ func PreExisting(v Verdict) []PreExistingIssue {
 			// change did not touch is noise on someone else's work.
 			severity = "suggestion"
 		}
-		out = append(out, PreExistingIssue{Severity: severity, Body: body})
+		issue := PreExistingIssue{Severity: severity, Body: body}
+		if severity != "suggestion" {
+			// Only a finding that would withhold approval is worth marking accepted.
+			issue.Accepted = acceptanceFor(body, v.Accepted)
+		}
+		out = append(out, issue)
 	}
 	return out
 }

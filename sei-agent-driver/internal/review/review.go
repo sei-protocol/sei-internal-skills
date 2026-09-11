@@ -49,6 +49,15 @@ type Request struct {
 	// leave the rule to the model's compliance; filtering alone would spend a
 	// review's attention writing findings this tool then discards.
 	IncludeNits bool
+
+	// Accepted is the base branch's list of accepted pre-existing conditions, as
+	// [ParseAccepted] read it from the standards file. The caller reads that file from
+	// the base and never from the head; see ParseAccepted for why. Nil accepts nothing.
+	Accepted []string
+
+	// AcceptedFrom names the ref Accepted was read from, e.g. "main", for the check and
+	// the notice to show. The driver cannot verify it; it records what the caller says.
+	AcceptedFrom string
 }
 
 // maxScoutDetail bounds one rendered finding. A scout's detail is unbounded model

@@ -133,8 +133,8 @@ func TestParseVerdict(t *testing.T) {
 			if got, want := v.HasVerdict(), tc.wantStructured != nil; got != want {
 				t.Errorf("HasVerdict() = %v, want %v (reason: %s)", got, want, v.Reason)
 			}
-			if got := v.Decision(); got != tc.wantDecision {
-				t.Errorf("Decision() = %q, want %q", got, tc.wantDecision)
+			if got := v.Said(); got != tc.wantDecision {
+				t.Errorf("Said() = %q, want %q", got, tc.wantDecision)
 			}
 			if !v.HasVerdict() && v.Reason == "" {
 				t.Error("Reason = empty on a rejected verdict, want a diagnosis an operator can act on")
@@ -146,8 +146,8 @@ func TestParseVerdict(t *testing.T) {
 	}
 }
 
-// TestVerdictDecisionAbsentCases covers Decision() when there is nothing to read
-// it from.
+// TestVerdictDecisionAbsentCases covers Decision() and Said() when there is nothing
+// to read them from.
 func TestVerdictDecisionAbsentCases(t *testing.T) {
 	t.Parallel()
 
@@ -157,6 +157,9 @@ func TestVerdictDecisionAbsentCases(t *testing.T) {
 		if got := v.Decision(); got != "" {
 			t.Errorf("Decision() = %q, want empty", got)
 		}
+		if got := v.Said(); got != "" {
+			t.Errorf("Said() = %q, want empty", got)
+		}
 		if v.HasVerdict() {
 			t.Error("HasVerdict() = true, want false")
 		}
@@ -165,8 +168,13 @@ func TestVerdictDecisionAbsentCases(t *testing.T) {
 	t.Run("a hand-built block with no decision key", func(t *testing.T) {
 		t.Parallel()
 		v := Verdict{Structured: map[string]any{"summary": "looks fine"}}
-		if got := v.Decision(); got != "" {
-			t.Errorf("Decision() = %q, want empty", got)
+		if got := v.Said(); got != "" {
+			t.Errorf("Said() = %q, want empty", got)
+		}
+		// A block that names no decision and no reading records no position, which is
+		// comment: neither an approval nor an objection is put on the pull request.
+		if got := v.Decision(); got != "comment" {
+			t.Errorf("Decision() = %q, want comment", got)
 		}
 	})
 }

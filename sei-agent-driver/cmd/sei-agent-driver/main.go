@@ -130,8 +130,22 @@ func reviewCommand(log *slog.Logger) *cli.Command {
 			},
 			&cli.StringFlag{
 				Name: "guidelines-file",
-				Usage: "repository standards file to read from the base branch " +
+				Usage: "repository-relative path of the standards file the AGENT reads for " +
+					"guidance, in its sandbox, from the base branch " +
 					"(default " + review.DefaultGuidelinesFile + ")",
+			},
+			&cli.StringFlag{
+				Name: "base-standards-file",
+				Usage: "local copy of that standards file as it stands on the pull request's " +
+					"BASE branch, for THIS process to enforce: its Accepted section lists " +
+					"the pre-existing blockers that do not withhold approval. Never the " +
+					"head's copy, which would let a change accept its own blocker",
+			},
+			&cli.StringFlag{
+				Name: "base-standards-ref",
+				Usage: "the ref --base-standards-file was read from, e.g. main; recorded in " +
+					"check.json and named beside every accepted finding so a wrong ref " +
+					"shows on the pull request",
 			},
 			&cli.StringFlag{
 				Name:  "extra-instructions",
@@ -238,6 +252,23 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 	req.GuidelinesFile = cmd.String("guidelines-file")
 	req.ExtraInstructions = cmd.String("extra-instructions")
 	req.IncludeNits = cmd.Bool("include-nits")
+
+	// An acceptance list that cannot be read accepts nothing, and the review runs. That
+	// fails towards withholding an approval, which is the side a missing file should
+	// land on; the warning is how an operator learns why an accepted blocker still vetoed.
+	if path := cmd.String("base-standards-file"); path != "" {
+		accepted, err := readAccepted(path)
+		if err != nil {
+			log.Warn("could not read the accepted conditions; nothing is accepted",
+				"path", path, "error", err)
+		}
+		req.Accepted = accepted
+		req.AcceptedFrom = cmd.String("base-standards-ref")
+		if err == nil {
+			log.Info("read the base branch's accepted conditions", "path", path,
+				"ref", req.AcceptedFrom, "count", len(accepted))
+		}
+	}
 
 	// A history that cannot be read is not a reason to refuse the review. The
 	// review is still correct without it — it just repeats itself — where refusing
@@ -403,6 +434,10 @@ func verdictOf(result driver.Result) review.Verdict {
 // pull request like a review that never ran.
 func report(outPath, findingsPath, checkPath string, result driver.Result,
 	verdict review.Verdict, req review.Request) error {
+	// Stamped here, ahead of every reading below, so the decision on stdout and the one
+	// in the check file weigh the same acceptances.
+	verdict.Accepted = req.Accepted
+	verdict.AcceptedFrom = req.AcceptedFrom
 	payload := map[string]any{
 		"session_id":  result.SessionID,
 		"exit_code":   result.ExitCode,
@@ -410,6 +445,7 @@ func report(outPath, findingsPath, checkPath string, result driver.Result,
 	}
 	if result.Reply != nil || verdict.HasVerdict() {
 		payload["decision"] = verdict.Decision()
+		payload["said"] = verdict.Said()
 		payload["structured"] = verdict.Structured
 	}
 	if verdict.SettledBy != "" {
@@ -466,6 +502,19 @@ func report(outPath, findingsPath, checkPath string, result driver.Result,
 		return err
 	}
 	return writeCheckRun(checkPath, verdict, req.IncludeNits, plan)
+}
+
+// readAccepted loads the accepted pre-existing conditions from a copy of the standards
+// file. An absent file is a repository that keeps none, which is the common case.
+func readAccepted(path string) ([]string, error) {
+	blob, err := os.ReadFile(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", path, err)
+	}
+	return review.ParseAccepted(string(blob)), nil
 }
 
 // readPriorThreads loads what this tool said on this pull request before.
