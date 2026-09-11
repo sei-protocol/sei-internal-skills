@@ -1,6 +1,6 @@
 # Findings Log Format
 
-The findings log is a lineage artifact (Design 13) that lives at `designs/<arc>/bugbash/<target>.md` in the DRI `<engineer>-designs` repo (in-repo `docs/bugbash/<target>.md` only as the no-DRI-repo fallback, with user confirmation). It is a single growing markdown file — items append in numbered order, never reorder, never drop. This makes diffs reviewable and lets `/issue` hand-offs cite stable item numbers.
+The findings log is a lineage artifact (Design 13) that lives at `designs/<arc>/bugbash/<target>.md` in the DRI `<engineer>-designs` repo. The in-repo `docs/bugbash/<target>.md` serves only as the no-DRI-repo fallback, with user confirmation. It is a single growing markdown file — items append in numbered order, never reorder, never drop. This makes diffs reviewable and lets `/issue` hand-offs cite stable item numbers.
 
 ## Top-level shape
 
@@ -30,11 +30,11 @@ The findings log is a lineage artifact (Design 13) that lives at `designs/<arc>/
 [Populated at convergence — one block per expert with their ship-it / conditional / don't-ship call.]
 ```
 
-The Summary table and Launch Verdict section are written by the orchestrator at convergence; while the run is in progress, only the Findings section grows.
+The orchestrator writes the Summary table and Launch Verdict section at convergence; while the run is in progress, only the Findings section grows.
 
 ## Per-item shape
 
-Every finding follows this exact structure. Section order is fixed; section headers are exact.
+Every finding follows this exact structure. Section order stays fixed; section headers are exact.
 
 ```markdown
 ## Item N: <short imperative title>
@@ -78,13 +78,13 @@ Every finding follows this exact structure. Section order is fixed; section head
 - **No silent edits.** When updating a finding (severity changed at challenger pass, fix sketch refined), the orchestrator may rewrite the item, but the item number is permanent.
 - **Exact headers.** `Overview`, `Experts involved`, `Scenario`, `Impact / Risk / Priority`, `Issue`. Tooling and `/issue` will key off these.
 - **Severity is not optional.** Every item has one. See the rubric.
-- **Metrics are judicious.** The default is no metric. Add one only when the failure is silent and operationally consequential. If three items in a target want a metric, at least two of them probably do not actually need one — challenge the metric in the next pass.
+- **Metrics are judicious.** The default is no metric. Add one only when the failure is silent and operationally consequential. If three items in a target want a metric, at least two of them probably do not actually need one. Challenge the metric in the next pass.
 - **Fix sketch is not a patch.** Bugbash is read-only. The sketch describes the shape of the fix, not the lines of code. Whoever picks up the issue does the actual implementation.
 - **Cite file:line in the Issue body.** Concrete pointers turn the artifact into a working document for the eventual fixer.
 
 ## Refuted findings
 
-Refuted candidates do NOT appear in the findings log. They are recorded only in the resume state `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (in-repo `.bugbash/<target>.yaml` fallback; Design 13 R3) under `pass-N.refuted:` with the challenger's reasoning, so a future run can avoid re-surfacing the same false positive. The findings log stays clean — only confirmed findings.
+Refuted candidates do NOT appear in the findings log. The orchestrator records them only in the resume state `designs/<arc>/bugbash/<target>.yaml` in the DRI repo (in-repo `.bugbash/<target>.yaml` fallback; Design 13 R3). They land under `pass-N.refuted:` with the challenger's reasoning, so a future run can avoid re-surfacing the same false positive. The findings log stays clean — only confirmed findings.
 
 ## Launch Verdict shape
 
@@ -110,4 +110,4 @@ Ship-it if the following are closed: Item 3, Item 7, Item 12.
 <explanation of the structural issue not captured in any single finding>
 ```
 
-The skill is done when every verdict is ship-it, OR every verdict is ship-it / conditional AND every named finding across conditionals is Critical or High. See SKILL.md step 5.
+The skill finishes when every verdict is ship-it. It also finishes when every verdict is ship-it / conditional AND every named finding across conditionals is Critical or High. See SKILL.md step 5.
