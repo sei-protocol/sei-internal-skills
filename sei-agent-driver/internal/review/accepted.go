@@ -29,18 +29,26 @@ const maxAcceptances = 100
 // The shape is one markdown section: a heading whose text opens with "Accepted", then
 // bullets, one condition per bullet, until the next heading. A bullet may carry a
 // rationale after an em dash or a double hyphen; the text before it is what a finding
-// must contain to match. Bullets below [minAcceptanceWords] are dropped. Nothing else in
-// the file is read.
+// must contain to match. Bullets below [minAcceptanceWords] are dropped, and a fenced
+// code block is skipped, so an example of the format is not a live entry. Nothing
+// else in the file is read.
 //
 //	## Accepted pre-existing conditions
 //	- pinned to the uci feature branch — deliberate until PLT-1300 lands
 func ParseAccepted(text string) []string {
 	var out []string
-	inSection := false
+	inSection, inFence := false, false
 	for _, line := range strings.Split(normalizeLineEndings(text), "\n") {
 		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "```") || strings.HasPrefix(trimmed, "~~~") {
+			inFence = !inFence
+			continue
+		}
+		if inFence {
+			continue
+		}
 		if title, ok := headingTitle(trimmed); ok {
-			inSection = strings.HasPrefix(strings.ToLower(title), AcceptedHeading)
+			inSection = opensAccepted(title)
 			continue
 		}
 		if !inSection || trimmed == "" || !bulletMarker(trimmed) {
@@ -56,6 +64,13 @@ func ParseAccepted(text string) []string {
 		}
 	}
 	return out
+}
+
+// opensAccepted reports whether a heading's first word is [AcceptedHeading]: "Accepted
+// pre-existing conditions" opens the section, "Acceptedness" does not.
+func opensAccepted(title string) bool {
+	fields := strings.Fields(strings.ToLower(title))
+	return len(fields) > 0 && strings.TrimRight(fields[0], ":.,") == AcceptedHeading
 }
 
 // headingTitle returns the text of an ATX heading, and false when the line is not one.

@@ -257,8 +257,9 @@ func run(ctx context.Context, cmd *cli.Command, log *slog.Logger) error {
 				"path", path, "error", err)
 		}
 		req.Accepted = accepted
-		if len(accepted) > 0 {
-			log.Info("carrying the base branch's accepted conditions", "count", len(accepted))
+		if err == nil {
+			log.Info("read the base branch's accepted conditions", "path", path,
+				"count", len(accepted))
 		}
 	}
 

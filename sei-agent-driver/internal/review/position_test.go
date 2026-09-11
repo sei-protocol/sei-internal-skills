@@ -242,6 +242,14 @@ func TestParseAccepted(t *testing.T) {
 			"## Not accepted\n- pins uci to the feature branch\n", nil},
 		{"crlf", "## Accepted\r\n- pins uci to the feature branch\r\n",
 			[]string{"pins uci to the feature branch"}},
+		{"a heading that only begins with the word",
+			"## Acceptedness of pins\n- pins uci to the feature branch\n", nil},
+		{"a heading with the word later",
+			"## Conditions accepted on main\n- pins uci to the feature branch\n", nil},
+		{"an example in a fence is not an entry",
+			"## Accepted\n```markdown\n- pins uci to the feature branch\n```\n" +
+				"- reads the token from the env\n",
+			[]string{"reads the token from the env"}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -266,5 +274,45 @@ func TestAcceptanceMatchingFoldsForm(t *testing.T) {
 		if got := acceptanceFor(body, accepted) != ""; got != want {
 			t.Errorf("acceptanceFor(%q) matched = %v, want %v", body, got, want)
 		}
+	}
+}
+
+func TestOnlyAWithholdingFindingIsMarkedAccepted(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":40,"decision":"approve","summary":"s",
+	  "pre_existing_issues":[
+	    {"severity":"suggestion","body":"go.mod pins uci to the feature branch"}]}`)
+	v.Accepted = []string{"pins uci to the feature branch"}
+	if issues := PreExisting(v); len(issues) != 1 || issues[0].Accepted != "" {
+		t.Errorf("PreExisting() = %+v; a suggestion lifts no veto and is not marked accepted", issues)
+	}
+	check, _ := BuildCheckRun(v, false)
+	if strings.Contains(check.Summary, "accepted") {
+		t.Errorf("the check says accepted where nothing was withheld:\n%s", check.Summary)
+	}
+}
+
+func TestTheNoticeCountsAndClipsWhatItNames(t *testing.T) {
+	t.Parallel()
+
+	long := strings.Repeat("x", maxPositionText+50)
+	v := verdictFrom(t, `{"read":40,"decision":"approve","summary":"s",
+	  "pre_existing_issues":[
+	    {"severity":"blocker","body":"one is the first blocker"},
+	    {"severity":"blocker","body":"two is the second blocker"},
+	    {"severity":"blocker","body":"three is the third blocker"},
+	    {"severity":"blocker","body":"four is the fourth blocker"},
+	    {"severity":"blocker","body":"`+long+`"}]}`)
+	notice := v.position()
+	if !strings.Contains(notice, "; and 2 more.") {
+		t.Errorf("the notice does not count the findings past %d:\n%s", maxPositionNamed, notice)
+	}
+	if strings.Contains(notice, "four is the fourth") || strings.Contains(notice, long) {
+		t.Errorf("the notice names past its bound:\n%s", notice)
+	}
+	v.Structured["pre_existing_issues"] = []any{map[string]any{"severity": "blocker", "body": long}}
+	if notice := v.position(); strings.Contains(notice, long) || !strings.Contains(notice, strings.Repeat("x", 50)) {
+		t.Errorf("a long finding is not clipped to %d:\n%s", maxPositionText, notice)
 	}
 }

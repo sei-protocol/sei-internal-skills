@@ -305,11 +305,12 @@ func PreExisting(v Verdict) []PreExistingIssue {
 			// change did not touch is noise on someone else's work.
 			severity = "suggestion"
 		}
-		out = append(out, PreExistingIssue{
-			Severity: severity,
-			Body:     body,
-			Accepted: acceptanceFor(body, v.Accepted),
-		})
+		issue := PreExistingIssue{Severity: severity, Body: body}
+		if severity != "suggestion" {
+			// Only a finding that would withhold approval is worth marking accepted.
+			issue.Accepted = acceptanceFor(body, v.Accepted)
+		}
+		out = append(out, issue)
 	}
 	return out
 }
