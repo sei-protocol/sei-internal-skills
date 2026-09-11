@@ -137,12 +137,16 @@ CPU=4; MEM=32Gi; DISK=500Gi
 # populated value must word-split into two flags. Do not "fix" it to "$PERF" -- the
 # usual shell lint (SC2086) would break every standard-tier render.
 PERF=""
+# Node isolation: Dedicated on both sides unless the engineer opts out. A side
+# whose validators share a worker node with the other side's pods measures the
+# neighbour, not the image. Same value on all four render calls.
+ISO=Dedicated
 
 # Side A genesis network
 seictl network apply <chain-tag>-a \
   --preset genesis-chain --chain-id <chain-tag>-a \
   --image <IMAGE_A_REF> \
-  --cpu "$CPU" --memory "$MEM" --storage "$DISK" $PERF \
+  --cpu "$CPU" --memory "$MEM" --storage "$DISK" $PERF --node-isolation "$ISO" \
   -n eng-<alias> --dry-run \
   | yq -P > chain-a/seinetwork-<chain-tag>-a.yaml
 
@@ -151,7 +155,7 @@ for k in $(seq 0 $((N-1))); do
   seictl node apply <chain-tag>-a-rpc-${k} \
     --preset rpc --chain-id <chain-tag>-a --network <chain-tag>-a \
     --image <IMAGE_A_REF> \
-    --cpu "$CPU" --memory "$MEM" --storage "$DISK" $PERF \
+    --cpu "$CPU" --memory "$MEM" --storage "$DISK" $PERF --node-isolation "$ISO" \
     -n eng-<alias> --dry-run \
     | yq -P > chain-a/seinode-<chain-tag>-a-rpc-${k}.yaml
 done
@@ -159,7 +163,7 @@ done
 # Side B (mirror with image B, -b suffix, and --network <chain-tag>-b) — SAME footprint
 ```
 
-**Both sides must carry an identical footprint, and the image is the only thing that differs.** A comparative bench attributes a throughput delta to the seid build under test. Two sides on different CPU, memory, or disk sizes measure the footprint instead, and the report reads as a build regression. Resolve the footprint once, before rendering either side, and pass the same values to all four render calls. Storage performance belongs to that parity rule: two sides on different tiers measure the disk. If the engineer wants a footprint comparison rather than a build comparison, that is a different experiment — say so rather than varying the resources here.
+**Both sides must carry an identical footprint, and the image is the only thing that differs.** A comparative bench attributes a throughput delta to the seid build under test. Two sides on different CPU, memory, or disk sizes measure the footprint instead, and the report reads as a build regression. Resolve the footprint once, before rendering either side, and pass the same values to all four render calls. Storage performance belongs to that parity rule: two sides on different tiers measure the disk. So does node isolation: a `Shared` side can land next to the other side's validators and measure their load. Default both sides to `Dedicated`, and after both networks reach `Ready` run recipe #9 in `cluster-inspection-recipes.md` on each — every validator `Scheduled` on a distinct `workerNode` — before starting the Jobs. A `Pending` row is a capacity ask to platform; a Dedicated comparison needs `2 × (replicas + N)` free single-tenant worker nodes, which harbor's shared pool may not have. If the engineer wants a footprint comparison rather than a build comparison, that is a different experiment — say so rather than varying the resources here.
 
 **A storage-tier comparison is two chains, not one chain re-tuned.** `volumeAttributesClassName` is create-only, so nothing can move a running chain from standard to performance. The apiserver rejects the edit, and the data PVC would keep its original parameters even without that rejection. Render it the way a build comparison renders: two sides, one tier each, identical images, and the tier as the only difference. The `<COMPARE_RUN_ID>` join key and the four manifest dirs work unchanged. Set `PERF` per side rather than once, and hold `CPU`, `MEM`, and `DISK` equal across both.
 

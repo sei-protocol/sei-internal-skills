@@ -171,6 +171,38 @@ kubectl get kustomization <alias> -n eng-<alias> \
 
 If `kubectl get kustomization <alias> -n eng-<alias>` returns `NotFound`, the onboarding PR has not merged or the per-engineer Flux wiring was not included. Do not try to create the Kustomization yourself — surface to the engineer + platform team.
 
+### 9. Validator placement — "is every validator alone on its EC2?"
+
+Run after `network watch --until=Ready` on any chain that will carry a bench, and always on a chain rendered with `--node-isolation Dedicated`. `Ready` says the chain produces blocks; it says nothing about where the pods landed.
+
+```sh
+# One row per validator: name, placement, worker node
+kubectl get seinetwork <chain-id> -n eng-<alias> \
+  -o jsonpath='{range .status.nodes[*]}{.name}{"\t"}{.placement}{"\t"}{.workerNode}{"\n"}{end}'
+# → <chain-id>-0    Scheduled    ip-10-0-12-34.ec2.internal
+#   <chain-id>-1    Scheduled    ip-10-0-45-67.ec2.internal
+#   <chain-id>-2    Pending
+
+# Repeated worker nodes (any output = two validators share a box)
+kubectl get seinetwork <chain-id> -n eng-<alias> \
+  -o jsonpath='{range .status.nodes[*]}{.workerNode}{"\n"}{end}' | grep -v '^$' | sort | uniq -d
+
+# Requested vs rolled isolation, per validator
+kubectl get seinode -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=validator \
+  -o custom-columns='NAME:.metadata.name,WANT:.spec.scheduling.nodeIsolation,ROLLED:.status.currentNodeIsolation'
+
+# A standalone follower has no placement row on any parent; read its pod
+kubectl get pod -n eng-<alias> -l sei.io/node=<chain-id>-rpc-<k> \
+  -o custom-columns='POD:.metadata.name,NODE:.spec.nodeName,PHASE:.status.phase'
+```
+
+Reading the table:
+
+- **Every row `Scheduled`, every `workerNode` distinct** — clean; the measurement window may open.
+- **A `Pending` row** — the pod is unbound. On a `Dedicated` pool that is a capacity shortfall: no worker node without a Sei pod exists. `kubectl describe pod <name>-0 -n eng-<alias>` shows the scheduler's `FailedScheduling` reason (`didn't match pod anti-affinity rules`). Surface it as a capacity ask to platform; do not delete the pod, do not re-apply, and do not flip the CR to `Shared` unless the engineer accepts a shared run.
+- **A repeated `workerNode`** — two validators share bandwidth and CPU. Expected on `Shared`; impossible on `Dedicated` once both are `Scheduled` (if you see it, `ROLLED` is still `Shared` on one of them and a roll is pending or the controller is behind). Any bench number taken in this state measures the neighbour.
+- **`WANT` ≠ `ROLLED`** — an isolation change is in flight; the controller replaces the pod on its next node-update plan. Wait for `ROLLED` to match before benching.
+
 ## Bench observation recipes (named)
 
 Three recipes used by the bench Procedure (single + comparative). Referenced by name from `SKILL.md` step 11 and from `references/sei-load-bench.md`. Each is the exact command, what it shows, and the failure mode.
