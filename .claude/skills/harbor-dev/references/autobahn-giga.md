@@ -65,15 +65,21 @@ Rules, each with its consequence:
 Verification after `Running` — check the storage keys, not just the executor section, because a misplaced `sc-write-mode` is a healthy node in the wrong mode:
 
 ```sh
-for p in $(kubectl get pods -n eng-<alias> -l sei.io/chain=<chain-id>,sei.io/role=validator -o name); do
+want=$(kubectl get seinetwork <chain-id> -n eng-<alias> -o jsonpath='{.status.replicas}')
+pods=$(kubectl get pods -n eng-<alias> -l sei.io/chain=<chain-id>,sei.io/role=validator -o name)
+got=$(printf '%s\n' $pods | grep -c .)
+[ -n "$want" ] && [ "$got" -eq "$want" ] || { echo "FAIL: $got validator pods matched, .status.replicas=$want"; exit 1; }
+for p in $pods; do
   echo "== $p"
   kubectl exec -n eng-<alias> "$p" -c seid -- \
-    awk '/^\[/{s=$0} (s=="[giga_executor]" && /^(enabled|occ_enabled) *=/) || /^(sc-write-mode|sc-write-mode-enable-auto|evm-ss-split|rs-backend) *=/{print s, $0}' \
+    awk '/^\[/{s=$0} (s ~ /^\[giga_executor\]/ && /^(enabled|occ_enabled) *=/) || /^(sc-write-mode|sc-write-mode-enable-auto|evm-ss-split|rs-backend) *=/{print s, $0}' \
     /home/nonroot/.sei/config/app.toml
 done
-# /home/nonroot is platform.HomeDir; the data PVC is mounted at /home/nonroot/.sei. Pods carry sei.io/chain + sei.io/role (noderesource.ResourceLabels); sei.io/seinetwork is on the SeiNode objects, not the pods.
+# The count gate is the point: an empty selector match (wrong chain-id, wrong namespace, pods not up) must fail, not print nothing and pass. Fewer rows than replicas is a failed gate.
+# awk is deliberately asymmetric: enabled/occ_enabled are anchored to [giga_executor] (they are common key names); the four storage keys are NOT anchored so a key under the wrong table still prints, with its table, and is caught by the expect line.
+# /home/nonroot is platform.HomeDir; the data PVC is mounted at /home/nonroot/.sei. Pods carry sei.io/chain + sei.io/role (noderesource.ResourceLabels).
 # expect, Recipe A, identical for every validator: [giga_executor] enabled = true · [giga_executor] occ_enabled = true · [state-commit] sc-write-mode = "test_only_dual_write" · [state-commit] sc-write-mode-enable-auto = false · [state-store] evm-ss-split = true · [receipt-store] rs-backend = "pebble"
-# expect, Recipe B: same, with sc-write-mode = "flatkv_only" and evm-ss-split = false
+# expect, Recipe B, identical for every validator: [giga_executor] enabled = true · [giga_executor] occ_enabled = true · [state-commit] sc-write-mode = "flatkv_only" · [state-commit] sc-write-mode-enable-auto = false · [state-store] evm-ss-split = false · [receipt-store] rs-backend = "pebble"
 ```
 
 Every validator must print the same six lines under the expected tables. A key under a different table, or absent, is the silent-`auto` failure; one validator differing from the rest is the same failure on that node — `config-patch` and `ConfigValuesValid` are per-SeiNode, so a heterogeneous pool keeps producing blocks while the bench attributes its numbers to one storage mode. A mismatch with the CR means `config-patch` did not land — read that SeiNode's `.status.plan` per `troubleshooting-seinode.md`. `ConfigValuesValid=False` on the SeiNode means the entry failed CRD-side validation and never reached the file.
