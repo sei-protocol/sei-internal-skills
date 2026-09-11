@@ -4,7 +4,7 @@ Skills and agents that are **not part of the shipped core**.
 
 sei-internal-skills ships a focused set: the skills and agents an engineering team reaches for
 on ordinary work. This folder holds everything else — resources that are still
-being shaped, serve a narrow audience, or came out of a product exploration. They
+taking shape, serve a narrow audience, or came out of a product exploration. They
 keep their full history and stay runnable. They just do not ride along with a
 default install.
 
@@ -12,7 +12,7 @@ default install.
 
 `make update`, `make sync-all`, `make bootstrap`, and the over-the-wire installer
 all ignore this folder. `sync-skills.sh` and `sync-agents.sh` read `.claude/skills/`
-and `.claude/agents/` and nothing else, so a resource is excluded **by living
+and `.claude/agents/` and nothing else. A resource stays out **by living
 here** — there is no category to set and none to drift out of sync.
 
 To install them anyway, opt in by name:
@@ -33,9 +33,9 @@ make sync-experimental          # into ~/.claude
 | **Code quality** | `code-structure` |
 
 `prose-steward` is **not** here. `/xreview` pins it unconditionally on any
-`skill-package` change and halts when a pinned steward is missing from its registry,
-so it is load-bearing for a core skill and stays in the core. It carries its own
-doctrine now; the skill that used to hold it was retired.
+`skill-package` change and halts when a pinned steward is missing from its registry.
+It is load-bearing for a core skill and stays in the core. It carries its own
+doctrine now; the skill that used to hold it is now retired.
 
 ## Getting rid of one you already have
 
@@ -62,8 +62,8 @@ git mv .claude/skills/<name> experimental/skills/<name>
 ```
 
 Promotion is a real bar, not a formality. A resource belongs in the core when an
-engineering team outside its author would reach for it on ordinary work, and when
-it is stable enough that changing it is a considered act.
+engineering team outside its author would reach for it on ordinary work. It must
+also be stable enough that changing it is a considered act.
 
 ## The archive
 

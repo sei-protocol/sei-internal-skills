@@ -10,7 +10,7 @@ Restructures code so it reads as a legible sequence of named steps. Owns step
 decomposition and where the *why* lives. Owns nothing else.
 
 **Shape:** technique with a discipline spine. The method is short; the refusals carry
-the weight, because the two ways this goes wrong — extracting everything, and deleting
+the weight. The two ways this goes wrong — extracting everything, and deleting
 every comment — both feel like doing the job well.
 
 ## The one principle
@@ -29,7 +29,7 @@ When any two rules below conflict, this one wins.
 
 1. **Structure changes, behavior never.** The refactor must be diffable as "nothing
    changed but structure and where comments live." **The existing tests passing
-   unchanged is the proof** — if a test needs editing, this is not a structure
+   unchanged is the proof.** If a test needs editing, this is not a structure
    refactor and you must say so and stop. Readability is never worth a behavior
    change.
 
@@ -45,9 +45,10 @@ When any two rules below conflict, this one wins.
    Relocation is the move, not deletion.
 
 4. **Do not over-abstract.** Extraction serves the read. Refuse it when it would
-   thread a new parameter through an existing signature, blur two distinct paths into
-   one helper (two exits with different error strings are two paths), or add
-   indirection for a single caller with a name no clearer than the expression.
+   thread a new parameter through an existing signature. Refuse it when it would blur
+   two distinct paths into one helper (two exits with different error strings are two
+   paths). Refuse it when it would add indirection for a single caller with a name no
+   clearer than the expression.
    **When you defer an extraction, state the condition that would un-defer it.**
 
 5. **Propose; the author approves.** Output a diff or the restructured method. Never
@@ -56,7 +57,7 @@ When any two rules below conflict, this one wins.
 
 ## The principles
 
-Each is stated with the test that decides it.
+Each comes with the test that decides it.
 
 **1. A method reads as a list of named steps.** The orchestration is a sequence of
 calls whose names are the outline — `snapshotBase() → resolveGate() → if failed
@@ -79,8 +80,8 @@ The explanation is not the problem. Its placement inline in the orchestration is
 **Fix by extracting, never by deleting.**
 
 **4. Keep the load-bearing why.** Some comments survive because the invariant they
-state is not visible from the call order: a sequencing dependency, correct code that
-looks wrong, a safety invariant. *The test: could a competent engineer get this wrong
+state is not visible from the call order. Examples: a sequencing dependency, correct
+code that looks wrong, a safety invariant. *The test: could a competent engineer get this wrong
 without the comment?* If yes, keep it — trimmed, and on the thing it governs.
 
 **5. Extraction has a cost.** Not everything should be a method. When you skip one,
@@ -90,12 +91,12 @@ oversight.
 
 **6. Prove equivalence with an anchor.** Where it helps a reviewer verify nothing
 shifted, keep a byte-identical line. Keeping a local rather than inlining it means the
-guard line is textually unchanged and the diff proves only the right-hand side became
-a named call. Inlining is a fine follow-up once equivalence is established.
+guard line is textually unchanged. The diff then proves only the right-hand side became
+a named call. Inlining is a fine follow-up once you establish equivalence.
 
 **7. The why must be the true reason, not the most consequential-sounding one.** A
 rationale that overstates what the code defends against is a defect even when the code
-is correct, because the next person calibrates their changes to the reason you wrote.
+is correct. The next person calibrates their changes to the reason you wrote.
 *The test: would the engineer who owns this code recognise your reason as the real
 one?*
 
@@ -117,7 +118,7 @@ to distribute the guard.
 
 **11. A reversed decision invalidates everything written under it.** When a change
 flips a decision, the names, comments and doc text written for the old one go stale in
-the same commit and read as contradictions. Sweep them with the reversal rather than
+the same commit. They read as contradictions. Sweep them with the reversal rather than
 waiting for review to find them.
 
 **12. Digestibility for a new engineer is the north star.** Success is a new engineer
@@ -151,7 +152,7 @@ the job well.
    two things, or it is not a step.
 
 4. **Place each why.** For every comment, apply principle 4's test. Load-bearing ones
-   move to the thing they govern, trimmed. Ones the step name now carries are cut,
+   move to the thing they govern, trimmed. Cut the ones the step name now carries,
    because the name says it. Ones that explain *what* a block does get extracted with
    the block, not deleted.
 
@@ -174,7 +175,7 @@ the job well.
 - **The file is safety- or consensus-critical and the user wants it applied
   directly.** Propose, and say the review gate still applies.
 - **The method is not actually hard to follow.** Say so. A refactor with no reader
-  benefit is churn in someone's blame history.
+  benefit only churns someone's blame history.
 
 ## What this skill does not do
 
@@ -189,7 +190,7 @@ the job well.
 
 A proposed refactor — diff or restructured method — plus:
 - what was deliberately not extracted, each with its un-defer condition;
-- which comments were relocated, and which were kept and why;
+- which comments you relocated, and which you kept and why;
 - the equivalence claim, backed by "the existing tests pass unchanged" or an explicit
   statement that they would not.
 
