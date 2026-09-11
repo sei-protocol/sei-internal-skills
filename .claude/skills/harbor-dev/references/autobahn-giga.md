@@ -68,14 +68,14 @@ Verification after `Running` — check the storage keys, not just the executor s
 want=$(kubectl get seinetwork <chain-id> -n eng-<alias> -o jsonpath='{.status.replicas}')
 pods=$(kubectl get pods -n eng-<alias> -l sei.io/chain=<chain-id>,sei.io/role=validator -o name)
 got=$(printf '%s\n' $pods | grep -c .)
-[ -n "$want" ] && [ "$got" -eq "$want" ] || { echo "FAIL: $got validator pods matched, .status.replicas=$want"; exit 1; }
+[ -n "$want" ] && [ "$got" -eq "$want" ] || { echo "FAIL: $got validator pods matched sei.io/chain=<chain-id>; seinetwork/<chain-id> .status.replicas='$want' (empty = network lookup missed)"; exit 1; }
 for p in $pods; do
   echo "== $p"
   kubectl exec -n eng-<alias> "$p" -c seid -- \
     awk '/^\[/{s=$0} (s ~ /^\[giga_executor\]/ && /^(enabled|occ_enabled) *=/) || /^(sc-write-mode|sc-write-mode-enable-auto|evm-ss-split|rs-backend) *=/{print s, $0}' \
     /home/nonroot/.sei/config/app.toml
 done
-# The count gate is the point: an empty selector match (wrong chain-id, wrong namespace, pods not up) must fail, not print nothing and pass. Fewer rows than replicas is a failed gate.
+# The count gate is the point: an empty selector match (wrong chain-id, wrong namespace, pods not up) must fail, not print nothing and pass. Any count other than replicas fails — fewer is a short pool, more is a Retain-orphaned pool on the same chain-id (SKILL.md teardown hazard). The gate assumes the SeiNetwork name equals spec.genesis.chainId (what sei.io/chain carries) — the seictl preset guarantees it; if you named them differently, substitute the network name on the `want=` line.
 # awk is deliberately asymmetric: enabled/occ_enabled are anchored to [giga_executor] (they are common key names); the four storage keys are NOT anchored so a key under the wrong table still prints, with its table, and is caught by the expect line.
 # /home/nonroot is platform.HomeDir; the data PVC is mounted at /home/nonroot/.sei. Pods carry sei.io/chain + sei.io/role (noderesource.ResourceLabels).
 # expect, Recipe A, identical for every validator: [giga_executor] enabled = true · [giga_executor] occ_enabled = true · [state-commit] sc-write-mode = "test_only_dual_write" · [state-commit] sc-write-mode-enable-auto = false · [state-store] evm-ss-split = true · [receipt-store] rs-backend = "pebble"
