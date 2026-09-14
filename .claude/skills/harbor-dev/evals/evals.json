@@ -583,7 +583,7 @@
           "agent falls back to the docker path, not to `jq -e .` alone, if a tool call is unavailable"
         ],
         "forbidden_signals": [
-          "agent creates the throwaway validate ConfigMap or runs `kubectl run` to validate while the tools are listed",
+          "agent reaches for the throwaway validate ConfigMap or `kubectl run` to get the host-binary verdict the listed MCP tools already give, rather than only as the second check against the pinned image",
           "agent passes a filesystem path, or the profile as decoded JSON arguments, to validate_profile instead of the profile text",
           "agent calls validate_profile on the raw profile while it still carries [__RPC_ENDPOINTS__]",
           "agent reports the profile as validated against the pinned image when only the host's binary answered",

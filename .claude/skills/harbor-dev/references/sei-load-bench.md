@@ -40,7 +40,7 @@ Source of truth is the `seiload` binary itself (verbs introduced in sei-protocol
 
 ### Discovery verbs (run from the resolved image, no checkout, no chain)
 
-With the `seiload mcp` tools on the host, skip this block (*`seiload mcp`* below).
+Prefer the `seiload mcp` tools over this block when the host lists them (*`seiload mcp`* below). One carve-out: the exact-image check for a `$IMG` the host did not install from needs a verb from here, because the tools answer for the host's binary.
 
 ```sh
 IMG=ghcr.io/sei-protocol/sei-load@sha256:<digest>          # the image the Job will run
@@ -66,7 +66,7 @@ Both objects are one-offs in your own namespace, never committed. `--rm` deletes
 
 ### `seiload mcp` — the offline verbs as MCP tools
 
-`seiload mcp` (sei-load #106) serves the offline verbs over stdio as tools for the Model Context Protocol. The host exposes them through a `sei-load` entry under `mcpServers` (command `seiload`, args `["mcp"]`). Availability is a host-config fact. Check the session's tool list for `validate_profile`. Do not check `PATH`, and do not check `docker info`: a host can carry the tools with no `seiload` binary in the shell, and the reverse. When they are present, **call the tool instead of the docker block above**: no daemon, no GHCR pull, no bind mount, no throwaway ConfigMap. Without them, use the docker path above — same parser, same verdict, more setup. Never block waiting on a tool the host does not list.
+`seiload mcp` (sei-load #106) serves the offline verbs over stdio as tools for the Model Context Protocol. The host exposes them through a `sei-load` entry under `mcpServers` (command `seiload`, args `["mcp"]`). Availability is a host-config fact. Check the session's tool list for `validate_profile`. Do not check `PATH`, and do not check `docker info`: a host can carry the tools with no `seiload` binary in the shell, and the reverse. When they are present, **call the tool instead of the docker block above**: no daemon, no GHCR pull, no bind mount, no throwaway ConfigMap. The exception is the exact-image check in the last bullet, which needs a verb from that block. Without them, use the docker path above — same parser, same verdict, more setup. Never block waiting on a tool the host does not list.
 
 | tool | equivalent above | input fields |
 |---|---|---|
