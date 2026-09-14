@@ -40,6 +40,8 @@ Source of truth is the `seiload` binary itself (verbs introduced in sei-protocol
 
 ### Discovery verbs (run from the resolved image, no checkout, no chain)
 
+With the `seiload mcp` tools on the host, skip this block (*`seiload mcp`* below).
+
 ```sh
 IMG=ghcr.io/sei-protocol/sei-load@sha256:<digest>          # the image the Job will run
 docker run --rm $IMG explain                                # whole embedded docs/workload-spec.md
@@ -49,7 +51,7 @@ docker run --rm -v "$PWD/profile.json:/p/profile.json:ro" $IMG validate /p/profi
 #   → ok: 5 scenario(s), 5 runnable   (parse + Scenario.Validate + registry check + weight check; sends nothing)
 ```
 
-`explain` prints Markdown; there is no `--json` schema, `--skeleton`, `manifest`, or `mcp` verb yet (PLT-1245 tracks them). The image is distroless: `validate` and `explain` are the only agent-facing verbs, and `--help` is the flag inventory. Local `docker` with GHCR auth is the default path; probe `docker info >/dev/null && docker pull $IMG` first. Without it, run the same verb in-cluster **before the PR**, from a throwaway ConfigMap you create by hand (the one imperative write this skill permits: own namespace, named for the run, deleted in the same breath, never committed — name it in the plan echo alongside the renders) — not the GitOps one (`seiload-profile-<RUN_ID>` only exists after the bench PR merges, and the Job in that same PR is already sending load by then, so mounting it can never gate anything):
+`explain` prints Markdown; there is still no `--json` schema, `--skeleton` or `manifest` verb (PLT-1245 tracks those). `seiload mcp` exposes these verbs as MCP tools; prefer them over this block when the host lists them (*`seiload mcp`* below). The image is distroless: `validate` and `explain` are the only agent-facing verbs, and `--help` is the flag inventory. Local `docker` with GHCR auth is the default path; probe `docker info >/dev/null && docker pull $IMG` first. Without it, run the same verb in-cluster **before the PR**, from a throwaway ConfigMap you create by hand (the one imperative write this skill permits: own namespace, named for the run, deleted in the same breath, never committed — name it in the plan echo alongside the renders) — not the GitOps one (`seiload-profile-<RUN_ID>` only exists after the bench PR merges, and the Job in that same PR is already sending load by then, so mounting it can never gate anything):
 
 ```sh
 kubectl create configmap seiload-validate-<RUN_ID> -n eng-<alias> --context=harbor --from-file=profile.json=./profile.json &&
@@ -61,6 +63,23 @@ kubectl delete configmap seiload-validate-<RUN_ID> -n eng-<alias> --context=harb
 Both objects are one-offs in your own namespace, never committed. `--rm` deletes the Pod on exit, so the verdict is what the attached `-i` stream prints — there is no `kubectl logs` afterwards; capture the output in the same command. Neither path available → the strict decoder at Job start is the first check; say so in the plan echo and do not call the profile validated.
 
 **Capability gate.** `docker run --rm $IMG validate --help` exits 0 when the verbs exist and non-zero when they do not; that exit code is the gate, not a commit comparison (`4398610` is the commit that introduced them — provenance, not a version to order against). Fall back to the `jq -e .` syntax gate and say so in the plan echo. The strict decoder at Job start is then the first real check. Never call a profile "validated" on an image that could not validate it.
+
+### `seiload mcp` — the offline verbs as MCP tools
+
+`seiload mcp` (sei-load #106) serves the offline verbs over stdio as tools for the Model Context Protocol. The host exposes them through a `sei-load` entry under `mcpServers` (command `seiload`, args `["mcp"]`). Availability is a host-config fact. Check the session's tool list for `validate_profile`. Do not check `PATH`, and do not check `docker info`: a host can carry the tools with no `seiload` binary in the shell, and the reverse. When they are present, **call the tool instead of the docker block above**: no daemon, no GHCR pull, no bind mount, no throwaway ConfigMap. Without them, use the docker path above — same parser, same verdict, more setup. Never block waiting on a tool the host does not list.
+
+| tool | equivalent above | input fields |
+|---|---|---|
+| `list_scenarios` | none | none |
+| `explain_scenario` | `docker run --rm $IMG explain [<Scenario>]` | `scenario`, optional — omit for the whole spec |
+| `validate_profile` | `docker run --rm -v …:ro $IMG validate /p/profile.json` | `profile` — the whole profile as JSON **text** |
+
+- **`list_scenarios` is the menu.** Every scenario the factory registers, each with one line on what it does and the `operations` it can draw. Read it before choosing a scenario. The knob table below stays the authority on which knobs each one reads. The tools report a name lowercased (`storagerw`, `amm`) and match one case-insensitively. The PascalCase table below is the same set, and a profile may write either form.
+- **`validate_profile` takes the profile as text, not a path.** Pass the *substituted* profile — the same string you write into the ConfigMap. The tool mounts nothing, so the "mount the one file, never `$PWD`" rule does not apply. A staged root key cannot reach it. The tool answers from the same function `seiload validate` renders, so the verdict is the CLI's. Beside `.valid` it returns `.runnable` and `.scenarios[]` (`name`, `weight`, `runnable`). That is the scenario list with weights step 7 echoes. Read it from the tool rather than re-deriving it.
+- **A refusal is a result, not a tool error.** `{"valid": false, "error": "<the parser's own message>"}`. Discriminate on `.valid`. `.warnings` names a zero-weight entry the generator would never draw. A warning alone is not a refusal. A profile whose entries are *all* weight 0 is both: `.valid` false, with the warnings naming which. This shape is `validate_profile`'s. `explain_scenario` is the exception. An unregistered name comes back as a tool error naming `list_scenarios`. That is a caller mistake, not a dead server: fix the name and call again, and do not fall back to docker on it.
+- **The tools answer for the binary the host launched, not for `$IMG`.** The docker path runs the exact image the Job will run. The MCP server runs whatever `seiload` the host installed. Nothing tells you whether the two are the same build: the server reports version `0`, and the binary has no version verb. Treat the verdict as the host binary's every time. When `$IMG` is a digest you did not install from (a sei-load PR bench, an older pin), validate against `$IMG` too by the docker or `kubectl run` path above. Neither reachable → say in the plan echo that `$IMG` never saw the profile. The strict decoder at Job start is then the first check, and it runs after the PR merges. A profile it refuses lands the Job Failed with no bench.
+
+`explain_scenario` with no `scenario` returns the whole embedded spec: the envelope, the settings, the distribution and gas pickers, and the cross-field rules. Nothing else carries those, and no per-scenario section reaches them. With a `scenario` it returns that scenario's description, its operations, and its knob section where the spec carries one. Not every scenario has a section. The tool then describes the scenario rather than refusing it, where the CLI errors.
 
 ### The eleven scenarios (`generator/scenarios/factory.go`)
 
@@ -97,7 +116,7 @@ Both objects are one-offs in your own namespace, never committed. `--rm` deletes
 - **Settings** (`config.Settings`, CLI flag > file > default via Viper): `tps`, `statsInterval`, `inclusionReapAfter` (≥ `1s`), `bufferSize`, `trackReceipts`, `trackBlocks`, `trackUserLatency`, `prewarm`, `rampUp`, `targetGas`, `numBlocksToWrite`, `postSummaryFlushDelay`, `arrivalModel`, `gasMargin`, `gasFeeCapMultiplier`, `maxInFlight`. **`workers` is not a key** — the strict decoder rejects it (that is the nightly-profile bug PLT-1254 fixed).
 - **Arrival model**: `arrivalModel: "open_loop"` schedules tx *i* at t₀ + i/λ and drops on overrun (the coordinated-omission fix; `maxInFlight` bounds it); `closed_loop` is the legacy lockstep baseline. Use `open_loop` for latency claims, `closed_loop` only to reproduce an old run.
 - **`seed`**: fixes the PRNG so two runs draw the same sequence. Set it, and keep it equal across the two sides of a comparative bench; otherwise the A/B difference includes sampling noise.
-- **Funding** (`config.FundingConfig`): `rootKeyFile` (preferred, a mounted Secret — not `rootKeyEnv`, which lands in `/proc/<pid>/environ`), `fundAmountWei` (a decimal **string**), `batchSize`. Requires `accounts.newAccountRate: 0` on the envelope and on every `scenarios[].accounts` that sets one (`config/funding.go`: on-demand accounts cannot be funded; a non-zero rate is refused at load). **A chain built from a vanilla `seid` image has zero-balance generated accounts** — every value-sending scenario fails on the first tx unless the profile funds them or the seid image is a `mock_balances` build. Ask which one the engineer's image is before rendering; the nightly profiles assume the mock build.
+- **Funding** (`config.FundingConfig`): `rootKeyFile` (preferred, a mounted Secret — not `rootKeyEnv`, which lands in `/proc/<pid>/environ`), `fundAmountWei` (a decimal **string**), `batchSize`. Requires `accounts.newAccountRate: 0` on the envelope and on every `scenarios[].accounts` that sets one (`config/funding.go`: on-demand accounts cannot be funded; a non-zero rate is refused at load). `validate` and `validate_profile` both catch that conflict from sei-load #106; before it, only the run did. **A chain built from a vanilla `seid` image has zero-balance generated accounts** — every value-sending scenario fails on the first tx unless the profile funds them or the seid image is a `mock_balances` build. Ask which one the engineer's image is before rendering; the nightly profiles assume the mock build.
 
 ### Bounds and cross-field rules (`Scenario.Validate` rejects; nothing clamps)
 
