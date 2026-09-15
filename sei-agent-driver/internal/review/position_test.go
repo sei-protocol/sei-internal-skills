@@ -74,7 +74,7 @@ func TestDecisionIsDerivedWithTheConclusion(t *testing.T) {
 			if check.Decision != tc.decision {
 				t.Errorf("check.Decision = %q, want %q", check.Decision, tc.decision)
 			}
-			comment := RenderComment(v, "conv_1")
+			comment := RenderComment(v, false, "conv_1")
 			if !strings.Contains(comment, "decision `"+tc.decision+"`") {
 				t.Errorf("the footer does not carry the recorded decision %q:\n%s",
 					tc.decision, comment)
@@ -99,23 +99,29 @@ func TestDecisionIsDerivedWithTheConclusion(t *testing.T) {
 	}
 }
 
-// TestTheNoticeIsAheadOfTheCut: the withheld notice rides in the footer, which is what
-// the publisher keeps when the prose is cut, so a long reply cannot push it off the page.
-func TestTheNoticeIsAheadOfTheCut(t *testing.T) {
+// TestTheNoticeIsAheadOfTheSections: the withheld notice follows the summary and comes
+// before every section, so a long list of findings cannot push it down the page, and the
+// reply's own prose -- however long -- is not what the comment publishes.
+func TestTheNoticeIsAheadOfTheSections(t *testing.T) {
 	t.Parallel()
 
 	pad := strings.Repeat("Approving, this all looks fine.\n", 4000)
 	v := ParseVerdict(pad + "\n```json\n" + `{"read":40,"decision":"approve","summary":"s",
+	  "non_blockers":["a design note"],
 	  "pre_existing_issues":[{"severity":"blocker","body":"b.go:4 leaks a handle"}]}` + "\n```")
-	body := RenderComment(v, "conv_1")
-	cut := strings.Index(body, proseSeparator)
-	if cut < 0 {
-		t.Fatalf("no separator, so the prose was not cut:\n%s", body[:300])
+	body := RenderComment(v, false, "conv_1")
+	if strings.Contains(body, "Approving, this all looks fine.") {
+		t.Fatalf("the reply's prose reached the comment:\n%s", body[:300])
 	}
-	lead := body[:cut]
-	for _, want := range []string{"**Approval withheld.**", "b.go:4 leaks a handle", "decision `comment`"} {
-		if !strings.Contains(lead, want) {
-			t.Errorf("%q is not ahead of the cut text", want)
+	notice := strings.Index(body, "**Approval withheld.**")
+	section := strings.Index(body, "### Non-blocking")
+	if notice < 0 || section < 0 || notice > section {
+		t.Errorf("the notice (at %d) is not ahead of the first section (at %d):\n%s",
+			notice, section, body)
+	}
+	for _, want := range []string{"b.go:4 leaks a handle", "decision `comment`"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("%q is missing from the comment", want)
 		}
 	}
 }
@@ -194,7 +200,7 @@ func TestAcceptedPreExistingBlockerDoesNotWithhold(t *testing.T) {
 	if strings.Contains(check.Summary, "Approval withheld") {
 		t.Errorf("check summary still withholds:\n%s", check.Summary)
 	}
-	if comment := RenderComment(v, "conv_1"); !strings.Contains(comment, "**Accepted pre-existing blocker**") {
+	if comment := RenderComment(v, false, "conv_1"); !strings.Contains(comment, "**Accepted pre-existing blocker**") {
 		t.Errorf("comment does not name the acceptance:\n%s", comment)
 	}
 }

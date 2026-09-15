@@ -115,7 +115,7 @@ func TestSettledVerdictSaysTheScoutsDecidedIt(t *testing.T) {
 		}
 	}
 
-	comment := RenderComment(v, "")
+	comment := RenderComment(v, false, "")
 	for _, want := range []string{"settled by the scouts codex, cursor", "no review turn ran"} {
 		if !strings.Contains(comment, want) {
 			t.Errorf("the published comment does not say %q:\n%s", want, comment)

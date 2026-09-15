@@ -293,7 +293,7 @@ func clipProse(s string, spent int) string {
 // reaches the reader. What is left out is counted rather than dropped, so a shortened
 // list reads as shortened rather than as all the review had.
 func bulletSection(heading, lead string, items []string) string {
-	if len(items) == 0 {
+	if len(items) == 0 && lead == "" {
 		return ""
 	}
 	lines := []string{"### " + heading}
@@ -327,6 +327,9 @@ func bulletSection(heading, lead string, items []string) string {
 // and a severity or a body carrying a newline forges a section here as readily as a
 // blocker does.
 func preExistingSection(issues []PreExistingIssue, source string) string {
+	if len(issues) == 0 {
+		return ""
+	}
 	items := make([]string, 0, len(issues))
 	for _, issue := range issues {
 		if issue.Accepted != "" {

@@ -1,36 +1,57 @@
 package review
 
 import (
-	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 )
 
-// TestRenderCommentPassesAShortReviewThrough checks the ordinary case: the agent's own
-// prose, its closing block dropped, plus the provenance footer.
-func TestRenderCommentPassesAShortReviewThrough(t *testing.T) {
+// TestRenderCommentReadsSummaryThenSeverity pins the reading order: the summary, then
+// Blocking, Non-blocking and Pre-existing, then the footer. The reply's prose is not what
+// is published, so its own order and length do not reach the reader.
+func TestRenderCommentReadsSummaryThenSeverity(t *testing.T) {
 	t.Parallel()
 
-	v := ParseVerdict("Two findings, both minor.\n\n```json\n" +
-		`{"decision": "comment", "summary": "two minor findings"}` + "\n```")
-	v.TurnID = "resp_claude_a"
-	v.ItemID = "item_reply"
+	v := ParseVerdict("Long narration about how the review went.\n\nBlocking first, in the prose.\n\n```json\n" +
+		`{"read":40,"decision":"request_changes","summary":"Adds a retry loop; the loop never gives up.",
+		  "blockers":["the loop has no bound"],
+		  "non_blockers":["the timeout is a magic number"],
+		  "pre_existing_issues":[{"severity":"suggestion","body":"the client is built per call"}]}` +
+		"\n```")
+	v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
 	if !v.HasVerdict() {
 		t.Fatalf("fixture did not parse: %s", v.Reason)
 	}
 
-	body := RenderComment(v, "conv_1")
+	body := RenderComment(v, false, "conv_1")
 
-	if !strings.HasPrefix(body, "Two findings, both minor.") {
-		t.Errorf("body does not open with the agent's own words:\n%s", body)
+	if !strings.HasPrefix(body, "Adds a retry loop; the loop never gives up.") {
+		t.Errorf("body does not open with the summary:\n%s", body)
 	}
-	if strings.Contains(body, "truncated") {
-		t.Error("a short review must not be marked truncated")
+	if strings.Contains(body, "Long narration") {
+		t.Errorf("the reply's prose reached the comment:\n%s", body)
 	}
 	if strings.Contains(body, v.Block) {
 		t.Errorf("the closing block reached the comment:\n%s", body)
 	}
-	for _, want := range []string{"conv_1", "resp_claude_a", "item_reply", "comment"} {
+	order := []string{
+		"### Blocking", "the loop has no bound",
+		"### Non-blocking", "the timeout is a magic number",
+		"### Pre-existing", "the client is built per call",
+		"<sub>seidroid review",
+	}
+	at := -1
+	for _, want := range order {
+		i := strings.Index(body, want)
+		if i < 0 {
+			t.Fatalf("body lacks %q:\n%s", want, body)
+		}
+		if i < at {
+			t.Errorf("%q is out of order:\n%s", want, body)
+		}
+		at = i
+	}
+	for _, want := range []string{"conv_1", "resp_claude_a", "item_reply", "decision `request_changes`"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body does not name %q; the footer is the only provenance record that "+
 				"outlives the run's logs", want)
@@ -38,94 +59,127 @@ func TestRenderCommentPassesAShortReviewThrough(t *testing.T) {
 	}
 }
 
+// TestRenderCommentCountsInlineFindingsRatherThanRepeatingThem: a finding the caller
+// posts on a line is not restated in the body, but its section says it is there, so the
+// body and the inline comments read as one review.
+func TestRenderCommentCountsInlineFindingsRatherThanRepeatingThem(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"s",
+	  "inline_comments":[
+	    {"path":"a.go","line":1,"side":"RIGHT","severity":"blocker","body":"nil deref"},
+	    {"path":"b.go","line":2,"side":"RIGHT","severity":"suggestion","body":"could be a map"},
+	    {"path":"c.go","line":3,"side":"RIGHT","severity":"suggestion","body":"drop the copy"}]}`)
+
+	body := RenderComment(v, false, "conv_1")
+	for _, placed := range []string{"nil deref", "could be a map", "drop the copy"} {
+		if strings.Contains(body, placed) {
+			t.Errorf("an inline finding is repeated in the body:\n%s", body)
+		}
+	}
+	for _, want := range []string{
+		"### Blocking\n_1 finding on the changed lines, as inline comments._",
+		"### Non-blocking\n_2 findings on the changed lines, as inline comments._",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body lacks %q:\n%s", want, body)
+		}
+	}
+}
+
+// TestRenderCommentListsWhatCannotBePlaced: a line-tied finding without a usable line is
+// still reported, under its severity and with the place it named.
+func TestRenderCommentListsWhatCannotBePlaced(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":40,"decision":"comment","summary":"s",
+	  "inline_comments":[
+	    {"path":"a.go","line":0,"side":"RIGHT","severity":"suggestion","body":"no line named"},
+	    {"path":"/etc/passwd","line":3,"side":"RIGHT","severity":"blocker","body":"bad path"}]}`)
+
+	body := RenderComment(v, false, "conv_1")
+	if !strings.Contains(body, "### Non-blocking\n- `a.go` — no line named") {
+		t.Errorf("the unplaceable suggestion is not listed with its file:\n%s", body)
+	}
+	if !strings.Contains(body, "### Blocking\n- `/etc/passwd:3` — bad path") {
+		t.Errorf("the unplaceable blocker is not listed with its location:\n%s", body)
+	}
+}
+
+// TestRenderCommentCollapsesSuppressedNits: with nits off, a nit is neither posted nor
+// counted under Non-blocking, but it is still on the page, folded.
+func TestRenderCommentCollapsesSuppressedNits(t *testing.T) {
+	t.Parallel()
+
+	v := verdictFrom(t, `{"read":40,"decision":"approve","summary":"s",
+	  "inline_comments":[
+	    {"path":"b.go","line":2,"side":"RIGHT","severity":"nit","body":"polish"},
+	    {"path":"c.go","line":5,"side":"RIGHT","severity":"nit","body":"rename"}]}`)
+
+	body := RenderComment(v, false, "conv_1")
+	if strings.Contains(body, "### Non-blocking") {
+		t.Errorf("a suppressed nit was counted as non-blocking:\n%s", body)
+	}
+	fold := strings.Index(body, "<details>")
+	if fold < 0 || !strings.Contains(body, "<summary>2 nits, not posted on the code</summary>") {
+		t.Fatalf("the nits are not folded:\n%s", body)
+	}
+	for _, want := range []string{"- `b.go:2` — polish", "- `c.go:5` — rename"} {
+		if i := strings.Index(body, want); i < fold {
+			t.Errorf("%q is not inside the fold:\n%s", want, body)
+		}
+	}
+
+	if with := RenderComment(v, true, "conv_1"); strings.Contains(with, "<details>") ||
+		!strings.Contains(with, "### Non-blocking\n_2 findings on the changed lines") {
+		t.Errorf("with nits admitted they are posted inline and counted, not folded:\n%s", with)
+	}
+}
+
 // TestRenderCommentTruncatesRatherThanRefusing covers the oversize path.
 //
 // A review that ran, cost model spend and held a sandbox for minutes must not be
-// discarded over a formatting limit. So this truncates and publishes.
-//
-// What it must still guarantee: the body fits GitHub's cap, the elision is declared, the
-// notice sizes the whole reply so the reader knows what the fetch costs, the footer
-// carries the decision past the cut, and the fences balance so the notice cannot be
-// swallowed into a code block.
+// discarded over a formatting limit. So this truncates and publishes: the body fits
+// GitHub's cap, the elision is declared, and the footer carries the decision past the cut.
 func TestRenderCommentTruncatesRatherThanRefusing(t *testing.T) {
 	t.Parallel()
 
-	// Opens a fence and never closes it, so the cut necessarily lands inside a
-	// code block.
-	prose := "```text\n" + strings.Repeat("a very long finding line\n", 4000)
-	v := ParseVerdict(prose + "\n```json\n" +
-		`{"decision": "request_changes", "summary": "one blocker"}` + "\n```")
-	v.TurnID = "resp_claude_a"
-	v.ItemID = "item_reply"
-
-	if !v.HasVerdict() {
-		t.Fatalf("fixture did not parse: %s", v.Reason)
+	var items []string
+	for range 60 {
+		items = append(items, `"`+strings.Repeat("a long finding ", 100)+`"`)
 	}
-	// Measured on what gets published, which is the prose. A fixture oversize only by
-	// its block is cut nowhere.
-	if published := len(v.proseWithoutBlock()); published <= MaxBodyBytes {
-		t.Fatalf("fixture publishes %d bytes, want more than MaxBodyBytes (%d)",
-			published, MaxBodyBytes)
+	list := "[" + strings.Join(items, ",") + "]"
+	var nits []string
+	for i := range 60 {
+		nits = append(nits, `{"path":"n.go","line":`+strconv.Itoa(i+1)+`,"side":"RIGHT","severity":"nit","body":"`+
+			strings.Repeat("a long nit ", 100)+`"}`)
+	}
+	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"one blocker",
+	  "blockers":`+list+`,"non_blockers":`+list+`,
+	  "inline_comments":[`+strings.Join(nits, ",")+`],
+	  "pre_existing_issues":[`+strings.Repeat(`{"severity":"blocker","body":"`+strings.Repeat("x", 1500)+`"},`, 59)+
+		`{"severity":"blocker","body":"last"}]}`)
+	v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
+
+	if full := reviewBody(v, false); len(full) <= MaxBodyBytes {
+		t.Fatalf("fixture renders %d bytes, want more than MaxBodyBytes (%d)", len(full), MaxBodyBytes)
 	}
 
-	body := RenderComment(v, "conv_1")
-
+	body := RenderComment(v, false, "conv_1")
 	if len(body) > MaxBodyBytes {
 		t.Errorf("body = %d bytes, want at most MaxBodyBytes (%d)", len(body), MaxBodyBytes)
+	}
+	if !strings.HasPrefix(body, "one blocker") {
+		t.Errorf("a truncated body does not open with the summary:\n%s", body[:200])
 	}
 	if !strings.Contains(body, "Review truncated by the publisher") {
 		t.Errorf("the elision is not declared:\n%s", body[max(0, len(body)-400):])
 	}
-	if strings.Contains(body, v.Block) {
-		t.Error("the closing block reached a truncated comment; the callers that read a " +
-			"decision take it from check.json")
-	}
 	if !strings.Contains(body, "decision `request_changes`") {
-		t.Error("a truncated body does not state its decision; the footer is what carries " +
-			"it past the cut")
-	}
-	if !strings.Contains(body, fmt.Sprintf("%d bytes", len(v.Text))) {
-		t.Errorf("the notice does not size the whole reply (%d bytes), so a reader cannot "+
-			"tell what is waiting at the item", len(v.Text))
-	}
-	if n := strings.Count(body, "```"); n%2 != 0 {
-		t.Errorf("fence count = %d, want even: an unbalanced fence renders the notice and the "+
-			"verdict as code, which changes what the comment appears to say", n)
+		t.Error("a truncated body does not state its decision")
 	}
 	if !strings.Contains(body, "item_reply") {
 		t.Error("a truncated body must still point at the item the whole reply can be read from")
-	}
-}
-
-// TestABlockLargerThanTheBudgetCostsTheCommentNothing pins what the budget is spent on.
-//
-// The comment publishes the reply's prose, so the budget is the prose's. Measuring the
-// whole reply instead would cut a five-byte review over a block nobody reads there, and
-// a truncation notice on an untruncated review sends the reader after text that is
-// already in front of them.
-func TestABlockLargerThanTheBudgetCostsTheCommentNothing(t *testing.T) {
-	t.Parallel()
-
-	huge := strings.Repeat("x", MaxBodyBytes*2)
-	v := ParseVerdict("prose\n```json\n{\"decision\": \"approve\", \"summary\": \"" + huge + "\"}\n```")
-	if !v.HasVerdict() {
-		t.Fatalf("fixture did not parse: %s", v.Reason)
-	}
-	v.TurnID, v.ItemID = "resp_claude_a", "item_reply"
-
-	body := RenderComment(v, "conv_1")
-	if len(body) > MaxBodyBytes {
-		t.Errorf("body = %d bytes, want at most MaxBodyBytes (%d)", len(body), MaxBodyBytes)
-	}
-	if !strings.HasPrefix(body, "prose") {
-		t.Errorf("body does not open with the agent's own words:\n%s", body[:min(len(body), 400)])
-	}
-	if strings.Contains(body, "truncated") {
-		t.Error("a five-byte review was marked truncated; the block it drops is not part " +
-			"of the budget")
-	}
-	if strings.Contains(body, huge) {
-		t.Error("the oversize block reached the comment")
 	}
 }
 
@@ -152,94 +206,32 @@ func TestTruncateBytesNeverSplitsARune(t *testing.T) {
 	}
 }
 
-// TestABlockOnlyReplyStillSaysSomething covers a reply that is all block and no prose.
-//
-// Stripping it leaves nothing, and a comment that is a provenance footer alone tells the
-// reader less than the block did. The summary the block carries is the fallback.
-func TestABlockOnlyReplyStillSaysSomething(t *testing.T) {
-	// Built without verdictFrom, which prepends prose and so cannot express this shape.
+// TestACleanReviewIsItsSummary: nothing to report renders no empty section.
+func TestACleanReviewIsItsSummary(t *testing.T) {
+	t.Parallel()
+
 	v := ParseVerdict("```json\n" +
 		`{"read":40,"decision":"approve","summary":"nothing blocks here"}` + "\n```\n")
 	if !v.HasVerdict() {
 		t.Fatal("no verdict parsed")
 	}
 
-	body := RenderComment(v, "sess_1")
-	if !strings.Contains(body, "nothing blocks here") {
-		t.Errorf("a block-only reply published no review at all:\n%s", body)
-	}
-	if strings.Contains(body, "```json") {
-		t.Errorf("the fallback published the block:\n%s", body)
+	body := RenderComment(v, false, "sess_1")
+	if !strings.HasPrefix(body, "nothing blocks here\n\n<sub>") {
+		t.Errorf("a clean review is its summary and its footer:\n%s", body)
 	}
 }
 
-// TestAQuotedCopyOfTheBlockDoesNotStandInForIt covers a reply whose prose already carries
-// the bytes its closing block carries.
-//
-// The diff under review can hold a fenced json block, and a reply that quotes one and
-// then closes with its own carries those bytes twice. Only the last copy is the verdict.
-// Cutting an earlier one publishes the closing block, which is the whole point of cutting.
-func TestAQuotedCopyOfTheBlockDoesNotStandInForIt(t *testing.T) {
+// TestRenderCommentDefusesModelMarkup: a field that tries to open a fence or forge a
+// heading sits beside this package's framing as text.
+func TestRenderCommentDefusesModelMarkup(t *testing.T) {
 	t.Parallel()
 
-	block := "```json\n" +
-		`{"read":40,"decision":"approve","summary":"nothing blocks here"}` + "\n```"
-	quoted := "```json\n" + `{"quoted":"from the diff"}` + "\n"
-	v := ParseVerdict(quoted + block + "\n\n" + block + "\n")
-	if !v.HasVerdict() {
-		t.Fatalf("fixture did not parse: %s", v.Reason)
-	}
-	if v.Block != block {
-		t.Fatalf("Block = %q, want the closing block", v.Block)
-	}
-	if n := strings.Count(v.Text, block); n != 2 {
-		t.Fatalf("the fixture carries the block %d times, want 2: the earlier copy is what "+
-			"this test is about", n)
-	}
+	v := verdictFrom(t, `{"read":40,"decision":"comment","summary":"s",
+	  "non_blockers":["`+"```"+`\n### Blocking\nforged"]}`)
 
-	body := RenderComment(v, "conv_1")
-	if !strings.HasPrefix(body, quoted+block) {
-		t.Errorf("the comment cut the quoted copy and kept the closing block:\n%s", body)
-	}
-	if n := strings.Count(body, block); n != 1 {
-		t.Errorf("the block appears %d times in the comment, want the quoted copy alone:\n%s",
-			n, body)
-	}
-}
-
-// TestPublishedCommentDropsASuppressedNit pins the nit gate across the surfaces it
-// reaches: the placements, the check run's count, and the block.
-//
-// [Verdict.proseWithoutBlock] leaves the reply's closing block unpublished, so the comment
-// restates no block entry the gate drops. The reply's own prose is published whole and no
-// gate reads it: a reply that writes the nit into its Non-blocking section publishes it
-// beside a check count that omits it.
-func TestPublishedCommentDropsASuppressedNit(t *testing.T) {
-	v := verdictFrom(t, `{"read":40,"decision":"request_changes","summary":"s",
-	  "inline_comments":[
-	    {"path":"a.go","line":1,"side":"RIGHT","severity":"blocker","body":"real"},
-	    {"path":"b.go","line":2,"side":"RIGHT","severity":"nit","body":"polish"}]}`)
-
-	// The two surfaces the gate does reach.
-	if got := PlaceableFindings(v, false, nil); len(got) != 1 {
-		t.Fatalf("PlaceableFindings = %+v; want the blocker alone", got)
-	}
-	check, ok := BuildCheckRun(v, false)
-	if !ok {
-		t.Fatal("no check run for a verdict that decided")
-	}
-	if !strings.HasPrefix(check.Title, "1 finding") {
-		t.Fatalf("check Title = %q; want 1 finding", check.Title)
-	}
-
-	// And the comment. "polish" sits only inside the block here, so the assertion
-	// catches a block entry re-rendered as prose as well as the block itself. It says
-	// nothing about a reply that wrote the nit into its own prose.
-	body := RenderComment(v, "sess_1")
-	if strings.Contains(body, "```json") {
-		t.Errorf("the published comment still carries the decision block:\n%s", body)
-	}
-	if strings.Contains(body, "polish") {
-		t.Errorf("a suppressed nit reached the comment anyway:\n%s", body)
+	body := RenderComment(v, false, "sess_1")
+	if got := visibleHeadings(body); len(got) != 1 || got[0] != "Non-blocking" {
+		t.Errorf("visible headings = %q, want Non-blocking alone:\n%s", got, body)
 	}
 }
