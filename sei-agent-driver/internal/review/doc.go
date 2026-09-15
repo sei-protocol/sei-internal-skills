@@ -25,14 +25,11 @@
 // instructions. Nothing it contains may become a claim the output makes on its own
 // behalf. Every rule below is a consequence.
 //
-// One of those rules is about order rather than about content, and it is easy to undo by
-// accident. On a truncated comment the notice and the provenance footer are emitted
-// before the cut review text, so nothing the reply leaves open can reach them. A reply
-// can leave a code fence, an HTML comment or a raw <pre> open, and nested inside each
-// other -- closing those correctly needs a model of HTML nesting, which is a thing to
-// get wrong; putting them first needs no model. [RenderComment] owns it,
-// [closeDanglingMarkup] is a rendering courtesy on top of it, and moving the notice back
-// after the text reopens the whole class.
+// One of those rules is that the published comment is composed from the closing block,
+// never from the reply's prose. Every field of the block is model text and every one
+// passes through [defuseMarkup] before it sits beside a heading of this package's, so
+// a reply cannot open a fence, a comment or a raw <pre> that swallows the framing, and
+// cannot forge a section. [RenderComment] and [checkSummary] both rest on that.
 //
 // A path a prompt names is anchored to the checkout, never left relative to the agent's
 // working directory: the tree is a subdirectory and nothing changes into it, so a bare
@@ -48,7 +45,8 @@
 //   - findings.go — which findings can be placed on a line, which cannot, and
 //     which threads each placed one replaces.
 //   - check.go — the check run, whose conclusion follows the findings.
-//   - publish.go — the comment body, and what happens when it will not fit.
+//   - publish.go — the comment body: the block rendered in reading order, and what
+//     happens when it will not fit.
 //   - scout.go — an independent reading, its prompt, and its own run key.
 //   - threads.go — which of the threads named in a reply a caller may close.
 //   - history.go, runkey.go — prior threads, the budget a prompt renders them under,

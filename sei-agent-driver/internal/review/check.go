@@ -210,15 +210,20 @@ const maxCheckEntries = 50
 // account for it, and a blank line between two sections is not obviously two bytes.
 const sectionSeparator = "\n\n"
 
+// overflowHome names the one place that holds what a bounded section left out. The
+// check summary and the published comment are bounded by the same constants, so neither
+// can send the reader to the other; the session item the comment's footer names is
+// where the whole review lives.
+const overflowHome = "The session item the published comment's footer names"
+
 // checkTruncated says the summary was cut, so a reader does not take a truncated
 // list for the whole one.
-const checkTruncated = "\n\n_This summary was truncated. The published comment carries the full review._"
+const checkTruncated = "\n\n_This summary was truncated. " + overflowHome + " carries the full review._"
 
-// checkProseTruncated says the review's own summary was cut, so a reader does not take
-// what is left of it for the whole of it. Separate from [checkTruncated] because it
-// names a different loss: the sections below it are intact.
-const checkProseTruncated = "\n\n_The review's summary was truncated here. " +
-	"The published comment carries it in full._"
+// proseTruncated says the review's own summary was cut, so a reader does not take what
+// is left of it for the whole of it. Separate from [checkTruncated] because it names a
+// different loss: the sections below it are intact.
+const proseTruncated = "\n\n_The review's summary was truncated here. " + overflowHome + " carries it in full._"
 
 // checkSummary renders the review's own summary and every observation that names no
 // line.
@@ -274,7 +279,7 @@ func clipProse(s string, spent int) string {
 	budget := maxSummaryProse
 	// What the prose has to leave room for besides itself: the separator joining it to
 	// the first section, and the notice a cut appends.
-	if room := maxCheckSummary - spent - len(checkProseTruncated) - len(sectionSeparator); room < budget {
+	if room := maxCheckSummary - spent - len(proseTruncated) - len(sectionSeparator); room < budget {
 		budget = room
 	}
 	if budget <= 0 {
@@ -283,7 +288,7 @@ func clipProse(s string, spent int) string {
 	if len(s) <= budget {
 		return s
 	}
-	return truncateBytes(s, budget) + checkProseTruncated
+	return truncateBytes(s, budget) + proseTruncated
 }
 
 // bulletSection renders one bucket under its heading, bounded in bytes and in count.
@@ -293,7 +298,7 @@ func clipProse(s string, spent int) string {
 // reaches the reader. What is left out is counted rather than dropped, so a shortened
 // list reads as shortened rather than as all the review had.
 func bulletSection(heading, lead string, items []string) string {
-	if len(items) == 0 {
+	if len(items) == 0 && lead == "" {
 		return ""
 	}
 	lines := []string{"### " + heading}
@@ -316,7 +321,7 @@ func bulletSection(heading, lead string, items []string) string {
 	}
 	if n := len(items) - shown; n > 0 {
 		lines = append(lines, fmt.Sprintf(
-			"- _and %d more, not shown here; the published comment carries the full review._", n))
+			"- _and %d more, not shown here. "+overflowHome+" carries the full review._", n))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -327,6 +332,9 @@ func bulletSection(heading, lead string, items []string) string {
 // and a severity or a body carrying a newline forges a section here as readily as a
 // blocker does.
 func preExistingSection(issues []PreExistingIssue, source string) string {
+	if len(issues) == 0 {
+		return ""
+	}
 	items := make([]string, 0, len(issues))
 	for _, issue := range issues {
 		if issue.Accepted != "" {

@@ -37,18 +37,11 @@ func TestPromptsNameTheDiffCommand(t *testing.T) {
 		}
 	}
 
-	// The report headings are the other half. A findings array may be empty and a summary
-	// can be written from the title, so the sections are what cannot be filled honestly
-	// without having read the changed lines.
-	// Matched in their numbered form. The bare words also appear in the checklist
-	// and the verification gate, so a check for those would pass with the report
-	// contract deleted.
-	for _, heading := range []string{
-		"1. Blocking", "2. Non-blocking", "3. Summary",
-	} {
-		if !strings.Contains(BuildPrompt(req), heading) {
-			t.Errorf("BuildPrompt does not require a %q section", heading)
-		}
+	// The read count is the other half. A findings array may be empty and a summary
+	// can be written from the title, so the line count the diff command printed is
+	// what cannot be filled honestly without having fetched the changed lines.
+	if !strings.Contains(BuildPrompt(req), `"read": <line count>`) {
+		t.Error("BuildPrompt does not require the read count in the block")
 	}
 	// There is no Security heading, deliberately. A heading of its own invites the
 	// reply to enumerate what it looked for, and the review is published on the pull
@@ -97,6 +90,35 @@ func TestBuildPromptWithoutScoutsIsUnchanged(t *testing.T) {
 	}
 	if !strings.Contains(text, "Step 3 — report") {
 		t.Error("BuildPrompt renumbered the report step when no scout ran")
+	}
+}
+
+// TestBuildPromptAsksForTheBlockAloneSortedByLocation pins the report contract the
+// renderer depends on.
+//
+// [RenderComment] publishes the block and nothing else, summary first, so the prompt
+// has to say the reader sees the block in that order and that prose is unpublished --
+// otherwise the review spends its words where nobody reads them. And the bucket rule has
+// to sort by location, not severity: a suggestion on a changed line that lands in
+// non_blockers reaches the reader as a bullet instead of a thread on the line.
+func TestBuildPromptAsksForTheBlockAloneSortedByLocation(t *testing.T) {
+	flat := strings.Join(strings.Fields(BuildPrompt(Request{Repo: "sei-protocol/sei-chain", PR: 3861})), " ")
+
+	for _, want := range []string{
+		"summary first, then Blocking, Non-blocking and Pre-existing",
+		"Prose outside the block is not published, so write none",
+		"summary is two sentences at most",
+		"a blocker, a suggestion and a nit on a changed line all go here",
+		"non_blockers — worth noting, and tied to no single line. Never a finding that has a line",
+	} {
+		if !strings.Contains(flat, want) {
+			t.Errorf("BuildPrompt lacks %q", want)
+		}
+	}
+	for _, stale := range []string{"under these headings", "Summary — one paragraph"} {
+		if strings.Contains(flat, stale) {
+			t.Errorf("BuildPrompt still asks for prose sections (%q) the publisher does not read", stale)
+		}
 	}
 }
 
@@ -339,7 +361,7 @@ func TestExtraInstructionsPrecedeTheOutputContract(t *testing.T) {
 		"AdoptedPrompt": AdoptedPrompt(req),
 	} {
 		at := strings.Index(prompt, guidance)
-		contract := strings.Index(prompt, "Finish with a single fenced json block")
+		contract := strings.Index(prompt, "single fenced json block")
 		if at < 0 || contract < 0 {
 			t.Fatalf("%s is missing the guidance or the contract", name)
 		}
@@ -583,23 +605,20 @@ func TestNitGateForbidsPromotionRatherThanHidingTheLabel(t *testing.T) {
 					name, nits, forbids, !nits)
 			}
 
-			// A ban has to name where the observation goes instead. bucketRules calls a
-			// note missing from the block one the author never sees, so a nit banned
-			// with no destination leaves dropping it as the cheapest way to obey both.
-			sends := strings.Contains(got, "in non_blockers instead of inline_comments")
-			if sends == nits {
-				t.Errorf("%s with nits=%v: redirect to non_blockers present = %v, want "+
+			// The gate has to say where the observation goes. bucketRules calls a note
+			// missing from the block one the author never sees, so a nit banned with no
+			// destination leaves dropping it as the cheapest way to obey both. The
+			// destination is the same bucket under its own label; the placement filter
+			// and the folded rendering are downstream of the block.
+			keeps := strings.Contains(got, "Still report a nit-grade observation in inline_comments with severity nit")
+			if keeps == nits {
+				t.Errorf("%s with nits=%v: keep-in-block instruction present = %v, want "+
 					"%v — a ban with nowhere to send the nit tells the review to drop it",
-					name, nits, sends, !nits)
+					name, nits, keeps, !nits)
 			}
-
-			// And the redirect has to widen the bucket it redirects into. bucketRules
-			// defines non_blockers as holding what is tied to no single line, and a nit
-			// is tied to one, so a bare redirect swaps one contradiction for another.
-			amends := strings.Contains(got, "also takes a nit that is tied to one")
-			if amends == nits {
-				t.Errorf("%s with nits=%v: bucket amendment present = %v, want %v — the "+
-					"redirect points into a bucket defined as line-less", name, nits, amends, !nits)
+			if strings.Contains(got, "non_blockers instead of inline_comments") {
+				t.Errorf("%s with nits=%v redirects a line-tied nit into the line-less "+
+					"bucket, which contradicts the bucket rule", name, nits)
 			}
 		}
 	}
