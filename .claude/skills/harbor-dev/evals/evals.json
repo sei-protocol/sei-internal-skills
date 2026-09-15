@@ -476,6 +476,31 @@
       "source": "references/autobahn-giga.md — tier table, gate, 'Tier 2/3 — Autobahn and EVM-only via spec.consensus', 'What EVM-only changes for the rest of this skill'; SKILL.md triage row 'Spin up a giga chain'"
     },
     {
+      "id": "autobahn-giga-bench-required-settings",
+      "type": "happy-path",
+      "skill_loaded": true,
+      "scenario": "Engineer says: 'Give me a 4-validator giga benchmark chain in my namespace plus two RPC followers to drive load at, then bench it with sei-load.' The cell's CRD carries spec.consensus.",
+      "expected": {
+        "compliance_signals": [
+          "agent renders Autobahn (spec.consensus.engine: Autobahn) rather than EVM-only for the Giga bench, and names sei-chain#4168 and sei-chain#4169 as why EVM-only is the wrong tier as of 2026-09-15",
+          "agent refuses the two RPC followers: under Autobahn dissemination runs validator-to-validator and a follower never syncs, so the load profile and every RPC query target the validators",
+          "agent carries all four required settings at create time — spec.consensus.autobahn.allowEmptyBlocks: true, app.toml evm.http_enabled: true, app.toml state-store.ss-enable: true, and no follower SeiNode",
+          "agent states what state-store.ss-enable: false costs: every historical state read panics with 'unable to load historical state with SS disabled', eth_sendRawTransaction reaches that path through gas estimation, and the chain then accepts no transactions at all",
+          "agent authors the keys as spec.configValues (YAML or --config-value), never as --set on a dotted key, and never as spec.overrides/spec.configOverrides, which the init path alone reads",
+          "agent reads the chain ID off a validator with eth_chainId before writing the load profile instead of copying 713715, which belongs to EVM-only",
+          "agent names the funding constraint: a genesis chain funds validator accounts only, so sei-load senders need funding or a mock-balances image (the mock-nightly-* tags)"
+        ],
+        "forbidden_signals": [
+          "a follower SeiNode rendered on the Autobahn chain, or a follower offered as the sei-load target",
+          "a render that omits state-store.ss-enable, evm.http_enabled or allowEmptyBlocks and calls the chain ready to bench",
+          "advice to send load at a height-0 Autobahn chain whose allowEmptyBlocks is off, or a promise that a day-2 configValues edit adds a state store to an already-opened store",
+          "--set carrying a dotted config key such as state-store.ss-enable",
+          "a load profile carrying chainId 713715 for the Autobahn Cosmos-app chain"
+        ]
+      },
+      "source": "references/autobahn-giga.md — 'Four settings an Autobahn bench chain must carry', 'The measured Giga + Autobahn recipe', 'Bench Giga on Tier 2, not Tier 3', 'Which CRD field carries a change'; SKILL.md triage row 'Spin up a giga chain'"
+    },
+    {
       "id": "chaos-render-catalog-first",
       "type": "happy-path",
       "skill_loaded": true,
@@ -527,8 +552,8 @@
       "expected": {
         "compliance_signals": [
           "agent refuses the restart: Idle is the healthy state of an Autobahn chain with empty blocks off and no load; Ready stays True because Ready is infrastructure, not block production",
-          "agent distinguishes the reasons: Idle (no height advance on an empty-blocks-off engine — expected with no load, and the same reason a wedged chain would show, so observedHeight decides once load runs), HeightStalled (a real stall on a chain that should produce continuously — unreachable here), SignalUnreadable (sidecar height reading missing, not a chain fault), AwaitingFirstBlock (grace window)",
-          "agent proposes sending load (seiload or a single cast send) and expects Producing to flip to HeightAdvancing, and offers allowEmptyBlocks: true on a fresh chain if the engineer wants continuous blocks — never a configValues entry for autobahn.json",
+          "agent distinguishes the reasons: Idle (no height advance on an empty-blocks-off engine — expected with no load, and the same reason a wedged chain would show, so observedHeight decides), HeightStalled (a real stall on a chain that should produce continuously — unreachable here), SignalUnreadable (sidecar height reading missing, not a chain fault), AwaitingFirstBlock (grace window)",
+          "agent does not promise that sending load fixes it: with allowEmptyBlocks off the chain never reaches height 1, so nothing can submit a first transaction — the fix is a fresh chain carrying spec.consensus.autobahn.allowEmptyBlocks: true, never a configValues entry for autobahn.json",
           "agent points out spec.consensus.autobahn is create-only, so changing allowEmptyBlocks is a new chain"
         ]
       },
