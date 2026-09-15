@@ -206,12 +206,12 @@ func TestRenderCommentOverflowNamesTheSessionNotTheComment(t *testing.T) {
 	  "non_blockers":[`+strings.Join(items, ",")+`]}`)
 
 	body := RenderComment(v, false, "conv_1")
-	if strings.Contains(body, "published comment") {
+	if strings.Contains(body, "The published comment carries") {
 		t.Errorf("the comment points the reader at itself:\n%s", body)
 	}
 	for _, want := range []string{
-		"- _and 5 more, not shown here. The session item the footer names carries the full review._",
-		"_The review's summary was truncated here. The session item the footer names carries it in full._",
+		"- _and 5 more, not shown here. The session item the published comment's footer names carries the full review._",
+		"_The review's summary was truncated here. The session item the published comment's footer names carries it in full._",
 	} {
 		if !strings.Contains(body, want) {
 			t.Errorf("body lacks %q:\n%s", want, body)

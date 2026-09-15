@@ -67,14 +67,14 @@ func reviewBody(v Verdict, includeNits bool) string {
 	sections := []string{
 		v.position(),
 		bulletSection("Blocking", inlineLead(placed["blocker"]),
-			append(Blockers(v), unplacedBullets(v, includeNits, true)...), inTheSession),
+			append(Blockers(v), unplacedBullets(v, includeNits, true)...)),
 		bulletSection("Non-blocking", inlineLead(placed["suggestion"]+placed["nit"]+placed[""]),
-			append(NonBlockers(v), unplacedBullets(v, includeNits, false)...), inTheSession),
-		preExistingSection(PreExisting(v), v.acceptedSource(), inTheSession),
+			append(NonBlockers(v), unplacedBullets(v, includeNits, false)...)),
+		preExistingSection(PreExisting(v), v.acceptedSource()),
 		nitSection(v, includeNits),
 	}
 	out := make([]string, 0, len(sections)+1)
-	if prose := clipProse(defuseMarkup(v.Summary()), 0, inTheSession); prose != "" {
+	if prose := clipProse(defuseMarkup(v.Summary()), 0); prose != "" {
 		out = append(out, prose)
 	}
 	for _, s := range sections {
@@ -177,7 +177,7 @@ func nitSection(v Verdict, includeNits bool) string {
 	if len(items) == 0 {
 		return ""
 	}
-	list := bulletSection("Nits", "", items, inTheSession)
+	list := bulletSection("Nits", "", items)
 	list = strings.TrimPrefix(list, "### Nits\n")
 	return fmt.Sprintf("<details>\n<summary>%s, not posted on the code</summary>\n\n%s\n\n</details>",
 		plural(len(items), "nit"), list)

@@ -210,23 +210,20 @@ const maxCheckEntries = 50
 // account for it, and a blank line between two sections is not obviously two bytes.
 const sectionSeparator = "\n\n"
 
+// overflowHome names the one place that holds what a bounded section left out. The
+// check summary and the published comment are bounded by the same constants, so neither
+// can send the reader to the other; the session item the comment's footer names is
+// where the whole review lives.
+const overflowHome = "The session item the published comment's footer names"
+
 // checkTruncated says the summary was cut, so a reader does not take a truncated
 // list for the whole one.
-const checkTruncated = "\n\n_This summary was truncated. The published comment carries the full review._"
+const checkTruncated = "\n\n_This summary was truncated. " + overflowHome + " carries the full review._"
 
 // proseTruncated says the review's own summary was cut, so a reader does not take what
 // is left of it for the whole of it. Separate from [checkTruncated] because it names a
-// different loss: the sections below it are intact. The argument names where the whole
-// of it can be read.
-const proseTruncated = "\n\n_The review's summary was truncated here. %s carries it in full._"
-
-// inTheComment and inTheSession name, for the check summary and for the published
-// comment, the place that holds what a bounded section left out. The comment cannot
-// point at itself; the session item its footer names is where its overflow lives.
-const (
-	inTheComment = "The published comment"
-	inTheSession = "The session item the footer names"
-)
+// different loss: the sections below it are intact.
+const proseTruncated = "\n\n_The review's summary was truncated here. " + overflowHome + " carries it in full._"
 
 // checkSummary renders the review's own summary and every observation that names no
 // line.
@@ -245,9 +242,9 @@ const (
 func checkSummary(v Verdict) string {
 	sections := []string{
 		v.position(),
-		bulletSection("Blocking", "", Blockers(v), inTheComment),
-		bulletSection("Non-blocking", "", NonBlockers(v), inTheComment),
-		preExistingSection(PreExisting(v), v.acceptedSource(), inTheComment),
+		bulletSection("Blocking", "", Blockers(v)),
+		bulletSection("Non-blocking", "", NonBlockers(v)),
+		preExistingSection(PreExisting(v), v.acceptedSource()),
 	}
 	out := make([]string, 0, len(sections))
 	for _, s := range sections {
@@ -260,7 +257,7 @@ func checkSummary(v Verdict) string {
 	// The prose is bounded here, against its own budget and against what the sections
 	// already spent. Bounding only the assembled whole cuts from the end, which is where
 	// the sections are: a summary large enough evicted all three of them.
-	if prose := clipProse(defuseMarkup(v.Summary()), len(body), inTheComment); prose != "" {
+	if prose := clipProse(defuseMarkup(v.Summary()), len(body)); prose != "" {
 		body = strings.TrimRight(prose+"\n\n"+body, "\n")
 	}
 	// Bounded over the whole as well. Every part is bounded now, so this is the backstop
@@ -278,12 +275,11 @@ func checkSummary(v Verdict) string {
 // Zero room yields nothing. A bucket large enough to spend the whole budget is a review
 // whose objections are the body, and prose that pushed them out would cost the reader
 // the thing the check exists to carry.
-func clipProse(s string, spent int, elsewhere string) string {
-	notice := fmt.Sprintf(proseTruncated, elsewhere)
+func clipProse(s string, spent int) string {
 	budget := maxSummaryProse
 	// What the prose has to leave room for besides itself: the separator joining it to
 	// the first section, and the notice a cut appends.
-	if room := maxCheckSummary - spent - len(notice) - len(sectionSeparator); room < budget {
+	if room := maxCheckSummary - spent - len(proseTruncated) - len(sectionSeparator); room < budget {
 		budget = room
 	}
 	if budget <= 0 {
@@ -292,7 +288,7 @@ func clipProse(s string, spent int, elsewhere string) string {
 	if len(s) <= budget {
 		return s
 	}
-	return truncateBytes(s, budget) + notice
+	return truncateBytes(s, budget) + proseTruncated
 }
 
 // bulletSection renders one bucket under its heading, bounded in bytes and in count.
@@ -300,9 +296,8 @@ func clipProse(s string, spent int, elsewhere string) string {
 // A bucket is model output and nothing upstream limits how much of it there is. Rendered
 // whole, one bucket spends the budget the next one needs, and the section after it never
 // reaches the reader. What is left out is counted rather than dropped, so a shortened
-// list reads as shortened rather than as all the review had, and elsewhere names where
-// the rest is.
-func bulletSection(heading, lead string, items []string, elsewhere string) string {
+// list reads as shortened rather than as all the review had.
+func bulletSection(heading, lead string, items []string) string {
 	if len(items) == 0 && lead == "" {
 		return ""
 	}
@@ -326,7 +321,7 @@ func bulletSection(heading, lead string, items []string, elsewhere string) strin
 	}
 	if n := len(items) - shown; n > 0 {
 		lines = append(lines, fmt.Sprintf(
-			"- _and %d more, not shown here. %s carries the full review._", n, elsewhere))
+			"- _and %d more, not shown here. "+overflowHome+" carries the full review._", n))
 	}
 	return strings.Join(lines, "\n")
 }
@@ -336,7 +331,7 @@ func bulletSection(heading, lead string, items []string, elsewhere string) strin
 // Every entry goes through the same bullet as the others. Both fields are model text,
 // and a severity or a body carrying a newline forges a section here as readily as a
 // blocker does.
-func preExistingSection(issues []PreExistingIssue, source, elsewhere string) string {
+func preExistingSection(issues []PreExistingIssue, source string) string {
 	if len(issues) == 0 {
 		return ""
 	}
@@ -350,7 +345,7 @@ func preExistingSection(issues []PreExistingIssue, source, elsewhere string) str
 		items = append(items, fmt.Sprintf("**%s** — %s", issue.Severity, issue.Body))
 	}
 	return bulletSection("Pre-existing",
-		"Already true on the base branch, not introduced here.", items, elsewhere)
+		"Already true on the base branch, not introduced here.", items)
 }
 
 // checkBullet renders one piece of model text as a list item.
