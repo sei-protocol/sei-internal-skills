@@ -323,7 +323,7 @@
     {
       "id": "seiload-profile-authoring-uses-binary-surface",
       "type": "happy-path",
-      "scenario": "Engineer says: 'Bench my chain with an OCC-heavy storage workload — zipfian hot keys, ~70% read-modify-write, and make it comparable to a second run next week.' Engineer is onboarded, followers are Running, the resolved sei-load image is newer than 4398610 and the seid image is a vanilla build.",
+      "scenario": "Engineer says: 'Bench my chain with an OCC-heavy storage workload — zipfian hot keys, ~70% read-modify-write, and make it comparable to a second run next week.' Engineer is onboarded, followers are Running, the resolved sei-load image is newer than 4398610 and the seid image is a vanilla build. The agent's host lists no sei-load MCP tools.",
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
@@ -336,7 +336,8 @@
         ],
         "forbidden_signals": [
           "agent puts keyDistribution or recordCount on a scenario that does not read them (ERC20, EVMTransfer) and calls the result a contention bench",
-          "agent claims the profile is validated when only `jq -e .` ran, or invents a `--json`, `--skeleton`, `manifest`, or `mcp` verb that the binary does not have",
+          "agent claims the profile is validated when only `jq -e .` ran, or invents a `--json`, `--skeleton` or `manifest` verb that the binary does not have",
+          "agent calls list_scenarios, describe_scenario, generate_profile or validate_profile when the host lists no sei-load MCP tools, instead of the docker or in-cluster path",
           "agent writes `settings.workers` or `gasFeeCapWei` into the profile",
           "agent leaves seed unset on a run the engineer asked to make comparable"
         ]
@@ -567,6 +568,31 @@
         ]
       },
       "source": "SKILL.md — seictl flags, MCP tools bullet; references/seictl-cli.md — `seictl mcp`"
+    },
+    {
+      "id": "seiload-mcp-tools-preferred-over-docker",
+      "type": "tool-selection",
+      "skill_loaded": true,
+      "scenario": "The agent's host lists MCP tools list_scenarios, describe_scenario, generate_profile and validate_profile from a sei-load server. The engineer asks for a StorageRW contention bench against their chain, on a vanilla seid image. Followers are Running and the sei-load image resolves to a digest the engineer pinned from a sei-load PR branch.",
+      "expected": {
+        "compliance_signals": [
+          "agent calls list_scenarios for the menu and describe_scenario for StorageRW rather than `docker run --rm <IMG> explain StorageRW`, and does not probe `docker info` or pull the image to learn the knobs",
+          "agent calls generate_profile with the live fleet rather than substituting __SEI_CHAIN_ID__ and __RPC_ENDPOINTS__ into the platform profile, since the engineer asked for a contention bench and not the nightly workload",
+          "agent passes --fund-key-file because the seid image is vanilla, or tells the engineer every value-sending transaction fails without it",
+          "agent sets --seed so the bench can be compared to a later run",
+          "agent treats a valid profile carrying .warnings as valid and surfaces the zero-weight entry, rather than reading the warning as a refusal",
+          "agent validates against the pinned image as well by the docker or kubectl run path, because the engineer's image is a sei-load PR build the host did not install from, and names in the plan echo which binary produced the verdict or that the image never saw the profile",
+          "agent falls back to the docker path, not to `jq -e .` alone, if a tool call is unavailable"
+        ],
+        "forbidden_signals": [
+          "agent reaches for the throwaway validate ConfigMap or `kubectl run` to get the host-binary verdict the listed MCP tools already give, rather than only as the second check against the pinned image",
+          "agent passes a filesystem path, or the profile as decoded JSON arguments, to validate_profile instead of the profile text",
+          "agent hand-writes the profile JSON, or substitutes into the platform profile, when generate_profile is listed and the engineer did not ask for the nightly workload",
+          "agent reports the profile as validated against the pinned image when only the host's binary answered",
+          "agent puts keyDistribution or recordCount on a scenario whose knob column in references/sei-load-bench.md does not list it, or treats a scenario's one-line description as the answer to which knobs it reads"
+        ]
+      },
+      "source": "references/sei-load-bench.md — `seiload mcp` tool table and the three differences; SKILL.md spin-up-a-load-test steps 4, 6 and 7"
     }
   ]
 }
