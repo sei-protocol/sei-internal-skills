@@ -493,7 +493,7 @@ func report(outPath, findingsPath, checkPath string, result driver.Result,
 	// that did not run rather than one that passed, so gating it on --out made the
 	// fail-closed signal the one that failed open.
 	if outPath != "" {
-		body := review.RenderComment(verdict, result.SessionID)
+		body := review.RenderComment(verdict, req.IncludeNits, result.SessionID)
 		if err := os.WriteFile(outPath, []byte(body), 0o644); err != nil {
 			return fmt.Errorf("writing the verdict to %s: %w", outPath, err)
 		}

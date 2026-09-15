@@ -16,8 +16,8 @@ import (
 // acceptance that cleared it, so the reader sees why it did not withhold.
 //
 // Empty when the recorded position is the word the reply wrote and nothing was accepted,
-// which is almost every review, and on a verdict the scouts settled. Rendered into the
-// comment's footer, where it survives truncation, and into the check summary, so the two
+// which is almost every review, and on a verdict the scouts settled. Rendered under the
+// comment's summary, ahead of every section, and into the check summary, so the two
 // readings of one review say the same thing.
 //
 // Every finding named is model text beside framing it must not be able to imitate, so it
