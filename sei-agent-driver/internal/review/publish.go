@@ -30,16 +30,20 @@ const MaxBodyBytes = 60_000
 // The line-tied findings the caller posts inline are not repeated here; each severity
 // section counts them, so the body and the inline comments read as one review. A
 // line-tied finding the caller cannot post -- no usable line, or past the placement cap --
-// is listed under its severity with its location, so nothing the review wrote is lost.
+// is listed under its severity with its location. Each section is bounded as the check
+// summary's are, and a section that overran says so and names the session item that
+// holds the rest.
 //
 // A nit this run does not admit is listed collapsed, so the reader who wants it can open
 // it and the one who does not is not made to read it. Every field is model text beside
-// framing it must not be able to imitate, so it goes through [defuseMarkup], which is
-// also what makes a cut safe: defused text opens no fence and no raw block, so nothing
-// a cut leaves behind can swallow what follows it.
+// framing it must not be able to imitate, so it goes through [defuseMarkup].
 //
 // It truncates and publishes rather than refusing. A review that ran, cost model spend
-// and held a sandbox for minutes must not be discarded over a formatting limit.
+// and held a sandbox for minutes must not be discarded over a formatting limit. On that
+// path the notice and the footer come before the cut text, and that order is the whole
+// guard: the one construct a cut can leave open is this package's own <details>, which
+// GitHub closes at the end of the document, so whatever follows the cut would render
+// folded. Nothing follows it.
 func RenderComment(v Verdict, includeNits bool, sessionID string) string {
 	footer := v.footer(sessionID)
 	body := strings.TrimRight(reviewBody(v, includeNits), "\n")
@@ -47,10 +51,11 @@ func RenderComment(v Verdict, includeNits bool, sessionID string) string {
 		return body + footer
 	}
 	notice := fmt.Sprintf(
-		"\n\n> **Review truncated by the publisher.** The whole reply is %d bytes. "+
-			"Read the rest at item `%s` of session `%s`.",
-		len(v.Text), v.ItemID, sessionID)
-	return truncateBytes(body, MaxBodyBytes-len(notice)-len(footer)) + notice + footer
+		"> **Review truncated by the publisher.** The rendered review is %d bytes and the "+
+			"text below is cut. Read the whole of it at item `%s` of session `%s`.",
+		len(body), v.ItemID, sessionID)
+	lead := notice + footer + "\n---\n\n"
+	return lead + truncateBytes(body, MaxBodyBytes-len(lead))
 }
 
 // reviewBody renders the summary and every section a review has something to say under.
@@ -62,14 +67,14 @@ func reviewBody(v Verdict, includeNits bool) string {
 	sections := []string{
 		v.position(),
 		bulletSection("Blocking", inlineLead(placed["blocker"]),
-			append(Blockers(v), unplacedBullets(v, includeNits, true)...)),
+			append(Blockers(v), unplacedBullets(v, includeNits, true)...), inTheSession),
 		bulletSection("Non-blocking", inlineLead(placed["suggestion"]+placed["nit"]+placed[""]),
-			append(NonBlockers(v), unplacedBullets(v, includeNits, false)...)),
-		preExistingSection(PreExisting(v), v.acceptedSource()),
+			append(NonBlockers(v), unplacedBullets(v, includeNits, false)...), inTheSession),
+		preExistingSection(PreExisting(v), v.acceptedSource(), inTheSession),
 		nitSection(v, includeNits),
 	}
 	out := make([]string, 0, len(sections)+1)
-	if prose := clipProse(defuseMarkup(v.Summary()), 0); prose != "" {
+	if prose := clipProse(defuseMarkup(v.Summary()), 0, inTheSession); prose != "" {
 		out = append(out, prose)
 	}
 	for _, s := range sections {
@@ -172,7 +177,7 @@ func nitSection(v Verdict, includeNits bool) string {
 	if len(items) == 0 {
 		return ""
 	}
-	list := bulletSection("Nits", "", items)
+	list := bulletSection("Nits", "", items, inTheSession)
 	list = strings.TrimPrefix(list, "### Nits\n")
 	return fmt.Sprintf("<details>\n<summary>%s, not posted on the code</summary>\n\n%s\n\n</details>",
 		plural(len(items), "nit"), list)

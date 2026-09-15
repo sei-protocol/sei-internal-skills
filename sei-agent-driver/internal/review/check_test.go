@@ -903,11 +903,11 @@ func TestTheCheckBudgetAddsUp(t *testing.T) {
 	// structural rather than arithmetic: prose yields to a section however the constants
 	// above are set. It binds only once they drift, so it is exercised directly.
 	prose := strings.Repeat("x", 5_000)
-	if got := clipProse(prose, maxCheckSummary); got != "" {
+	if got := clipProse(prose, maxCheckSummary, inTheComment); got != "" {
 		t.Errorf("clipProse kept %d bytes where the sections left none", len(got))
 	}
 	spent := maxCheckSummary - maxSummaryProse
-	if got := clipProse(prose, spent); len(got) >= maxSummaryProse {
+	if got := clipProse(prose, spent, inTheComment); len(got) >= maxSummaryProse {
 		t.Errorf("clipProse kept %d bytes where the sections left less than its own budget", len(got))
 	}
 	if maxCheckBullet*2 > maxCheckSection {

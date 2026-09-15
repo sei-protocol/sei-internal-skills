@@ -1,6 +1,7 @@
 package review
 
 import (
+	"fmt"
 	"strconv"
 	"strings"
 	"testing"
@@ -169,17 +170,52 @@ func TestRenderCommentTruncatesRatherThanRefusing(t *testing.T) {
 	if len(body) > MaxBodyBytes {
 		t.Errorf("body = %d bytes, want at most MaxBodyBytes (%d)", len(body), MaxBodyBytes)
 	}
-	if !strings.HasPrefix(body, "one blocker") {
-		t.Errorf("a truncated body does not open with the summary:\n%s", body[:200])
+	if !strings.HasPrefix(body, "> **Review truncated by the publisher.**") {
+		t.Errorf("a truncated body does not open with the notice:\n%s", body[:200])
 	}
-	if !strings.Contains(body, "Review truncated by the publisher") {
-		t.Errorf("the elision is not declared:\n%s", body[max(0, len(body)-400):])
+	// The fixture's cut lands inside the nit fold, which is the one construct a cut can
+	// leave open. The notice and the footer must both sit ahead of it.
+	fold := strings.Index(body, "<details>")
+	if fold < 0 || strings.Contains(body, "</details>") {
+		t.Fatalf("fixture must be cut inside the nit fold; fold at %d, closed=%v",
+			fold, strings.Contains(body, "</details>"))
 	}
-	if !strings.Contains(body, "decision `request_changes`") {
-		t.Error("a truncated body does not state its decision")
+	head := body[:fold]
+	if !strings.Contains(head, "decision `request_changes`") {
+		t.Error("a truncated body does not state its decision ahead of the cut")
 	}
-	if !strings.Contains(body, "item_reply") {
-		t.Error("a truncated body must still point at the item the whole reply can be read from")
+	if !strings.Contains(head, "item_reply") {
+		t.Error("a truncated body must point at the item the whole review can be read from, ahead of the cut")
+	}
+	if !strings.Contains(head, "\n\n---\n\none blocker") {
+		t.Errorf("the summary does not follow the lead:\n%s", head)
+	}
+	if strings.Contains(body, fmt.Sprintf("is %d bytes", len(v.Text))) {
+		t.Error("the notice sizes the reply rather than the rendered review")
+	}
+}
+
+func TestRenderCommentOverflowNamesTheSessionNotTheComment(t *testing.T) {
+	t.Parallel()
+
+	var items []string
+	for range maxCheckEntries + 5 {
+		items = append(items, `"a finding"`)
+	}
+	v := verdictFrom(t, `{"read":3,"decision":"approve","summary":"`+strings.Repeat("s ", 3000)+`",
+	  "non_blockers":[`+strings.Join(items, ",")+`]}`)
+
+	body := RenderComment(v, false, "conv_1")
+	if strings.Contains(body, "published comment") {
+		t.Errorf("the comment points the reader at itself:\n%s", body)
+	}
+	for _, want := range []string{
+		"- _and 5 more, not shown here. The session item the footer names carries the full review._",
+		"_The review's summary was truncated here. The session item the footer names carries it in full._",
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("body lacks %q:\n%s", want, body)
+		}
 	}
 }
 
