@@ -60,7 +60,7 @@ Loads the `genesis-chain` preset, applies discrete-flag and `--set` overrides, a
 
 1. Preset YAML (embedded in the seictl binary).
 2. Discrete flags (`--chain-id`, `--image`, `--replicas`, `--cpu`, `--memory`, `--storage`, `--iops`, `--throughput`, `--node-isolation`).
-3. `--set <dotted.path>=<value>`. Strategic-merge: maps merge per-key, lists replace wholesale. Wins on collision with discrete flags. SeiNetwork config overrides live under `spec.configOverrides` (reach them via `--set`); there is **no `--override` flag** on `network apply`.
+3. `--set <dotted.path>=<value>`. Strategic-merge: maps merge per-key, lists replace wholesale. Wins on collision with discrete flags. SeiNetwork config overrides live under `spec.configOverrides` (reach them via `--set`); there is **no `--override` flag** on `network apply`. `--set` cannot reach a config key that carries a dot — see *Typed config values* below.
 
    Overrides take effect only on an **init path**, so set them at create time. An edit to a Running network's overrides never reaches its nodes' on-disk config. See `troubleshooting-seinode.md` → *configOverrides edits never reach a Running node*. For a value that must reach a running pool, use `--config-value` instead (layer 4).
 
@@ -390,6 +390,8 @@ Commands never `cd`, never modify `~/.kube/config`, never set env vars in the ca
 
 **The two surfaces take keys in different vocabularies — translate, never copy.** A `spec.overrides` key is a *unified sei-config schema* path (`storage.state_commit.write_mode`, `network.rpc.pprof_listen_address`); config-apply silently rejects anything else. A `--config-value` key is the *raw TOML path inside the named file* (`app.toml:state-commit.sc-write-mode`, `config.toml:rpc.pprof_laddr`), exactly as it appears in `/sei/config/<file>`. Carrying a unified key into `--config-value` writes a key seid does not know, and the failure surfaces late — at `config-validate`, or as a silently ignored table. Worked pair for pprof: override `spec.overrides."network.rpc.pprof_listen_address"="0.0.0.0:6060"` ⇔ config value `--config-value config.toml:rpc.pprof_laddr=0.0.0.0:6060`. Confirm a raw key by reading the rendered file on a running pod before you write it.
 
+**`--set` cannot write a config key that carries a dot.** It splits the path on every dot, and escaping does not help (measured 2026-09-15). Neither `--set spec.configValues...` nor `--set spec.configOverrides...` can express `state-store.ss-enable`. Use `--config-value app.toml:state-store.ss-enable=true`, or write the YAML in the GitOps repo.
+
 **Minimum version.** `--config-value` arrives with seictl#253, which post-dates the v0.0.72 floor the rest of this skill assumes; no tag carried it at the time of writing. Pre-flight Gate 1 check 5 probes `seictl node apply --help` for `--config-value`; an older binary fails loud at parse (`flag provided but not defined: -config-value`). Upgrade (`go install ...@latest` once a tag ships, else `@main`); do not fall back to `--set spec.configOverrides`, which lands at first boot only.
 
 ```
@@ -422,7 +424,7 @@ An empty `currentConfigValuesHash` on a Running node means it predates the featu
 
 ## Consensus engine (`--consensus-engine`, `--evm-only`)
 
-Both `network apply` and `node apply` (seictl#255). `--consensus-engine Tendermint|Autobahn` (case-insensitive, rendered canonical) sets `spec.consensus.engine`; `--evm-only` sets `spec.consensus.evmOnly: true` and is refused without `--consensus-engine Autobahn` — locally, after `--set` has run, so `--set spec.consensus.engine=Tendermint` cannot smuggle the pair past it. Both omitted leaves `spec.consensus` absent (controller default Tendermint). **Repeat both on every re-apply**, same force-ownership reason as `--node-isolation`: an apply that omits them drops `spec.consensus`, and the apiserver refuses that as a create-only change on an Autobahn object rather than reverting it. A follower joining an Autobahn chain needs `--consensus-engine Autobahn` too, or `configure-genesis` never fetches `autobahn.json`. Full recipe, controller-owned keys and EVM-only caveats: `autobahn-giga.md`.
+Both `network apply` and `node apply` (seictl#255). `--consensus-engine Tendermint|Autobahn` (case-insensitive, rendered canonical) sets `spec.consensus.engine`; `--evm-only` sets `spec.consensus.evmOnly: true` and is refused without `--consensus-engine Autobahn` — locally, after `--set` has run, so `--set spec.consensus.engine=Tendermint` cannot smuggle the pair past it. Both omitted leaves `spec.consensus` absent (controller default Tendermint). **Repeat both on every re-apply**, same force-ownership reason as `--node-isolation`: an apply that omits them drops `spec.consensus`, and the apiserver refuses that as a create-only change on an Autobahn object rather than reverting it. A follower on an Autobahn chain never syncs, so do not provision one; a follower an engineer adds anyway needs `--consensus-engine Autobahn`, or `configure-genesis` never fetches `autobahn.json`. Full recipe, controller-owned keys and EVM-only caveats: `autobahn-giga.md`.
 
 ## Node isolation (`--node-isolation`)
 

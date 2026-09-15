@@ -30,7 +30,7 @@ Engineer-driven load tests run as a `Job` + `ConfigMap` pair under the engineer'
 
 Before writing any manifest:
 
-1. **At least one rpc follower SeiNode is present and `Running`.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json | jq -r '[.items[].status.phase]'` shows at least one `Running` follower. Halt and ask the engineer to wait if not — per-follower URLs are not published otherwise (a SeiNode has no `Ready` phase — terminal is `Running`).
+1. **At least one rpc follower SeiNode shows phase `Running`.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json | jq -r '[.items[].status.phase]'` shows at least one `Running` follower. Halt and ask the engineer to wait if not — per-follower URLs are not published otherwise (a SeiNode has no `Ready` phase — `Running` is the terminal one). **Skip this gate on an Autobahn chain:** a follower never syncs there, so the validators are the RPC. Skip gate 2 as well, and read the endpoints off the network (`references/autobahn-giga.md` → *Four settings an Autobahn bench chain must carry*).
 2. **Fleet RPC URLs available.** `seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'` returns a non-empty list (one URL per `Running` follower).
 3. **Image resolved + verified in registry** per `references/image-resolution.md`'s sei-load section.
 

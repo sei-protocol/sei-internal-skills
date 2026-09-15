@@ -226,6 +226,8 @@ seictl node apply <id> ... --set spec.overrides."storage.state_commit.write_mode
 
 **Cause.** The config-apply task consumes overrides **only on init paths** (bootstrap / snapshot-restore / state-sync / genesis). A Running node has **no day-2 apply path**. Update plans fired by image drift carry only the controller-owned `[p2p]` keys (external-address, persistent-peers). The reconciler has no override-drift detection (the spec edit enqueues a reconcile that produces a nil plan).
 
+The init container writes a config file only when the file is absent. Measured 2026-09-15: `app.toml` kept its 2026-09-01 mtime across 7 pod restarts.
+
 A `RestartSeid` task re-reads the **unchanged on-disk config** — a restart is not an apply. The spec silently diverges from live state.
 
 **Fix.** Set overrides **before first boot** whenever possible. For a Running node, the change takes effect only when the node next traverses an init path. That means a re-provision: delete + recreate with a **fresh chain-id** (see the chain-id-reuse entry below). Or a snapshot-restore / state-sync task. Verify what a node is *actually* running by reading its rendered files, never by trusting the spec: `kubectl exec <pod> -c seid -- cat /sei/config/app.toml`.
