@@ -2,7 +2,7 @@
 
 Read this when an engineer asks for a "giga node", "giga executor", "flatkv chain", "autobahn network", "evm-only chain", or wants to reproduce `sei-chain/integration_test/autobahn/README.md` on the harbor cluster. The README describes a self-contained Docker/AWS harness (`autobahn-e2e`); this file maps each of its knobs onto the CRD field that carries it, and names the ones the controller owns so the agent never double-sets them.
 
-Last verified 2026-09-11 against sei-chain `main` (`sei-tendermint/node/public.go`, `giga/evmonly/rpc/server.go`, `docker/localnode/scripts/step4_config_override.sh`, `sei-db/config/sc_config.go`) and sei-k8s-controller `main` after #553 (`api/v1alpha1/common_types.go:ConsensusSpec`, `internal/planner/consensus_overlay.go`, `internal/noderesource/noderesource.go:UpCheckForNode`, `sidecar/tasks/autobahn.go`, `sidecar/tasks/assemble_genesis.go`). Spec: `specs/008-consensus-engine`.
+Last verified 2026-09-11 against sei-chain `main` (`sei-tendermint/node/public.go`, `giga/evmonly/rpc/server.go`, `docker/localnode/scripts/step4_config_override.sh`, `sei-db/config/sc_config.go`) and sei-k8s-controller `main` after #553 (`api/v1alpha1/common_types.go:ConsensusSpec`, `internal/planner/consensus_overlay.go`, `internal/noderesource/noderesource.go:UpCheckForNode`, `sidecar/tasks/autobahn.go`, `sidecar/tasks/assemble_genesis.go`). Spec: `specs/008-consensus-engine`. *Sender-owner routing* re-verified 2026-09-16 against sei-k8s-controller `main` after #560 (`spec.consensus.autobahn.enableEvmProxy`) and sei-load `main` after #117 (`config/shard_routing.go`, `config/committee.go`).
 
 ## Three tiers, three answers
 
@@ -106,6 +106,7 @@ spec:
       blockInterval: 400ms
       allowEmptyBlocks: false
       maxTxsPerBlock: 2000  # 1..2000; 2000 is the protocol ceiling, only lowering it has an effect
+      enableEvmProxy: true  # default; false = each validator sequences only its own senders — pair with seiload shardRouting (section below)
   genesis:
     chainId: <chain-id>
     consensusParams: {block: {max_gas: "35000000"}}   # top-level genesis.consensus_params; overrides cannot reach it
@@ -152,6 +153,42 @@ done
 kubectl get seinetwork <chain-id> -n eng-<alias> -o jsonpath='{.spec.consensus}'   # what the apiserver kept; empty means the CRD pruned it (gate above)
 ```
 
+## Sender-owner routing — `enableEvmProxy: false` + seiload `shardRouting`
+
+Autobahn shards the EVM mempool by sender: `sha256(address) mod total_power` over the validators sorted by consensus key picks the one validator that sequences that sender (`sei-tendermint` `Committee.EvmShard`). With `enable_evm_proxy` on (the default) a validator forwards a foreign sender's transaction to its owner — a synchronous hop the bench then measures. `spec.consensus.autobahn.enableEvmProxy: false` (controller #560, `kubectl explain seinetwork.spec.consensus.autobahn.enableEvmProxy` is the gate) removes the hop, and then a transaction that reaches the wrong validator is not forwarded. seiload's default `endpoints` spread — sender address modulo endpoint count — is a different rule, so with proxying off most of its transactions land on a non-owner and the run measures rejections. The profile's `shardRouting` block (sei-load #117) makes seiload compute the same owner and dial it directly:
+
+```json
+"shardRouting": {"validators": [
+  {"consensusPubKey": "validator:ed25519:public:<hex>", "power": 1, "endpoint": "http://<chain-id>-0-0.<chain-id>-0.eng-<alias>.svc.cluster.local:8545"},
+  …one entry per validator
+]}
+```
+
+Every input is already on the cluster once the network is `Ready`: the ceremony writes `autobahn.json` to every validator pod (`/home/nonroot/.sei/config/autobahn.json`, the presence check above), and each `validators[]` entry carries `validator_key` (the format seiload accepts verbatim) and `evmrpc` (that validator's in-cluster `:8545` URL). Read it off any validator pod (every validator holds the same file) and shape it — no S3 read, no init container, no controller change:
+
+```sh
+pod=$(kubectl get pods -n eng-<alias> -l sei.io/chain=<chain-id>,sei.io/role=validator -o name | head -1)
+SHARD_ROUTING=$(kubectl exec -n eng-<alias> "$pod" -c seid -- cat /home/nonroot/.sei/config/autobahn.json \
+  | jq -c '{validators: [.validators[] | {consensusPubKey: .validator_key, power: 1, endpoint: .evmrpc}]}')
+# count gate, same reason as the verification loops: fewer entries than replicas means a stale or partial artifact
+want=$(kubectl get seinetwork <chain-id> -n eng-<alias> -o jsonpath='{.status.replicas}')
+[ "$(printf '%s' "$SHARD_ROUTING" | jq '.validators | length')" -eq "$want" ] || { echo "FAIL: autobahn.json lists fewer validators than .status.replicas=$want"; exit 1; }
+# merge into the generated profile (sei-load-bench.md, generate_profile / seiload scenario generate), then re-validate
+PROFILE=$(printf '%s' "$PROFILE" | jq --argjson sr "$SHARD_ROUTING" '. + {shardRouting: $sr}')
+```
+
+Rules, each with its consequence:
+
+- **`power: 1` for every validator is exact only while every gentx stakes the same amount** — the `seictl network` presets do (one `stakingAmount` for the pool, `sidecar/tasks/generate_gentx.go`). A hand-edited genesis with unequal stakes needs the real voting powers from `genesis.json` (`app_state.staking` / the validator set) — a wrong power moves every shard boundary, and the owner table seiload logs at startup then disagrees with the chain for a fraction of senders that fails silently as rejections.
+- **`endpoints` still serves the trackers, `shardRouting.validators[].endpoint` serves the sends.** Under EVM-only (Tier 3) set `endpoints` to the same validator URLs (`.status.endpoints.nodes[].evmJsonRpc`, *What EVM-only changes* below). Under Autobahn + Cosmos (Tier 2) keep `endpoints` on the RPC followers as `sei-load-bench.md` says; the followers do not sequence, so they never appear in `shardRouting`.
+- **Validate after the merge, not before.** `seiload validate` (or `validate_profile`) checks the block — a missing validator, zero power, a duplicate or non-`http(s)` endpoint are refusals. A profile validated before the merge and then edited lands the Job `Failed` at the strict decoder with no bench.
+- **Never pass `--nodes N` to the Job with `shardRouting` present.** seiload refuses it: truncating the endpoint list drops an owner and misroutes its senders. The Job template in `sei-load-bench.md` does not set it; do not add it.
+- **Funding and deploys route too.** With `shardRouting` set, the root-key funding sends and the deployer's contract deploys go to the owner of that key, so a Tier-2 bench with `funding.rootKeyFile` works with proxying off. Without the block those startup sends go to `endpoints[0]` and only succeed while the proxy is on.
+- **The seiload image must carry sei-load #117.** An older binary's strict decoder rejects `shardRouting` as an unknown field and the Job fails at start. Resolve the image per `image-resolution.md` and state the commit in the plan echo.
+- **`enableEvmProxy` is create-only with the rest of `spec.consensus`.** Flipping it is a new chain. Omitted leaves the key out of `autobahn.json` and seid applies its own default (`true`); write `true` explicitly on the control side of a proxy-on/proxy-off comparison so both artifacts carry the key.
+
+Verification after the first send: the seiload log opens with the derived owner table (sorted keys, powers, endpoints, total power) — compare its keys against `autobahn.json` `validators[].validator_key`; a mismatch is a copy error, not a chain fault. `cast receipt <hash>` against the validator that owns the sender confirms inclusion, as in *What EVM-only changes* below.
+
 ## What EVM-only changes for the rest of this skill
 
 Engineers read the README and phrase requests in its terms. These assumptions elsewhere in `harbor-dev` do not hold under Tier 3:
@@ -168,6 +205,8 @@ Engineers read the README and phrase requests in its terms. These assumptions el
 - Engineer asks for Autobahn or EVM-only on a cell whose CRD gate (above) fails → offer Tier 1 (Giga on CometBFT) as the deployable subset, ask the platform team to advance the controller pin. Never render `evm-only = true` or `autobahn-config-file` through `configValues` — on a new controller it is refused at plan build, on an old one it is a pod that never reads Ready.
 - Engineer asks for a non-default `autobahn.json` field → `spec.consensus.autobahn.{blockInterval, allowEmptyBlocks, maxTxsPerBlock}` in the manifest (controller #555; `kubectl explain seinetwork.spec.consensus.autobahn` is the gate, and there is no seictl flag). Create-only: a change is a new chain. Any other `autobahn.json` field is not expressible; say so rather than editing the file in the pod. `maxTxsPerBlock` above 2000 is refused by the CRD; the protocol clamps there anyway.
 - Follower requested on an EVM-only chain → ask what it is for; the validators serve `:8545` and a follower serves nothing the bench reads.
+- `enableEvmProxy: false` requested with a profile that has no `shardRouting` block, or `shardRouting` requested on a seiload image predating sei-load #117 → refuse to render the bench; the first measures rejections, the second fails at the strict decoder. Both fixes are in *Sender-owner routing* above.
+- `enableEvmProxy` requested on a cell where `kubectl explain seinetwork.spec.consensus.autobahn.enableEvmProxy` fails → the CRD prunes it silently and the chain boots with the proxy on; ask the platform team to advance the controller pin past #560 rather than rendering.
 - `sc-write-mode` value not in the enum above → refuse to render; a wrong literal is a post-genesis crash-loop of the whole pool.
 - Request to flip storage mode on a `Running` SeiNetwork → refuse the in-place `configValues` edit; it is a new chain. A single follower is the exception, via the gated `seictl workflow state-sync --migration GigaStore` path only.
 - Storage recipe copied without asking, or keys mixed across recipes (`flatkv_only` with `evm-ss-split = true`) → stop and ask Recipe A vs B; they bench different code paths.

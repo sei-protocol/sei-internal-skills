@@ -104,7 +104,7 @@ Both objects are one-offs in your own namespace, never committed. `--rm` deletes
 
 ### Profile shape
 
-- **Envelope** (`config.LoadConfig`): `chainId`, `seiChainID` (the Go tag is `seiChainID`; `encoding/json` matches keys case-insensitively, so `seiChainId` in an older profile is accepted too — write `seiChainID`, as the nightly profiles do), `endpoints` (required; sending shards across them), `receiptEndpoint`, `accounts` (`config.AccountConfig`: `count`, `newAccountRate`), `scenarios[]`, `mockDeploy`, `settings`, `funding`, `reportPath`, `seed`. `gasFeeCapWei` is *not* a field — the fee cap resolves from the chain at startup.
+- **Envelope** (`config.LoadConfig`): `chainId`, `seiChainID` (the Go tag is `seiChainID`; `encoding/json` matches keys case-insensitively, so `seiChainId` in an older profile is accepted too — write `seiChainID`, as the nightly profiles do), `endpoints` (required; sending shards across them), `receiptEndpoint`, `accounts` (`config.AccountConfig`: `count`, `newAccountRate`), `scenarios[]`, `mockDeploy`, `settings`, `funding`, `reportPath`, `seed`, `shardRouting` (sei-load #117: `{validators: [{consensusPubKey, power, endpoint}]}` — present, sends dial the Autobahn validator that owns each sender instead of spreading over `endpoints`; required on an `enableEvmProxy: false` chain, built from the validators' `autobahn.json` per `autobahn-giga.md` *Sender-owner routing*; `generate_profile` does not emit it, merge it with `jq` after generation and validate again). `gasFeeCapWei` is *not* a field — the fee cap resolves from the chain at startup.
 - **Scenario entry** (`config.Scenario`): `name`, `weight` (selection weight across scenarios), `accounts`, `gasPicker`, `gasFeeCapPicker`, `gasTipCapPicker`, `keyDistribution`, `sizeDistribution`, `recordCount`, `sizeBuckets`, `operations`, `fanout`, `targetSpace`, `contractKey`, `contractAddress`, `forceDeploy`.
 - **Discriminated unions key on `Name`** — the only PascalCase key on the surface:
 
@@ -142,7 +142,7 @@ Flags:
 
 - `--duration` — 0 = run until SIGTERM; always set it in a Job.
 - `--post-summary-flush-delay` — default 25s; the template uses 45s so Prometheus scrapes the summary before exit.
-- `--track-receipts`, `--report-path` (text only; the sidecar uploads it), `--nodes N` (0 = all endpoints).
+- `--track-receipts`, `--report-path` (text only; the sidecar uploads it), `--nodes N` (0 = all endpoints; refused when the profile carries `shardRouting` — dropping a validator misroutes its senders).
 - `--arrival-model`, `--max-in-flight`, `--inclusion-reap-after`.
 
 `--dry-run` mocks deploy and sends for a config smoke test. The `healthz` endpoint answers at bind. The `readyz` endpoint refuses through the startup phase (fund → deploy → prewarm) and reports which step is running. That phase can take minutes on a cold chain, so a `Running` pod that is not yet `Ready` is normal.
