@@ -5,12 +5,15 @@
 # bumping the base is one reviewable line. Digest-pinned, not tag-pinned: a tag
 # is mutable, and a base that changes under a stale claim is not detectable here.
 #
-# Current: tag runner-1d570891-credbridge, fork commit 1d570891 — rebased on
-# upstream v0.13.0, carrying the fork-managed sandbox, the Slack pagination fix,
-# and a Node 22 harness runtime. Bakes claude-code 2.1.266, codex 0.153.4,
-# pi 0.85.1; ecr-runner-base.yml gated those versions against the image.
+# Current: tag runner-241fa20e-credbridge, fork commit 241fa20e, which merges
+# upstream main 63231a044 (2026-09-28). Built by ECR Runner Base run 36442316845.
+# Bakes claude-code 2.1.283, codex 0.158.0, pi 0.87.1. Dockerfile.sei's install
+# step compared each of the three to npm `latest` and fails the build on a
+# mismatch (the run logs "harness CLI <bin> <version> (matches npm latest)" for
+# all three). ecr-runner-base.yml then re-checks claude-code alone against the
+# published image.
 #
 # Build this from the SAME fork ref as the server base. The host dials the server
 # over a tunnel neither side version-negotiates, so a split between them is the
 # combination upstream never tests.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:8bb885d9fdcbfe78f44de091112d2ae1d7f986bf737e4093ec18d1d13df4bac2
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:bf411386758283db6622d3266fc664816080155bea9c7cdc34fdb878f28bd083

@@ -5,56 +5,63 @@
 # Digest-pinned, not tag-pinned: a tag is mutable, and a base that changed under
 # a stale claim would not be detectable from this file.
 #
-# Current: tag agents-main-1d570891-k8s, server 0.13.0, from
-# bdchatham/omnigent@feat/sei-base 1d570891 -- rebased onto upstream v0.13.0
-# (eebef804), 149 upstream commits past the previous pin's 1ddfed019.
+# Current: tag agents-main-241fa20e-k8s, server 0.16.0.dev0, from
+# bdchatham/omnigent@feat/sei-base 241fa20e, which merges upstream main
+# 63231a044 (2026-09-28). Built by ECR Server Base run 36442311479.
 #
-# The rebase RETIRED two carried patches, because upstream now ships both: the
-# client_credentials machine-auth grant, and the Slack host_type="managed"
-# support (omnigent-ai/omnigent#6608, filed from here as #6601). Eight fork
-# commits remain, of which FIVE reach this image:
-#   - two deploy/docker/Dockerfile fixes that COPY integrations/. Without them
-#     the slack extra does not resolve at build time.
-#   - the paginated built-in agent/host listing the Slack picker needs. Still
-#     not upstream. It lives in integrations/slack/, which only the BOT runs.
-#   - two session-fork commits, which ARE server runtime: a fork may request a
-#     managed sandbox, and a clone no longer inherits the source's sandbox
-#     repository (server/routes/sessions/routes_core.py, schemas.py).
-# The other three touch deploy/docker/Dockerfile.sei and the runner credential
-# check. This image is not built from that file, so they land in runner-base.txt
-# and change nothing here.
+# The fork's whole diff against upstream is eight files. Three reach this image:
+#   - deploy/docker/Dockerfile: COPY integrations/, without which the slack
+#     extra does not resolve at build time.
+#   - integrations/slack: the paginated built-in agent/host listing the Slack
+#     picker needs. Only the BOT runs it.
+#   - omnigent/onboarding/sandboxes/kubernetes.py: OMNIGENT_K8S_JOB_ACTIVE_DEADLINE_S,
+#     a server-env override for the sandbox Job's activeDeadlineSeconds. Unset,
+#     the 7-day default applies, so it changes nothing until a deployment sets it.
+# The rest (deploy/docker/Dockerfile.sei, the runner credential check) is the
+# runner recipe; it lands in runner-base.txt. The session-fork patches the fork
+# used to carry are retired: upstream ships them (#6661) and the fork now carries
+# upstream's version.
 #
 # OMNIGENT_EXTRAS unchanged: kubernetes,slack,kms.
 #
-# Platform's vendored Kustomize tree MUST come from this same upstream commit.
-# The launcher creates batch/v1 Jobs: its RBAC lives in that tree, its API calls
-# live in this image, and a split between them 403s every managed sandbox launch
-# while the server reports healthy. That tree sits at 951ef519e; this image now
-# sits at v0.13.0. The one functional drift is an added RBAC rule for
+# Platform's vendored Kustomize tree MUST come from the same upstream commit. The
+# launcher creates batch/v1 Jobs: its RBAC lives in that tree, its API calls live
+# in this image, and a split between them 403s every managed sandbox launch while
+# the server reports healthy. When this pin landed, the tree sat at 951ef519e.
+# Across 951ef519e..63231a044, deploy/kubernetes changes one RBAC rule: it adds
 # agents.x-k8s.io/sandboxes, which only a `provider: agent_sandbox` launcher
-# uses. Dev is `provider: kubernetes`, so the split is inert today. Re-sync the
-# tree before anything selects that provider.
+# calls. The batch/jobs and pods rules a `provider: kubernetes` launcher uses do
+# not change, so dev stays safe until the tree is re-synced. Re-sync the tree
+# before anything selects `agent_sandbox`.
 #
-# MIGRATIONS. Four revisions land with this bump, ga1b2c3d4e5f -> ge1b2c3d4e5f.
-# Rehearsed against postgres:16-alpine seeded to the deployed revision by the
-# outgoing image, which emitted exactly:
-#     ALTER TABLE hosts ADD COLUMN terminating_sandbox_id VARCHAR(256);
-#     ALTER TABLE hosts ADD COLUMN deleted_at INTEGER;
-#     ALTER TABLE users ADD COLUMN background_session_titles_enabled BOOLEAN;
-#     ALTER TABLE users DROP COLUMN background_session_titles_enabled;
-# Each one is nullable, defaultless and catalog-only on Postgres: no rewrite, no
-# scan, no backfill, no constraint. The last two add and drop one column inside
-# a single upgrade and net to nothing. The whole chain took 297 ms.
+# MIGRATIONS run at boot. This base crosses eleven revisions, ge1b2c3d4e5f ->
+# ll1a2b3c4d5e. Rehearsed on postgres:16-alpine loaded with dev's schema-only
+# dump and synthetic rows at dev scale (121 hosts, 7 users, 139 conversation
+# metadata rows): upgrade 225 ms, downgrade 65 ms, re-upgrade 81 ms, row counts
+# intact. The rehearsal proves the chain runs and reverses on dev's schema. It
+# does NOT prove data safety: the synthetic rows carry no values in the columns
+# below. That argument comes from the code. Three revisions can discard data, and
+# each touches only a column or table that an earlier revision in this chain
+# creates. On the deployed revision those do not exist, so the upgrade has
+# nothing of them to lose:
+#   - ll compress_inference_snapshot NULLs any snapshot over 65,535 compressed
+#     bytes. The column comes from hi add_inference_snapshot. Its docstring
+#     requires readers and writers stopped; the server's Recreate strategy
+#     satisfies that.
+#   - kk preferences_value_blob deletes preference rows over 65,535 bytes. The
+#     table comes from jj.
+#   - jj move_project_order_to_preferences copies users.project_order into
+#     preferences, then drops the column. The column comes from gh
+#     add_user_project_order.
 #
-# ROLLBACK. Migrations run at boot; the point of no return is that transaction
-# committing. Two corrections to what this file used to say. First, there IS a
-# newer-revision guard: _verify_db_revision_is_supported refuses a database
-# ahead of the image and raises "Omnigent database schema is newer than this
-# version of Omnigent", so an older image crash-loops on a named error, not on
-# an unresolved revision. Second, a down path exists and was measured: all four
-# revisions implement downgrade(), so `alembic downgrade ga1b2c3d4e5f` run FROM
-# THIS IMAGE reverts in 265 ms, after which the previous base boots clean. No
-# db-downgrade CLI exists, so that is a manual exec, and it discards any
-# terminating_sandbox_id / deleted_at written since the upgrade -- which leaks a
-# managed sandbox, and loses no transcript.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:39592eb4e7de051d0680cd6aef13bd4780f7f40bab82ac5902a263c49233d6b6
+# ROLLBACK. The point of no return is the migration transaction committing.
+# _verify_db_revision_is_supported makes an older image refuse a newer database
+# with "Omnigent database schema is newer than this version of Omnigent", so
+# reverting the digest alone crash-loops. Run `alembic downgrade ge1b2c3d4e5f`
+# FROM THIS IMAGE first (65 ms rehearsed), then revert. The downgrade returns the
+# schema to what the deployed revision had, so it discards only what the new
+# revisions stored after the upgrade: inference snapshots, account-revocation
+# markers and project ordering. jj's downgrade copies ordering back into
+# users.project_order, then gh's drops that column. No data from before the
+# upgrade is lost, because none of it lived in these columns.
+189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:2f46fbca5a56de7fa53b1ac3c64fcb8afb53241d18744c029a11fb8db95e446e
