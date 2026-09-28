@@ -3,6 +3,7 @@ package omni
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
@@ -77,15 +78,20 @@ func transportFailed(err error) bool {
 	return errors.As(err, &urlErr)
 }
 
-// gatewayUnavailable reports an answer that no omnigent process wrote: a 502, 503
-// or 504 that carries no error envelope and no request id.
+// gatewayUnavailable reports an answer that no omnigent handler wrote: a 502, 503
+// or 504 that carries no error envelope.
 //
 // That is a gateway or load balancer speaking for a server it cannot reach, which
 // in practice is the server being replaced, and it is the one HTTP answer a retry
 // can change. It does not weaken [transportFailed]'s rule that a response the
-// server sent is final. The server's middleware stamps X-Request-Id on every
-// response it writes, and its own refusals carry a code, so a 503 the server
-// itself sends, such as runner_unavailable, fails both tests and stays final.
+// server sent is final. Every refusal the server's handlers write carries an
+// envelope with a code or a message, so a 503 such as runner_unavailable fails
+// this test and stays final.
+//
+// The request id is deliberately not part of the test. This driver sends
+// X-Request-Id on every request (see transport.go), and a gateway configured to
+// echo it puts one on its own 503, so its presence proves nothing about who wrote
+// the response.
 func gatewayUnavailable(err error) bool {
 	var apiErr *omnigent.APIError
 	if !errors.As(err, &apiErr) {
@@ -96,7 +102,7 @@ func gatewayUnavailable(err error) bool {
 	default:
 		return false
 	}
-	return apiErr.RequestID == "" && apiErr.Code == "" && apiErr.Title == "" && len(apiErr.Detail) == 0
+	return apiErr.Code == "" && apiErr.Title == "" && apiErr.Message == "" && len(apiErr.Detail) == 0
 }
 
 // serverUnreachable reports a read that neither the server nor anything speaking
@@ -121,9 +127,13 @@ const minRestartPoll = 50 * time.Millisecond
 //
 // Only for a read that is safe to repeat. The retry exists because the run holds a
 // live sandbox and a turn that survives the restart; waiting out the restart is
-// what lets the run collect that turn's answer. The caller's deadline still
-// bounds the whole wait, and the op's own error is returned, so the reason the
-// run stopped stays in the message.
+// what lets the run collect that turn's answer.
+//
+// The caller's deadline still bounds the whole wait. A wait that the deadline or
+// a cancellation ends returns an error wrapping ctx.Err() as well as the op's
+// last error. The context error is what the run's exit code classifies on: a
+// stopped run must report a timeout or a cancellation, not a transport fault
+// that invites a re-run. The op's error keeps the reason in the message.
 func retryServerRestart(ctx context.Context, budget time.Duration, onWait func(error), op func() error) error {
 	interval := max(budget/restartPolls, minRestartPoll)
 	giveUp := time.Now().Add(budget)
@@ -135,7 +145,7 @@ func retryServerRestart(ctx context.Context, budget time.Duration, onWait func(e
 		onWait(err)
 		select {
 		case <-ctx.Done():
-			return err
+			return fmt.Errorf("%w while waiting out a server restart: %w", ctx.Err(), err)
 		case <-time.After(interval):
 		}
 	}

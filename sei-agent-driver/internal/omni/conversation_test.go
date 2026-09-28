@@ -165,8 +165,10 @@ type driverFakeServerConfig struct {
 
 	// SessionGatewayUnavailable answers this many GET /v1/sessions/{id} with what a
 	// gateway sends while the server behind it is being replaced: a 503 whose
-	// text/plain body is "no healthy upstream", with no error envelope and no
-	// request id. It starts once the first subscription has ended, because that is
+	// text/plain body is "no healthy upstream", with no error envelope. It echoes
+	// the client's X-Request-Id, as an Envoy with always_set_request_id_in_response
+	// does, so a classifier that trusted the request id would miss it. It starts
+	// once the first subscription has ended, because that is
 	// when a replacement shows itself: the stream drops, and every read after it
 	// reaches only the gateway. The answers it serves do not consume SessionResps,
 	// so that queue still describes the server that comes back.
@@ -394,6 +396,9 @@ func (fs *driverFakeServer) handleListSessions(w http.ResponseWriter, r *http.Re
 func (fs *driverFakeServer) handleGetSession(w http.ResponseWriter, r *http.Request) {
 	if fs.firstStreamEnded.Load() && fs.gatewayUnavailable.Add(-1) >= 0 {
 		fs.gatewayUnavailableHits.Add(1)
+		if id := r.Header.Get("X-Request-Id"); id != "" {
+			w.Header().Set("X-Request-Id", id)
+		}
 		w.Header().Set("Content-Type", "text/plain")
 		w.WriteHeader(http.StatusServiceUnavailable)
 		_, _ = io.WriteString(w, "no healthy upstream")

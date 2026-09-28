@@ -113,6 +113,27 @@ func TestARestartLongerThanTheBudgetStillEndsTheRun(t *testing.T) {
 	}
 }
 
+// TestADeadlineDuringTheRestartWaitReportsATimeout pins what a stopped run
+// reports. The wait is minutes long, so a deadline or a cancellation often lands
+// inside it. That run must exit as a timeout, not as a transport fault: exit 6
+// invites a re-run of a review that was deliberately stopped.
+func TestADeadlineDuringTheRestartWaitReportsATimeout(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, restartSessionConfig(1000))
+	cfg := driverTestConfig(t, fs.URL)
+	cfg.RunDeadline = 1500 * time.Millisecond
+	cfg.ServerRestartBudget = time.Minute
+
+	result := newTestDriver(cfg, driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 63, Trigger: "t-deadline"})
+
+	if result.ExitCode != driver.ExitTimeout {
+		t.Errorf("ExitCode = %d, want driver.ExitTimeout: the run deadline ended the wait, "+
+			"so the run timed out; it did not lose its transport", result.ExitCode)
+	}
+}
+
 // TestOnlyAGatewaySpeakingForTheServerIsRetried pins the classifier. The line it
 // draws is the whole safety argument: a response the server wrote is final, and
 // only a gateway's word that the server is gone is not.
@@ -130,8 +151,10 @@ func TestOnlyAGatewaySpeakingForTheServerIsRetried(t *testing.T) {
 		{"gateway 502", &omnigent.APIError{StatusCode: 502}, true, true},
 		{"gateway 504", &omnigent.APIError{StatusCode: 504}, true, true},
 		{"wrapped gateway 503", fmt.Errorf("reading: %w", &omnigent.APIError{StatusCode: 503}), true, true},
-		{"503 the server wrote", &omnigent.APIError{StatusCode: 503, RequestID: "req_1"}, false, false},
+		// A gateway that echoes the request id the driver sent is still a gateway.
+		{"gateway 503 echoing the request id", &omnigent.APIError{StatusCode: 503, RequestID: "req_1"}, true, true},
 		{"runner_unavailable", &omnigent.APIError{StatusCode: 503, Code: "runner_unavailable", RequestID: "req_1"}, false, false},
+		{"503 with only a message", &omnigent.APIError{StatusCode: 503, Message: "draining"}, false, false},
 		{"503 with a titled failure", &omnigent.APIError{StatusCode: 503, Title: "Host offline"}, false, false},
 		{"503 with a detail envelope", &omnigent.APIError{StatusCode: 503, Detail: json.RawMessage(`"draining"`)}, false, false},
 		{"500 with no envelope", &omnigent.APIError{StatusCode: 500}, false, false},
