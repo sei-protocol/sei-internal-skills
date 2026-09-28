@@ -163,6 +163,17 @@ type driverFakeServerConfig struct {
 	// route, so a test that needs them to differ configures both.
 	SessionResps []string
 
+	// SessionGatewayUnavailable answers this many GET /v1/sessions/{id} with what a
+	// gateway sends while the server behind it is being replaced: a 503 whose
+	// text/plain body is "no healthy upstream", with no error envelope. It echoes
+	// the client's X-Request-Id, as an Envoy with always_set_request_id_in_response
+	// does, so a classifier that trusted the request id would miss it. It starts
+	// once the first subscription has ended, because that is
+	// when a replacement shows itself: the stream drops, and every read after it
+	// reaches only the gateway. The answers it serves do not consume SessionResps,
+	// so that queue still describes the server that comes back.
+	SessionGatewayUnavailable int
+
 	// EventStatus is the status the events route answers a prompt post with. Zero
 	// answers normally. Non-zero models the ambiguous send: the server may or may
 	// not have taken the prompt, and the caller cannot tell.
@@ -202,6 +213,11 @@ type driverFakeServer struct {
 	listSessHits           atomic.Int64
 	getSessHits            atomic.Int64
 	streamHits             atomic.Int64
+	// gatewayUnavailable is how many gateway 503s remain to serve once
+	// firstStreamEnded is set; gatewayUnavailableHits counts the ones served.
+	gatewayUnavailable     atomic.Int64
+	gatewayUnavailableHits atomic.Int64
+	firstStreamEnded       atomic.Bool
 	// firstStreamFrames counts the frames the server wrote on the first
 	// subscription before the driver went away.
 	firstStreamFrames atomic.Int64
@@ -280,6 +296,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		patchStatus:            cfg.PatchStatus,
 		tokenResp:              cfg.TokenResp,
 	}
+	fs.gatewayUnavailable.Store(int64(cfg.SessionGatewayUnavailable))
 	if fs.sandboxFrames == nil {
 		fs.sandboxFrames = driverSandboxReadyFrames()
 	}
@@ -377,6 +394,16 @@ func (fs *driverFakeServer) handleListSessions(w http.ResponseWriter, r *http.Re
 // this route, so a test needing them to differ configures a sequence and the last
 // body repeats.
 func (fs *driverFakeServer) handleGetSession(w http.ResponseWriter, r *http.Request) {
+	if fs.firstStreamEnded.Load() && fs.gatewayUnavailable.Add(-1) >= 0 {
+		fs.gatewayUnavailableHits.Add(1)
+		if id := r.Header.Get("X-Request-Id"); id != "" {
+			w.Header().Set("X-Request-Id", id)
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(w, "no healthy upstream")
+		return
+	}
 	idx := int(fs.getSessHits.Add(1)) - 1
 	body := driverSessionResp(r.PathValue("id"), "ag_1")
 	if len(fs.sessionResps) > 0 {
@@ -501,6 +528,11 @@ func (fs *driverFakeServer) StreamHits() int64 { return fs.streamHits.Load() }
 // was not) cut by the driver's own idle bound.
 func (fs *driverFakeServer) FirstStreamFrames() int64 { return fs.firstStreamFrames.Load() }
 
+// GatewayUnavailableHits reports how many gateway 503s the server answered.
+func (fs *driverFakeServer) GatewayUnavailableHits() int64 {
+	return fs.gatewayUnavailableHits.Load()
+}
+
 func (fs *driverFakeServer) handleStream(w http.ResponseWriter, r *http.Request) {
 	fs.streamHits.Add(1)
 	w.Header().Set("Content-Type", "text/event-stream")
@@ -519,6 +551,9 @@ func (fs *driverFakeServer) handleStream(w http.ResponseWriter, r *http.Request)
 		body = append(append([]string(nil), fs.sandboxFrames...), body...)
 	}
 	first := fs.streamHits.Load() == 1
+	if first {
+		defer fs.firstStreamEnded.Store(true)
+	}
 	for _, frame := range body {
 		if first && fs.streamFrameGap > 0 {
 			select {

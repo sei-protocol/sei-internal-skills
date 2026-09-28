@@ -60,6 +60,7 @@ func TestNewSubstitutesEveryNonPositiveTimeout(t *testing.T) {
 
 	h := New(driver.Config{
 		RequestTimeout: 0, UnaryTimeout: -1 * time.Second, StreamIdleTimeout: 0,
+		ServerRestartBudget: -1 * time.Second,
 	}, driver.Policy{}, driverTestLogger())
 
 	for _, tc := range []struct {
@@ -70,6 +71,7 @@ func TestNewSubstitutesEveryNonPositiveTimeout(t *testing.T) {
 		{"RequestTimeout", h.cfg.RequestTimeout, driver.DefaultRequestTimeout},
 		{"UnaryTimeout", h.cfg.UnaryTimeout, driver.DefaultUnaryTimeout},
 		{"StreamIdleTimeout", h.cfg.StreamIdleTimeout, driver.DefaultStreamIdleTimeout},
+		{"ServerRestartBudget", h.cfg.ServerRestartBudget, driver.DefaultServerRestartBudget},
 	} {
 		if tc.got.Seconds() != tc.want.Seconds() {
 			t.Errorf("%s = %vs, want the documented default %vs",

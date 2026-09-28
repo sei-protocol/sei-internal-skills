@@ -134,6 +134,17 @@ type Config struct {
 	// looks like — the cadence does not wait for it, and a stream dropped early is
 	// re-established with the prompt still unsent.
 	StreamIdleTimeout time.Duration
+
+	// ServerRestartBudget is how long a session read keeps retrying while a gateway
+	// in front of the server reports the server as gone, before the run gives up.
+	//
+	// That answer means the server is being replaced. A deployment that runs one
+	// replica with a Recreate rollout has no server for its drain and its restart;
+	// one measured on dev was unreachable for about two minutes. The sandbox and
+	// the turn survive that window, so a run that waits it out collects an answer
+	// that a run which gives up discards. It prices only reads that are safe to
+	// repeat; nothing that changes state waits on it.
+	ServerRestartBudget time.Duration
 }
 
 // LogValue renders the configuration without its credentials.
@@ -158,6 +169,7 @@ func (c Config) LogValue() slog.Value {
 		slog.Duration("request_timeout", c.RequestTimeout),
 		slog.Duration("unary_timeout", c.UnaryTimeout),
 		slog.Duration("stream_idle_timeout", c.StreamIdleTimeout),
+		slog.Duration("server_restart_budget", c.ServerRestartBudget),
 	)
 }
 
@@ -205,6 +217,12 @@ const (
 	// DefaultStreamIdleTimeout bounds silence on the event stream before the read
 	// is abandoned and re-established.
 	DefaultStreamIdleTimeout = 300 * time.Second
+
+	// DefaultServerRestartBudget bounds the wait for a server being replaced. Sized
+	// with headroom over the roughly two minutes a single-replica rollout measured,
+	// and far inside DefaultRunDeadline, so a restart costs a review minutes rather
+	// than its verdict.
+	DefaultServerRestartBudget = 180 * time.Second
 )
 
 // LoadConfig reads the configuration from the environment.
@@ -233,6 +251,7 @@ func LoadConfig() (Config, error) {
 		{"SEIDROID_REQUEST_TIMEOUT_S", DefaultRequestTimeout.Seconds(), &cfg.RequestTimeout},
 		{"SEIDROID_UNARY_TIMEOUT_S", DefaultUnaryTimeout.Seconds(), &cfg.UnaryTimeout},
 		{"SEIDROID_STREAM_IDLE_TIMEOUT_S", DefaultStreamIdleTimeout.Seconds(), &cfg.StreamIdleTimeout},
+		{"SEIDROID_SERVER_RESTART_BUDGET_S", DefaultServerRestartBudget.Seconds(), &cfg.ServerRestartBudget},
 	} {
 		secs, err := secondsOr(d.name, d.secs)
 		if err != nil {
