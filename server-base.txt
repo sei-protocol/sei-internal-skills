@@ -27,28 +27,41 @@
 # Platform's vendored Kustomize tree MUST come from the same upstream commit. The
 # launcher creates batch/v1 Jobs: its RBAC lives in that tree, its API calls live
 # in this image, and a split between them 403s every managed sandbox launch while
-# the server reports healthy. The platform bump that pins this digest re-syncs
-# the tree to 63231a044.
+# the server reports healthy. When this pin landed, the tree sat at 951ef519e.
+# Across 951ef519e..63231a044, deploy/kubernetes changes one RBAC rule: it adds
+# agents.x-k8s.io/sandboxes, which only a `provider: agent_sandbox` launcher
+# calls. The batch/jobs and pods rules a `provider: kubernetes` launcher uses do
+# not change, so dev stays safe until the tree is re-synced. Re-sync the tree
+# before anything selects `agent_sandbox`.
 #
 # MIGRATIONS run at boot. This base crosses eleven revisions, ge1b2c3d4e5f ->
 # ll1a2b3c4d5e. Rehearsed on postgres:16-alpine loaded with dev's schema-only
 # dump and synthetic rows at dev scale (121 hosts, 7 users, 139 conversation
 # metadata rows): upgrade 225 ms, downgrade 65 ms, re-upgrade 81 ms, row counts
-# intact. Three revisions can discard data, and each acts only on a column that
-# an earlier revision in this same chain creates, so no data that exists before
-# the upgrade is lost:
+# intact. The rehearsal proves the chain runs and reverses on dev's schema. It
+# does NOT prove data safety: the synthetic rows carry no values in the columns
+# below. That argument comes from the code. Three revisions can discard data, and
+# each touches only a column or table that an earlier revision in this chain
+# creates. On the deployed revision those do not exist, so the upgrade has
+# nothing of them to lose:
 #   - ll compress_inference_snapshot NULLs any snapshot over 65,535 compressed
-#     bytes. Its docstring requires readers and writers stopped; the server's
-#     Recreate strategy satisfies that.
-#   - kk preferences_value_blob deletes preference rows over 65,535 bytes.
-#   - jj move_project_order_to_preferences drops users.project_order after
-#     copying it.
+#     bytes. The column comes from hi add_inference_snapshot. Its docstring
+#     requires readers and writers stopped; the server's Recreate strategy
+#     satisfies that.
+#   - kk preferences_value_blob deletes preference rows over 65,535 bytes. The
+#     table comes from jj.
+#   - jj move_project_order_to_preferences copies users.project_order into
+#     preferences, then drops the column. The column comes from gh
+#     add_user_project_order.
 #
 # ROLLBACK. The point of no return is the migration transaction committing.
 # _verify_db_revision_is_supported makes an older image refuse a newer database
 # with "Omnigent database schema is newer than this version of Omnigent", so
 # reverting the digest alone crash-loops. Run `alembic downgrade ge1b2c3d4e5f`
-# FROM THIS IMAGE first (65 ms rehearsed), then revert. The downgrade discards
-# what the new revisions stored since the upgrade: preferences, inference
-# snapshots, account-revocation markers.
+# FROM THIS IMAGE first (65 ms rehearsed), then revert. The downgrade returns the
+# schema to what the deployed revision had, so it discards only what the new
+# revisions stored after the upgrade: inference snapshots, account-revocation
+# markers and project ordering. jj's downgrade copies ordering back into
+# users.project_order, then gh's drops that column. No data from before the
+# upgrade is lost, because none of it lived in these columns.
 189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:2f46fbca5a56de7fa53b1ac3c64fcb8afb53241d18744c029a11fb8db95e446e

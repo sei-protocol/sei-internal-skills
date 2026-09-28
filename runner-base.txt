@@ -7,8 +7,11 @@
 #
 # Current: tag runner-241fa20e-credbridge, fork commit 241fa20e, which merges
 # upstream main 63231a044 (2026-09-28). Built by ECR Runner Base run 36442316845.
-# Bakes claude-code 2.1.283, codex 0.158.0, pi 0.87.1; ecr-runner-base.yml gated
-# each against npm `latest`.
+# Bakes claude-code 2.1.283, codex 0.158.0, pi 0.87.1. Dockerfile.sei's install
+# step compared each of the three to npm `latest` and fails the build on a
+# mismatch (the run logs "harness CLI <bin> <version> (matches npm latest)" for
+# all three). ecr-runner-base.yml then re-checks claude-code alone against the
+# published image.
 #
 # Build this from the SAME fork ref as the server base. The host dials the server
 # over a tunnel neither side version-negotiates, so a split between them is the
