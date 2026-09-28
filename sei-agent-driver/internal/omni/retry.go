@@ -3,6 +3,7 @@ package omni
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/url"
 	"time"
 
@@ -74,4 +75,68 @@ func transportFailed(err error) bool {
 	}
 	var urlErr *url.Error
 	return errors.As(err, &urlErr)
+}
+
+// gatewayUnavailable reports an answer that no omnigent process wrote: a 502, 503
+// or 504 that carries no error envelope and no request id.
+//
+// That is a gateway or load balancer speaking for a server it cannot reach, which
+// in practice is the server being replaced, and it is the one HTTP answer a retry
+// can change. It does not weaken [transportFailed]'s rule that a response the
+// server sent is final. The server's middleware stamps X-Request-Id on every
+// response it writes, and its own refusals carry a code, so a 503 the server
+// itself sends, such as runner_unavailable, fails both tests and stays final.
+func gatewayUnavailable(err error) bool {
+	var apiErr *omnigent.APIError
+	if !errors.As(err, &apiErr) {
+		return false
+	}
+	switch apiErr.StatusCode {
+	case http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout:
+	default:
+		return false
+	}
+	return apiErr.RequestID == "" && apiErr.Code == "" && apiErr.Title == "" && len(apiErr.Detail) == 0
+}
+
+// serverUnreachable reports a read that neither the server nor anything speaking
+// for it answered: a transport failure, or a gateway reporting the server gone.
+func serverUnreachable(err error) bool {
+	return transportFailed(err) || gatewayUnavailable(err)
+}
+
+// restartPolls is how many times [retryServerRestart] asks across one budget.
+//
+// A fixed cadence, not a growing one. What ends the wait is a new server coming
+// up, which happens once and at no predictable point, so polling evenly finds it
+// no later than one interval after it happens. Sixteen reads a run is a load the
+// returning server does not notice.
+const restartPolls = 16
+
+// minRestartPoll floors the interval, so a small budget cannot spin on the server.
+const minRestartPoll = 50 * time.Millisecond
+
+// retryServerRestart runs op until it succeeds, fails for a reason other than an
+// unreachable server, or the budget runs out. It calls onWait before each wait.
+//
+// Only for a read that is safe to repeat. The retry exists because the run holds a
+// live sandbox and a turn that survives the restart; waiting out the restart is
+// what lets the run collect that turn's answer. The caller's deadline still
+// bounds the whole wait, and the op's own error is returned, so the reason the
+// run stopped stays in the message.
+func retryServerRestart(ctx context.Context, budget time.Duration, onWait func(error), op func() error) error {
+	interval := max(budget/restartPolls, minRestartPoll)
+	giveUp := time.Now().Add(budget)
+	for {
+		err := op()
+		if err == nil || !serverUnreachable(err) || time.Now().Add(interval).After(giveUp) {
+			return err
+		}
+		onWait(err)
+		select {
+		case <-ctx.Done():
+			return err
+		case <-time.After(interval):
+		}
+	}
 }

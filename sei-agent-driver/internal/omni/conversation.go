@@ -751,8 +751,23 @@ func (c *conversation) fetchReply(
 // blocks the agent synchronously while it waits, so a prompt this driver fails to
 // answer stalls the run for the rest of its budget while the transport stays
 // perfectly healthy — which is why it must not be logged and carried past.
+//
+// An unreachable server is waited out first, for up to the configured restart
+// budget. This read runs on every re-subscribe, and a stream drops exactly when
+// the server is replaced, so without the wait the first restart a turn overlaps
+// ends the run on a read that would have succeeded moments later.
 func (c *conversation) answerPending(ctx context.Context, answered map[string]bool) error {
-	session, err := c.client.Sessions().Get(ctx, c.sessionID, omnigent.GetSessionOptions{})
+	var session *omnigent.SessionResponse
+	err := retryServerRestart(ctx, c.host.cfg.ServerRestartBudget,
+		func(err error) {
+			c.host.log.Warn("the server is unreachable; waiting for it to come back",
+				"session_id", c.sessionID, "error", err)
+		},
+		func() error {
+			var err error
+			session, err = c.client.Sessions().Get(ctx, c.sessionID, omnigent.GetSessionOptions{})
+			return err
+		})
 	if err != nil {
 		return fmt.Errorf("reading this session's parked prompts: %w", err)
 	}

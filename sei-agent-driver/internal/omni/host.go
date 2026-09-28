@@ -75,6 +75,7 @@ func withUsableTimeouts(cfg driver.Config) driver.Config {
 		{&cfg.RequestTimeout, driver.DefaultRequestTimeout},
 		{&cfg.UnaryTimeout, driver.DefaultUnaryTimeout},
 		{&cfg.StreamIdleTimeout, driver.DefaultStreamIdleTimeout},
+		{&cfg.ServerRestartBudget, driver.DefaultServerRestartBudget},
 	} {
 		if *field.value <= 0 {
 			*field.value = field.fallback

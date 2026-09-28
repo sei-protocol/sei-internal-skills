@@ -283,7 +283,9 @@ assuming a blank allowlist is merely "cautious."**
 | `SEIDROID_STREAM_IDLE_TIMEOUT_S` | `300` | How long the event stream may sit silent before it's treated as dead. The server heartbeats an idle stream every 15s, so this must stay comfortably above that or a healthy idle stream gets torn down between turns. Minutes rather than seconds because a *newly created* session is quiet while its sandbox provisions, clones the repository and connects a runner: a measured launch produced two heartbeats in 90 seconds while cloning a large repo, and the old 90s default killed the review before the agent existed. The run deadline is the real backstop. |
 | `SEIDROID_UNARY_TIMEOUT_S` | `150` | Bounds one non-streaming SDK call — listing, create, send, resolve. Longer than `SEIDROID_REQUEST_TIMEOUT_S` because a session create is slower than a read. Zero does not mean "let the SDK decide": a non-positive value is a configuration error and exits 2, and a `Config` built in code with this unset gets 150s substituted before the client is built. |
 
-The four values above must each parse as a positive number; zero, negative, or
+| `SEIDROID_SERVER_RESTART_BUDGET_S` | `180` | How long the driver keeps reading the session, on each stream re-subscribe, while a gateway reports the server gone. A gateway answer (a 502, 503 or 504 with no error envelope and no request id) means that a rollout is replacing the server. A single-replica server with a Recreate rollout is down for about two minutes. The sandbox and the turn survive that window, so waiting collects an answer that the run would otherwise discard. The driver does not retry a 503 that the server writes itself, such as `runner_unavailable`. Past the budget, the run exits `6`. |
+
+The five values above must each parse as a positive number; zero, negative, or
 non-numeric values are rejected as configuration errors rather than silently
 producing an unbounded run.
 
