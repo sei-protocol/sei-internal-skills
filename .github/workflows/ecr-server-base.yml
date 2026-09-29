@@ -46,7 +46,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - name: Check out the fork at the requested ref
-        uses: actions/checkout@v4
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: bdchatham/omnigent
           ref: ${{ inputs.ref }}
@@ -60,16 +60,16 @@ jobs:
           # The build reads the git history for its version string.
           fetch-depth: 0
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a # v4.3.1
         with:
           role-to-assume: arn:aws:iam::189176372795:role/common/gha
           role-duration-seconds: 3600
           aws-region: us-east-2
 
       - id: ecr-login
-        uses: aws-actions/amazon-ecr-login@v2
+        uses: aws-actions/amazon-ecr-login@03f1aad4c6c7ffd436567f42f9384779290529bd # v2.1.7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
       - id: vars
         name: Resolve the target tag
@@ -82,7 +82,7 @@ jobs:
           echo "built ${sha} ($(git log -1 --format=%s | cut -c1-60))"
 
       - name: Build the base
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: deploy/docker/Dockerfile
@@ -199,7 +199,7 @@ jobs:
           '
 
       - name: Push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
         with:
           context: .
           file: deploy/docker/Dockerfile

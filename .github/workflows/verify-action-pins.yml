@@ -1,0 +1,24 @@
+name: verify action pins
+
+# A tag is mutable. A workflow that `uses:` one runs whatever its author pushed
+# last, and the four ecr-*.yml workflows assume an AWS role and push to ECR.
+# No other gate reads a `uses:` ref.
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+      - 'scripts/verify-action-pins.sh'
+
+permissions:
+  contents: read
+
+jobs:
+  pins:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - name: Every workflow ref is a commit sha
+        run: ./scripts/verify-action-pins.sh

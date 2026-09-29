@@ -14,12 +14,12 @@ concurrency:
 
 jobs:
   publish:
-    uses: sei-protocol/uci/.github/workflows/release-publish.yml@v0.0.15
+    uses: sei-protocol/uci/.github/workflows/release-publish.yml@65901242783550521f25a19199a6b10e54550b97 # v0.0.15
 
   goreleaser:
     needs: publish
     if: needs.publish.outputs.release_created == 'true'
-    uses: sei-protocol/uci/.github/workflows/goreleaser-release.yml@v0.0.15
+    uses: sei-protocol/uci/.github/workflows/goreleaser-release.yml@65901242783550521f25a19199a6b10e54550b97 # v0.0.15
     with:
       working-directory: sei-agent-driver
       ref: ${{ needs.publish.outputs.version }}
@@ -33,7 +33,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           ref: ${{ needs.publish.outputs.version }}
 
