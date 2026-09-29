@@ -70,6 +70,8 @@ jobs:
     # Skipped only when Dependabot itself closes the pull request (a superseded
     # update), because that run lacks the secrets. When a person merges or
     # closes it, the run has them and reclaims any session a manual review made.
+    # After a manual review, comment `@seidroid review close` if Dependabot may
+    # supersede the pull request, or that session stays open until its Pod expires.
     if: >-
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
