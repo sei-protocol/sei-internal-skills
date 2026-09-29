@@ -36,11 +36,11 @@ if [[ ! -d "$ROOT" ]]; then
   exit 2
 fi
 
-# A `uses:` key, quoted or bare, optionally the first item of a list. A leading `#`
-# fails `^[[:space:]]*`, so the documented example in writing-contract.yml is not a
-# ref. What a line scanner cannot see: a flow-style mapping (`{uses: x@v1}`), and a
-# `uses:` at the start of a line inside a `run:` block, which reads as a violation.
-USES_KEY='^[[:space:]]*(-[[:space:]]+)?"?uses"?:[[:space:]]*'
+# A `uses:` key, bare or quoted either way, optionally the first item of a list. A
+# leading `#` fails `^[[:space:]]*`, so the documented example in writing-contract.yml
+# is not a ref. What a line scanner cannot see: a flow-style mapping (`{uses: x@v1}`),
+# and a `uses:` at the start of a line inside a `run:` block, which reads as a violation.
+USES_KEY="^[[:space:]]*(-[[:space:]]+)?['\"]?uses['\"]?:[[:space:]]*"
 
 violations=()
 checked=0
