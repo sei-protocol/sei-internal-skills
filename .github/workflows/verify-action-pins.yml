@@ -3,10 +3,13 @@ name: verify action pins
 # A tag is mutable. A workflow that `uses:` one runs whatever its author pushed
 # last, and the four ecr-*.yml workflows assume an AWS role and push to ECR.
 # No other gate reads a `uses:` ref.
+#
+# The filter takes all of .github/ because the gate does: a composite action under
+# .github/actions/ carries `uses:` too, and a narrower filter would let one in.
 on:
   pull_request:
     paths:
-      - '.github/workflows/**'
+      - '.github/**'
       - 'scripts/verify-action-pins.sh'
 
 permissions:
