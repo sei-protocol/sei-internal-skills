@@ -38,7 +38,7 @@ jobs:
     # Backstop: a stalled `docker run` can otherwise burn GitHub's full job max.
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
       - name: Build a public stub base
         # Reproduces only what the assertions depend on: the image's non-root

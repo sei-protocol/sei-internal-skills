@@ -11,6 +11,7 @@ Utility scripts for sei-internal-skills repo maintenance. Make targets at the re
 | `sync-experimental.sh` | OPT-IN installer for `experimental/` skills+agents. Never runs as part of update/sync-all/bootstrap | `make sync-experimental`, manually |
 | `update-agent-permissions.sh` | Install canonical read-only allow-list into `./.claude/settings.json` | `make update-agent-permissions` |
 | `verify-agent-permissions.sh` | Fail if `.claude/settings.json` contains mutating patterns or has drifted | `make verify-agent-permissions`, CI |
+| `verify-action-pins.sh` | Fail if a `uses:` ref in any `.yml`/`.yaml` under `.github/` names a tag or branch instead of a 40-hex commit sha. A local `./` action is exempt; a `docker://` image needs an `@sha256:` digest | `make verify-action-pins`, CI |
 | `tests/install.test.sh` | Regression suite for `install.sh`'s targeted mode, including the piped invocation | `make test-install`, CI |
 | `prune-retired.sh` | Remove retired/parked resources from a synced `.claude/`. **The only script here that deletes** — dry-run by default, `--apply` to act. Never touches a core or unrecognized resource | `make prune-retired` / `make prune-retired-apply`, manually |
 | `verify-references.sh` | Fail if a shipped artifact cites a resource an engineer cannot reach. Four error classes (ABSENT, UNSHIPPED, STALE-MARKER, MISSING-SCRIPT) and one warning (PARKED). `--installed` reports against `~/.claude` and never gates. | CI + `make verify-references` |

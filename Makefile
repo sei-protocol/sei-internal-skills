@@ -120,6 +120,10 @@ update-agent-permissions: ## Install canonical read-only allow-list into ./.clau
 verify-agent-permissions: ## Fail if .claude/settings.json contains mutating patterns or has drifted
 	@./scripts/verify-agent-permissions.sh
 
+.PHONY: verify-action-pins
+verify-action-pins: ## Fail if a workflow `uses:` a tag or branch instead of a commit sha (CI)
+	@./scripts/verify-action-pins.sh
+
 # --- sei-agent-driver (Go) ---------------------------------------------------
 #
 # The one Go module in this repo. Kept behind its own targets rather than folded
