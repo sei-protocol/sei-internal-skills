@@ -1,0 +1,23 @@
+# Keeps the pinned GitHub Actions current. Every `uses:` ref is a commit sha with
+# its version in a trailing comment (scripts/verify-action-pins.sh enforces
+# that), so a pin never moves by itself and a security fix only arrives when
+# something bumps it. Dependabot bumps the sha and the version comment together.
+#
+# sei-protocol/uci is ignored: its reusable workflows are pinned to a uci
+# release on purpose, and the seidroid-review pin moves together with the
+# sei-agent-driver version floor, so a bump is a reviewed decision, not a
+# routine update.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "sei-protocol/uci*"
+    commit-message:
+      prefix: "ci"
+      include: "scope"
