@@ -25,7 +25,7 @@ jobs:
     steps:
       # Actions are pinned to a commit, not a tag: a tag is mutable, so the same workflow
       # can run different code tomorrow.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # v7, not v5: v5 matches only the `go` directive in go.mod, so it installs the
       # language version and leaves the pinned `toolchain` to a run-time download.
