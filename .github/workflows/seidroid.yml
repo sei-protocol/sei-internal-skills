@@ -66,8 +66,11 @@ jobs:
   # head is a fork, so the close fails and the sandbox is left running. On a fork
   # pull request, comment `@seidroid review close` before merging.
   seidroid-review-reclaim:
-    # Skipped for a Dependabot pull request: it gets no automatic review, so
-    # there is no session to reclaim, and its run would lack the secrets.
+    # Skipped for a Dependabot pull request, because its run would lack the
+    # secrets. A `@seidroid review` on one does create a session, and this job
+    # cannot close it: comment `@seidroid review close` before merging, as for
+    # a fork. Left open, its sandbox Pod still expires about an hour after the
+    # last turn, but the session stays.
     if: >-
       github.event_name == 'pull_request' &&
       github.event.action == 'closed' &&
