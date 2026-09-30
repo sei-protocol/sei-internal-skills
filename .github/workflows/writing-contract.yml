@@ -58,7 +58,7 @@ jobs:
       # rules are fetched over the same API. Left at its default it is written
       # into .git/config, where the code fetched below can read it -- and that
       # token carries the write permissions this workflow documents.
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -99,7 +99,7 @@ jobs:
       # Going private means adding an optional token input to this workflow, not
       # just changing a setting.
       - name: Fetch the writing rules
-        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: sei-protocol/sei-internal-skills
           ref: ${{ steps.rules.outputs.ref }}
