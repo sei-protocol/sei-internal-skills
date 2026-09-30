@@ -53,7 +53,8 @@
 // abort the reclaim it exists to allow.
 //
 // A run drives exactly one turn, and re-running is the retry: the next invocation
-// adopts the same session with its context intact.
+// adopts the same session with its context intact -- except after a refused reply,
+// whose session is deleted so the retry does not repeat it.
 //
 // # Why the workload decides what finished means
 //

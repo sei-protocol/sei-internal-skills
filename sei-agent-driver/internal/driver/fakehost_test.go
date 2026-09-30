@@ -75,9 +75,18 @@ type fakeConversation struct {
 
 	// turns counts the exchanges, because this package drives exactly one.
 	turns int
+
+	// discardErr is what Discard reports; discarded counts the calls.
+	discardErr error
+	discarded  int
 }
 
 func (c *fakeConversation) SessionID() string { return c.sessionID }
+
+func (c *fakeConversation) Discard(ctx context.Context) error {
+	c.discarded++
+	return c.discardErr
+}
 
 func (c *fakeConversation) Turn(ctx context.Context, ask Ask) (Reply, error) {
 	c.turns++

@@ -78,7 +78,8 @@ func New(cfg Config, host Host, log *slog.Logger) *Driver {
 //
 // It tears nothing down itself. The session outlives the run, for the reasons in
 // the package doc, and [Driver.Close] is what ends it -- though opening will delete
-// a session it finds unable to run a turn at all.
+// a session it finds unable to run a turn at all, and [Driver.discard] deletes one
+// whose reply was refused.
 //
 // What that leaves behind is a turn still running when a run ends early, on a
 // cancelled context or an expired deadline. The next invocation's prompt queues
@@ -134,6 +135,7 @@ func (d *Driver) answer(ctx context.Context, work Work, w Workload) Result {
 		// Carried even with no text, so the reason reaches the caller's payload
 		// rather than only the logs.
 		result.Reply = &reply
+		d.discard(ctx, work, conv)
 		return result
 	}
 
@@ -141,6 +143,22 @@ func (d *Driver) answer(ctx context.Context, work Work, w Workload) Result {
 	d.log.Info("turn complete", "session_id", result.SessionID,
 		"turn_id", reply.TurnID, "chars", len(reply.Text))
 	return result
+}
+
+// discard deletes the session of a turn whose reply was refused. A retry that
+// adopts it sees that reply and repeats it, so the next dispatch must start fresh.
+// Best-effort: a failed delete only costs the next run the same outcome.
+func (d *Driver) discard(ctx context.Context, work Work, conv Conversation) {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.teardownBudget())
+	defer cancel()
+
+	if err := conv.Discard(ctx); err != nil {
+		d.log.Warn("could not delete the session of a turn with no answer",
+			"run_key", work.RunKey, "session_id", conv.SessionID(), "error", err)
+		return
+	}
+	d.log.Info("deleted the session of a turn with no answer",
+		"run_key", work.RunKey, "session_id", conv.SessionID())
 }
 
 // Close ends the unit of work and reclaims what it held.
@@ -182,7 +200,7 @@ func (d *Driver) Close(ctx context.Context, w Workload) (result Result) {
 	// for another, so what is written down is the assumption: this is only as good
 	// as the grace the runner actually grants. Measure a teardown that was killed
 	// mid-flight before changing the multiplier.
-	budget := max(4*d.cfg.RequestTimeout, minTeardownBudget)
+	budget := d.teardownBudget()
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
 	defer cancel()
 
@@ -240,6 +258,11 @@ func (d *Driver) Close(ctx context.Context, w Workload) (result Result) {
 		d.log.Info("session deleted", "session_id", sessionID)
 		return Result{ExitCode: ExitOK, SessionID: sessionID, TeardownOK: true}
 	}
+}
+
+// teardownBudget is the time a session delete gets. See [Driver.Close].
+func (d *Driver) teardownBudget() time.Duration {
+	return max(4*d.cfg.RequestTimeout, minTeardownBudget)
 }
 
 // recoverPanic turns a panic into an exit code, and both entry points defer it.

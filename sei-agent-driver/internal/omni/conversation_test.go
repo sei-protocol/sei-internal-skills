@@ -2414,6 +2414,40 @@ func TestAReplyCarryingACredentialIsNeverPublished(t *testing.T) {
 	}
 }
 
+// TestARefusedReplyDeletesItsSession pins that a reply the workload refuses deletes
+// the session, so the retry does not adopt the refused reply and repeat it.
+func TestARefusedReplyDeletesItsSession(t *testing.T) {
+	t.Parallel()
+
+	refused := "I read the diff but did not write a verdict."
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "ag_1", false)},
+		CreateResp: driverSessionResp("conv_1", "ag_1"),
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame(driverAnchorItemID),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			driverSessionWithItems("conv_1", "ag_1",
+				driverPromptItem(driverAnchorItemID),
+				driverReplyItem("item_reply", "resp_claude_a", refused)),
+		},
+	})
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 77})
+
+	if result.ExitCode != driver.ExitNoVerdict {
+		t.Errorf("ExitCode = %d, want ExitNoVerdict (%d)", result.ExitCode, driver.ExitNoVerdict)
+	}
+	if got := fs.DeletedIDs(); len(got) != 1 || got[0] != "conv_1" {
+		t.Errorf("deleted = %v, want [conv_1]", got)
+	}
+}
+
 // TestAnAmbiguousSendReportsTheTurnNotTheTransport covers what the caller is told
 // when a prompt's fate cannot be established.
 //

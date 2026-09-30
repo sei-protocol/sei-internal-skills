@@ -87,4 +87,7 @@ type Conversation interface {
 	// and then lost its transport is the ordinary case, and discarding the answer
 	// costs the whole run.
 	Turn(ctx context.Context, ask Ask) (Reply, error)
+
+	// Discard deletes this session, so the next dispatch for the work opens a new one.
+	Discard(ctx context.Context) error
 }
