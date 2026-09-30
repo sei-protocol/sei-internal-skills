@@ -389,6 +389,101 @@ func TestMintDoesNotRetryARefusal(t *testing.T) {
 	}
 }
 
+// TestMintRetriesOnRateLimit pins the one carve-out from
+// TestMintDoesNotRetryARefusal's rule: 429 is not a refusal, so it is retried
+// where every other status is not.
+func TestMintRetriesOnRateLimit(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		calls++
+		if calls < 3 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte(`{"error":"slow_down"}`))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"access_token":"tok","expires_in":3600}`))
+	}))
+	defer srv.Close()
+
+	token, _, err := mintToken(t.Context(), srv.Client(), srv.URL, "id", "secret")
+	if err != nil {
+		t.Fatalf("a mint that succeeds on the third attempt still failed: %v", err)
+	}
+	if token != "tok" {
+		t.Errorf("token = %q, want tok", token)
+	}
+	if calls != 3 {
+		t.Errorf("made %d calls, want 3", calls)
+	}
+}
+
+// TestMintHonoursRetryAfter checks the server's own wait is used in place of
+// the fixed backoff, capped rather than trusted outright.
+func TestMintHonoursRetryAfter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("under the cap", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			calls++
+			if calls == 1 {
+				w.Header().Set("Retry-After", "0")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_, _ = w.Write([]byte(`{"error":"slow_down"}`))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"tok","expires_in":3600}`))
+		}))
+		defer srv.Close()
+
+		start := time.Now()
+		if _, _, err := mintToken(t.Context(), srv.Client(), srv.URL, "id", "secret"); err != nil {
+			t.Fatalf("a mint that succeeds on the second attempt still failed: %v", err)
+		}
+		// Retry-After: 0 names an immediate retry, which parseRetryAfter reads
+		// as "named none" (zero and negative are indistinguishable from
+		// absent) -- so this in fact falls to transportBackoff's first step,
+		// asserted here as "well under the 5s cap" rather than as instant, so
+		// a change to that fallback does not make this test flake.
+		if elapsed := time.Since(start); elapsed > maxRateLimitWait {
+			t.Errorf("waited %s, want under the %s cap", elapsed, maxRateLimitWait)
+		}
+	})
+
+	t.Run("over the cap", func(t *testing.T) {
+		t.Parallel()
+		calls := 0
+		srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			calls++
+			if calls == 1 {
+				// Far past maxRateLimitWait: a server that is confused, or
+				// hostile, must not be able to hold one attempt hostage for
+				// however long it names.
+				w.Header().Set("Retry-After", "3600")
+				w.WriteHeader(http.StatusTooManyRequests)
+				_, _ = w.Write([]byte(`{"error":"slow_down"}`))
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"access_token":"tok","expires_in":3600}`))
+		}))
+		defer srv.Close()
+
+		start := time.Now()
+		if _, _, err := mintToken(t.Context(), srv.Client(), srv.URL, "id", "secret"); err != nil {
+			t.Fatalf("a mint that succeeds on the second attempt still failed: %v", err)
+		}
+		if elapsed := time.Since(start); elapsed > maxRateLimitWait+time.Second {
+			t.Errorf("waited %s, want capped near %s", elapsed, maxRateLimitWait)
+		}
+	})
+}
+
 // TestMintStopsWhenTheCallerDoes keeps the backoff from outliving the run that
 // is waiting on it.
 func TestMintStopsWhenTheCallerDoes(t *testing.T) {
