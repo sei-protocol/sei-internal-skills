@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"time"
 )
 
 // fakeHost is a [Host] that answers from a script.
@@ -75,9 +76,21 @@ type fakeConversation struct {
 
 	// turns counts the exchanges, because this package drives exactly one.
 	turns int
+
+	// discardErr is what Discard reports; discarded counts the calls, and
+	// discardDeadline records Discard's context deadline, zero for none.
+	discardErr      error
+	discarded       int
+	discardDeadline time.Time
 }
 
 func (c *fakeConversation) SessionID() string { return c.sessionID }
+
+func (c *fakeConversation) Discard(ctx context.Context) error {
+	c.discarded++
+	c.discardDeadline, _ = ctx.Deadline()
+	return c.discardErr
+}
 
 func (c *fakeConversation) Turn(ctx context.Context, ask Ask) (Reply, error) {
 	c.turns++

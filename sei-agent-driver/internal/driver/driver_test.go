@@ -29,6 +29,9 @@ func TestRunReportsAFinishedAnswer(t *testing.T) {
 	if conv.turns != 1 {
 		t.Errorf("turns = %d, want 1: a run drives exactly one", conv.turns)
 	}
+	if conv.discarded != 0 {
+		t.Errorf("discarded = %d, want 0: an answered session is reused", conv.discarded)
+	}
 }
 
 // TestRunReportsNoVerdictWhenTheReplyIsUnfinished pins the distinction the workload
@@ -41,10 +44,12 @@ func TestRunReportsAFinishedAnswer(t *testing.T) {
 func TestRunReportsNoVerdictWhenTheReplyIsUnfinished(t *testing.T) {
 	t.Parallel()
 
-	host := &fakeHost{conv: &fakeConversation{sessionID: "conv_1", reply: unfinishedReply}}
-	d := New(Config{RunDeadline: time.Minute}, host, quietLogger())
+	const runDeadline = 10 * time.Second
+	conv := &fakeConversation{sessionID: "conv_1", reply: unfinishedReply}
+	d := New(Config{RunDeadline: runDeadline}, &fakeHost{conv: conv}, quietLogger())
 
 	result := d.Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+	end := time.Now()
 
 	if result.ExitCode != ExitNoVerdict {
 		t.Errorf("ExitCode = %d, want ExitNoVerdict (%d)", result.ExitCode, ExitNoVerdict)
@@ -55,6 +60,38 @@ func TestRunReportsNoVerdictWhenTheReplyIsUnfinished(t *testing.T) {
 	if result.Reply.Text != unfinishedReply.Text {
 		t.Errorf("Reply.Text = %q, want the text the turn did produce", result.Reply.Text)
 	}
+	if conv.discarded != 1 {
+		t.Errorf("discarded = %d, want 1: a retry that adopts a refused reply repeats it",
+			conv.discarded)
+	}
+	// The teardown budget is at least 30 s, so a run deadline below it tells the run's
+	// own context from a detached one with a budget of its own.
+	if conv.discardDeadline.IsZero() || conv.discardDeadline.After(end.Add(runDeadline)) {
+		t.Errorf("Discard deadline = %v, want the run's (by %v): it must not outlive the run",
+			conv.discardDeadline, end.Add(runDeadline))
+	}
+}
+
+// TestRunKeepsNoVerdictWhenTheDeleteFails pins that discarding the session is
+// best-effort and never changes the outcome the caller acts on.
+func TestRunKeepsNoVerdictWhenTheDeleteFails(t *testing.T) {
+	t.Parallel()
+
+	conv := &fakeConversation{
+		sessionID:  "conv_1",
+		reply:      unfinishedReply,
+		discardErr: errors.New("connection reset by peer"),
+	}
+	d := New(Config{RunDeadline: time.Minute}, &fakeHost{conv: conv}, quietLogger())
+
+	result := d.Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+
+	if result.ExitCode != ExitNoVerdict {
+		t.Errorf("ExitCode = %d, want ExitNoVerdict (%d)", result.ExitCode, ExitNoVerdict)
+	}
+	if !result.TeardownOK {
+		t.Error("TeardownOK = false, want true: the session is held as any run leaves it")
+	}
 }
 
 // TestRunCarriesAReplyReadBeforeAFailure pins that a turn can answer and still
@@ -63,12 +100,12 @@ func TestRunReportsNoVerdictWhenTheReplyIsUnfinished(t *testing.T) {
 func TestRunCarriesAReplyReadBeforeAFailure(t *testing.T) {
 	t.Parallel()
 
-	host := &fakeHost{conv: &fakeConversation{
+	conv := &fakeConversation{
 		sessionID: "conv_1",
 		reply:     finishedReply,
 		turnErr:   errors.New("the stream was interrupted"),
-	}}
-	d := New(Config{RunDeadline: time.Minute}, host, quietLogger())
+	}
+	d := New(Config{RunDeadline: time.Minute}, &fakeHost{conv: conv}, quietLogger())
 
 	result := d.Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
 
@@ -78,6 +115,10 @@ func TestRunCarriesAReplyReadBeforeAFailure(t *testing.T) {
 	if result.SessionID != "conv_1" {
 		t.Errorf("SessionID = %q, want the session named even on a failure: it is what "+
 			"an operator reads the run back from", result.SessionID)
+	}
+	if conv.discarded != 0 {
+		t.Errorf("discarded = %d, want 0: a failed run keeps its context for the retry",
+			conv.discarded)
 	}
 }
 

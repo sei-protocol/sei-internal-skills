@@ -40,6 +40,15 @@ type conversation struct {
 // SessionID implements [driver.Conversation].
 func (c *conversation) SessionID() string { return c.sessionID }
 
+// Discard implements [driver.Conversation]. A session already gone counts as deleted.
+func (c *conversation) Discard(ctx context.Context) error {
+	_, err := c.client.Sessions().Delete(ctx, c.sessionID, omnigent.DeleteSessionOptions{})
+	if alreadyGone(err) {
+		return nil
+	}
+	return err
+}
+
 // connectionOpenLimit bounds how many times the stream is re-established. Set well
 // above what a long turn needs, since a turn outlives the roughly three-minute
 // connection cap a handful of times; it catches only a server that will not stream
