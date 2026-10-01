@@ -14,13 +14,20 @@ import (
 // the wire shape for "no override active".
 func modelFakeServer(t *testing.T, runKey, override string) *driverFakeServer {
 	t.Helper()
+	return adoptFakeServer(t, runKey, "model_override", override)
+}
+
+// adoptFakeServer is [modelFakeServer] for any session field: the adopted session
+// carries field set to value, and an empty value renders no field.
+func adoptFakeServer(t *testing.T, runKey, field, value string) *driverFakeServer {
+	t.Helper()
 
 	// On the snapshot, not the list item: the label match happens on the listing, but
 	// findByRunKey then fetches the session, and that fetch is what adoption reads.
 	adopted := driverSessionResp("conv_prior", "ag_1")
-	if override != "" {
+	if value != "" {
 		adopted = `{"id":"conv_prior","agent_id":"ag_1","created_at":1,"status":"idle",` +
-			`"items":[],"model_override":"` + override + `"}`
+			`"items":[],"` + field + `":"` + value + `"}`
 	}
 	return newDriverFakeServer(t, driverFakeServerConfig{
 		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},

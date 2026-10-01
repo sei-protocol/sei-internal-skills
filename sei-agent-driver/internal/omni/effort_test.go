@@ -72,6 +72,29 @@ func TestAdoptedSessionIsPointedAtThisRunsEffort(t *testing.T) {
 	}
 }
 
+// TestAdoptedSessionsEffortIsClearedWhenNoneIsConfigured pins the clear half of the
+// shared reconcile for effort: an empty SEIDROID_EFFORT returns the session to the
+// agent spec's effort.
+func TestAdoptedSessionsEffortIsClearedWhenNoneIsConfigured(t *testing.T) {
+	t.Parallel()
+
+	work := testWork{Repo: "sei-protocol/sandbox", PR: 34, Trigger: "again"}
+	fs := adoptFakeServer(t, testRunKey(work.Repo, work.PR), "reasoning_effort", "high")
+
+	runWithEffort(t, fs, work, "")
+
+	patches := fs.PatchReqs()
+	if len(patches) != 1 {
+		t.Fatalf("sent %d session patches %+v, want 1", len(patches), patches)
+	}
+	if patches[0].ReasoningEffort == nil || *patches[0].ReasoningEffort == "" {
+		t.Errorf("reasoning_effort = %v, want a clear alias", patches[0].ReasoningEffort)
+	}
+	if patches[0].ModelOverride != nil {
+		t.Errorf("model_override = %q, want it untouched", *patches[0].ModelOverride)
+	}
+}
+
 // TestARejectedEffortFailsAsConfiguration pins the exit code a typo in SEIDROID_EFFORT
 // gets. The server refuses an unknown effort with a 400 at create; reported as a
 // transport failure, it would send the operator looking for a network fault.
