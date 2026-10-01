@@ -549,10 +549,12 @@ func (h *Host) createOrAdopt(
 		return session, adoption{}, nil
 	}
 
-	// A rejected argument means nothing was sent, so there is no session to
-	// reconcile against and searching would only hide the real fault. Wrapped into
-	// the driver's taxonomy so its exit code does not depend on the SDK's.
-	if errors.Is(err, omnigent.ErrInvalidArgument) {
+	// A rejected argument means nothing was committed -- the SDK refused it before
+	// sending, or the server refused it with a 400, as it does an unknown reasoning
+	// effort -- so there is no session to reconcile against and searching would only
+	// hide the real fault. Wrapped into the driver's taxonomy so its exit code does not
+	// depend on the SDK's.
+	if errors.Is(err, omnigent.ErrInvalidArgument) || errors.Is(err, omnigent.ErrInvalidInput) {
 		return nil, adoption{}, fmt.Errorf("%w: %w", driver.ErrConfig, err)
 	}
 

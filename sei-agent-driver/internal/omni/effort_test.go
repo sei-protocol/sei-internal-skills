@@ -1,6 +1,7 @@
 package omni
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/sei-protocol/sei-internal-skills/sei-agent-driver/internal/driver"
@@ -68,5 +69,27 @@ func TestAdoptedSessionIsPointedAtThisRunsEffort(t *testing.T) {
 	if patches[0].ModelOverride != nil {
 		t.Errorf("model_override = %q, want it untouched: no model was configured to move",
 			*patches[0].ModelOverride)
+	}
+}
+
+// TestARejectedEffortFailsAsConfiguration pins the exit code a typo in SEIDROID_EFFORT
+// gets. The server refuses an unknown effort with a 400 at create; reported as a
+// transport failure, it would send the operator looking for a network fault.
+func TestARejectedEffortFailsAsConfiguration(t *testing.T) {
+	t.Parallel()
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages:      []string{driverAgentPage("ag_1", "seidroid", "", false)},
+		SessionListResp: `{"data":[],"has_more":false}`,
+		CreateStatus:    http.StatusBadRequest,
+	})
+
+	result := runWithEffort(t, fs, testWork{Repo: "sei-protocol/sandbox", PR: 33}, "hgih")
+
+	if result.ExitCode != driver.ExitConfig {
+		t.Errorf("ExitCode = %d, want ExitConfig (%d)", result.ExitCode, driver.ExitConfig)
+	}
+	if n := len(fs.CreateReqs()); n != 1 {
+		t.Errorf("created %d times, want 1: a refused create is not retried", n)
 	}
 }

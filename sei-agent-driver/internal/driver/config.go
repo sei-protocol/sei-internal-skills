@@ -64,7 +64,7 @@ type Config struct {
 	Model string
 
 	// Effort substitutes for the reasoning effort the agent spec names, e.g. "high".
-	// Empty leaves the spec's own. The server validates it per provider at turn start.
+	// Empty leaves the spec's own. The server rejects a value outside its accepted set.
 	Effort string
 
 	// Token is the bearer credential, when one was minted elsewhere. Never
