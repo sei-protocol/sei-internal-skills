@@ -28,15 +28,12 @@ executor:
   # vendor-neutral gateway, read live off a process that was routed at
   # api.openai.com. Misreading it produced three wrong diagnoses.
   #
-  # gpt-5.6-sol is what ai-review's codex pass resolves to: that workflow pins no
-  # model and takes openai/codex-action's default, measured on a passing run.
-  # Matching it is the point — a scout on a different model than the reference
-  # reviewer is not the second opinion we mean to reproduce.
-  #
-  # Dotted, not dashed: codex spells it gpt-5.6-sol where the catalog writes
-  # gpt-5-6-sol. This value goes verbatim to `codex -c model=`, and the dotted
-  # form is the one the API accepts.
-  model: gpt-5.6-sol
+  # gpt-6.1-sol is OpenAI's balanced GPT-6 model: near-Astra on complex work at a
+  # lower cost, which suits one reading per pull request. Dotted, not dashed: this
+  # value goes verbatim to `codex -c model=`, and the dotted form is the one the
+  # API accepts.
+  model: gpt-6.1-sol
+  reasoning_effort: high
   config:
     # codex, and that is the point. The bundle is what fixes the harness,
     # so this is the one field that makes this a genuinely different reader

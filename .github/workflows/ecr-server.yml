@@ -97,11 +97,12 @@ jobs:
           # headless, so host-skill discovery would put ~/.claude/skills in its
           # reach. Do not "fix" this back to "all" when the gate trips; read the
           # comment on the bundle before changing this value.
+          # The last column is the expected reasoning effort; None skips the check.
           EXPECT = {
-              "sei-spec":   ("none", 8, "speckit-"),
-              "root-cause": ("none", 1, None),
-              "xreview-scout-codex": ("none", 0, None),
-              "xreview-scout-cursor": ("none", 0, None),
+              "sei-spec":   ("none", 8, "speckit-", None),
+              "root-cause": ("none", 1, None, None),
+              "xreview-scout-codex": ("none", 0, None, "high"),
+              "xreview-scout-cursor": ("none", 0, None, None),
           }
           root = Path("/opt/sei-omnigent/agents")
           dirs = sorted(p for p in root.iterdir() if p.is_dir())
@@ -110,7 +111,7 @@ jobs:
           bad = False
           for d in dirs:
               spec = parse(d)
-              want_filter, want_skills, want_prefix = EXPECT[d.name]
+              want_filter, want_skills, want_prefix, want_effort = EXPECT[d.name]
               names = sorted(s.name for s in spec.skills)
               n = len(names)
               if spec.name != d.name:
@@ -123,6 +124,9 @@ jobs:
                   stray = [x for x in names if not x.startswith(want_prefix)]
                   if stray:
                       print(f"FAIL {d.name}: non-{want_prefix} skills vendored in: {stray}"); bad = True
+              effort = getattr(spec.executor, "reasoning_effort", None)
+              if want_effort is not None and effort != want_effort:
+                  print(f"FAIL {d.name}: reasoning effort {effort!r} != {want_effort!r}"); bad = True
               if spec.skills_filter == "none" and discover_host_skills(d, spec.skills_filter):
                   print(f"FAIL {d.name}: host scope leaked despite skills: none"); bad = True
               print(f"  ok {d.name} filter={spec.skills_filter!r} skills={n}")
