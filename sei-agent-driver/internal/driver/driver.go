@@ -147,11 +147,9 @@ func (d *Driver) answer(ctx context.Context, work Work, w Workload) Result {
 
 // discard deletes the session of a turn whose reply was refused. A retry that
 // adopts it sees that reply and repeats it, so the next dispatch must start fresh.
-// Best-effort: a failed delete only costs the next run the same outcome.
+// Best-effort and bounded by the run's own deadline: a failed delete only costs the
+// next run the same outcome.
 func (d *Driver) discard(ctx context.Context, work Work, conv Conversation) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), d.teardownBudget())
-	defer cancel()
-
 	if err := conv.Discard(ctx); err != nil {
 		d.log.Warn("could not delete the session of a turn with no answer",
 			"run_key", work.RunKey, "session_id", conv.SessionID(), "error", err)
@@ -200,7 +198,7 @@ func (d *Driver) Close(ctx context.Context, w Workload) (result Result) {
 	// for another, so what is written down is the assumption: this is only as good
 	// as the grace the runner actually grants. Measure a teardown that was killed
 	// mid-flight before changing the multiplier.
-	budget := d.teardownBudget()
+	budget := max(4*d.cfg.RequestTimeout, minTeardownBudget)
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), budget)
 	defer cancel()
 
@@ -258,11 +256,6 @@ func (d *Driver) Close(ctx context.Context, w Workload) (result Result) {
 		d.log.Info("session deleted", "session_id", sessionID)
 		return Result{ExitCode: ExitOK, SessionID: sessionID, TeardownOK: true}
 	}
-}
-
-// teardownBudget is the time a session delete gets. See [Driver.Close].
-func (d *Driver) teardownBudget() time.Duration {
-	return max(4*d.cfg.RequestTimeout, minTeardownBudget)
 }
 
 // recoverPanic turns a panic into an exit code, and both entry points defer it.

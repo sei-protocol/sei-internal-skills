@@ -62,6 +62,9 @@ func TestRunReportsNoVerdictWhenTheReplyIsUnfinished(t *testing.T) {
 		t.Errorf("discarded = %d, want 1: a retry that adopts a refused reply repeats it",
 			conv.discarded)
 	}
+	if !conv.discardBounded {
+		t.Error("Discard ran with no deadline, want the run's: it must not outlive the run")
+	}
 }
 
 // TestRunKeepsNoVerdictWhenTheDeleteFails pins that discarding the session is

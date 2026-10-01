@@ -76,15 +76,18 @@ type fakeConversation struct {
 	// turns counts the exchanges, because this package drives exactly one.
 	turns int
 
-	// discardErr is what Discard reports; discarded counts the calls.
-	discardErr error
-	discarded  int
+	// discardErr is what Discard reports; discarded counts the calls, and
+	// discardBounded records whether Discard's context carried a deadline.
+	discardErr     error
+	discarded      int
+	discardBounded bool
 }
 
 func (c *fakeConversation) SessionID() string { return c.sessionID }
 
 func (c *fakeConversation) Discard(ctx context.Context) error {
 	c.discarded++
+	_, c.discardBounded = ctx.Deadline()
 	return c.discardErr
 }
 
