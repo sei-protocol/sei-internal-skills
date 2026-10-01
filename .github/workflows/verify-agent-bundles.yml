@@ -37,7 +37,7 @@ jobs:
       - name: Install the parser
         # No PyPI release matches the fork build the server runs, so this gate
         # approximates it. ecr-server.yml parses with what production has.
-        run: pip install --disable-pip-version-check 'omnigent==0.9.0'
+        run: pip install --disable-pip-version-check 'omnigent==0.16.0'
 
       - name: Parse every bundle and assert its contract
         run: |
@@ -55,7 +55,7 @@ jobs:
               # A scout carries no method and takes none from the host: the driver's
               # per-run prompt is its whole instruction, so a discovered skill would
               # be capability it was never asked to use.
-              'xreview-scout-codex': {'filter': 'none', 'skills': 0},
+              'xreview-scout-codex': {'filter': 'none', 'skills': 0, 'effort': 'high'},
               # Same contract on a different harness. Listed here because a bundle
               # with no entry fails below, and the deployment cannot reach its
               # harness yet: this gate is the only thing asserting it stays parsable
@@ -101,6 +101,12 @@ jobs:
                   if stray:
                       print(f'FAIL {d.name}: non-{pref} skills vendored in: {stray}')
                       failed = True
+
+              # A parser too old to read the field reports None, which fails here too.
+              effort = getattr(spec.executor, 'reasoning_effort', None)
+              if 'effort' in exp and effort != exp['effort']:
+                  print(f'FAIL {d.name}: reasoning effort is {effort!r}, expected {exp["effort"]!r}')
+                  failed = True
 
               # With `none`, host discovery must return nothing even from a directory
               # that has host skills to offer.
