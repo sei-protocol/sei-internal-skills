@@ -44,10 +44,12 @@ func TestRunReportsAFinishedAnswer(t *testing.T) {
 func TestRunReportsNoVerdictWhenTheReplyIsUnfinished(t *testing.T) {
 	t.Parallel()
 
+	const runDeadline = 10 * time.Second
 	conv := &fakeConversation{sessionID: "conv_1", reply: unfinishedReply}
-	d := New(Config{RunDeadline: time.Minute}, &fakeHost{conv: conv}, quietLogger())
+	d := New(Config{RunDeadline: runDeadline}, &fakeHost{conv: conv}, quietLogger())
 
 	result := d.Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+	end := time.Now()
 
 	if result.ExitCode != ExitNoVerdict {
 		t.Errorf("ExitCode = %d, want ExitNoVerdict (%d)", result.ExitCode, ExitNoVerdict)
@@ -62,8 +64,11 @@ func TestRunReportsNoVerdictWhenTheReplyIsUnfinished(t *testing.T) {
 		t.Errorf("discarded = %d, want 1: a retry that adopts a refused reply repeats it",
 			conv.discarded)
 	}
-	if !conv.discardBounded {
-		t.Error("Discard ran with no deadline, want the run's: it must not outlive the run")
+	// The teardown budget is at least 30 s, so a run deadline below it tells the run's
+	// own context from a detached one with a budget of its own.
+	if conv.discardDeadline.IsZero() || conv.discardDeadline.After(end.Add(runDeadline)) {
+		t.Errorf("Discard deadline = %v, want the run's (by %v): it must not outlive the run",
+			conv.discardDeadline, end.Add(runDeadline))
 	}
 }
 

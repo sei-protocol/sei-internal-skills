@@ -6,6 +6,7 @@ import (
 	"io"
 	"log/slog"
 	"sync"
+	"time"
 )
 
 // fakeHost is a [Host] that answers from a script.
@@ -77,17 +78,17 @@ type fakeConversation struct {
 	turns int
 
 	// discardErr is what Discard reports; discarded counts the calls, and
-	// discardBounded records whether Discard's context carried a deadline.
-	discardErr     error
-	discarded      int
-	discardBounded bool
+	// discardDeadline records Discard's context deadline, zero for none.
+	discardErr      error
+	discarded       int
+	discardDeadline time.Time
 }
 
 func (c *fakeConversation) SessionID() string { return c.sessionID }
 
 func (c *fakeConversation) Discard(ctx context.Context) error {
 	c.discarded++
-	_, c.discardBounded = ctx.Deadline()
+	c.discardDeadline, _ = ctx.Deadline()
 	return c.discardErr
 }
 
