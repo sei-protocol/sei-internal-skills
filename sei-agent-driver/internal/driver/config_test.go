@@ -20,7 +20,7 @@ import (
 // exports -- a developer with OMNIGENT_BASE_URL set would otherwise fail the
 // defaults case and pass the override cases for the wrong reason.
 var configEnv = []string{
-	"OMNIGENT_BASE_URL", "OMNIGENT_ORIGIN", "SEIDROID_AGENT_ID", "SEIDROID_MODEL",
+	"OMNIGENT_BASE_URL", "OMNIGENT_ORIGIN", "SEIDROID_AGENT_ID", "SEIDROID_MODEL", "SEIDROID_EFFORT",
 	"OMNIGENT_API_TOKEN", "OMNIGENT_API_TOKEN_FILE",
 	"OMNIGENT_MACHINE_CLIENT_ID", "OMNIGENT_MACHINE_CLIENT_SECRET",
 	"SEIDROID_RUN_DEADLINE_S", "SEIDROID_REQUEST_TIMEOUT_S",

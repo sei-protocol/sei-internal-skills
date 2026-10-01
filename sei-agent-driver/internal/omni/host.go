@@ -395,73 +395,97 @@ type adoption struct {
 	revivable bool
 }
 
-// modelOrEmpty reads a work's model override, treating "leave it alone" as "no
-// override at create" -- a session being opened here carries nothing to leave alone.
-func modelOrEmpty(model *string) string {
-	if model == nil {
+// orEmpty reads one of a work's overrides, treating "leave it alone" as "no override
+// at create" -- a session being opened here carries nothing to leave alone.
+func orEmpty(value *string) string {
+	if value == nil {
 		return ""
 	}
-	return *model
+	return *value
 }
 
-// reconcileModel moves an adopted session's model override to what this work asks for.
+// sessionOverride is one per-session setting that the driver moves on adopt.
+type sessionOverride struct {
+	name    string
+	current *string
+	set     func(ctx context.Context, sessionID, value string) (*omnigent.SessionResponse, error)
+	clear   func(ctx context.Context, sessionID string) (*omnigent.SessionResponse, error)
+}
+
+// reconcileOverrides moves an adopted session's model and reasoning-effort overrides to
+// what this work asks for. A nil want leaves that override alone.
+func (h *Host) reconcileOverrides(
+	ctx context.Context,
+	client *omnigent.Client,
+	session *omnigent.SessionResponse,
+	w driver.Work,
+	live bool,
+) {
+	sessions := client.Sessions()
+	for _, o := range []struct {
+		want *string
+		sessionOverride
+	}{
+		{w.Model, sessionOverride{"model", session.ModelOverride,
+			sessions.SetModelOverride, sessions.ClearModelOverride}},
+		{w.Effort, sessionOverride{"reasoning effort", session.ReasoningEffort,
+			sessions.SetReasoningEffort, sessions.ClearReasoningEffort}},
+	} {
+		if o.want != nil {
+			h.reconcileOverride(ctx, session.ID, o.sessionOverride, *o.want, live)
+		}
+	}
+}
+
+// reconcileOverride moves one override of an adopted session to want.
 //
 // The override lives on the session row, not on the turn, so a session opened by an
-// earlier dispatch answers on that dispatch's model until something changes it. A pull
-// request that gained a model label between reviews would otherwise be answered by the
-// old model with nothing in the output saying so.
+// earlier dispatch answers on that dispatch's value until something changes it.
 //
 // The current value is read from the session rather than assumed, so the common case --
 // nothing asked for and no override present -- costs no request.
 //
 // live is reported rather than acted on, and it is the limit of what this can promise.
-// The server places the override on the row so that it is there *before the harness
-// launches*, which is the SDK's stated reason for its create-time field. A session whose
-// harness is already up has therefore already read its model, and this run's turn goes to
-// that process: the row is correct for the next launch, not for the turn about to be
-// sent. Saying so is the point -- an unqualified success here would have the log claim a
-// change this run did not get.
+// The harness reads the row when it launches, so a session whose harness is already up
+// answers this run on the value it launched with: the row is correct for the next
+// launch, not for the turn about to be sent.
 //
-// A failure is logged, not returned. The model is a preference, and the review still runs
-// on the model the session already carries; refusing here would turn a preference into a
-// pull request with no review on it. Not the agent spec's model -- this runs only when
-// current and want already differ, so a failed write leaves the session on the override
-// it had, which in the clear case is the very one the run was removing.
-func (h *Host) reconcileModel(
+// A failure is logged, not returned. The override is a preference, and refusing here
+// would turn a preference into a pull request with no review on it. A failed write
+// leaves the session on the override it had, not on the agent spec's value.
+func (h *Host) reconcileOverride(
 	ctx context.Context,
-	client *omnigent.Client,
-	session *omnigent.SessionResponse,
+	sessionID string,
+	o sessionOverride,
 	want string,
 	live bool,
 ) {
-	current := ""
-	if session.ModelOverride != nil {
-		current = *session.ModelOverride
-	}
+	current := orEmpty(o.current)
 	if current == want {
 		return
 	}
 
 	var err error
 	if want == "" {
-		_, err = client.Sessions().ClearModelOverride(ctx, session.ID)
+		_, err = o.clear(ctx, sessionID)
 	} else {
-		_, err = client.Sessions().SetModelOverride(ctx, session.ID, want)
+		_, err = o.set(ctx, sessionID, want)
 	}
 	if err != nil {
-		h.log.Warn("could not move the adopted session's model, so it answers on the "+
+		h.log.Warn("could not move the adopted session's override, so it answers on the "+
 			"one it already had",
-			"session_id", session.ID, "want", want, "have", current, "error", err)
+			"session_id", sessionID, "override", o.name, "want", want, "have", current,
+			"error", err)
 		return
 	}
 	if live {
-		h.log.Warn("moved the adopted session's model, but its harness is already up "+
+		h.log.Warn("moved the adopted session's override, but its harness is already up "+
 			"and read the old one at launch, so this run still answers on that",
-			"session_id", session.ID, "want", want, "have", current)
+			"session_id", sessionID, "override", o.name, "want", want, "have", current)
 		return
 	}
-	h.log.Info("moved the adopted session's model before its harness launched",
-		"session_id", session.ID, "want", want, "have", current)
+	h.log.Info("moved the adopted session's override before its harness launched",
+		"session_id", sessionID, "override", o.name, "want", want, "have", current)
 }
 
 // createOrAdopt finds this work's session or opens one, and refuses to hand back a
@@ -495,9 +519,7 @@ func (h *Host) createOrAdopt(
 			h.log.Info("adopting the session an earlier dispatch created",
 				"run_key", w.RunKey, "session_id", existing.ID,
 				"live", live, "revivable", revivable)
-			if w.Model != nil {
-				h.reconcileModel(ctx, client, existing, *w.Model, live)
-			}
+			h.reconcileOverrides(ctx, client, existing, w, live)
 			return existing, adoption{continued: true, live: live, revivable: revivable}, nil
 		}
 		h.log.Warn("the session for this work cannot run a turn; replacing it",
@@ -518,7 +540,8 @@ func (h *Host) createOrAdopt(
 		// At create as well as on adopt, because the override has to be on the session
 		// row before the harness launches. Setting it afterwards would leave the first
 		// turn -- the one that writes the review -- on the spec's model.
-		ModelOverride: modelOrEmpty(w.Model),
+		ModelOverride:   orEmpty(w.Model),
+		ReasoningEffort: orEmpty(w.Effort),
 	}
 
 	session, err := client.Sessions().Create(ctx, create)
@@ -526,10 +549,12 @@ func (h *Host) createOrAdopt(
 		return session, adoption{}, nil
 	}
 
-	// A rejected argument means nothing was sent, so there is no session to
-	// reconcile against and searching would only hide the real fault. Wrapped into
-	// the driver's taxonomy so its exit code does not depend on the SDK's.
-	if errors.Is(err, omnigent.ErrInvalidArgument) {
+	// A rejected argument means nothing was committed -- the SDK refused it before
+	// sending, or the server refused it with a 400, as it does an unknown reasoning
+	// effort -- so there is no session to reconcile against and searching would only
+	// hide the real fault. Wrapped into the driver's taxonomy so its exit code does not
+	// depend on the SDK's.
+	if errors.Is(err, omnigent.ErrInvalidArgument) || errors.Is(err, omnigent.ErrInvalidInput) {
 		return nil, adoption{}, fmt.Errorf("%w: %w", driver.ErrConfig, err)
 	}
 

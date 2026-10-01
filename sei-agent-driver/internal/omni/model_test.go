@@ -14,13 +14,20 @@ import (
 // the wire shape for "no override active".
 func modelFakeServer(t *testing.T, runKey, override string) *driverFakeServer {
 	t.Helper()
+	return adoptFakeServer(t, runKey, "model_override", override)
+}
+
+// adoptFakeServer is [modelFakeServer] for any session field: the adopted session
+// carries field set to value, and an empty value renders no field.
+func adoptFakeServer(t *testing.T, runKey, field, value string) *driverFakeServer {
+	t.Helper()
 
 	// On the snapshot, not the list item: the label match happens on the listing, but
 	// findByRunKey then fetches the session, and that fetch is what adoption reads.
 	adopted := driverSessionResp("conv_prior", "ag_1")
-	if override != "" {
+	if value != "" {
 		adopted = `{"id":"conv_prior","agent_id":"ag_1","created_at":1,"status":"idle",` +
-			`"items":[],"model_override":"` + override + `"}`
+			`"items":[],"` + field + `":"` + value + `"}`
 	}
 	return newDriverFakeServer(t, driverFakeServerConfig{
 		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
@@ -278,7 +285,7 @@ func TestAdoptedScoutSessionIsLeftAtItsOwnModel(t *testing.T) {
 // A review with nothing configured still carries a non-nil model — a pointer to the
 // empty string, meaning "no override" — so it exercises the value branch. Only a
 // workload on its own agent carries nil, and only its first dispatch creates. Without
-// this, [modelOrEmpty] could return anything for nil and the suite would stay green
+// this, [orEmpty] could return anything for nil and the suite would stay green
 // while every first scout dispatch sent it.
 func TestCreatedScoutSessionCarriesNoModel(t *testing.T) {
 	t.Parallel()
@@ -307,6 +314,7 @@ func TestCreatedScoutSessionCarriesNoModel(t *testing.T) {
 
 	cfg := driverTestConfig(t, fs.URL)
 	cfg.Model = "claude-opus-4-7"
+	cfg.Effort = "high"
 	newTestDriver(cfg, driver.Policy{}, driverTestLogger()).Run(t.Context(), scout)
 
 	created := fs.CreateReqs()
@@ -317,6 +325,11 @@ func TestCreatedScoutSessionCarriesNoModel(t *testing.T) {
 		t.Errorf("created a scout session with model_override = %q; want the field "+
 			"absent — the configured model belongs to the review's agent",
 			*created[0].ModelOverride)
+	}
+	if created[0].ReasoningEffort != nil {
+		t.Errorf("created a scout session with reasoning_effort = %q; want the field "+
+			"absent — a scout takes its effort from its own bundle",
+			*created[0].ReasoningEffort)
 	}
 }
 

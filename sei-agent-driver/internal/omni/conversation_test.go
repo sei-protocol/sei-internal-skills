@@ -33,7 +33,8 @@ type driverCreateReq struct {
 	// this omitempty, and whether the default path sends "model_override":"" or
 	// nothing at all is the difference between a server that validates the value
 	// rejecting every create and accepting it.
-	ModelOverride *string `json:"model_override"`
+	ModelOverride   *string `json:"model_override"`
+	ReasoningEffort *string `json:"reasoning_effort"`
 }
 
 // driverPatchReq is the subset of a session-update body this file asserts on.
@@ -42,7 +43,8 @@ type driverCreateReq struct {
 // leaves the field alone, and a value either sets or -- as a clear alias -- removes
 // the override.
 type driverPatchReq struct {
-	ModelOverride *string `json:"model_override"`
+	ModelOverride   *string `json:"model_override"`
+	ReasoningEffort *string `json:"reasoning_effort"`
 }
 
 // driverEventReq is the subset of a POST .../events body this file asserts

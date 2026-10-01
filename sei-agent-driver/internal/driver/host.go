@@ -26,6 +26,9 @@ type Work struct {
 	// Per work rather than per run, because a configured model belongs to the agent it
 	// was configured for. See [Driver.workFor].
 	Model *string
+
+	// Effort is the reasoning-effort override, three-valued the same way as Model.
+	Effort *string
 }
 
 // Ask is one exchange: what to say, and how to know the answer is finished.
