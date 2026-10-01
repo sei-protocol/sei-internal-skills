@@ -308,10 +308,13 @@ func (d *Driver) workFor(w Workload) Work {
 			// rejected at turn start by another, costing the reading and not just the
 			// model -- nor its to lose. A nil model leaves the session's own override
 			// untouched, which is the difference between not managing something and
-			// clearing it.
+			// clearing it. The configured effort is the review's for the same reason.
 			return Work{RunKey: w.RunKey(), Title: w.Title(), Agent: named}
 		}
 	}
-	model := d.cfg.Model
-	return Work{RunKey: w.RunKey(), Title: w.Title(), Agent: d.cfg.Agent, Model: &model}
+	model, effort := d.cfg.Model, d.cfg.Effort
+	return Work{
+		RunKey: w.RunKey(), Title: w.Title(), Agent: d.cfg.Agent,
+		Model: &model, Effort: &effort,
+	}
 }

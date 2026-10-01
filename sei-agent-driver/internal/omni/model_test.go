@@ -278,7 +278,7 @@ func TestAdoptedScoutSessionIsLeftAtItsOwnModel(t *testing.T) {
 // A review with nothing configured still carries a non-nil model — a pointer to the
 // empty string, meaning "no override" — so it exercises the value branch. Only a
 // workload on its own agent carries nil, and only its first dispatch creates. Without
-// this, [modelOrEmpty] could return anything for nil and the suite would stay green
+// this, [orEmpty] could return anything for nil and the suite would stay green
 // while every first scout dispatch sent it.
 func TestCreatedScoutSessionCarriesNoModel(t *testing.T) {
 	t.Parallel()
@@ -307,6 +307,7 @@ func TestCreatedScoutSessionCarriesNoModel(t *testing.T) {
 
 	cfg := driverTestConfig(t, fs.URL)
 	cfg.Model = "claude-opus-4-7"
+	cfg.Effort = "high"
 	newTestDriver(cfg, driver.Policy{}, driverTestLogger()).Run(t.Context(), scout)
 
 	created := fs.CreateReqs()
@@ -317,6 +318,11 @@ func TestCreatedScoutSessionCarriesNoModel(t *testing.T) {
 		t.Errorf("created a scout session with model_override = %q; want the field "+
 			"absent — the configured model belongs to the review's agent",
 			*created[0].ModelOverride)
+	}
+	if created[0].ReasoningEffort != nil {
+		t.Errorf("created a scout session with reasoning_effort = %q; want the field "+
+			"absent — a scout takes its effort from its own bundle",
+			*created[0].ReasoningEffort)
 	}
 }
 

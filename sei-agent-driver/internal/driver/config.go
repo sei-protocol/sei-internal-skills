@@ -63,6 +63,10 @@ type Config struct {
 	// not recognise fails at turn start rather than here.
 	Model string
 
+	// Effort substitutes for the reasoning effort the agent spec names, e.g. "high".
+	// Empty leaves the spec's own. The server validates it per provider at turn start.
+	Effort string
+
 	// Token is the bearer credential, when one was minted elsewhere. Never
 	// logged, and never included in an error from this package.
 	//
@@ -235,6 +239,7 @@ func LoadConfig() (Config, error) {
 		Origin:  envOr("OMNIGENT_ORIGIN", defaultOrigin),
 		Agent:   envOr("SEIDROID_AGENT_ID", defaultAgent),
 		Model:   strings.TrimSpace(os.Getenv("SEIDROID_MODEL")),
+		Effort:  strings.TrimSpace(os.Getenv("SEIDROID_EFFORT")),
 		Token:   resolveToken(),
 
 		MachineClientID:     strings.TrimSpace(os.Getenv("OMNIGENT_MACHINE_CLIENT_ID")),
