@@ -28,9 +28,10 @@ executor:
   # vendor-neutral gateway, read live off a process that was routed at
   # api.openai.com. Misreading it produced three wrong diagnoses.
   #
-  # gpt-6.1-sol is the Codex CLI's default model. Dotted, not dashed: this value
-  # goes verbatim to `codex -c model=`, and the dotted form is the one the API
-  # accepts.
+  # gpt-6.1-sol is OpenAI's balanced GPT-6 model: near-Astra on complex work at a
+  # lower cost, which suits one reading per pull request. Dotted, not dashed: this
+  # value goes verbatim to `codex -c model=`, and the dotted form is the one the
+  # API accepts.
   model: gpt-6.1-sol
   reasoning_effort: high
   config:
