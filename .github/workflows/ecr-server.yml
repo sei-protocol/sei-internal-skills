@@ -97,7 +97,7 @@ jobs:
           # headless, so host-skill discovery would put ~/.claude/skills in its
           # reach. Do not "fix" this back to "all" when the gate trips; read the
           # comment on the bundle before changing this value.
-          # The last column is the reasoning effort, None where a bundle sets none.
+          # The last column is the expected reasoning effort; None skips the check.
           EXPECT = {
               "sei-spec":   ("none", 8, "speckit-", None),
               "root-cause": ("none", 1, None, None),
