@@ -2448,6 +2448,36 @@ func TestARefusedReplyDeletesItsSession(t *testing.T) {
 	}
 }
 
+// TestDiscardCountsASessionAlreadyGoneAsDeleted keeps Discard consistent with
+// Host.Close, which counts a 404 as reclaimed.
+func TestDiscardCountsASessionAlreadyGoneAsDeleted(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		status  int
+		wantErr bool
+	}{
+		{http.StatusOK, false},
+		{http.StatusNotFound, false},
+		{http.StatusInternalServerError, true},
+	} {
+		t.Run(http.StatusText(c.status), func(t *testing.T) {
+			t.Parallel()
+
+			fs := newDriverFakeServer(t, driverFakeServerConfig{DeleteStatus: c.status})
+			client, err := omnigent.New(fs.URL, omnigent.WithBearerToken("test-token"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			conv := &conversation{client: client, sessionID: "conv_1"}
+
+			if err := conv.Discard(t.Context()); (err != nil) != c.wantErr {
+				t.Errorf("Discard() error = %v, want error %v", err, c.wantErr)
+			}
+		})
+	}
+}
+
 // TestAnAmbiguousSendReportsTheTurnNotTheTransport covers what the caller is told
 // when a prompt's fate cannot be established.
 //

@@ -40,8 +40,12 @@ type conversation struct {
 // SessionID implements [driver.Conversation].
 func (c *conversation) SessionID() string { return c.sessionID }
 
+// Discard implements [driver.Conversation]. A session already gone counts as deleted.
 func (c *conversation) Discard(ctx context.Context) error {
 	_, err := c.client.Sessions().Delete(ctx, c.sessionID, omnigent.DeleteSessionOptions{})
+	if alreadyGone(err) {
+		return nil
+	}
 	return err
 }
 

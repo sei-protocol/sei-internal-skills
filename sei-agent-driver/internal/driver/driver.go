@@ -28,7 +28,8 @@ type Result struct {
 	// the workload's; this package only attributes it.
 	Reply *Reply
 
-	// SessionID is the session driven, when one was opened or adopted.
+	// SessionID is the session driven, when one was opened or adopted. After
+	// [ExitNoVerdict] it names a deleted session; the reply is in Reply and the logs.
 	SessionID string
 
 	// TeardownOK reports that no session was left holding a sandbox. True on a run,
