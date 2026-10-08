@@ -32,10 +32,18 @@ USER root
 # restart, and each emits nothing when the file is absent, so an unmounted Pod stays
 # anonymous. ecr-runner.yml asserts all four against a fake mounted token.
 #
-# git: a get-only helper scoped to https://github.com, so git never offers the token
-# to another host. --system, so it applies to every sandbox user.
-RUN git config --system credential."https://github.com".helper \
-      '!f() { [ "$1" = get ] || exit 0; [ -s /mnt/secrets/git/token ] || exit 0; printf "username=x-access-token\npassword=%s\n" "$(cat /mnt/secrets/git/token)"; }; f'
+# git: the base's own helper is unscoped, so it would offer a GIT_TOKEN from the
+# environment to any host. It is replaced by two get-only helpers scoped to
+# https://github.com, tried in order, and git stops at the first that answers: the
+# mounted rotating token first, then GIT_TOKEN / GIT_USERNAME for a launch that
+# injects the credential as environment. --system, so they apply to every sandbox
+# user. `--unset-all` exits 5 when the key is absent, which is also the goal.
+RUN { git config --system --unset-all credential.helper || [ $? -eq 5 ]; } \
+ && git config --system credential."https://github.com".helper \
+      '!f() { [ "$1" = get ] || exit 0; [ -s /mnt/secrets/git/token ] || exit 0; printf "username=x-access-token\npassword=%s\n" "$(cat /mnt/secrets/git/token)"; }; f' \
+ && git config --system --add credential."https://github.com".helper \
+      '!f() { [ "$1" = get ] || exit 0; [ -n "$GIT_TOKEN" ] || exit 0; printf "username=%s\npassword=%s\n" "${GIT_USERNAME:-x-access-token}" "$GIT_TOKEN"; }; f' \
+ && ! git config --system --get-all credential.helper
 
 # gh reads GH_TOKEN from the environment and never consults git's helpers. A login
 # shell gets the token from this profile.d snippet.

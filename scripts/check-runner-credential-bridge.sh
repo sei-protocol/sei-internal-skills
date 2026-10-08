@@ -27,15 +27,25 @@ bash -c 'gh auth token --hostname github.com' | grep -q "^$TOKEN" \
   || { echo "FAIL: gh wrapper did not export GH_TOKEN from the mount"; exit 1; }
 echo "  ok gh bridge"
 
-# git answers credential fill for github.com, and for no other host.
-printf 'protocol=https\nhost=github.com\n\n' \
-  | GIT_TERMINAL_PROMPT=0 git credential fill | grep -q "^password=$TOKEN" \
-  || { echo "FAIL: git helper returned no password for github.com"; exit 1; }
+# git, asserted with GIT_TOKEN unset and set: a launch can inject a credential as
+# environment, and both scoping and order must hold when it does.
+ENV_TOKEN=ghp_envenvenvenvenvenvenvenvenvenvenv
+fill() { printf 'protocol=https\nhost=%s\n\n' "$1" | GIT_TERMINAL_PROMPT=0 git credential fill 2>/dev/null; }
+
+git config --system --get-all credential.helper >/dev/null \
+  && { echo "FAIL: an unscoped credential.helper is configured"; exit 1; }
+echo "  ok no unscoped helper"
+
+fill github.com | grep -q "^password=$TOKEN\$" \
+  || { echo "FAIL: git helper returned no mounted token for github.com"; exit 1; }
 echo "  ok git bridge"
 
-if printf 'protocol=https\nhost=evil.com\n\n' \
-   | GIT_TERMINAL_PROMPT=0 git credential fill 2>/dev/null | grep -q "^password=$TOKEN"; then
-  echo "FAIL: the token leaked to a non-github host"; exit 1
+GIT_TOKEN="$ENV_TOKEN" fill github.com | grep -q "^password=$TOKEN\$" \
+  || { echo "FAIL: GIT_TOKEN won over the mounted rotating token"; exit 1; }
+echo "  ok mounted token first"
+
+if GIT_TOKEN="$ENV_TOKEN" fill evil.com | grep -q -e "^password=$TOKEN\$" -e "^password=$ENV_TOKEN\$"; then
+  echo "FAIL: a token leaked to a non-github host"; exit 1
 fi
 echo "  ok host scoping"
 
@@ -48,6 +58,11 @@ echo "  ok readiness check accepts a mounted token"
 # The readiness check fails closed when a token is required and absent, which is
 # what makes it mean something.
 rm -f /mnt/secrets/git/token
+
+GIT_TOKEN="$ENV_TOKEN" fill github.com | grep -q "^password=$ENV_TOKEN\$" \
+  || { echo "FAIL: with no mount, git did not fall back to GIT_TOKEN for github.com"; exit 1; }
+echo "  ok GIT_TOKEN fallback"
+
 if SEI_RUNNER_REQUIRE_GIT_TOKEN=1 sei-runner-credential-check >/dev/null 2>&1; then
   echo "FAIL: the readiness check passed with no token and REQUIRE set"; exit 1
 fi
