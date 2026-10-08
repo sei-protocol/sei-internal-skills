@@ -24,10 +24,25 @@
 #      local SQLite file and reports success.
 #   3. Record below what the new revisions do and the revision to roll back to.
 #
-# ROLLBACK. Reverting the digest alone crash-loops. Downgrade from the NEW image
-# first, then revert the digest straight away: a new-image pod that restarts in
-# between upgrades the schema again at boot.
-#   kubectl -n seigent exec deploy/omnigent -c omnigent -- sh -c ': "${DATABASE_URL:?}"; cd /build && u="$DATABASE_URL"; case "$u" in postgres://*) u="postgresql://${u#postgres://}";; esac; export OMNIGENT_DB_URL="$u"; alembic -c omnigent/db/alembic.ini current && alembic -c omnigent/db/alembic.ini downgrade <revision> && alembic -c omnigent/db/alembic.ini current'
+# ROLLBACK. Reverting the digest alone crash-loops. Any new-image server pod that
+# starts after the downgrade upgrades the schema again at boot, so no server pod
+# may run from the downgrade until the old image is applied:
+#   1. Stop Flux and the server, in that order:
+#        flux suspend kustomization seigent -n flux-system
+#        kubectl -n seigent scale deploy/omnigent --replicas=0
+#        kubectl -n seigent wait --for=delete pod -l app=omnigent --timeout=180s
+#   2. Downgrade from a one-off pod of the NEW image, which the Deployment still
+#      names while Flux is suspended:
+#        IMG=$(kubectl -n seigent get deploy omnigent -o jsonpath='{.spec.template.spec.containers[?(@.name=="omnigent")].image}')
+#        kubectl -n seigent run omnigent-downgrade --rm -i --restart=Never --image="$IMG" --overrides='{"spec":{"securityContext":{"runAsNonRoot":true,"runAsUser":1000,"runAsGroup":1000},"containers":[{"name":"omnigent-downgrade","image":"'"$IMG"'","envFrom":[{"secretRef":{"name":"omnigent-secrets"}}],"command":["sh","-c",": \"${DATABASE_URL:?}\"; cd /build && u=\"$DATABASE_URL\"; case \"$u\" in postgres://*) u=\"postgresql://${u#postgres://}\";; esac; export OMNIGENT_DB_URL=\"$u\"; alembic -c omnigent/db/alembic.ini current && alembic -c omnigent/db/alembic.ini downgrade <revision> && alembic -c omnigent/db/alembic.ini current"]}]}}'
+#   3. Merge the revert of the digest change in platform.
+#   4. Fetch it, and confirm the source revision is the revert commit before
+#      resuming. Resume reconciles from the revision Flux already holds, so a
+#      stale one re-applies the new image:
+#        flux reconcile source git flux-system -n flux-system
+#        kubectl -n flux-system get gitrepository flux-system -o jsonpath='{.status.artifact.revision}'
+#   5. flux resume kustomization seigent -n flux-system
+#      Flux applies the old image and restores one replica.
 #
 # Current: v0.17.0 (2026-10-06), the multi-arch index; ecr-server.yml builds its
 # amd64 variant. Alembic head mm1a2b3c4d5e. Its one revision over the previous
