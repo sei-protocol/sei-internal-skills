@@ -225,7 +225,7 @@ than leaving them for a later engineer to rediscover.
 
 - **The `specify` CLI, which the runner overlay installs.** The agent scaffolds
   `.specify/` when a repository lacks it, and cannot without the CLI. The host image
-  (`deploy/docker/Dockerfile.sei --target host` in the `bdchatham/omnigent` fork)
+  (`deploy/docker/Dockerfile.sei --target host` in the `sei-protocol/omnigent` fork)
   carries git, `gh`, and the credential bridge, but not `specify`. `Dockerfile.runner`
   in this repository installs `specify-cli==0.15.0` into its own venv and asserts the
   version. The version is immutable on PyPI, but the transitive closure resolves fresh

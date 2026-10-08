@@ -6,7 +6,7 @@
 # a stale claim would not be detectable from this file.
 #
 # Current: tag agents-main-241fa20e-k8s, server 0.16.0.dev0, from
-# bdchatham/omnigent@feat/sei-base 241fa20e, which merges upstream main
+# sei-protocol/omnigent@feat/sei-base 241fa20e, which merges upstream main
 # 63231a044 (2026-09-28). Built by ECR Server Base run 36442311479.
 #
 # The fork's whole diff against upstream is eight files. Three reach this image:

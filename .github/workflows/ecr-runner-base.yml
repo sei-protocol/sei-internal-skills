@@ -55,7 +55,7 @@ jobs:
       - name: Check out the fork at the requested ref
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          repository: bdchatham/omnigent
+          repository: sei-protocol/omnigent
           ref: ${{ inputs.ref }}
           # The fork is public, so the job's own token reads it. Setting
           # OMNIGENT_FORK_TOKEN repairs this if it is ever made private, without
