@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 # check=skip=InvalidDefaultArgInFrom
 #
-# sei-omnigent runner overlay — layers this repo's two runner inputs onto the
-# omnigent host image: the `.claude/` agent roster and skills, and the Spec Kit CLI.
+# sei-omnigent runner overlay — layers this repo's runner inputs onto upstream's
+# published omnigent host image (runner-base.txt): the GitHub credential bridge, the
+# `.claude/` agent roster and skills, the Spec Kit CLI, and the writing contract.
 #
 # Managed runners resolve their host-scope skills and their `.claude/agents/`
 # specialist roster from $HOME. The provider mounts an emptyDir at `_HOME_DIR`
@@ -22,6 +23,62 @@ FROM ${BASE_IMAGE}
 # provider's runAsUser. A USER here would only change `docker run` semantics and
 # could surprise the sandbox launchers that supply their own command.
 USER root
+
+# GitHub credential bridge. Platform's inject-git-creds admission policy mounts a
+# rotating GitHub App installation token at /mnt/secrets/git/token in seidroid
+# sandbox Pods. The base image's own git helper reads GIT_TOKEN from the
+# environment, which a rotating file cannot feed, so the four pieces below read the
+# file instead. Each re-reads it per call, so a rotated token takes effect without a
+# restart, and each emits nothing when the file is absent, so an unmounted Pod stays
+# anonymous. ecr-runner.yml asserts all four against a fake mounted token.
+#
+# git: the base's own helper is unscoped, so it would offer a GIT_TOKEN from the
+# environment to any host. It is replaced by two get-only helpers scoped to
+# https://github.com, tried in order, and git stops at the first that answers: the
+# mounted rotating token first, then GIT_TOKEN / GIT_USERNAME for a launch that
+# injects the credential as environment. --system, so they apply to every sandbox
+# user. `--unset-all` exits 5 when the key is absent, which is also the goal.
+RUN { git config --system --unset-all credential.helper || [ $? -eq 5 ]; } \
+ && git config --system credential."https://github.com".helper \
+      '!f() { [ "$1" = get ] || exit 0; [ -s /mnt/secrets/git/token ] || exit 0; printf "username=x-access-token\npassword=%s\n" "$(cat /mnt/secrets/git/token)"; }; f' \
+ && git config --system --add credential."https://github.com".helper \
+      '!f() { [ "$1" = get ] || exit 0; [ -n "$GIT_TOKEN" ] || exit 0; printf "username=%s\npassword=%s\n" "${GIT_USERNAME:-x-access-token}" "$GIT_TOKEN"; }; f' \
+ && ! git config --system --get-all credential.helper
+
+# gh reads GH_TOKEN from the environment and never consults git's helpers. A login
+# shell gets the token from this profile.d snippet.
+RUN printf '%s\n' \
+      'if [ -r /mnt/secrets/git/token ]; then export GH_TOKEN="$(cat /mnt/secrets/git/token)"; fi' \
+      > /etc/profile.d/gh-token.sh
+
+# A non-login shell never sources profile.d, so a wrapper takes the base's place on
+# PATH and exports the token for the gh process alone.
+RUN set -eu; \
+    test -x /usr/local/bin/gh; \
+    mkdir -p /usr/local/libexec; \
+    mv /usr/local/bin/gh /usr/local/libexec/gh; \
+    printf '%s\n' \
+      '#!/bin/sh' \
+      '# Export the mounted rotating token for gh; re-read per call so a' \
+      '# rotated token is picked up. No token file -> anonymous.' \
+      'if [ -r /mnt/secrets/git/token ]; then' \
+      '  GH_TOKEN="$(cat /mnt/secrets/git/token)"; export GH_TOKEN;' \
+      'fi' \
+      'exec /usr/local/libexec/gh "$@"' \
+      > /usr/local/bin/gh; \
+    chmod 0755 /usr/local/bin/gh; \
+    test -x /usr/local/libexec/gh
+
+# Readiness check. The provider runs the host as `bash -lc`, so this profile.d hook
+# fails the launch when a token is mounted but git or gh resolves anonymous: a broken
+# bridge fails at launch, not mid-review. It skips the script's network probe, so a
+# GitHub outage cannot wedge a Pod that never restarts. With no token mounted it exits
+# 0, which keeps the mount-less workspace-prep init container working. `zz-` sorts it
+# after every other snippet.
+COPY --chmod=0755 scripts/sei-runner-credential-check /usr/local/bin/sei-runner-credential-check
+RUN printf '%s\n' \
+      'SEI_RUNNER_CREDENTIAL_CHECK_SKIP_NETWORK=1 sei-runner-credential-check || exit 1' \
+      > /etc/profile.d/zz-sei-cred-check.sh
 
 # Spec Kit CLI, in its own venv so its dependency closure cannot perturb omnigent's.
 # Pinned to the release the sei-spec bundle vendors its skill bodies from, so the

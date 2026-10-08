@@ -1,11 +1,12 @@
 # Build context is exactly what a runner needs: the `.claude` overlay, the admin
-# policy, and the writing contract's rules. Exclude everything, then re-include only
-# those, so the context stays small and a new top-level directory in the repo cannot
-# silently enlarge the image.
+# policy, the credential bridge's readiness check, and the writing contract's rules.
+# Exclude everything, then re-include only those, so the context stays small and a
+# new top-level directory in the repo cannot silently enlarge the image.
 *
 !.claude/agents
 !.claude/skills
 !scripts/managed-settings.json
+!scripts/sei-runner-credential-check
 !writing/styles
 !writing/templates/consumer.vale.ini
 !scripts/sei-writing-lint

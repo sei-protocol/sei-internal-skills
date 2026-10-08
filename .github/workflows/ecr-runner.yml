@@ -1,15 +1,17 @@
 name: ECR Runner
 
 # Build + push the runner overlay image to us-east-2 ECR, gated on the same
-# assertions the PR check runs — but against the REAL base rather than a stub, which
-# is the fidelity the fork-safe PR gate trades away. A rosterless image cannot be
-# published.
+# assertions the PR check runs. An image without its roster or its credential bridge
+# cannot be published.
+#
+# The base is upstream's published omnigent host image, pinned in runner-base.txt.
+# It is public, so the build pulls it from ghcr.io with no credentials.
 #
 # Auth mirrors the repo's other ECR workflows: OIDC into common/gha, amazon-ecr-login,
 # buildx. Tagged `runner-overlay-<sha>` in the shared sei/sei-omnigent repo so it is
-# distinguishable from the fork-built base (`runner-<forksha>-*`) and the server image
-# (`agents-main-*`). Build cache lives in the dedicated sei/build-cache repo, kept out
-# of the deployable repo so a cache manifest can never be mistaken for a deploy tag.
+# distinguishable from the server overlay (`server-overlay-*`). Build cache lives in
+# the dedicated sei/build-cache repo, kept out of the deployable repo so a cache
+# manifest can never be mistaken for a deploy tag.
 #
 # amd64 only, matching the provider's default nodeSelector (kubernetes.io/arch: amd64)
 # for sandbox Pods. The base is a multi-arch manifest list, so this narrows it: an
@@ -27,6 +29,8 @@ on:
       - 'runner-base.txt'
       - '.claude/**'
       - 'scripts/managed-settings.json'
+      - 'scripts/sei-runner-credential-check'
+      - 'scripts/check-runner-credential-bridge.sh'
       - 'writing/styles/**'
       - 'writing/templates/consumer.vale.ini'
       - 'scripts/sei-writing-lint'
@@ -85,9 +89,17 @@ jobs:
           cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-overlay
           cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-runner-overlay,mode=max
 
+      - name: Gate — the credential bridge resolves a mounted token
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          docker run --rm --user 0 -e SEI_RUNNER_CREDENTIAL_CHECK_SKIP_NETWORK=1 \
+            -v "$PWD/scripts/check-runner-credential-bridge.sh:/tmp/check-bridge.sh:ro" \
+            --entrypoint bash sei-runner-overlay:candidate -l /tmp/check-bridge.sh
+
       - name: Gate — the overlay reaches $HOME on the real base
-        # Same assertions the PR gate makes on the stub. Running them here is what
-        # makes publishing safe: an image missing its roster, a pinned steward, or the
+        # Same assertions the PR gate makes. Running them here is what makes
+        # publishing safe: an image missing its roster, a pinned steward, or the
         # admin policy never gets a tag.
         timeout-minutes: 5
         run: |
@@ -121,16 +133,15 @@ jobs:
             '
 
       - name: Report how stale the base's harness CLIs are
-        # A WARNING, never a failure. This job's input is the .claude overlay, not
-        # the CLIs; the CLIs arrive from whatever runner-base.txt pins. Failing here
-        # would block a roster-only rebuild for a reason that rebuild cannot fix,
-        # and a gate that fires on unrelated work is a gate someone removes.
+        # A WARNING, never a failure. This job's input is the overlay, not the CLIs;
+        # the CLIs arrive from the upstream release runner-base.txt pins. Failing
+        # here would block a roster-only rebuild for a reason that rebuild cannot
+        # fix, and a gate that fires on unrelated work is a gate someone removes.
         #
-        # It exists because a stale pin is invisible at exactly this step otherwise.
-        # The base sat on claude-code 2.1.197 for over two months, and each overlay
-        # built on it published green. The threshold is deliberately loose: normal
-        # drift between base rebuilds is days, so 30 flags a base that stopped being
-        # rebuilt rather than one that is merely a few releases behind.
+        # A stale pin is otherwise invisible at exactly this step: every overlay
+        # built on it publishes green. The threshold is deliberately loose. Upstream
+        # releases weekly, so 30 days flags a pin that stopped moving rather than one
+        # that is merely a few CLI releases behind.
         timeout-minutes: 5
         continue-on-error: true
         run: |
@@ -159,7 +170,7 @@ jobs:
             days=$(( ( $(date -u +%s) - $(date -u -d "$pub" +%s) ) / 86400 ))
             echo "baked release is ${days} day(s) old (published ${pub})"
             if [ "$days" -ge 30 ]; then
-              echo "::warning::The pinned runner base bakes claude-code ${got}, ${days} days old (latest ${latest}). Rebuild the base with ECR Runner Base and bump runner-base.txt."
+              echo "::warning::The pinned runner base bakes claude-code ${got}, ${days} days old (latest ${latest}). Bump runner-base.txt and server-base.txt to a newer upstream omnigent release."
             fi
           fi
 

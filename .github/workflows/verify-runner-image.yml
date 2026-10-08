@@ -1,14 +1,13 @@
 name: Verify Runner Image
 
-# Asserts the `.claude` overlay actually REACHES a runner's $HOME, and that the
-# seeding hook holds its four stated properties.
+# Asserts the `.claude` overlay actually REACHES a runner's $HOME, that the seeding
+# hook holds its four stated properties, that the credential bridge resolves a
+# mounted token, and that the runner and server bases name the same upstream release.
 #
 # Fork-safe by construction: NO push, NO registry login, NO id-token, NO AWS OIDC,
-# NO secrets. The build is the gate; nothing leaves the runner. The overlay layer is
-# built over a PUBLIC stub base that reproduces the two conditions which made the
-# original regression invisible — an emptyDir over $HOME and a non-root uid — so this
-# gate needs no access to the private base. Verification against the real base runs
-# in ecr-runner.yml, which holds credentials for publishing anyway.
+# NO secrets. The build is the gate; nothing leaves the runner. The base is the one
+# runner-base.txt pins, upstream's public omnigent host image, so this gate builds on
+# the same base ecr-runner.yml publishes on.
 #
 # An image-only check would pass while a real runner had nothing, which is how the
 # roster went missing: `$HOME` is a fresh emptyDir per Pod, so an overlay staged at
@@ -20,8 +19,11 @@ on:
       - 'Dockerfile.runner'
       - 'Dockerfile.runner.dockerignore'
       - 'runner-base.txt'
+      - 'server-base.txt'
       - '.claude/**'
       - 'scripts/managed-settings.json'
+      - 'scripts/sei-runner-credential-check'
+      - 'scripts/check-runner-credential-bridge.sh'
       - 'writing/styles/**'
       - 'writing/templates/consumer.vale.ini'
       - 'writing/templates/spec-template.md'
@@ -40,34 +42,37 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Build a public stub base
-        # Reproduces only what the assertions depend on: the image's non-root
-        # `sandbox` user at the provider's _RUN_AS_UID, python3 for the specify venv,
-        # and flock. Public base, so no registry credentials are needed.
-        #
-        # Keep the apt list a subset of the real base's: a package the base lacks
-        # would make this gate pass on a build the fleet cannot reproduce.
+      - name: The runner and server bases name the same upstream release
+        # The host dials the server over a tunnel neither side version-negotiates,
+        # so a split between the two pins is a combination upstream does not test.
         run: |
           set -euo pipefail
-          cat > /tmp/Dockerfile.stub <<'EOF'
-          FROM python:3.12-slim
-          RUN apt-get update \
-           && apt-get install -y --no-install-recommends util-linux curl ca-certificates git \
-           && rm -rf /var/lib/apt/lists/* \
-           && useradd --uid 1000660000 --user-group --home-dir /sandbox --create-home sandbox
-          EOF
-          docker build -q -f /tmp/Dockerfile.stub -t runner-stub:base /tmp
+          tag() { grep -m1 -vE '^\s*(#|$)' "$1" | sed -nE 's#^[^@]*:(v[^:@]+)@sha256:[0-9a-f]{64}$#\1#p'; }
+          runner="$(tag runner-base.txt)"
+          server="$(tag server-base.txt)"
+          [ -n "$runner" ] && [ -n "$server" ] || {
+            echo "FAIL: each base pin must read image:vX.Y.Z@sha256:<digest> (runner '${runner}', server '${server}')"; exit 1; }
+          [ "$runner" = "$server" ] || {
+            echo "FAIL: runner base is ${runner}, server base is ${server}"; exit 1; }
+          echo "bases-match ${runner}"
 
-      - name: Build the runner overlay
-        # Plain `docker build`, not buildx. The buildx docker-container driver keeps
-        # its own image store, so `FROM runner-stub:base` would not resolve against
-        # the local daemon and would be treated as a registry pull. This gate never
-        # pushes, so the daemon builder is the right one.
+      - name: Build the runner overlay on the pinned base
+        # Plain `docker build`: this gate never pushes, and the daemon builder pulls
+        # the public base directly.
         run: |
           set -euo pipefail
-          docker build -f Dockerfile.runner \
-            --build-arg BASE_IMAGE=runner-stub:base \
+          base="$(grep -m1 -vE '^\s*(#|$)' runner-base.txt)"
+          docker build --platform linux/amd64 -f Dockerfile.runner \
+            --build-arg BASE_IMAGE="$base" \
             -t sei-runner-overlay:pr-smoke .
+
+      - name: The credential bridge resolves a mounted token
+        timeout-minutes: 4
+        run: |
+          set -euo pipefail
+          docker run --rm --user 0 -e SEI_RUNNER_CREDENTIAL_CHECK_SKIP_NETWORK=1 \
+            -v "$PWD/scripts/check-runner-credential-bridge.sh:/tmp/check-bridge.sh:ro" \
+            --entrypoint bash sei-runner-overlay:pr-smoke -l /tmp/check-bridge.sh
 
       - name: Overlay reaches $HOME under an emptyDir-shadowed home
         # A tmpfs at /home/omnigent stands in for the Pod's emptyDir; --user matches

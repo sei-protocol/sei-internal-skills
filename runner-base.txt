@@ -1,19 +1,20 @@
-# Base image for Dockerfile.runner: the omnigent host image the fleet deploys,
-# built from the fork at deploy/docker/Dockerfile.sei --target host.
+# Base image for Dockerfile.runner: upstream's published omnigent host image,
+# ghcr.io/omnigent-ai/omnigent-host. omnigent-ai/omnigent's oss-publish-images.yml
+# builds it from deploy/docker/Dockerfile --target host for every release tag. It
+# carries omnigent, git, tmux, gh, and the harness CLIs; upstream installs claude,
+# codex and pi from npm `latest` when it builds the release, so a newer release is
+# the way to newer CLIs.
 #
-# Single source of truth, read by verify-runner-image.yml and ecr-runner.yml, so
-# bumping the base is one reviewable line. Digest-pinned, not tag-pinned: a tag
-# is mutable, and a base that changes under a stale claim is not detectable here.
+# Read by ecr-runner.yml and verify-runner-image.yml. Pinned as tag@digest: the
+# digest is what resolves, and the tag names the release for a reader and for the
+# check in verify-runner-image.yml.
 #
-# Current: tag runner-241fa20e-credbridge, fork commit 241fa20e, which merges
-# upstream main 63231a044 (2026-09-28). Built by ECR Runner Base run 36442316845.
-# Bakes claude-code 2.1.283, codex 0.158.0, pi 0.87.1. Dockerfile.sei's install
-# step compared each of the three to npm `latest` and fails the build on a
-# mismatch (the run logs "harness CLI <bin> <version> (matches npm latest)" for
-# all three). ecr-runner-base.yml then re-checks claude-code alone against the
-# published image.
+# Pin the SAME release as server-base.txt. The host dials the server over a tunnel
+# that neither side version-negotiates, so a split between them is a combination
+# upstream does not test. verify-runner-image.yml fails a pull request that splits
+# them.
 #
-# Build this from the SAME fork ref as the server base. The host dials the server
-# over a tunnel neither side version-negotiates, so a split between them is the
-# combination upstream never tests.
-189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-omnigent@sha256:bf411386758283db6622d3266fc664816080155bea9c7cdc34fdb878f28bd083
+# Current: v0.17.0 (2026-10-06), the multi-arch index; ecr-runner.yml builds its
+# amd64 variant. It bakes claude-code 2.1.290, codex 0.160.1, pi 1.0.4, gh 2.100.0
+# and Node 22.
+ghcr.io/omnigent-ai/omnigent-host:v0.17.0@sha256:51880f0edb7e0357f395f88f4bc3c4e1dfc3df06e46cffb55ae6700c1dfd82b2

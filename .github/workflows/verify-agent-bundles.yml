@@ -4,8 +4,8 @@ name: Verify Agent Bundles
 # and asserts the invariants a bundle silently fails on.
 #
 # Fork-safe by construction: NO push, NO registry login, NO id-token, NO AWS OIDC, NO
-# secrets. omnigent comes from PyPI, so this needs no access to the private server
-# image. The in-image parse against the real base runs in ecr-server.yml.
+# secrets. omnigent comes from PyPI, at the release server-base.txt pins. The
+# in-image parse runs in ecr-server.yml.
 #
 # Why parse rather than lint the YAML: a bundle that parses but resolves the wrong
 # skills registers successfully and behaves wrongly. `sei-spec` in particular depends
@@ -17,6 +17,7 @@ on:
   pull_request:
     paths:
       - 'agents/**'
+      - 'server-base.txt'
       - '.github/workflows/verify-agent-bundles.yml'
   workflow_dispatch:
 
@@ -35,9 +36,13 @@ jobs:
           python-version: '3.12'
 
       - name: Install the parser
-        # No PyPI release matches the fork build the server runs, so this gate
-        # approximates it. ecr-server.yml parses with what production has.
-        run: pip install --disable-pip-version-check 'omnigent==0.16.0'
+        # The release server-base.txt pins, so this parses with the library the
+        # server runs.
+        run: |
+          set -euo pipefail
+          ver="$(grep -m1 -vE '^\s*(#|$)' server-base.txt | sed -nE 's#^[^@]*:v([^:@]+)@sha256:[0-9a-f]{64}$#\1#p')"
+          [ -n "$ver" ] || { echo "server-base.txt must pin image:vX.Y.Z@sha256:<digest>" >&2; exit 1; }
+          pip install --disable-pip-version-check "omnigent==${ver}"
 
       - name: Parse every bundle and assert its contract
         run: |
