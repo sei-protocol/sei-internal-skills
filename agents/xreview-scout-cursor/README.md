@@ -96,15 +96,16 @@ fixed list: `claude-native`, `claude-sdk`, `codex`, `openai-agents`,
 readiness probe, so installing the SDK does not add to it. A session whose
 harness is absent from the list fails with `RUNNER_CAPABILITY_MISMATCH`.
 
-Add `cursor` in the omnigent fork. Then rebuild the runner base and bump
-`runner-base.txt`. Owner: whoever owns the fork.
+Add `cursor` to that list upstream, in omnigent-ai/omnigent. Then bump
+`runner-base.txt` and `server-base.txt` to a release that carries it. Upstream
+v0.17.0 does not. Owner: whoever owns the runner image.
 
 **2. Put the SDK in the runner image.** `cursor-sdk` is an optional extra in
-omnigent's `pyproject.toml`. The host stage of `Dockerfile.sei` installs the
-package with no extras, so the import fails on the first turn.
+omnigent's `pyproject.toml`. The upstream host image installs the package with
+no extras, so the import fails on the first turn.
 
-Add the extra to the host build. Same rebuild as step 1. Owner: whoever owns the
-fork.
+Install the `cursor` extra in `Dockerfile.runner`, the way `Dockerfile.server`
+installs `kms`. Owner: whoever owns the runner image.
 
 **3. Put a Cursor API key in the sandbox.** The SDK requires one, and a
 `cursor-agent login` does not substitute. It reads `HARNESS_CURSOR_API_KEY`, then

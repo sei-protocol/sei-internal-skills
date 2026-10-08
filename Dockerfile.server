@@ -1,8 +1,9 @@
 # syntax=docker/dockerfile:1
 # check=skip=InvalidDefaultArgInFrom
 #
-# sei-omnigent server overlay — bakes this repo's agent bundles into the omnigent
-# server image so the deploy can register them.
+# sei-omnigent server overlay — layers two things onto upstream's published omnigent
+# server image (server-base.txt): the `kms` extra, and this repo's agent bundles so
+# the deploy can register them.
 #
 # Registration is `OMNIGENT_BUILTIN_AGENT_DIRS`, a list of in-image bundle paths the
 # server materialises at lifespan startup. There is no registration API, so a bundle
@@ -24,6 +25,15 @@ ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
 USER root
+
+# The `kms` extra backs the credential store's KMS cipher, which platform selects
+# with OMNIGENT_CREDENTIAL_CIPHER=kms. Upstream publishes this image with the
+# `kubernetes` extra only. The requirements come from the base's own pyproject.toml,
+# so they match the omnigent version in the image. Without them the server starts,
+# and the first credential write fails.
+RUN python -c "import subprocess, sys, tomllib; \
+reqs = tomllib.load(open('/build/pyproject.toml', 'rb'))['project']['optional-dependencies']['kms']; \
+subprocess.check_call([sys.executable, '-m', 'pip', 'install', '--no-cache-dir', '--disable-pip-version-check', *reqs])"
 
 # Owned by uid 1000, matching the server image's runtime user, and read-only in
 # effect: the server only reads these to materialise a session's bundle.

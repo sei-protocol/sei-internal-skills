@@ -1,14 +1,19 @@
 name: ECR Server
 
-# Build + push the server overlay image, gated on parsing every bundle in-image with
-# the server's own omnigent. A bundle that would fail to register cannot be published.
+# Build + push the server overlay image, gated on two things in the built image: the
+# extras and the machine grant the deployment depends on, and every bundle parsing
+# with the server's own omnigent. A bundle that would fail to register cannot be
+# published.
+#
+# The base is upstream's published omnigent server image, pinned in server-base.txt.
+# It is public, so the build pulls it from ghcr.io with no credentials.
 #
 # The server image is what `OMNIGENT_BUILTIN_AGENT_DIRS` points into, so this is how a
 # bundle reaches the agent dropdown: there is no registration API.
 #
 # Auth mirrors the repo's other ECR workflows. Tagged `server-overlay-<sha>` in the
-# shared sei/sei-omnigent repo, distinguishable from the fork-built server base
-# (`agents-main-*`) and the runner overlay (`runner-overlay-*`). Cache lives in the
+# shared sei/sei-omnigent repo, distinguishable from the runner overlay
+# (`runner-overlay-*`). Cache lives in the
 # dedicated sei/build-cache repo so a cache manifest cannot be mistaken for a deploy
 # tag. amd64 only, matching the server deployment's nodes.
 #
@@ -78,6 +83,67 @@ jobs:
           tags: sei-server-overlay:candidate
           cache-from: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-server-overlay
           cache-to: type=registry,ref=${{ steps.ecr-login.outputs.registry }}/sei/build-cache:sei-omnigent-server-overlay,mode=max
+
+      - name: Gate — the image carries the extras and the machine grant
+        # Each of these fails at runtime on a server that reports healthy: without
+        # the kubernetes client every sandbox launch fails; without the machine
+        # grant /oauth/token rejects every driver run; without the kms extra the
+        # first credential write fails.
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          # boto3.client("kms") needs a region to construct, with no network call.
+          # The pod gets both variables from EKS Pod Identity; a bare `docker run`
+          # gets neither.
+          docker run --rm -e AWS_REGION=us-east-2 -e AWS_DEFAULT_REGION=us-east-2 \
+            --entrypoint python sei-server-overlay:candidate -c '
+          import inspect
+          import sys
+          from importlib.metadata import version
+          bad = False
+
+          print("  omnigent", version("omnigent"))
+
+          try:
+              # The provider module imports either way, so assert the client too.
+              print("  kubernetes client", version("kubernetes"))
+              from omnigent.onboarding.sandboxes import kubernetes  # noqa: F401
+              print("  ok kubernetes extra present")
+          except Exception as exc:
+              print(f"  FAIL kubernetes extra missing: {exc}"); bad = True
+
+          try:
+              # The grant is a grant_type branch inside the OAuth token router,
+              # injected through handle_client_credentials. Check that seam, not
+              # only the module: a handler with nothing to mount into imports clean
+              # and never routes.
+              from omnigent.server.routes.client_credentials import (  # noqa: F401
+                  create_client_credentials_handler,
+              )
+              from omnigent.server.routes.device_auth import create_oauth_token_router
+              params = inspect.signature(create_oauth_token_router).parameters
+              assert "handle_client_credentials" in params, (
+                  "create_oauth_token_router takes no handle_client_credentials "
+                  "parameter -- the machine grant has nothing to mount into"
+              )
+              print("  ok client_credentials grant present and wired")
+          except Exception as exc:
+              print(f"  FAIL client_credentials grant missing or unwired: {exc}"); bad = True
+
+          try:
+              # The cipher module imports without boto3; only constructing the
+              # cipher and touching ._kms needs it, which is what the server does
+              # on its first credential write.
+              print("  boto3", version("boto3"))
+              from omnigent.stores.credential_store.secret_cipher import KmsSecretCipher
+              KmsSecretCipher("alias/gate-check-only")._kms  # noqa: B018
+              print("  ok kms extra present")
+          except Exception as exc:
+              print(f"  FAIL kms extra missing: {exc}"); bad = True
+
+          print("server-extras-ok" if not bad else "server-extras-FAILED")
+          sys.exit(1 if bad else 0)
+          '
 
       - name: Gate — every bundle parses with the server's own omnigent
           # The PR gate parses from the checkout with a PyPI omnigent. This parses the
@@ -160,7 +226,7 @@ jobs:
             echo '```'
             echo "\`clusters/dev/seigent/configmap-patch.yaml\` OMNIGENT_BUILTIN_AGENT_DIRS:"
             echo '```'
-            echo "/opt/sei-omnigent/agents/xreview-scout-codex:/opt/sei-omnigent/agents/root-cause:/opt/sei-omnigent/agents/sei-spec:/opt/agents/sei-droid"
+            echo "/opt/sei-omnigent/agents/root-cause:/opt/sei-omnigent/agents/sei-spec:/opt/sei-omnigent/agents/xreview-scout-codex:/opt/agents/seidroid:/build/examples/polly"
             echo '```'
             echo "\`xreview-scout-cursor\` is baked but deliberately absent from that list: its harness is not reachable yet. See its README before adding it."
             echo "Registration runs only at lifespan startup, so bump \`sei.io/config-revision\` in the same commit."
