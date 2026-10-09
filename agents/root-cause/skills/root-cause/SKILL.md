@@ -65,7 +65,7 @@ Read `.claude/agents/` from the calling repo. Pick the smallest set whose combin
 - sei-sidecar (Waterway proxy, RPC routing) → `sei-network-specialist` + `sre-engineer`
 - sei-chain (CometBFT P2P, EVM, mempool, state sync) → `sei-network-specialist`
 - release-test / qa-testing harness → `kubernetes-specialist` + `sre-engineer`
-- platform/K8s manifests (Kustomize, IRSA, secrets) → `kubernetes-specialist` + `sre-engineer`
+- platform/K8s manifests (Kustomize, IRSA, secrets) → a platform specialist, if the calling repo's roster has one. The synced roster has none, so surface that gap as a finding, as the sparse-roster section of `references/multi-expert-dispatch.md` says.
 
 For any cross-cutting effect (latency, resource pressure, cardinality), add `sre-engineer`. It owns the PromQL and LogQL behind alerts, recording rules and dashboards. For an attack-surface or trust-boundary effect, add a security specialist if the calling repo's roster has one. The synced roster has none, so surface that gap as a finding, as the sparse-roster section of `references/multi-expert-dispatch.md` says.
 
