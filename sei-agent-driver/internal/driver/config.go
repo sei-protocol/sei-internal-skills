@@ -149,6 +149,18 @@ type Config struct {
 	// that a run which gives up discards. It prices only reads that are safe to
 	// repeat; nothing that changes state waits on it.
 	ServerRestartBudget time.Duration
+
+	// ReplySettleBudget is how long the reply read keeps re-reading the session
+	// when the edge that ends a turn has arrived and no assistant message carries
+	// that turn's response id yet.
+	//
+	// On a terminal-backed harness the two reach the server by separate paths: the
+	// forwarder derives the edge from Claude Code's Stop hook and posts the
+	// transcript's final message on its own, and the edge can land first. A read in
+	// that window finds a finished turn without its answer. Re-reading is safe,
+	// because only this turn's reply can carry its response id; it prices only a
+	// read, and nothing that changes state waits on it.
+	ReplySettleBudget time.Duration
 }
 
 // LogValue renders the configuration without its credentials.
@@ -174,6 +186,7 @@ func (c Config) LogValue() slog.Value {
 		slog.Duration("unary_timeout", c.UnaryTimeout),
 		slog.Duration("stream_idle_timeout", c.StreamIdleTimeout),
 		slog.Duration("server_restart_budget", c.ServerRestartBudget),
+		slog.Duration("reply_settle_budget", c.ReplySettleBudget),
 	)
 }
 
@@ -227,6 +240,12 @@ const (
 	// and far inside DefaultRunDeadline, so a restart costs a review minutes rather
 	// than its verdict.
 	DefaultServerRestartBudget = 180 * time.Second
+
+	// DefaultReplySettleBudget bounds the wait for a turn's reply after the edge
+	// that ends the turn. The final message trails that edge by about a second at
+	// worst on dev, so this leaves wide headroom, and a reply that never comes
+	// still costs a failed review only seconds.
+	DefaultReplySettleBudget = 10 * time.Second
 )
 
 // LoadConfig reads the configuration from the environment.
@@ -257,6 +276,7 @@ func LoadConfig() (Config, error) {
 		{"SEIDROID_UNARY_TIMEOUT_S", DefaultUnaryTimeout.Seconds(), &cfg.UnaryTimeout},
 		{"SEIDROID_STREAM_IDLE_TIMEOUT_S", DefaultStreamIdleTimeout.Seconds(), &cfg.StreamIdleTimeout},
 		{"SEIDROID_SERVER_RESTART_BUDGET_S", DefaultServerRestartBudget.Seconds(), &cfg.ServerRestartBudget},
+		{"SEIDROID_REPLY_SETTLE_BUDGET_S", DefaultReplySettleBudget.Seconds(), &cfg.ReplySettleBudget},
 	} {
 		secs, err := secondsOr(d.name, d.secs)
 		if err != nil {

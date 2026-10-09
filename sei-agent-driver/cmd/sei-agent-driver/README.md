@@ -289,8 +289,9 @@ assuming a blank allowlist is merely "cautious."**
 | `SEIDROID_UNARY_TIMEOUT_S` | `150` | Bounds one non-streaming SDK call — listing, create, send, resolve. Longer than `SEIDROID_REQUEST_TIMEOUT_S` because a session create is slower than a read. Zero does not mean "let the SDK decide": a non-positive value is a configuration error and exits 2, and a `Config` built in code with this unset gets 150s substituted before the client is built. |
 
 | `SEIDROID_SERVER_RESTART_BUDGET_S` | `180` | How long the driver keeps reading the session, on each stream re-subscribe, while a gateway reports the server gone. A gateway answer (a 502, 503 or 504 with no error envelope) means that a rollout is replacing the server. A single-replica server with a Recreate rollout is down for about two minutes. The sandbox and the turn survive that window, so waiting collects an answer that the run would otherwise discard. The driver does not retry a 503 that the server writes itself, such as `runner_unavailable`. Past the budget, the run exits `6`. |
+| `SEIDROID_REPLY_SETTLE_BUDGET_S` | `10` | How long the driver keeps re-reading the session for the turn's reply after the edge that ends the turn. On a terminal-backed harness the turn's final message can reach the server after that edge, so one read can find a finished turn without its answer. A reply still missing when this budget is spent is reported as `ExitNoVerdict`. A refusal (another turn's reply in the session) never waits. |
 
-The five values above must each parse as a positive number; zero, negative, or
+The six values above must each parse as a positive number; zero, negative, or
 non-numeric values are rejected as configuration errors rather than silently
 producing an unbounded run.
 

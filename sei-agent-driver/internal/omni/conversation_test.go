@@ -943,6 +943,8 @@ func driverTestConfig(t *testing.T, baseURL string) driver.Config {
 		RunDeadline:       10 * time.Second,
 		RequestTimeout:    5 * time.Second,
 		StreamIdleTimeout: 5 * time.Second,
+		// Small, so a test whose reply never comes does not wait the default.
+		ReplySettleBudget: 200 * time.Millisecond,
 	}
 }
 
@@ -1528,10 +1530,10 @@ func driverSessionFailedFrameFor(responseID, code, message string) string {
 // TestReplyForReadsAFinishedTurnEvenAfterTheClockExpires pins the precedence a
 // review of the previous design caught this driver getting wrong.
 //
-// The reply is committed before the edge that ends the turn, and fetchReply reads
-// on a detached context, so a deadline or a SIGTERM landing in the window between
-// those two moments must not discard a review that finished. Checking the clock
-// ahead of the read reported driver.ExitTimeout on a completed, paid-for review.
+// fetchReply reads on a detached context, so a deadline or a SIGTERM landing
+// between the edge that ends the turn and the read must not discard a review that
+// finished. Checking the clock ahead of the read reported driver.ExitTimeout on a
+// completed, paid-for review.
 func TestReplyForReadsAFinishedTurnEvenAfterTheClockExpires(t *testing.T) {
 	t.Parallel()
 

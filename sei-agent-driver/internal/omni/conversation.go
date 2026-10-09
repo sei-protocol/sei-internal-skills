@@ -684,44 +684,22 @@ func carriesItem(items []omnigent.ConversationItem, id string) bool {
 	return false
 }
 
-// fetchReply reads the turn's reply off the session.
+// fetchReply reads the turn's reply off the session, and refuses one it cannot
+// publish.
 //
-// One read, and no poll. The reply commits well before the edge that ends the
-// turn, so by the time this runs the item is already stored. An absent reply is
-// reported rather than retried against, because retrying would be guessing at an
-// ordering that does not hold.
-//
-// Its own bounded context, because the run's may be the thing that expired and
-// this is the last chance to recover an answer the agent did produce.
+// A detached context, because the run's may be the thing that expired and this is
+// the last chance to recover an answer the agent did produce.
 func (c *conversation) fetchReply(
 	ctx context.Context,
 	turnID string,
 	prior map[string]bool,
 ) (driver.Reply, error) {
-	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), c.host.cfg.RequestTimeout)
-	defer cancel()
-
-	session, err := c.client.Sessions().Get(ctx, c.sessionID, omnigent.GetSessionOptions{
-		IncludeItems: omnigent.Ptr(true),
-	})
+	reply, refusal, err := c.awaitReply(context.WithoutCancel(ctx), turnID, prior)
 	if err != nil {
-		return driver.Reply{}, fmt.Errorf("reading the session for a reply: %w", err)
+		return driver.Reply{}, err
 	}
-
-	if groups := replyGroupsSince(session.Items, prior); len(groups) > 1 {
-		// Two turns replied into this session while ours ran. Nothing on the wire
-		// says which is ours, so this refuses rather than choosing the newest —
-		// which publishes another invocation's answer as this one's.
-		c.host.log.Error("more than one turn replied into this session",
-			"session_id", c.sessionID, "turn_id", turnID, "reply_groups", groups)
-		return driver.Reply{Reason: "another turn replied into this session while ours ran"}, nil
-	}
-
-	reply, ok := turnReply(session.Items, turnID)
-	if !ok {
-		c.host.log.Warn("no reply carries this turn's response id",
-			"session_id", c.sessionID, "turn_id", turnID, "items", len(session.Items))
-		return driver.Reply{Reason: "no assistant message carries this turn's response id"}, nil
+	if refusal != "" {
+		return driver.Reply{Reason: refusal}, nil
 	}
 
 	// A minted bearer is deliberately not among the literals. It lives in a local
@@ -752,6 +730,81 @@ func (c *conversation) fetchReply(
 
 	reply.TurnID = turnID
 	return reply, nil
+}
+
+// replySettlePolls is how many times [conversation.awaitReply] reads the session
+// across one ReplySettleBudget while the turn's reply is missing.
+//
+// A fixed cadence, for the reason [restartPolls] gives: the reply lands once, at no
+// predictable point, so polling evenly finds it no later than one interval after it
+// does.
+const replySettlePolls = 20
+
+// minReplySettlePoll floors the interval, so a small budget cannot spin on the server.
+const minReplySettlePoll = 50 * time.Millisecond
+
+// awaitReply reads the session until an assistant message carries turnID, or
+// ReplySettleBudget runs out. It returns the reply, or the reason there is none.
+//
+// More than one read, because the edge that ends a turn and the turn's final
+// message reach the server by separate paths on a terminal-backed harness, and the
+// edge can arrive first. A read at the edge can then find a finished turn without
+// its answer. A refusal does not wait: a second turn's reply cannot become ours by
+// waiting. Each read has its own RequestTimeout, on a ctx the caller has detached.
+func (c *conversation) awaitReply(
+	ctx context.Context,
+	turnID string,
+	prior map[string]bool,
+) (driver.Reply, string, error) {
+	interval := max(c.host.cfg.ReplySettleBudget/replySettlePolls, minReplySettlePoll)
+	start := time.Now()
+	giveUp := start.Add(c.host.cfg.ReplySettleBudget)
+	for reads := 1; ; reads++ {
+		items, err := c.readItems(ctx)
+		if err != nil {
+			return driver.Reply{}, "", err
+		}
+
+		if groups := replyGroupsSince(items, prior); len(groups) > 1 {
+			// Two turns replied into this session while ours ran. Nothing on the wire
+			// says which is ours, so this refuses rather than choosing the newest —
+			// which publishes another invocation's answer as this one's.
+			c.host.log.Error("more than one turn replied into this session",
+				"session_id", c.sessionID, "turn_id", turnID, "reply_groups", groups)
+			return driver.Reply{}, "another turn replied into this session while ours ran", nil
+		}
+
+		if reply, ok := turnReply(items, turnID); ok {
+			if reads > 1 {
+				c.host.log.Info("the reply landed after the edge that ended the turn",
+					"session_id", c.sessionID, "turn_id", turnID, "reads", reads,
+					"waited", time.Since(start).Round(time.Millisecond))
+			}
+			return reply, "", nil
+		}
+
+		if time.Now().Add(interval).After(giveUp) {
+			c.host.log.Warn("no reply carries this turn's response id",
+				"session_id", c.sessionID, "turn_id", turnID, "items", len(items), "reads", reads,
+				"waited", time.Since(start).Round(time.Millisecond))
+			return driver.Reply{}, "no assistant message carries this turn's response id", nil
+		}
+		time.Sleep(interval)
+	}
+}
+
+// readItems reads the session's items, bounded by RequestTimeout.
+func (c *conversation) readItems(ctx context.Context) ([]omnigent.ConversationItem, error) {
+	ctx, cancel := context.WithTimeout(ctx, c.host.cfg.RequestTimeout)
+	defer cancel()
+
+	session, err := c.client.Sessions().Get(ctx, c.sessionID, omnigent.GetSessionOptions{
+		IncludeItems: omnigent.Ptr(true),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("reading the session for a reply: %w", err)
+	}
+	return session.Items, nil
 }
 
 // answerPending decides the prompts already parked on a session.
