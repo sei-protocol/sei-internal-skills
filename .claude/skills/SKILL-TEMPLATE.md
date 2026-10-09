@@ -166,6 +166,7 @@ When creating a new procedural skill:
 - [ ] Catalogued in `.claude/skills/README.md` (rule C1).
 - [ ] `.gitignore` covers `state/` (`.claude/skills/*/state/`).
 - [ ] `name:` matches the directory (`make verify-catalog`).
+- [ ] The rest of the steps: [Changing the catalog](../../CLAUDE.md#changing-the-catalog) in `CLAUDE.md`.
 
 ## Anti-Patterns
 

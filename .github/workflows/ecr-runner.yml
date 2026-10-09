@@ -99,25 +99,34 @@ jobs:
 
       - name: Gate — the overlay reaches $HOME on the real base
         # Same assertions the PR gate makes. Running them here is what makes
-        # publishing safe: an image missing its roster, a pinned steward, or the
-        # admin policy never gets a tag.
+        # publishing safe: an image missing a skill or agent this commit holds, or
+        # the admin policy, never gets a tag.
         timeout-minutes: 5
         run: |
           set -euo pipefail
+          EXPECT_SKILLS=""
+          for d in .claude/skills/*/; do
+            if [ -f "${d}SKILL.md" ]; then EXPECT_SKILLS="$EXPECT_SKILLS $(basename "$d")"; fi
+          done
+          EXPECT_AGENTS=""
+          for f in .claude/agents/*.md; do EXPECT_AGENTS="$EXPECT_AGENTS $(basename "$f" .md)"; done
+          export EXPECT_SKILLS EXPECT_AGENTS
           docker run --rm --user 1000660000:1000660000 \
             --tmpfs /home/omnigent:exec,mode=1777 -e HOME=/home/omnigent \
+            -e EXPECT_SKILLS -e EXPECT_AGENTS \
             --entrypoint bash sei-runner-overlay:candidate -lc '
               set -euo pipefail
-              for a in prose-steward idiomatic-reviewer; do
-                test -f "$HOME/.claude/agents/$a.md" || { echo "FAIL: pinned steward agents/$a.md not seeded"; exit 1; }
+              for a in $EXPECT_AGENTS; do
+                test -f "$HOME/.claude/agents/$a.md" || { echo "FAIL: agents/$a.md not seeded"; exit 1; }
               done
-              for s in root-cause xreview; do
+              for s in $EXPECT_SKILLS; do
                 test -f "$HOME/.claude/skills/$s/SKILL.md" || { echo "FAIL: skills/$s not seeded"; exit 1; }
               done
               n=$(ls "$HOME/.claude/agents"/*.md | wc -l)
-              # Floor, not a target — see verify-runner-image.yml. Reset by the
-              # 2026-08 slim-down; catches accidental loss, not deliberate change.
-              [ "$n" -ge 16 ] || { echo "FAIL: roster shrank to $n"; exit 1; }
+              m=$(ls -d "$HOME/.claude/skills"/*/ | wc -l)
+              # Floor, not a target. A deliberate cut below 3 moves this line in
+              # both runner workflows in the same pull request.
+              [ "$n" -ge 3 ] && [ "$m" -ge 3 ] || { echo "FAIL: roster shrank to $n agents, $m skills"; exit 1; }
               command -v specify >/dev/null || { echo "FAIL: specify absent"; exit 1; }
               P=/etc/claude-code/managed-settings.json
               test -f "$P" || { echo "FAIL: $P absent (a headless permission request wedges the session)"; exit 1; }

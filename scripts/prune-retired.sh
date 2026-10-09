@@ -49,15 +49,14 @@ RETIRED_SKILLS=(
                # now states; its two mechanical scans belong to the platform repo
   chaos-suite  # declared 8 scripts and shipped none; its guardrails named a 9th.
                # The false-green, baseline and leaked-chaos knowledge moved into
-               # validate-release before the cut.
+               # validate-release, which is also retired.
   data-mesh    # data architecture / data mesh
   prfaq        # Amazon working-backwards PRFAQ
   tee          # trusted execution environments
   diagram      # house-grammar Lucid diagrams
   lingua       # RENAMED, not cut — superseded by `language` (#294)
   language     # the dual-audience premise did not hold up; its rules that did
-               # are folded into the prose-steward agent, which no longer needs
-               # a skill behind it
+               # were folded into the prose-steward agent, which is also retired
 
   # The aggregators. Linear covers their job natively: Custom Views answer
   # "which projects are at risk / shipped last quarter / are mine", and Pulse
@@ -68,7 +67,12 @@ RETIRED_SKILLS=(
   impact-portfolio  # cross-project weekly exec report page
   execution-plan    # bet<->design<->issue<->PR lineage decoration
 
-  # The experimental/ tier, removed whole. Recover one from git history:
+  # Removed from .claude/skills when the catalog was cut to giga-dev,
+  # harbor-dev and kubernetes. Recover one from git history:
+  #   git log --diff-filter=D -- .claude/skills/<name>
+  evm gov-ops idiomatic platform root-cause systems
+  validate-release validator-platform xreview
+  # The experimental/ tier, removed whole in the same cut:
   #   git log --diff-filter=D -- experimental/skills/<name>
   bugbash code-structure coral council design ebpf interview issue
   linear-ticket project-brief research workstream
@@ -81,7 +85,13 @@ RETIRED_AGENTS=(
   technical-program-manager # backed by /execution-plan; the agent is a thin
                             # wrapper over that mechanism, so it retires with it
 
-  sei-interview-expert   # experimental/agents/, removed whole with the tier
+  # Removed from .claude/agents in the same cut:
+  #   git log --diff-filter=D -- .claude/agents/<name>.md
+  idiomatic-reviewer k8s-capacity-management network-specialist
+  observability-platform-engineer opentelemetry-expert platform-engineer
+  platform-release-manager product-engineer product-manager prose-steward
+  security-specialist solidity-developer systems-engineer
+  sei-interview-expert   # experimental/agents/, removed whole
 )
 
 # --- Argument parsing -------------------------------------------------------

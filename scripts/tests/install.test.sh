@@ -133,10 +133,10 @@ check "agent file landed"     test -f "$t/.claude/agents/sre-engineer.md"
 
 # A retired name must fail with the lookup message, not crash some other way.
 echo "a retired name fails with a clear message"
-o="$(run "$scratch/ret" skill project-brief 2>&1)"; rc=$?
-if [ "$rc" -ne 0 ] && [[ "$o" == *"no skill named"* ]]; then ok "retired skill project-brief: no skill named"; else no "retired skill project-brief (rc=$rc)"; fi
-o="$(run "$scratch/ret" agent sei-interview-expert 2>&1)"; rc=$?
-if [ "$rc" -ne 0 ] && [[ "$o" == *"no agent named"* ]]; then ok "retired agent sei-interview-expert: no agent named"; else no "retired agent sei-interview-expert (rc=$rc)"; fi
+o="$(run "$scratch/ret" skill xreview 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && [[ "$o" == *"no skill named"* ]]; then ok "retired skill xreview: no skill named"; else no "retired skill xreview (rc=$rc)"; fi
+o="$(run "$scratch/ret" agent prose-steward 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && [[ "$o" == *"no agent named"* ]]; then ok "retired agent prose-steward: no agent named"; else no "retired agent prose-steward (rc=$rc)"; fi
 
 # After a pull, git keeps a removed skill's directory when it still holds
 # ignored files. Such a directory has no SKILL.md, so it is not a skill.
