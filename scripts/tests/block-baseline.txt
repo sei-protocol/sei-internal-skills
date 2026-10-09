@@ -33,6 +33,7 @@ evm                D5      # rule-design: D5 fires on a quoted trigger phrase
 # truthful chaos release report") and D1 has no carve-out for it. Either D1 gains one
 # or these two get reworded. Decide it; do not let this file hold the question.
 gov-ops            D1,E2   # rule-design (D1); debt (E2)
+giga-dev           -
 harbor-dev         -
 idiomatic          -
 kubernetes         -

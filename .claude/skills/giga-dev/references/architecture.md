@@ -93,8 +93,10 @@ are in the platform repository:
 | `spec.configValues` | `app.toml` `giga.execution.parse_workers = 16`, the only override |
 | `spec.image` | one sei-chain image, pinned by digest, on all 48 nodes |
 
-A full node has `spec.fullNode: {}` and no keys or NLB. Every SeiNode carries the prune-disabled and
-deletion-protected annotations, so a removed manifest does not delete the node.
+A full node has `spec.fullNode: {}` and no keys or NLB. Validator SeiNodes and their p2p Services
+carry the prune-disabled and deletion-protected annotations. Removing a validator's manifest from Git
+therefore does not delete it. Full nodes carry neither: removing a full node's manifest deletes the node
+and its volume.
 
 For each SeiNode, the cell's controller creates a StatefulSet (one replica, `OnDelete`), a headless
 Service and PVC `data-<name>` on storage class `gp3-10k-750`. It rolls at most 25% of the nodes in a

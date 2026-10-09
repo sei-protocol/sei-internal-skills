@@ -642,15 +642,15 @@ Blind spots:
 3. **Saturation fires no alert.** No rule reads busy. If the scaler cannot act, the first alert is
    a validator that already runs away.
 4. **A validator with no margin fires no alert** until its lag passes 12,000. Check **busy-edge**.
-5. **An unscraped node is invisible.** `TargetDown` is disabled fleet-wide, and no rule watches the
-   node scrape. Check **nodes-ready**.
+5. **An unscraped node is invisible.** No giga lag rule fires for a node that is not scraped.
+   Check **scrape-census** and **nodes-ready**.
 6. **No head, no lag.** If no validator reports the head, `scalar()` returns NaN and no lag alert
    fires.
 7. **One lagging owner stays under every load threshold.** It fails about 1/40 of sends. Only its
    lag alerts, **timeouts-by-owner** and **slow-sends** show it.
 8. **Full nodes have thin coverage.** `GigaFullnodeFallingBehind` has no runbook, and the scaler
    ignores full-node busy.
-9. **No log-coverage alert covers giga nodes.** `LokiCoverageZeroOnSeiNode` selects only arctic-1,
-   pacific-1 and atlantic-2. Healthy nodes are quiet, so an empty log query proves nothing.
+9. **No log-coverage alert covers giga nodes.** Healthy nodes are quiet, so an empty log query
+   proves nothing.
 10. **The lag rules depend on one evaluator.** If Thanos Ruler in `prod` stops, or a cell's sidecar
     link fails, they go quiet for the affected validators.

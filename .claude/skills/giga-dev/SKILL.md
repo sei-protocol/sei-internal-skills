@@ -81,7 +81,7 @@ A single validator at 0.95 or more own busy has no margin, whatever the median r
 
 The band is the designed operating point, not a regression. Saturated throughput is higher, and it strands the slowest validators. The band holds the **median** validator at 70% to 90% busy. A slower validator can still sit near 100% own busy, so check per-validator busy as well.
 
-**Measured envelope (not guaranteed).** With real execution, about 100k tx/s at saturation. Far past saturation, throughput falls. In the band, roughly 65k to 87k tx/s, about 8 to 10 pods per cell. Busy is roughly 0.11 + 0.89 × throughput / 98k. Pod counts in this skill mean capped pods (2,000 tx/s each) unless a passage says uncapped. Uncapped pods (1,500 in flight, no rate cap) carry far more load each, so their counts do not compare.
+**Measured envelope (not guaranteed).** With real execution, about 100k tx/s at saturation. Far past saturation, throughput falls. In the band, roughly 65k to 87k tx/s, about 8 to 11 pods per cell. Busy is roughly 0.11 + 0.89 × throughput / 98k. Pod counts in this skill mean capped pods (2,000 tx/s each) unless a passage says uncapped. Uncapped pods (1,500 in flight, no rate cap) carry far more load each, so their counts do not compare.
 
 **Retention.** Nodes keep the last 4,320,000 blocks. Once the head passes that window, no peer holds block 1. A node with a wiped volume then needs a snapshot or state sync.
 
@@ -119,21 +119,21 @@ Two traps:
 
 Ask these in order. Each answer decides the next step. [The diagnosis reference](references/diagnosis.md) has the signals, the decision at each step, and the failure modes.
 
-1. **Is someone already acting?** Check for a pin on any cell's ScaledObject and for rollouts in progress. Do not stack a second change on theirs.
-2. **Is the head moving?** No progress means a halted chain or lost quorum. That is a different incident from slowness.
-3. **Are validators and full nodes Ready and scraped?** Missing series hide problems and also trip hard stops.
-4. **Is the execute loop saturated?** Read the median busy per cell and the busy of each validator. A median above 90% means a load problem: confirm that the scaler is shedding. A single validator at 95% or more has no margin.
-5. **Is one node behind, or many?** One node behind while the median busy is in the band points to that node. Many nodes behind together point to the chain or the load.
-6. **What is the scaler doing?** Is it steering, pinned, in fallback, or failing its formula? A formula error fires no alert. Check the HPA's `ScalingActive` condition.
-7. **Is the RPC layer timing out?** Timeouts concentrated on one owner point to a lagging or slow validator.
-8. **Is the load generator healthy?** Check acceptance, nonce recovery and its pod count against the formula's target.
+- **Q0. Is someone already acting?** Check for a pin on any cell's ScaledObject and for rollouts in progress. Do not stack a second change on theirs.
+- **Q1. Is the head moving?** No progress means a halted chain or lost quorum. That is a different incident from slowness.
+- **Q2. Are validators and full nodes Ready and scraped?** Missing series hide problems and also trip hard stops.
+- **Q3. Is the execute loop saturated?** Read the median busy per cell and the busy of each validator. A median above 90% means a load problem: confirm that the scaler is shedding. A single validator at 95% or more has no margin.
+- **Q4. Is one node behind, or many?** One node behind while the median busy is in the band points to that node. Many nodes behind together point to the chain or the load.
+- **Q5. What is the scaler doing?** Is it steering, pinned, in fallback, or failing its formula? A formula error fires no alert. Check the HPA's `ScalingActive` condition.
+- **Q6. Is the RPC layer timing out?** Timeouts concentrated on one owner point to a lagging or slow validator.
+- **Q7. Is the load generator healthy?** Check acceptance, nonce recovery and its pod count against the formula's target.
 
 ## Operating the Load
 
 Do these only on an explicit request (Guardrail 1). [Pin and release](references/load-and-scaling.md#7-pin-and-release) has the commands and checks.
 
 - **Pin:** in each of the four cells, put two annotations on the ScaledObject `seiload-saturation` in one command. They are `kustomize.toolkit.fluxcd.io/reconcile=disabled` and KEDA's `paused-replicas=<n>` (the full key is in the pin command). Check the pin, and check it again after one Flux interval. While pinned, KEDA removes the HPA and no hard stop acts. The operator who set the pin owns the load.
-- **Release gate** ([the release gate](references/load-and-scaling.md#the-release-gate)): release only when exactly 40 validators report a lag of 12,000 blocks or less. **lag-trend** must also show no validator growing. A missing head series or an unscraped validator fails the gate. Only the testnet's owner can approve a release that names an exception.
+- **Release gate** ([the release gate](references/load-and-scaling.md#the-release-gate)): release only when exactly 40 validators report a lag of 12,000 blocks or less. **lag-trend** must also pass; that section states the rule once. A missing head series or an unscraped validator fails the gate. Only the testnet's owner can approve a release that names an exception.
 - **Release:** remove both annotations, then `flux --context <cell> reconcile kustomization loadgen -n flux-system`. Check that the HPA reads `ScalingActive=True ValidMetricFound`. KEDA restarts the fleet at 1 pod, and the formula grows it.
 - **Trigger changes and pauses** ([the caveat](references/load-and-scaling.md#the-paused-trigger-caveat-keda-2202)): under the two-annotation pin, Flux does not touch the ScaledObject. A trigger change that merged during the pin lands at the release, after the pause ends. A trigger change that reaches a paused ScaledObject (for example under a lone `paused-replicas`) can read as nil after the pause ends. The HPA then shows `ScalingActive=False`, and the fleet holds. The fix is to delete the ScaledObject and reconcile `loadgen`, after the readiness check in Guardrail 5. Never restart the shared keda-operator.
 

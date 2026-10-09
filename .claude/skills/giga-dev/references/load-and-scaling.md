@@ -405,9 +405,21 @@ it has no margin (section 5).
 ### A release with a named exception
 
 Only the testnet's owner, the platform team that runs giga-testnet-0, can approve a release while a
-validator fails the gate. Record who approved it, which validator, and when. The gate query must
-then return 40 minus the number of excepted validators, and only the named validators may be
-missing from it. Then release, and watch the others with **lag-trend**. Pin again if any of them crosses 12,000 and still grows. The
+validator fails the gate. Record who approved it, which validator, and when. Then run two checks.
+The gate count must return 40 minus the number of excepted validators. This list must show only
+the excepted validators:
+
+```promql
+sort_desc((max(tendermint_internal_autobahn_avail_commit_global_block_number{namespace="giga-testnet-0", cluster!="harbor", sei_role="validator"}) - on() group_right() max by (pod) (tendermint_internal_autobahn_data_next_block{namespace="giga-testnet-0", cluster!="harbor", sei_role="validator", stage="execute"})) > 12000)
+```
+
+And this count of reporting validators must return 40, so that no validator is missing:
+
+```promql
+count((max(tendermint_internal_autobahn_avail_commit_global_block_number{namespace="giga-testnet-0", cluster!="harbor", sei_role="validator"}) - on() group_right() max by (pod) (tendermint_internal_autobahn_data_next_block{namespace="giga-testnet-0", cluster!="harbor", sei_role="validator", stage="execute"})))
+```
+
+Then release, and watch the others with **lag-trend**. Pin again if any of them crosses 12,000 and still grows. The
 excepted validator stays the owner's to track.
 
 ### Release and confirm
@@ -467,7 +479,8 @@ the cell shares it.
    flux --context <cell> get kustomizations -n flux-system
    ```
 2. If either is not Ready, do not delete. Without the ScaledObject, the fleet stays at its last
-   count with no hard stop. Pin the cell to 0, fix the dependency, release, and come back.
+   count with no hard stop. Pin all four cells to 0 (Pin and check), fix the dependency, and
+   release at the gate. Then come back to this step.
 3. When both are Ready, run the two commands together:
    ```
    kubectl --context <cell> -n giga-testnet-0 delete scaledobject seiload-saturation

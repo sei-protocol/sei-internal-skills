@@ -115,7 +115,7 @@ The boundary between them is the point.
 
 | | What it is | Who gets it |
 |---|---|---|
-| **`.claude/`** — the core | 11 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
+| **`.claude/`** — the core | 12 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
 | **[`experimental/`](./experimental/README.md)** | 12 skills, 1 agent. Still forming, narrow audience, or exploratory. | Only on `make sync-experimental` |
 
 The core is what every teammate installs, so anything added there costs everyone the
@@ -164,7 +164,7 @@ history in a private snapshot rather than deleting them outright.
 
 ## What's in here
 
-- **Skills** (`.claude/skills/`) — 11 self-contained Claude Code skills, grouped by domain:
+- **Skills** (`.claude/skills/`) — 12 self-contained Claude Code skills, grouped by domain:
   - **Workflow** — `/xreview`
   - **Investigation** — `/root-cause`
   - **Code quality** — `/idiomatic`, `/systems`

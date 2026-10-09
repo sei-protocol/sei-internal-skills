@@ -287,11 +287,12 @@ applies the giga nodes, through its child `apps` in prod-apne1.
    - The volume holds the node's consensus votes, so the node does not vote twice. A new volume
      with the same key loses that record (code).
    - Peers check each validator's keys against the committee (code).
-   - No admission policy enforces `sei.io/deletion-protected`. `prune: disabled` only stops Flux
-     from deleting a validator whose manifest leaves git. Full nodes have neither annotation.
+   - `prune: disabled` only stops Flux from deleting a validator whose manifest leaves Git. It does
+     not stop a manual delete. Full nodes have neither annotation, so removing a full node's
+     manifest deletes the node and its volume.
    - A pod delete keeps the PVC, but it is still a restart (rule 2).
-5. **Release only at the [release gate](load-and-scaling.md#the-release-gate):** 40 validators at
-   12,000 lag or less, every lag falling, and no scaler fault.
+5. **Release only at the [release gate](load-and-scaling.md#the-release-gate).** That section
+   states the gate once: the count, the **lag-trend** rule and the scaler check.
 6. **Pin and release all four cells together.** Every validator executes every block.
 7. **Before anything cell-wide, check other teams' rollouts:** Flux Kustomizations and
    HelmReleases, SeiNodes updating in any namespace, and recent merges to `clusters/<cell>/`.
