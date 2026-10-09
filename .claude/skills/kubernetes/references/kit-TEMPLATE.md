@@ -53,4 +53,4 @@ Shipped:
 Deferred (add as a conforming kit when first encountered — the corpus grows by use):
 - `kit-chain-bootstrap-modes` — genesis-ceremony two-level S3 rendezvous, the fail-closed state-sync witness gate (≥2 canonical syncers), the bootstrap-Job-then-teardown, replayer/archive.
 - `kit-watches-and-requeue` — `GenerationChangedPredicate`, `Owns` vs `Watches`, the child-phase-changed predicate, requeue cadences (5s task poll, 30s steady, immediate-persist).
-- `kit-controller-deployment-eks` — manager setup (leader election, secure metrics, OTel), kubebuilder RBAC markers, IRSA/Pod-Identity (cross-links `/platform`), Karpenter scheduling, S3 buckets. Keep thin; the deployment *manifests* are `/platform`.
+- `kit-controller-deployment-eks` — manager setup (leader election, secure metrics, OTel), kubebuilder RBAC markers, IRSA/Pod-Identity, Karpenter scheduling, S3 buckets. Keep thin; the deployment *manifests* live in sei-protocol/platform.

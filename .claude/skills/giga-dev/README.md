@@ -23,6 +23,6 @@ The skill is read-only by default. Any write to the shared cells needs an explic
 
 - An engineer's own Autobahn or giga chain on harbor: use `/harbor-dev`.
 - sei-k8s-controller code and CRDs: use `/kubernetes`.
-- General platform manifests, Flux and Kustomize: use `/platform`.
+- General platform manifests, Flux and Kustomize: open a sei-protocol/platform PR.
 - arctic-1, pacific-1 and other chains.
 - The history of how the testnet reached its current design. The skill teaches the system as it is.

@@ -1,6 +1,6 @@
 # Sei-controller profile (always-first overlay)
 
-Loaded before any design or review. It encodes **sei-k8s-controller's own enforced conventions** and **overrides generic controller-runtime best-practice** in either direction. That mirrors the way `/idiomatic`'s repo profile outranks generic idiom. The conventions distill (with citations) from that repo's `CLAUDE.md` + code.
+Loaded before any design or review. It encodes **sei-k8s-controller's own enforced conventions** and **overrides generic controller-runtime best-practice** in either direction. The conventions distill (with citations) from that repo's `CLAUDE.md` + code.
 
 **Snapshot caveat:** this is a portable distillation for review and for controller work elsewhere. When you are working *inside* sei-k8s-controller, its live `CLAUDE.md` is the authority. Read it and flag any drift from this profile rather than following a stale copy.
 
@@ -29,14 +29,14 @@ Single Go binary (`cmd/main.go`), controller-runtime v0.23.1 / kubebuilder v4.12
 
 7. **GovParamChange double-encode trap.** A `SeiNodeTask` param-change `changes[].value` is `apiextensionsv1.JSON` — pass a structured JSON **object**, not a pre-escaped string; integer params must be JSON strings. *Cited:* `api/v1alpha1/seinodetask_types.go`. (Matches the team's known double-encode hazard.)
 
-8. **Lint is non-negotiable; idiom is the repo's.** All code passes `golangci-lint` — fix, do not suppress. Imports grouped stdlib / external / `github.com/sei-protocol/sei-k8s-controller`. "Three similar lines are better than a premature helper." Idiom conformance itself is `idiomatic-reviewer`'s pass (it digests this repo's `CLAUDE.md` + `doc.go` into a local idiom profile); this skill owns controller *correctness/contract*, not idiom. *Cited:* repo `CLAUDE.md`.
+8. **Lint is non-negotiable; idiom is the repo's.** All code passes `golangci-lint` — fix, do not suppress. Imports grouped stdlib / external / `github.com/sei-protocol/sei-k8s-controller`. "Three similar lines are better than a premature helper." Idiom conformance is not this skill's lens; bundle style nits and never lead with them. This skill owns controller *correctness/contract*. *Cited:* repo `CLAUDE.md`.
 
-## The agent boundary (confirmed from the repo's subagent contract)
+## The agent boundary
 
 - **kubernetes-specialist** (this skill): CRDs, RBAC, kustomize *that the controller owns*, StatefulSet specs, reconcile logic — the controller code and its CRD contract.
-- **idiomatic-reviewer**: the pure-idiom pass (Go + controller-runtime + repo patterns), backed by `/idiomatic`.
-- **platform-engineer** (`/platform`): the controller's *deployment* — manifests, the `?ref=` staged rollout, manager-patch/config ConfigMap, IRSA/Pod-Identity, Karpenter. The controller *code* is this skill; the manifests *around* it are `/platform`.
-- **k8s-capacity-management**: request/limit values, NodePool/scheduling.
+- **Go idiom and style**: outside this pair; the repo's golangci-lint config and `CLAUDE.md` decide it.
+- **Deployment** (manifests, the `?ref=` staged rollout, manager-patch/config ConfigMap, IRSA/Pod-Identity, Karpenter): a sei-protocol/platform PR. The controller *code* is this skill; the manifests *around* it live in sei-protocol/platform.
+- **Capacity** (request/limit values, NodePool/scheduling): the platform team.
 
 ## Known repo drift (flag, do not propagate)
 

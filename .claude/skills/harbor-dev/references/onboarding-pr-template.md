@@ -249,7 +249,7 @@ cell without this edit and seiload runs, but no loadgen metrics arrive.
 ```yaml
 # fromtherain's Harbor workspace.
 # Engineer-rendered tasks (chains, RPC fleets, benchmarks via the
-# sei-platform-engineer skill) commit to sub-paths under this directory
+# harbor-dev skill) commit to sub-paths under this directory
 # and reference them in `resources`. Flux on harbor reconciles whatever
 # lands here into eng-fromtherain.
 apiVersion: kustomize.config.k8s.io/v1beta1

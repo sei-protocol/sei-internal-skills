@@ -26,7 +26,7 @@ Claude Code discovers skills as **flat** direct subdirectories of `skills/` — 
 
 A skill is a directory here that holds a `SKILL.md`, and every skill syncs. `make verify-catalog` (CI) fails closed if a skill's `name:` does not match its directory. The catalog sections below are descriptive. Keep them in step with the skills present; the sync does not read them.
 
-**Domains in the core:** `workflow` · `investigation` · `code-quality` · `platform-infra` · `blockchain` · `release-operations` · `engineer-self-service`. Each skill's `category:` frontmatter names its domain, and the sections below group by it. No script reads it.
+**Domains in the core:** `workflow` · `investigation` · `code-quality` · `platform-infra` · `blockchain` · `release-operations` · `engineer-self-service`. The sections below group the skills by domain. A `category:` frontmatter key is optional metadata, and no script reads it.
 
 ## Catalog
 
