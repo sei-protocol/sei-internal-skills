@@ -158,10 +158,12 @@ fetch_with_gh() {
   return 1
 }
 
-# The repository is public, so codeload serves the tarball with no auth.
+# The repository is public, so codeload serves the tarball with no auth. The
+# timeouts make a stalled network fail fast and reach the error message.
 fetch_with_curl() {
   have curl || return 1
-  curl -fsSL "https://codeload.github.com/$REPO/tar.gz/$REF" 2>/dev/null | tar xz -C "$WORK" 2>/dev/null
+  curl -fsSL --connect-timeout 15 --max-time 300 "https://codeload.github.com/$REPO/tar.gz/$REF" 2>/dev/null \
+    | tar xz -C "$WORK" 2>/dev/null
 }
 
 # A skill is a directory under .claude/skills/ that holds a SKILL.md. A leftover

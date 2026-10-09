@@ -191,7 +191,8 @@ grep_out "usage shows the curl one-liner" \
 # The repository is public. A message that calls it internal sends an engineer
 # after gh auth they do not need.
 echo "the script states a public repository"
-if grep -q 'curl -fsSL "https://codeload.github.com/' "$GET"; then ok "the script has a curl fetch path"; else no "the script has no curl fetch path"; fi
+if grep -qE 'curl -fsSL .*"https://codeload.github.com/' "$GET"; then ok "the script has a curl fetch path"; else no "the script has no curl fetch path"; fi
+if grep -qE 'curl -fsSL .*--max-time [0-9]+ .*"https://codeload.github.com/' "$GET"; then ok "the curl fetch has a time limit"; else no "the curl fetch has no time limit (a stalled network would hang the piped installer)"; fi
 if ! grep -qi 'internal repo\|is[[:space:]]internal' "$GET"; then ok "no 'internal' claim"; else no "the script still calls the repository internal"; fi
 
 # The documented invocation pipes this script into bash, where $0 is "bash".
