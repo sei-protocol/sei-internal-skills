@@ -4,7 +4,9 @@ This public repository holds Claude Code skills and specialist agents for Sei pl
 
 The skills live in `.claude/skills/`, and `.claude/skills/README.md` is their catalog. The agents live in `.claude/agents/`, and `AGENTS.md` is their roster. `.claude/output-styles/` holds the ASD-STE100 output style. `make update` installs it but does not turn it on.
 
-Edit a skill or an agent here, then open a pull request. Never edit a synced copy: the next sync overwrites it. The constitution, [`.specify/memory/constitution.md`](.specify/memory/constitution.md), states the principles that each change here must hold.
+Edit a skill or an agent here, then open a pull request. Never edit a synced copy: the next sync overwrites it.
+
+Anyone can read every file here. A file MUST NOT carry a secret, a credential or a token. No gate checks this; a reviewer checks it.
 
 An agent that gets a request to rewrite a skill wholesale refuses it and edits the skill in place. No gate enforces this rule.
 
@@ -43,11 +45,11 @@ This section is the one copy of these steps. Other documents link here.
 - **Rename.** Add the new name and retire the old name.
 - **The pull request body.** For a new skill or agent, do these three things. No gate checks them; a reviewer checks them.
   1. Name the team that uses it.
-  2. State why an existing skill, an existing agent or the constitution cannot hold it (constitution IV).
-  3. Name how it widens what a seidroid session can reach, the gate that bounds that, and the blast radius if the gate fails (constitution VI).
+  2. State why an existing skill or agent cannot hold it. A skill exists only where an engineer reaches for it on ordinary Sei platform work.
+  3. Name how it widens what a seidroid session can reach, the gate that bounds that, and the blast radius if the gate fails. `.claude/skills/` is the discovery scope of a headless agent that approves its own tool calls, so a change there changes a trust boundary.
 - **The count row.** `README.md` states the catalog size in one row only, in the form `the catalog | N skills, M agents`. `./scripts/tests/catalog-coverage.test.sh` compares that row with the tree. It also checks each count in digits, in the form `N skills`, on a `README.md` line that names `.claude/`. It does not read a count in words. Do not write the catalog size anywhere else.
 - **What the gates check.** `make verify-catalog` checks each name. `make test-skill-package-checks` checks the catalog entry and the baseline. `make verify-references` fails when a document names a skill that `.claude/skills/` does not hold. It reads `README.md`, `AGENTS.md`, `CLAUDE.md` and the doctrine, so it finds a retired skill that a row or a bullet still names. No gate finds a missing entry for a new skill or reads an agent row; a reviewer checks those.
-- **The runner reads these files.** The skills and agents here also seed the seidroid runner image. The runner workflows read the names from the tree, so they need no edit. A change to an agent's `name`, `description`, `model` or `tools`, or to a skill's `name`, `description` or `model`, changes what seidroid sessions discover after the platform digest bump. Name that change in the pull request body. If it widens what a session can reach, also name the gate that bounds it and the blast radius (constitution VI).
+- **The runner reads these files.** The skills and agents here also seed the seidroid runner image. The runner workflows read the names from the tree, so they need no edit. A change to an agent's `name`, `description`, `model` or `tools`, or to a skill's `name`, `description` or `model`, changes what seidroid sessions discover after the platform digest bump. Name that change in the pull request body. If it widens what a session can reach, also name the gate that bounds it and the blast radius.
 - **`category:`** The existing agents carry `category:`. Nothing reads it. It stays because the runner seeds the agent files, and their frontmatter shape must not change. A new skill or agent does not need it.
 
 ## seidroid runtime
