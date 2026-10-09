@@ -1,26 +1,23 @@
 name: verify skill-package checks
 
-# The rubric checker had no gate, and that is why two crashes reached review: it
-# died mid-sweep on validate-release and dropped two block rules with no trace,
-# and a description with no quoted trigger killed it under pipefail. Both were
-# found by a reviewer running it by hand. A sweep asserting rc=0 and parseable
-# output catches that class before it ships.
+# The sweep runs scripts/skill-package-checks.sh on every skill and asserts rc=0
+# and parseable output, so a checker that dies mid-sweep and drops block rules
+# fails here instead of in review.
 #
-# The block-failure check is DIFFERENTIAL, against
-# .claude/skills/xreview/scripts/block-baseline.txt. A new block failure fails
-# here, and so does a fixed one — the baseline shrinks deliberately rather than
-# drifting.
+# The block-failure check is DIFFERENTIAL, against scripts/tests/block-baseline.txt.
+# A new block failure fails here, and so does a fixed one, so the baseline shrinks
+# deliberately rather than drifting.
 on:
   pull_request:
     paths:
       - '.claude/skills/**'
+      - 'scripts/skill-package-checks.sh'
+      - 'scripts/skill-package-rubric.md'
       - 'scripts/tests/skill-package-checks.test.sh'
       - 'scripts/tests/block-baseline.txt'
-      # T1 (block) reads .gitignore and C3 reads sync-skills.sh, so an edit to
-      # either can move block findings across all 11 skills. Without these the
-      # differential gate would not run on the change that moved it.
+      # T1 (block) reads .gitignore; the suite checks the rule-count claims in README.md
       - '.gitignore'
-      - 'scripts/sync-skills.sh'
+      - 'README.md'
       - '.github/workflows/verify-skill-package-checks.yml'
 
 permissions:
@@ -34,5 +31,5 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: Sweep every core skill, then diff against the baseline
+      - name: Sweep every skill, then diff against the baseline
         run: ./scripts/tests/skill-package-checks.test.sh

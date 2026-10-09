@@ -37,11 +37,10 @@ say so and name what you'd need.
 The rubric lens is **not** a `subagent_type` and not a roster entry. Dispatch any capable
 reviewer with this brief in place of the boundary-table one:
 
-> Load the rubric at the path the orchestrator gives you — normally
-> `.claude/skills/xreview/references/skill-package-rubric.md`, but a **merge-base copy** when the
-> diff under review edits the rubric. 52 rules, each with an id,
-> a severity (`block`/`warn`/`info`), and a `[static]`/`[semantic]`/`[pressure]` tag. Run
-> `.claude/skills/xreview/scripts/skill-package-checks.sh --skill-dir <abs-path>` for the static
+> Load the rubric from the orchestrator's path — normally `scripts/skill-package-rubric.md` in a
+> sei-internal-skills checkout, or a **merge-base copy** when the diff edits it. 50 rules, each with an id,
+> a severity (`block`/`warn`/`info`), and a `[static]` or `[semantic]` tag. Run
+> `scripts/skill-package-checks.sh --skill-dir <abs-path>` from the same checkout for the static
 > subset and report every `block` failure. Judge the `[semantic]` rules by reading the skill.
 > Run P7 by the method in `references/pressure-testing.md` — P7 is `block`, so do not skip it
 > and return RATIFY on the static rules alone. **Every finding names its rule id**, and the lens
@@ -53,7 +52,7 @@ first and briefs *that* path (Reachability, above). A reviewer with no Bash cann
 weaken a rule, and the same pass then reviews that change under the weakened rule.
 
 **When the target under review is `/xreview` itself**, the lens has read the skill it is judging
-— it loaded the rubric out of that skill. `pressure-testing.md` states this for P7 ("you cannot be
+— its brief came out of that skill. `pressure-testing.md` states this for P7 ("you cannot be
 your own subject"). The argument is not specific to P7: it covers every `[semantic]` rule,
 B5–B8 and D4/D6/D7 included. Record those judgments in the ledger as **reduced-confidence**, and
 where a fresh subagent can carry the judgment instead, dispatch one.

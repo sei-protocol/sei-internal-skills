@@ -165,7 +165,7 @@ When creating a new procedural skill:
 - [ ] At least one happy-path eval and one halt-path eval.
 - [ ] Catalogued in `.claude/skills/README.md` (rule C1).
 - [ ] `.gitignore` covers `state/` (`.claude/skills/*/state/`).
-- [ ] `category:` maps to a sync alias (`make verify-catalog` fails closed otherwise).
+- [ ] `name:` matches the directory (`make verify-catalog`).
 
 ## Anti-Patterns
 

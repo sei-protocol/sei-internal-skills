@@ -2,9 +2,8 @@ name: verify references
 
 # A shipped artifact that cites a resource the core does not hold reads to an
 # engineer as the AGENT misbehaving, not as an incomplete install. No other gate
-# catches it: verify-catalog checks that a category maps to a sync alias, and
-# verify-doctrine-block checks this repo's AGENTS.md against the source file.
-# Neither resolves a cited name.
+# catches it: verify-doctrine-block checks this repo's AGENTS.md against the
+# source file, and it does not resolve a cited name.
 on:
   pull_request:
     paths:
@@ -16,6 +15,7 @@ on:
       - 'AGENTS.md'
       - 'CLAUDE.md'
       - 'scripts/verify-references.sh'
+      - 'scripts/tests/verify-references.test.sh'
       - '.github/workflows/verify-references.yml'
 
 permissions:

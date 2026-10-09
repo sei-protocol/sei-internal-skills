@@ -67,18 +67,6 @@ printf '# alpha\n<!-- gap: /alpha — stale -->\nUse `/alpha`.\n' \
   > "$t/.claude/skills/alpha/SKILL.md"
 check_fail "a marker naming a held resource is stale" "$VERIFY" --target "$t"
 
-# UNSHIPPED is the class that closed the defect this gate was written for, and it
-# is dormant now that output-quality holds no skill. Without this case a
-# regression in it would pass unnoticed.
-t=$(tree)
-mkdir -p "$t/scripts" "$t/.claude/skills/localonly"
-printf 'SEI_INTERNAL_SKILLS_LOCAL_DOMAINS="output-quality"\n' > "$t/scripts/sync-skills.sh"
-printf 'category: output-quality\n' > "$t/.claude/skills/localonly/SKILL.md"
-printf '# alpha\n\nApply `/localonly` before you push.\n' > "$t/.claude/skills/alpha/SKILL.md"
-check_fail "citing a skill whose category never syncs is an error" "$VERIFY" --target "$t"
-check      "and it says UNSHIPPED, not ABSENT" \
-  bash -c '"$1" --target "$2" 2>&1 | grep -q "^UNSHIPPED"' _ "$VERIFY" "$t"
-
 t=$(tree)
 printf '# alpha\n\nRun `scripts/ghost.sh`.\n' > "$t/.claude/skills/alpha/SKILL.md"
 check_fail "a named script that exists nowhere fails" "$VERIFY" --target "$t"

@@ -2,47 +2,33 @@
 # sync-skills.sh — copy sei-internal-skills skill directories to a target .claude/skills/ directory.
 #
 # Sibling of sync-agents.sh. sei-internal-skills is the canonical home; this pushes outward to
-# user-scope (~/.claude/skills/) and other repos so they stay current.
+# user scope (~/.claude/skills/) and to other repos so they stay current.
 #
-# SINGLE SOURCE OF TRUTH: each skill's own `category:` SKILL.md frontmatter.
-# Membership in a sync alias (portable / sei) is DERIVED from that category via
-# the small domain->alias map below — there is no hand-maintained per-skill list
-# to drift out of sync (the bug that silently orphaned gov-ops and ebpf). Adding
-# a skill = drop the dir with a `category:` that maps to an alias; it syncs
-# automatically. The coverage guard (--verify) fails closed if any skill's
-# category maps to no alias, so a miscategorized skill is caught in CI, never
-# silently dropped.
+# A skill is a directory under .claude/skills/ that holds a SKILL.md. Every such
+# directory syncs. A directory without a SKILL.md is not a skill, and the script
+# ignores it.
 #
 # Daily flow:
-#   make update                     # from the sei-internal-skills repo: pull + sync everything + verify
-#   ./scripts/sync-skills.sh        # equivalent to: --target ~ --categories portable
+#   make update                     # from the sei-internal-skills repo: pull, sync everything, verify
 #
 # Usage:
-#   sync-skills.sh [--target <path>] [--categories portable,sei,all,<domain>] \
-#                  [--dry-run] [--force] [--verify] [--inject-doctrine]
+#   sync-skills.sh [--target <path>] [--dry-run] [--force] [--verify] [--inject-doctrine]
 #
 # --target:      target directory (the script appends .claude/skills/). Default: $HOME.
-# --categories:  comma-separated aliases or domains. Default: portable.
-#                aliases: portable, sei, all
-#                domains: any value a skill declares in `category:` (workflow,
-#                         code-quality, performance, release-operations, …)
 # --dry-run:     print what would be copied without copying
 # --force:       overwrite existing target skills without prompting
-# --verify:      run ONLY the coverage guard (every skill's category resolves to a
-#                known alias) and exit non-zero on any gap. No copying. For CI.
+# --verify:      run ONLY the catalog guard and exit non-zero on any problem. No copying. For CI.
+#                The guard checks that each skill's SKILL.md frontmatter has a `name:` equal
+#                to its directory. scripts/skill-package-checks.sh (D1, D2) checks the description.
 # --inject-doctrine: also inject the sei-internal-skills operating-doctrine managed block into
 #                <target>/AGENTS.md (+ a CLAUDE.md pointer). Off by default;
-#                intended for a consuming package, not user-scope ($HOME).
-#
-# To re-categorize a skill, edit its SKILL.md `category:` — not this script.
-# To add/rename a DOMAIN or change which alias it belongs to, edit the
-# domain->alias map below (the only hand-maintained categorization left).
+#                intended for a consuming package, not user scope ($HOME).
 #
 # Skills are directories (SKILL.md + references/ + ...), not single files. Sync
-# uses cp -R, so target-only files are preserved (user customizations and runtime
-# artifacts like council/workspace/ in the target tree are not deleted). If a
-# tracked source file differs from its target counterpart, the skill is reported
-# as a conflict and skipped unless --force is set.
+# uses cp -R, so target-only files stay (user customizations and runtime
+# artifacts such as state/ in the target tree are not deleted). If a tracked
+# source file differs from its target counterpart, the script reports the skill
+# as a conflict and skips it unless --force is set.
 
 set -euo pipefail
 
@@ -52,81 +38,55 @@ SKILLS_DIR="$(cd "$SCRIPT_DIR/../.claude/skills" && pwd)"
 # shellcheck source=lib/inject-doctrine.sh
 . "$SCRIPT_DIR/lib/inject-doctrine.sh"
 
-# --- Domain -> alias map (the ONLY hand-maintained categorization) ----------
-#
-# Every domain a skill may declare in `category:` must appear in exactly one of
-# the three lists below. The coverage guard enforces this. `all` = PORTABLE+SEI
-# (sei-internal-skills-local domains are deliberately never synced outward).
-
-PORTABLE_DOMAINS="workflow workstream-bootstrap hardening investigation code-quality performance writing-quality product-management security platform-infra blockchain data-architecture"
-SEI_DOMAINS="project-management release-operations engineer-self-service recruiting"
-# sei-internal-skills-local — deliberately NOT synced outward:
-#   output-quality (brevity, pr-quality) — sei-internal-skills-development meta-skills.
-# NOTE: security (tee) is now PORTABLE — its kits are self-contained on public
-# primary sources (vendor specs, RFCs, sei-chain); the research corpus relocated
-# to bdchatham-designs (Design 05 / PLT-709) and is non-required provenance.
-SEI_INTERNAL_SKILLS_LOCAL_DOMAINS="output-quality"
-
 # --- small helpers ----------------------------------------------------------
 
-# in_list <needle> <space-separated-haystack>
-in_list() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
-
-# skill_category <skill-name> — its declared `category:` (empty if none).
-# `grep || true` so a no-match (no category:) does NOT fail the pipeline and
-# abort the caller under `set -e`/`pipefail` — the coverage guard must still
-# print its "no category" diagnostic, not crash silently. `tr -d '\r'` strips a
-# CRLF terminator (GNU sed's [[:space:]] doesn't, so it would otherwise leak
-# into the category on Linux CI).
-skill_category() {
-  { grep -m1 '^category:' "$SKILLS_DIR/$1/SKILL.md" 2>/dev/null || true; } \
-    | tr -d '\r' \
-    | sed 's/^category:[[:space:]]*//; s/[[:space:]]*$//; s/^["'"'"']//; s/["'"'"']$//'
+# frontmatter_field <file> <key> — the value of <key> in the file's leading
+# `---` frontmatter block, with surrounding quotes and whitespace stripped.
+# Empty if the file has no frontmatter or the key is absent. A CRLF terminator
+# is stripped.
+frontmatter_field() {
+  awk -v key="$2" '
+    { sub(/\r$/, "") }
+    NR == 1 { if ($0 == "---") { fm = 1; next } else { exit } }
+    $0 == "---" { exit }
+    index($0, key ":") == 1 { print substr($0, length(key) + 2); exit }
+  ' "$1" 2>/dev/null \
+    | sed 's/^[[:space:]]*//; s/[[:space:]]*$//; s/^["'"'"']//; s/["'"'"']$//'
 }
 
-# alias_for_domain <domain> — echoes portable|sei|sei-internal-skills-local|UNKNOWN
-alias_for_domain() {
-  if   in_list "$1" "$PORTABLE_DOMAINS";   then echo portable
-  elif in_list "$1" "$SEI_DOMAINS";        then echo sei
-  elif in_list "$1" "$SEI_INTERNAL_SKILLS_LOCAL_DOMAINS"; then echo sei-internal-skills-local
-  else echo UNKNOWN; fi
-}
-
-# all skill dirs (those containing a SKILL.md), one per line, sorted
+# every skill directory (one that holds a SKILL.md), one per line, sorted
 list_skill_dirs() {
   for d in "$SKILLS_DIR"/*/; do
-    [ -f "${d}SKILL.md" ] && basename "$d"
+    if [ -f "${d}SKILL.md" ]; then basename "$d"; fi
   done | sort
 }
 
-# --- coverage guard ---------------------------------------------------------
-# Fail closed if any skill lacks a category or its category maps to no alias.
-run_coverage_guard() {
-  local errs=0 name cat al
-  while IFS= read -r name; do
-    cat="$(skill_category "$name")"
-    if [ -z "$cat" ]; then
-      echo "  ✗ $name: no 'category:' in SKILL.md frontmatter" >&2
-      errs=$((errs+1)); continue
-    fi
-    al="$(alias_for_domain "$cat")"
-    if [ "$al" = "UNKNOWN" ]; then
-      echo "  ✗ $name: category '$cat' maps to no sync alias — add '$cat' to PORTABLE_DOMAINS, SEI_DOMAINS, or SEI_INTERNAL_SKILLS_LOCAL_DOMAINS in sync-skills.sh" >&2
+# --- catalog guard ----------------------------------------------------------
+# Fail closed if a skill's SKILL.md has no `name:` or names another directory.
+run_catalog_guard() {
+  local errs=0 n=0 dir name
+  while IFS= read -r dir; do
+    n=$((n+1))
+    name="$(frontmatter_field "$SKILLS_DIR/$dir/SKILL.md" name)"
+    if [ -z "$name" ]; then
+      echo "  ✗ $dir: no 'name:' in SKILL.md frontmatter" >&2
+      errs=$((errs+1))
+    elif [ "$name" != "$dir" ]; then
+      echo "  ✗ $dir: SKILL.md name '$name' does not match its directory" >&2
       errs=$((errs+1))
     fi
   done < <(list_skill_dirs)
   if [ "$errs" -gt 0 ]; then
-    echo "skill catalog coverage: $errs problem(s) — every skill's category must map to an alias." >&2
+    echo "skill catalog: $errs problem(s)" >&2
     return 1
   fi
-  echo "skill catalog coverage ✓ (every skill's category resolves to portable/sei/sei-internal-skills-local)"
+  echo "skill catalog ✓ ($n skills)"
   return 0
 }
 
 # --- Argument parsing -------------------------------------------------------
 
 TARGET="$HOME"
-CATEGORIES="portable"
 DRY_RUN=false
 FORCE=false
 VERIFY=false
@@ -139,7 +99,6 @@ usage() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target)     TARGET="$2"; shift 2 ;;
-    --categories) CATEGORIES="$2"; shift 2 ;;
     --dry-run)    DRY_RUN=true; shift ;;
     --force)      FORCE=true; shift ;;
     --verify)     VERIFY=true; shift ;;
@@ -149,9 +108,9 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# --verify: coverage guard only, no target needed.
+# --verify: catalog guard only, no target needed.
 if $VERIFY; then
-  run_coverage_guard
+  run_catalog_guard
   exit $?
 fi
 
@@ -165,61 +124,26 @@ if $INJECT_DOCTRINE && [[ "${TARGET%/}" == "${HOME%/}" ]]; then
   exit 2
 fi
 
-# Run the coverage guard first so a miscategorized skill fails loudly here too,
+# Run the catalog guard first so an inconsistent catalog fails loudly here too,
 # not just in CI.
-if ! run_coverage_guard >/dev/null 2>&1; then
-  run_coverage_guard >&2 || true
-  echo "Refusing to sync with an incomplete catalog (see above). Fix the category mapping first." >&2
+if ! run_catalog_guard >/dev/null 2>&1; then
+  run_catalog_guard >&2 || true
+  echo "Refusing to sync an inconsistent catalog (see above)." >&2
   exit 1
 fi
 
-# --- Build skill list from requested categories -----------------------------
-# A requested token is an alias (portable|sei|all) or a literal domain name.
-# A skill is included if its category's alias — or the category itself — matches.
-# Requesting a sei-internal-skills-local domain by name is an explicit error.
-
-SEI_INTERNAL_SKILLS_LOCAL_REQUESTED=false
-want_skill() {  # want_skill <category> <requested-token> -> 0 include / 1 exclude
-  local cat="$1" tok="$2" al
-  al="$(alias_for_domain "$cat")"
-  case "$tok" in
-    all)      [ "$al" = "portable" ] || [ "$al" = "sei" ] ;;
-    portable) [ "$al" = "portable" ] ;;
-    sei)      [ "$al" = "sei" ] ;;
-    output-quality)
-      SEI_INTERNAL_SKILLS_LOCAL_REQUESTED=true; return 1 ;;
-    *)        [ "$cat" = "$tok" ] ;;   # literal domain request
-  esac
-}
+# --- Build the skill list: every skill directory ----------------------------
 
 declare -a SKILLS_TO_SYNC=()
-while IFS= read -r name; do
-  cat="$(skill_category "$name")"
-  IFS=',' read -ra TOKENS <<< "$CATEGORIES"
-  for tok in "${TOKENS[@]}"; do
-    if want_skill "$cat" "$tok"; then SKILLS_TO_SYNC+=("$name"); break; fi
-  done
-done < <(list_skill_dirs)
-
-if $SEI_INTERNAL_SKILLS_LOCAL_REQUESTED; then
-  echo "Note: output-quality is a sei-internal-skills-local domain — its skills are not synced outward. Edit them in sei-internal-skills." >&2
-fi
-
-# Deduplicate while preserving order (bash 3.2 compatible)
-if [[ ${#SKILLS_TO_SYNC[@]} -gt 0 ]]; then
-  UNIQUE_LIST=$(printf '%s\n' "${SKILLS_TO_SYNC[@]}" | awk '!seen[$0]++')
-  SKILLS_TO_SYNC=()
-  while IFS= read -r s; do [[ -n "$s" ]] && SKILLS_TO_SYNC+=("$s"); done <<< "$UNIQUE_LIST"
-fi
+while IFS= read -r name; do SKILLS_TO_SYNC+=("$name"); done < <(list_skill_dirs)
 
 # --- Report plan ------------------------------------------------------------
 
 echo "Source: $SKILLS_DIR"
 echo "Target: $TARGET_SKILLS"
-echo "Categories: $CATEGORIES"
 echo "Skills to sync (${#SKILLS_TO_SYNC[@]}):"
 if [[ ${#SKILLS_TO_SYNC[@]} -eq 0 ]]; then
-  echo "  (none — selected categories are empty)"
+  echo "  (none — no directory under $SKILLS_DIR holds a SKILL.md)"
 else
   printf '  - %s\n' "${SKILLS_TO_SYNC[@]}"
 fi

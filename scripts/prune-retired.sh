@@ -40,9 +40,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # Recover any name below from this repository's git history:
 #   git log --diff-filter=D -- .claude/skills/<name>
 RETIRED_SKILLS=(
-  audit-skill  # cut. Its conventions catalog and its static checker moved
-               # to xreview, the only consumer — a pin on a separate skill halted
-               # the review whenever that skill was absent from an install.
+  audit-skill  # cut; its checker and rubric live in scripts/skill-package-checks.sh
+               # and scripts/skill-package-rubric.md
   author-skill # cut with it: the authoring workflow around the same rubric
   brevity      # dissolved into the AGENTS.md Output discipline: BLUF, the verb rule,
                # the hedge rule, and the 4-line/20-line comment bounds

@@ -37,8 +37,7 @@ GLOB="!{$(IFS=','; printf '%s' "${EXCLUDED[*]}")}"
 # beside a script that defaults to something narrower, and a contributor then
 # passes locally and fails the gate on a file the documented command never read.
 #
-# scripts/ is here for sei-internal-skills-doctrine.md, the file that fans out
-# into every consuming repository's AGENTS.md.
+# scripts/ is here for sei-internal-skills-doctrine.md and skill-package-rubric.md.
 #
 # sei-agent-driver/ is out, and it is the only tracked prose that is. It is a
 # separate Go module with its own go.mod, and its two README files are package

@@ -9,12 +9,11 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
    ```sh
    gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
    ```
-   It clones sei-internal-skills to `~/.sei-internal-skills` (override `SEI_INTERNAL_SKILLS_HOME`), then syncs every **core** skill and agent (portable + Sei) plus the output styles into `~/.claude`.
+   It clones sei-internal-skills to `~/.sei-internal-skills` (override `SEI_INTERNAL_SKILLS_HOME`), then syncs every skill and agent plus the output styles into `~/.claude`.
 3. **Already have the repo?** One command from your checkout:
    ```sh
    make update     # fast-forward this checkout (run from main) + sync the core skills/agents/output-styles into ~/.claude + verify
    ```
-   (To install only the **portable** set into an external *consumer* repo, run `make bootstrap` instead.)
 4. **Re-run either any time** — both are idempotent.
 
 **Edit skills in sei-internal-skills, never in `~/.claude/skills/`.** Local edits at user-scope get overwritten on next sync. To change a skill, edit it here and PR.
@@ -25,9 +24,9 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
 
 Claude Code discovers skills as **flat** direct subdirectories of `skills/` — nested folders and custom roots (e.g. `~/.claude/sei-internal-skills/`) are NOT discovered. Domain grouping is therefore **metadata, not directories**.
 
-The **single source of truth** is each skill's `category:` SKILL.md frontmatter. The sync scripts *derive* alias membership from it (no hand-maintained per-skill list). `make verify-catalog` (CI) fails closed if any skill's category maps to no alias. The catalog sections below are descriptive — keep them in step with the skills present, but they are not what the sync reads.
+A skill is a directory here that holds a `SKILL.md`, and every skill syncs. `make verify-catalog` (CI) fails closed if a skill's `name:` does not match its directory. The catalog sections below are descriptive. Keep them in step with the skills present; the sync does not read them.
 
-**Domains in the core:** `workflow` · `investigation` · `code-quality` · `platform-infra` · `blockchain` · `release-operations` · `engineer-self-service`. The small domain→alias map at the top of `sync-skills.sh` assigns each domain to a sync alias: `portable`, `sei`, or sei-internal-skills-local (never synced).
+**Domains in the core:** `workflow` · `investigation` · `code-quality` · `platform-infra` · `blockchain` · `release-operations` · `engineer-self-service`. Each skill's `category:` frontmatter names its domain, and the sections below group by it. No script reads it.
 
 ## Catalog
 
@@ -113,21 +112,19 @@ slim-down (`data-mesh`, `prfaq`, `tee`, `diagram`) also live with full history i
 5. Make sure git ignores `state/`. The repo-level `.gitignore` covers `.claude/skills/*/state/`.
 6. Pre-approve the skill's happy-path permissions in `.claude/settings.json` or `.claude/settings.local.json`.
 
-Every skill needs a `category:` that maps to a sync alias — `make verify-catalog` enforces that.
+Every skill's `SKILL.md` needs a `name:` equal to its directory. `make verify-catalog` enforces that.
 
 ## Cross-Repo Skills
 
 A project-scope skill in this repo is only discoverable when Claude Code is running with this repo as CWD. To make a skill discoverable elsewhere, sync it out:
 
 ```sh
-./scripts/sync-skills.sh                    # daily: portable skills → ~/.claude/skills/
-./scripts/sync-skills.sh --categories all                 # also sync the sei-team skills
-./scripts/sync-skills.sh --categories code-quality        # just one domain
+./scripts/sync-skills.sh                    # every skill → ~/.claude/skills/
 ./scripts/sync-skills.sh --target ~/work/sei-k8s-controller --force  # to another repo
 ```
 
 If a tracked file in the target differs from sei-internal-skills's version, the script reports the skill as a conflict and skips it. Re-run with `--force` to overwrite. The script preserves target-only files (user customizations, runtime artifacts).
 
-Sibling of `scripts/sync-agents.sh` — same shape, same flags. Sync by **domain** (`--categories code-quality`, `--categories workflow`, …) or by **alias**: `portable` (the general-purpose skill set), `sei` (the Sei-team skills: validate-release, harbor-dev), `all`. Update the domain lists in the script when you add, rename, or re-categorize a skill.
+Sibling of `scripts/sync-agents.sh`, with the same shape and the same flags. Every skill syncs; no flag selects a subset.
 
 For procedural skills like `harbor-dev` that operate on remote infrastructure, you can also just run them from sei-internal-skills. Pass `--repo` / target paths to direct work elsewhere — no sync needed.

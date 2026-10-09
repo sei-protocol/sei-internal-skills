@@ -1,18 +1,15 @@
-# Known rubric-`block` failures, one line per core skill: <skill> <rule-ids|-> [# reason]
+# Known rubric-`block` failures, one line per skill: <skill> <rule-ids|-> [# reason]
 #
-# This file lives beside the test, NOT inside .claude/skills/xreview/scripts/.
-# sync-skills.sh copies a skill directory wholesale (`cp -R "$src/."`), so a
-# baseline parked there would land in every engineer's ~/.claude/ and in every
-# sibling repo, describing this repo's content debt to trees it knows nothing
-# about. Its only consumer is scripts/tests/skill-package-checks.test.sh.
+# This file lives beside the test, not inside a skill package. sync-skills.sh
+# copies a skill directory wholesale, so a baseline parked there would land in
+# every engineer's ~/.claude/. Its only consumer is
+# scripts/tests/skill-package-checks.test.sh.
 #
-# Severity is read from the RUBRIC, not from the emitted finding. B2 and B3 are
-# `block` in the rubric and `warn` in the script, deliberately, because the script
-# cannot tell a procedural skill from a reference one. Filtering on the emitted
-# severity would make a skill that deletes its `## Guardrails` stanza invisible here.
+# Severity comes from scripts/skill-package-rubric.md, not from the emitted
+# finding. B2 and B3 are `block` in the rubric and `warn` in the script.
 #
-# The gate is DIFFERENTIAL: a NEW block failure fails CI, and a FIXED one fails
-# too, so the baseline shrinks deliberately rather than drifting.
+# The gate is DIFFERENTIAL: a new block failure fails CI, and so does a fixed
+# one, so the baseline shrinks deliberately.
 #
 # The reason column is not decoration. `debt` is work someone should do. `rule-design`
 # means the skill is right and the rule is wrong — a question this file must not let

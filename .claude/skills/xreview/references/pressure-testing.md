@@ -1,7 +1,7 @@
 # Pressure testing — the method behind P7
 
-`P7` is the rubric's only `block`-severity `[pressure]` rule, and the rubric calls it "the
-load-bearing finding." This file is how the rubric lens runs it.
+`P7` is a `block`-severity rule: a scenario the skill's shape invites does not bypass the
+skill, and the reviewer names the scenario tried. This file is how the rubric lens runs it.
 
 This file assembles `audit-skill`'s audit framing and `author-skill`'s RED-GREEN-REFACTOR
 document, kept when the repository cut both skills. Only the review half survived. No baseline

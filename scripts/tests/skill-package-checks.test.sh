@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
-# Regression suite for .claude/skills/xreview/scripts/skill-package-checks.sh.
+# Regression suite for scripts/skill-package-checks.sh.
 #
-# This suite exists because the checker crashed on real in-repo content — it died
-# mid-sweep on validate-release and dropped two block rules with no trace — and no
-# gate noticed. A sweep asserting rc=0 and parseable output would have caught it.
+# The sweep runs the checker on every skill and asserts rc=0 and parseable output,
+# so a checker that dies mid-sweep and drops block rules with no trace fails here.
 # Run: scripts/tests/skill-package-checks.test.sh
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
-CHECKS="$REPO_ROOT/.claude/skills/xreview/scripts/skill-package-checks.sh"
-RUBRIC="$REPO_ROOT/.claude/skills/xreview/references/skill-package-rubric.md"
+CHECKS="$REPO_ROOT/scripts/skill-package-checks.sh"
+RUBRIC="$REPO_ROOT/scripts/skill-package-rubric.md"
 # Beside the test, not inside the skill package: sync-skills.sh copies a skill
 # directory wholesale, so a baseline parked there ships to every install.
 BASELINE="$SCRIPT_DIR/block-baseline.txt"
@@ -27,8 +26,11 @@ no() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); }
 
 TMP="$(mktemp -d)"; trap 'rm -rf "$TMP" "${RUBRIC_SEV:-}"' EXIT
 
-echo "the sweep completes on every core skill"
+echo "the sweep completes on every skill"
+# A skill is a directory that holds a SKILL.md. A leftover directory without one
+# (ignored state/ files after a pull) is not a skill, so every loop skips it.
 for d in "$REPO_ROOT"/.claude/skills/*/; do
+  [ -f "${d}SKILL.md" ] || continue
   n="$(basename "$d")"
   out="$("$CHECKS" --skill-dir "$d" 2>/dev/null)"; rc=$?
   if [ "$rc" -ne 0 ]; then no "$n: rc=$rc (the checker died mid-sweep)"; continue; fi
@@ -43,6 +45,7 @@ echo "every emitted rule id resolves to a rubric row"
 # skill happening to have references/ and scripts/ — a false FAIL waiting to happen.
 : > "$TMP/refs.raw"
 for d in "$REPO_ROOT"/.claude/skills/*/; do
+  [ -f "${d}SKILL.md" ] || continue
   "$CHECKS" --skill-dir "$d" 2>/dev/null | grep '^{' \
     | python3 -c "
 import sys,json
@@ -60,9 +63,10 @@ dupes=$(grep -oE '^\| [A-Z][0-9]+ ' "$RUBRIC" | tr -d '| ' | sort | uniq -d | tr
 [ -z "$dupes" ] && ok "no duplicate rule id" || no "duplicate rule id(s):$dupes — a citation to one is ambiguous"
 n_rules=$(grep -cE '^\| [A-Z][0-9]+ ' "$RUBRIC")
 bad_counts=$(grep -rhoE '[0-9]+ (of the )?(rubric.s )?(-)?rules|[0-9]+-rule' \
-  "$REPO_ROOT/.claude/skills/xreview" "$REPO_ROOT/README.md" 2>/dev/null \
-  | grep -oE '^[0-9]+' | sort -u | grep -vE "^(26|$n_rules)$" | tr '\n' ' ')
-[ -z "$bad_counts" ] && ok "every rule-count claim reads $n_rules (or 26, the static subset)" \
+  "$REPO_ROOT/scripts/skill-package-rubric.md" "$REPO_ROOT/.claude/skills/xreview" \
+  "$REPO_ROOT/README.md" 2>/dev/null \
+  | grep -oE '^[0-9]+' | sort -u | grep -vE "^(25|$n_rules)$" | tr '\n' ' ')
+[ -z "$bad_counts" ] && ok "every rule-count claim reads $n_rules (or 25, the static subset)" \
   || no "rule-count claim(s) disagreeing with the $n_rules-row table:$bad_counts"
 
 echo "no rule tagged [static] is left unimplemented"
@@ -74,6 +78,7 @@ done
 
 echo "block failures match the committed baseline (differential gate)"
 for d in "$REPO_ROOT"/.claude/skills/*/; do
+  [ -f "${d}SKILL.md" ] || continue
   n="$(basename "$d")"
   got="$("$CHECKS" --skill-dir "$d" 2>/dev/null | grep '^{' | python3 -c "
 import sys,json
@@ -93,16 +98,17 @@ echo "the baseline names no skill that no longer exists"
 stale=0
 while read -r n _; do
   case "$n" in \#*|"") continue ;; esac
-  [ -d "$REPO_ROOT/.claude/skills/$n" ] || { no "baseline names $n, which is not in the tree"; stale=1; }
+  [ -f "$REPO_ROOT/.claude/skills/$n/SKILL.md" ] || { no "baseline names $n, which is not in the tree"; stale=1; }
 done < <(grep -vE '^[[:space:]]*#' "$BASELINE")
 [ "$stale" -eq 0 ] && ok "baseline has no stale entry"
 
 echo "every skipped finding carries a skip_reason, and the two values are distinct"
-# G6 split `skipped` into inapplicable (no subject) and unavailable (subject
-# unreachable) because SKILL.md now branches on the field. A `skipped` with neither
-# value matches no branch, so a block rule that could not run reads as nothing.
+# The checker splits `skipped` into inapplicable (no subject) and unavailable
+# (subject unreachable), and a reviewer branches on the field. A `skipped` with
+# neither value matches no branch, so a block rule that could not run reads as nothing.
 missing=0
 for d in "$REPO_ROOT"/.claude/skills/*/; do
+  [ -f "${d}SKILL.md" ] || continue
   n="$("$CHECKS" --skill-dir "$d" 2>/dev/null | grep '^{' | python3 -c "
 import sys,json
 b=[json.loads(l) for l in sys.stdin]
@@ -113,7 +119,7 @@ done
 
 echo "a rule with no subject is inapplicable, not an alarm"
 probe="$TMP/inapplicable"; mkdir -p "$probe/state" "$probe/evals"
-printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\ncategory: workflow\n---\n# x\n' > "$probe/SKILL.md"
+printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\n---\n# x\n' > "$probe/SKILL.md"
 printf '{"evals":[]}\n' > "$probe/evals/evals.json"
 out="$("$CHECKS" --skill-dir "$probe" 2>/dev/null | grep '^{')"
 r="$(printf '%s' "$out" | python3 -c "
@@ -127,12 +133,12 @@ print(s1[0]['result'], s1[0].get('skip_reason')) if s1 else print('absent none')
 echo "an unreadable evals.json does not drop the three rules that read it"
 printf 'not json\n' > "$probe/evals/evals.json"
 n="$("$CHECKS" --skill-dir "$probe" 2>/dev/null | grep -c '^{')"
-[ "$n" -eq 26 ] && ok "unparseable evals.json still emits 26 findings" \
-  || no "unparseable evals.json emitted $n findings, wanted 26 (E2/E3/E4 dropped?)"
+[ "$n" -eq 25 ] && ok "unparseable evals.json still emits 25 findings" \
+  || no "unparseable evals.json emitted $n findings, wanted 25 (E2/E3/E4 dropped?)"
 rm -f "$probe/evals/evals.json"
 n="$("$CHECKS" --skill-dir "$probe" 2>/dev/null | grep -c '^{')"
-[ "$n" -eq 26 ] && ok "a missing evals.json still emits 26 findings" \
-  || no "missing evals.json emitted $n findings, wanted 26"
+[ "$n" -eq 25 ] && ok "a missing evals.json still emits 25 findings" \
+  || no "missing evals.json emitted $n findings, wanted 25"
 
 # The core skills all have a parseable evals.json, so the sweep above never
 # exercises the E2/E3/E4 skip path. Assert skip_reason where it actually fires.
@@ -164,16 +170,16 @@ rm -f "$probe/evals/evals.json"
 
 echo "the sibling-repo case: a rule whose subject is unreachable says so"
 # sync-skills.sh --target <repo> is a supported flow. That repo is a git repo with
-# no catalog README and no sync-skills.sh, so REPO_ROOT is non-empty and C1's input
-# is absent — the case where guarding the skip on REPO_ROOT dropped C1 silently.
+# no catalog README, so REPO_ROOT is non-empty and C1's input is absent — the case
+# where guarding the skip on REPO_ROOT would drop C1 silently.
 sib="$TMP/sibling"; mkdir -p "$sib/.claude/skills"
 ( cd "$sib" && git init -q . )
-cp -R "$REPO_ROOT/.claude/skills/root-cause" "$sib/.claude/skills/"
-out="$("$CHECKS" --skill-dir "$sib/.claude/skills/root-cause" 2>/dev/null | grep '^{')"
+cp -R "$REPO_ROOT/.claude/skills/kubernetes" "$sib/.claude/skills/"
+out="$("$CHECKS" --skill-dir "$sib/.claude/skills/kubernetes" 2>/dev/null | grep '^{')"
 n="$(printf '%s' "$out" | grep -c '^{')"
-[ "$n" -eq 26 ] && ok "a skill in a sibling repo still emits 26 findings" \
-  || no "sibling repo emitted $n findings, wanted 26"
-for id in C1 C3 T1; do
+[ "$n" -eq 25 ] && ok "a skill in a sibling repo still emits 25 findings" \
+  || no "sibling repo emitted $n findings, wanted 25"
+for id in C1 T1; do
   r="$(printf '%s' "$out" | python3 -c "
 import sys,json
 b=[json.loads(l) for l in sys.stdin]
@@ -187,7 +193,7 @@ echo "rules that could never fail, now can"
 # A2 required DOUBLED backslashes, which a real Windows path never has, so it
 # passed on every skill regardless of content. "A rule nobody can fail is not a rule."
 a2probe="$TMP/a2"; mkdir -p "$a2probe/state" "$a2probe/references"
-printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\ncategory: workflow\n---\n# x\n' > "$a2probe/SKILL.md"
+printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\n---\n# x\n' > "$a2probe/SKILL.md"
 a2() { "$CHECKS" --skill-dir "$a2probe" 2>/dev/null | grep '^{' | python3 -c "
 import sys,json
 b=[json.loads(l) for l in sys.stdin]
@@ -205,8 +211,8 @@ printf 'A clean a/posix/path and a `--flag`.\n' > "$a2probe/references/w.md"
 # B1 and D2 are stated strictly-under in the rubric; the checker admitted equality,
 # so a body at exactly the ceiling passed a block rule stated as "under".
 bprobe="$TMP/b1"; mkdir -p "$bprobe/state"
-{ printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\ncategory: workflow\n---\n'
-  i=1; while [ $i -le 495 ]; do echo "line $i"; i=$((i+1)); done; } > "$bprobe/SKILL.md"
+{ printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\n---\n'
+  i=1; while [ $i -le 496 ]; do echo "line $i"; i=$((i+1)); done; } > "$bprobe/SKILL.md"
 n_lines=$(wc -l < "$bprobe/SKILL.md" | tr -d ' ')
 b1() { "$CHECKS" --skill-dir "$bprobe" 2>/dev/null | grep '^{' | python3 -c "
 import sys,json
@@ -220,8 +226,8 @@ elif [ "$(b1)" = "fail" ]; then ok "B1 fails at exactly 500 lines (rubric says u
 else no "B1 passed at exactly 500 lines; the rubric states strictly-under"; fi
 # Rebuild at 499 rather than trimming: wc -l counts newlines, so an in-place
 # delete can leave the count where it was.
-{ printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\ncategory: workflow\n---\n'
-  i=1; while [ $i -le 494 ]; do echo "line $i"; i=$((i+1)); done; } > "$bprobe/SKILL.md"
+{ printf -- '---\nname: p\ndescription: Use when probing. NOT for real work.\n---\n'
+  i=1; while [ $i -le 495 ]; do echo "line $i"; i=$((i+1)); done; } > "$bprobe/SKILL.md"
 n_lines=$(wc -l < "$bprobe/SKILL.md" | tr -d ' ')
 [ "$n_lines" -eq 499 ] && [ "$(b1)" = "pass" ] && ok "B1 passes at 499 lines" \
   || no "B1 at $n_lines lines: got $(b1), wanted pass at 499"
@@ -234,7 +240,7 @@ else no "--skill-dir with no value: rc=$rc, output: $out"; fi
 
 echo "a check that cannot run is reported skipped, not dropped"
 mkdir -p "$TMP/py"; printf '#!/bin/sh\nexit 127\n' > "$TMP/py/python3"; chmod +x "$TMP/py/python3"
-n_skipped="$(PATH="$TMP/py:/usr/bin:/bin" "$CHECKS" --skill-dir "$REPO_ROOT/.claude/skills/xreview" 2>/dev/null \
+n_skipped="$(PATH="$TMP/py:/usr/bin:/bin" "$CHECKS" --skill-dir "$REPO_ROOT/.claude/skills/kubernetes" 2>/dev/null \
   | grep -c '"result":"skipped"')"
 [ "$n_skipped" -ge 4 ] && ok "broken python3: $n_skipped checks reported skipped" \
   || no "broken python3: expected >=4 skipped, got $n_skipped"

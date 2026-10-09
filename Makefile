@@ -20,11 +20,11 @@ update: ## ⭐ Get current: fast-forward this checkout, then sync ALL skills/age
 	@$(MAKE) --no-print-directory sync-all
 
 .PHONY: sync-all
-sync-all: ## Sync ALL skills+agents (portable+sei) + output styles into ~/.claude + verify — no git pull (used by `update` and the over-the-wire installer)
+sync-all: ## Sync every skill, agent and output style into ~/.claude, verify the catalog, print a prune hint. No git pull (used by update and the installer)
 	@echo "→ syncing all agents…"
-	@./scripts/sync-agents.sh --target ~/ --categories all --force
+	@./scripts/sync-agents.sh --target ~/ --force
 	@echo "→ syncing all skills…"
-	@./scripts/sync-skills.sh --target ~/ --categories all --force
+	@./scripts/sync-skills.sh --target ~/ --force
 	@$(MAKE) --no-print-directory verify-catalog
 	@echo "→ syncing output styles…"
 	@./scripts/sync-output-styles.sh --target ~/ --force
@@ -32,7 +32,7 @@ sync-all: ## Sync ALL skills+agents (portable+sei) + output styles into ~/.claud
 	@echo "✓ environment current with sei-internal-skills $$(git rev-parse --short HEAD)"
 
 .PHONY: verify-references
-verify-references: ## Fail if a shipped artifact cites a resource the core does not hold (CI)
+verify-references: ## Fail if a shipped artifact cites a skill .claude/skills/ does not hold (CI)
 	@./scripts/verify-references.sh
 
 .PHONY: verify-installed-references
@@ -40,28 +40,17 @@ verify-installed-references: ## Diagnostic, not a gate: report citations against
 	@./scripts/verify-references.sh --installed
 
 .PHONY: verify-catalog
-verify-catalog: ## Fail if any skill/agent declares a category that maps to no sync alias (orphaned-skill guard; CI)
+verify-catalog: ## Fail if a skill or agent file does not name itself, or an agent has no description (CI)
 	@./scripts/sync-skills.sh --verify
 	@./scripts/sync-agents.sh --verify
-
-.PHONY: bootstrap
-bootstrap: sync-agents sync-skills sync-output-styles update-agent-permissions ## Install PORTABLE agents+skills+output-styles+permissions into a consumer env (external repos). For your own env use `make update`.
-
-.PHONY: sync-agents
-sync-agents: ## Install sei-internal-skills's portable agents into ~/.claude/agents/
-	@./scripts/sync-agents.sh --target ~/ --categories portable --force
-
-.PHONY: sync-skills
-sync-skills: ## Install sei-internal-skills's portable skills into ~/.claude/skills/
-	@./scripts/sync-skills.sh --target ~/ --categories portable --force
 
 .PHONY: sync-output-styles
 sync-output-styles: ## Install sei-internal-skills's output styles into ~/.claude/output-styles/ (ships the file; activation stays opt-in)
 	@./scripts/sync-output-styles.sh --target ~/ --force
 
 # Removed targets. Each one names its replacement.
-.PHONY: sync-experimental
-sync-experimental:
+.PHONY: bootstrap sync-skills sync-agents sync-experimental
+bootstrap sync-skills sync-agents sync-experimental:
 	@echo "make $@ is gone. Run: make update" >&2; exit 1
 
 .PHONY: prune-retired
@@ -98,7 +87,7 @@ test-prune: ## Run the prune-retired regression suite (never deletes core or use
 	@./scripts/tests/prune-retired.test.sh
 
 .PHONY: test-skill-package-checks
-test-skill-package-checks: ## Sweep the rubric checker over every core skill; diff block failures against the baseline (CI)
+test-skill-package-checks: ## Sweep scripts/skill-package-checks.sh over every skill; diff block failures against the baseline (CI)
 	@./scripts/tests/skill-package-checks.test.sh
 
 .PHONY: update-agent-permissions

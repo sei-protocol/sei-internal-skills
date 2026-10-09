@@ -36,8 +36,8 @@ OLD_AGENTS="data-platform-architect tee-specialist diagram-architect"
 seed_env() {
   local t="$1"
   rm -rf "$t"; mkdir -p "$t/.claude/skills" "$t/.claude/agents"
-  silent "$REPO/scripts/sync-skills.sh" --target "$t" --categories all --force
-  silent "$REPO/scripts/sync-agents.sh" --target "$t" --categories all --force
+  silent "$REPO/scripts/sync-skills.sh" --target "$t" --force
+  silent "$REPO/scripts/sync-agents.sh" --target "$t" --force
   local s
   for s in $OLD_SKILLS $CUT_SKILLS; do
     mkdir -p "$t/.claude/skills/$s"; echo stale > "$t/.claude/skills/$s/SKILL.md"
@@ -71,8 +71,8 @@ echo "--check prints a hint only when something is prunable"
 hint="$("$PRUNE" --target "$t" --check 2>&1)"
 if [[ "$hint" == *"make -C"* && "$hint" == *"prune-retired-apply"* ]]; then ok "--check hint names make -C and prune-retired-apply"; else no "--check hint: '$hint'"; fi
 clean="$scratch/clean"; rm -rf "$clean"; mkdir -p "$clean"
-silent "$REPO/scripts/sync-skills.sh" --target "$clean" --categories all --force
-silent "$REPO/scripts/sync-agents.sh" --target "$clean" --categories all --force
+silent "$REPO/scripts/sync-skills.sh" --target "$clean" --force
+silent "$REPO/scripts/sync-agents.sh" --target "$clean" --force
 hint="$("$PRUNE" --target "$clean" --check 2>&1)"
 if [ -z "$hint" ]; then ok "--check on a clean target prints nothing"; else no "--check on a clean target printed: '$hint'"; fi
 
