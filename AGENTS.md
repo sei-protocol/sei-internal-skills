@@ -1,6 +1,6 @@
 # sei-internal-skills Agent Roster
 
-This repository holds three specialist agents in `.claude/agents/`. `make update` installs them flat into `~/.claude/agents/`. To call one, use the Agent tool with the agent name as `subagent_type`.
+This repository holds the specialist agents in `.claude/agents/`. `make update` installs them flat into `~/.claude/agents/`. To call one, use the Agent tool with the agent name as `subagent_type`.
 
 | Agent | Scope | Backing skill |
 |---|---|---|
@@ -10,11 +10,15 @@ This repository holds three specialist agents in `.claude/agents/`. `make update
 
 Each agent file states its boundaries and hand-offs. Read `.claude/agents/<name>.md` for the detail.
 
-The operating doctrine is the `sei-internal-skills-managed` block below. It holds the engineering principles, the output discipline and the three skills. `scripts/sei-internal-skills-doctrine.md` holds the doctrine once, and the sync carries it to every consuming package. After you edit the source, run `make sync-doctrine-self` to re-inject the copy in this file.
+The operating doctrine is the `sei-internal-skills-managed` block below. It holds the engineering principles, the output discipline and a guide to the skills. `scripts/sei-internal-skills-doctrine.md` holds the doctrine once. `make sync-doctrine-self` writes it into the block below, and `scripts/sync-skills.sh --target <repo> --inject-doctrine` writes it into a consuming repository.
 
 ## Install
 
 `make update` installs every skill and agent. `README.md` gives the other install forms.
+
+## The runner copy
+
+The runner image for seidroid seeds these agent files unchanged. Before you change an agent's `name`, `description`, `model` or `tools`, read [Changing the catalog](./CLAUDE.md#changing-the-catalog) in `CLAUDE.md`.
 
 <!-- BEGIN sei-internal-skills-managed (do not edit; managed by sei-internal-skills sync scripts) -->
 ## Operating with sei-internal-skills resources
@@ -64,9 +68,9 @@ than restating them, so a finding leads to a clause somebody else published.
 [`writing/CONTEXT.md`](writing/CONTEXT.md) is the short form, generated from the
 registry. Load that one into an agent. Read the long one yourself.
 
-Vale checks the checkable part. Run `./writing/scripts/lint.sh` before you push,
-or read `writing/README.md` for the rest.
+Vale checks the checkable part. Before you push, run `vale sync` once, then
+`./writing/scripts/lint.sh`. `writing/README.md` gives the rest.
 
-The contract sits in its own file rather than in a section here. A sync script
-writes this one from the doctrine block, and two generators writing one file is a
-collision nobody wins.
+The contract sits in its own file, not in a section here. `make sync-doctrine-self`
+writes the managed block in this file, and two generators that write one file
+collide.

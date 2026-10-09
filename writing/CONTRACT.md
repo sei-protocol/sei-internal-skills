@@ -2,13 +2,8 @@
 
 This file is the contract. **A convention absent from this file is not adopted.**
 
-Nothing loads it automatically yet. The design is that a session picks it up with no
-invocation. That is the only way a convention reaches an engineer who is not looking
-for it. `AGENTS.md` gains that pointer later in this series.
-
-Until it does, this file reaches a reader who goes looking. That is the pull model
-Principle IV argues against, so read Principle IV as the target rather than as a
-description of today.
+The Writing section of `AGENTS.md` points here, and `writing/CONTEXT.md` is its short
+form for an agent.
 
 ## Core Principles
 
@@ -33,9 +28,10 @@ cannot express a rule, delete it and record the constraint as uncheckable.
 ### IV. Push, not pull
 
 A convention reaches an engineer through this file or through a gate. It does not
-reach them through a command they have to remember. **A skill exists only where a
-procedure has side effects outside the repository.** Knowledge lives here. An author
-proposing a skill states first why the convention cannot live in this file.
+reach them through a command they have to remember. **A writing convention lives in
+this file, not in a skill.** An author proposing a writing skill states first why the
+convention cannot live in this file. A repository's own constitution decides which
+other skills it ships.
 
 ### V. State the gap
 
@@ -169,8 +165,9 @@ scopes the structure rules to `specs/**/spec.md`; a plan or a tasks file gets th
 rules and nothing more. Each convention therefore says what checks it.
 
 **Every success criterion names its verifier.** `SC-002 … Verifier: gorelease in CI`.
-A criterion nothing checks says `judgement`. An unmarked criterion is not honest. The
-gate that asserts it arrives later in the series; today it stands on review.
+A criterion nothing checks says `judgement`. An unmarked criterion is not honest.
+`check-verifiers.sh` asserts it for the specifications under `writing/specs/`. In
+another repository it stands on review.
 
 **Every user story carries four things** — priority, why this priority, an Independent
 Test, and acceptance scenarios. The generator builds a ticket from them, and it cannot
@@ -203,14 +200,14 @@ repository and cites the public anchor from there.
 
 **No anchor here cites a skill in this repository as its authority.** An anchor earns
 its place by being a standard somebody else publishes, so a reader can follow the name
-outside this repository. A gate for this arrives later in the series; today the rule
-stands on review.
+outside this repository. `check-anchor-authorities.sh` holds this rule across the
+registry, the anchor pages and the coverage manifest.
 
 **A success criterion names a verifier that runs, or says that none does.** Write the
 path in backticks, or write `not built — <what is missing>` or `judgement — <who
 decides and how>`. A criterion citing a check nobody built reads exactly like one that
-passes, which is the failure this repository exists to stop. The gate that asserts it
-arrives later in the series; today the rule stands on review.
+passes, which is the failure this repository exists to stop. `check-verifiers.sh`
+asserts it for the specifications under `writing/specs/`.
 
 ### Admitting an anchor
 
@@ -237,17 +234,13 @@ records the debt rather than implying it. A name leaves it by earning an entry w
 four artifacts above, in the change that deletes its line. `asd-ste100` holds an entry
 and the table does not name it, because this contract states ASD-STE100 directly.
 
-Two gates hold these lists, one of them today. `check-admission.sh` counts the
-grandfathered names, compares
-that list against `main`, and holds an `admitted` anchor to all four artifacts.
+Two gates hold these lists. `check-admission.sh` counts the grandfathered names,
+compares that list against `main`, and holds an `admitted` anchor to all four artifacts.
 `check-contract-anchors.sh` holds `unregistered.txt`. A name this contract cites that is in
 neither the registry nor that file fails. A name there that has since earned an entry fails
 too. The file may not gain a line against `main`.
 
-`check-contract-anchors.sh` runs on every pull request and on every push to `main`.
-`check-admission.sh` arrives later in this series, and `grandfathered.txt` says so at
-its head. Until it lands,
-that list stands on review, and a line added to it rather than removed goes unnoticed.
+Both gates run on every pull request and on every push to `main`.
 
 This is what keeps the slope from being a slope. The same four artifacts bound the next
 anchor, or it does not go in.
@@ -255,4 +248,8 @@ anchor, or it does not go in.
 An amendment states what changed and why, and bumps the version below. Deleting a
 principle requires the same ceremony as adding one.
 
-**Version**: 1.3.0 | **Ratified**: 2026-08-19 | **Last Amended**: 2026-08-28
+**Version**: 1.4.0 | **Ratified**: 2026-08-19 | **Last Amended**: 2026-10-09
+
+Amendment 1.4.0: IV covers writing conventions only. A repository's own constitution
+decides its other skills. Each gate statement names the gate that holds the rule. The
+Writing section of `AGENTS.md` points here.

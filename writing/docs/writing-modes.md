@@ -81,9 +81,10 @@ Seven sections, all mandatory: `Problem`, `Impact`, `Relevant experts`,
 An empty one says `None.`, so a reader can tell an empty section from a
 forgotten one.
 
-A ticket body is not a file in this repository. `/linear-ticket` stages the
-rendered body under `tickets/` and lints it before it files anything. That is how
-an agent validates its own output rather than asserting the output is fine.
+A ticket body is not a file in this repository. An agent that files a ticket
+stages the rendered body under `tickets/` and lints it before it files anything.
+That is how an agent validates its own output rather than asserting the output is
+fine.
 
 ## A fifth scope: procedures
 
@@ -96,13 +97,12 @@ procedure and not description:
 | `STE-SentenceLength-Procedure` | 20 words | off — the 25-word rule applies |
 | `STE-Gerund-Instruction` | a step starts with the imperative | off |
 
-The gerund rule was global until it fired on four documents in a row, every
-time on a descriptive list. The design mode requires a `## Non-goals` section. A
-writer naturally states a non-goal as `Replacing X`, so a global gerund rule and
-the design mode contradicted each other. Its coverage now lives in
-`writing/evals/fixtures/procedures/`. `writing/evals/fixtures/ste-violations.md`
-keeps a gerund-led list item as the negative control: the rule must stay silent
-there.
+The gerund rule is off outside a procedure, because a descriptive list often
+starts with a gerund. The design mode requires a `## Non-goals` section, and a
+writer states a non-goal as `Replacing X`. A global gerund rule would fire on
+every such list. `writing/evals/fixtures/procedures/` holds the coverage of the
+rule. `writing/evals/fixtures/ste-violations.md` keeps a gerund-led list item as
+the negative control: the rule must stay silent there.
 
 ## Publishing a mode as an artifact
 

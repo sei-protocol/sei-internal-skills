@@ -30,10 +30,10 @@ Follow [Changing the catalog](../../CLAUDE.md#changing-the-catalog) in `CLAUDE.m
 
 ## Using a skill in another repository
 
-Claude Code finds a project-scope skill only when it runs with this repository as its working directory. To use the skills in another repository, copy them there:
+`make update` installs every skill in user scope, `~/.claude/skills/`, so Claude Code finds it in every repository. Copy a skill into a repository only when people who did not install the catalog must get it from that repository:
 
 ```sh
 ./scripts/sync-skills.sh --target <repo> --force
 ```
 
-Without `--force`, the script reports a skill as a conflict and skips it when a tracked file in the target differs from the version here. With `--force`, it overwrites that file. In both modes, the script keeps target-only files (your own edits, runtime artifacts).
+[`scripts/README.md`](../../scripts/README.md#sync-skillssh-and-sync-agentssh) says how the script treats a target copy that differs.

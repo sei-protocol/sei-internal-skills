@@ -1,20 +1,22 @@
-# sei-internal-skills repo — workspace setup targets.
+# sei-internal-skills: install targets for engineers, gates for contributors, and the
+# seidroid driver build. `make` with no target prints this list by section.
 #
-# Targets are read-only by design: they install agents and read-only permission
-# patterns into a user's Claude workspace. Mutating wrappers (close-issue,
-# merge-pr, apply-flux) are explicitly out of scope — those go through normal
-# git/PR flow.
+# Only prune-retired-apply deletes anything. No target here writes to a cluster, an
+# issue or a pull request: that work goes through the normal git and PR flow.
 
 .DEFAULT_GOAL := help
 
 SHELL := /usr/bin/env bash
 
 .PHONY: help
-help: ## Show this help
-	@awk 'BEGIN {FS = ":.*?## "} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-32s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+# The default goal. It prints each target that has `## ` help text, by section.
+help:
+	@awk 'BEGIN {FS = ":.*?## "} /^##@ / {printf "\n\033[1m%s\033[0m\n", substr($$0, 5)} /^[a-zA-Z_-]+:.*?## / {printf "  \033[36m%-32s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
+
+##@ Engineers: install and stay current
 
 .PHONY: update
-update: ## ⭐ Get current: fast-forward this checkout, then sync ALL skills/agents/output-styles into ~/.claude + verify
+update: ## Start here. Fast-forward this checkout, then run sync-all
 	@echo "→ fast-forwarding this sei-internal-skills checkout (run on main)…"
 	@git pull --ff-only
 	@$(MAKE) --no-print-directory sync-all
@@ -31,27 +33,9 @@ sync-all: ## Sync every skill, agent and output style into ~/.claude, verify the
 	@./scripts/prune-retired.sh --target ~/ --check
 	@echo "✓ environment current with sei-internal-skills $$(git rev-parse --short HEAD)"
 
-.PHONY: verify-references
-verify-references: ## Fail if a shipped artifact cites a skill .claude/skills/ does not hold (CI)
-	@./scripts/verify-references.sh
-
-.PHONY: verify-installed-references
-verify-installed-references: ## Diagnostic, not a gate: report citations against ~/.claude (always exits 0)
-	@./scripts/verify-references.sh --installed
-
-.PHONY: verify-catalog
-verify-catalog: ## Fail if a skill or agent file does not name itself, or an agent has no description (CI)
-	@./scripts/sync-skills.sh --verify
-	@./scripts/sync-agents.sh --verify
-
 .PHONY: sync-output-styles
-sync-output-styles: ## Install sei-internal-skills's output styles into ~/.claude/output-styles/ (ships the file; activation stays opt-in)
+sync-output-styles: ## Install the output styles into ~/.claude/output-styles/. It never activates one
 	@./scripts/sync-output-styles.sh --target ~/ --force
-
-# Removed targets. Each one names its replacement.
-.PHONY: bootstrap sync-skills sync-agents sync-experimental
-bootstrap sync-skills sync-agents sync-experimental:
-	@echo "make $@ is gone. Run: make update" >&2; exit 1
 
 .PHONY: prune-retired
 prune-retired: ## Report which retired resources are still installed in ~/.claude. Deletes nothing.
@@ -61,47 +45,84 @@ prune-retired: ## Report which retired resources are still installed in ~/.claud
 prune-retired-apply: ## DELETES the retired resources make prune-retired lists from ~/.claude. The only target that removes anything.
 	@./scripts/prune-retired.sh --target ~/ --apply
 
-.PHONY: sync-doctrine-self
-sync-doctrine-self: ## Re-inject the operating-doctrine block into this repo's own AGENTS.md (dogfood; run after editing scripts/sei-internal-skills-doctrine.md)
-	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/sei-internal-skills-doctrine.md" write'
+.PHONY: verify-installed-references
+verify-installed-references: ## Report citations that ~/.claude cannot resolve. A diagnostic, not a gate: always exits 0
+	@./scripts/verify-references.sh --installed
+
+# Removed targets. Each one names its replacement.
+.PHONY: bootstrap sync-skills sync-agents sync-experimental
+bootstrap sync-skills sync-agents sync-experimental:
+	@echo "make $@ is gone. Run: make update" >&2; exit 1
+
+##@ Contributors: the gates CI runs, then the file generators
+
+# catalog-coverage writes fixtures into the live .claude/skills/ that the other
+# suites read, so check runs its prerequisites one at a time.
+.NOTPARALLEL: check
+
+.PHONY: check
+check: verify-catalog test-catalog verify-references test-references sync-doctrine-self-check test-doctrine test-output-styles test-install test-prune test-skill-package-checks verify-agent-permissions verify-action-pins ## Run every gate marked (CI) in this section. Run it before you open a PR
+	@echo "✓ make check: every gate passed"
+
+.PHONY: verify-catalog
+verify-catalog: ## Fail if a skill or agent file does not name itself, or an agent has no description (CI)
+	@./scripts/sync-skills.sh --verify
+	@./scripts/sync-agents.sh --verify
+
+.PHONY: test-catalog
+test-catalog: ## Run the catalog suite: the guard fails closed, every skill and agent syncs, the README counts match (CI)
+	@./scripts/tests/catalog-coverage.test.sh
+
+.PHONY: verify-references
+verify-references: ## Fail if a shipped artifact cites a skill .claude/skills/ does not hold (CI)
+	@./scripts/verify-references.sh
+
+.PHONY: test-references
+test-references: ## Run the verify-references regression suite (CI)
+	@./scripts/tests/verify-references.test.sh
 
 .PHONY: sync-doctrine-self-check
-sync-doctrine-self-check: ## Fail if this repo's AGENTS.md doctrine block has drifted from scripts/sei-internal-skills-doctrine.md (read-only; CI guard)
+sync-doctrine-self-check: ## Fail if the AGENTS.md doctrine block differs from scripts/sei-internal-skills-doctrine.md (CI)
 	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/sei-internal-skills-doctrine.md" check' \
 		&& echo "doctrine block in sync ✓"
 
 .PHONY: test-doctrine
-test-doctrine: ## Run the doctrine-injector regression suite (scripts/tests/inject-doctrine.test.sh)
+test-doctrine: ## Run the doctrine-injector regression suite (CI)
 	@./scripts/tests/inject-doctrine.test.sh
 
 .PHONY: test-output-styles
-test-output-styles: ## Run the output-style syncer regression suite (scripts/tests/sync-output-styles.test.sh)
+test-output-styles: ## Run the output-style suite: a sync never activates a style (CI)
 	@./scripts/tests/sync-output-styles.test.sh
 
 .PHONY: test-install
-test-install: ## Run the installer regression suite — targeted mode (scripts/tests/install.test.sh)
+test-install: ## Run the installer suite, offline: targeted mode, the piped form, the download fallback (CI)
 	@./scripts/tests/install.test.sh
 
 .PHONY: test-prune
-test-prune: ## Run the prune-retired regression suite (never deletes core or user-authored resources)
+test-prune: ## Run the prune-retired suite: it never deletes a catalog or user-authored resource (CI)
 	@./scripts/tests/prune-retired.test.sh
 
 .PHONY: test-skill-package-checks
 test-skill-package-checks: ## Sweep scripts/skill-package-checks.sh over every skill; diff block failures against the baseline (CI)
 	@./scripts/tests/skill-package-checks.test.sh
 
-.PHONY: update-agent-permissions
-update-agent-permissions: ## Install canonical read-only allow-list into ./.claude/settings.json (DRY_RUN=1 to preview)
-	@./scripts/update-agent-permissions.sh
-
 .PHONY: verify-agent-permissions
-verify-agent-permissions: ## Fail if .claude/settings.json contains mutating patterns or has drifted
+verify-agent-permissions: ## Fail if .claude/settings.json holds a mutating pattern or differs from the canonical set (CI)
 	@./scripts/verify-agent-permissions.sh
 
 .PHONY: verify-action-pins
 verify-action-pins: ## Fail if a workflow `uses:` a tag or branch instead of a commit sha (CI)
 	@./scripts/verify-action-pins.sh
 
+.PHONY: sync-doctrine-self
+sync-doctrine-self: ## Write the doctrine block into this repo's AGENTS.md. Run it after you edit scripts/sei-internal-skills-doctrine.md
+	@bash -c '. ./scripts/lib/inject-doctrine.sh && inject_doctrine "." "./scripts/sei-internal-skills-doctrine.md" write'
+
+.PHONY: update-agent-permissions
+update-agent-permissions: ## Write the canonical read-only allow list into ./.claude/settings.json (DRY_RUN=1 to preview)
+	@./scripts/update-agent-permissions.sh
+
+##@ seidroid driver (sei-agent-driver)
 # --- sei-agent-driver (Go) ---------------------------------------------------
 #
 # The one Go module in this repo. Kept behind its own targets rather than folded

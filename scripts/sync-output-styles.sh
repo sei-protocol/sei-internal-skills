@@ -41,8 +41,9 @@ TARGET="$HOME"
 DRY_RUN=false
 FORCE=false
 
+# Print the header comment block, and nothing after it.
 usage() {
-  grep '^#' "$0" | sed 's/^# \{0,1\}//' | grep -v '^!'
+  awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"
 }
 
 while [[ $# -gt 0 ]]; do

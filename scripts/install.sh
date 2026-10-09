@@ -1,47 +1,21 @@
 #!/usr/bin/env bash
-# install.sh — install the sei-internal-skills toolkit into ~/.claude, or take one piece of it,
-# even if you've never cloned the repo. Safe to run over the wire.
+# install.sh: install the sei-internal-skills catalog into ~/.claude, or one piece of it.
+# It needs no clone and runs safely over the wire. `install.sh -h` lists the targets and
+# the environment variables.
 #
-# sei-internal-skills is an INTERNAL GitHub repo, so the fetch needs auth — `gh` provides it.
+# sei-internal-skills is a public GitHub repository: curl fetches it with no auth; gh works too.
 #
-#   # everything (the default): clone or fast-forward, then sync the whole core
+#   curl -fsSL https://raw.githubusercontent.com/sei-protocol/sei-internal-skills/main/scripts/install.sh | bash
 #   gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh \
 #     -H 'Accept: application/vnd.github.raw' | bash
 #
-#   # one piece: no clone, nothing else installed
-#   … | bash -s -- output-style
-#   … | bash -s -- skill harbor-dev
-#   … | bash -s -- agent sre-engineer
-#   … | bash -s -- list
-#
-# Or, once cloned, `make update` from the repo.
-#
-# THE TWO MODES DIFFER ON PURPOSE:
-#
-#   No arguments — you are adopting the toolkit. It keeps a checkout at
-#   ~/.sei-internal-skills so `make update` works later, and syncs the whole core.
-#   Idempotent; safe to re-run any time.
-#
-#   A target — you want one resource in an environment that will never want the
-#   rest. It does NOT clone and leaves no checkout behind, unless you already
-#   have one, in which case it reads that instead of re-downloading.
-#
-# WHAT A TARGETED INSTALL WILL NOT DO: delete anything, or install a second
-# resource you did not name. Ask for a skill and you get that skill, not its
-# agent and not the skills it references.
-#
-# ONE EXCEPTION, AND ONLY ONE: `output-style` sets outputStyle in settings.json,
-# because naming a style is the request to use it. It backs the file up first,
-# preserves every other key, and REFUSES to overwrite a style you already chose
-# — that one gets reported and left alone. It edits through a symlink rather
-# than replacing it, so a dotfiles-managed settings.json stays linked.
-# `--no-activate <target>` installs the file without touching settings.
-# Nothing else this script does writes settings.json.
-#
-# Environment:
-#   SEI_INTERNAL_SKILLS_HOME   checkout location (default: ~/.sei-internal-skills)
-#   SEI_SKILLS_REF             branch or tag for a targeted fetch (default: main)
-#   SEI_SKILLS_TARGET          install root; the script appends .claude/ (default: $HOME)
+# The two modes differ on purpose. With no arguments, you adopt the catalog: the script
+# keeps a checkout at ~/.sei-internal-skills, so `make update` works later, and installs
+# every skill, agent and output style. With a target, you want one resource: the script
+# clones nothing and installs only that resource. It reads an existing checkout if one is
+# there. A targeted install deletes nothing. Only `output-style` writes settings.json: it
+# sets outputStyle, backs the file up, keeps every other key, edits through a symlink,
+# and never replaces a style you already chose.
 
 set -euo pipefail
 
@@ -66,16 +40,22 @@ die()  { echo "Error: $*" >&2; exit 1; }
 
 usage() {
   cat <<'USAGE'
-install.sh — install the sei-internal-skills toolkit, or take one piece of it.
+install.sh: install the sei-internal-skills catalog, or one piece of it.
+
+sei-internal-skills is a public GitHub repository. curl needs no auth.
+
+  curl -fsSL https://raw.githubusercontent.com/sei-protocol/sei-internal-skills/main/scripts/install.sh \
+    | bash [-s -- <target> [name]]
 
   gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh \
     -H 'Accept: application/vnd.github.raw' | bash [-s -- <target> [name]]
 
 Everything (no arguments)
-  Clones or fast-forwards ~/.sei-internal-skills, then syncs the whole core into
-  ~/.claude. This is what you want if you are adopting the toolkit.
+  Clones this repository into ~/.sei-internal-skills, or fast-forwards that
+  checkout. Then installs every skill, agent and output style into ~/.claude.
+  Use this to adopt the catalog.
 
-One piece
+One piece (no clone; installs only the resource you name)
   list                    show everything available, by kind
   output-style [name]     default: asd-ste100    -> ~/.claude/output-styles/
                           also activates it in settings.json; never overwrites
@@ -83,29 +63,36 @@ One piece
   skill <name>            -> ~/.claude/skills/<name>/
   agent <name>            -> ~/.claude/agents/<name>.md
 
-  No clone, and nothing installed but the resource you name.
+  A targeted install reads an existing checkout and does not pull it. With no
+  checkout, it downloads the tree with gh (when signed in) or with curl.
 
 Environment
   SEI_INTERNAL_SKILLS_HOME   checkout location (default: ~/.sei-internal-skills)
-  SEI_SKILLS_REF             branch or tag for a targeted fetch (default: main)
-  SEI_SKILLS_TARGET          install root; appends .claude/ (default: $HOME)
+  SEI_SKILLS_REF             branch, tag or commit for a download (default: main);
+                             ignored when a checkout exists
+  SEI_SKILLS_TARGET          install root for one piece; appends .claude/ (default: $HOME)
 USAGE
 }
 
 # ============================================================================
-# Mode 1 — the whole toolkit. Unchanged behaviour; this is the documented path.
+# Mode 1: the whole catalog. This is the documented path.
 # ============================================================================
+
+# gh, when it is signed in, clones with the git protocol you chose for it.
+# Without it, an anonymous https clone works, because the repository is public.
+gh_ready() { have gh && gh auth status >/dev/null 2>&1; }
 
 install_everything() {
   clone_repo() {
-    if have gh; then
+    if gh_ready; then
       gh repo clone "$REPO" "$SEI_INTERNAL_SKILLS_HOME"
     else
-      echo "→ gh not found; falling back to git clone (needs SSH or credential-helper auth for an internal repo)" >&2
-      git clone "git@github.com:$REPO.git" "$SEI_INTERNAL_SKILLS_HOME" 2>/dev/null \
-        || git clone "https://github.com/$REPO.git" "$SEI_INTERNAL_SKILLS_HOME"
+      git clone "https://github.com/$REPO.git" "$SEI_INTERNAL_SKILLS_HOME"
     fi
   }
+
+  have git  || die "git is required. Install it, then re-run."
+  have make || die "make is required. On macOS, run: xcode-select --install"
 
   if [ -d "$SEI_INTERNAL_SKILLS_HOME/.git" ]; then
     echo "→ updating existing sei-internal-skills checkout at $SEI_INTERNAL_SKILLS_HOME"
@@ -119,16 +106,17 @@ install_everything() {
     clone_repo
   fi
 
-  # Single sync entrypoint, shared with `make update`. No git pull here — the
-  # clone/fast-forward above already made the checkout current.
+  # One sync entry point, shared with `make update`. It does no git pull: the
+  # clone or fast-forward above already made the checkout current.
   make -C "$SEI_INTERNAL_SKILLS_HOME" sync-all
 
-  echo "✓ sei-internal-skills toolkit synced into ~/.claude (checkout: $SEI_INTERNAL_SKILLS_HOME)"
-  echo "  Re-run any time with:  make -C \"$SEI_INTERNAL_SKILLS_HOME\" update"
+  echo "✓ sei-internal-skills catalog installed into ~/.claude (checkout: $SEI_INTERNAL_SKILLS_HOME)"
+  echo "  Start a new Claude Code session to load it."
+  echo "  Stay current with:  make -C \"$SEI_INTERNAL_SKILLS_HOME\" update"
 }
 
 # ============================================================================
-# Mode 2 — one resource. No clone.
+# Mode 2: one resource. No clone.
 # ============================================================================
 
 WORK=""
@@ -141,28 +129,39 @@ cleanup() { [ -n "$WORK" ] && rm -rf "$WORK"; return 0; }
 resolve_tree() {
   [ -n "$ROOT" ] && return 0
 
-  # An existing checkout is authoritative and free. Re-downloading a repo the
-  # caller already has is pure waste, and it is also what makes this testable
-  # without the network.
+  # An existing checkout is authoritative and free, and it keeps the test suite
+  # offline. The script reads it as it is and never pulls it.
   if [ -d "$SEI_INTERNAL_SKILLS_HOME/.claude/skills" ]; then
     ROOT="$SEI_INTERNAL_SKILLS_HOME"
-    echo "→ reading your checkout at $ROOT" >&2
+    echo "→ reading your checkout at $ROOT (not updated; run: make -C $ROOT update)" >&2
     return 0
   fi
-
-  have gh || die "gh is required — sei-internal-skills is internal, so the fetch needs its auth."
-  gh auth status >/dev/null 2>&1 || die "gh is not authenticated. Run: gh auth login"
 
   trap cleanup EXIT
   WORK="$(mktemp -d)"
   echo "→ fetching ${REPO}@${REF} …" >&2
-  # One request for the whole tree beats walking the contents API per file, and
-  # `tar --include` is bsdtar syntax that GNU tar spells differently — a
-  # published one-liner must not depend on which tar the caller has.
-  gh api "repos/$REPO/tarball/$REF" 2>/dev/null | tar xz -C "$WORK" \
-    || die "could not fetch or extract the tarball (check gh auth and the ref '$REF')"
+  fetch_with_gh || fetch_with_curl \
+    || die "could not fetch $REPO@$REF (check the ref; the download needs curl or an authenticated gh)"
   ROOT="$(find "$WORK" -mindepth 1 -maxdepth 1 -type d | head -1)"
   [ -n "$ROOT" ] || die "unexpected tarball layout"
+}
+
+# Each fetch takes the whole tree as one tarball into an empty WORK. A plain
+# `tar xz` works with both bsdtar and GNU tar. A failed gh fetch empties WORK,
+# so the curl fetch starts clean.
+fetch_with_gh() {
+  gh_ready || return 1
+  if gh api "repos/$REPO/tarball/$REF" 2>/dev/null | tar xz -C "$WORK" 2>/dev/null; then
+    return 0
+  fi
+  find "$WORK" -mindepth 1 -delete
+  return 1
+}
+
+# The repository is public, so codeload serves the tarball with no auth.
+fetch_with_curl() {
+  have curl || return 1
+  curl -fsSL "https://codeload.github.com/$REPO/tar.gz/$REF" 2>/dev/null | tar xz -C "$WORK" 2>/dev/null
 }
 
 # A skill is a directory under .claude/skills/ that holds a SKILL.md. A leftover
@@ -237,11 +236,9 @@ os.replace(tmp, path)
 PYEOF
 }
 
-# Turning a style on is the whole point of asking for it by name, so a targeted
-# install activates it. What it will not do is take that decision away from
-# someone who already made one: an existing, different style is reported and
-# left alone. Silently replacing it is the failure this used to avoid by never
-# activating at all.
+# Turning a style on is the point of asking for it by name, so a targeted
+# install activates it. It never takes that decision from someone who already
+# made one: an existing, different style is reported and left alone.
 activate_style() {
   local style="$1" settings="$TARGET/.claude/settings.json"
 
@@ -316,7 +313,7 @@ cmd_skill() {
   cp -R "$src/." "$TARGET/.claude/skills/$name/"
   echo "✓ $TARGET/.claude/skills/$name"
   echo ""
-  echo "  Edit it in sei-internal-skills, not here — a later sync overwrites this copy."
+  echo "  Edit it in sei-internal-skills, not here. A later sync overwrites this copy."
 }
 
 cmd_agent() {

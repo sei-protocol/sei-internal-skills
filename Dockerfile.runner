@@ -13,8 +13,8 @@
 # provider sets the Pod command explicitly (`bash -lc`), so there is no ENTRYPOINT
 # to hook, and a login shell sources profile.d.
 #
-# `/xreview` and `/root-cause` halt without a roster, and an agent that resolves
-# `skills: all` against an empty host scope runs with no skills. See PLT-872.
+# An agent that resolves `skills: all` against an empty host scope runs with no
+# skills and no specialist roster. See PLT-872.
 
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}

@@ -26,9 +26,10 @@
 #
 # Skills are directories (SKILL.md + references/ + ...), not single files. Sync
 # uses cp -R, so target-only files stay (user customizations and runtime
-# artifacts such as state/ in the target tree are not deleted). If a tracked
-# source file differs from its target counterpart, the script reports the skill
-# as a conflict and skips it unless --force is set.
+# artifacts such as state/ in the target tree are not deleted). If any source
+# file is missing from the target copy or differs from it, the script reports
+# the skill as a conflict, skips the whole skill and exits 1, unless --force
+# is set.
 
 set -euo pipefail
 
@@ -92,8 +93,9 @@ FORCE=false
 VERIFY=false
 INJECT_DOCTRINE=false
 
+# Print the header comment block, and nothing after it.
 usage() {
-  grep '^#' "$0" | sed 's/^# \{0,1\}//' | grep -v '^!'
+  awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"
 }
 
 while [[ $# -gt 0 ]]; do

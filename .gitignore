@@ -1,11 +1,14 @@
+# Runtime output of retired skills. Kept so a leftover in an older checkout stays out of a commit.
 .council/archive/
 .bugbash/archive/
-.claude/skills/*/state/**
-!.claude/skills/*/state/
-!.claude/skills/*/state/.gitkeep
 experimental/skills/*/state/**
 !experimental/skills/*/state/
 !experimental/skills/*/state/.gitkeep
+
+# A skill's runtime output. Git tracks only state/.gitkeep, so state/ exists in a fresh clone.
+.claude/skills/*/state/**
+!.claude/skills/*/state/
+!.claude/skills/*/state/.gitkeep
 
 # python bytecode
 __pycache__/

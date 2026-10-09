@@ -226,7 +226,7 @@ Then run `aws configure sso --sso-session sei` — it reuses this session and pr
 
 ### Gate 4: harbor kubeconfig context exists and is current
 
-**Verifies:** `kubectl config get-contexts -o name` lists `harbor` (or the EKS ARN form `arn:aws:eks:eu-central-1:189176372795:cluster/harbor`), AND `kubectl config current-context` returns either of those forms.
+**Verifies:** `kubectl config get-contexts -o name` lists `harbor`, AND `kubectl config current-context` returns `harbor` or the EKS ARN form `arn:aws:eks:eu-central-1:189176372795:cluster/harbor`. A context with only the ARN name does not pass, because every later probe uses `--context=harbor`.
 
 **Why:** kubectl needs the cluster endpoint, CA cert, and auth provider config in the kubeconfig before any `kubectl …` (or `seictl network|node …`, which reuses kubeconfig) can resolve harbor. `seictl network|node apply` has no `--context` flag; it uses whatever context is currently set. If the engineer last used a different cluster, every `seictl network|node …` invocation would silently hit that cluster instead of harbor.
 
@@ -234,13 +234,13 @@ Then run `aws configure sso --sso-session sei` — it reuses this session and pr
 
 ```sh
 # Add the context if missing
-aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>
+aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen> --alias harbor
 
 # Set it as current
 kubectl config use-context harbor
 ```
 
-`<chosen>` is the profile resolved at gate 3, whatever its name — engineers configure their own, so never guess it. The first command is idempotent; the second sets the active context. Re-check both — `current-context` must return `harbor` (or the ARN form) before continuing.
+`<chosen>` is the profile resolved at gate 3, whatever its name — engineers configure their own, so never guess it. The first command is idempotent; the second sets the active context. Re-check both — `current-context` must return `harbor` (or the ARN form) before continuing. `--alias harbor` gives the context the name `harbor`. Without it, the AWS CLI names the context after the cluster ARN, and `use-context harbor` fails.
 
 **Edge case — engineer prefers a non-default kubeconfig path:** respect `$KUBECONFIG`. The `update-kubeconfig` command writes to whichever file `$KUBECONFIG` points at (or `~/.kube/config` if unset). Do not override.
 
@@ -354,7 +354,7 @@ For a literal "fresh laptop" engineer, the first session looks like:
 3. Engineer installs seictl, says "ok try again."
 4. Gate 1 passes. Gate 3 detection runs: list profiles via `aws configure list-profiles`. If `$AWS_PROFILE` has a value, respect it. If the engineer has multiple profiles, ask them to pick, and frame the prompt around "this profile authenticates kubectl + observes your harbor cluster". Once chosen, validate via `aws sts get-caller-identity --profile <chosen>` — failure surfaces `aws sso login --profile <chosen>`, halt. Echo the resolved Arn.
 5. Engineer runs SSO login. Continue.
-6. Gate 4 fails (no kubeconfig). Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen>` directly (using the gate-3 profile). Continue.
+6. Gate 4 fails (no kubeconfig). Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen> --alias harbor` directly (using the gate-3 profile). Continue.
 7. Gate 5 fails (no access entry). Surface "ask platform team in #harbor-onboarding," halt.
 8. Engineer pings the channel, gets the access entry. Comes back, says "ok try again." Gate 5 now passes, so run its resource-CRD sub-gate here. This is the first point in the ramp that can reach the cluster.
 9. Gate 6 fails (namespace does not exist). Enter First Run: prompt for alias (default from `$USER`), validate the regex, generate the PR body following the fromtherain pattern, open the PR via `gh pr create`. Surface the PR URL and halt. "Merge this; ping me when done."
