@@ -55,7 +55,7 @@ The `kubernetes-specialist` persona's first step loads `sei-controller-profile.m
 
 - **No target** to design/review (no code, CRD, or spec) — ask for it; never review a controller from memory.
 - **A one-way door** (incompatible CRD-field/semantics change, an event/sidecar-contract change consumers depend on) — flag for human approval, do not assert it.
-- **The work is really another lens**: redirect rather than stretch this skill over it. Adjacent lenses: Go idiom or style, capacity and scheduling (the platform team), manifests/GitOps (a sei-protocol/platform PR), PromQL and LogQL for alerts, recording rules and dashboards (`sre-engineer`), and node networking (`sei-network-specialist`).
+- **The work is really another lens**: redirect rather than stretch this skill over it. The adjacent lenses are Go idiom or style, capacity and scheduling (the platform team), and manifests/GitOps (a sei-protocol/platform PR). PromQL and LogQL for alerts, recording rules and dashboards go to `sre-engineer`, and node networking goes to `sei-network-specialist`.
 
 ## What this skill defers
 
