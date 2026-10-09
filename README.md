@@ -163,7 +163,6 @@ This clone is separate from the install checkout at `~/.sei-internal-skills`. Th
 .claude/            the catalog: skills/, agents/ and output-styles/
 scripts/            install, sync and prune tooling, the contributor gates, the runner inputs
 writing/            the writing contract and its Vale rules
-.specify/           the Spec Kit constitution of this repository
 agents/             Omnigent server bundles (seidroid scouts, root-cause, sei-spec), not Claude Code agents
 sei-agent-driver/   the seidroid review driver, a Go module
 .github/workflows/  CI: the catalog, install and prune gates, the runner image, the driver

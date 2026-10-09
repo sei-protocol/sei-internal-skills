@@ -1,5 +1,5 @@
 contract: house
-source: ".specify/memory/constitution.md"
+source: "CONTRACT.md"
 total_topics: 16
 enumerated: full
 note: >-
