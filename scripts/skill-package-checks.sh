@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # skill-package-checks.sh — Run the deterministic subset of the conventions catalog.
+# Rules: scripts/skill-package-rubric.md. C1 reads <repo>/.claude/skills/README.md.
 #
 # Usage:
 #   skill-package-checks.sh --skill-dir <abs-path> [--output <file.jsonl>]
@@ -44,8 +45,8 @@ emit() {
   #                  Nothing is unknown; a reviewer does nothing.
   #   unavailable  — the rule has a subject the checker could not reach (C1 with no
   #                  catalog README). Something IS unknown; a reviewer follows up.
-  # Without the split, nine of eleven core skills report two skipped `block` rules
-  # forever, and the "a skipped block rule is an open finding" doctrine over-fires
+  # Without the split, a skill with no scripts/ reports skipped `block` rules on
+  # every run, and the "a skipped block rule is an open finding" doctrine over-fires
   # until a reviewer learns to ignore it.
   local id="$1" severity="$2" title="$3" result="$4" evidence="$5" catalog_ref="$6" skip_reason="${7:-}"
   # Escape JSON-special chars in evidence: backslash, double-quote, newline, tab, CR.
@@ -374,7 +375,7 @@ else
   emit "T2" "info" "state/.gitkeep exists" "fail" "missing state/.gitkeep" "T2"
 fi
 
-# --- Catalog & sync checks ---
+# --- Catalog checks ---
 CATALOG="$REPO_ROOT/.claude/skills/README.md"
 if [[ -f "$CATALOG" ]]; then
   if grep -qE "\`${SKILL_NAME}/\`" "$CATALOG"; then
@@ -386,29 +387,6 @@ else
   # Guarded on the input, not on REPO_ROOT: a skill synced into a sibling git repo
   # has a repo root and no catalog, and C1 is `block`.
   emit "C1" "block" "Skill listed in catalog README" "skipped" "no catalog README at $CATALOG" "C1" "unavailable"
-fi
-
-# C3 resolves the skill's `category:` against the three domain lists in
-# sync-skills.sh, using that script's own whole-word semantics. An earlier form
-# grepped the file unanchored, which passed `portable`, `sei`, `all`, `work` and
-# `cp` — every one of them rejected by `sync-skills.sh --verify`. A checker that
-# passes wrongly ships; one that fails loudly gets fixed.
-SYNC="$REPO_ROOT/scripts/sync-skills.sh"
-if [[ -f "$SYNC" ]]; then
-  CAT="$(sed -n 's/^category:[[:space:]]*//p' "$SKILL_MD" | head -1 | tr -d '"'"'"'\r' | awk '{$1=$1;print}')"
-  DOMAINS=""
-  for v in PORTABLE_DOMAINS SEI_DOMAINS SEI_INTERNAL_SKILLS_LOCAL_DOMAINS; do
-    DOMAINS="$DOMAINS $(sed -n "s/^${v}=\"\(.*\)\"$/\1/p" "$SYNC")"
-  done
-  # A literal case-glob, matching sync-skills.sh's in_list(). `grep " $CAT "`
-  # treated the category as a regex, so `wo.kflow` matched `workflow`.
-  if [[ -n "$CAT" ]] && case " $DOMAINS " in *" $CAT "*) true ;; *) false ;; esac; then
-    emit "C3" "warn" "Skill category resolves to a sync alias" "pass" "$CAT" "C3"
-  else
-    emit "C3" "warn" "Skill category resolves to a sync alias" "fail" "category '$CAT' is in no domain list" "C3"
-  fi
-else
-  emit "C3" "warn" "Skill category resolves to a sync alias" "skipped" "no sync-skills.sh at $SYNC" "C3" "unavailable"
 fi
 
 # A1 — no time-sensitive content. Skips two false-positive shapes:

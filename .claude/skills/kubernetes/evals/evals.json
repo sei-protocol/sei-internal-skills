@@ -8,7 +8,7 @@
       "expected_behavior": [
         "Loads sei-controller-profile.md + kit-plan-driven-reconciliation.md before judging (Guardrail 1)",
         "Concludes it conforms — cites the persist-before-execute, optimistic-lock single-patch, and always-present-conditions patterns as correct against the profile",
-        "Does not manufacture findings to look thorough; idiom nits (if any) are bundled, not led, and deferred to /idiomatic"
+        "Does not manufacture findings to look thorough; idiom nits (if any) are bundled, never led"
       ],
       "source": "method.md (the 5 dimensions); profile §1/§2/§3; kit-plan-driven-reconciliation"
     },
@@ -93,8 +93,8 @@
       "type": "discipline",
       "prompt": "During a controller review, the user also asks to set the StatefulSet's CPU/memory requests and pick a Karpenter NodePool, and to rename a Go variable for style.",
       "expected_behavior": [
-        "Redirects the requests/limits + NodePool choice to k8s-capacity-management (capacity/scheduling is not this lens)",
-        "Redirects the pure variable-naming/style nit to /idiomatic",
+        "Flags the requests/limits + NodePool choice as out of scope for this lens, owned by the platform team",
+        "Declines the pure variable-naming/style nit as outside this lens",
         "Stays on the controller code + CRD contract; does not stretch the skill over the adjacent domains (Guardrail 5)"
       ],
       "source": "Guardrail 5 (don't duplicate adjacent lenses)"
@@ -104,11 +104,11 @@
       "type": "discipline",
       "prompt": "Mid controller-code review, the work drifts: the user asks to also write the Kustomize overlay + HelmRelease that deploys the controller, and to wire the node's persistent-peers / P2P networking.",
       "expected_behavior": [
-        "Redirects the deployment manifests (Kustomize/HelmRelease/the ?ref= staged rollout, manager-patch/config, IRSA/Pod-Identity wiring) to platform-engineer / /platform — 'you own the controller code; they own the manifests around it' (Guardrail 5, boundary)",
+        "Redirects the deployment manifests (Kustomize/HelmRelease/the ?ref= staged rollout, manager-patch/config, IRSA/Pod-Identity wiring) to a sei-protocol/platform PR — 'you own the controller code; the platform repo owns the manifests around it' (Guardrail 5, boundary)",
         "Redirects the node P2P/persistent-peers/RPC networking to sei-network-specialist",
         "Stays on the controller code + CRD contract; surfacing a Service-port/topology field the controller owns is in-scope, but the P2P wiring and the deploy manifests are not"
       ],
-      "source": "Guardrail 5 + the profile's agent-boundary section (vs /platform and sei-network-specialist)"
+      "source": "Guardrail 5 + the profile's agent-boundary section (vs sei-protocol/platform and sei-network-specialist)"
     }
   ]
 }

@@ -12,15 +12,13 @@ on:
       - 'scripts/install.sh'
       - 'scripts/tests/install.test.sh'
       - 'Makefile'
-      # The suite resolves live resources by name — xreview,
-      # idiomatic-reviewer, project-brief, sei-interview-expert — to prove the
-      # core/experimental lookup works against the real tree. Renaming, parking
-      # or retiring one of those breaks the suite, so the gate must run when
-      # any of them moves.
+      # The suite resolves kubernetes and sre-engineer by name and asserts a
+      # retired name (xreview, prose-steward) fails, against the real tree.
+      # Renaming or retiring one of those breaks the suite, so the gate must run
+      # when any of them moves.
       - '.claude/output-styles/**'
       - '.claude/skills/**'
       - '.claude/agents/**'
-      - 'experimental/**'
 
 jobs:
   verify:

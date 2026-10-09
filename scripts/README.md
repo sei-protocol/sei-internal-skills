@@ -5,21 +5,18 @@ Utility scripts for sei-internal-skills repo maintenance. Make targets at the re
 | Script | Purpose | Runs from |
 |--------|---------|-----------|
 | `install.sh` | Install the whole toolkit (no arguments), or take one piece — an output style, a skill, an agent — without cloning | over the wire, or `bash scripts/install.sh` |
-| `sync-agents.sh` | Copy agents to other `.claude/agents/` directories (membership derived from each agent's `category:`) | `make update` / `make sync-agents`, manually |
-| `sync-skills.sh` | Copy skills to other `.claude/skills/` directories (membership derived from each skill's `category:`) | `make update` / `make sync-skills`, manually |
+| `sync-agents.sh` | Copy every agent into a `.claude/agents/` directory | `make update`, manually |
+| `sync-skills.sh` | Copy every skill into a `.claude/skills/` directory | `make update`, manually |
 | `sync-output-styles.sh` | Copy output styles to other `.claude/output-styles/` directories. Ships the file; **never** activates it — activation is opt-in per user | `make update` / `make sync-output-styles`, manually |
-| `sync-experimental.sh` | OPT-IN installer for `experimental/` skills+agents. Never runs as part of update/sync-all/bootstrap | `make sync-experimental`, manually |
 | `update-agent-permissions.sh` | Install canonical read-only allow-list into `./.claude/settings.json` | `make update-agent-permissions` |
 | `verify-agent-permissions.sh` | Fail if `.claude/settings.json` contains mutating patterns or has drifted | `make verify-agent-permissions`, CI |
 | `verify-action-pins.sh` | Fail if a `uses:` ref in any `.yml`/`.yaml` under `.github/` names a tag or branch instead of a 40-hex commit sha. A local `./` action is exempt; a `docker://` image needs an `@sha256:` digest | `make verify-action-pins`, CI |
 | `tests/install.test.sh` | Regression suite for `install.sh`'s targeted mode, including the piped invocation | `make test-install`, CI |
-| `prune-retired.sh` | Remove retired/parked resources from a synced `.claude/`. **The only script here that deletes** — dry-run by default, `--apply` to act. Never touches a core or unrecognized resource | `make prune-retired` / `make prune-retired-apply`, manually |
-| `verify-references.sh` | Fail if a shipped artifact cites a resource an engineer cannot reach. Four error classes (ABSENT, UNSHIPPED, STALE-MARKER, MISSING-SCRIPT) and one warning (PARKED). `--installed` reports against `~/.claude` and never gates. | CI + `make verify-references` |
+| `prune-retired.sh` | Remove retired resources from a synced `.claude/`. **The only script here that deletes** — dry-run by default, `--apply` to act. Never touches a core or unrecognized resource | `make prune-retired` / `make prune-retired-apply`, manually |
+| `verify-references.sh` | Fail if a shipped artifact cites a resource an engineer cannot reach. Three error classes (ABSENT, STALE-MARKER, MISSING-SCRIPT) and no warning class. `--installed` reports against `~/.claude` and never gates. | CI + `make verify-references` |
 | `tests/prune-retired.test.sh` | Regression suite for `prune-retired.sh` — asserts what it must NOT remove | `make test-prune`, CI |
-| `verify-ledger.sh` | Fail if an `/xreview` review ledger violates the schema `/xreview` ships — typed header fields, and a cited rule id on a `skill-package` ledger | `make verify-ledger`, CI |
-| `tests/verify-ledger.test.sh` | Regression suite for `verify-ledger.sh` — pins the two ways its rule-id assertion went vacuous (`Tier: T2`, a bolded `Class:`) | `make test-ledger`, CI |
-| `tests/skill-package-checks.test.sh` | Sweeps `/xreview`'s rubric checker over every core skill; asserts it completes and emits parseable JSON, and diffs block failures against `block-baseline.txt` | `make test-skill-package-checks`, CI |
-| `tests/experimental-isolation.test.sh` | Regression suite for the `experimental/` tier — nothing in it ships by default | `make test-experimental`, CI |
+| `skill-package-checks.sh` + `skill-package-rubric.md` | The skill-package checker and the rules it cites | `make test-skill-package-checks`, CI |
+| `tests/skill-package-checks.test.sh` | Sweeps `scripts/skill-package-checks.sh` over every skill; asserts it completes and emits parseable JSON, and diffs block failures against `tests/block-baseline.txt` | `make test-skill-package-checks`, CI |
 | `agent-permissions.json` | Canonical read-only permission set (source of truth) | Read by both agent-permissions scripts |
 | `tests/sync-output-styles.test.sh` | Regression suite for `sync-output-styles.sh` — most importantly, that sync never activates a style | `make test-output-styles`, CI |
 
@@ -33,7 +30,7 @@ Utility scripts for sei-internal-skills repo maintenance. Make targets at the re
 gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
 ```
 
-It clones sei-internal-skills to `~/.sei-internal-skills` (override with `SEI_INTERNAL_SKILLS_HOME`), then syncs all portable + Sei skills/agents into `~/.claude` and verifies the catalog. Idempotent — re-run any time.
+It clones sei-internal-skills to `~/.sei-internal-skills` (override with `SEI_INTERNAL_SKILLS_HOME`), then syncs every skill and agent into `~/.claude` and verifies the catalog. It is idempotent: re-run it any time.
 
 > **Trust note.** This executes whatever is on `sei-protocol/sei-internal-skills@main` against your `~/.claude` — the same trust as cloning sei-internal-skills and running `make`. `gh` gates *who* can fetch (org members only); GitHub is the integrity anchor. It intentionally tracks `main` (no pinned ref) so you always get current. Prefer to read before you run? `gh repo clone sei-protocol/sei-internal-skills ~/.sei-internal-skills && make -C ~/.sei-internal-skills update`.
 
@@ -43,48 +40,32 @@ It clones sei-internal-skills to `~/.sei-internal-skills` (override with `SEI_IN
 make update     # fast-forward this checkout + sync ALL skills/agents/output-styles into ~/.claude + verify the catalog
 ```
 
-These are the only commands you need to keep your environment current. `make bootstrap` installs only the **portable** set into a *consumer* repo (external use); for your own `~/.claude` use `make update` (or the over-the-wire one-liner above).
+`make verify-catalog` (CI) fails if a skill's `name:` does not match its directory, or an agent's `name:` does not match its file.
 
-**Single source of truth:** a skill or agent's own **`category:` frontmatter** decides which alias (`portable` / `sei` / sei-internal-skills-local) it belongs to. The small domain→alias map at the top of each sync script resolves it, so no hand-maintained per-item list can drift. Add a skill/agent with a mapped `category:` and it syncs automatically. `make verify-catalog` (run in CI) fails closed if any item's category maps to no alias. It catches a miscategorized resource instead of silently dropping one.
+## `sync-skills.sh` and `sync-agents.sh`
 
-## `sync-agents.sh`
-
-Copies agent personas from `.claude/agents/` to a target `.claude/agents/` directory — typically user-level (`~/`) or a sibling repo. Each agent's `category:` frontmatter decides membership; the domain→alias map at the top of the script is the only hand-maintained categorization.
+Both scripts take the same flags. `sync-skills.sh` copies every skill (a directory under `.claude/skills/` that holds a `SKILL.md`). `sync-agents.sh` copies every `.claude/agents/*.md`.
 
 ```bash
-# Sync portable agents to user-level (default category)
+# Copy every skill and agent into user scope
+./scripts/sync-skills.sh --target ~/
 ./scripts/sync-agents.sh --target ~/
 
-# Portable + sei to a sibling repo
-./scripts/sync-agents.sh --target ~/work/platform --categories portable,sei
-
-# Preview without copying
-./scripts/sync-agents.sh --target ~/ --dry-run
-```
-
-Categories: agent **domains** in the core (`platform-infra`, `observability`, `security`, `blockchain`, `code-quality`, `writing-quality`, `product-management`, `release-operations`) or **aliases** `portable` (default, all non-Sei agents), `sei`, `all`. Agents under `experimental/agents/` are outside every domain and alias — this script never reads that tree. `--verify` runs only the coverage guard (CI). Non-destructive by default — pass `--force` to overwrite changed files.
-
-## `sync-skills.sh`
-
-Sibling of `sync-agents.sh` — same shape, same flags. Copies skills from `.claude/skills/` to a target `.claude/skills/` directory.
-
-```bash
-# Sync portable skills to user-level (default category)
-./scripts/sync-skills.sh --target ~/
-
-# Also sync the sei-team skills (validate-release, gov-ops, validator-platform, harbor-dev)
-./scripts/sync-skills.sh --target ~/ --categories all
-
-# Or install a single domain
-./scripts/sync-skills.sh --target ~/ --categories code-quality
+# Copy into a sibling repo, overwriting changed files
+./scripts/sync-skills.sh --target ~/work/platform --force
 
 # Preview without copying
 ./scripts/sync-skills.sh --target ~/ --dry-run
+
+# Run only the catalog guard (CI)
+./scripts/sync-skills.sh --verify
+./scripts/sync-agents.sh --verify
+
+# Also write the operating-doctrine block into the repo's AGENTS.md
+./scripts/sync-skills.sh --target <repo> --inject-doctrine
 ```
 
-Categories: skill **domains** in the core, or **aliases** `portable` (default), `sei`, `all`. The core domains are `workflow`, `investigation`, `code-quality`, `platform-infra`, `blockchain`, `writing-quality`, `output-quality`, `release-operations`, `engineer-self-service`. `output-quality` (brevity, pr-quality) is sei-internal-skills-local and never syncs outward. Skills under `experimental/skills/` sit outside every domain and alias — this script never reads that tree. A domain that only parked skills use (`hardening`, `performance`, `project-management`, `recruiting`, `workstream-bootstrap`) resolves to nothing until somebody promotes one.
-
-`--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script. Only a new/renamed **domain**, or a change to the alias it belongs to, needs a script edit.
+Without `--force`, a script reports a changed target file as a conflict and skips it. A sync never deletes a file that exists only in the target.
 
 ## `update-agent-permissions.sh` + `verify-agent-permissions.sh` + `agent-permissions.json`
 

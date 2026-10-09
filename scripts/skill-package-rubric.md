@@ -1,16 +1,6 @@
-# Skill-package review rubric
+# Skill-package rubric
 
-The rules a reviewer cites when a `skill-package` change is under review. It moved here from `audit-skill` when the repository cut that skill (recorded in `scripts/prune-retired.sh`). `/xreview` is the only consumer, and a pin on
-a separate skill meant the review halted whenever an install lacked that skill.
-Owning the rubric removes the cross-skill dependency.
-
-`scripts/skill-package-checks.sh --skill-dir <path>` runs the static half. Every finding
-names its rule id, which is what makes a steward verdict falsifiable. The presence of a file
-is no evidence that the reviewer read the rubric.
-
-Every rule the rubric lens checks. Each rule has an ID (used in findings), a severity, and a
-one-line statement. This file is the single source of truth for what a skill package must hold.
-A finding that cites a rule id resolves here or it resolves nowhere.
+The rules a skill under `.claude/skills/` must hold. A reviewer cites them on a pull request that changes a skill. `scripts/skill-package-checks.sh --skill-dir <path>` checks the `[static]` rules. `make test-skill-package-checks` sweeps it over every skill and diffs `block` failures against `scripts/tests/block-baseline.txt`. A finding that cites a rule ID resolves here or nowhere.
 
 **Severities:**
 
@@ -21,30 +11,9 @@ A finding that cites a rule id resolves here or it resolves nowhere.
 **Source legend:**
 
 - **[static]** — checkable by `scripts/skill-package-checks.sh` (deterministic).
-- **[semantic]** — the rubric lens judges it by reading the skill. No script decides it.
-- **[pressure]** — the rubric lens judges it by running a shape-appropriate pressure scenario.
-  `references/pressure-testing.md` carries the method and the fail-classification table. P7 is
-  the load-bearing one and it is `block`, so do not skip it and return RATIFY on the static
-  rules alone.
-
-Two separate skills previously dispatched the `[semantic]` and `[pressure]` rules. The
-repository cut both; the rubric lens judges them directly now, using `references/pressure-testing.md` for
-the pressure method and `references/eval-format.md` for the eval vocabulary E4/E5 cite. It cites
-the rule id either way.
+- **[semantic]** — a reviewer judges it by reading the skill, or by trying a scenario against it.
 
 When a rule applies only to certain shapes, the row names the shape (e.g., `[procedural only]`).
-
-**Known gaps.** Two things a reviewer will want to cite and cannot. This file records them so the
-next lens does not rediscover them and file the nearest ill-fitting id:
-
-- **Halt-condition → eval traceability.** `E2` requires at least one halt-condition eval; nothing
-  requires *each* halt condition to have one. Closing it needs a machine-readable link from a
-  `## Halt Conditions` bullet to an eval id. Add a `halt_ref` field to `references/eval-format.md`
-  first. The rule can then be `[static]` rather than a judgment nobody can reproduce.
-- **A description's coverage of an inherited capability.** When a skill absorbs another's job, its
-  `description:` should route the vocabulary that used to reach the absorbed skill. No rule covers this, and nothing defines
-  the term. Define "inherited capability" before writing one, or the rule produces findings a
-  reader cannot look up and disagree with.
 
 ---
 
@@ -88,8 +57,7 @@ next lens does not rediscover them and file the nearest ill-fitting id:
 | R2 | warn | static | Reference files >100 lines have a Table of Contents (heading scan in first 50 lines) |
 | R3 | info | static | Cross-references to other skills use the skill name only (no `@skills/...` force-loads). Plain-markdown relative links to sibling skills are fine — see R5. |
 | R4 | warn | semantic | Reference files do not duplicate SKILL.md content — they extend it |
-| R5 | info | semantic | A skill may cross-reference a sibling as `../../<sibling-skill>/references/<file>.md` (relative) or `.claude/skills/<sibling>/references/<file>.md` (repo-root form). Note the double `../`: from inside a `references/` dir, a single `../` resolves to the skill root, not `.claude/skills/`, so it links to a path that does not exist. The rubric permits the link between skills in the same `.claude/skills/` directory. The link must encode a handoff contract or shared methodology (e.g. coral's handoff points at design/issue's coral-integration refs). These are documentation links, not force-loads — they do not violate R1, and surface as info-only so reviewers see the cross-skill coupling. |
-| R6 | info | semantic | A skill may declare a **cite/exemplar contract** in its references — a corpus directory whose paths are load-bearing cite targets. An example: language's `references/exemplars/<vertical>/` per its `sources.md` cite vocabulary. Such a skill may nest those corpus files one extra level. The contract file must document the path scheme. Scope: corpus/exemplar content only — the skill's own method/reference docs still obey R1. |
+| R5 | info | semantic | A skill may cross-reference a sibling as `../../<sibling-skill>/references/<file>.md` (relative) or `.claude/skills/<sibling>/references/<file>.md` (repo-root form). Note the double `../`: from inside a `references/` dir, a single `../` resolves to the skill root, not `.claude/skills/`, so it links to a path that does not exist. The rubric permits the link between skills in the same `.claude/skills/` directory. The link must encode a handoff contract or shared methodology. These are documentation links, not force-loads — they do not violate R1, and surface as info-only so reviewers see the cross-skill coupling. |
 | R7 | block | semantic | A `references/` file does not contradict `SKILL.md`. Where they diverge the divergence **is** the finding; where the reference declares itself authoritative on divergence, it is correctness-grade. |
 
 ## Scripts [procedural only]
@@ -110,7 +78,7 @@ next lens does not rediscover them and file the nearest ill-fitting id:
 | E1 | block | static | `evals/evals.json` exists and is parseable |
 | E2 | block | static | evals.json has at least 1 happy-path and 1 halt-condition entry (sei-internal-skills minimum) |
 | E3 | warn | static | evals.json has at least 3 entries (Obra ideal) |
-| E4 | warn | static | Each eval has a `source` field tracing to a pressure scenario, a halt condition, or a production incident |
+| E4 | warn | static | Each eval has a `source` field tracing to a scenario, a halt condition, or a production incident |
 | E5 | info | semantic | Eval compliance signals are observable (not subjective) |
 
 ## State
@@ -120,13 +88,12 @@ next lens does not rediscover them and file the nearest ill-fitting id:
 | T1 | block | static | Git ignores the skill's `state/` directory (via `.claude/skills/*/state/` at repo level, or local `.gitignore`) |
 | T2 | info | static | `state/.gitkeep` exists so the directory survives when empty |
 
-## Catalog & sync
+## Catalog
 
 | ID | Severity | Source | Rule |
 |----|----------|--------|------|
 | C1 | block | static | The `.claude/skills/README.md` catalog lists the skill |
 | C2 | warn | semantic | Catalog entry is in an appropriate section (judgment based on skill purpose) |
-| C3 | warn | static | Skill's `category:` frontmatter resolves to a sync alias in `scripts/sync-skills.sh` — a skill with no alias never syncs anywhere |
 
 ## Persuasion stack (shape-dependent)
 
@@ -138,7 +105,7 @@ next lens does not rediscover them and file the nearest ill-fitting id:
 | P4 | info | semantic | [discipline] Uses social-proof language ("Every time", "Always", failure mode universality) |
 | P5 | warn | semantic | [technique, pattern] Balances authority with unity ("we", "our codebase") rather than pure imperative |
 | P6 | warn | semantic | [reference] Uses no persuasion language — clarity only |
-| P7 | block | pressure | A shape-appropriate pressure scenario bypasses the skill (the load-bearing finding — captured from pressure-testing) |
+| P7 | block | semantic | A scenario the skill's shape invites (a shortcut request, time pressure, a plausible exception) does not bypass the skill. The reviewer names the scenario tried. |
 
 ## Anti-patterns
 
@@ -160,7 +127,7 @@ When the team identifies a new convention:
 1. Add a row to the appropriate section in this table.
 2. Assign an ID (next free number in the section's prefix; e.g., next description rule = D9).
 3. Pick a severity honestly. New rules default to `warn` — promote to `block` after one cycle of real audits shows the rule is load-bearing.
-4. Update `scripts/skill-package-checks.sh` if the rule is checkable. If it is not, tag it `[semantic]` or `[pressure]`. Say in the row what the rubric lens should look for — no separate checker exists to extend.
+4. Update `scripts/skill-package-checks.sh` if the rule is checkable, and add a case to `scripts/tests/skill-package-checks.test.sh`. Otherwise tag it `[semantic]` and say in the row what a reviewer looks for.
 5. State the rule so a reviewer can cite it and be wrong. A rule nobody can fail is not a rule.
 
 ## Rules that do not appear here
@@ -168,6 +135,6 @@ When the team identifies a new convention:
 Things deliberately *not* checked:
 
 - **Specific prose style.** Tone, voice, sentence length — these are author choices, not conventions.
-- **Subjective "is this useful."** The rubric lens measures conformance, not value. Worthwhile-ness is a `/coral` or `/council` question.
+- **Subjective "is this useful."** The reviewer measures conformance, not value. Worthwhile-ness is the owner's call.
 - **Domain-specific correctness.** A terraform-review skill that gives bad terraform advice is failing a domain check, not a conventions check. It does not validate the *content*, only the *form*.
 - **Performance.** Skill load latency, script execution time. Not in scope.

@@ -1,107 +1,25 @@
 # sei-internal-skills Agent Roster
 
-This repository hosts specialist agent personas in `.claude/agents/`. They are general-purpose and sync to other repos and user-level via `scripts/sync-agents.sh`. The skills in `.claude/skills/` (notably `/coral`, `/council`, `/xreview`, `/root-cause`) dispatch them.
+This repository holds three specialist agents in `.claude/agents/`. `make update` installs them flat into `~/.claude/agents/`. To call one, use the Agent tool with the agent name as `subagent_type`.
 
-## Roster
+| Agent | Scope | Backing skill |
+|---|---|---|
+| `kubernetes-specialist` | Kubernetes operator and controller code: Go and controller-runtime, CRDs, reconcile logic, child-resource and Job lifecycle. Most work is in sei-k8s-controller. | `/kubernetes` |
+| `sei-network-specialist` | Sei node networking: seid ports, CometBFT P2P, EVM JSON-RPC and WebSocket, gRPC, the Waterway proxy, state sync, and Istio limits with Sei traffic. | None |
+| `sre-engineer` | SLOs and SLIs, error budgets, alert tuning, the PromQL and LogQL behind alerts, recording rules and dashboards, runbooks, and post-mortems. | None |
 
-Grouped by **domain** — each agent carries a matching `category:` in its `.claude/agents/<name>.md` frontmatter, and `sync-agents.sh --categories <domain>` syncs a domain. Agents discover **flat** under `~/.claude/agents/`; the domains are metadata, not folders. Sync aliases cross-cut: all agents are `portable` except `sei-network-specialist` (`sei`); `all` is everything.
+Each agent file states its boundaries and hand-offs. Read `.claude/agents/<name>.md` for the detail.
 
-### platform-infra
-| Agent | Scope |
-|-------|-------|
-| `kubernetes-specialist` | Go + controller-runtime, CRDs, event indexing, Job lifecycle |
-| `platform-engineer` | Platform layer — Kustomize/Flux GitOps, EKS Pod Identity, SOPS/KMS secrets, Pod Security, terraform; the sei-k8s-controller deploy manifests. Backed by `/platform`. |
-| `network-specialist` | K8s and cloud networking, service mesh |
-| `k8s-capacity-management` | Capacity as a discipline: workload right-sizing from observed data, Karpenter NodePool design, DaemonSet overhead, PriorityClass tiers, HPA/VPA/KEDA tuning, scheduling primitives. |
-| `sei-network-specialist` | Sei node networking (seid ports, CometBFT P2P, Waterway, Istio quirks). Valuable to any Sei-adjacent work. *(sync alias: `sei`)* |
-
-### observability
-| Agent | Scope |
-|-------|-------|
-| `opentelemetry-expert` | Application-side OpenTelemetry SDK instrumentation. Backend operations → `observability-platform-engineer`. |
-| `observability-platform-engineer` | Telemetry backend as a system: Prometheus/Thanos/Loki/Tempo/Alloy/Promtail/Grafana operations, PromQL/LogQL authorship, mixin vendoring, ingester/compactor/store-gateway sizing. |
-| `sre-engineer` | Google SRE-flavored: SLOs/SLIs, dashboards, alerts, runbooks (human + agent-callable), post-mortems. Closes the loop by filing `/issue` work when a runbook needs missing tooling. |
-
-### security
-| Agent | Scope |
-|-------|-------|
-| `security-specialist` | Security + adversarial design |
-
-### blockchain
-| Agent | Scope |
-|-------|-------|
-| `solidity-developer` | EVM smart-contract engineering on Sei — Solidity/Foundry, precompiles, gas/parity, address association, upgrade safety, on-chain event indexing. Backed by `/evm`. |
-
-### writing-quality
-| Agent | Scope |
-|-------|-------|
-| `prose-steward` | Prose steward — reviews org artifacts (design docs/HLDs, PRDs, 1-pagers, pull-request bodies). The artifact must read correctly for the human who has to act on it. Profile-first (repo `CLAUDE.md` writing conventions outrank its own doctrine), citation-tier honest (Cited findings carry `Basis:`; Stated-opinion is advisory-only, never blocking), suggest-only. Pinned unconditionally by `/xreview` on any `skill-package` change. NOT code idiom (`idiomatic-reviewer`), NOT scope (`product-manager`). |
-
-### code-quality
-| Agent | Scope |
-|-------|-------|
-| `idiomatic-reviewer` | Idiomatic-conformance review, language-pluggable. Digests the repo's agent files + `doc.go` into a local idiom profile that outranks generic idiom. Overlays a per-language pack, emits two-altitude (design + surgical) cited findings. Reviews for idiom; does **not** author the system (that is the language specialist, e.g. `kubernetes-specialist`). Backed by the `/idiomatic` skill. |
-| `systems-engineer` | Systems software engineer — builds **and** reviews high-performance, reliable, observable, maintainable application code/architectures. Owns "how software behaves on the machine and over time". That covers perf (CPU/mem/I/O/concurrency/latency) and failure-modes-by-design (timeouts, back-pressure, idempotency, graceful degradation). It also covers observability-by-design, Linux/OS behavior, and maintainability. Hooks into the `/idiomatic` standards (idiom ⊂ systems quality) and leans on `idiomatic-reviewer` for the pure idiom pass. Builds/reviews code; does **not** run the platform (→ `sre-engineer` / `platform-engineer` / observability agents). |
-
-### product-management
-| Agent | Scope |
-|-------|-------|
-| `product-engineer` | Product engineering |
-| `product-manager` | Product management, scope discipline |
-
-### release-operations
-| Agent | Scope |
-|-------|-------|
-| `platform-release-manager` | Release management and cut discipline |
-
-One more agent lives in [`experimental/agents/`](./experimental/README.md) and is **not**
-installed by default — `sei-interview-expert` (with `/interview`). Opt in with
-`make sync-experimental`.
-
-The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
-
-The operating doctrine — engineering principles, output discipline, the workflow skills and when each applies, the xreview discipline, and the key rules — is the `sei-internal-skills-managed` block below. `scripts/sei-internal-skills-doctrine.md` holds it once and the sync carries it to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
+The operating doctrine is the `sei-internal-skills-managed` block below. It holds the engineering principles, the output discipline and the three skills. `scripts/sei-internal-skills-doctrine.md` holds the doctrine once, and the sync carries it to every consuming package. After you edit the source, run `make sync-doctrine-self` to re-inject the copy in this file.
 
 ## Install
 
-`make bootstrap` from the repo root is the fastest path, and it runs `make sync-agents`, `make sync-skills`, `make sync-output-styles`, and `make update-agent-permissions`. See the README's Setup section for the full flow.
-
-This installs the **core** only. The agents and skills under [`experimental/`](./experimental/README.md) never ride along — opt in by name with `make sync-experimental`.
-
-Agents and skills travel the same way. sei-internal-skills is the canonical home, and the sync scripts push them out to user-scope (`~/.claude/`) and sibling repos.
-
-For sibling-repo or finer-grained installs, call the scripts directly:
-
-```bash
-# Mirror portable agents to user-level (any CWD) — same as `make sync-agents`
-./scripts/sync-agents.sh --target ~/
-
-# Mirror portable skills to user-level — same as `make sync-skills`
-./scripts/sync-skills.sh --target ~/
-
-# Copy portable + sei agents to a sibling repo
-./scripts/sync-agents.sh --target ~/work/platform --categories portable,sei
-
-# Copy the sei-team skills (validate-release, gov-ops, validator-platform, harbor-dev) to user-level
-./scripts/sync-skills.sh --target ~/ --categories sei
-
-# Install a single domain (e.g. code-quality → idiomatic, systems)
-./scripts/sync-skills.sh --target ~/ --categories code-quality
-
-# Opt into the parked resources (never installed by the commands above)
-./scripts/sync-experimental.sh --target ~/
-
-# Preview without copying
-./scripts/sync-agents.sh --target ~/ --dry-run
-./scripts/sync-skills.sh --target ~/ --dry-run
-```
-
-Categories: `portable` (default), `sei`, `all`. Both scripts are non-destructive by default — they refuse to overwrite changed files in the target unless you pass `--force`. The Make targets pass `--force` so subsequent runs pick up sei-internal-skills updates cleanly.
+`make update` installs every skill and agent. `README.md` gives the other install forms.
 
 <!-- BEGIN sei-internal-skills-managed (do not edit; managed by sei-internal-skills sync scripts) -->
 ## Operating with sei-internal-skills resources
 
-This package consumes portable Claude Code skills and specialist agents authored in Sei's sei-internal-skills library and installed under `.claude/`. Invoke the skills as the slash-commands below; those skills dispatch the agents. What follows is the opinionated doctrine for operating with them — the *way* to work, not a description of the library.
+This package uses Claude Code skills and specialist agents from Sei's sei-internal-skills repository, installed under `.claude/`. The doctrine below is the way to work with them.
 
 ### Engineering principles
 
@@ -130,33 +48,11 @@ This package consumes portable Claude Code skills and specialist agents authored
 
 ### Using the skills
 
-- **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to producing the work.
-- **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
-- **`/idiomatic`** and **`/systems`** — review code for language/package idiom, then for systems-level quality on top. Idiom ⊂ systems quality; run them in that order.
+- **`/harbor-dev`**: run your own ephemeral Sei chain in `eng-<alias>` on the harbor dev cluster. Spin it up, bench it, inspect it, tear it down. Start with "onboard me".
+- **`/giga-dev`**: operate and diagnose the shared giga testnet, `giga-testnet-0`, on the prod cells. Read-only by default.
+- **`/kubernetes`**: design or review sei-k8s-controller code (CRDs, reconcilers, status and conditions).
 
-Further workflow skills — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — are **experimental** and ship only on opt-in (`make sync-experimental`). Use them when your environment has them; never assume it does.
-
-### xreview discipline
-
-When the relevant specialists review a produced artifact (design, plan, diff, or a set of expert outputs):
-
-- **Blinded and independent** — each reviewer commits its findings before seeing the others'; no brief summarizes another reviewer's view.
-- **An assigned dissenter** — one reviewer must argue against the emerging consensus and surface the strongest counter-case.
-- **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) *and*, for doc artifacts, the prose axis (`prose-steward`) — not domain experts alone.
-- **Automated review is co-equal** — treat an automated reviewer (e.g. Cursor Bugbot) as a peer input, not noise; an unresolved flag blocks.
-- **Confirmed-consensus iteration** — after a fix, re-dispatch the reviewer that raised the finding to confirm closure. Merge only on unanimous sign-off with no open concerns. `/xreview` owns the procedure.
-
-### Key rules
-
-- **Provider owns the interface.** Consumers adapt.
-- **YAGNI.** Only features tracing to current-phase needs.
-- **Errors are interface.** Every error is part of the public contract.
-- **One-way-door gate.** Irreversible decisions need explicit human approval before finalizing.
-- **Conventional commits.** Reference the component in scope.
-
-### Roles, not roster
-
-The workflow skills above dispatch the specialists; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions carry named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose). The full roster of available specialists lives in the synced `.claude/agents/` files.
+For a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The agents live in `.claude/agents/`.
 <!-- END sei-internal-skills-managed -->
 
 ## Writing
