@@ -59,16 +59,17 @@ sync-skills: ## Install sei-internal-skills's portable skills into ~/.claude/ski
 sync-output-styles: ## Install sei-internal-skills's output styles into ~/.claude/output-styles/ (ships the file; activation stays opt-in)
 	@./scripts/sync-output-styles.sh --target ~/ --force
 
+# Removed targets. Each one names its replacement.
 .PHONY: sync-experimental
-sync-experimental: ## OPT-IN: install experimental/ skills+agents into ~/.claude. Never runs as part of update/sync-all/bootstrap.
-	@./scripts/sync-experimental.sh --target ~/ --force
+sync-experimental:
+	@echo "make $@ is gone. Run: make update" >&2; exit 1
 
 .PHONY: prune-retired
-prune-retired: ## Report which retired/parked resources are still installed in ~/.claude. Read-only — deletes nothing.
+prune-retired: ## Report which retired resources are still installed in ~/.claude. Deletes nothing.
 	@./scripts/prune-retired.sh --target ~/
 
 .PHONY: prune-retired-apply
-prune-retired-apply: ## DELETES the retired + parked resources listed by `make prune-retired` from ~/.claude. The only target here that removes anything.
+prune-retired-apply: ## DELETES the retired resources make prune-retired lists from ~/.claude. The only target that removes anything.
 	@./scripts/prune-retired.sh --target ~/ --apply
 
 .PHONY: sync-doctrine-self
@@ -88,10 +89,6 @@ test-doctrine: ## Run the doctrine-injector regression suite (scripts/tests/inje
 test-output-styles: ## Run the output-style syncer regression suite (scripts/tests/sync-output-styles.test.sh)
 	@./scripts/tests/sync-output-styles.test.sh
 
-.PHONY: test-experimental
-test-experimental: ## Run the experimental-tier isolation suite (nothing in experimental/ ships by default)
-	@./scripts/tests/experimental-isolation.test.sh
-
 .PHONY: test-install
 test-install: ## Run the installer regression suite — targeted mode (scripts/tests/install.test.sh)
 	@./scripts/tests/install.test.sh
@@ -103,14 +100,6 @@ test-prune: ## Run the prune-retired regression suite (never deletes core or use
 .PHONY: test-skill-package-checks
 test-skill-package-checks: ## Sweep the rubric checker over every core skill; diff block failures against the baseline (CI)
 	@./scripts/tests/skill-package-checks.test.sh
-
-.PHONY: verify-ledger
-verify-ledger: ## Fail if an /xreview ledger violates the schema /xreview ships (CI)
-	@./scripts/verify-ledger.sh
-
-.PHONY: test-ledger
-test-ledger: ## Run the ledger-linter regression suite (scripts/tests/verify-ledger.test.sh)
-	@./scripts/tests/verify-ledger.test.sh
 
 .PHONY: update-agent-permissions
 update-agent-permissions: ## Install canonical read-only allow-list into ./.claude/settings.json (DRY_RUN=1 to preview)

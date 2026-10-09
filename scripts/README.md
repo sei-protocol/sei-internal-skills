@@ -8,18 +8,14 @@ Utility scripts for sei-internal-skills repo maintenance. Make targets at the re
 | `sync-agents.sh` | Copy agents to other `.claude/agents/` directories (membership derived from each agent's `category:`) | `make update` / `make sync-agents`, manually |
 | `sync-skills.sh` | Copy skills to other `.claude/skills/` directories (membership derived from each skill's `category:`) | `make update` / `make sync-skills`, manually |
 | `sync-output-styles.sh` | Copy output styles to other `.claude/output-styles/` directories. Ships the file; **never** activates it — activation is opt-in per user | `make update` / `make sync-output-styles`, manually |
-| `sync-experimental.sh` | OPT-IN installer for `experimental/` skills+agents. Never runs as part of update/sync-all/bootstrap | `make sync-experimental`, manually |
 | `update-agent-permissions.sh` | Install canonical read-only allow-list into `./.claude/settings.json` | `make update-agent-permissions` |
 | `verify-agent-permissions.sh` | Fail if `.claude/settings.json` contains mutating patterns or has drifted | `make verify-agent-permissions`, CI |
 | `verify-action-pins.sh` | Fail if a `uses:` ref in any `.yml`/`.yaml` under `.github/` names a tag or branch instead of a 40-hex commit sha. A local `./` action is exempt; a `docker://` image needs an `@sha256:` digest | `make verify-action-pins`, CI |
 | `tests/install.test.sh` | Regression suite for `install.sh`'s targeted mode, including the piped invocation | `make test-install`, CI |
-| `prune-retired.sh` | Remove retired/parked resources from a synced `.claude/`. **The only script here that deletes** — dry-run by default, `--apply` to act. Never touches a core or unrecognized resource | `make prune-retired` / `make prune-retired-apply`, manually |
-| `verify-references.sh` | Fail if a shipped artifact cites a resource an engineer cannot reach. Four error classes (ABSENT, UNSHIPPED, STALE-MARKER, MISSING-SCRIPT) and one warning (PARKED). `--installed` reports against `~/.claude` and never gates. | CI + `make verify-references` |
+| `prune-retired.sh` | Remove retired resources from a synced `.claude/`. **The only script here that deletes** — dry-run by default, `--apply` to act. Never touches a core or unrecognized resource | `make prune-retired` / `make prune-retired-apply`, manually |
+| `verify-references.sh` | Fail if a shipped artifact cites a resource an engineer cannot reach. Four error classes (ABSENT, UNSHIPPED, STALE-MARKER, MISSING-SCRIPT). `--installed` reports against `~/.claude` and never gates. | CI + `make verify-references` |
 | `tests/prune-retired.test.sh` | Regression suite for `prune-retired.sh` — asserts what it must NOT remove | `make test-prune`, CI |
-| `verify-ledger.sh` | Fail if an `/xreview` review ledger violates the schema `/xreview` ships — typed header fields, and a cited rule id on a `skill-package` ledger | `make verify-ledger`, CI |
-| `tests/verify-ledger.test.sh` | Regression suite for `verify-ledger.sh` — pins the two ways its rule-id assertion went vacuous (`Tier: T2`, a bolded `Class:`) | `make test-ledger`, CI |
 | `tests/skill-package-checks.test.sh` | Sweeps `/xreview`'s rubric checker over every core skill; asserts it completes and emits parseable JSON, and diffs block failures against `block-baseline.txt` | `make test-skill-package-checks`, CI |
-| `tests/experimental-isolation.test.sh` | Regression suite for the `experimental/` tier — nothing in it ships by default | `make test-experimental`, CI |
 | `agent-permissions.json` | Canonical read-only permission set (source of truth) | Read by both agent-permissions scripts |
 | `tests/sync-output-styles.test.sh` | Regression suite for `sync-output-styles.sh` — most importantly, that sync never activates a style | `make test-output-styles`, CI |
 
@@ -62,7 +58,7 @@ Copies agent personas from `.claude/agents/` to a target `.claude/agents/` direc
 ./scripts/sync-agents.sh --target ~/ --dry-run
 ```
 
-Categories: agent **domains** in the core (`platform-infra`, `observability`, `security`, `blockchain`, `code-quality`, `writing-quality`, `product-management`, `release-operations`) or **aliases** `portable` (default, all non-Sei agents), `sei`, `all`. Agents under `experimental/agents/` are outside every domain and alias — this script never reads that tree. `--verify` runs only the coverage guard (CI). Non-destructive by default — pass `--force` to overwrite changed files.
+Categories: agent **domains** in the core (`platform-infra`, `observability`, `security`, `blockchain`, `code-quality`, `writing-quality`, `product-management`, `release-operations`) or **aliases** `portable` (default, all non-Sei agents), `sei`, `all`. `--verify` runs only the coverage guard (CI). Non-destructive by default — pass `--force` to overwrite changed files.
 
 ## `sync-skills.sh`
 
@@ -82,7 +78,7 @@ Sibling of `sync-agents.sh` — same shape, same flags. Copies skills from `.cla
 ./scripts/sync-skills.sh --target ~/ --dry-run
 ```
 
-Categories: skill **domains** in the core, or **aliases** `portable` (default), `sei`, `all`. The core domains are `workflow`, `investigation`, `code-quality`, `platform-infra`, `blockchain`, `writing-quality`, `output-quality`, `release-operations`, `engineer-self-service`. `output-quality` (brevity, pr-quality) is sei-internal-skills-local and never syncs outward. Skills under `experimental/skills/` sit outside every domain and alias — this script never reads that tree. A domain that only parked skills use (`hardening`, `performance`, `project-management`, `recruiting`, `workstream-bootstrap`) resolves to nothing until somebody promotes one.
+Categories: skill **domains** in the core, or **aliases** `portable` (default), `sei`, `all`. The core domains are `workflow`, `investigation`, `code-quality`, `platform-infra`, `blockchain`, `writing-quality`, `output-quality`, `release-operations`, `engineer-self-service`. `output-quality` (brevity, pr-quality) is sei-internal-skills-local and never syncs outward. The map also carries domains that no skill declares today (`hardening`, `performance`, `project-management`, `recruiting`, `workstream-bootstrap`); each one resolves to nothing.
 
 `--verify` runs only the coverage guard (CI). To re-categorize a skill, edit its `category:` frontmatter — not this script. Only a new/renamed **domain**, or a change to the alias it belongs to, needs a script edit.
 

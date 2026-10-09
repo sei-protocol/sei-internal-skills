@@ -2,14 +2,14 @@
 name: xreview
 category: workflow
 model: claude-opus-5
-description: "Use when an orchestrator has produced or gathered engineering work — a design, plan, diff, or set of specialist outputs — and wants the relevant specialists to INDEPENDENTLY review it for consistency, gaps, and interface mismatches — 'xreview this', 'cross review', 'have the experts xreview this', 'check this design for consistency across components', 'review these specialist outputs against each other', '/xreview'. The review counterpart to producing work with /coral; /coral offers it at synthesis and /council invokes it as its review phase. Anti-triggers: NOT for producing or iterating work with experts (use /coral); NOT for full-ceremony multi-component design (use /council — it dispatches this as its review phase); NOT for adversarial pre-launch hardening (use /bugbash); NOT for line-level diff correctness; NOT for capturing a finished design (use /design); NOT for incident investigation (use /root-cause)."
+description: "Use when an orchestrator has produced or gathered engineering work — a design, plan, diff, or set of specialist outputs — and wants the relevant specialists to INDEPENDENTLY review it for consistency, gaps, and interface mismatches — 'xreview this', 'cross review', 'have the experts xreview this', 'check this design for consistency across components', 'review these specialist outputs against each other', '/xreview'. The review counterpart to producing the work. Anti-triggers: NOT for producing or iterating work with experts; NOT for adversarial pre-launch hardening; NOT for line-level diff correctness; NOT for capturing a finished design; NOT for incident investigation (use /root-cause)."
 ---
 
 # xreview
 
 Independent multi-specialist review of a produced artifact. The orchestrator has work in hand — a design, a plan, a diff, a set of expert outputs. The relevant specialists must review it *independently*. A synthesized COMPATIBLE / MISMATCH / MISSING findings table then surfaces the seams.
 
-This is the xreview action between the orchestrator (root agent) and the coral/council experts. It is **distinct from the per-specialist dispatches that produced the work**: those built the parts. Xreview checks the integrated whole, especially the boundaries where one specialist's output is another's input.
+This is the xreview action between the orchestrator (root agent) and the specialists. It is **distinct from the per-specialist dispatches that produced the work**: those built the parts. Xreview checks the integrated whole, especially the boundaries where one specialist's output is another's input.
 
 This skill exists because **review collapses into rubber-stamp under pressure**. Under time, sunk cost, a confident senior voice, or "they already weighed in," the natural path has three moves. Trust the prior reads, declare it consistent, and synthesize a green light from agreement nobody independently gave. That path is fast. It is also how interface mismatches reach integration — or production.
 
@@ -35,7 +35,7 @@ xreview operates on **a concrete artifact, reviewed by independent specialists**
    - **Declare COMPATIBLE / stamp a passing `State:` while *any* correctness-grade finding is open.** The gating set: a MISMATCH/MISSING, a correctness-grade idiom *or* prose finding, or a per-lens DISSENT (including a pinned steward). Each one resolves (artifact updated, provider/consumer reconciled), or the user marks it accepted-with-risk — never silently dropped. (This is the gating set, stated identically in Rule 4 and Halt Conditions, and enforced bullet-by-bullet in Step 5.)
    - **Drop a pinned steward, or proceed without one.** A `skill-package` change pins `prose-steward` *unconditionally* — **regardless of which file-types the diff touches**. Change-size never demotes it (per `references/slate-routing.md` §4). It also needs one reviewer holding the **rubric lens**, citing rule ids from `references/skill-package-rubric.md`. A verdict that cites no rule id is not a rubric review: presence of a file was never evidence that anyone read it. If `prose-steward` is absent from `.claude/agents/`, **HALT** — never silently proceed pin-less; the operator may override only with a stated reason. (Also a Halt Condition.)
 
-See `references/reviewer-dispatch.md` for the blinded dispatch contract, `references/findings-protocol.md` for the findings schema, `references/slate-routing.md` for the change-type → slate routing rule (shared with `/coral`), and `references/review-ledger.md` for the durable synthesis record.
+See `references/reviewer-dispatch.md` for the blinded dispatch contract, `references/findings-protocol.md` for the findings schema, `references/slate-routing.md` for the change-type → slate routing rule, and `references/review-ledger.md` for the durable synthesis record.
 
 ## §0 — Classify before dispatch (HALT gate)
 
@@ -99,7 +99,7 @@ have not read. If the read-and-frame yields no resolvable `Class:`, halt (§0) b
 ### Step 2 — Route the slate (per `references/slate-routing.md`)
 
 **Route the slate — never re-derive it by hand.** Apply the shared routing table
-(`references/slate-routing.md` — the one mechanism, also cited by `/coral`):
+(`references/slate-routing.md` — the one mechanism):
 
 1. **Classify** the artifact into one of the six classes (already emitted in Step 1 per §0 — this step reuses that `Class:`, it does not re-classify).
 2. **Read the tier off the table** (T1/T2/T3) — class sets the default; blast-radius bumps it
@@ -168,12 +168,12 @@ Write the durable synthesis record per `references/review-ledger.md`. The commit
 derivable ledger lives in the **DRI's `<engineer>-designs` repo** at `designs/<arc>/xreview/<target-slug>.md`.
 A code-PR/diff target with no artifact arc uses the code repo's **default arc**, e.g. `sei-internal-skills-stack`.
 The in-repo `.xreview/` fallback applies only when no DRI repo is resolvable **and the user confirms** (Design 13).
-Resolve the DRI repo producer-side as `/design` does, halting on a non-interactive run rather than writing
+Resolve the DRI repo producer-side per `references/review-ledger.md`, halting on a non-interactive run rather than writing
 to a guessed path. (The consumer gate then checks both locations — see `references/review-ledger.md`.)
 
 It carries the typed header. Target-scoped
 `Class:`/`Tier:` sit once at top, and the per-round `State:`/`OpenFindings:`/`Convergence:`/`Blinded:`/`Dissenter:`
-follow (one-per-line, exact-token). **PLT-536's review-gate reads the latest round's five
+follow (one-per-line, exact-token). **A review-gate reads the latest round's five
 `State:`/`OpenFindings:`/`Convergence:`/`Blinded:`/`Dissenter:` lines**, not `Class:`/`Tier:`. That follows the
 gate-read contract in `references/review-ledger.md`. The ledger also carries the per-lens RATIFY/DISSENT verdicts, the
 boundary table below, the Idiom/Prose addenda, and the **Rejected findings** table. That table makes Rule 4
@@ -275,12 +275,11 @@ Stop and report to the user if:
 
 **Never declare COMPATIBLE to be helpful.** An honest OPEN verdict with named findings is the valuable output; a premature green light is the failure this skill exists to prevent.
 
-## How this fits with coral and council
+## How this fits with other review
 
-- **`/coral`** produces work with specialists, then *offers* `/xreview` at synthesis when outputs touch a shared boundary. Coral builds; xreview checks.
-- **`/council`** runs xreview as a distinct phase of its scope-tier process by invoking this skill — it does not perform xreview itself.
+- The orchestrator produces the work with specialists, then runs `/xreview` when outputs touch a shared boundary. The specialists build; xreview checks.
 <!-- gap: /code-review — this repository has never held a line-level correctness skill. Un-defer on the first correctness defect that reaches main through an xreview with no lens for it. -->
-- **`/code-review`** is line-level diff correctness; **`/bugbash`** is adversarial hardening of a running system; **`/root-cause`** is incident investigation. xreview is consistency review of a produced artifact across the specialists who own its boundaries.
+- **`/code-review`** is line-level diff correctness; **`/root-cause`** is incident investigation. Adversarial hardening of a running system is out of scope. xreview is consistency review of a produced artifact across the specialists who own its boundaries.
 - **`idiomatic-reviewer`** (the `/idiomatic` skill) is the **idiom-conformance** lens — does the code read native to its language, framework, and the package's documented patterns. It is a distinct axis from boundary consistency. Xreview dispatches it as part of the slate when code is under review. Its findings ride in the Idiom addendum: correctness-grade blocks, style is advisory. It reviews idiom; it does not author the system or check boundaries.
 
 ## Output

@@ -33,8 +33,6 @@ This package consumes portable Claude Code skills and specialist agents authored
 - **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
 - **`/idiomatic`** and **`/systems`** — review code for language/package idiom, then for systems-level quality on top. Idiom ⊂ systems quality; run them in that order.
 
-Further workflow skills — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — are **experimental** and ship only on opt-in (`make sync-experimental`). Use them when your environment has them; never assume it does.
-
 ### xreview discipline
 
 When the relevant specialists review a produced artifact (design, plan, diff, or a set of expert outputs):

@@ -2,16 +2,9 @@
 
 This document defines the canonical shape for skills that codify a team process. Read it before authoring a new procedural skill; use it as a checklist in review.
 
-A **procedural skill** executes a fixed sequence of steps with side effects on external systems (clusters, CI, deployments, on-chain state, etc.). It is different from an orchestration skill like `/council` or `/coral`, which coordinate agents and do not typically have side effects themselves.
+A **procedural skill** executes a fixed sequence of steps with side effects on external systems (clusters, CI, deployments, on-chain state, etc.). It is different from a reference skill like `/kubernetes`, which carries a citable corpus and has no side effects.
 
 Procedural skills live at **project scope** (`<repo>/.claude/skills/<name>/`) unless they are truly repo-agnostic, in which case they live at user scope (`~/.claude/skills/<name>/`). The default is project scope.
-
-**In sei-internal-skills, pick the tier before you pick the shape.** This repo ships a focused
-**core** (`.claude/skills/`) that every teammate installs, and parks everything else in
-**[`experimental/skills/`](../../experimental/README.md)**, which installs only on opt-in. A new
-skill starts in `experimental/` unless you can say why an engineering team outside its author
-would reach for it on ordinary work. Promotion later is one `git mv` — there is no manifest to
-update. Everything below applies identically to both tiers.
 
 ## Canonical Directory Shape
 
@@ -32,7 +25,7 @@ update. Everything below applies identically to both tiers.
     .gitkeep
 ```
 
-Claude Code discovers skills as direct subdirectories of `.claude/skills/`. Nested folders are NOT discovered. Logical grouping across skills happens in `.claude/skills/README.md` (the catalog), not in directory structure. This is also why `experimental/` parks a skill: it is not a nested group under `.claude/skills/` but a sibling tree the sync scripts never read. Exclusion therefore needs no flag and cannot drift.
+Claude Code discovers skills as direct subdirectories of `.claude/skills/`. Nested folders are NOT discovered. Logical grouping across skills happens in `.claude/skills/README.md` (the catalog), not in directory structure.
 
 ## SKILL.md Anatomy
 
@@ -170,10 +163,9 @@ When creating a new procedural skill:
 - [ ] State convention followed — `state/` gitignored, run-ID subdir, audit.log.
 - [ ] Happy-path permissions pre-approved in `settings.json` or documented.
 - [ ] At least one happy-path eval and one halt-path eval.
-- [ ] Tier chosen deliberately — core (`.claude/skills/`) or `experimental/skills/`.
-- [ ] Catalogued in the tier's catalog — `.claude/skills/README.md` for core, `experimental/README.md` for experimental.
-- [ ] `.gitignore` covers `state/` (`.claude/skills/*/state/` or `experimental/skills/*/state/`).
-- [ ] For a core skill only: `category:` maps to a sync alias (`make verify-catalog` fails closed otherwise).
+- [ ] Catalogued in `.claude/skills/README.md` (rule C1).
+- [ ] `.gitignore` covers `state/` (`.claude/skills/*/state/`).
+- [ ] `category:` maps to a sync alias (`make verify-catalog` fails closed otherwise).
 
 ## Anti-Patterns
 

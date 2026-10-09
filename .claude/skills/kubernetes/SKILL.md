@@ -60,4 +60,4 @@ The `kubernetes-specialist` persona's first step loads `sei-controller-profile.m
 
 ## What this skill defers
 
-The three deferred kits above (add by use); a controller-code eval-harness beyond the shipped evals. Also `/coral`+`/council` auto-dispatch wiring (un-defer once standalone use proves out). The Sei-architecture profile is a *snapshot* of sei-k8s-controller's conventions. When working in that repo, its live `CLAUDE.md` is authoritative; this profile is the portable, cited distillation for work elsewhere and for review.
+The three deferred kits above (add by use); a controller-code eval-harness beyond the shipped evals. The Sei-architecture profile is a *snapshot* of sei-k8s-controller's conventions. When working in that repo, its live `CLAUDE.md` is authoritative; this profile is the portable, cited distillation for work elsewhere and for review.

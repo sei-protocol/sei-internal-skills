@@ -2,7 +2,7 @@
 name: idiomatic
 category: code-quality
 model: claude-opus-5
-description: "Use when reviewing or refining code to make it idiomatic to its language, framework, and the package's own established patterns — 'is this idiomatic', 'review this for idioms', '/idiomatic', 'make this read native to the package', 'idiomatic review of <pkg>', 'does this follow our conventions', 'review my Go for idioms'. Pluggable across languages; backs the idiomatic-reviewer agent. Anti-triggers: NOT for correctness/logic bugs; NOT for cross-component interface or boundary consistency (use /xreview); NOT for building or designing controllers/CRDs/systems (dispatch the language specialist, e.g. kubernetes-specialist — this skill reviews for idiom, it does not author the system). Standalone today; /coral + /council dispatch deferred."
+description: "Use when reviewing or refining code to make it idiomatic to its language, framework, and the package's own established patterns — 'is this idiomatic', 'review this for idioms', '/idiomatic', 'make this read native to the package', 'idiomatic review of <pkg>', 'does this follow our conventions', 'review my Go for idioms'. Pluggable across languages; backs the idiomatic-reviewer agent. Anti-triggers: NOT for correctness/logic bugs; NOT for cross-component interface or boundary consistency (use /xreview); NOT for building or designing controllers/CRDs/systems (dispatch the language specialist, e.g. kubernetes-specialist — this skill reviews for idiom, it does not author the system)."
 ---
 
 # Idiomatic
@@ -142,4 +142,4 @@ For findings that need *judgment* the static pack can't carry (e.g. "is this rec
 
 ## What this skill defers
 
-Bespoke doc-staleness linter (un-defer when 3+ packages adopt the standard); additional language packs as new languages appear (one-file add via the template); `/coral` + `/council` dispatch wiring (un-defer when standalone is validated); source-mining the profile when agent files are thin; CI / PR-comment integration; auto-applying fixes.
+Bespoke doc-staleness linter (un-defer when 3+ packages adopt the standard); additional language packs as new languages appear (one-file add via the template); source-mining the profile when agent files are thin; CI / PR-comment integration; auto-applying fixes.

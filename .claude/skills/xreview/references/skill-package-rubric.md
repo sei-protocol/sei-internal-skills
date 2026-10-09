@@ -88,7 +88,7 @@ next lens does not rediscover them and file the nearest ill-fitting id:
 | R2 | warn | static | Reference files >100 lines have a Table of Contents (heading scan in first 50 lines) |
 | R3 | info | static | Cross-references to other skills use the skill name only (no `@skills/...` force-loads). Plain-markdown relative links to sibling skills are fine — see R5. |
 | R4 | warn | semantic | Reference files do not duplicate SKILL.md content — they extend it |
-| R5 | info | semantic | A skill may cross-reference a sibling as `../../<sibling-skill>/references/<file>.md` (relative) or `.claude/skills/<sibling>/references/<file>.md` (repo-root form). Note the double `../`: from inside a `references/` dir, a single `../` resolves to the skill root, not `.claude/skills/`, so it links to a path that does not exist. The rubric permits the link between skills in the same `.claude/skills/` directory. The link must encode a handoff contract or shared methodology (e.g. coral's handoff points at design/issue's coral-integration refs). These are documentation links, not force-loads — they do not violate R1, and surface as info-only so reviewers see the cross-skill coupling. |
+| R5 | info | semantic | A skill may cross-reference a sibling as `../../<sibling-skill>/references/<file>.md` (relative) or `.claude/skills/<sibling>/references/<file>.md` (repo-root form). Note the double `../`: from inside a `references/` dir, a single `../` resolves to the skill root, not `.claude/skills/`, so it links to a path that does not exist. The rubric permits the link between skills in the same `.claude/skills/` directory. The link must encode a handoff contract or shared methodology. These are documentation links, not force-loads — they do not violate R1, and surface as info-only so reviewers see the cross-skill coupling. |
 | R6 | info | semantic | A skill may declare a **cite/exemplar contract** in its references — a corpus directory whose paths are load-bearing cite targets. An example: language's `references/exemplars/<vertical>/` per its `sources.md` cite vocabulary. Such a skill may nest those corpus files one extra level. The contract file must document the path scheme. Scope: corpus/exemplar content only — the skill's own method/reference docs still obey R1. |
 | R7 | block | semantic | A `references/` file does not contradict `SKILL.md`. Where they diverge the divergence **is** the finding; where the reference declares itself authoritative on divergence, it is correctness-grade. |
 
@@ -168,6 +168,6 @@ When the team identifies a new convention:
 Things deliberately *not* checked:
 
 - **Specific prose style.** Tone, voice, sentence length — these are author choices, not conventions.
-- **Subjective "is this useful."** The rubric lens measures conformance, not value. Worthwhile-ness is a `/coral` or `/council` question.
+- **Subjective "is this useful."** The rubric lens measures conformance, not value. Worthwhile-ness is the owner's call.
 - **Domain-specific correctness.** A terraform-review skill that gives bad terraform advice is failing a domain check, not a conventions check. It does not validate the *content*, only the *form*.
 - **Performance.** Skill load latency, script execution time. Not in scope.

@@ -2,7 +2,7 @@
 name: root-cause
 category: investigation
 model: claude-opus-5
-description: "Use when an engineer wants to understand a complex problem in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s) with disciplined, data-driven, multi-expert investigation — 'root-cause this', 'why is X breaking', 'this bug keeps coming back', 'investigate the X regression', 'what's actually causing X', 'why did the chain wedge', 'help me understand why X', '/root-cause'. Pulls the right `.claude/agents/` specialists, forces independent hypotheses before evidence, demands retrieved signals (not paraphrased), and refuses to declare a cause without a falsification attempt. Anti-triggers: NOT for live incident commander work — mitigate first, investigate after stabilization; NOT for fixing a known cause (just write the fix); NOT for greenfield design (use /coral or /council); NOT for pre-launch hardening (use /bugbash); NOT for capturing a finished design (use /design); NOT for problems outside the Sei platform stack — out of scope."
+description: "Use when an engineer wants to understand a complex problem in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s) with disciplined, data-driven, multi-expert investigation — 'root-cause this', 'why is X breaking', 'this bug keeps coming back', 'investigate the X regression', 'what's actually causing X', 'why did the chain wedge', 'help me understand why X', '/root-cause'. Pulls the right `.claude/agents/` specialists, forces independent hypotheses before evidence, demands retrieved signals (not paraphrased), and refuses to declare a cause without a falsification attempt. Anti-triggers: NOT for live incident commander work — mitigate first, investigate after stabilization; NOT for fixing a known cause (just write the fix); NOT for greenfield design; NOT for pre-launch hardening; NOT for capturing a finished design; NOT for problems outside the Sei platform stack — out of scope."
 ---
 
 # Root Cause
@@ -222,7 +222,7 @@ Stop and report to the user if:
 
 - **Live incident command.** Mitigate first, investigate after. The on-call's job is to restore service; this skill's job is to explain what happened, ideally not on the critical path.
 - **Postmortem doc capture.** Out of scope by design (deferred). The skill produces a conversational summary; converting it into a `docs/postmortems/` artifact is a future companion skill.
-- **Single-expert deep-dive.** If the problem is genuinely contained to one specialist's domain and the user knows it, just `/coral` that specialist directly.
+- **Single-expert deep-dive.** If the problem is genuinely contained to one specialist's domain and the user knows it, dispatch that specialist directly with the Agent tool.
 - **Fix-it work.** Once you have identified the contributing factors, fixing them is its own engagement. The skill ends at the ranked conclusion + recommended actions.
 - **Cover domains outside the Sei platform stack.** Out of scope per the trigger description. A problem in another domain gets a redirect to the right tool, not a forced cross-domain investigation.
 

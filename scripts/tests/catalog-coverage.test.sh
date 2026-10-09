@@ -42,10 +42,6 @@ check      "gov-ops is in sei (the bug this fixes)"        bash -c "'$SKILLS_SH'
 check      "gov-ops is in all"                              bash -c "'$SKILLS_SH' --target /tmp/_cov --categories all --dry-run 2>/dev/null | grep -q '^  - gov-ops$'"
 check      "idiomatic is in portable (code-quality→portable)" bash -c "'$SKILLS_SH' --target /tmp/_cov --categories portable --dry-run 2>/dev/null | grep -q '^  - idiomatic$'"
 check      "root-cause is in portable (investigation→portable)" bash -c "'$SKILLS_SH' --target /tmp/_cov --categories portable --dry-run 2>/dev/null | grep -q '^  - root-cause$'"
-# A parked skill is outside every alias. This is the experimental tier's contract
-# stated where the derivation itself is under test — if `all` ever picks up a
-# skill from experimental/, the tier has silently stopped being a tier.
-check_fail "a parked skill (coral) is in no alias, not even all" bash -c "'$SKILLS_SH' --target /tmp/_cov --categories all --dry-run 2>/dev/null | grep -q '^  - coral$'"
 check      "sei-network-specialist is in sei (name override)" bash -c "'$AGENTS_SH' --target /tmp/_cov --categories sei --dry-run 2>/dev/null | grep -q '^  - sei-network-specialist$'"
 check_fail "sei-network-specialist is NOT in portable"        bash -c "'$AGENTS_SH' --target /tmp/_cov --categories portable --dry-run 2>/dev/null | grep -q '^  - sei-network-specialist$'"
 
@@ -88,8 +84,8 @@ fi
 # The README states the skill count in more than one place, and the guard above
 # reads one of them. A stale "13 skills" survived in a second sentence because of
 # exactly that. Assert every count claim in the file, not just the table row.
-# Only lines that name `.claude/` — the experimental row (12) and the sentence
-# about the prior 33-skill generation are both correct and must not trip this.
+# Only lines that name `.claude/` — the sentence about the prior 33-skill
+# generation is correct and must not trip this.
 bad_counts=$(grep -F '.claude/' "$REPO_ROOT/README.md" \
   | grep -oE '[0-9]+ (self-contained Claude Code )?skills' \
   | grep -oE '^[0-9]+' | sort -u | grep -v "^${actual_skills}$" | tr '\n' ' ')

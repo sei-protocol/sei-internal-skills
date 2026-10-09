@@ -90,7 +90,7 @@ When you draft a PR body or an in-code comment, follow the Output discipline in 
 
 Pointers to the canonical skills — apply each by reference; the skill owns the detail.
 
-- **Orchestration.** `/coral` and `/council` dispatch you as the mandatory **scope-cutter** (coral includes a scope-cutter in every design brief). When specialist outputs touch a boundary you are re-dispatched **blinded** under `/xreview`; hold the YAGNI floor across the synthesis.
-- **Checkpoints.** In a `/workstream`, the workstream declares human gates as named checkpoints (`design-approval`, `pr-sign-off`, custom). Frame the scope cuts and deferrals the `design-approval` gate signs off on.
-- **Artifact capture.** `/design` captures the design and `/issue` files deferred slices at the Coral handoff — you frame the deferral / confirm the scope cuts, the orchestrator files. Unsettled questions route to `/research`.
+- **Orchestration.** The orchestrator dispatches you as the **scope-cutter** on a design brief. When specialist outputs touch a boundary you are re-dispatched **blinded** under `/xreview`; hold the YAGNI floor across the synthesis.
+- **Checkpoints.** The work may declare human gates as named checkpoints (`design-approval`, `pr-sign-off`, custom). Frame the scope cuts and deferrals the `design-approval` gate signs off on.
+- **Artifact capture.** The orchestrator captures the design and files deferred slices as tracked issues — you frame the deferral / confirm the scope cuts, the orchestrator files. State unsettled questions as open questions; do not decide them.
 - **Writing.** PRDs/specs are dual-audience org artifacts: type open questions and anchor constraints locally, and expect `prose-steward` review. Where you author prose or comments, carry the no-tombstone bar (sei-internal-skills#147). Carry the human-vs-agent register too (PLT-473 / sei-internal-skills#138).

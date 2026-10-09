@@ -2,14 +2,14 @@
 
 One ledger per xreview **target**, written by the orchestrator at synthesis (Step 4) and
 updated through resolution (Step 5). It is the artifact the dogfood (07 design) had to hand-
-write into frontmatter — now produced by the skill. It is **PLT-536's `/workstream` review-gate
+write into frontmatter — now produced by the skill. It is a **review-gate's
 done-evidence** (see *Gate-read contract*); that consumer relationship drives the schema.
 
 ## Where it lives (target-derivable, no registry)
 
 The ledger is a **lineage artifact**. It lives in the DRI's `<engineer>-designs` repo, under a
 `xreview/` directory in the target's work-arc, named for the target. Design 13 covers that
-process-lineage relocation, and names the same DRI-repo home `/design` and `/research` use.
+process-lineage relocation, and names the DRI-repo home.
 
 ```
 designs/<arc>/xreview/<target-slug>.md
@@ -24,11 +24,10 @@ For `sei-internal-skills` that arc is `sei-internal-skills-stack`, so the ledger
 `.xreview/<target-slug>.md` fallback applies **only when no DRI repo is resolvable** (the user confirms).
 
 **Two resolution faces — they are not the same contract (Design 13 §1):**
-- **Producer (write-time, may be interactive).** Resolve the DRI repo as `/design` does
+- **Producer (write-time, may be interactive).** Resolve the DRI repo
   (`--designs-repo` → sibling `<engineer>-designs` checkout → ask). In a **non-interactive
-  (headless/cron) run, HALT and surface — never write to a guessed path** (the `/design` headless-halt
-  clause).
-- **Consumer (read-time, MUST be deterministic — no prompt, no registry).** The `/workstream`
+  (headless/cron) run, HALT and surface — never write to a guessed path**.
+- **Consumer (read-time, MUST be deterministic — no prompt, no registry).** A
   review-gate computes the ledger location from the target alone. It checks **two deterministic
   candidate paths in order**, both target-derivable, so this is a fixed lookup, not a search.
 
@@ -234,7 +233,7 @@ round*. That is the whole MVP dedup rule.
 prior ledger first** for context: what the last round concluded, and which findings it rejected
 and why. That context keeps it from re-litigating settled findings or re-raising rejected ones
 without new evidence. It records its conclusions in a **new round with its own header block**,
-never by editing the old one or its header. The reader (and 536's gate) reads the **latest
+never by editing the old one or its header. The reader (and the review-gate) reads the **latest
 round's** header block. The top-of-file block is Round 1's; the latest `## Round <N>` block is
 authoritative once it exists.
 
@@ -243,7 +242,7 @@ only under a **single writer per target per re-review** — the MVP's human-driv
 Two concurrent re-reviews of the same target could both compute the same next round number and
 both append `## Round <N>`, making "read the latest round" ambiguous. Concurrent re-review of one
 target is **out of MVP scope**. The MVP defers the locking / round-number-CAS *mechanism* (YAGNI)
-until `/workstream` ever drives cross-reviews programmatically or in parallel. This file states
+until a caller ever drives cross-reviews programmatically or in parallel. This file states
 the single-writer **assumption** so the next implementer does not trip on it as an unstated
 contract.
 
@@ -251,7 +250,7 @@ contract.
 draws two or more reviews and append-only history turns noisy enough to justify a row-merge
 engine.)*
 
-## Gate-read contract (PLT-536 `/workstream` review-gate consumer)
+## Gate-read contract (the review-gate consumer)
 
 The review-gate computes the ledger path from the target path (above) and reads the **latest
 round's header block**. For a one-round ledger that is the top-of-file block (Round 1). Once a
@@ -297,6 +296,6 @@ The gate must **never error-into-pass**. A search that finds no clean `RESOLVED`
 proceeds. (The pre-design "synthesis evaporated into the transcript" status quo — no ledger —
 must not pass the gate.)
 
-**Provider/consumer:** `/xreview` is the **provider** of this schema; `/workstream`'s
-review-gate is the **consumer**. Per the skill's tie-break, this schema is canonical. 536's gate
+**Provider/consumer:** `/xreview` is the **provider** of this schema; a
+review-gate is the **consumer**. Per the skill's tie-break, this schema is canonical. The gate
 adapts to it and reads the ledger, never re-deriving review state from the transcript.
