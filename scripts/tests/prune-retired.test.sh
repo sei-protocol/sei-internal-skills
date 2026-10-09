@@ -22,12 +22,15 @@ check_fail() { local d="$1"; shift; if silent "$@"; then no "$d"; else ok "$d"; 
 scratch="$(mktemp -d)"
 trap 'rm -rf "$scratch"' EXIT
 
-# The names the experimental/ removal retired: 12 skills and 1 agent. Stated
-# here, not read from the script, so an entry dropped from the script's list
-# fails a case.
-CUT_SKILLS="bugbash code-structure coral council design ebpf interview issue
-  linear-ticket project-brief research workstream"
-CUT_AGENTS="sei-interview-expert"
+# The names the catalog cut retired: 21 skills and 14 agents. Stated here, not
+# read from the script, so an entry dropped from the script's list fails a case.
+CUT_SKILLS="evm gov-ops idiomatic platform root-cause systems validate-release
+  validator-platform xreview bugbash code-structure coral council design ebpf
+  interview issue linear-ticket project-brief research workstream"
+CUT_AGENTS="idiomatic-reviewer k8s-capacity-management network-specialist
+  observability-platform-engineer opentelemetry-expert platform-engineer
+  platform-release-manager product-engineer product-manager prose-steward
+  security-specialist solidity-developer systems-engineer sei-interview-expert"
 OLD_SKILLS="data-mesh prfaq tee diagram lingua audit-skill author-skill"
 OLD_AGENTS="data-platform-architect tee-specialist diagram-architect"
 
@@ -46,8 +49,8 @@ seed_env() {
     echo stale > "$t/.claude/agents/$s.md"
   done
   # A retired skill with the user's own run output in state/.
-  mkdir -p "$t/.claude/skills/research/state/run-1"
-  echo "notes" > "$t/.claude/skills/research/state/run-1/notes.md"
+  mkdir -p "$t/.claude/skills/gov-ops/state/run-1"
+  echo "audit" > "$t/.claude/skills/gov-ops/state/run-1/audit.log"
   for s in my-own-skill another-personal; do
     mkdir -p "$t/.claude/skills/$s"; echo MINE > "$t/.claude/skills/$s/SKILL.md"
   done
@@ -64,8 +67,8 @@ check "dry run says nothing was deleted" bash -c "'$PRUNE' --target '$t' | grep 
 out="$("$PRUNE" --target "$t" 2>&1)"
 unknown="$(printf '%s\n' "$out" | sed -n 's/^KEPT — not from this repo, left alone: \([0-9]*\)$/\1/p')"
 if [ "$unknown" = "3" ]; then ok "only the 3 user-authored resources count as unknown"; else no "unknown bucket is '$unknown', expected 3"; fi
-if printf '%s\n' "$out" | grep -q 'skill/research.*has state/ files'; then ok "names skill/research with has state/ files"; else no "research state/ files not flagged"; fi
-if printf '%s\n' "$out" | grep -q 'skill/coral.*has state/ files'; then no "coral flagged with no state/ files"; else ok "a skill without state/ files is not flagged"; fi
+if printf '%s\n' "$out" | grep -q 'skill/gov-ops.*has state/ files'; then ok "names skill/gov-ops with has state/ files"; else no "gov-ops state/ files not flagged"; fi
+if printf '%s\n' "$out" | grep -q 'skill/xreview.*has state/ files'; then no "xreview flagged with no state/ files"; else ok "a skill without state/ files is not flagged"; fi
 
 echo "--check prints a hint only when something is prunable"
 hint="$("$PRUNE" --target "$t" --check 2>&1)"
@@ -129,13 +132,13 @@ if echo "$out" | grep -q "GUARDED"; then ok "and the stale entry is reported as 
 # guard must not shield the installed copy of a retired skill.
 echo "a leftover directory in the repo does not guard a retired skill"
 fake2="$scratch/fakerepo2"
-mkdir -p "$fake2/scripts" "$fake2/.claude/skills/research/state" "$fake2/.claude/agents"
+mkdir -p "$fake2/scripts" "$fake2/.claude/skills/xreview/state" "$fake2/.claude/agents"
 cp "$PRUNE" "$fake2/scripts/"
-echo "run output" > "$fake2/.claude/skills/research/state/run-1.md"
-ft2="$scratch/faketarget2"; mkdir -p "$ft2/.claude/skills/research" "$ft2/.claude/agents"
-echo "installed" > "$ft2/.claude/skills/research/SKILL.md"
+echo "run output" > "$fake2/.claude/skills/xreview/state/run-1.md"
+ft2="$scratch/faketarget2"; mkdir -p "$ft2/.claude/skills/xreview" "$ft2/.claude/agents"
+echo "installed" > "$ft2/.claude/skills/xreview/SKILL.md"
 out="$("$fake2/scripts/prune-retired.sh" --target "$ft2" --apply 2>&1)"
-check_fail "the installed retired copy is removed" test -d "$ft2/.claude/skills/research"
+check_fail "the installed retired copy is removed" test -d "$ft2/.claude/skills/xreview"
 if printf '%s\n' "$out" | grep -q "GUARDED"; then no "a leftover directory was treated as core (GUARDED)"; else ok "and nothing is reported as GUARDED"; fi
 
 # Bugbot #299, high severity, NOT reproducible: the ${arr+"${arr[@]}"} idiom does

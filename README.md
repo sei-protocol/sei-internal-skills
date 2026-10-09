@@ -6,7 +6,7 @@
 
 sei-internal-skills is Sei's library of **portable Claude Code skills and specialist agents** for engineering work. It is the centralized, version-controlled home for those workflows and personas. They help us review code, investigate failures, operate releases, run ephemeral chains, and collaborate with specialist agents.
 
-You author skills and agents once here and sync them out to your user-scope (`~/.claude/`) and sibling repos. The same `/xreview`, `/root-cause`, or `kubernetes-specialist` then works the same way everywhere.
+You author skills and agents once here and sync them out to your user-scope (`~/.claude/`) and sibling repos. The same `/harbor-dev`, `/kubernetes`, or `kubernetes-specialist` then works the same way everywhere.
 
 ## Setup
 
@@ -85,17 +85,15 @@ SEI_SKILLS_TARGET=~/work/platform bash ~/.sei-internal-skills/scripts/install.sh
 
 Most work starts with one of these:
 
-- **`/xreview`** — have the relevant specialists independently review a design, plan, diff, or set of expert outputs, then synthesize a findings table. Blinded, with an assigned dissenter.
-- **`/root-cause`** — disciplined, multi-expert investigation of a complex problem. Signals before hypotheses; falsification before conclusion.
-- **`/idiomatic`** then **`/systems`** — review code for language and package idiom, then for systems-level quality on top.
-- **`/harbor-dev`** — spin up an ephemeral chain, attach an RPC fleet, run a bench, tear it down.
-- **`/giga-dev`** — how the shared giga testnet works, where its logs and metrics live, and how to diagnose it.
+- **`/harbor-dev`**: spin up an ephemeral chain, attach an RPC fleet, run a bench, tear it down.
+- **`/giga-dev`**: how the shared giga testnet works, where its logs and metrics live, and how to diagnose it.
+- **`/kubernetes`**: design or review sei-k8s-controller code.
 
 ## The catalog
 
 | | What it is | Who gets it |
 |---|---|---|
-| **`.claude/`** — the catalog | 12 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
+| **`.claude/`** — the catalog | 3 skills, 3 agents. | Everyone, via `make update` |
 
 ### Retiring something
 
@@ -111,36 +109,24 @@ make prune-retired          # report what is stale. Deletes nothing.
 make prune-retired-apply    # actually remove them
 ```
 
-A retired resource has left the repo entirely, and the script lists it by hand, so a
-reviewer sees every retirement in a diff. Git history holds the last version of each.
-
 It will never remove a resource in the current core, or one it does not recognize.
 It reports a skill you authored yourself and leaves it alone. `make update` runs the
 check and prints a one-line hint when something is stale, but never deletes.
 
-A prior generation of this repo carried 33 skills and 22 agents, including
-product explorations. The 2026-08 slim-down cut them and preserved them with full
-history in a private snapshot rather than deleting them outright.
+To move an existing install to the three-skill catalog:
+
+1. `make -C ~/.sei-internal-skills update`. It pulls and installs the three skills and three agents.
+2. `make -C ~/.sei-internal-skills prune-retired`. It lists what step 4 deletes, and deletes nothing.
+3. Read the RETIRED list. Prune matches by name only. If a listed name is your own skill, or a retired skill you edited, copy it to a new name first. If a listed skill says `has state/ files` (for example a gov-ops audit log), copy that `state/` out first.
+4. `make -C ~/.sei-internal-skills prune-retired-apply`. It deletes the RETIRED list from `~/.claude`.
+5. For each repository you synced skills into: `~/.sei-internal-skills/scripts/prune-retired.sh --target <repo>`, then the same command with `--apply`.
+6. Optional: `git -C ~/.sei-internal-skills clean -ndX -- .claude/skills experimental` lists ignored files that removed skills left in your checkout. They are harmless; delete the ones you do not need.
+7. Restart any open Claude Code session.
 
 ## What's in here
 
-- **Skills** (`.claude/skills/`) — 12 self-contained Claude Code skills, grouped by domain:
-  - **Workflow** — `/xreview`
-  - **Investigation** — `/root-cause`
-  - **Code quality** — `/idiomatic`, `/systems`
-  - **Platform infra** — `/platform`, `/kubernetes`
-  - **Blockchain** — `/evm`
-  - **Release operations** — `/validate-release`, `/gov-ops`, `/validator-platform`
-  - **Engineer self-service** — `/harbor-dev`, `/giga-dev`
-- **Agents** (`.claude/agents/`) — 16 specialist personas dispatched by the skills (or directly via the Agent tool), grouped by domain:
-  - **Platform infra** — `kubernetes-specialist`, `platform-engineer`, `network-specialist`, `k8s-capacity-management`, `sei-network-specialist`
-  - **Observability** — `opentelemetry-expert`, `observability-platform-engineer`, `sre-engineer`
-  - **Security** — `security-specialist`
-  - **Blockchain** — `solidity-developer`
-  - **Code quality** — `idiomatic-reviewer`, `systems-engineer`
-  - **Writing quality** — `prose-steward`
-  - **Product management** — `product-engineer`, `product-manager`
-  - **Release operations** — `platform-release-manager`
+- **Skills** (`.claude/skills/`) — 3 self-contained Claude Code skills: `/harbor-dev`, `/giga-dev`, `/kubernetes`.
+- **Agents** (`.claude/agents/`) — 3 specialist personas: `kubernetes-specialist`, `sei-network-specialist`, `sre-engineer`.
 - **Sync machinery** (`scripts/`, `Makefile`):
   - `sync-skills.sh` / `sync-agents.sh` — copy every skill and agent into user scope (`~/.claude/`) or a sibling repo
   - `sync-output-styles.sh` — copy output styles into `~/.claude/output-styles/`; ships them, never activates them
@@ -187,7 +173,7 @@ assets/                     # Repo logo used by this README
 | If you are... | Start here |
 |---|---|
 | **Using the skills day to day** | `.claude/skills/README.md` (the catalog) |
-| **Authoring a new skill** | `.claude/skills/SKILL-TEMPLATE.md`, then `scripts/skill-package-rubric.md` |
+| **Authoring a new skill** | [`CLAUDE.md` § Changing the catalog](CLAUDE.md#changing-the-catalog) |
 | **Auditing a skill** | `scripts/skill-package-checks.sh --skill-dir <path>`, then `scripts/skill-package-rubric.md` |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
 | **Wanting exactly one thing** | [Just one piece](#just-one-piece) — the same installer, with a target |
@@ -195,7 +181,7 @@ assets/                     # Repo logo used by this README
 
 ## Contributing & conventions
 
-- **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the skill or component in scope (e.g. `feat(xreview): ...`, `docs(readme): ...`).
+- **Conventional commits.** `feat:`, `fix:`, `docs:`, `refactor:` — reference the skill or component in scope (e.g. `feat(harbor-dev): ...`, `docs(readme): ...`).
 - **Output discipline.** Follow the Output discipline in `AGENTS.md` for PR bodies and in-code comments. Conclusion first, an in-body comment at 4 lines or fewer, a header at 20 or fewer.
 - **Pre-PR discipline.** Before `gh pr create`, re-read the diff and the planned body against the Output discipline in `AGENTS.md`.
 - **Edit skills here, not in `~/.claude/`.** The next sync overwrites user-scope copies. Change a skill in sei-internal-skills and PR it.

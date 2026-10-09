@@ -1,62 +1,16 @@
 # sei-internal-skills Agent Roster
 
-This repository hosts specialist agent personas in `.claude/agents/`. They are general-purpose and sync to other repos and user-level via `scripts/sync-agents.sh`. The skills in `.claude/skills/` (notably `/xreview`, `/root-cause`) dispatch them.
+This repository holds three specialist agents in `.claude/agents/`. `make update` installs them flat into `~/.claude/agents/`. To call one, use the Agent tool with the agent name as `subagent_type`.
 
-## Roster
+| Agent | Scope | Backing skill |
+|---|---|---|
+| `kubernetes-specialist` | Kubernetes operator and controller code: Go and controller-runtime, CRDs, reconcile logic, child-resource and Job lifecycle. Most work is in sei-k8s-controller. | `/kubernetes` |
+| `sei-network-specialist` | Sei node networking: seid ports, CometBFT P2P, EVM JSON-RPC and WebSocket, gRPC, the Waterway proxy, state sync, and Istio limits with Sei traffic. | None |
+| `sre-engineer` | SLOs and SLIs, error budgets, alert tuning, the PromQL and LogQL behind alerts, recording rules and dashboards, runbooks, and post-mortems. | None |
 
-Grouped by **domain**, the `category:` in each `.claude/agents/<name>.md` frontmatter. Agents discover **flat** under `~/.claude/agents/`; the domains are metadata, not folders. Every agent syncs.
+Each agent file states its boundaries and hand-offs. Read `.claude/agents/<name>.md` for the detail.
 
-### platform-infra
-| Agent | Scope |
-|-------|-------|
-| `kubernetes-specialist` | Go + controller-runtime, CRDs, event indexing, Job lifecycle |
-| `platform-engineer` | Platform layer — Kustomize/Flux GitOps, EKS Pod Identity, SOPS/KMS secrets, Pod Security, terraform; the sei-k8s-controller deploy manifests. Backed by `/platform`. |
-| `network-specialist` | K8s and cloud networking, service mesh |
-| `k8s-capacity-management` | Capacity as a discipline: workload right-sizing from observed data, Karpenter NodePool design, DaemonSet overhead, PriorityClass tiers, HPA/VPA/KEDA tuning, scheduling primitives. |
-| `sei-network-specialist` | Sei node networking (seid ports, CometBFT P2P, Waterway, Istio quirks). Valuable to any Sei-adjacent work. |
-
-### observability
-| Agent | Scope |
-|-------|-------|
-| `opentelemetry-expert` | Application-side OpenTelemetry SDK instrumentation. Backend operations → `observability-platform-engineer`. |
-| `observability-platform-engineer` | Telemetry backend as a system: Prometheus/Thanos/Loki/Tempo/Alloy/Promtail/Grafana operations, PromQL/LogQL authorship, mixin vendoring, ingester/compactor/store-gateway sizing. |
-| `sre-engineer` | Google SRE-flavored: SLOs/SLIs, dashboards, alerts, runbooks (human + agent-callable), post-mortems. Closes the loop by filing a tracked issue with the owning team when a runbook needs missing tooling. |
-
-### security
-| Agent | Scope |
-|-------|-------|
-| `security-specialist` | Security + adversarial design |
-
-### blockchain
-| Agent | Scope |
-|-------|-------|
-| `solidity-developer` | EVM smart-contract engineering on Sei — Solidity/Foundry, precompiles, gas/parity, address association, upgrade safety, on-chain event indexing. Backed by `/evm`. |
-
-### writing-quality
-| Agent | Scope |
-|-------|-------|
-| `prose-steward` | Prose steward — reviews org artifacts (design docs/HLDs, PRDs, 1-pagers, pull-request bodies). The artifact must read correctly for the human who has to act on it. Profile-first (repo `CLAUDE.md` writing conventions outrank its own doctrine), citation-tier honest (Cited findings carry `Basis:`; Stated-opinion is advisory-only, never blocking), suggest-only. Pinned unconditionally by `/xreview` on any `skill-package` change. NOT code idiom (`idiomatic-reviewer`), NOT scope (`product-manager`). |
-
-### code-quality
-| Agent | Scope |
-|-------|-------|
-| `idiomatic-reviewer` | Idiomatic-conformance review, language-pluggable. Digests the repo's agent files + `doc.go` into a local idiom profile that outranks generic idiom. Overlays a per-language pack, emits two-altitude (design + surgical) cited findings. Reviews for idiom; does **not** author the system (that is the language specialist, e.g. `kubernetes-specialist`). Backed by the `/idiomatic` skill. |
-| `systems-engineer` | Systems software engineer — builds **and** reviews high-performance, reliable, observable, maintainable application code/architectures. Owns "how software behaves on the machine and over time". That covers perf (CPU/mem/I/O/concurrency/latency) and failure-modes-by-design (timeouts, back-pressure, idempotency, graceful degradation). It also covers observability-by-design, Linux/OS behavior, and maintainability. Hooks into the `/idiomatic` standards (idiom ⊂ systems quality) and leans on `idiomatic-reviewer` for the pure idiom pass. Builds/reviews code; does **not** run the platform (→ `sre-engineer` / `platform-engineer` / observability agents). |
-
-### product-management
-| Agent | Scope |
-|-------|-------|
-| `product-engineer` | Product engineering |
-| `product-manager` | Product management, scope discipline |
-
-### release-operations
-| Agent | Scope |
-|-------|-------|
-| `platform-release-manager` | Release management and cut discipline |
-
-The agent files themselves negotiate cross-agent boundaries (e.g. k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
-
-The operating doctrine — engineering principles, output discipline, and how to use `/harbor-dev`, `/giga-dev` and `/kubernetes` — is the `sei-internal-skills-managed` block below. `scripts/sei-internal-skills-doctrine.md` holds it once and the sync carries it to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
+The operating doctrine is the `sei-internal-skills-managed` block below. It holds the engineering principles, the output discipline and the three skills. `scripts/sei-internal-skills-doctrine.md` holds the doctrine once, and the sync carries it to every consuming package. After you edit the source, run `make sync-doctrine-self` to re-inject the copy in this file.
 
 ## Install
 

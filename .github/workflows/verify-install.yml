@@ -13,9 +13,9 @@ on:
       - 'scripts/tests/install.test.sh'
       - 'Makefile'
       # The suite resolves kubernetes and sre-engineer by name and asserts a
-      # retired name (project-brief, sei-interview-expert) fails, against the
-      # real tree. Renaming or retiring one of those breaks the suite, so the
-      # gate must run when any of them moves.
+      # retired name (xreview, prose-steward) fails, against the real tree.
+      # Renaming or retiring one of those breaks the suite, so the gate must run
+      # when any of them moves.
       - '.claude/output-styles/**'
       - '.claude/skills/**'
       - '.claude/agents/**'
