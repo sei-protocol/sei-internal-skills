@@ -10,7 +10,7 @@ kubectl explain seinode.status                 # a single node's status fields
 kubectl explain seinode.status.endpoint        # the per-node published endpoint (object of URL leaves)
 ```
 
-If a recipe below disagrees with `kubectl explain` on a live cluster, **`kubectl explain` wins** and this doc is stale — file an issue.
+If a recipe below disagrees with `kubectl explain` on a live cluster, **`kubectl explain` wins** and this doc is stale. Report it in `#harbor-onboarding`, as [When a recipe does not match observed output](#when-a-recipe-does-not-match-observed-output) says.
 
 ## Resource-level conventions
 
@@ -253,7 +253,7 @@ The SeiNetwork/SeiNode status surface is a public contract (per the type comment
 1. `kubectl explain seinetwork.status.<field-path>` / `kubectl explain seinode.status.<field-path>` to confirm the field still exists with the assumed name.
 2. `kubectl get seinetwork|seinode <name> -n eng-<alias> -o yaml` and grep for the field — sometimes the optionals collapse and the path needs a `?(@...)` filter.
 3. Check `sei-protocol/sei-k8s-controller` `api/v1alpha1/seinetwork_types.go` / `seinode_types.go` for renames since this doc's last-verified date.
-4. File an issue against this skill with the live YAML excerpt + the recipe that broke.
+4. Report it in `#harbor-onboarding` with the field path and the recipe that broke. Do not paste live cluster YAML into a public issue.
 
 ## Out of scope
 

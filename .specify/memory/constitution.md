@@ -29,12 +29,11 @@ record the constraint as uncheckable.
 ### IV. The surface that reaches an engineer wins
 
 A convention reaches an engineer through an always-loaded file, through a role name, or
-through a gate. It does not reach them through a trigger phrase they must remember.
-**A skill exists only where a procedure has side effects outside this repository.**
-Knowledge belongs to the agent that applies it or to the contract.
-
-An author proposing a new skill MUST first state why the knowledge cannot live in an
-agent or in this file.
+through a gate. A skill reaches an engineer only when the engineer invokes it or the
+request matches its description. **A skill exists only where an engineer reaches for it
+on ordinary Sei platform work.** The author of a new skill or agent MUST name the team
+that uses it. The author MUST also state why an existing skill, an existing agent or this
+file cannot hold it. No gate checks this; a reviewer checks it on the pull request.
 
 ### V. State the gap
 
@@ -42,16 +41,7 @@ A named standard fails three ways: the model substitutes openly, it substitutes 
 or it invents. Only the first announces itself. Every anchor therefore carries what it
 does **not** cover, and a partial verdict keeps its stated text alongside the anchor.
 
-### VI. Two tiers, one move
-
-`.claude/` is the shipped core. `experimental/` is everything else. The exclusion is
-structural: the sync scripts read `.claude/` only. Promoting and parking are the same
-`git mv`. No third list exists.
-
-A resource belongs in the core on two conditions. An engineering team outside its author
-reaches for it on ordinary work. Changing it is a considered act.
-
-### VII. Name the widening
+### VI. Name the widening
 
 A change that widens what an agent can reach names three things: the widening, the gate
 that bounds it, and the blast radius if that gate fails. `.claude/skills/` is not only a
@@ -128,10 +118,12 @@ line it is about. Bare approval is not a finding.
 Precedence, highest first: a direct instruction in the conversation; this file; the
 repository's `AGENTS.md` doctrine block.
 
-**This repository is internal.** An artifact here MAY carry Sei-specific operational
-detail. An artifact for the public `agentic-writing` repository MUST NOT carry it.
+**This repository is public.** Anyone can read every artifact. An artifact here MUST NOT
+carry a secret, a credential or a token. No gate in this repository checks this; a
+reviewer checks it. An artifact for the public `agentic-writing` repository MUST NOT
+carry Sei-specific operational detail.
 
 An amendment states what changed and why, and bumps the version below. Deleting a
 principle requires the same ceremony as adding one.
 
-**Version**: 0.2.0 | **Ratified**: 2026-08-27 | **Last Amended**: 2026-08-27 (added Principle VII)
+**Version**: 0.3.0 | **Ratified**: 2026-08-27 | **Last Amended**: 2026-10-09 (The catalog cut rewrote IV and deleted VI. VII is now VI. Governance states that the repository is public.)

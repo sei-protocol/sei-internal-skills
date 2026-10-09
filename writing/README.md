@@ -1,165 +1,130 @@
 # The writing contract
 
-Vale rules that hold prose in this repository to one bar. The rules name public
-standards rather than restating them, so a reader can follow a finding to a clause
-somebody else published.
+This directory holds the contract, the Vale rules and the gates that hold prose in
+this repository to one bar. Before you push a prose change, run `vale sync` once.
+Then run `./writing/scripts/lint.sh <file>` on each file you changed.
 
-This directory is arriving as a stacked series from its own repository. What is
-here today:
+The rules name public standards and do not restate them. A finding therefore leads
+to a clause that somebody else published. `CONTRACT.md` is the file to read first.
+It names the anchors, states the rules that have no public prior, and says which
+gate checks each rule.
+
+## Layout
 
 | Path | Holds |
 |---|---|
+| `CONTRACT.md` | the contract: the anchors, and the rules with no public prior |
+| `CONTEXT.md` | the short form for an agent, generated from the registry |
+| `NOTICE.md` | the licensing boundary for every standard this repository names |
 | `styles/AgenticWriting/` | the rules, one file per checkable rule |
-| `styles/config/vocabularies/AgenticWriting/` | public technical names, and their casing. These travel to every consuming repository |
-| `styles/config/vocabularies/Local/` | the names of this repository alone. The install scripts remove this directory from the tree they hand a consumer |
-| `scripts/` | the generator for the section rules, and the gates |
-| `anchors/` | the registry of public standards, and one page per anchor so far |
-| `coverage/` | which topics of each standard the rules reach, and which they miss |
-| `CONTRACT.md` | the contract itself: the anchors, and the rules with no public prior |
-| `CONTEXT.md` | the short form an agent loads, generated from the registry |
-| `templates/` | the spec template, and the upstream baseline it forked from |
-| `evals/` | fixtures, per-rule golden files, and the recognition method |
-| `specs/` | what this toolkit is for, and the one verifier it still lacks |
+| `styles/config/vocabularies/AgenticWriting/` | public technical names and their casing. These travel to every consuming repository |
+| `styles/config/vocabularies/Local/` | the names of this repository alone. The install scripts remove this directory from the tree a consumer gets |
+| `anchors/` | the registry of public standards, the two debt lists, and the ASD-STE100 page |
+| `coverage/` | the topics of each standard that the rules reach, and the topics they miss |
+| `scripts/` | the lint script, the rule generator, the gates and the consumer installer |
+| `templates/` | the spec template, its upstream baseline, and the files a consumer installs |
+| `evals/` | fixtures, golden files per rule and per gate, the consumer test, and the recognition method |
+| `docs/` | the architecture, the writing modes, the ADRs, the design documents, and a reference global configuration |
+| `specs/` | the specifications of this toolkit |
 
-The prose lint skips the trees that hold non-conforming prose on purpose. A
-fixture is the clearest case: being non-conforming is what makes it a test.
-`writing/scripts/lint.sh` names each tree and the reason. The contract governs
-prose elsewhere under `evals/` like any other.
+## Run the checks
 
-What arrives next, in order:
-
-1. the gates that hold the registry and the contract to their own claims
-2. the four test harnesses
-3. the consumer install path
-4. the specifications that describe the whole thing
-
-## Running it
-
-Vale 3.17.1 or later. CI pins that version in `.github/workflows/writing.yml`
-and checks the archive against a recorded sha256. The floor is not a preference:
-on 3.14.0 a `sequence` rule whose tokens are all `tag:` entries matches nothing,
-which disables `STE-NounCluster` in silence.
-
-A local run reports on every line. CI reports only on lines the pull request
-touched, so a local run can show findings CI never will.
+Use Vale 3.17.1 or later. CI pins that version in `.github/workflows/writing.yml`
+and checks the archive against a recorded sha256. On 3.14.0, a `sequence` rule
+whose tokens are all `tag:` entries matches nothing. `STE-NounCluster` then stops
+in silence.
 
 ```sh
-vale sync                  # fetch write-good, which is not committed
-./writing/scripts/lint.sh                    # the prose gate, as CI runs it
-./writing/scripts/check-generated-rules.sh   # the rules match their manifest
-./writing/scripts/check-coverage.sh          # the manifest tells the truth
-./writing/scripts/check-template-deltas.sh   # the fork keeps its deltas
-./writing/scripts/check-contract-anchors.sh  # every anchor named resolves
-./writing/scripts/check-artifact-length.sh   # nothing restates a standard
-./writing/evals/run.sh                       # every rule still fires
-./writing/evals/rules/run.sh                 # goldens pin line, column, message
-./writing/scripts/check-admission.sh         # an anchor carries its artifacts
-./writing/evals/gates/run.sh                 # the gates that have a case are tested
+vale sync                                      # fetch write-good, which is not committed
+./writing/scripts/lint.sh                      # the prose gate, as CI runs it
+./writing/scripts/lint.sh README.md            # the prose gate on the files you name
+./writing/scripts/check-generated-rules.sh     # the generated rules match their manifest
+./writing/scripts/check-coverage.sh            # the manifest tells the truth
+./writing/scripts/check-template-deltas.sh     # the fork keeps its deltas
+./writing/scripts/check-contract-anchors.sh    # every anchor named resolves
+./writing/scripts/check-artifact-length.sh     # nothing restates a standard
+./writing/scripts/check-admission.sh           # an anchor carries its artifacts
 ./writing/scripts/check-anchor-authorities.sh  # no anchor cites a skill
-./writing/scripts/check-consumer-scoping.sh  # all three configs scope the same rules
-./writing/scripts/check-verifiers.sh         # every criterion names a verifier
-./writing/evals/consumer/run.sh              # another repository can install it
+./writing/scripts/check-consumer-scoping.sh    # all three configs scope the same rules
+./writing/scripts/check-verifiers.sh           # every criterion names a verifier
+./writing/scripts/check-bundle-prompt.sh       # the sei-spec prompt matches the registry
+./writing/evals/run.sh                         # every rule still fires
+./writing/evals/rules/run.sh                   # goldens pin line, column, message
+./writing/evals/gates/run.sh                   # the gates that have a case are tested
+./writing/evals/consumer/run.sh                # another repository can install it
 ```
 
-That second command is what CI runs. `--no-global` matters: Vale merges a
-user-level configuration with this one, so a laptop with the toolkit installed
-sees different rules than a runner does.
+`lint.sh` adds `--no-global`. A user-level Vale configuration on a laptop
+therefore cannot change the rules that run. `lint.sh` also holds the list of
+linted trees and the list of excluded trees, with the reason for each exclusion.
+The workflow reads both lists from the script, so CI and a local run cover the
+same paths.
 
-`writing/scripts/lint.sh` holds the exclusions and a reason for each, and both CI
-and a person run that script. This paragraph used to restate the list and had
-drifted: it said two paths beside a command naming five. Vale takes a single glob
-expression and keeps the last. They ride in one brace expression, which is the
-other reason the list lives in one place.
+## What CI reports
+
+The `writing` workflow runs each check above on each pull request and on each
+push to `main`. On a pull request, reviewdog reports a finding only on a line that
+the pull request touches. An existing finding never blocks a pull request. On a
+push to `main`, the job reports every finding in the tree and fails on any error.
+
+A local run reports on every line, so it can show findings that a pull request
+never shows. Run `./writing/scripts/lint.sh` for the current count.
 
 ## Generated rules
 
-Eighteen of the thirty-two rules come from `scripts/modes.yaml`. Each has to know
-where a fenced code block starts and ends. Raw text does not distinguish a real
-heading from one quoted inside a fence. A document that merely showed the
-required format used to satisfy the check.
+Eighteen of the thirty-two rules come from `scripts/modes.yaml`. Each generated
+rule tracks fenced code blocks, so a heading quoted inside a fence does not
+satisfy it. A script rule in Vale cannot import a shared helper, so one
+generator writes all eighteen. Edit the manifest, then run
+`scripts/generate-mode-rules.py`. `check-generated-rules.sh` fails when the rules
+and the manifest disagree.
 
-Fence tracking needs a script rule. The scripting language cannot import a shared
-helper, and eighteen hand-copied loops drift. Edit the manifest and run the
-generator. `check-generated-rules.sh` fails if the two disagree.
-
-## Anchors, and what they do not cover
+## Anchors and their gaps
 
 `anchors/registry.yaml` is the single source of truth. Each entry names a public
-standard, its steward, its licence, the rules that verify it, and the parts of it
-no rule can reach. That last list is the point: a partial verifier that claims to
-be complete is worse than no verifier.
+standard, its steward, its licence, the rules that verify it, and the parts that
+no rule can reach. A partial verifier that claims to be complete is worse than no
+verifier.
 
-`coverage/` says the same thing a second way, per topic. `check-coverage.sh`
-fails when the two disagree. They assert it twice on purpose. An orphan check
-catches a rule with no recorded purpose. Only the cross-check catches a rule
-credited to the wrong standard, which is how one anchor came to claim rules that
-check something else.
+`coverage/` records the same facts per topic. `check-coverage.sh` fails when the
+registry and the coverage files disagree. That cross-check catches a rule that
+names the wrong standard. An orphan check catches only a rule with no recorded
+purpose.
 
-## The contract
+Two files record the debt. `anchors/unregistered.txt` names each anchor that the
+contract cites with no registry entry. `anchors/grandfathered.txt` names each
+anchor that is exempt from admission. `check-contract-anchors.sh` and
+`check-admission.sh` print each list on every run. Each gate compares its file
+against `main`, so each list can only shrink.
 
-`CONTRACT.md` is the file to read first. It names the anchors, states the rules
-that have no public prior, and says which gate checks what. Everything else in
-this directory serves it.
+## Rule tests
 
-## The debt has a home
-
-`anchors/unregistered.txt` names the anchors the contract cites that have no
-registry entry yet. The gate prints the count and the names on every run. This
-file repeats neither, because a number here goes stale the moment an anchor earns
-an entry. The gate fails on a name in neither place, and on a line that has since
-earned an entry. It compares the file against `main`, so the list can only shrink.
-
-A stated gap beats a silent one. Nothing checked this direction before, because
-the coverage gate reads the registry and never the contract.
-
-## Testing a rule
-
-A rule that stops firing is a silent failure. Silent failure is the reason a
-prompt alone earns no trust. Two harnesses catch it.
-
-`evals/run.sh` lints each fixture and asserts the rules that must fire did.
-`evals/rules/run.sh` isolates one rule per directory and pins the exact line,
-column and message, so a rule that starts reporting the wrong span fails.
-
-A fixture directory missing a piece fails rather than skipping. The harness once
-passed over any directory with no input, so a rule still reported `ok` after
-somebody deleted its fixture.
+A rule that stops firing is a silent failure. Two harnesses catch it.
+`evals/run.sh` lints each fixture and asserts which rules fire and which stay
+silent. `evals/rules/run.sh` isolates one rule per directory and pins the exact
+line, column and message. A fixture directory with a missing piece fails, and
+the harness never skips it.
 
 ## An anchor is not a skill
 
-An anchor earns its place by being a standard somebody else published and
-maintains. A reader can then follow the name to a clause this repository does not
-control. A skill here is not that. Citing one as an anchor's authority makes the
-catalogue circular: the rule is right because our skill says so.
+An anchor cites a standard that somebody else publishes and maintains. A reader
+can then follow the name to a clause outside this repository. A skill in this
+repository does not meet that bar. `check-anchor-authorities.sh` holds this rule
+across the registry, the anchor pages and the coverage manifest. Other prose can
+cite a skill freely.
 
-`check-anchor-authorities.sh` holds that line across the registry, the anchor
-pages and the coverage manifest. Prose elsewhere may reference a skill freely.
+## Another repository
 
-## Another repository can use this
-
-`templates/` and `scripts/install.sh` wire a different repository into the same
-checks. Its CI calls `writing-contract.yml` here rather than copying it, so a
-rule fix reaches it when it raises the pin.
-
-## What the gate covers
-
-Every tree this repository keeps prose in, not just this directory.
-`writing/scripts/lint.sh` names each one. The workflow reads that list from the
-script rather than repeating it, so the documented command and the gate cover
-the same paths.
-
-reviewdog reports on the lines a pull request touches, so the backlog already
-here never appears and never blocks. Only prose somebody edits meets the bar.
-
-Most of that backlog is one rule. ASD-STE100 does not allow contractions, and
-1,525 of the 1,613 errors here are that one rule. The house style changes by
-attrition, on the lines people are already editing.
+`writing/templates/` and `writing/scripts/install.sh` connect another repository
+to the same checks. The CI of that repository calls the reusable `writing-contract.yml`
+workflow here and does not copy it. A rule fix reaches that repository when it
+moves its pin.
 
 ## Reading a finding
 
-Every rule file opens with the clause it enforces and the standard that clause
-comes from. A rule that cannot express a constraint says so rather than
-approximating it.
+Every rule file opens with the clause it enforces and the standard that the clause
+comes from. A rule that cannot express a constraint says so and does not
+approximate it.
 
 ## Disclaimer
 

@@ -82,7 +82,8 @@ FORCE=false
 VERIFY=false
 INJECT_DOCTRINE=false
 
-usage() { grep '^#' "$0" | sed 's/^# \{0,1\}//' | grep -v '^!'; }
+# Print the header comment block, and nothing after it.
+usage() { awk 'NR == 1 { next } !/^#/ { exit } { sub(/^# ?/, ""); print }' "$0"; }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in

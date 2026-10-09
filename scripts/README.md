@@ -1,93 +1,126 @@
 # scripts/
 
-Utility scripts for sei-internal-skills repo maintenance. Make targets at the repo root wrap most of them (`make help`); run a script directly when you need finer-grained control.
+This directory holds the install tooling, the contributor gates, and the inputs of the seidroid runner image. Most scripts have a make target at the repository root, and `make help` lists them. Run a script directly when you need a flag that its target does not pass.
 
-| Script | Purpose | Runs from |
-|--------|---------|-----------|
-| `install.sh` | Install the whole toolkit (no arguments), or take one piece — an output style, a skill, an agent — without cloning | over the wire, or `bash scripts/install.sh` |
-| `sync-agents.sh` | Copy every agent into a `.claude/agents/` directory | `make update`, manually |
-| `sync-skills.sh` | Copy every skill into a `.claude/skills/` directory | `make update`, manually |
-| `sync-output-styles.sh` | Copy output styles to other `.claude/output-styles/` directories. Ships the file; **never** activates it — activation is opt-in per user | `make update` / `make sync-output-styles`, manually |
-| `update-agent-permissions.sh` | Install canonical read-only allow-list into `./.claude/settings.json` | `make update-agent-permissions` |
-| `verify-agent-permissions.sh` | Fail if `.claude/settings.json` contains mutating patterns or has drifted | `make verify-agent-permissions`, CI |
-| `verify-action-pins.sh` | Fail if a `uses:` ref in any `.yml`/`.yaml` under `.github/` names a tag or branch instead of a 40-hex commit sha. A local `./` action is exempt; a `docker://` image needs an `@sha256:` digest | `make verify-action-pins`, CI |
-| `tests/install.test.sh` | Regression suite for `install.sh`'s targeted mode, including the piped invocation | `make test-install`, CI |
-| `prune-retired.sh` | Remove retired resources from a synced `.claude/`. **The only script here that deletes** — dry-run by default, `--apply` to act. Never touches a core or unrecognized resource | `make prune-retired` / `make prune-retired-apply`, manually |
-| `verify-references.sh` | Fail if a shipped artifact cites a resource an engineer cannot reach. Three error classes (ABSENT, STALE-MARKER, MISSING-SCRIPT) and no warning class. `--installed` reports against `~/.claude` and never gates. | CI + `make verify-references` |
-| `tests/prune-retired.test.sh` | Regression suite for `prune-retired.sh` — asserts what it must NOT remove | `make test-prune`, CI |
-| `skill-package-checks.sh` + `skill-package-rubric.md` | The skill-package checker and the rules it cites | `make test-skill-package-checks`, CI |
-| `tests/skill-package-checks.test.sh` | Sweeps `scripts/skill-package-checks.sh` over every skill; asserts it completes and emits parseable JSON, and diffs block failures against `tests/block-baseline.txt` | `make test-skill-package-checks`, CI |
-| `agent-permissions.json` | Canonical read-only permission set (source of truth) | Read by both agent-permissions scripts |
-| `tests/sync-output-styles.test.sh` | Regression suite for `sync-output-styles.sh` — most importantly, that sync never activates a style | `make test-output-styles`, CI |
+## Engineer tooling
 
----
+| Script | What it does | Run it with |
+|---|---|---|
+| `install.sh` | Installs the whole catalog when you give no arguments. With a target, it installs one output style, skill or agent and clones nothing. See [Install forms](#install-forms). | a one-liner, or `bash scripts/install.sh` |
+| `sync-skills.sh` | Copies every skill into a `.claude/skills/` directory. | `make update`, or by hand |
+| `sync-agents.sh` | Copies every agent into a `.claude/agents/` directory. | `make update`, or by hand |
+| `sync-output-styles.sh` | Copies the output styles into a `.claude/output-styles/` directory. It never activates a style. | `make update`, `make sync-output-styles` |
+| `prune-retired.sh` | Removes retired skills and agents from a synced `.claude/`. It is the only script here that deletes. Without `--apply` it only reports. It never removes a catalog resource or a resource it does not recognize. | `make prune-retired`, `make prune-retired-apply` |
 
-## Get current in one command
+## Contributor gates
 
-**Never cloned sei-internal-skills?** One line, straight over the wire — uses your `gh` auth (sei-internal-skills is an internal repo, so a bare `curl` will not authenticate):
+| File | What it checks or holds | Run it with |
+|---|---|---|
+| `verify-references.sh` | Fails if a shipped artifact cites a skill that `.claude/skills/` does not hold. It has three error classes: ABSENT, STALE-MARKER and MISSING-SCRIPT. `--installed` reports against `~/.claude` and always exits 0. | `make verify-references`, CI |
+| `skill-package-checks.sh` | Checks one skill (`--skill-dir <path>`) against the `[static]` rules in `skill-package-rubric.md`. | `make test-skill-package-checks`, CI |
+| `skill-package-rubric.md` | The rules a skill holds. A reviewer cites them by rule ID. | read it |
+| `verify-agent-permissions.sh` | Fails if `.claude/settings.json` holds a mutating pattern, or if its allow list differs from `agent-permissions.json`. | `make verify-agent-permissions`, CI |
+| `update-agent-permissions.sh` | Writes the allow list from `agent-permissions.json` into `.claude/settings.json`. | `make update-agent-permissions` |
+| `agent-permissions.json` | The canonical read-only permission set. Both permission scripts read it. | edit it |
+| `verify-action-pins.sh` | Fails if a `uses:` ref under `.github/` names a tag or branch instead of a 40-hex commit sha. A local `./` action is exempt. A `docker://` image needs an `@sha256:` digest. | `make verify-action-pins`, CI |
+| `sei-internal-skills-doctrine.md` | The operating doctrine. The sync writes it into a consuming repository's `AGENTS.md` as the managed block. | edit it, then `make sync-doctrine-self` |
+| `lib/inject-doctrine.sh` | Writes or checks the managed doctrine block between its BEGIN and END markers. | `make sync-doctrine-self`, `make sync-doctrine-self-check` |
+| `tests/catalog-coverage.test.sh` | The catalog guard fails closed, every skill and agent syncs, and the README counts match the tree. | `make test-catalog`, CI |
+| `tests/verify-references.test.sh` | Regression suite for `verify-references.sh`. | `make test-references`, CI |
+| `tests/skill-package-checks.test.sh` | Sweeps the checker over every skill. It diffs `block` failures against `tests/block-baseline.txt`. | `make test-skill-package-checks`, CI |
+| `tests/install.test.sh` | Regression suite for `install.sh`. It runs offline. | `make test-install`, CI |
+| `tests/prune-retired.test.sh` | Asserts what `prune-retired.sh` must not remove. | `make test-prune`, CI |
+| `tests/sync-output-styles.test.sh` | Asserts that a sync never activates a style. | `make test-output-styles`, CI |
+| `tests/inject-doctrine.test.sh` | Regression suite for `lib/inject-doctrine.sh`. | `make test-doctrine`, CI |
 
-```bash
-gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
+`make check` runs `make verify-catalog` and every check and suite in this table. It does not run `update-agent-permissions.sh` or `make sync-doctrine-self`, because they write files.
+
+## seidroid runner inputs: do not move, rename or change
+
+The runner image for seidroid bakes three of these files. The runner workflows mount the fourth, `check-runner-credential-bridge.sh`, by path. A move or a rename breaks the image build or its gate.
+
+| File | What it does in the runner |
+|---|---|
+| `managed-settings.json` | The runner's admin permission policy. The image installs it read-only at `/etc/claude-code/managed-settings.json`. |
+| `sei-runner-credential-check` | The readiness check for the GitHub credential bridge. A `profile.d` hook runs it at the start of each login shell. |
+| `check-runner-credential-bridge.sh` | The CI proof of the credential bridge. CI runs it inside the image with a fake token. |
+| `sei-writing-lint` | Lints prose against the writing contract inside a sandbox. The image installs it as `/usr/local/bin/sei-writing-lint`. |
+
+`managed-settings.json` is wide on purpose. It allows `Bash`, `Read`, `Grep`, `Glob`, `Agent` and `Task`, and `WebFetch` on three domains. A headless session has no person to answer a permission prompt. The runner gate checks three things only:
+
+- The file exists.
+- The agent uid cannot write it.
+- It parses as JSON, and its allow list is not empty.
+
+No gate reviews what the list allows.
+
+## Install forms
+
+Each form installs the same catalog. Pick one.
+
+```sh
+# curl: no auth
+curl -fsSL https://raw.githubusercontent.com/sei-protocol/sei-internal-skills/main/scripts/install.sh | bash
+
+# gh
+gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh \
+  -H 'Accept: application/vnd.github.raw' | bash
+
+# clone, read, then install
+git clone https://github.com/sei-protocol/sei-internal-skills ~/.sei-internal-skills
+make -C ~/.sei-internal-skills update
 ```
 
-It clones sei-internal-skills to `~/.sei-internal-skills` (override with `SEI_INTERNAL_SKILLS_HOME`), then syncs every skill and agent into `~/.claude` and verifies the catalog. It is idempotent: re-run it any time.
+A one-liner clones the repository into `~/.sei-internal-skills` and runs `make sync-all`. To use a different path, set the variable on `bash`, not on `curl`: `curl -fsSL <url> | SEI_INTERNAL_SKILLS_HOME=<path> bash`. You can run it again at any time. To install one piece, append `-s -- <target> [name]` to a one-liner. `bash scripts/install.sh -h` lists the targets.
 
-> **Trust note.** This executes whatever is on `sei-protocol/sei-internal-skills@main` against your `~/.claude` — the same trust as cloning sei-internal-skills and running `make`. `gh` gates *who* can fetch (org members only); GitHub is the integrity anchor. It intentionally tracks `main` (no pinned ref) so you always get current. Prefer to read before you run? `gh repo clone sei-protocol/sei-internal-skills ~/.sei-internal-skills && make -C ~/.sei-internal-skills update`.
+**Trust.** A one-liner runs `install.sh` from `main` against your `~/.claude`, the same trust as a clone followed by `make`. GitHub is the integrity anchor: the script comes over HTTPS from this public repository, which anyone can read. The one-liner tracks `main` and pins no ref, so you always get the current catalog. To read the script before it runs, use the clone form.
 
-**Already have the repo?** From your checkout:
+## sync-skills.sh and sync-agents.sh
 
-```bash
-make update     # fast-forward this checkout + sync ALL skills/agents/output-styles into ~/.claude + verify the catalog
-```
+Both scripts take the same flags. `sync-skills.sh` copies every skill, which is a directory under `.claude/skills/` that holds a `SKILL.md`. `sync-agents.sh` copies every `.claude/agents/*.md`.
 
-`make verify-catalog` (CI) fails if a skill's `name:` does not match its directory, or an agent's `name:` does not match its file.
+```sh
+# Copy every skill and agent into user scope, as make sync-all does
+./scripts/sync-skills.sh --target ~/ --force
+./scripts/sync-agents.sh --target ~/ --force
 
-## `sync-skills.sh` and `sync-agents.sh`
-
-Both scripts take the same flags. `sync-skills.sh` copies every skill (a directory under `.claude/skills/` that holds a `SKILL.md`). `sync-agents.sh` copies every `.claude/agents/*.md`.
-
-```bash
-# Copy every skill and agent into user scope
-./scripts/sync-skills.sh --target ~/
-./scripts/sync-agents.sh --target ~/
-
-# Copy into a sibling repo, overwriting changed files
+# Copy into a sibling repository, and overwrite changed files
 ./scripts/sync-skills.sh --target ~/work/platform --force
 
-# Preview without copying
+# Preview without a copy
 ./scripts/sync-skills.sh --target ~/ --dry-run
 
 # Run only the catalog guard (CI)
 ./scripts/sync-skills.sh --verify
 ./scripts/sync-agents.sh --verify
 
-# Also write the operating-doctrine block into the repo's AGENTS.md
+# Also write the operating-doctrine block into the repository's AGENTS.md
 ./scripts/sync-skills.sh --target <repo> --inject-doctrine
 ```
 
-Without `--force`, a script reports a changed target file as a conflict and skips it. A sync never deletes a file that exists only in the target.
+Without `--force`, a script skips each target copy that differs from the source, reports it as a conflict, and then exits 1. For a skill, a file that the target copy lacks also counts as a difference, and the script skips the whole skill. With `--force`, the script overwrites the target copy. In both modes, a file that exists only in the target stays.
 
-## `update-agent-permissions.sh` + `verify-agent-permissions.sh` + `agent-permissions.json`
+## Agent permissions
 
-Together these three files manage the canonical read-only allow-list for subagent Bash and WebFetch calls.
+`agent-permissions.json` holds the canonical read-only allow list for subagent Bash and WebFetch calls. Edit that file to add or remove a pattern. Both permission scripts read it.
 
-```bash
-# Install the canonical set into .claude/settings.json (idempotent)
-./scripts/update-agent-permissions.sh
-# or via make:
+```sh
+# Write the canonical set into .claude/settings.json. A re-run changes nothing.
 make update-agent-permissions
 
-# Preview without writing
+# Preview without a write
 DRY_RUN=1 ./scripts/update-agent-permissions.sh
 
-# Fail if settings.json has mutating patterns or has drifted from canonical
-./scripts/verify-agent-permissions.sh
-# or via make:
+# Fail on a mutating pattern or on drift from the canonical set
 make verify-agent-permissions
 ```
 
-`agent-permissions.json` is the source of truth — edit it to add or remove canonical patterns. Both scripts read it. The verify script also runs in CI on PRs that touch `.claude/settings.json` or any of these files (`.github/workflows/verify-agent-permissions.yml`).
+The verify script applies a deny list to every allow pattern:
 
-**Read-only invariant.** The verify script enforces a deny-list across allow patterns. No `gh issue create / close / delete / edit`, no `gh pr create / merge / close / edit`, and no `gh api -X POST/PUT/DELETE/PATCH` (or `--method` equivalents). No `aws ... <write-verb>-...` (`delete-`, `put-`, `create-`, `update-`, `terminate-`, and the rest). No `kubectl <subcmd>` other than `get/describe/logs/top/explain/version/api-resources/api-versions`, and no `flux <subcmd>` other than `get/describe/version/check`. The shared `.claude/settings.json` stays read-only forever; user-specific mutating patterns belong in `.claude/settings.local.json` (gitignored).
+- No `gh issue create`, `close`, `delete` or `edit`, and no `gh pr create`, `merge`, `close` or `edit`.
+- No `gh api -X POST`, `PUT`, `DELETE` or `PATCH`, or the `--method` form.
+- No `aws` write verb, such as `delete-`, `put-`, `create-`, `update-` or `terminate-`. The script holds the full list.
+- No `kubectl` subcommand other than `get`, `describe`, `logs`, `top`, `explain`, `version`, `api-resources` and `api-versions`.
+- No `flux` subcommand other than `get`, `describe`, `version` and `check`.
 
-Drift is also a fail condition: `permissions.allow` in `.claude/settings.json` must equal the canonical set exactly. Local additions go in `settings.local.json`; CI fails the PR otherwise.
+Drift also fails: `permissions.allow` in `.claude/settings.json` must equal the canonical set. A personal or mutating pattern goes outside that file. [Permission pre-approval](../.claude/skills/SKILL-TEMPLATE.md#permission-pre-approval) in the skill template says where. CI runs the verify script on a pull request that touches `.claude/settings.json` or one of these files.

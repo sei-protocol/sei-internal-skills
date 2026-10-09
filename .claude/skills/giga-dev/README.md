@@ -9,7 +9,6 @@ The skill is read-only by default. Any write to the shared cells needs an explic
 | | |
 |---|---|
 | **Skill** | [`SKILL.md`](./SKILL.md) |
-| **Install** | `gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' \| bash -s -- skill giga-dev` |
 | **Sibling** | [`harbor-dev`](../harbor-dev/README.md) for an engineer's own chain on harbor |
 
 ## What it covers

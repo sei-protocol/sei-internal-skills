@@ -1,15 +1,14 @@
 #!/usr/bin/env bash
-# Regression suite for scripts/install.sh — both modes.
+# Regression suite for scripts/install.sh, both modes. It never reaches the network.
 # Run: scripts/tests/install.test.sh  (or `make test-install`).
 #
-# The targeted mode runs offline by pointing SEI_INTERNAL_SKILLS_HOME at this
-# checkout, which is also the real short-circuit: an existing checkout is read
-# instead of re-downloading. The network path shares every code path below that,
-# so what is left untested here is the tarball download itself.
+# The targeted mode reads this checkout through SEI_INTERNAL_SKILLS_HOME, which is
+# the real short-circuit: the script reads an existing checkout and downloads nothing.
+# The download path runs against curl and gh shims placed first on PATH. One set
+# fails, and one set serves a tarball built from this checkout.
 #
-# The no-argument mode is NOT exercised — it clones into a real home directory
-# and runs make. Its behaviour is unchanged by this suite's subject, and the
-# assertions below confirm the targeted paths never reach it.
+# The no-argument mode clones into a home directory and runs make, so the suite
+# asserts its structure and does not run it.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -186,6 +185,15 @@ echo "-h prints usage and exits 0"
 check "usage exits 0"     run "$scratch/u" -h
 grep_out "usage names the targets" "output-style" "$scratch/u" -h
 grep_out "usage explains the default mode" "no arguments" "$scratch/u" -h
+grep_out "usage shows the curl one-liner" \
+  "curl -fsSL https://raw.githubusercontent.com/sei-protocol/sei-internal-skills/main/scripts/install.sh" "$scratch/u" -h
+
+# The repository is public. A message that calls it internal sends an engineer
+# after gh auth they do not need.
+echo "the script states a public repository"
+if grep -qE 'curl -fsSL .*"https://codeload.github.com/' "$GET"; then ok "the script has a curl fetch path"; else no "the script has no curl fetch path"; fi
+if grep -qE 'curl -fsSL .*--max-time [0-9]+ .*"https://codeload.github.com/' "$GET"; then ok "the curl fetch has a time limit"; else no "the curl fetch has no time limit (a stalled network would hang the piped installer)"; fi
+if ! grep -qi 'internal repo\|is[[:space:]]internal' "$GET"; then ok "no 'internal' claim"; else no "the script still calls the repository internal"; fi
 
 # The documented invocation pipes this script into bash, where $0 is "bash".
 # The sibling scripts print usage by grepping $0; that idiom silently reads the
@@ -201,12 +209,66 @@ if [[ "$u" == *"No such file or directory"* ]]; then no "piped usage does not gr
 if [[ "$u" == *"output-style"* ]];             then ok "piped usage names the targets"; else no "piped usage names the targets"; fi
 check_fail "piped unknown target fails"  piped bogus
 
-# A path that is not a checkout must fall through to the network rather than be
-# treated as a tree — silently reading a wrong directory would install nothing
-# and claim success.
+# Shims that stand in for the network. Each one sits first on PATH, so the
+# script under test finds it before the real tool, and the suite stays offline.
+shim() {  # shim <dir> <name> <body>
+  mkdir -p "$1"
+  printf '#!/usr/bin/env bash\n%s\n' "$3" > "$1/$2"
+  chmod +x "$1/$2"
+}
+shim "$scratch/nonet" curl 'exit 1'
+shim "$scratch/nonet" gh   'exit 1'
+
+# A path that is not a checkout must fall through to the download rather than be
+# read as a tree. Reading a wrong directory would install nothing and claim success.
 echo "a non-checkout SEI_INTERNAL_SKILLS_HOME does not masquerade as a tree"
-o="$(SEI_INTERNAL_SKILLS_HOME="$scratch" SEI_SKILLS_TARGET="$scratch/bad" bash "$GET" list 2>&1 || true)"
+o="$(PATH="$scratch/nonet:$PATH" SEI_INTERNAL_SKILLS_HOME="$scratch" SEI_SKILLS_TARGET="$scratch/bad" bash "$GET" list 2>&1)"; rc=$?
 if [[ "$o" == *"reading your checkout"* ]]; then no "does not read a non-checkout as a tree"; else ok "does not read a non-checkout as a tree"; fi
+if [ "$rc" -ne 0 ] && [[ "$o" == *"could not fetch"* ]]; then ok "no curl and no gh: could not fetch"; else no "no curl and no gh (rc=$rc)"; fi
+
+# A tarball shaped like the one GitHub serves: one top-level directory that
+# holds the tree. The shims log their arguments, so a case can name the URL.
+tb="$scratch/tb/sei-protocol-sei-internal-skills-0000000"
+mkdir -p "$tb/.claude/skills" "$tb/.claude/agents"
+cp -R "$REPO/.claude/skills/kubernetes" "$tb/.claude/skills/kubernetes"
+cp "$REPO/.claude/agents/sre-engineer.md" "$tb/.claude/agents/"
+tar czf "$scratch/tree.tgz" -C "$scratch/tb" "$(basename "$tb")"
+log="$scratch/net.log"
+serve="printf '%s %s\\n' \"\$(basename \"\$0\")\" \"\$*\" >> '$log'; cat '$scratch/tree.tgz'"
+shim "$scratch/curlnet" gh   'exit 1'
+shim "$scratch/curlnet" curl "$serve"
+shim "$scratch/ghnet"   gh   "case \"\$1\" in auth) exit 0 ;; api) $serve ;; *) exit 1 ;; esac"
+shim "$scratch/ghnet"   curl 'exit 1'
+# shellcheck disable=SC2016  # the shim expands $1 when it runs
+shim "$scratch/ghfail"  gh   'case "$1" in auth) exit 0 ;; *) exit 1 ;; esac'
+shim "$scratch/ghfail"  curl "$serve"
+
+fetch() {  # fetch <shim-dir> <target-root> <args...>
+  local p="$1" t="$2"; shift 2
+  : > "$log"
+  PATH="$p:$PATH" SEI_INTERNAL_SKILLS_HOME="$scratch/none" SEI_SKILLS_REF=test-ref \
+    SEI_SKILLS_TARGET="$t" bash "$GET" "$@"
+}
+
+echo "with no checkout and no gh, curl fetches the tree from codeload"
+t="$scratch/dl-curl"
+check "curl path exits 0"      fetch "$scratch/curlnet" "$t" skill kubernetes
+check "curl path installed it" test -f "$t/.claude/skills/kubernetes/SKILL.md"
+if grep -q '^curl .*https://codeload.github.com/sei-protocol/sei-internal-skills/tar.gz/test-ref' "$log"; then
+  ok "curl asked codeload for the ref"; else no "curl did not ask codeload for the ref"; fi
+
+echo "a signed-in gh fetches the tarball first"
+t="$scratch/dl-gh"
+check "gh path exits 0"        fetch "$scratch/ghnet" "$t" agent sre-engineer
+check "gh path installed it"   test -f "$t/.claude/agents/sre-engineer.md"
+if grep -q '^gh api repos/sei-protocol/sei-internal-skills/tarball/test-ref' "$log"; then
+  ok "gh asked for the ref's tarball"; else no "gh did not ask for the ref's tarball"; fi
+
+echo "a failed gh fetch falls back to curl"
+t="$scratch/dl-fallback"
+check "fallback exits 0"        fetch "$scratch/ghfail" "$t" skill kubernetes
+check "fallback installed it"   test -f "$t/.claude/skills/kubernetes/SKILL.md"
+if grep -q '^curl ' "$log"; then ok "curl ran after gh failed"; else no "curl did not run after gh failed"; fi
 
 echo ""
 echo "install: $PASS passed, $FAIL failed"
