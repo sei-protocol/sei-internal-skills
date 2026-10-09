@@ -166,8 +166,8 @@ the network-wide rate.
   **lag-trend** shows it still growing (the runaway alert's condition). Act only on the user's
   explicit request. If it runs away, fence the load. A validator N minutes of chain behind can
   lose ground for about N more minutes after the load falls (observed). Release only at the gate.
-  Hand a CPU or disk ceiling to `k8s-capacity-management`; `spec.resources` and the volume size
-  are create-only.
+  Hand a CPU or disk ceiling to the testnet's owner (the platform team that runs giga-testnet-0).
+  `spec.resources` and the volume size are create-only.
 - **Runbooks.** [runaway lag](https://github.com/sei-protocol/runbooks/blob/main/platform/giga-validators/giga-validator-runaway-lag.md),
   [falling behind](https://github.com/sei-protocol/runbooks/blob/main/platform/giga-validators/giga-validator-falling-behind.md).
 

@@ -10,7 +10,7 @@ Two modes, one spine: **design** (the kubernetes-specialist authoring a controll
 
 3. **Apply the five dimensions** (below), profile-first. Each finding cites a `sources.md` anchor and/or a profile rule. Mark a genuinely-uncertain call as such rather than forcing it.
 
-4. **Rank + surface.** One-way doors (incompatible CRD-field/semantics changes, event/sidecar-contract changes) and correctness defects lead. Bundle idiom/style; it never leads (idiom is `/idiomatic`'s pass anyway). Flag one-way doors for human approval — never assert the breaking change as the fix.
+4. **Rank + surface.** One-way doors (incompatible CRD-field/semantics changes, event/sidecar-contract changes) and correctness defects lead. Bundle idiom/style; it never leads (idiom is not this skill's lens). Flag one-way doors for human approval — never assert the breaking change as the fix.
 
 ## The five dimensions (the scorecard)
 

@@ -56,7 +56,7 @@ Grouped by **domain**, the `category:` in each `.claude/agents/<name>.md` frontm
 
 The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
-The operating doctrine — engineering principles, output discipline, the workflow skills and when each applies, the xreview discipline, and the key rules — is the `sei-internal-skills-managed` block below. `scripts/sei-internal-skills-doctrine.md` holds it once and the sync carries it to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
+The operating doctrine — engineering principles, output discipline, and how to use `/harbor-dev`, `/giga-dev` and `/kubernetes` — is the `sei-internal-skills-managed` block below. `scripts/sei-internal-skills-doctrine.md` holds it once and the sync carries it to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
 
 ## Install
 
@@ -65,7 +65,7 @@ The operating doctrine — engineering principles, output discipline, the workfl
 <!-- BEGIN sei-internal-skills-managed (do not edit; managed by sei-internal-skills sync scripts) -->
 ## Operating with sei-internal-skills resources
 
-This package consumes portable Claude Code skills and specialist agents authored in Sei's sei-internal-skills library and installed under `.claude/`. Invoke the skills as the slash-commands below; those skills dispatch the agents. What follows is the opinionated doctrine for operating with them — the *way* to work, not a description of the library.
+This package uses Claude Code skills and specialist agents from Sei's sei-internal-skills repository, installed under `.claude/`. The doctrine below is the way to work with them.
 
 ### Engineering principles
 
@@ -94,31 +94,11 @@ This package consumes portable Claude Code skills and specialist agents authored
 
 ### Using the skills
 
-- **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to producing the work.
-- **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
-- **`/idiomatic`** and **`/systems`** — review code for language/package idiom, then for systems-level quality on top. Idiom ⊂ systems quality; run them in that order.
+- **`/harbor-dev`**: run your own ephemeral Sei chain in `eng-<alias>` on the harbor dev cluster. Spin it up, bench it, inspect it, tear it down. Start with "onboard me".
+- **`/giga-dev`**: operate and diagnose the shared giga testnet, `giga-testnet-0`, on the prod cells. Read-only by default.
+- **`/kubernetes`**: design or review sei-k8s-controller code (CRDs, reconcilers, status and conditions).
 
-### xreview discipline
-
-When the relevant specialists review a produced artifact (design, plan, diff, or a set of expert outputs):
-
-- **Blinded and independent** — each reviewer commits its findings before seeing the others'; no brief summarizes another reviewer's view.
-- **An assigned dissenter** — one reviewer must argue against the emerging consensus and surface the strongest counter-case.
-- **Slate completeness** — the slate covers the domain *and* the idiom axis (`idiomatic-reviewer`) *and*, for doc artifacts, the prose axis (`prose-steward`) — not domain experts alone.
-- **Automated review is co-equal** — treat an automated reviewer (e.g. Cursor Bugbot) as a peer input, not noise; an unresolved flag blocks.
-- **Confirmed-consensus iteration** — after a fix, re-dispatch the reviewer that raised the finding to confirm closure. Merge only on unanimous sign-off with no open concerns. `/xreview` owns the procedure.
-
-### Key rules
-
-- **Provider owns the interface.** Consumers adapt.
-- **YAGNI.** Only features tracing to current-phase needs.
-- **Errors are interface.** Every error is part of the public contract.
-- **One-way-door gate.** Irreversible decisions need explicit human approval before finalizing.
-- **Conventional commits.** Reference the component in scope.
-
-### Roles, not roster
-
-The workflow skills above dispatch the specialists; for a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The review champions carry named contracts: `idiomatic-reviewer` (code idiom, `/idiomatic`) and `prose-steward` (doc-artifact prose). The full roster of available specialists lives in the synced `.claude/agents/` files.
+For a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The agents live in `.claude/agents/`.
 <!-- END sei-internal-skills-managed -->
 
 ## Writing

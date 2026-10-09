@@ -1,8 +1,7 @@
 ---
 name: giga-dev
-category: engineer-self-service
 model: claude-opus-5
-description: "Use when working on the shared giga testnet (giga-testnet-0), the Autobahn EVM-only chain on the prod cells prod-use2, prod, prod-euw1 and prod-apne1: 'giga testnet', 'giga-testnet-0', 'how does the giga chain work', 'explain the giga architecture', 'validator-NN is lagging on giga', 'giga throughput dropped', 'why is giga slow', 'is giga saturated', 'how is giga load generated', 'seiload-saturation', 'how many giga load pods', 'pin the giga load', 'giga logs', 'giga metrics', 'giga dashboard', 'giga busy band', '/giga-dev'. Anti-triggers: NOT for an engineer's own Autobahn or giga chain on harbor (use /harbor-dev); NOT for sei-k8s-controller code or CRDs (use /kubernetes); NOT for general platform manifests, Flux or Kustomize (use /platform); NOT for arctic-1, pacific-1 or other production chains. For an incident root cause, use /root-cause."
+description: "Use when working on the shared giga testnet (giga-testnet-0), the Autobahn EVM-only chain on the prod cells prod-use2, prod, prod-euw1 and prod-apne1: 'giga testnet', 'giga-testnet-0', 'how does the giga chain work', 'explain the giga architecture', 'validator-NN is lagging on giga', 'giga throughput dropped', 'why is giga slow', 'is giga saturated', 'how is giga load generated', 'seiload-saturation', 'how many giga load pods', 'pin the giga load', 'giga logs', 'giga metrics', 'giga dashboard', 'giga busy band', '/giga-dev'. Anti-triggers: NOT for an engineer's own Autobahn or giga chain on harbor (use /harbor-dev); NOT for sei-k8s-controller code or CRDs (use /kubernetes); NOT for general platform manifests, Flux or Kustomize (open a sei-protocol/platform PR); NOT for arctic-1, pacific-1 or other production chains. For an incident review, use the sre-engineer agent."
 ---
 
 # giga-dev
@@ -28,7 +27,7 @@ This skill covers the `giga-testnet-0` namespace on the prod cells prod-use2, pr
 Refuse and redirect when:
 - the target is not `giga-testnet-0` on the four prod cells. An engineer's harbor chain goes to `/harbor-dev`. arctic-1, pacific-1 and other chains are out of scope.
 - the request is a chain reset or a data wipe without an explicit go-ahead for that reset. Describe the design and its gates ([fresh start](references/diagnosis.md#4-fresh-start-design)), then halt.
-- the request is controller or CRD code (`/kubernetes`) or general platform GitOps work (`/platform`). A change to the scaler formula, its thresholds or the load Deployment goes through a platform-repo PR. Explain the design here, and author the change with `/platform`.
+- the request is controller or CRD code (`/kubernetes`) or general platform GitOps work. A change to the scaler formula, its thresholds or the load Deployment goes through a sei-protocol/platform PR that the testnet's owner reviews. Explain the design here.
 
 ## Mental Model
 
@@ -152,6 +151,6 @@ Stop and report to the user when:
 
 - `/harbor-dev`: an engineer's own Autobahn or giga chain on harbor.
 - `/kubernetes`: sei-k8s-controller, SeiNode CRDs and reconcile code.
-- `/platform`: platform manifests, Flux, Kustomize and cloud auth.
-- `/root-cause`: a structured root-cause investigation after an incident.
+- A sei-protocol/platform PR: platform manifests, Flux, Kustomize and cloud auth.
+- `sre-engineer`: a structured incident review, alert tuning and runbook gaps.
 - Runbooks repo: `platform/giga-validators/`, `platform/keda/`, `platform/sei-load/`, `giga-testnet-runbook.md`.
