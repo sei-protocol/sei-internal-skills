@@ -91,6 +91,8 @@ EVM smart-contract engineering on Sei. Pairs with the `solidity-developer` agent
 
   A third tree, `seictl workflow`, is a separate imperative path — outside the PR/Flux flow — for re-bootstrapping or migrating an *existing* node in place. It is the skill's one destructive verb, and explicit engineer sign-off gates it. Built on `seictl` v0.0.59+ (`network`/`node`); `workflow` ships in a later release — see `harbor-dev/SKILL.md` gate 1.
 
+- **`giga-dev/`** — Architecture and operating knowledge for the shared giga testnet: the Autobahn EVM-only chain `giga-testnet-0` across the four prod cells. It covers the cell and node topology, the transaction path and the serial execute loop that sets the throughput limit. It explains how the load generators and their KEDA scaler hold the chain inside an execute-loop busy band, and where every log and metric lives. It diagnoses saturation, stragglers, full-node lag, the block-retention window and scaler faults. Read-only by default; it never suspends a cell-wide Flux Kustomization or wipes a validator, and it releases a load pin only when all 40 validators pass the gate. NOT for an engineer's own chain on harbor (`/harbor-dev`).
+
 ### Future Slots
 - _(planned)_ Add skills here as the team codifies more processes.
 

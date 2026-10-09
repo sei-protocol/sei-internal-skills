@@ -105,6 +105,7 @@ Most work starts with one of these:
 - **`/root-cause`** — disciplined, multi-expert investigation of a complex problem. Signals before hypotheses; falsification before conclusion.
 - **`/idiomatic`** then **`/systems`** — review code for language and package idiom, then for systems-level quality on top.
 - **`/harbor-dev`** — spin up an ephemeral chain, attach an RPC fleet, run a bench, tear it down.
+- **`/giga-dev`** — how the shared giga testnet works, where its logs and metrics live, and how to diagnose it.
 
 Heavier orchestration — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — is [experimental](./experimental/README.md) and installs only on opt-in.
 
@@ -170,7 +171,7 @@ history in a private snapshot rather than deleting them outright.
   - **Platform infra** — `/platform`, `/kubernetes`
   - **Blockchain** — `/evm`
   - **Release operations** — `/validate-release`, `/gov-ops`, `/validator-platform`
-  - **Engineer self-service** — `/harbor-dev`
+  - **Engineer self-service** — `/harbor-dev`, `/giga-dev`
 - **Agents** (`.claude/agents/`) — 16 specialist personas dispatched by the skills (or directly via the Agent tool), grouped by domain:
   - **Platform infra** — `kubernetes-specialist`, `platform-engineer`, `network-specialist`, `k8s-capacity-management`, `sei-network-specialist`
   - **Observability** — `opentelemetry-expert`, `observability-platform-engineer`, `sre-engineer`
