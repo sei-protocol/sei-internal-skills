@@ -52,7 +52,6 @@ SCOPED=(
   CLAUDE.md
   agents
   .claude
-  experimental
   scripts
   writing
 )

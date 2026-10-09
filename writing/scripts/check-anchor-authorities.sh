@@ -38,13 +38,10 @@ cd "$REPO"
 # denylist is the hyphenated subset, and the success line says so rather than
 # claiming to have checked every name.
 #
-# THREE ROOTS SHIP AGENTS, AND ONE OF THEM IS A DIRECTORY PER AGENT. .claude and
-# experimental hold one .md per agent; the top-level agents/ holds a directory
-# per agent, so it belongs on the first arm rather than the second. Left off, the
-# gate read 30 names and missed sei-spec and xreview-scout-codex -- either could
-# be cited as an anchor authority with the gate green.
-names="$( { ls -d .claude/skills/*/ experimental/skills/*/ agents/*/ agents/*/skills/*/ 2>/dev/null | xargs -n1 basename
-            ls .claude/agents/*.md experimental/agents/*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//'
+# TWO ROOTS SHIP AGENTS: .claude holds one .md per agent; agents/ holds a
+# directory per agent, so it belongs on the first arm rather than the second.
+names="$( { ls -d .claude/skills/*/ agents/*/ agents/*/skills/*/ 2>/dev/null | xargs -n1 basename
+            ls .claude/agents/*.md 2>/dev/null | xargs -n1 basename | sed 's/\.md$//'
           } | sort -u | grep -e '-' || true )"
 
 if [ -z "$names" ]; then

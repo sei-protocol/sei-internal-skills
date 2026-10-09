@@ -10,8 +10,8 @@
 #
 #   # one piece: no clone, nothing else installed
 #   … | bash -s -- output-style
-#   … | bash -s -- skill xreview
-#   … | bash -s -- agent idiomatic-reviewer
+#   … | bash -s -- skill harbor-dev
+#   … | bash -s -- agent sre-engineer
 #   … | bash -s -- list
 #
 # Or, once cloned, `make update` from the repo.
@@ -80,8 +80,8 @@ One piece
   output-style [name]     default: asd-ste100    -> ~/.claude/output-styles/
                           also activates it in settings.json; never overwrites
                           a style you already chose. --no-activate to skip.
-  skill <name>            core or experimental   -> ~/.claude/skills/<name>/
-  agent <name>            core or experimental   -> ~/.claude/agents/<name>.md
+  skill <name>            -> ~/.claude/skills/<name>/
+  agent <name>            -> ~/.claude/agents/<name>.md
 
   No clone, and nothing installed but the resource you name.
 
@@ -165,29 +165,26 @@ resolve_tree() {
   [ -n "$ROOT" ] || die "unexpected tarball layout"
 }
 
-# A skill or agent may live in the shipped core or in experimental/. Look in
-# both, and report which tier it came from — the tiers mean different things to
-# whoever is about to depend on one.
+# A skill is a directory under .claude/skills/ that holds a SKILL.md. A leftover
+# directory without one (ignored state/ files after a pull) is not a skill, so
+# neither lookup nor list ever offers it.
 find_skill() {
-  [ -d "$ROOT/.claude/skills/$1" ]      && { echo "$ROOT/.claude/skills/$1|core"; return 0; }
-  [ -d "$ROOT/experimental/skills/$1" ] && { echo "$ROOT/experimental/skills/$1|experimental"; return 0; }
+  [ -f "$ROOT/.claude/skills/$1/SKILL.md" ] && { echo "$ROOT/.claude/skills/$1"; return 0; }
   return 1
 }
 find_agent() {
-  [ -f "$ROOT/.claude/agents/$1.md" ]      && { echo "$ROOT/.claude/agents/$1.md|core"; return 0; }
-  [ -f "$ROOT/experimental/agents/$1.md" ] && { echo "$ROOT/experimental/agents/$1.md|experimental"; return 0; }
+  [ -f "$ROOT/.claude/agents/$1.md" ] && { echo "$ROOT/.claude/agents/$1.md"; return 0; }
   return 1
 }
 
 list_names() {  # list_names <dir> <dir|file>
   [ -d "$1" ] || return 0
-  if [ "$2" = "dir" ]; then find "$1" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort
+  local d
+  if [ "$2" = "dir" ]; then
+    for d in "$1"/*/; do
+      if [ -f "${d}SKILL.md" ]; then basename "$d"; fi
+    done | sort
   else find "$1" -maxdepth 1 -type f -name '*.md' -exec basename {} .md \; | sort; fi
-}
-
-note_tier() {
-  [ "$1" = "experimental" ] || return 0
-  echo "  Experimental: parked in the repo, not part of the shipped core, and may change."
 }
 
 # Reads settings.json and prints the current outputStyle, or nothing. Prints
@@ -283,17 +280,13 @@ activate_style() {
 cmd_list() {
   resolve_tree
   echo ""
-  echo "Output styles";                                       list_names "$ROOT/.claude/output-styles" file | sed 's/^/  /'
+  echo "Output styles"; list_names "$ROOT/.claude/output-styles" file | sed 's/^/  /'
   echo ""
-  echo "Skills — core (what a full install ships)";           list_names "$ROOT/.claude/skills" dir | sed 's/^/  /'
+  echo "Skills";        list_names "$ROOT/.claude/skills" dir | sed 's/^/  /'
   echo ""
-  echo "Skills — experimental (never installed by default)";  list_names "$ROOT/experimental/skills" dir | sed 's/^/  /'
+  echo "Agents";        list_names "$ROOT/.claude/agents" file | sed 's/^/  /'
   echo ""
-  echo "Agents — core";                                       list_names "$ROOT/.claude/agents" file | sed 's/^/  /'
-  echo ""
-  echo "Agents — experimental";                               list_names "$ROOT/experimental/agents" file | sed 's/^/  /'
-  echo ""
-  echo "Take one:  … | bash -s -- skill xreview"
+  echo "Take one:  … | bash -s -- skill harbor-dev"
 }
 
 cmd_output_style() {
@@ -318,12 +311,10 @@ cmd_skill() {
   local name="${1:-}"
   [ -n "$name" ] || die "usage: skill <name>   (run 'list' to see what exists)"
   resolve_tree
-  local found; found="$(find_skill "$name")" || die "no skill named '$name'. Run with 'list' to see what exists."
-  local src="${found%|*}" tier="${found#*|}"
+  local src; src="$(find_skill "$name")" || die "no skill named '$name'. Run with 'list' to see what exists."
   mkdir -p "$TARGET/.claude/skills/$name"
   cp -R "$src/." "$TARGET/.claude/skills/$name/"
-  echo "✓ $TARGET/.claude/skills/$name  ($tier)"
-  note_tier "$tier"
+  echo "✓ $TARGET/.claude/skills/$name"
   echo ""
   echo "  Edit it in sei-internal-skills, not here — a later sync overwrites this copy."
 }
@@ -332,12 +323,10 @@ cmd_agent() {
   local name="${1:-}"
   [ -n "$name" ] || die "usage: agent <name>   (run 'list' to see what exists)"
   resolve_tree
-  local found; found="$(find_agent "$name")" || die "no agent named '$name'. Run with 'list' to see what exists."
-  local src="${found%|*}" tier="${found#*|}"
+  local src; src="$(find_agent "$name")" || die "no agent named '$name'. Run with 'list' to see what exists."
   mkdir -p "$TARGET/.claude/agents"
   cp "$src" "$TARGET/.claude/agents/$name.md"
-  echo "✓ $TARGET/.claude/agents/$name.md  ($tier)"
-  note_tier "$tier"
+  echo "✓ $TARGET/.claude/agents/$name.md"
   echo ""
   echo "  An agent may reference skills it expects installed. If it names one, take that too."
 }

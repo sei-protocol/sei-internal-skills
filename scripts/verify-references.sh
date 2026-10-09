@@ -16,26 +16,19 @@
 #                          on the highest-consequence citation in the repository
 #   .claude/skills/<name>  a path form
 #
+# A skill is a directory under .claude/skills/ that holds a SKILL.md. A leftover
+# directory without one (ignored state/ files after a pull) is not a skill.
+#
 # Error classes — any one fails the run:
-#   ABSENT          the resource is in neither tier
-#   UNSHIPPED       the resource is in the core, but its category never syncs
+#   ABSENT          .claude/skills/ does not hold the cited skill
+#   UNSHIPPED       the skill is in the core, but its category never syncs
 #                   outward, so no default install places it. This is the class
 #                   the opening paragraph names: /brevity and /pr-quality are
 #                   category output-quality, which sync-skills.sh holds in
 #                   SEI_INTERNAL_SKILLS_LOCAL_DOMAINS, and 14 shipped agents
 #                   hard-path to them.
-#   STALE-MARKER    a gap marker names a resource the core does hold
+#   STALE-MARKER    a gap marker names a skill the core does hold
 #   MISSING-SCRIPT  a SKILL.md names a script that exists nowhere
-#
-# Warning class — reported, never fails the run:
-#   PARKED          the resource lives in experimental/
-#
-# PARKED is a warning rather than an error on purpose. The doctrine block names
-# every parked skill in one sentence that states the tier, names the install
-# command, and forbids assuming availability. That sentence is the correct
-# authoring pattern, and a gate that errors on the right answer teaches authors
-# to delete it. Parking a skill also stays a single `git mv`, which is the
-# property experimental/README.md calls the whole mechanism.
 #
 # Escape hatch, deliberately narrow. Put the marker on the line ABOVE:
 #
@@ -120,22 +113,25 @@ NON_SKILL_NAMES=" clear config compact init help loop schedule other other-skill
 cd "$TARGET"
 
 if $INSTALLED; then
-  # An installed tree is flat and has no tiers: a resource is present or it is
-  # not. So parked is empty and every unresolved citation reports ABSENT, which
-  # is the truth an engineer experiences.
+  # An installed tree is flat: a resource is present or it is not. Every
+  # unresolved citation reports ABSENT, which is the truth an engineer
+  # experiences.
   SKILL_ROOT="skills"; AGENT_ROOT="agents"; DOCTRINE=""
 else
   SKILL_ROOT=".claude/skills"; AGENT_ROOT=".claude/agents"; DOCTRINE="scripts/sei-internal-skills-doctrine.md"
 fi
 
-# `|| true` guards the whole pipeline, not just the message. `find` on a missing
-# directory exits 1, pipefail promotes it, and set -e kills the script with zero
-# output — indistinguishable from a legitimate failure. A consuming repo has no
-# experimental/skills, so that is the documented --target mode.
-list_dirs() { { find "$1" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; 2>/dev/null || true; } | sort | tr '\n' ' '; }
+# list_skills <root> — every directory under <root> that holds a SKILL.md,
+# space-separated. The `if` keeps a directory without one from ending the loop
+# non-zero under set -e; an unmatched glob tests false the same way.
+list_skills() {
+  local d
+  for d in "$1"/*/; do
+    if [ -f "${d}SKILL.md" ]; then basename "$d"; fi
+  done | sort | tr '\n' ' '
+}
 
-core=" $(list_dirs "$SKILL_ROOT") "
-if $INSTALLED; then parked=" "; else parked=" $(list_dirs experimental/skills) "; fi
+core=" $(list_skills "$SKILL_ROOT") "
 
 # A core skill whose category never syncs outward reaches no machine, so citing
 # it is the same defect as citing something absent. The domain list is read from
@@ -203,10 +199,8 @@ AWK_PROG='
           if (index(unshipped, " " tok " "))
             printf "UNSHIPPED      %s:%d  cites /%s, whose category never syncs outward, so no default install places it\n", FILENAME, FNR, tok
           else if (index(core, " " tok " ")) continue
-          else if (index(parked, " " tok " "))
-            printf "PARKED         %s:%d  cites /%s, which lives in experimental/ and installs only on opt-in\n", FILENAME, FNR, tok
           else
-            printf "ABSENT         %s:%d  cites /%s, which exists in neither tier\n", FILENAME, FNR, tok
+            printf "ABSENT         %s:%d  cites /%s, which .claude/skills/ does not hold\n", FILENAME, FNR, tok
         }
       }
       prev = $0
@@ -214,7 +208,12 @@ AWK_PROG='
 
 scan=$(
   { find "$AGENT_ROOT" -type f -name '*.md' 2>/dev/null || true
-    find "$SKILL_ROOT" -type f -name '*.md'
+    # The catalog's own documents, then each skill by the one rule. A leftover
+    # directory and a skill's state/ hold run output, which ships nowhere.
+    for f in "$SKILL_ROOT"/*.md; do if [ -f "$f" ]; then echo "$f"; fi; done
+    for sk in $(list_skills "$SKILL_ROOT"); do
+      find "$SKILL_ROOT/$sk" -type f -name '*.md' -not -path "$SKILL_ROOT/$sk/state/*"
+    done
     # The two documents a new engineer reads first were outside this scan, which
     # is how a stale skill count and five dangling citations survived a sweep.
     for root in README.md AGENTS.md CLAUDE.md; do [ -f "$root" ] && echo "$root"; done
@@ -223,7 +222,7 @@ scan=$(
     # the group exits 1, pipefail fails the pipeline, and set -e kills the script
     # before it prints anything.
     { [ -n "$DOCTRINE" ] && [ -f "$DOCTRINE" ] && echo "$DOCTRINE"; } || true
-  } | sort | tr '\n' '\0' | xargs -0 awk -v core="$core" -v parked="$parked" \
+  } | sort | tr '\n' '\0' | xargs -0 awk -v core="$core" \
         -v unshipped="$unshipped" -v stop="$NON_SKILL_NAMES" "$AWK_PROG"
 )
 
@@ -258,30 +257,30 @@ fi
 canary_dir=$(mktemp -d)
 trap 'rm -rf "$canary_dir"' EXIT
 printf 'Use `/zzz-canary-absent` here.\n' > "$canary_dir/canary.md"
-if ! awk -v core=" " -v parked=" " -v unshipped=" " -v stop=" " "$AWK_PROG" "$canary_dir/canary.md" \
+if ! awk -v core=" " -v unshipped=" " -v stop=" " "$AWK_PROG" "$canary_dir/canary.md" \
      | grep -q 'zzz-canary-absent'; then
   echo "✗ verify-references: the scanner did not detect a planted citation." >&2
   echo "  awk is not matching, so a passing run would mean nothing. Refusing to report." >&2
   exit 2
 fi
 
-errors=0; warnings=0
+errors=0
 for l in "${findings[@]:-}"; do
   [ -n "$l" ] || continue
   printf '%s\n' "$l" >&2
-  case "$l" in PARKED*) warnings=$((warnings+1)) ;; *) errors=$((errors+1)) ;; esac
+  errors=$((errors+1))
 done
 
 if $INSTALLED; then
-  # 12 installed skills come from elsewhere — the speckit family, brandon-*,
-  # project-brief. This repository cannot close a finding in one of them, and a
-  # report that can never reach zero is a report nobody reads. They are counted
-  # separately so the number this repository owns stays legible.
+  # Skills from elsewhere, such as the speckit family and brandon-*. This
+  # repository cannot close a finding in one of them, and a report that can never
+  # reach zero is a report nobody reads. They are counted separately so the
+  # number this repository owns stays legible.
   own=0; foreign=0
   for l in "${findings[@]:-}"; do
     [ -n "$l" ] || continue
     sk=$(printf '%s' "$l" | sed -n 's|.*skills/\([a-z0-9-]*\)/.*|\1|p')
-    if [ -n "$sk" ] && [ ! -d "$REPO_ROOT/.claude/skills/$sk" ] && [ ! -d "$REPO_ROOT/experimental/skills/$sk" ]
+    if [ -n "$sk" ] && [ ! -f "$REPO_ROOT/.claude/skills/$sk/SKILL.md" ]
       then foreign=$((foreign+1)); else own=$((own+1)); fi
   done
   $QUIET || echo "verify-references --installed: $own finding(s) in resources this repository ships, $foreign in resources it does not. Diagnostic only; never gates."
@@ -290,11 +289,11 @@ fi
 
 if (( errors )); then
   { echo
-    echo "✗ verify-references: $errors error(s), $warnings warning(s)."
+    echo "✗ verify-references: $errors error(s)."
     echo "Close the citation, or mark a deliberate gap on the line above it:"
     echo '  <!-- gap: /name — why, and what un-defers it -->'
   } >&2
   exit 1
 fi
 
-$QUIET || echo "✓ verify-references: no error-class finding ($warnings parked-citation warning(s))."
+$QUIET || echo "✓ verify-references: no error-class finding."

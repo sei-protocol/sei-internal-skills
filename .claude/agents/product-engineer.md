@@ -82,8 +82,8 @@ When you draft a PR body or an in-code comment, follow the Output discipline in 
 
 Pointers to the canonical skills — apply each by reference; the skill owns the detail.
 
-- **Orchestration.** `/coral` and `/council` dispatch you as the **depth specialist** (product→architecture translation, simplest end-to-end flow). When outputs touch a boundary you are re-dispatched **blinded** under `/xreview` against the combined work.
-- **Checkpoints.** In a `/workstream`, the `design-approval` checkpoint gates your implementation; `/workstream` owns the gate contract.
-- **Artifact capture.** `/design` captures the architecture/LLD and `/issue` files deferred slices at the Coral handoff. Unsettled questions (e.g. build-vs-reuse evidence) route to `/research`.
+- **Orchestration.** The orchestrator dispatches you as the **depth specialist** (product→architecture translation, simplest end-to-end flow). When outputs touch a boundary you are re-dispatched **blinded** under `/xreview` against the combined work.
+- **Checkpoints.** Where the work declares a `design-approval` checkpoint, that human sign-off gates your implementation.
+- **Artifact capture.** The orchestrator captures the architecture/LLD and files deferred slices as tracked issues. State unsettled questions (e.g. build-vs-reuse evidence) as open questions; do not decide them.
 - **Code-quality lenses.** Architecture with code-level implications gets `/idiomatic` then `/systems` as xreview passes.
 - **Writing.** Architecture specs are dual-audience org artifacts: type open questions and anchor constraints locally, and expect `prose-steward` review. They carry the no-tombstone bar (sei-internal-skills#147) + the register discipline (PLT-473 / sei-internal-skills#138).

@@ -48,8 +48,8 @@ Then name what you want:
 | Want | Command |
 |---|---|
 | **The output style** | `… \| bash -s -- output-style` |
-| **One skill** | `… \| bash -s -- skill xreview` |
-| **One agent** | `… \| bash -s -- agent idiomatic-reviewer` |
+| **One skill** | `… \| bash -s -- skill harbor-dev` |
+| **One agent** | `… \| bash -s -- agent sre-engineer` |
 
 Written out in full, for the output style:
 
@@ -77,13 +77,6 @@ name. Only `output-style` writes `settings.json`; a skill or agent never does. A
 agent, not the skills it references. If an agent names a skill it expects, take that
 too.
 
-Skills and agents come from either tier, and it tells you which:
-
-```
-✓ ~/.claude/skills/project-brief  (experimental)
-  Experimental: parked in the repo, not part of the shipped core, and may change.
-```
-
 Three environment variables, if you need them:
 
 | | |
@@ -107,32 +100,11 @@ Most work starts with one of these:
 - **`/harbor-dev`** — spin up an ephemeral chain, attach an RPC fleet, run a bench, tear it down.
 - **`/giga-dev`** — how the shared giga testnet works, where its logs and metrics live, and how to diagnose it.
 
-Heavier orchestration — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — is [experimental](./experimental/README.md) and installs only on opt-in.
-
-## The two tiers
-
-The boundary between them is the point.
+## The catalog
 
 | | What it is | Who gets it |
 |---|---|---|
 | **`.claude/`** — the core | 12 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
-| **[`experimental/`](./experimental/README.md)** | 12 skills, 1 agent. Still forming, narrow audience, or exploratory. | Only on `make sync-experimental` |
-
-The core is what every teammate installs, so anything added there costs everyone the
-effort of filtering past it. That is the whole reason for the split: **a new skill starts
-in `experimental/`** unless it clears one bar. The bar: serving an engineering team
-beyond its author on ordinary work.
-
-The exclusion is structural, not a setting. `sync-skills.sh` and `sync-agents.sh` read
-`.claude/skills/` and `.claude/agents/` and nothing else, so *living in*
-`experimental/` excludes a resource. Parking and promoting are the same one-line operation:
-
-```sh
-git mv experimental/skills/<name> .claude/skills/<name>   # promote (then: make verify-catalog)
-git mv .claude/skills/<name> experimental/skills/<name>   # park
-```
-
-No third list needs keeping in step, which is what makes the boundary hold.
 
 ### Retiring something
 
@@ -148,11 +120,8 @@ make prune-retired          # report what is stale. Deletes nothing.
 make prune-retired-apply    # actually remove them
 ```
 
-It distinguishes two kinds. **Retired** resources have left the repo entirely
-(recoverable only from the archive), and the script lists them by hand. A reviewer
-therefore sees a retirement in a diff. **Parked** ones still live in `experimental/`, so
-`make sync-experimental` reverses their removal — the script derives that list at
-runtime, and it cannot drift.
+A retired resource has left the repo entirely, and the script lists it by hand, so a
+reviewer sees every retirement in a diff. Git history holds the last version of each.
 
 It will never remove a resource in the current core, or one it does not recognize.
 It reports a skill you authored yourself and leaves it alone. `make update` runs the
@@ -181,13 +150,11 @@ history in a private snapshot rather than deleting them outright.
   - **Writing quality** — `prose-steward`
   - **Product management** — `product-engineer`, `product-manager`
   - **Release operations** — `platform-release-manager`
-- **[`experimental/`](./experimental/README.md)** — 12 skills and 1 agent that do **not** ship by default: workflow orchestration, exec reporting, `ebpf`/`bugbash`, and `interview`+`sei-interview-expert`. Opt in with `make sync-experimental`.
 - **Sync machinery** (`scripts/`, `Makefile`):
   - `sync-skills.sh` / `sync-agents.sh` — copy skills/agents into user-scope (`~/.claude/`) or sibling repos, by domain or alias
   - `sync-output-styles.sh` — copy output styles into `~/.claude/output-styles/`; ships them, never activates them
-  - `sync-experimental.sh` — opt-in installer for `experimental/`; never runs as part of update/sync-all/bootstrap
   - `install.sh` — the whole toolkit, or [one piece](#just-one-piece) without cloning
-  - `Makefile` — `make bootstrap` (one-shot install), plus `make sync-skills` / `make sync-agents` / `make sync-output-styles` / `make sync-experimental`
+  - `Makefile` — `make bootstrap` (one-shot install), plus `make sync-skills` / `make sync-agents` / `make sync-output-styles`
   - `update-agent-permissions.sh` — installs the canonical read-only permission set
 
 ### Output styles
@@ -225,27 +192,23 @@ Claude Code discovers skills and agents **flat** (`~/.claude/skills/<name>/`, `~
 .claude/skills/SKILL-TEMPLATE.md  #   Authoring standard for new skills
 .claude/agents/             # THE CORE — specialist personas dispatched by the skills
 .claude/output-styles/      # Response-format styles (shipped, opt-in — see Output styles)
-experimental/               # Parked skills + agents; never installed by default
-experimental/README.md      #   What's parked, and the promote/park mechanism
 agents/                     # Omni agent bundles baked into the omnigent server image
 sei-agent-driver/           # Go module — the headless review driver
 scripts/                    # sync-*.sh, permission tooling, regression suites
-.github/workflows/          # CI — catalog, doctrine, permissions, experimental isolation
+.github/workflows/          # CI — catalog, doctrine, permissions, runner image
 AGENTS.md                   # Agent roster + the distributed operating-doctrine block
 CLAUDE.md                   # Project context auto-loaded into every session
 assets/                     # Repo logo used by this README
 ```
 
-The two `.claude/` trees and `experimental/` are the tier split. `agents/` is unrelated
-despite the name — those are omnigent server bundles, not agent personas for Claude Code.
+`agents/` is unrelated despite the name — those are omnigent server bundles, not agent personas for Claude Code.
 
 ## Where to start
 
 | If you are... | Start here |
 |---|---|
 | **Using the skills day to day** | `.claude/skills/README.md` (the catalog) |
-| **Authoring a new skill** | Pick the tier first ([`experimental/README.md`](experimental/README.md) — it is the default), then `.claude/skills/SKILL-TEMPLATE.md`, then the skill-package rubric |
-| **Looking for a skill that is not installed** | [`experimental/README.md`](experimental/README.md), then `make sync-experimental` |
+| **Authoring a new skill** | `.claude/skills/SKILL-TEMPLATE.md`, then the skill-package rubric |
 | **Auditing an existing skill** | `/xreview` on the skill directory — it runs `.claude/skills/xreview/scripts/skill-package-checks.sh`, then reads the 52-rule rubric beside it |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
 | **Wanting exactly one thing** | [Just one piece](#just-one-piece) — the same installer, with a target |
@@ -267,5 +230,4 @@ despite the name — those are omnigent server bundles, not agent personas for C
 | `AGENTS.md` | Agent roster + how the skills dispatch them |
 | `.claude/skills/README.md` | Skill catalog and cross-repo sync guidance |
 | `.claude/skills/SKILL-TEMPLATE.md` | Authoring standard for new skills |
-| `experimental/README.md` | What sits parked, why, and how to promote or park a resource |
 | `scripts/README.md` | What each script does and when CI vs. humans run them |

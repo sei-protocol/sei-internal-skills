@@ -45,11 +45,12 @@ grep_out_fail() { local d="$1" pat="$2"; shift 2; local o; o="$(run "$@" 2>/dev/
 
 echo "list enumerates every kind"
 out="$(run "$scratch/l" list 2>/dev/null)"
-for section in "Output styles" "Skills — core" "Skills — experimental" "Agents — core"; do
+for section in "Output styles" "Skills" "Agents"; do
   if [[ "$out" == *"$section"* ]]; then ok "lists: $section"; else no "missing section: $section"; fi
 done
-if [[ "$out" == *$'\n  xreview'* ]];       then ok "list names a known core skill"; else no "list names a known core skill"; fi
-if [[ "$out" == *$'\n  project-brief'* ]]; then ok "list names a known experimental skill"; else no "list names a known experimental skill"; fi
+if [[ "$out" != *experimental* ]]; then ok "list names no experimental tier"; else no "list still names an experimental tier"; fi
+# The trailing newline keeps `kubernetes` from matching `kubernetes-specialist`.
+if [[ "$out" == *$'\n  harbor-dev\n'* && "$out" == *$'\n  kubernetes\n'* ]]; then ok "list names a known skill"; else no "list names a known skill"; fi
 
 echo "output-style defaults to asd-ste100 and lands as a file"
 t="$scratch/os"
@@ -118,33 +119,49 @@ check      "exits 0"                  run "$t" --no-activate output-style
 check      "the style file landed"    test -f "$t/.claude/output-styles/asd-ste100.md"
 check_fail "no settings.json written" test -f "$t/.claude/settings.json"
 
-echo "skill fetches the whole directory, from either tier"
+echo "skill fetches the whole directory"
 t="$scratch/sk"
-check "core skill exits 0"          run "$t" skill xreview
-check "SKILL.md landed"             test -f "$t/.claude/skills/xreview/SKILL.md"
-check "references/ came too"        bash -c "ls '$t/.claude/skills/xreview/references/'*.md >/dev/null 2>&1"
-check "evals came too"              test -f "$t/.claude/skills/xreview/evals/evals.json"
-check "experimental skill exits 0"  run "$t" skill project-brief
-grep_out "and is labelled experimental" "experimental" "$t" skill project-brief
+check "skill exits 0"               run "$t" skill kubernetes
+check "SKILL.md landed"             test -f "$t/.claude/skills/kubernetes/SKILL.md"
+check "references/ came too"        bash -c "ls '$t/.claude/skills/kubernetes/references/'*.md >/dev/null 2>&1"
+check "evals came too"              test -f "$t/.claude/skills/kubernetes/evals/evals.json"
 
-echo "agent fetches a single file, from either tier"
+echo "agent fetches a single file"
 t="$scratch/ag"
-check "core agent exits 0"    run "$t" agent idiomatic-reviewer
-check "agent file landed"     test -f "$t/.claude/agents/idiomatic-reviewer.md"
-check "experimental agent"    run "$t" agent sei-interview-expert
+check "agent exits 0"         run "$t" agent sre-engineer
+check "agent file landed"     test -f "$t/.claude/agents/sre-engineer.md"
+
+# A retired name must fail with the lookup message, not crash some other way.
+echo "a retired name fails with a clear message"
+o="$(run "$scratch/ret" skill project-brief 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && [[ "$o" == *"no skill named"* ]]; then ok "retired skill project-brief: no skill named"; else no "retired skill project-brief (rc=$rc)"; fi
+o="$(run "$scratch/ret" agent sei-interview-expert 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && [[ "$o" == *"no agent named"* ]]; then ok "retired agent sei-interview-expert: no agent named"; else no "retired agent sei-interview-expert (rc=$rc)"; fi
+
+# After a pull, git keeps a removed skill's directory when it still holds
+# ignored files. Such a directory has no SKILL.md, so it is not a skill.
+echo "a leftover directory without a SKILL.md is not a skill"
+fake="$scratch/fake"
+mkdir -p "$fake/.claude/skills/ghost/state"
+cp -R "$REPO/.claude/skills/kubernetes" "$fake/.claude/skills/kubernetes"
+printf 'run output\n' > "$fake/.claude/skills/ghost/state/x"
+o="$(SEI_INTERNAL_SKILLS_HOME="$fake" SEI_SKILLS_TARGET="$scratch/ghost" bash "$GET" skill ghost 2>&1)"; rc=$?
+if [ "$rc" -ne 0 ] && [[ "$o" == *"no skill named"* ]]; then ok "skill ghost: no skill named"; else no "skill ghost (rc=$rc)"; fi
+o="$(SEI_INTERNAL_SKILLS_HOME="$fake" SEI_SKILLS_TARGET="$scratch/ghost" bash "$GET" list 2>/dev/null)"
+if [[ "$o" != *ghost* && "$o" == *$'\n  kubernetes\n'* ]]; then ok "list does not name ghost"; else no "list names ghost, or lost kubernetes"; fi
 
 # It installs what you named and nothing else. A fetcher that quietly pulled a
 # dependency would defeat the point of a targeted door.
 echo "it installs ONLY what was named"
 t="$scratch/only"
-silent run "$t" skill xreview
+silent run "$t" skill kubernetes
 n_sk="$(find "$t/.claude/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | wc -l | tr -d ' ')"
 if [ "$n_sk" = "1" ]; then ok "one skill requested, one skill installed"; else no "expected 1 skill, found $n_sk"; fi
 check_fail "no agents dragged in"        test -d "$t/.claude/agents"
 check_fail "no output styles dragged in" test -d "$t/.claude/output-styles"
 # Only output-style may write settings. A skill or agent doing so would be
 # changing how Claude talks on the strength of an unrelated request.
-silent run "$t" agent idiomatic-reviewer
+silent run "$t" agent sre-engineer
 check_fail "skill and agent never write settings.json" test -f "$t/.claude/settings.json"
 
 echo "unknown names fail loudly rather than installing nothing quietly"
@@ -176,8 +193,8 @@ grep_out "usage explains the default mode" "no arguments" "$scratch/u" -h
 echo "the PIPED invocation works — that is the documented one"
 t="$scratch/pipe"
 piped() { cat "$GET" | SEI_INTERNAL_SKILLS_HOME="$REPO" SEI_SKILLS_TARGET="$t" bash -s -- "$@"; }
-check "piped fetch exits 0"       piped skill xreview
-check "piped fetch landed"        test -f "$t/.claude/skills/xreview/SKILL.md"
+check "piped fetch exits 0"       piped skill kubernetes
+check "piped fetch landed"        test -f "$t/.claude/skills/kubernetes/SKILL.md"
 check "piped usage exits 0"       piped -h
 u="$(piped -h 2>&1)"
 if [[ "$u" == *"No such file or directory"* ]]; then no "piped usage does not grep \$0"; else ok "piped usage does not grep \$0"; fi

@@ -109,4 +109,4 @@ Stop and ask / escalate rather than proceeding when:
 
 ## What this skill defers
 
-Culture/process corpus (DORA, postmortems, incident command) — not a reviewable code artifact; stays with `sre-engineer`. A pluggable `_TEMPLATE` — the theme set stays fixed (not an open set like languages). Un-defer it if a second author genuinely needs a 6th theme. `/coral` + `/council` dispatch wiring — un-defer once standalone use proves out. Per-theme specialist-agent dispatch for deep calls — un-defer when a finding needs a reasoning persona the checklist cannot carry.
+Culture/process corpus (DORA, postmortems, incident command) — not a reviewable code artifact; stays with `sre-engineer`. A pluggable `_TEMPLATE` — the theme set stays fixed (not an open set like languages). Un-defer it if a second author genuinely needs a 6th theme. Per-theme specialist-agent dispatch for deep calls — un-defer when a finding needs a reasoning persona the checklist cannot carry.

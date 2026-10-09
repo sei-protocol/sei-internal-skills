@@ -1,6 +1,6 @@
 # sei-internal-skills Agent Roster
 
-This repository hosts specialist agent personas in `.claude/agents/`. They are general-purpose and sync to other repos and user-level via `scripts/sync-agents.sh`. The skills in `.claude/skills/` (notably `/coral`, `/council`, `/xreview`, `/root-cause`) dispatch them.
+This repository hosts specialist agent personas in `.claude/agents/`. They are general-purpose and sync to other repos and user-level via `scripts/sync-agents.sh`. The skills in `.claude/skills/` (notably `/xreview`, `/root-cause`) dispatch them.
 
 ## Roster
 
@@ -20,7 +20,7 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 |-------|-------|
 | `opentelemetry-expert` | Application-side OpenTelemetry SDK instrumentation. Backend operations → `observability-platform-engineer`. |
 | `observability-platform-engineer` | Telemetry backend as a system: Prometheus/Thanos/Loki/Tempo/Alloy/Promtail/Grafana operations, PromQL/LogQL authorship, mixin vendoring, ingester/compactor/store-gateway sizing. |
-| `sre-engineer` | Google SRE-flavored: SLOs/SLIs, dashboards, alerts, runbooks (human + agent-callable), post-mortems. Closes the loop by filing `/issue` work when a runbook needs missing tooling. |
+| `sre-engineer` | Google SRE-flavored: SLOs/SLIs, dashboards, alerts, runbooks (human + agent-callable), post-mortems. Closes the loop by filing a tracked issue with the owning team when a runbook needs missing tooling. |
 
 ### security
 | Agent | Scope |
@@ -54,10 +54,6 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 |-------|-------|
 | `platform-release-manager` | Release management and cut discipline |
 
-One more agent lives in [`experimental/agents/`](./experimental/README.md) and is **not**
-installed by default — `sei-interview-expert` (with `/interview`). Opt in with
-`make sync-experimental`.
-
 The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
 The operating doctrine — engineering principles, output discipline, the workflow skills and when each applies, the xreview discipline, and the key rules — is the `sei-internal-skills-managed` block below. `scripts/sei-internal-skills-doctrine.md` holds it once and the sync carries it to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
@@ -65,8 +61,6 @@ The operating doctrine — engineering principles, output discipline, the workfl
 ## Install
 
 `make bootstrap` from the repo root is the fastest path, and it runs `make sync-agents`, `make sync-skills`, `make sync-output-styles`, and `make update-agent-permissions`. See the README's Setup section for the full flow.
-
-This installs the **core** only. The agents and skills under [`experimental/`](./experimental/README.md) never ride along — opt in by name with `make sync-experimental`.
 
 Agents and skills travel the same way. sei-internal-skills is the canonical home, and the sync scripts push them out to user-scope (`~/.claude/`) and sibling repos.
 
@@ -87,9 +81,6 @@ For sibling-repo or finer-grained installs, call the scripts directly:
 
 # Install a single domain (e.g. code-quality → idiomatic, systems)
 ./scripts/sync-skills.sh --target ~/ --categories code-quality
-
-# Opt into the parked resources (never installed by the commands above)
-./scripts/sync-experimental.sh --target ~/
 
 # Preview without copying
 ./scripts/sync-agents.sh --target ~/ --dry-run
@@ -133,8 +124,6 @@ This package consumes portable Claude Code skills and specialist agents authored
 - **`/xreview`** — the relevant specialists independently review a design, plan, or diff, then synthesize a findings table. The review counterpart to producing the work.
 - **`/root-cause`** — disciplined, data-driven, multi-expert investigation of complex problems.
 - **`/idiomatic`** and **`/systems`** — review code for language/package idiom, then for systems-level quality on top. Idiom ⊂ systems quality; run them in that order.
-
-Further workflow skills — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — are **experimental** and ship only on opt-in (`make sync-experimental`). Use them when your environment has them; never assume it does.
 
 ### xreview discipline
 

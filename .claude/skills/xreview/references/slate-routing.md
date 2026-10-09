@@ -1,7 +1,7 @@
 # Slate Routing — the shared change-type × blast-radius → slate rule
 
-The canonical routing rule for **both** `/xreview` (review-phase slate) and `/coral`
-(production-phase specialist set). One mechanism, not two: this table is the source of truth;
+The canonical routing rule for **both** the `/xreview` review-phase slate and the
+production-phase specialist set an orchestrator pulls. One mechanism, not two: this table is the source of truth;
 the citing skills apply it to their phase. If a skill's prose ever diverges from this table,
 **the table wins**.
 
@@ -211,10 +211,10 @@ pass)`. Dissent is never waived because the slate is one — it gets folded.
   the §4 stewards. Name the §6 dissenter. The orchestrator's remaining judgment is *which
   domain specialists* cover the boundaries; the *depth*, the *§4a concern-lenses*, and the
   *steward wiring* are mechanical.
-- **`/coral` (production phase)** — classify the slice under construction and read the tier off
+- **Production phase (the orchestrator)** — classify the slice under construction and read the tier off
   §3. Pull the production specialists plus the §4a concern-lenses: a slice that *touches* a §4a
   surface pulls `systems-engineer`/`security-specialist` in production too. Pull the §4 stewards
   the file-types present demand, so a `shared-stack` slice pulls the stewards in *production* too,
-  not only review. Coral's
+  not only review. The
   scope-cutter (`product-manager` on design briefs) and idiom-pass-on-code rules are the
   production-phase application of this same table.

@@ -4,24 +4,14 @@
 # WHY THIS EXISTS: sync-skills.sh and sync-agents.sh never delete. That is deliberate —
 # a target-only file is usually a user's own work, and a sync that pruned by
 # difference would eat it. The cost is that RETIRING a resource does not un-install
-# it. After the 2026-08 slim-down, every environment that had ever synced still
-# carried the removed skills, and after the lingua->language rename every
-# environment carried both. Claude Code discovers all of them, so a stale copy is
-# not inert: it stays dispatchable and competes with the resource that replaced it.
+# it. Claude Code discovers every installed copy, so a stale copy is not inert:
+# it stays dispatchable and competes with the resource that replaced it.
 #
 # This script closes that gap, and it is the ONLY script here that deletes.
 #
-# TWO LISTS, DELIBERATELY DIFFERENT IN KIND:
-#
-#   RETIRED — hand-maintained below. These no longer exist in this repo under any
-#             tier. Removing one is not reversible from here; it is recoverable
-#             only from the archive snapshot. Hardcoded precisely because it must
-#             be reviewed by a human in a diff, never inferred.
-#
-#   PARKED  — DERIVED from experimental/ at runtime, never hardcoded. These still
-#             exist in the repo, so removing one is reversible: `make
-#             sync-experimental` puts it back. Derived so it cannot drift; promote
-#             a skill out of experimental/ and it drops off this list by itself.
+# RETIRED — hand-maintained below. These names no longer exist in this repo. The
+# list is hardcoded, never inferred, so a human reviews every retirement in a
+# diff. This script cannot restore a removed name; recover one from git history.
 #
 # WHAT IT WILL NEVER TOUCH: anything in the current core, and anything it does not
 # recognize. A skill it has never heard of is presumed to be yours — the user's own
@@ -30,11 +20,10 @@
 # the source tree", which would delete exactly those.
 #
 # Usage:
-#   prune-retired.sh [--target <path>] [--apply] [--retired-only] [--check]
+#   prune-retired.sh [--target <path>] [--apply] [--check]
 #
 # --target:        target directory (the script appends .claude/). Default: $HOME.
 # --apply:         actually delete. WITHOUT THIS FLAG THE SCRIPT ONLY REPORTS.
-# --retired-only:  prune the retired list only; leave the parked resources installed.
 # --check:         print one hint line if anything is prunable, then exit 0. Silent
 #                  when the environment is clean. `make update` calls this so a
 #                  stale environment announces itself, without a routine sync ever
@@ -48,8 +37,8 @@ REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 # --- The retired list -------------------------------------------------------
 # Each entry records where it went, so a future reader can recover it.
 
-# Product explorations cut in the 2026-08 slim-down (#291). Full history lives in
-# the private snapshot bdchatham/sei-internal-skills-archive.
+# Recover any name below from this repository's git history:
+#   git log --diff-filter=D -- .claude/skills/<name>
 RETIRED_SKILLS=(
   audit-skill  # cut. Its conventions catalog and its static checker moved
                # to xreview, the only consumer — a pin on a separate skill halted
@@ -79,21 +68,27 @@ RETIRED_SKILLS=(
   impact-weekly     # weekly roll-up into a bet's Weekly log
   impact-portfolio  # cross-project weekly exec report page
   execution-plan    # bet<->design<->issue<->PR lineage decoration
+
+  # The experimental/ tier, removed whole. Recover one from git history:
+  #   git log --diff-filter=D -- experimental/skills/<name>
+  bugbash code-structure coral council design ebpf interview issue
+  linear-ticket project-brief research workstream
 )
 RETIRED_AGENTS=(
-  go-to-market-specialist  # no skill in either tier referenced it
+  go-to-market-specialist  # no skill referenced it
   data-platform-architect   # backed by /data-mesh
   tee-specialist            # backed by /tee
   diagram-architect         # backed by /diagram
   technical-program-manager # backed by /execution-plan; the agent is a thin
                             # wrapper over that mechanism, so it retires with it
+
+  sei-interview-expert   # experimental/agents/, removed whole with the tier
 )
 
 # --- Argument parsing -------------------------------------------------------
 
 TARGET="$HOME"
 APPLY=false
-RETIRED_ONLY=false
 CHECK=false
 
 usage() {
@@ -104,7 +99,6 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --target)       TARGET="$2"; shift 2 ;;
     --apply)        APPLY=true; shift ;;
-    --retired-only) RETIRED_ONLY=true; shift ;;
     --check)        CHECK=true; shift ;;
     -h|--help)      usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage; exit 2 ;;
@@ -116,38 +110,27 @@ T_SKILLS="${TARGET%/}/.claude/skills"
 T_AGENTS="${TARGET%/}/.claude/agents"
 
 # --- Read the repo's current shape ------------------------------------------
-# The core set is the safety guard: nothing in it is ever removable, no matter
-# what any list says. A resource promoted out of experimental/ back into the core
-# must survive a prune.
+# The core set is the safety guard: a name in it is never removable. A skill is
+# a directory that holds a SKILL.md.
 
-declare -a CORE_SKILLS=() CORE_AGENTS=() PARKED_SKILLS=() PARKED_AGENTS=()
-while IFS= read -r d; do [ -n "$d" ] && CORE_SKILLS+=("$(basename "$d")"); done \
-  < <(find "$REPO_ROOT/.claude/skills" -mindepth 1 -maxdepth 1 -type d | sort)
+declare -a CORE_SKILLS=() CORE_AGENTS=()
+while IFS= read -r d; do
+  if [ -n "$d" ] && [ -f "$d/SKILL.md" ]; then CORE_SKILLS+=("$(basename "$d")"); fi
+done < <(find "$REPO_ROOT/.claude/skills" -mindepth 1 -maxdepth 1 -type d | sort)
 while IFS= read -r f; do [ -n "$f" ] && CORE_AGENTS+=("$(basename "$f" .md)"); done \
   < <(find "$REPO_ROOT/.claude/agents" -maxdepth 1 -type f -name '*.md' | sort)
 
-# Always built, even under --retired-only. The flag decides what gets DELETED, never
-# what gets RECOGNIZED: a parked resource reported as "not from this repo" is
-# indistinguishable from the user's own work, and telling those two apart is the
-# entire value of this report.
-if [ -d "$REPO_ROOT/experimental" ]; then
-  while IFS= read -r d; do [ -n "$d" ] && PARKED_SKILLS+=("$(basename "$d")"); done \
-    < <(find "$REPO_ROOT/experimental/skills" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
-  while IFS= read -r f; do [ -n "$f" ] && PARKED_AGENTS+=("$(basename "$f" .md)"); done \
-    < <(find "$REPO_ROOT/experimental/agents" -maxdepth 1 -type f -name '*.md' 2>/dev/null | sort)
-fi
-
 # --- Classify what is installed ---------------------------------------------
 
-declare -a DEL_RETIRED=() DEL_PARKED=() KEPT_CORE=() KEPT_UNKNOWN=() GUARDED=()
+declare -a DEL_RETIRED=() KEPT_CORE=() KEPT_UNKNOWN=() GUARDED=()
 
 # Namerefs (local -n) need bash 4.2; macOS ships 3.2, and every other script here
-# is 3.2-compatible. So the three relevant lists are flattened to space-delimited
+# is 3.2-compatible. So the two relevant lists are flattened to space-delimited
 # strings and matched by substring on padded boundaries.
 in_str() { case " $2 " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
 
-classify() {  # classify <name> <kind> <path> <core-str> <retired-str> <parked-str>
-  local n="$1" kind="$2" path="$3" core="$4" retired="$5" parked="$6"
+classify() {  # classify <name> <kind> <path> <core-str> <retired-str>
+  local n="$1" kind="$2" path="$3" core="$4" retired="$5"
 
   # The guard runs FIRST and outranks every list. If a name is in the core, it
   # stays — even if some list below still names it. That is what makes a stale
@@ -157,22 +140,20 @@ classify() {  # classify <name> <kind> <path> <core-str> <retired-str> <parked-s
     return
   fi
   if in_str "$n" "$retired"; then DEL_RETIRED+=("$kind|$n|$path"); return; fi
-  if in_str "$n" "$parked";  then DEL_PARKED+=("$kind|$n|$path");  return; fi
   KEPT_UNKNOWN+=("$kind/$n")
 }
 
 CORE_SK_STR=" ${CORE_SKILLS[*]-} "; CORE_AG_STR=" ${CORE_AGENTS[*]-} "
 RET_SK_STR=" ${RETIRED_SKILLS[*]-} "; RET_AG_STR=" ${RETIRED_AGENTS[*]-} "
-PARK_SK_STR=" ${PARKED_SKILLS[*]-} "; PARK_AG_STR=" ${PARKED_AGENTS[*]-} "
 
 if [ -d "$T_SKILLS" ]; then
   while IFS= read -r d; do
-    [ -n "$d" ] && classify "$(basename "$d")" skill "$d" "$CORE_SK_STR" "$RET_SK_STR" "$PARK_SK_STR"
+    [ -n "$d" ] && classify "$(basename "$d")" skill "$d" "$CORE_SK_STR" "$RET_SK_STR"
   done < <(find "$T_SKILLS" -mindepth 1 -maxdepth 1 -type d | sort)
 fi
 if [ -d "$T_AGENTS" ]; then
   while IFS= read -r f; do
-    [ -n "$f" ] && classify "$(basename "$f" .md)" agent "$f" "$CORE_AG_STR" "$RET_AG_STR" "$PARK_AG_STR"
+    [ -n "$f" ] && classify "$(basename "$f" .md)" agent "$f" "$CORE_AG_STR" "$RET_AG_STR"
   done < <(find "$T_AGENTS" -maxdepth 1 -type f -name '*.md' | sort)
 fi
 
@@ -180,9 +161,8 @@ fi
 
 if $CHECK; then
   n=${#DEL_RETIRED[@]}
-  $RETIRED_ONLY || n=$(( n + ${#DEL_PARKED[@]} ))
   if [ "$n" -gt 0 ]; then
-    echo "→ ${n} retired/parked resource(s) still installed in ${TARGET%/}/.claude — run 'make prune-retired' to review"
+    echo "→ ${n} retired resource(s) still installed in ${TARGET%/}/.claude — review with 'make -C ${REPO_ROOT} prune-retired', remove with 'make -C ${REPO_ROOT} prune-retired-apply'"
   fi
   exit 0
 fi
@@ -195,29 +175,32 @@ echo ""
 # '|', so a path containing '|' still round-trips.
 record_label() { local e="$1"; local rest="${e#*|}"; echo "${e%%|*}/${rest%%|*}"; }
 
+# has_state_files <path> — 0 if an installed skill's state/ holds any file other
+# than .gitkeep. Such a file is usually the user's own run output (an audit log,
+# a report), and --apply deletes it with the skill.
+has_state_files() {
+  [ -d "$1/state" ] || return 1
+  [ -n "$(find "$1/state" -type f ! -name .gitkeep -print -quit 2>/dev/null)" ]
+}
+
 show() {  # show <header> <entries...>
   local header="$1"; shift
   echo "$header ($#)"
   [ "$#" -eq 0 ] && { echo "  (none)"; return; }
-  local e
-  for e in "$@"; do echo "  - $(record_label "$e")"; done
+  local e suffix
+  for e in "$@"; do
+    suffix=""
+    if [ "${e%%|*}" = skill ] && has_state_files "${e##*|}"; then
+      suffix="  (has state/ files — copy what you need before --apply)"
+    fi
+    echo "  - $(record_label "$e")$suffix"
+  done
 }
 
 if [ "${#DEL_RETIRED[@]}" -gt 0 ]; then
-  show "RETIRED — gone from the repo, recoverable only from the archive" "${DEL_RETIRED[@]}"
+  show "RETIRED — no longer in this repository (recover from git history)" "${DEL_RETIRED[@]}"
 else
-  show "RETIRED — gone from the repo, recoverable only from the archive"
-fi
-echo ""
-if $RETIRED_ONLY; then
-  echo "PARKED — recognized but skipped (--retired-only): ${#DEL_PARKED[@]}"
-  if [ "${#DEL_PARKED[@]}" -gt 0 ]; then
-    for e in "${DEL_PARKED[@]}"; do echo "  - $(record_label "$e")"; done
-  fi
-elif [ "${#DEL_PARKED[@]}" -gt 0 ]; then
-  show "PARKED — still in experimental/, restore with 'make sync-experimental'" "${DEL_PARKED[@]}"
-else
-  show "PARKED — still in experimental/, restore with 'make sync-experimental'"
+  show "RETIRED — no longer in this repository (recover from git history)"
 fi
 echo ""
 echo "KEPT — current core: ${#KEPT_CORE[@]}"
@@ -231,7 +214,6 @@ if [ "${#GUARDED[@]}" -gt 0 ]; then
 fi
 
 TOTAL=${#DEL_RETIRED[@]}
-$RETIRED_ONLY || TOTAL=$(( TOTAL + ${#DEL_PARKED[@]} ))
 echo ""
 if [ "$TOTAL" -eq 0 ]; then
   echo "Nothing to prune."
@@ -256,11 +238,7 @@ remove_all() {
     REMOVED=$((REMOVED+1))
   done
 }
-[ "${#DEL_RETIRED[@]}" -gt 0 ] && remove_all "${DEL_RETIRED[@]}"
-if ! $RETIRED_ONLY && [ "${#DEL_PARKED[@]}" -gt 0 ]; then remove_all "${DEL_PARKED[@]}"; fi
+remove_all "${DEL_RETIRED[@]}"
 
 echo ""
 echo "Removed: $REMOVED"
-if [ "${#DEL_PARKED[@]}" -gt 0 ] && ! $RETIRED_ONLY; then
-  echo "The parked ones are reversible: make sync-experimental"
-fi

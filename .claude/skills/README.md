@@ -9,7 +9,7 @@ Project-scoped skills for team processes. Each subdirectory is a self-contained 
    ```sh
    gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
    ```
-   It clones sei-internal-skills to `~/.sei-internal-skills` (override `SEI_INTERNAL_SKILLS_HOME`), then syncs every **core** skill and agent (portable + Sei) plus the output styles into `~/.claude`. It installs nothing under `experimental/`.
+   It clones sei-internal-skills to `~/.sei-internal-skills` (override `SEI_INTERNAL_SKILLS_HOME`), then syncs every **core** skill and agent (portable + Sei) plus the output styles into `~/.claude`.
 3. **Already have the repo?** One command from your checkout:
    ```sh
    make update     # fast-forward this checkout (run from main) + sync the core skills/agents/output-styles into ~/.claude + verify
@@ -27,7 +27,7 @@ Claude Code discovers skills as **flat** direct subdirectories of `skills/` — 
 
 The **single source of truth** is each skill's `category:` SKILL.md frontmatter. The sync scripts *derive* alias membership from it (no hand-maintained per-skill list). `make verify-catalog` (CI) fails closed if any skill's category maps to no alias. The catalog sections below are descriptive — keep them in step with the skills present, but they are not what the sync reads.
 
-**Domains in the core:** `workflow` · `investigation` · `code-quality` · `platform-infra` · `blockchain` · `release-operations` · `engineer-self-service`. The small domain→alias map at the top of `sync-skills.sh` assigns each domain to a sync alias: `portable`, `sei`, or sei-internal-skills-local (never synced). The map still carries the domains used only by `experimental/` skills, so parking and promoting a skill needs no map change.
+**Domains in the core:** `workflow` · `investigation` · `code-quality` · `platform-infra` · `blockchain` · `release-operations` · `engineer-self-service`. The small domain→alias map at the top of `sync-skills.sh` assigns each domain to a sync alias: `portable`, `sei`, or sei-internal-skills-local (never synced).
 
 ## Catalog
 
@@ -39,7 +39,7 @@ Edit these in sei-internal-skills, never in `~/.claude/skills/` — the next syn
 ./scripts/sync-skills.sh
 ```
 
-- **`xreview/`** — Standalone xreview action between the orchestrator and the coral/council experts. Dispatches the relevant specialists to **independently** review a produced artifact (design, plan, diff, or set of expert outputs). It then synthesizes a COMPATIBLE / MISMATCH / MISSING findings table. Enforces blinded review + an assigned dissenter + evidence-bearing findings to defeat rubber-stamping and consensus theater. The review counterpart to coral's "produce"; `/council` invokes it as its xreview phase.
+- **`xreview/`** — Standalone xreview action between the orchestrator and the specialists. Dispatches the relevant specialists to **independently** review a produced artifact (design, plan, diff, or set of expert outputs). It then synthesizes a COMPATIBLE / MISMATCH / MISSING findings table. Enforces blinded review + an assigned dissenter + evidence-bearing findings to defeat rubber-stamping and consensus theater. The review counterpart to producing the work.
 
 ### Code Quality
 Language- and framework-idiom conformance review. Pairs with the `idiomatic-reviewer` agent (same domain) — the skill is the machinery, the agent is the standing review lens.
@@ -77,7 +77,7 @@ EVM smart-contract engineering on Sei. Pairs with the `solidity-developer` agent
   Method + 6 review dimensions + pluggable kits (`sei-precompiles`, `evm-parity-gas`, `address-association`, `foundry-tooling`, `upgrade-safety`, `evm-indexing-events`, `randomness-vrf`, `delegated-authority` — ERC-7710/7715 caveat delegation on ERC-4337 for scoped/revocable cross-org agent access; more deferred). Backs `solidity-developer`. Distinct from `/idiomatic` (Solidity idiom/lint), `security-specialist` (deep exploit audit / severity), `sei-network-specialist` (node P2P/RPC).
 
 ### Investigation
-- **`root-cause/`** — Disciplined, data-driven, multi-expert investigation of complex problems in the Sei platform stack (`sei-k8s-controller`, `seictl`, `sei-sidecar`, `sei-chain`, `release-test`/`qa-testing`, platform/K8s). Forces signals before hypotheses, ≥2 competing hypotheses before evidence, retrieved provenance (not paraphrased), and falsification before conclusion. Dispatches `.claude/agents/` specialists in **parallel + blinded + with assigned dissent** to prevent the consensus-theater / sycophancy failure mode documented in the multi-agent LLM literature. Output is a multi-cause ranked conclusion — never a single root cause. Distinct from `/bugbash` (pre-launch adversarial), `/coral` (collaborative iteration), and live incident command (mitigate first; this skill is for understanding). Problems outside the Sei platform stack are out of scope.
+- **`root-cause/`** — Disciplined, data-driven, multi-expert investigation of complex problems in the Sei platform stack (`sei-k8s-controller`, `seictl`, `sei-sidecar`, `sei-chain`, `release-test`/`qa-testing`, platform/K8s). Forces signals before hypotheses, ≥2 competing hypotheses before evidence, retrieved provenance (not paraphrased), and falsification before conclusion. Dispatches `.claude/agents/` specialists in **parallel + blinded + with assigned dissent** to prevent the consensus-theater / sycophancy failure mode documented in the multi-agent LLM literature. Output is a multi-cause ranked conclusion — never a single root cause. Distinct from pre-launch adversarial hardening, collaborative design iteration, and live incident command (mitigate first; this skill is for understanding). Problems outside the Sei platform stack are out of scope.
 
 ### Release Operations
 - **`validate-release/`** — Turn a real nightly chaos run into a **liveness** release report on Notion, with panel PNGs embedded. Sources: raw harbor Prometheus metrics (federated `prometheus-prod` datasource) for the per-scenario story + the harness Job. The Job gives the spec env for the release image and the pod-log for the authoritative PASS/FAIL verdict. No S3/`report.json` source (that pipeline no longer exists); leads with `LIVENESS GO`/`NO-GO`, never fabricates a verdict.
@@ -98,37 +98,22 @@ EVM smart-contract engineering on Sei. Pairs with the `solidity-developer` agent
 
 ## Not in the core
 
-The catalog above is the **shipped core** — what `make update` installs. Two other
-tiers exist:
-
-- **[`experimental/`](../../experimental/README.md)** — parked skills and agents:
-  workflow orchestration (`coral`, `council`, `workstream`, `issue`, `design`,
-  `research`), deep-dive engineering (`ebpf`, `bugbash`), `interview`, and
-  `project-brief`. Nothing there syncs by default; opt in with `make sync-experimental`.
-- **The archive** — resources cut entirely in the 2026-08 slim-down (`data-mesh`,
-  `prfaq`, `tee`, `diagram`) live with full history in
-  [`bdchatham/sei-internal-skills-archive`](https://github.com/bdchatham/sei-internal-skills-archive).
-
-Some descriptions above still name a parked skill in an anti-trigger or a
-"see also". Those pointers remain accurate, since the skill still lives in this
-repo under `experimental/`.
+The catalog above is the **shipped core** — what `make update` installs. This repo no
+longer holds a retired resource: `make prune-retired` lists any copy still
+installed, and git history holds its last version. The resources cut in the 2026-08
+slim-down (`data-mesh`, `prfaq`, `tee`, `diagram`) also live with full history in
+[`bdchatham/sei-internal-skills-archive`](https://github.com/bdchatham/sei-internal-skills-archive).
 
 ## Adding a New Skill
 
-1. **Pick the tier first.** A new skill goes in [`experimental/skills/`](../../experimental/README.md) unless you can say why it belongs in the core. The core is what every teammate installs, so each addition costs everyone the effort of filtering past it. `experimental/` costs nobody anything.
+1. Read [`SKILL-TEMPLATE.md`](./SKILL-TEMPLATE.md).
+2. Draft the guardrails stanza FIRST. If you cannot articulate what the skill refuses to do, it is not ready to author.
+3. Scaffold the directory structure from the template.
+4. Catalog it: add an entry in the catalog above, under the appropriate section.
+5. Make sure git ignores `state/`. The repo-level `.gitignore` covers `.claude/skills/*/state/`.
+6. Pre-approve the skill's happy-path permissions in `.claude/settings.json` or `.claude/settings.local.json`.
 
-   It belongs in the **core** when an engineering team outside its author would reach for it on ordinary work. *And* it must be stable enough that changing it is a considered act. Anything else — still forming, narrow audience, exploratory — starts in `experimental/`. Promotion later is one `git mv`.
-
-   Skipping this step is how the catalog reached 33 skills before the 2026-08 slim-down cut it to 17.
-
-2. Read [`SKILL-TEMPLATE.md`](./SKILL-TEMPLATE.md).
-3. Draft the guardrails stanza FIRST. If you cannot articulate what the skill refuses to do, it is not ready to author.
-4. Scaffold the directory structure from the template, under the tier you picked.
-5. Catalog it: a core skill gets an entry in the catalog above, under the appropriate section; an experimental skill gets a row in [`experimental/README.md`](../../experimental/README.md).
-6. Make sure git ignores `state/`. The repo-level `.gitignore` covers both tiers — `.claude/skills/*/state/` and `experimental/skills/*/state/`.
-7. Pre-approve the skill's happy-path permissions in `.claude/settings.json` or `.claude/settings.local.json`.
-
-Only a **core** skill needs a `category:` that maps to a sync alias — `make verify-catalog` enforces that, and it only reads `.claude/skills/`. An experimental skill keeps its `category:` frontmatter (so promotion needs no edit), but nothing checks it while it stays parked.
+Every skill needs a `category:` that maps to a sync alias — `make verify-catalog` enforces that.
 
 ## Cross-Repo Skills
 
@@ -143,6 +128,6 @@ A project-scope skill in this repo is only discoverable when Claude Code is runn
 
 If a tracked file in the target differs from sei-internal-skills's version, the script reports the skill as a conflict and skips it. Re-run with `--force` to overwrite. The script preserves target-only files (user customizations, runtime artifacts).
 
-Sibling of `scripts/sync-agents.sh` — same shape, same flags. Sync by **domain** (`--categories code-quality`, `--categories workflow`, …) or by **alias**: `portable` (the general-purpose skill set), `sei` (the Sei-team skills: validate-release, harbor-dev), `all`.  Skills under `experimental/` are outside every alias — see [`experimental/README.md`](../../experimental/README.md). Update the domain lists in the script when you add, rename, or re-categorize a skill.
+Sibling of `scripts/sync-agents.sh` — same shape, same flags. Sync by **domain** (`--categories code-quality`, `--categories workflow`, …) or by **alias**: `portable` (the general-purpose skill set), `sei` (the Sei-team skills: validate-release, harbor-dev), `all`. Update the domain lists in the script when you add, rename, or re-categorize a skill.
 
 For procedural skills like `harbor-dev` that operate on remote infrastructure, you can also just run them from sei-internal-skills. Pass `--repo` / target paths to direct work elsewhere — no sync needed.

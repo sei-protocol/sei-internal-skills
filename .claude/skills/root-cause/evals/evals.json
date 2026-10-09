@@ -40,7 +40,7 @@
       "expected_behavior": [
         "Skill recognizes a frontend web-app payment bug is outside the in-scope Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s).",
         "Skill halts and surfaces the scope mismatch: 'root-cause covers the Sei platform stack; this problem is in another domain.'",
-        "Skill suggests an appropriate alternative (e.g., /coral with the relevant specialist) rather than proceeding with a wrong-domain investigation.",
+        "Skill suggests an appropriate alternative (e.g., a direct Agent-tool dispatch of the relevant specialist) rather than proceeding with a wrong-domain investigation.",
         "Skill does NOT silently proceed and produce a low-confidence finding."
       ],
       "halt_acceptable": true
