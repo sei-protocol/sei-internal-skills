@@ -31,6 +31,10 @@ repository being reviewed: a thin workflow there dispatches `seidroid-review.yml
 the other repository and this one cannot keep the reference true. Every input below is a plain environment variable or CLI flag, so it also runs
 the same way in a terminal.
 
+A released archive needs no Go. To build or `go install` the driver from source, use Go 1.26
+or newer, which the module's `go` directive requires. With the default `GOTOOLCHAIN=auto`, an
+older `go` command downloads the required toolchain itself; with `GOTOOLCHAIN=local` it fails.
+
 ## Usage
 
 ```
