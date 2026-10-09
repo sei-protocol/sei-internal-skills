@@ -54,7 +54,7 @@ Grouped by **domain**, the `category:` in each `.claude/agents/<name>.md` frontm
 |-------|-------|
 | `platform-release-manager` | Release management and cut discipline |
 
-The agent files themselves negotiate cross-agent boundaries (e.g. observability-platform-engineer vs. sre-engineer vs. opentelemetry-expert; k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
+The agent files themselves negotiate cross-agent boundaries (e.g. k8s-capacity-management vs. platform-engineer). See each `.claude/agents/*.md` for the detailed scope and hand-off rules.
 
 The operating doctrine — engineering principles, output discipline, and how to use `/harbor-dev`, `/giga-dev` and `/kubernetes` — is the `sei-internal-skills-managed` block below. `scripts/sei-internal-skills-doctrine.md` holds it once and the sync carries it to every consuming package; re-inject this repo's copy with `make sync-doctrine-self` after editing the source.
 
