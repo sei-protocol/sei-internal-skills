@@ -2,7 +2,7 @@
 name: root-cause
 category: investigation
 model: claude-opus-5
-description: "Use when an engineer wants to understand a complex problem in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s) with disciplined, data-driven, multi-expert investigation — 'root-cause this', 'why is X breaking', 'this bug keeps coming back', 'investigate the X regression', 'what's actually causing X', 'why did the chain wedge', 'help me understand why X', '/root-cause'. Pulls the right `.claude/agents/` specialists, forces independent hypotheses before evidence, demands retrieved signals (not paraphrased), and refuses to declare a cause without a falsification attempt. Anti-triggers: NOT for live incident commander work — mitigate first, investigate after stabilization; NOT for fixing a known cause (just write the fix); NOT for greenfield design (use /coral or /council); NOT for pre-launch hardening (use /bugbash); NOT for capturing a finished design (use /design); NOT for problems outside the Sei platform stack — out of scope."
+description: "Use when an engineer wants to understand a complex problem in the Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s) with disciplined, data-driven, multi-expert investigation — 'root-cause this', 'why is X breaking', 'this bug keeps coming back', 'investigate the X regression', 'what's actually causing X', 'why did the chain wedge', 'help me understand why X', '/root-cause'. Pulls the right `.claude/agents/` specialists, forces independent hypotheses before evidence, demands retrieved signals (not paraphrased), and refuses to declare a cause without a falsification attempt. Anti-triggers: NOT for live incident commander work — mitigate first, investigate after stabilization; NOT for fixing a known cause (just write the fix); NOT for greenfield design, pre-launch hardening or capturing a finished design (those are design work, not investigation); NOT for problems outside the Sei platform stack — out of scope."
 ---
 
 # Root Cause
@@ -62,12 +62,12 @@ Read `.claude/agents/` from the calling repo. Pick the smallest set whose combin
 
 - sei-k8s-controller behavior → `kubernetes-specialist` + `sei-network-specialist`
 - seictl CLI / SeiNode CRD field semantics → `kubernetes-specialist` + `sei-network-specialist`
-- sei-sidecar (Waterway proxy, RPC routing) → `sei-network-specialist` + `network-specialist`
+- sei-sidecar (Waterway proxy, RPC routing) → `sei-network-specialist` + `sre-engineer`
 - sei-chain (CometBFT P2P, EVM, mempool, state sync) → `sei-network-specialist`
 - release-test / qa-testing harness → `kubernetes-specialist` + `sre-engineer`
-- platform/K8s manifests (Kustomize, IRSA, secrets) → `platform-engineer` + `network-specialist`
+- platform/K8s manifests (Kustomize, IRSA, secrets) → `kubernetes-specialist` + `sre-engineer`
 
-For any cross-cutting effect (latency, resource pressure, cardinality), add `observability-platform-engineer`. For attack-surface or trust-boundary effects, add `security-specialist`.
+For any cross-cutting effect (latency, resource pressure, cardinality), add `sre-engineer`. It owns the PromQL and LogQL behind alerts, recording rules and dashboards. For an attack-surface or trust-boundary effect, add a security specialist if the calling repo's roster has one. The synced roster has none, so surface that gap as a finding, as the sparse-roster section of `references/multi-expert-dispatch.md` says.
 
 Dispatch contract (mandatory):
 
@@ -222,7 +222,7 @@ Stop and report to the user if:
 
 - **Live incident command.** Mitigate first, investigate after. The on-call's job is to restore service; this skill's job is to explain what happened, ideally not on the critical path.
 - **Postmortem doc capture.** Out of scope by design (deferred). The skill produces a conversational summary; converting it into a `docs/postmortems/` artifact is a future companion skill.
-- **Single-expert deep-dive.** If the problem is genuinely contained to one specialist's domain and the user knows it, just `/coral` that specialist directly.
+- **Single-expert deep-dive.** If the problem is genuinely contained to one specialist's domain and the user knows it, dispatch that specialist directly.
 - **Fix-it work.** Once you have identified the contributing factors, fixing them is its own engagement. The skill ends at the ranked conclusion + recommended actions.
 - **Cover domains outside the Sei platform stack.** Out of scope per the trigger description. A problem in another domain gets a redirect to the right tool, not a forced cross-domain investigation.
 

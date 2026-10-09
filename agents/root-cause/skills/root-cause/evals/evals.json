@@ -8,7 +8,7 @@
       "scenario": "User invokes /root-cause: \"Help me understand why eth_call p99 latency on the four-validator chain in eng-bdchatham spiked from 80ms to 2.1s starting at 14:32 UTC. The chain is still serving requests but slowly. Logs and prometheus are available for the last 24h.\"",
       "expected_behavior": [
         "Step 1: Restates the effect in measurable terms (signal, onset, baseline, blast radius). Does not skip to hypotheses.",
-        "Step 2: Reads .claude/agents/ in the calling repo and selects a multi-expert slate (kubernetes-specialist + sei-network-specialist + observability-platform-engineer at minimum). Names which agent is assigned red-team.",
+        "Step 2: Reads .claude/agents/ in the calling repo and selects a multi-expert slate (kubernetes-specialist + sei-network-specialist + sre-engineer at minimum). Names which agent is assigned red-team.",
         "Step 3: Dispatches specialists in a single message (parallel), with blinded briefs (no specialist sees another's hypothesis). Each brief asks for the top-3 hypothesis table with mechanism + falsification observation + retrieval command — not for analysis.",
         "Step 4: After hypothesis collection, retrieves the signal-ladder commands (kubectl describe, kubectl logs --previous, seid status, /net_info, prometheus RED queries scoped to the incident window) and records each with literal command + verbatim output + interpretation + status.",
         "Step 5: Builds a causal chain across surviving hypotheses with temporality, mechanism, consistency, and counterfactual (only if testable).",
@@ -40,7 +40,7 @@
       "expected_behavior": [
         "Skill recognizes a frontend web-app payment bug is outside the in-scope Sei platform stack (sei-k8s-controller, seictl, sei-sidecar, sei-chain, release-test/qa-testing, platform/K8s).",
         "Skill halts and surfaces the scope mismatch: 'root-cause covers the Sei platform stack; this problem is in another domain.'",
-        "Skill suggests an appropriate alternative (e.g., /coral with the relevant specialist) rather than proceeding with a wrong-domain investigation.",
+        "Skill redirects the user to the owner of that domain rather than proceeding with a wrong-domain investigation.",
         "Skill does NOT silently proceed and produce a low-confidence finding."
       ],
       "halt_acceptable": true

@@ -12,9 +12,7 @@
 # bundle registers broken rather than not at all.
 #
 # All bundles come from `agents/` in this repo, which makes the repo the single source
-# of truth for their content. The previously baked copies of xreview and root-cause
-# came from a recipe that no longer exists, so this replaces them with the tracked
-# versions rather than layering a third bundle beside two unrebuildable ones.
+# of truth for their content.
 #
 # Deploy pairs this with two changes in platform: the server image digest, and adding
 # each bundle path to OMNIGENT_BUILTIN_AGENT_DIRS. A path in the variable with no
