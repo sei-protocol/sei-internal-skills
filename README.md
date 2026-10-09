@@ -105,6 +105,7 @@ Most work starts with one of these:
 - **`/root-cause`** — disciplined, multi-expert investigation of a complex problem. Signals before hypotheses; falsification before conclusion.
 - **`/idiomatic`** then **`/systems`** — review code for language and package idiom, then for systems-level quality on top.
 - **`/harbor-dev`** — spin up an ephemeral chain, attach an RPC fleet, run a bench, tear it down.
+- **`/giga-dev`** — how the shared giga testnet works, where its logs and metrics live, and how to diagnose it.
 
 Heavier orchestration — `/coral`, `/council`, `/bugbash`, `/design`, `/issue`, `/research`, `/workstream` — is [experimental](./experimental/README.md) and installs only on opt-in.
 
@@ -114,7 +115,7 @@ The boundary between them is the point.
 
 | | What it is | Who gets it |
 |---|---|---|
-| **`.claude/`** — the core | 11 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
+| **`.claude/`** — the core | 12 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
 | **[`experimental/`](./experimental/README.md)** | 12 skills, 1 agent. Still forming, narrow audience, or exploratory. | Only on `make sync-experimental` |
 
 The core is what every teammate installs, so anything added there costs everyone the
@@ -163,14 +164,14 @@ history in a private snapshot rather than deleting them outright.
 
 ## What's in here
 
-- **Skills** (`.claude/skills/`) — 11 self-contained Claude Code skills, grouped by domain:
+- **Skills** (`.claude/skills/`) — 12 self-contained Claude Code skills, grouped by domain:
   - **Workflow** — `/xreview`
   - **Investigation** — `/root-cause`
   - **Code quality** — `/idiomatic`, `/systems`
   - **Platform infra** — `/platform`, `/kubernetes`
   - **Blockchain** — `/evm`
   - **Release operations** — `/validate-release`, `/gov-ops`, `/validator-platform`
-  - **Engineer self-service** — `/harbor-dev`
+  - **Engineer self-service** — `/harbor-dev`, `/giga-dev`
 - **Agents** (`.claude/agents/`) — 16 specialist personas dispatched by the skills (or directly via the Agent tool), grouped by domain:
   - **Platform infra** — `kubernetes-specialist`, `platform-engineer`, `network-specialist`, `k8s-capacity-management`, `sei-network-specialist`
   - **Observability** — `opentelemetry-expert`, `observability-platform-engineer`, `sre-engineer`
