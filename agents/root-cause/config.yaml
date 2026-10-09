@@ -46,9 +46,10 @@ tools:
 # instruct the agent to shell out. Which one carries was undetermined.
 #
 # `none` makes the vendored body the only one, so the envelope is a property of
-# the bundle rather than of whatever the image happened to seed. The corpora this
-# drops from reach — /kubernetes, /platform, /systems — are unusable under the dev
-# MVP envelope, which sets DENY_SHELL and mounts no cluster credential. The deploy
+# the bundle rather than of whatever the image happened to seed. The skills this
+# drops from reach are the runner-seeded catalog: /giga-dev, /harbor-dev and
+# /kubernetes. Most of their procedures use a shell or kubectl, which the dev MVP
+# envelope denies: it sets DENY_SHELL and mounts no cluster credential. The deploy
 # default is not shell-denied, so this is a property of that deployment and not of
 # the bundle.
 skills: none
