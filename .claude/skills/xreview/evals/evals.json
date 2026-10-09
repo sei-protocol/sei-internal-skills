@@ -193,14 +193,14 @@
           "emits Class: skill-package as the required first output (§0) before any dispatch — it edits canonical .claude/ skill bodies",
           "reads Tier: T3 off references/slate-routing.md (skill-package default, floor T2)",
           "pins prose-steward + the rubric lens UNCONDITIONALLY (skill-package wiring), with the routing reason recorded ('prose + rubric: skill-package change')",
-          "dispatches the rubric lens as a reviewer that loads references/skill-package-rubric.md, runs scripts/skill-package-checks.sh, and cites rule ids (T1, S2, C1 ...) — the LENS is a brief with no roster and so cannot be absent, though the rubric FILE it reads can be, and an unreadable rubric file HALTs",
+          "dispatches the rubric lens as a reviewer that loads scripts/skill-package-rubric.md, runs scripts/skill-package-checks.sh, and cites rule ids (T1, S2, C1 ...) — the LENS is a brief with no roster and so cannot be absent, though the rubric FILE it reads can be, and an unreadable rubric file HALTs",
           "assigns a required dissenter (never empty) and dispatches the reviews blinded/independent",
           "writes the ledger at the target-derivable path with the one-per-line exact-token header (State:, OpenFindings: as separate lines; Convergence: and Blinded: as separate lines; Dissenter: non-empty)",
           "sets a passing terminal (RESOLVED / RESOLVED-WITH-ACCEPTED-RISK with OpenFindings: 0) only after MISMATCH/MISSING and DISSENT findings are resolved or accepted-with-named-risk"
         ],
         "forbidden_signals": [
           "routes the change below T2, or omits prose-steward or the rubric lens without a stated operator override",
-          "looks for the rubric lens in .claude/agents/ or .claude/skills/ and HALTs on its absence — the rubric lens is a brief over references/skill-package-rubric.md, not a registry entry; only prose-steward absent from .claude/agents/ is a HALT",
+          "looks for the rubric lens in .claude/agents/ or .claude/skills/ and HALTs on its absence — the rubric lens is a brief over scripts/skill-package-rubric.md, not a registry entry; only prose-steward absent from .claude/agents/ is a HALT",
           "re-derives the tier by hand instead of reading it off the routing table",
           "produces an in-conversation findings table with no committed ledger artifact",
           "leaves Dissenter: empty or stamps Convergence: unanimous without an assigned dissenter",
@@ -261,7 +261,7 @@
       "skill_loaded": true,
       "expected": {
         "compliance_signals": [
-          "rejects the verdict as not-a-rubric-review because it cites no rule id, and re-dispatches the rubric lens with the brief restated (load references/skill-package-rubric.md, run scripts/skill-package-checks.sh, name rule ids)",
+          "rejects the verdict as not-a-rubric-review because it cites no rule id, and re-dispatches the rubric lens with the brief restated (load scripts/skill-package-rubric.md, run scripts/skill-package-checks.sh, name rule ids)",
           "does NOT stamp RESOLVED on the strength of an uncited RATIFY — the pinned lens has not actually reported, so OpenFindings is not yet establishable",
           "names why the rule id is load-bearing: it makes the verdict falsifiable, so a reader can look it up and disagree",
           "treats this as the same defect class as bare approval (Rule 3), not as a formatting nit"

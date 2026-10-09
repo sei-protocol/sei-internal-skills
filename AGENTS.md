@@ -4,7 +4,7 @@ This repository hosts specialist agent personas in `.claude/agents/`. They are g
 
 ## Roster
 
-Grouped by **domain** — each agent carries a matching `category:` in its `.claude/agents/<name>.md` frontmatter, and `sync-agents.sh --categories <domain>` syncs a domain. Agents discover **flat** under `~/.claude/agents/`; the domains are metadata, not folders. Sync aliases cross-cut: all agents are `portable` except `sei-network-specialist` (`sei`); `all` is everything.
+Grouped by **domain**, the `category:` in each `.claude/agents/<name>.md` frontmatter. Agents discover **flat** under `~/.claude/agents/`; the domains are metadata, not folders. Every agent syncs.
 
 ### platform-infra
 | Agent | Scope |
@@ -13,7 +13,7 @@ Grouped by **domain** — each agent carries a matching `category:` in its `.cla
 | `platform-engineer` | Platform layer — Kustomize/Flux GitOps, EKS Pod Identity, SOPS/KMS secrets, Pod Security, terraform; the sei-k8s-controller deploy manifests. Backed by `/platform`. |
 | `network-specialist` | K8s and cloud networking, service mesh |
 | `k8s-capacity-management` | Capacity as a discipline: workload right-sizing from observed data, Karpenter NodePool design, DaemonSet overhead, PriorityClass tiers, HPA/VPA/KEDA tuning, scheduling primitives. |
-| `sei-network-specialist` | Sei node networking (seid ports, CometBFT P2P, Waterway, Istio quirks). Valuable to any Sei-adjacent work. *(sync alias: `sei`)* |
+| `sei-network-specialist` | Sei node networking (seid ports, CometBFT P2P, Waterway, Istio quirks). Valuable to any Sei-adjacent work. |
 
 ### observability
 | Agent | Scope |
@@ -60,34 +60,7 @@ The operating doctrine — engineering principles, output discipline, the workfl
 
 ## Install
 
-`make bootstrap` from the repo root is the fastest path, and it runs `make sync-agents`, `make sync-skills`, `make sync-output-styles`, and `make update-agent-permissions`. See the README's Setup section for the full flow.
-
-Agents and skills travel the same way. sei-internal-skills is the canonical home, and the sync scripts push them out to user-scope (`~/.claude/`) and sibling repos.
-
-For sibling-repo or finer-grained installs, call the scripts directly:
-
-```bash
-# Mirror portable agents to user-level (any CWD) — same as `make sync-agents`
-./scripts/sync-agents.sh --target ~/
-
-# Mirror portable skills to user-level — same as `make sync-skills`
-./scripts/sync-skills.sh --target ~/
-
-# Copy portable + sei agents to a sibling repo
-./scripts/sync-agents.sh --target ~/work/platform --categories portable,sei
-
-# Copy the sei-team skills (validate-release, gov-ops, validator-platform, harbor-dev) to user-level
-./scripts/sync-skills.sh --target ~/ --categories sei
-
-# Install a single domain (e.g. code-quality → idiomatic, systems)
-./scripts/sync-skills.sh --target ~/ --categories code-quality
-
-# Preview without copying
-./scripts/sync-agents.sh --target ~/ --dry-run
-./scripts/sync-skills.sh --target ~/ --dry-run
-```
-
-Categories: `portable` (default), `sei`, `all`. Both scripts are non-destructive by default — they refuse to overwrite changed files in the target unless you pass `--force`. The Make targets pass `--force` so subsequent runs pick up sei-internal-skills updates cleanly.
+`make update` installs every skill and agent. `README.md` gives the other install forms.
 
 <!-- BEGIN sei-internal-skills-managed (do not edit; managed by sei-internal-skills sync scripts) -->
 ## Operating with sei-internal-skills resources

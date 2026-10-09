@@ -16,16 +16,7 @@ One-liner
 gh api repos/sei-protocol/sei-internal-skills/contents/scripts/install.sh -H 'Accept: application/vnd.github.raw' | bash
 ```
 
-Or clone, then
-
-```sh
-make bootstrap
-```
-
-This runs:
-- `make sync-agents` — installs sei-internal-skills's portable agents into `~/.claude/agents/` so they are reachable from any cwd
-- `make sync-skills` — installs sei-internal-skills's portable skills into `~/.claude/skills/`
-- `make update-agent-permissions` — installs the canonical read-only allow-list (`gh` reads, GitHub WebFetch) into `./.claude/settings.json`
+Or clone into `~/.sei-internal-skills`, then run `make update`.
 
 The canonical permission set is **strictly read-only by design**. `make verify-agent-permissions` rejects mutating patterns (`gh issue create`, `gh pr merge`, `aws delete-*`, `kubectl apply`, etc.), and CI runs it on every PR that touches the permission files. Local additions for your own workflow go in `.claude/settings.local.json` (gitignored).
 
@@ -104,7 +95,7 @@ Most work starts with one of these:
 
 | | What it is | Who gets it |
 |---|---|---|
-| **`.claude/`** — the core | 12 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
+| **`.claude/`** — the catalog | 12 skills, 16 agents. Focused on what an engineering team reaches for on ordinary work. | Everyone, via `make update` |
 
 ### Retiring something
 
@@ -151,10 +142,10 @@ history in a private snapshot rather than deleting them outright.
   - **Product management** — `product-engineer`, `product-manager`
   - **Release operations** — `platform-release-manager`
 - **Sync machinery** (`scripts/`, `Makefile`):
-  - `sync-skills.sh` / `sync-agents.sh` — copy skills/agents into user-scope (`~/.claude/`) or sibling repos, by domain or alias
+  - `sync-skills.sh` / `sync-agents.sh` — copy every skill and agent into user scope (`~/.claude/`) or a sibling repo
   - `sync-output-styles.sh` — copy output styles into `~/.claude/output-styles/`; ships them, never activates them
   - `install.sh` — the whole toolkit, or [one piece](#just-one-piece) without cloning
-  - `Makefile` — `make bootstrap` (one-shot install), plus `make sync-skills` / `make sync-agents` / `make sync-output-styles`
+  - `Makefile` — `make update`, `make sync-output-styles`, `make prune-retired`
   - `update-agent-permissions.sh` — installs the canonical read-only permission set
 
 ### Output styles
@@ -171,18 +162,6 @@ would overwrite anyone who already picked a different style.
 Shipped: **ASD-STE100** — Simplified Technical English. Short sentences, active voice, one
 meaning per word, outcome first. Turn it on with `/config` → Output Style → ASD-STE100, or
 put `"outputStyle": "ASD-STE100"` in `~/.claude/settings.json`.
-
-## Organization & selective sync
-
-**Domains** group skills and agents for navigation and selective install — e.g. `code-quality` (`/idiomatic`, `/systems`), `release-operations` (`/gov-ops`, `/validate-release`), `platform-infra`, `investigation`, and so on. The domain is **metadata, not directory structure**. Each skill/agent carries a `category:` in its frontmatter, and the catalogs ([`.claude/skills/README.md`](.claude/skills/README.md), [`AGENTS.md`](AGENTS.md)) group by it. The sync scripts let you install one domain at a time:
-
-```sh
-make sync-skills                                            # the `portable` set (default)
-./scripts/sync-skills.sh --categories code-quality          # just one domain
-./scripts/sync-skills.sh --categories all                   # everything syncable
-```
-
-Claude Code discovers skills and agents **flat** (`~/.claude/skills/<name>/`, `~/.claude/agents/<name>.md`) in both user and project scope — nested folders and custom roots like `~/.claude/sei-internal-skills/` are **not** discovered. The install is therefore always flat; domains never become on-disk folders. The aliases `portable`, `sei`, and `all` cross-cut the domains.
 
 ## Repository structure
 
@@ -208,8 +187,8 @@ assets/                     # Repo logo used by this README
 | If you are... | Start here |
 |---|---|
 | **Using the skills day to day** | `.claude/skills/README.md` (the catalog) |
-| **Authoring a new skill** | `.claude/skills/SKILL-TEMPLATE.md`, then the skill-package rubric |
-| **Auditing an existing skill** | `/xreview` on the skill directory — it runs `.claude/skills/xreview/scripts/skill-package-checks.sh`, then reads the 52-rule rubric beside it |
+| **Authoring a new skill** | `.claude/skills/SKILL-TEMPLATE.md`, then `scripts/skill-package-rubric.md` |
+| **Auditing a skill** | `scripts/skill-package-checks.sh --skill-dir <path>`, then `scripts/skill-package-rubric.md` |
 | **Adding or editing an agent persona** | `.claude/agents/` + update the roster in `AGENTS.md` |
 | **Wanting exactly one thing** | [Just one piece](#just-one-piece) — the same installer, with a target |
 | **Wiring a sibling repo to use these** | `scripts/sync-agents.sh --target <path>` and `scripts/sync-skills.sh --target <path>` |

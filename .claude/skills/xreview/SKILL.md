@@ -22,9 +22,9 @@ xreview operates on **a concrete artifact, reviewed by independent specialists**
 1. **Artifact required.** Read the actual work under review — the design doc, the spec, the diff, the specialist outputs. If you cannot locate or paste it, halt and ask for it. Never review from a summary, from memory, or from "what a spec like this typically contains." A synthesized verdict over an artifact you never read is fabrication.
 2. **Roster required.** xreview selects its domain lenses and **agent-stewards** (`prose-steward`, `idiomatic-reviewer`) from a `.claude/agents/` roster, so the calling repo must have one. Without it, halt and ask the user to point at a roster or invoke from a repo that has it.
 
-   On a `skill-package` change, brief one more reviewer as the **rubric lens**. It loads **this skill's own rubric**, `references/skill-package-rubric.md` (rules with ids and severities). It runs `scripts/skill-package-checks.sh` for the static subset, and returns findings that **name rule ids**.
+   On a `skill-package` change, brief one more reviewer as the **rubric lens**. It loads the rubric in a sei-internal-skills checkout, `scripts/skill-package-rubric.md` (rules with ids and severities). It runs `scripts/skill-package-checks.sh` from the same checkout for the static subset, and returns findings that **name rule ids**.
 
-   The rubric is a file this skill owns, not a registry entry. The *lens* has no absence check, and an uninstall cannot drop it — which is why it lives here rather than in a separate skill. The rubric *file* is a different object. A broken install can still truncate or omit it, and a lens that cannot read it **HALTs** (Halt Conditions). A rubric-lens verdict citing no rule id is not a rubric review; re-dispatch it.
+   The rubric is a repository file, not a registry entry, so the *lens* has no absence check. The rubric *file* is a different object. It does not ship with this skill, so a session without a sei-internal-skills checkout cannot read it. A lens that cannot read it **HALTs** (Halt Conditions). A rubric-lens verdict citing no rule id is not a rubric review; re-dispatch it.
 
    The slate normally holds a handful of specialists. When exactly one is genuinely relevant, run a single-reviewer pass but label it as such. Call it a degenerate xreview, not one dressed up as full.
 3. **Refusal conditions** — this skill will refuse to:
@@ -33,7 +33,7 @@ xreview operates on **a concrete artifact, reviewed by independent specialists**
    - **Accept bare approval.** "LGTM" / "looks good" is not a finding. Every COMPATIBLE, MISMATCH, or MISSING must cite the specific contract, field, signature, or line it is about. A finding with no evidence is noise.
    - **Launder a sign-off through wording.** Phrasing it "we incorporated their input" instead of "they approved" does not convert production into review. If the specialists did not review the final artifact, the xreview did not happen.
    - **Declare COMPATIBLE / stamp a passing `State:` while *any* correctness-grade finding is open.** The gating set: a MISMATCH/MISSING, a correctness-grade idiom *or* prose finding, or a per-lens DISSENT (including a pinned steward). Each one resolves (artifact updated, provider/consumer reconciled), or the user marks it accepted-with-risk — never silently dropped. (This is the gating set, stated identically in Rule 4 and Halt Conditions, and enforced bullet-by-bullet in Step 5.)
-   - **Drop a pinned steward, or proceed without one.** A `skill-package` change pins `prose-steward` *unconditionally* — **regardless of which file-types the diff touches**. Change-size never demotes it (per `references/slate-routing.md` §4). It also needs one reviewer holding the **rubric lens**, citing rule ids from `references/skill-package-rubric.md`. A verdict that cites no rule id is not a rubric review: presence of a file was never evidence that anyone read it. If `prose-steward` is absent from `.claude/agents/`, **HALT** — never silently proceed pin-less; the operator may override only with a stated reason. (Also a Halt Condition.)
+   - **Drop a pinned steward, or proceed without one.** A `skill-package` change pins `prose-steward` *unconditionally* — **regardless of which file-types the diff touches**. Change-size never demotes it (per `references/slate-routing.md` §4). It also needs one reviewer holding the **rubric lens**, citing rule ids from `scripts/skill-package-rubric.md`. A verdict that cites no rule id is not a rubric review: presence of a file was never evidence that anyone read it. If `prose-steward` is absent from `.claude/agents/`, **HALT** — never silently proceed pin-less; the operator may override only with a stated reason. (Also a Halt Condition.)
 
 See `references/reviewer-dispatch.md` for the blinded dispatch contract, `references/findings-protocol.md` for the findings schema, `references/slate-routing.md` for the change-type → slate routing rule, and `references/review-ledger.md` for the durable synthesis record.
 
@@ -120,23 +120,23 @@ have not read. If the read-and-frame yields no resolvable `Class:`, halt (§0) b
    The two are **different kinds of thing** (§4's dispatch table).
    `prose-steward` is an **agent** from `.claude/agents/`, and its absence there is a HALT,
    not a silent drop. The rubric lens is **a brief, not a registry entry** — any dispatched
-   reviewer told to load `references/skill-package-rubric.md`, run
+   reviewer told to load `scripts/skill-package-rubric.md`, run
    `scripts/skill-package-checks.sh`, and cite rule ids. Do not look for it in
    `.claude/agents/` or `.claude/skills/`; it was never going to be there, and it cannot go
    missing. What replaces its absence check: **a verdict citing no rule id is not a rubric
    review — re-dispatch it.** Two conditions ride with that:
-   - **The rubric file itself can still be missing or truncated in a broken install.** If the
-     lens cannot read `references/skill-package-rubric.md`, **HALT** — do not let it emit
+   - **The rubric file itself can be out of reach.** It lives in a sei-internal-skills
+     checkout, not in this skill. If the lens cannot read `scripts/skill-package-rubric.md`, **HALT** — do not let it emit
      plausible-looking ids from memory. The ids are short and schematic (`D1`, `B2`, `S2`), so
      an unread rubric produces a review that looks cited and is not.
    - **The rubric governs at the merge base.** When the diff edits the rubric or the checker,
      the **orchestrator** materializes the merge-base revision of both to disk and briefs those
-     paths. Those files are `references/skill-package-rubric.md` and
+     paths. Those files are `scripts/skill-package-rubric.md` and
      `scripts/skill-package-checks.sh`. The lens cites ids from that copy. Never hand it a
      `git show` pointer — Reachability (`references/reviewer-dispatch.md`) applies, and some
      lenses have no Bash.
 
-     The checker is in scope because it decides 26 of the 52 rules. Otherwise a diff that
+     The checker is in scope because it decides 25 of the 50 rules. Otherwise a diff that
      loosens a static check would face review under the loosened check. The edit is
      **itself a finding**, recorded in the ledger's routing section with a named justification.
      Until it carries one, treat it as correctness-grade. Without this, a change can weaken a
@@ -266,7 +266,7 @@ Stop and report to the user if:
 - `Class:` was not emitted before dispatch (§0) — no classification ⇒ no review. HALT and classify before dispatching any reviewer.
 - You cannot locate or paste the artifact under review — never synthesize a review of work you have not read.
 - The calling repo has no `.claude/agents/` roster and the user cannot point at one.
-- The rubric lens cannot read `references/skill-package-rubric.md` — HALT. An unread rubric yields ids emitted from memory, which reads as a cited review and is not one.
+- The rubric lens cannot read `scripts/skill-package-rubric.md` — HALT. An unread rubric yields ids emitted from memory, which reads as a cited review and is not one.
 - `prose-steward` is absent from `.claude/agents/` on a `skill-package` change — HALT, not a silent drop (same posture as dropping the pin). Ask the operator, who may override with a stated reason.
 - A reviewer returns bare approval with no cited evidence — re-dispatch with the evidence requirement.
 - Reviewers were not blinded (saw each other's assessments first) — the convergence is invalid; re-run with independent briefs.

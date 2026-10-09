@@ -5,7 +5,7 @@
 # The defect presents as the AGENT misbehaving — "it told me to run /pr-quality
 # and nothing happened" — not as an incomplete install, which is why it erodes
 # confidence in the skills that do work. No other gate catches it: verify-catalog
-# checks that a category maps to a sync alias, and verify-doctrine-block checks
+# checks that each file names itself, and verify-doctrine-block checks
 # this repo's AGENTS.md against the source file. Neither resolves a cited name.
 #
 # Citation forms:
@@ -21,12 +21,6 @@
 #
 # Error classes — any one fails the run:
 #   ABSENT          .claude/skills/ does not hold the cited skill
-#   UNSHIPPED       the skill is in the core, but its category never syncs
-#                   outward, so no default install places it. This is the class
-#                   the opening paragraph names: /brevity and /pr-quality are
-#                   category output-quality, which sync-skills.sh holds in
-#                   SEI_INTERNAL_SKILLS_LOCAL_DOMAINS, and 14 shipped agents
-#                   hard-path to them.
 #   STALE-MARKER    a gap marker names a skill the core does hold
 #   MISSING-SCRIPT  a SKILL.md names a script that exists nowhere
 #
@@ -50,7 +44,7 @@
 #
 # Exit codes:
 #   0  no error-class finding (or --installed, which never gates)
-#   1  at least one ABSENT, UNSHIPPED, STALE-MARKER or MISSING-SCRIPT finding
+#   1  at least one ABSENT, STALE-MARKER or MISSING-SCRIPT finding
 #   2  invalid usage
 
 set -euo pipefail
@@ -133,21 +127,6 @@ list_skills() {
 
 core=" $(list_skills "$SKILL_ROOT") "
 
-# A core skill whose category never syncs outward reaches no machine, so citing
-# it is the same defect as citing something absent. The domain list is read from
-# sync-skills.sh rather than restated, so the two cannot drift.
-unshipped=" "
-if ! $INSTALLED && [ -f scripts/sync-skills.sh ]; then
-  local_domains=$(sed -n 's/^SEI_INTERNAL_SKILLS_LOCAL_DOMAINS="\(.*\)"$/\1/p' scripts/sync-skills.sh)
-  for d in $SKILL_ROOT/*/; do
-    [ -f "${d}SKILL.md" ] || continue
-    cat=$(sed -n 's/^category:[[:space:]]*//p' "${d}SKILL.md" | head -1)
-    for ld in $local_domains; do
-      [ "$cat" = "$ld" ] && unshipped="$unshipped$(basename "$d") "
-    done
-  done
-fi
-
 # One awk pass over every shipped artifact. A per-line grep subshell is the
 # obvious shape and it is unusable: two subprocesses per line across this tree is
 # tens of thousands of spawns.
@@ -169,7 +148,7 @@ AWK_PROG='
         while (match(tail, /\/[a-z][a-z0-9-]{2,30}/)) {
           nm = substr(tail, RSTART + 1, RLENGTH - 1); tail = substr(tail, RSTART + RLENGTH)
           marker = marker nm " "
-          if (index(core, " " nm " ") && !index(unshipped, " " nm " "))
+          if (index(core, " " nm " "))
             printf "STALE-MARKER   %s:%d  marks /%s as a gap, but the core holds it\n", FILENAME, FNR-1, nm
         }
       }
@@ -196,11 +175,8 @@ AWK_PROG='
           if (index(stop, " " tok " ")) continue
           if (index(marker, " " tok " ")) continue
           if (seen[FILENAME ":" FNR ":" tok]++) continue
-          if (index(unshipped, " " tok " "))
-            printf "UNSHIPPED      %s:%d  cites /%s, whose category never syncs outward, so no default install places it\n", FILENAME, FNR, tok
-          else if (index(core, " " tok " ")) continue
-          else
-            printf "ABSENT         %s:%d  cites /%s, which .claude/skills/ does not hold\n", FILENAME, FNR, tok
+          if (index(core, " " tok " ")) continue
+          printf "ABSENT         %s:%d  cites /%s, which .claude/skills/ does not hold\n", FILENAME, FNR, tok
         }
       }
       prev = $0
@@ -222,8 +198,7 @@ scan=$(
     # the group exits 1, pipefail fails the pipeline, and set -e kills the script
     # before it prints anything.
     { [ -n "$DOCTRINE" ] && [ -f "$DOCTRINE" ] && echo "$DOCTRINE"; } || true
-  } | sort | tr '\n' '\0' | xargs -0 awk -v core="$core" \
-        -v unshipped="$unshipped" -v stop="$NON_SKILL_NAMES" "$AWK_PROG"
+  } | sort | tr '\n' '\0' | xargs -0 awk -v core="$core" -v stop="$NON_SKILL_NAMES" "$AWK_PROG"
 )
 
 # One findings array, counted once. Two counting paths would be correct only
@@ -257,7 +232,7 @@ fi
 canary_dir=$(mktemp -d)
 trap 'rm -rf "$canary_dir"' EXIT
 printf 'Use `/zzz-canary-absent` here.\n' > "$canary_dir/canary.md"
-if ! awk -v core=" " -v unshipped=" " -v stop=" " "$AWK_PROG" "$canary_dir/canary.md" \
+if ! awk -v core=" " -v stop=" " "$AWK_PROG" "$canary_dir/canary.md" \
      | grep -q 'zzz-canary-absent'; then
   echo "✗ verify-references: the scanner did not detect a planted citation." >&2
   echo "  awk is not matching, so a passing run would mean nothing. Refusing to report." >&2

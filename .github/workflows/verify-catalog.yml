@@ -1,8 +1,6 @@
 name: Verify Skill/Agent Catalog
 
-# Fails closed if any skill or agent declares a `category:` that maps to no sync
-# alias — the drift that silently orphaned gov-ops and ebpf from the hand-kept
-# lists. Membership is derived from frontmatter; this guard keeps it complete.
+# Fails closed if a skill or agent file does not name itself, then runs the catalog suite.
 
 on:
   pull_request:
@@ -13,6 +11,8 @@ on:
       - 'scripts/sync-agents.sh'
       - 'scripts/tests/catalog-coverage.test.sh'
       - 'Makefile'
+      # The suite reads the catalog count row.
+      - 'README.md'
 
 jobs:
   verify:
@@ -20,7 +20,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Verify every skill/agent category maps to a sync alias
+      - name: Verify every skill and agent names itself
         run: make verify-catalog
 
       - name: Run the catalog-coverage regression suite
