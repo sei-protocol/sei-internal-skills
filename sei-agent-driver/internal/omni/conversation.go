@@ -460,7 +460,7 @@ func (c *conversation) sendWhenLaunched(
 func (c *conversation) replyFor(ctx context.Context, t *turn) (driver.Reply, error) {
 	switch {
 	case t.id != "":
-		return c.fetchReply(ctx, t.id, t.prior)
+		return c.fetchReply(ctx, t.id, t.prior, t.complete)
 	case t.failure != nil:
 		return c.salvageFailedTurn(ctx, t)
 	case ctx.Err() != nil:
@@ -487,7 +487,7 @@ func (c *conversation) salvageFailedTurn(ctx context.Context, t *turn) (driver.R
 	if t.failedTurnID == "" {
 		return driver.Reply{}, t.failure
 	}
-	reply, err := c.fetchReply(ctx, t.failedTurnID, t.prior)
+	reply, err := c.fetchReply(ctx, t.failedTurnID, t.prior, t.complete)
 	if err != nil || !t.complete(reply.Text) {
 		return driver.Reply{}, t.failure
 	}
@@ -588,7 +588,9 @@ func (c *conversation) recoverFromStreamLoss(
 		return driver.Reply{}, cause
 	}
 
-	reply, err := c.fetchReply(ctx, groups[0], t.prior)
+	// No completeness test here: an unfinished reply means the agent is still
+	// working, which the check below rejoins for, and waiting on it would only delay that.
+	reply, err := c.fetchReply(ctx, groups[0], t.prior, nil)
 	if err != nil {
 		return driver.Reply{}, cause
 	}
@@ -685,7 +687,8 @@ func carriesItem(items []omnigent.ConversationItem, id string) bool {
 }
 
 // fetchReply reads the turn's reply off the session, and refuses one it cannot
-// publish.
+// publish. complete is the workload's test for a finished answer; nil accepts any
+// reply. See [conversation.awaitReply] for how long it waits for one.
 //
 // A detached context, because the run's may be the thing that expired and this is
 // the last chance to recover an answer the agent did produce.
@@ -693,8 +696,9 @@ func (c *conversation) fetchReply(
 	ctx context.Context,
 	turnID string,
 	prior map[string]bool,
+	complete func(string) bool,
 ) (driver.Reply, error) {
-	reply, refusal, err := c.awaitReply(context.WithoutCancel(ctx), turnID, prior)
+	reply, refusal, err := c.awaitReply(context.WithoutCancel(ctx), turnID, prior, complete)
 	if err != nil {
 		return driver.Reply{}, err
 	}
@@ -743,18 +747,22 @@ const replySettlePolls = 20
 // minReplySettlePoll floors the interval, so a small budget cannot spin on the server.
 const minReplySettlePoll = 50 * time.Millisecond
 
-// awaitReply reads the session until an assistant message carries turnID, or
+// awaitReply reads the session until the turn's reply is a finished answer, or
 // ReplySettleBudget runs out. It returns the reply, or the reason there is none.
 //
 // More than one read, because the edge that ends a turn and the turn's final
 // message reach the server by separate paths on a terminal-backed harness, and the
-// edge can arrive first. A read at the edge can then find a finished turn without
-// its answer. A refusal does not wait: a second turn's reply cannot become ours by
-// waiting. Each read has its own RequestTimeout, on a ctx the caller has detached.
+// edge can arrive first. A read at the edge can then find the turn without its
+// answer, or with only an earlier message of the turn, such as a progress note. Once
+// the budget runs out, the latest reply is returned whether or not complete accepts
+// it, so the caller judges it as it would any other. A refusal does not wait: a
+// second turn's reply cannot become ours by waiting. Each read has its own
+// RequestTimeout, on a ctx the caller has detached.
 func (c *conversation) awaitReply(
 	ctx context.Context,
 	turnID string,
 	prior map[string]bool,
+	complete func(string) bool,
 ) (driver.Reply, string, error) {
 	interval := max(c.host.cfg.ReplySettleBudget/replySettlePolls, minReplySettlePoll)
 	start := time.Now()
@@ -774,7 +782,8 @@ func (c *conversation) awaitReply(
 			return driver.Reply{}, "another turn replied into this session while ours ran", nil
 		}
 
-		if reply, ok := turnReply(items, turnID); ok {
+		reply, ok := turnReply(items, turnID)
+		if ok && (complete == nil || complete(reply.Text)) {
 			if reads > 1 {
 				c.host.log.Info("the reply landed after the edge that ended the turn",
 					"session_id", c.sessionID, "turn_id", turnID, "reads", reads,
@@ -783,13 +792,22 @@ func (c *conversation) awaitReply(
 			return reply, "", nil
 		}
 
-		if time.Now().Add(interval).After(giveUp) {
+		remaining := time.Until(giveUp)
+		if remaining <= 0 {
+			if ok {
+				c.host.log.Warn("the turn's reply is not a finished answer",
+					"session_id", c.sessionID, "turn_id", turnID, "chars", len(reply.Text),
+					"reads", reads, "waited", time.Since(start).Round(time.Millisecond))
+				return reply, "", nil
+			}
 			c.host.log.Warn("no reply carries this turn's response id",
 				"session_id", c.sessionID, "turn_id", turnID, "items", len(items), "reads", reads,
 				"waited", time.Since(start).Round(time.Millisecond))
 			return driver.Reply{}, "no assistant message carries this turn's response id", nil
 		}
-		time.Sleep(interval)
+		// The last sleep is cut to the deadline, so the last read lands at the
+		// deadline rather than one interval short of it.
+		time.Sleep(min(interval, remaining))
 	}
 }
 

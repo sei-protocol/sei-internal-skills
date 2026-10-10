@@ -151,15 +151,15 @@ type Config struct {
 	ServerRestartBudget time.Duration
 
 	// ReplySettleBudget is how long the reply read keeps re-reading the session
-	// when the edge that ends a turn has arrived and no assistant message carries
-	// that turn's response id yet.
+	// after the edge that ends a turn, while the turn's reply is missing or is not
+	// yet a finished answer.
 	//
 	// On a terminal-backed harness the two reach the server by separate paths: the
 	// forwarder derives the edge from Claude Code's Stop hook and posts the
 	// transcript's final message on its own, and the edge can land first. A read in
-	// that window finds a finished turn without its answer. Re-reading is safe,
-	// because only this turn's reply can carry its response id; it prices only a
-	// read, and nothing that changes state waits on it.
+	// that window finds the turn without its answer, or with only an earlier message
+	// of the turn. Re-reading is safe, because only this turn's messages carry its
+	// response id; it prices only a read, and nothing that changes state waits on it.
 	ReplySettleBudget time.Duration
 }
 
