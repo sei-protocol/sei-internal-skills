@@ -1,6 +1,7 @@
 package omni
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
@@ -163,4 +164,51 @@ func TestReplyForReturnsAnUnfinishedReplyOnceTheBudgetIsSpent(t *testing.T) {
 	if elapsed < budget || elapsed > budget+2*time.Second {
 		t.Errorf("gave up after %v, want the whole %v budget and not much more", elapsed, budget)
 	}
+}
+
+// TestReplyForStopsWaitingWhenTheRunEnds pins that the wait between reads gives way to
+// the run's context. A cancelled job has only a few seconds before it is killed, and a
+// wait that outlasts them skips the session teardown and leaks the sandbox. The read
+// itself stays detached, so a run that has already ended still reads once, as
+// [TestReplyForReadsAFinishedTurnEvenAfterTheClockExpires] requires.
+func TestReplyForStopsWaitingWhenTheRunEnds(t *testing.T) {
+	t.Parallel()
+
+	const budget = 5 * time.Second
+	const missing = "no assistant message carries this turn's response id"
+
+	t.Run("a run that ends during the wait stops after one more read", func(t *testing.T) {
+		t.Parallel()
+		c, fs := newReplyConversation(t, budget, driverSessionWithItems("conv_1", "ag_1"))
+		ctx, cancel := context.WithTimeout(t.Context(), 150*time.Millisecond)
+		defer cancel()
+
+		start := time.Now()
+		verdict, err := c.replyFor(ctx, &turn{id: "resp_claude_a", crossed: true, prior: map[string]bool{}})
+		elapsed := time.Since(start)
+		if err != nil || verdict.Reason != missing {
+			t.Fatalf("replyFor = (%q, %v), want reason %q", verdict.Reason, err, missing)
+		}
+		if elapsed > 2*time.Second {
+			t.Errorf("waited %v after the run ended, want it to stop well inside the %v budget", elapsed, budget)
+		}
+		if got := fs.getSessHits.Load(); got < 2 {
+			t.Errorf("session reads = %d, want one more read once the run ended", got)
+		}
+	})
+
+	t.Run("a run that already ended reads once", func(t *testing.T) {
+		t.Parallel()
+		c, fs := newReplyConversation(t, budget, driverSessionWithItems("conv_1", "ag_1"))
+		ctx, cancel := context.WithCancel(t.Context())
+		cancel()
+
+		verdict, err := c.replyFor(ctx, &turn{id: "resp_claude_a", crossed: true, prior: map[string]bool{}})
+		if err != nil || verdict.Reason != missing {
+			t.Fatalf("replyFor = (%q, %v), want reason %q", verdict.Reason, err, missing)
+		}
+		if got := fs.getSessHits.Load(); got != 1 {
+			t.Errorf("session reads = %d, want exactly 1: nothing to wait for once the run ended", got)
+		}
+	})
 }

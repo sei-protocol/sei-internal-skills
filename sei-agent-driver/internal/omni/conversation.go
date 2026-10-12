@@ -690,15 +690,17 @@ func carriesItem(items []omnigent.ConversationItem, id string) bool {
 // publish. complete is the workload's test for a finished answer; nil accepts any
 // reply. See [conversation.awaitReply] for how long it waits for one.
 //
-// A detached context, because the run's may be the thing that expired and this is
-// the last chance to recover an answer the agent did produce.
+// The reads run on a detached context, because the run's may be the thing that
+// expired and this is the last chance to recover an answer the agent did produce.
+// The wait between reads does not: once the run's context is done, the wait stops,
+// so a cancelled job still reaches the session teardown inside its grace period.
 func (c *conversation) fetchReply(
 	ctx context.Context,
 	turnID string,
 	prior map[string]bool,
 	complete func(string) bool,
 ) (driver.Reply, error) {
-	reply, refusal, err := c.awaitReply(context.WithoutCancel(ctx), turnID, prior, complete)
+	reply, refusal, err := c.awaitReply(context.WithoutCancel(ctx), ctx.Done(), turnID, prior, complete)
 	if err != nil {
 		return driver.Reply{}, err
 	}
@@ -747,8 +749,10 @@ const replySettlePolls = 20
 // minReplySettlePoll floors the interval, so a small budget cannot spin on the server.
 const minReplySettlePoll = 50 * time.Millisecond
 
-// awaitReply reads the session until the turn's reply is a finished answer, or
-// ReplySettleBudget runs out. It returns the reply, or the reason there is none.
+// awaitReply reads the session until the turn's reply is a finished answer,
+// ReplySettleBudget runs out, or stop closes. It returns the reply, or the reason
+// there is none. stop ends the wait, not the read in progress: it always reads at
+// least once, and once more when stop closes during a wait.
 //
 // More than one read, because the edge that ends a turn and the turn's final
 // message reach the server by separate paths on a terminal-backed harness, and the
@@ -760,6 +764,7 @@ const minReplySettlePoll = 50 * time.Millisecond
 // RequestTimeout, on a ctx the caller has detached.
 func (c *conversation) awaitReply(
 	ctx context.Context,
+	stop <-chan struct{},
 	turnID string,
 	prior map[string]bool,
 	complete func(string) bool,
@@ -793,21 +798,35 @@ func (c *conversation) awaitReply(
 		}
 
 		remaining := time.Until(giveUp)
-		if remaining <= 0 {
+		if remaining <= 0 || closed(stop) {
 			if ok {
 				c.host.log.Warn("the turn's reply is not a finished answer",
 					"session_id", c.sessionID, "turn_id", turnID, "chars", len(reply.Text),
-					"reads", reads, "waited", time.Since(start).Round(time.Millisecond))
+					"reads", reads, "waited", time.Since(start).Round(time.Millisecond),
+					"run_ended", closed(stop))
 				return reply, "", nil
 			}
 			c.host.log.Warn("no reply carries this turn's response id",
 				"session_id", c.sessionID, "turn_id", turnID, "items", len(items), "reads", reads,
-				"waited", time.Since(start).Round(time.Millisecond))
+				"waited", time.Since(start).Round(time.Millisecond), "run_ended", closed(stop))
 			return driver.Reply{}, "no assistant message carries this turn's response id", nil
 		}
-		// The last sleep is cut to the deadline, so the last read lands at the
+		// The last wait is cut to the deadline, so the last read lands at the
 		// deadline rather than one interval short of it.
-		time.Sleep(min(interval, remaining))
+		select {
+		case <-stop:
+		case <-time.After(min(interval, remaining)):
+		}
+	}
+}
+
+// closed reports whether ch is closed. A nil channel never is.
+func closed(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
 	}
 }
 
