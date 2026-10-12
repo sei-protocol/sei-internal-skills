@@ -2,6 +2,7 @@ package omni
 
 import (
 	"context"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -13,7 +14,14 @@ import (
 // answers session reads with sessions, in order, repeating the last.
 func newReplyConversation(t *testing.T, budget time.Duration, sessions ...string) (*conversation, *driverFakeServer) {
 	t.Helper()
-	fs := newDriverFakeServer(t, driverFakeServerConfig{SessionResps: sessions})
+	return newReplyConversationOn(t, budget, driverFakeServerConfig{SessionResps: sessions})
+}
+
+// newReplyConversationOn is [newReplyConversation] against a fake server built from
+// fcfg.
+func newReplyConversationOn(t *testing.T, budget time.Duration, fcfg driverFakeServerConfig) (*conversation, *driverFakeServer) {
+	t.Helper()
+	fs := newDriverFakeServer(t, fcfg)
 	cfg := driverTestConfig(t, fs.URL)
 	cfg.ReplySettleBudget = budget
 	h := New(cfg, driver.Policy{}, driverTestLogger())
@@ -210,6 +218,79 @@ func TestReplyForStopsWaitingWhenTheRunEnds(t *testing.T) {
 		}
 		if got := fs.getSessHits.Load(); got != 1 {
 			t.Errorf("session reads = %d, want exactly 1: nothing to wait for once the run ended", got)
+		}
+	})
+}
+
+// TestReplyForRidesOutAFailedReRead pins that only the first read's error is fatal.
+// A later read that fails counts as one that found nothing new, so one transient
+// error neither ends the wait early nor drops a reply an earlier read found.
+func TestReplyForRidesOutAFailedReRead(t *testing.T) {
+	t.Parallel()
+
+	empty := driverSessionWithItems("conv_1", "ag_1")
+
+	t.Run("a later read still finds the reply", func(t *testing.T) {
+		t.Parallel()
+		c, fs := newReplyConversationOn(t, 2*time.Second, driverFakeServerConfig{
+			SessionResps: []string{empty, empty, driverSessionWithItems("conv_1", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_a", driverVerdict("Landed after a failed read.", "approve")))},
+			SessionStatuses: []int{0, http.StatusInternalServerError},
+		})
+
+		verdict, err := c.replyFor(t.Context(),
+			&turn{id: "resp_claude_a", crossed: true, prior: map[string]bool{}})
+		if err != nil {
+			t.Fatalf("replyFor returned %v, want the verdict a read after the failed one found", err)
+		}
+		if !carriesDecision(&verdict, "approve") {
+			t.Errorf("reply = %q (reason %q), want the answer that landed", verdict.Text, verdict.Reason)
+		}
+		if got := fs.getSessHits.Load(); got != 3 {
+			t.Errorf("session reads = %d, want 3: the edge, the failed read, the one that finds it", got)
+		}
+	})
+
+	t.Run("the earlier reply stands when every re-read fails", func(t *testing.T) {
+		t.Parallel()
+		const text = "Next I'm checking the main path."
+		failures := make([]int, 100)
+		for i := 1; i < len(failures); i++ {
+			failures[i] = http.StatusInternalServerError
+		}
+		c, fs := newReplyConversationOn(t, 300*time.Millisecond, driverFakeServerConfig{
+			SessionResps: []string{driverSessionWithItems("conv_1", "ag_1",
+				driverReplyItem("item_note", "resp_claude_a", text))},
+			SessionStatuses: failures,
+		})
+
+		verdict, err := c.replyFor(t.Context(), &turn{
+			id: "resp_claude_a", crossed: true, prior: map[string]bool{}, complete: hasClosingBlock,
+		})
+		if err != nil {
+			t.Fatalf("replyFor returned %v, want the reply the first read found", err)
+		}
+		if verdict.Text != text || verdict.Reason != "" {
+			t.Errorf("reply = %q (reason %q), want the first read's reply %q", verdict.Text, verdict.Reason, text)
+		}
+		if got := fs.getSessHits.Load(); got < 2 {
+			t.Errorf("session reads = %d, want re-reads that failed", got)
+		}
+	})
+
+	t.Run("a failed first read is still an error", func(t *testing.T) {
+		t.Parallel()
+		c, fs := newReplyConversationOn(t, 2*time.Second, driverFakeServerConfig{
+			SessionResps:    []string{empty},
+			SessionStatuses: []int{http.StatusInternalServerError},
+		})
+
+		if _, err := c.replyFor(t.Context(),
+			&turn{id: "resp_claude_a", crossed: true, prior: map[string]bool{}}); err == nil {
+			t.Fatal("replyFor returned no error, want the first read's error")
+		}
+		if got := fs.getSessHits.Load(); got != 1 {
+			t.Errorf("session reads = %d, want 1: nothing to wait on without a first read", got)
 		}
 	})
 }

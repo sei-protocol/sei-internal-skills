@@ -752,9 +752,10 @@ const minReplySettlePoll = 50 * time.Millisecond
 
 // awaitReply reads the session until the turn's reply is a finished answer,
 // ReplySettleBudget runs out, or stop closes. It returns the reply, or the reason
-// there is none. It always reads at least once. stop ends the wait and starts no
-// further read, but it does not cut short the read in progress, so once stop closes
-// the run waits on at most one read.
+// there is none. It always reads at least once, and an error on that first read is
+// returned. An error on a later read keeps the previous read's items. stop ends the
+// wait and starts no further read, but it does not cut short the read in progress,
+// so once stop closes the run waits on at most one read.
 //
 // More than one read, because the edge that ends a turn and the turn's final
 // message reach the server by separate paths on a terminal-backed harness, and the
@@ -774,10 +775,20 @@ func (c *conversation) awaitReply(
 	interval := max(c.host.cfg.ReplySettleBudget/replySettlePolls, minReplySettlePoll)
 	start := time.Now()
 	giveUp := start.Add(c.host.cfg.ReplySettleBudget)
+	var items []omnigent.ConversationItem
 	for reads := 1; ; reads++ {
-		items, err := c.readItems(ctx)
-		if err != nil {
+		latest, err := c.readItems(ctx)
+		switch {
+		case err == nil:
+			items = latest
+		case reads == 1:
 			return driver.Reply{}, "", err
+		default:
+			// A failed re-read counts as one that found nothing new: the previous
+			// read's items stand and the wait goes on. A transient error is no
+			// reason to drop a reply the session already showed.
+			c.host.log.Warn("re-reading the session for a reply failed",
+				"session_id", c.sessionID, "turn_id", turnID, "reads", reads, "err", err)
 		}
 
 		if groups := replyGroupsSince(items, prior); len(groups) > 1 {
