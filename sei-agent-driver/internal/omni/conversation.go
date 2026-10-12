@@ -752,10 +752,11 @@ const minReplySettlePoll = 50 * time.Millisecond
 
 // awaitReply reads the session until the turn's reply is a finished answer,
 // ReplySettleBudget runs out, or stop closes. It returns the reply, or the reason
-// there is none. It always reads at least once, and an error on that first read is
-// returned. An error on a later read keeps the previous read's items. stop ends the
-// wait and starts no further read, but it does not cut short the read in progress,
-// so once stop closes the run waits on at most one read.
+// there is none. It always reads at least once. An error on the first read is
+// returned at once. An error on a later read does not end the wait, but when the
+// last read fails, its error is returned. stop ends the wait and starts no further
+// read, but it does not cut short the read in progress, so once stop closes the run
+// waits on at most one read.
 //
 // More than one read, because the edge that ends a turn and the turn's final
 // message reach the server by separate paths on a terminal-backed harness, and the
@@ -784,9 +785,8 @@ func (c *conversation) awaitReply(
 		case reads == 1:
 			return driver.Reply{}, "", err
 		default:
-			// A failed re-read counts as one that found nothing new: the previous
-			// read's items stand and the wait goes on. A transient error is no
-			// reason to drop a reply the session already showed.
+			// A failed re-read does not end the wait: one transient error is no
+			// reason to stop before a later read finds the reply.
 			c.host.log.Warn("re-reading the session for a reply failed",
 				"session_id", c.sessionID, "turn_id", turnID, "reads", reads, "err", err)
 		}
@@ -821,6 +821,13 @@ func (c *conversation) awaitReply(
 			}
 		}
 
+		if err != nil {
+			// The latest read failed, so what the session holds now is unknown. Its
+			// error goes back rather than an earlier read's result: an error keeps
+			// the session for a retry that can read it, where a missing or
+			// unfinished reply has it discarded as a turn with no answer.
+			return driver.Reply{}, "", err
+		}
 		if ok {
 			c.host.log.Warn("the turn's reply is not a finished answer",
 				"session_id", c.sessionID, "turn_id", turnID, "chars", len(reply.Text),

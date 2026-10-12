@@ -222,9 +222,11 @@ func TestReplyForStopsWaitingWhenTheRunEnds(t *testing.T) {
 	})
 }
 
-// TestReplyForRidesOutAFailedReRead pins that only the first read's error is fatal.
-// A later read that fails counts as one that found nothing new, so one transient
-// error neither ends the wait early nor drops a reply an earlier read found.
+// TestReplyForRidesOutAFailedReRead pins how a failed read ends the wait. A failed
+// first read is an error at once. A failed re-read does not end the wait, so one
+// transient error cannot stop it before a later read finds the reply. A failed last
+// read is an error: the caller keeps a session it cannot read, and discards one whose
+// reply is missing or unfinished.
 func TestReplyForRidesOutAFailedReRead(t *testing.T) {
 	t.Parallel()
 
@@ -251,32 +253,34 @@ func TestReplyForRidesOutAFailedReRead(t *testing.T) {
 		}
 	})
 
-	t.Run("the earlier reply stands when every re-read fails", func(t *testing.T) {
-		t.Parallel()
-		const text = "Next I'm checking the main path."
-		failures := make([]int, 100)
-		for i := 1; i < len(failures); i++ {
-			failures[i] = http.StatusInternalServerError
-		}
-		c, fs := newReplyConversationOn(t, 300*time.Millisecond, driverFakeServerConfig{
-			SessionResps: []string{driverSessionWithItems("conv_1", "ag_1",
-				driverReplyItem("item_note", "resp_claude_a", text))},
-			SessionStatuses: failures,
-		})
+	for _, first := range []struct{ name, session string }{
+		{"with no reply", empty},
+		{"with a progress note", driverSessionWithItems("conv_1", "ag_1",
+			driverReplyItem("item_note", "resp_claude_a", "Next I'm checking the main path."))},
+	} {
+		t.Run("a failed last read is an error after a first read "+first.name, func(t *testing.T) {
+			t.Parallel()
+			failures := make([]int, 100)
+			for i := 1; i < len(failures); i++ {
+				failures[i] = http.StatusInternalServerError
+			}
+			c, fs := newReplyConversationOn(t, 300*time.Millisecond, driverFakeServerConfig{
+				SessionResps:    []string{first.session},
+				SessionStatuses: failures,
+			})
 
-		verdict, err := c.replyFor(t.Context(), &turn{
-			id: "resp_claude_a", crossed: true, prior: map[string]bool{}, complete: hasClosingBlock,
+			verdict, err := c.replyFor(t.Context(), &turn{
+				id: "resp_claude_a", crossed: true, prior: map[string]bool{}, complete: hasClosingBlock,
+			})
+			if err == nil {
+				t.Fatalf("replyFor = (%q, reason %q), want the last read's error: the first read's "+
+					"result would have the session discarded as a turn with no answer", verdict.Text, verdict.Reason)
+			}
+			if got := fs.getSessHits.Load(); got < 2 {
+				t.Errorf("session reads = %d, want re-reads that failed", got)
+			}
 		})
-		if err != nil {
-			t.Fatalf("replyFor returned %v, want the reply the first read found", err)
-		}
-		if verdict.Text != text || verdict.Reason != "" {
-			t.Errorf("reply = %q (reason %q), want the first read's reply %q", verdict.Text, verdict.Reason, text)
-		}
-		if got := fs.getSessHits.Load(); got < 2 {
-			t.Errorf("session reads = %d, want re-reads that failed", got)
-		}
-	})
+	}
 
 	t.Run("a failed first read is still an error", func(t *testing.T) {
 		t.Parallel()
