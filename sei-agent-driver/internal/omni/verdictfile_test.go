@@ -110,6 +110,9 @@ func TestVerdictFileIsWrittenOnlyForAStructuredVerdict(t *testing.T) {
 				"OMNIGENT_API_TOKEN=test-token",
 				"SEIDROID_AGENT_ID="+verdictFileAgent,
 				"SEIDROID_RUN_DEADLINE_S=60",
+				// Small, so a case whose reply is never a finished answer does not
+				// wait the default.
+				"SEIDROID_REPLY_SETTLE_BUDGET_S=0.2",
 				"GITHUB_RUN_ID=verdictfile",
 				"GITHUB_RUN_ATTEMPT="+string(rune('a'+i)),
 			)

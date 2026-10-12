@@ -25,7 +25,7 @@ var configEnv = []string{
 	"OMNIGENT_MACHINE_CLIENT_ID", "OMNIGENT_MACHINE_CLIENT_SECRET",
 	"SEIDROID_RUN_DEADLINE_S", "SEIDROID_REQUEST_TIMEOUT_S",
 	"SEIDROID_UNARY_TIMEOUT_S", "SEIDROID_STREAM_IDLE_TIMEOUT_S",
-	"SEIDROID_SERVER_RESTART_BUDGET_S",
+	"SEIDROID_SERVER_RESTART_BUDGET_S", "SEIDROID_REPLY_SETTLE_BUDGET_S",
 }
 
 // clearConfigEnv empties every configuration variable. Empty rather than unset,
@@ -152,6 +152,7 @@ func TestLoadConfigFallsBackToTheDocumentedDefaults(t *testing.T) {
 		{"UnaryTimeout", cfg.UnaryTimeout, 150 * time.Second},
 		{"StreamIdleTimeout", cfg.StreamIdleTimeout, 5 * time.Minute},
 		{"ServerRestartBudget", cfg.ServerRestartBudget, 3 * time.Minute},
+		{"ReplySettleBudget", cfg.ReplySettleBudget, 10 * time.Second},
 	} {
 		if tc.got != tc.want {
 			t.Errorf("%s = %v, want %v", tc.field, tc.got, tc.want)
@@ -160,7 +161,7 @@ func TestLoadConfigFallsBackToTheDocumentedDefaults(t *testing.T) {
 	// Every duration has to be positive, or the bound it exists to enforce is a
 	// context that has already expired.
 	if cfg.RunDeadline <= 0 || cfg.RequestTimeout <= 0 || cfg.UnaryTimeout <= 0 ||
-		cfg.StreamIdleTimeout <= 0 || cfg.ServerRestartBudget <= 0 {
+		cfg.StreamIdleTimeout <= 0 || cfg.ServerRestartBudget <= 0 || cfg.ReplySettleBudget <= 0 {
 		t.Error("a default duration is not positive; a zero bound expires immediately")
 	}
 }

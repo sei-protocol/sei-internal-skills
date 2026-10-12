@@ -165,6 +165,11 @@ type driverFakeServerConfig struct {
 	// route, so a test that needs them to differ configures both.
 	SessionResps []string
 
+	// SessionStatuses fails GET /v1/sessions/{id} with the status at the read's
+	// position, before SessionResps is consulted. Zero, or a read past its end,
+	// answers normally. Lets a test fail one read in a sequence.
+	SessionStatuses []int
+
 	// SessionGatewayUnavailable answers this many GET /v1/sessions/{id} with what a
 	// gateway sends while the server behind it is being replaced: a 503 whose
 	// text/plain body is "no healthy upstream", with no error envelope. It echoes
@@ -212,6 +217,7 @@ type driverFakeServer struct {
 	sessListStalls         int
 	listItemsHits          atomic.Int64
 	sessionResps           []string
+	sessionStatuses        []int
 	listSessHits           atomic.Int64
 	getSessHits            atomic.Int64
 	streamHits             atomic.Int64
@@ -290,6 +296,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		sessListDrops:          cfg.SessionListDrops,
 		sessListStalls:         cfg.SessionListStalls,
 		sessionResps:           cfg.SessionResps,
+		sessionStatuses:        cfg.SessionStatuses,
 		approvalStatus:         cfg.ApprovalStatus,
 		eventStatus:            cfg.EventStatus,
 		eventResp:              cfg.EventResp,
@@ -407,6 +414,11 @@ func (fs *driverFakeServer) handleGetSession(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	idx := int(fs.getSessHits.Add(1)) - 1
+	if idx < len(fs.sessionStatuses) && fs.sessionStatuses[idx] != 0 {
+		w.WriteHeader(fs.sessionStatuses[idx])
+		_, _ = io.WriteString(w, `{"detail":"read failed"}`)
+		return
+	}
 	body := driverSessionResp(r.PathValue("id"), "ag_1")
 	if len(fs.sessionResps) > 0 {
 		body = fs.sessionResps[min(idx, len(fs.sessionResps)-1)]
@@ -943,6 +955,8 @@ func driverTestConfig(t *testing.T, baseURL string) driver.Config {
 		RunDeadline:       10 * time.Second,
 		RequestTimeout:    5 * time.Second,
 		StreamIdleTimeout: 5 * time.Second,
+		// Small, so a test whose reply never comes does not wait the default.
+		ReplySettleBudget: 200 * time.Millisecond,
 	}
 }
 
@@ -1528,10 +1542,10 @@ func driverSessionFailedFrameFor(responseID, code, message string) string {
 // TestReplyForReadsAFinishedTurnEvenAfterTheClockExpires pins the precedence a
 // review of the previous design caught this driver getting wrong.
 //
-// The reply is committed before the edge that ends the turn, and fetchReply reads
-// on a detached context, so a deadline or a SIGTERM landing in the window between
-// those two moments must not discard a review that finished. Checking the clock
-// ahead of the read reported driver.ExitTimeout on a completed, paid-for review.
+// fetchReply reads on a detached context, so a deadline or a SIGTERM landing
+// between the edge that ends the turn and the read must not discard a review that
+// finished. Checking the clock ahead of the read reported driver.ExitTimeout on a
+// completed, paid-for review.
 func TestReplyForReadsAFinishedTurnEvenAfterTheClockExpires(t *testing.T) {
 	t.Parallel()
 
