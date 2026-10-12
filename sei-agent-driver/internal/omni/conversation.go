@@ -692,8 +692,9 @@ func carriesItem(items []omnigent.ConversationItem, id string) bool {
 //
 // The reads run on a detached context, because the run's may be the thing that
 // expired and this is the last chance to recover an answer the agent did produce.
-// The wait between reads does not: once the run's context is done, the wait stops,
-// so a cancelled job still reaches the session teardown inside its grace period.
+// The wait between reads does not: once the run's context is done, no further read
+// starts, so a cancelled job still reaches the session teardown inside its grace
+// period.
 func (c *conversation) fetchReply(
 	ctx context.Context,
 	turnID string,
@@ -751,8 +752,9 @@ const minReplySettlePoll = 50 * time.Millisecond
 
 // awaitReply reads the session until the turn's reply is a finished answer,
 // ReplySettleBudget runs out, or stop closes. It returns the reply, or the reason
-// there is none. stop ends the wait, not the read in progress: it always reads at
-// least once, and once more when stop closes during a wait.
+// there is none. It always reads at least once. stop ends the wait and starts no
+// further read, but it does not cut short the read in progress, so once stop closes
+// the run waits on at most one read.
 //
 // More than one read, because the edge that ends a turn and the turn's final
 // message reach the server by separate paths on a terminal-backed harness, and the
@@ -797,26 +799,28 @@ func (c *conversation) awaitReply(
 			return reply, "", nil
 		}
 
-		remaining := time.Until(giveUp)
-		if remaining <= 0 || closed(stop) {
-			if ok {
-				c.host.log.Warn("the turn's reply is not a finished answer",
-					"session_id", c.sessionID, "turn_id", turnID, "chars", len(reply.Text),
-					"reads", reads, "waited", time.Since(start).Round(time.Millisecond),
-					"run_ended", closed(stop))
-				return reply, "", nil
-			}
-			c.host.log.Warn("no reply carries this turn's response id",
-				"session_id", c.sessionID, "turn_id", turnID, "items", len(items), "reads", reads,
-				"waited", time.Since(start).Round(time.Millisecond), "run_ended", closed(stop))
-			return driver.Reply{}, "no assistant message carries this turn's response id", nil
-		}
 		// The last wait is cut to the deadline, so the last read lands at the
 		// deadline rather than one interval short of it.
-		select {
-		case <-stop:
-		case <-time.After(min(interval, remaining)):
+		remaining := time.Until(giveUp)
+		if remaining > 0 && !closed(stop) {
+			select {
+			case <-stop:
+			case <-time.After(min(interval, remaining)):
+				continue
+			}
 		}
+
+		if ok {
+			c.host.log.Warn("the turn's reply is not a finished answer",
+				"session_id", c.sessionID, "turn_id", turnID, "chars", len(reply.Text),
+				"reads", reads, "waited", time.Since(start).Round(time.Millisecond),
+				"run_ended", closed(stop))
+			return reply, "", nil
+		}
+		c.host.log.Warn("no reply carries this turn's response id",
+			"session_id", c.sessionID, "turn_id", turnID, "items", len(items), "reads", reads,
+			"waited", time.Since(start).Round(time.Millisecond), "run_ended", closed(stop))
+		return driver.Reply{}, "no assistant message carries this turn's response id", nil
 	}
 }
 

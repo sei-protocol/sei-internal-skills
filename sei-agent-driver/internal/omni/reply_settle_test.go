@@ -167,9 +167,10 @@ func TestReplyForReturnsAnUnfinishedReplyOnceTheBudgetIsSpent(t *testing.T) {
 }
 
 // TestReplyForStopsWaitingWhenTheRunEnds pins that the wait between reads gives way to
-// the run's context. A cancelled job has only a few seconds before it is killed, and a
-// wait that outlasts them skips the session teardown and leaks the sandbox. The read
-// itself stays detached, so a run that has already ended still reads once, as
+// the run's context, and that no read starts after it ends. A cancelled job has only a
+// few seconds before it is killed, and a wait or a read that outlasts them skips the
+// session teardown and leaks the sandbox. The read itself stays detached, so a run
+// that has already ended still reads once, as
 // [TestReplyForReadsAFinishedTurnEvenAfterTheClockExpires] requires.
 func TestReplyForStopsWaitingWhenTheRunEnds(t *testing.T) {
 	t.Parallel()
@@ -177,7 +178,7 @@ func TestReplyForStopsWaitingWhenTheRunEnds(t *testing.T) {
 	const budget = 5 * time.Second
 	const missing = "no assistant message carries this turn's response id"
 
-	t.Run("a run that ends during the wait stops after one more read", func(t *testing.T) {
+	t.Run("a run that ends during the wait reads no more", func(t *testing.T) {
 		t.Parallel()
 		c, fs := newReplyConversation(t, budget, driverSessionWithItems("conv_1", "ag_1"))
 		ctx, cancel := context.WithTimeout(t.Context(), 150*time.Millisecond)
@@ -192,8 +193,8 @@ func TestReplyForStopsWaitingWhenTheRunEnds(t *testing.T) {
 		if elapsed > 2*time.Second {
 			t.Errorf("waited %v after the run ended, want it to stop well inside the %v budget", elapsed, budget)
 		}
-		if got := fs.getSessHits.Load(); got < 2 {
-			t.Errorf("session reads = %d, want one more read once the run ended", got)
+		if got := fs.getSessHits.Load(); got != 1 {
+			t.Errorf("session reads = %d, want exactly 1: no read starts once the run ended", got)
 		}
 	})
 
