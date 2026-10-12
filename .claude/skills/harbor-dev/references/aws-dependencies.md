@@ -124,7 +124,7 @@ Image digest resolution flow (used when the agent surfaces a digest in the plan 
 
 ## IAM principals
 
-- GitHub Actions OIDC role for autobake nightly: `arn:aws:iam::189176372795:role/harbor-autobake-gha`
-- Engineer IAM principals — SSO-assigned roles (e.g., `arn:aws:iam::189176372795:role/sso-engineer-<alias>`), mapped to k8s groups via `aws_eks_access_entry`.
+- Image builds, including the nightly autobake: the GitHub Actions OIDC role `arn:aws:iam::189176372795:role/common/gha`.
+- Engineers: the SSO permission-set role `AWSReservedSSO_EngWithLimitedPacific-1_<suffix>`. It has an EKS access entry on the harbor cluster.
 
 The onboarding PR shape does not depend on the SSO role's IAM permissions — it only writes to the platform repo.
