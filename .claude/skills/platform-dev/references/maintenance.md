@@ -103,11 +103,10 @@ A rule whose metric has no series never fires ([FM14](diagnosis.md#fm14-an-alert
    ```
 
 2. For each distinct metric name, run **metric-exists** through `/grafana`. Compare the cells that it returns with the cells that run the rule. A rule under `manifests/base/` runs in each cell whose build lists it. A rule under `clusters/<cell>/` runs in that cell only. Keep each pair of a metric and a cell that has no series for it. Thanos does not hold dev, so check a dev rule on dev's own Prometheus.
-3. Sort each pair into one of four causes:
+3. Sort each pair into one of three causes. For a dev pair, run each check on dev's own Prometheus.
    - **Event-only.** The metric appears only while a job runs or after a first error, such as the nightly run metrics or a discard counter. Keep the rule.
    - **Renamed.** An exporter upgrade changed the name. Search with `list_prometheus_metric_names` for a close name. Fix the rule.
    - **Not scraped.** The component has no scrape target in a cell. Check `up{job=~".*<component>.*"}`. Fix the scrape configuration.
-   - **Dev only.** The rule runs on dev, which Thanos does not hold. Check it on dev's own Prometheus.
 4. Report the renamed and not-scraped rules to the user, with the rule, the file and the result. A fix is a platform pull request that the `sre-engineer` agent reviews.
 
 ## 5. Sweep record
