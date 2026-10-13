@@ -43,14 +43,14 @@ This skill reads prod Grafana only. It acts as the `agent-viewer` service accoun
 | Datasource | uid | Holds |
 |---|---|---|
 | `Prometheus` (default) | `prometheus-prod` | Thanos: the metrics of every cell, harbor included, with 90 days of raw data |
-| `Loki-fleet` | `loki-fleet` | The logs of every prod cell |
+| `Loki-fleet` | `loki-fleet` | The logs of every cell, harbor included |
 | `Loki` | `loki` | The `prod` cell logs only |
 | `Loki-prod-use2`, `Loki-prod-euw1`, `Loki-prod-apne1` | the name in lowercase | That cell's logs only |
 | `Loki-harbor` | `loki-harbor` | The harbor cell logs |
 | `Alertmanager` | `alertmanager` | The prod Alertmanager |
 
 - The `cluster` label names the cell. Thanos adds it, so add `cluster` to `by (...)` to split a result by cell.
-- Each prod cell writes every log line to its own Loki and to `Loki-fleet`. Start with `Loki-fleet`. Use a per-cell datasource for break-glass, or for history older than the fleet store. Each Loki store keeps 90 days.
+- Each prod cell and harbor writes every log line to its own Loki and to `Loki-fleet`. Start with `Loki-fleet`, and add a `cluster` matcher to pick one cell, for example `cluster="harbor"`. Use a per-cell datasource for break-glass, or for history older than the fleet store. Each Loki store keeps 90 days.
 - Grafana has no datasource for one cell's own Prometheus. The exact value that a KEDA trigger reads lives only there. `/giga-dev` gives that read.
 
 ## Queries
@@ -60,7 +60,7 @@ This skill reads prod Grafana only. It acts as the `agent-viewer` service accoun
 | A metric value or a series | `query_prometheus` on `prometheus-prod` | Use `instant` for now, and `range` with a step for a trend. |
 | Which metrics or labels exist | `list_prometheus_metric_names`, `list_prometheus_label_names`, `list_prometheus_label_values` | Pass a selector, so the answer stays small. |
 | How many log lines match | `query_loki_stats`, or `query_loki_logs` with `count_over_time` | Run this first. |
-| The log lines | `query_loki_logs` on `loki-fleet` | Always give a stream selector: at least `namespace`, plus `pod` or `container`. |
+| The log lines | `query_loki_logs` on `loki-fleet` | Always give a stream selector: at least `namespace`, plus `pod` or `container`. It holds harbor too. |
 | Which alerts fire now, in every cell | `query_prometheus` on `prometheus-prod` with `ALERTS{alertstate="firing"}` | Split by `alertname`, `cluster` and `severity`. |
 | The state of each alert rule | `alerting_manage_rules`, operation list | It covers Grafana-managed rules and the rules of `prometheus-prod`. |
 | Silences, routes and receivers | `alerting_manage_routing` | It reads the `alertmanager` datasource. |
