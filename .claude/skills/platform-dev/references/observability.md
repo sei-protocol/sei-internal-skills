@@ -30,7 +30,7 @@ An agent reads metrics, logs and alert state through `/grafana`. That skill conn
 Three facts shape every query:
 
 - The `cluster` label names the cell. Thanos adds it, so it exists only on `prometheus-prod`. Add `cluster` to `by (...)` to split a result by cell.
-- The federated cells are prod, prod-use2, prod-euw1, prod-apne1 and harbor. Dev is not in Thanos or in `loki-fleet`. Its metrics and alerts live only in its own `monitoring` namespace.
+- The federated cells are prod, prod-use2, prod-euw1, prod-apne1 and harbor. Dev is not in Thanos or in `loki-fleet`. Its metrics and alerts live only in its own `monitoring` namespace. Dev is the one place where an agent reads Prometheus through a port-forward ([procedure A](procedures.md#a-read-only-health-sweep), step 7).
 - `alerting_manage_routing` reads the prod Alertmanager. A silence on another cell lives in that cell's Alertmanager, `monitoring/alertmanager-operated`.
 
 ## 2. Named queries

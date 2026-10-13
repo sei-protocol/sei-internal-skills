@@ -39,7 +39,7 @@
         "forbidden_signals": [
           "agent calls the fleet healthy without checking cells-reporting",
           "agent treats Watchdog as an incident",
-          "agent port-forwards to a Prometheus when the mcp__sei-grafana__ tools are available"
+          "agent port-forwards to the Prometheus of a federated cell when the mcp__sei-grafana__ tools are available (dev is the one exception, because Grafana has no datasource for it)"
         ]
       },
       "source": "Procedure A, the read-only health sweep, run against the live fleet when the skill was written"
