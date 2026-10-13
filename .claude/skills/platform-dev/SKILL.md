@@ -31,7 +31,7 @@ The six cells run production chains, the CI fleet and other teams' workloads. A 
    - Nothing locks the state, so tell the team which root you apply before you start.
    - Apply the root that produces an output before the root that reads it.
    - An engineer onboarding is the one exception to the plan rule. Its targeted plan runs after the merge and must show only that engineer's additions ([procedure G](references/procedures.md#g-review-an-engineer-onboarding)).
-8. **Report data with its source.** Get metrics, logs and alert state through `/grafana`. Dev is the one exception: Grafana has no datasource for it, so read dev's own Prometheus ([procedure A](references/procedures.md#a-read-only-health-sweep), step 7). Give each number, log excerpt or alert state with its query, its datasource uid or command, the cell, and the absolute time in UTC. Never present a fact from this skill as live state.
+8. **Report data with its source.** Get metrics, logs and alert state through `/grafana`. Dev is the one exception, because prod Grafana has no datasource for it. Read dev's alerts from its own Prometheus ([procedure A](references/procedures.md#a-read-only-health-sweep), step 7), and its pod logs with `kubectl --context dev logs`. Give each number, log excerpt or alert state with its query, its datasource uid or command, the cell, and the absolute time in UTC. Never present a fact from this skill as live state.
 
 Refuse and redirect when:
 - the ask is giga-testnet-0 load, lag, saturation or the load pin. Use `/giga-dev`.
@@ -105,7 +105,7 @@ Every check below is read-only.
 | Metrics, five federated cells | `/grafana`: `query_prometheus` on datasource `prometheus-prod`. Add `cluster` to `by (...)` to split by cell. |
 | Logs | `/grafana`: `query_loki_logs` on `loki-fleet`, with a stream selector of at least `cluster` and `namespace`. Count first. |
 | Alert state | `/grafana`: `ALERTS{alertstate="firing"}` on `prometheus-prod` for every federated cell. `alerting_manage_rules` for rule state. `alerting_manage_routing` reads the prod Alertmanager only. |
-| Dev metrics and alerts | Not in Thanos. Dev runs its own Prometheus, Alertmanager and Grafana in `monitoring`. Read its alerts with the read-only port-forward in [procedure A](references/procedures.md#a-read-only-health-sweep), step 7. |
+| Dev metrics and alerts | Not in Thanos. Dev runs its own Prometheus, Alertmanager and Grafana in `monitoring`. Read its alerts with the read-only port-forward in [procedure A](references/procedures.md#a-read-only-health-sweep), step 7, and its pod logs with `kubectl --context dev logs`. |
 | Named queries | [observability](references/observability.md#2-named-queries). Each one returned data on the live fleet. |
 | Runbooks | sei-protocol/runbooks under `platform/`, and the repository's `.agent/runbooks/` |
 
