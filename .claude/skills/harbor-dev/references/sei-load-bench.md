@@ -4,10 +4,10 @@ Engineer-driven load tests run as a `Job` + `ConfigMap` pair under the engineer'
 
 ## Substrate facts the manifest depends on
 
-- **Sei-load image is distroless** — no shell, no `aws-cli`, no `bash`. Main container cannot run a wrapper script. Upload happens from a separate sidecar.
+- **Sei-load image is `distroless/base:debug`.** It has a busybox shell but no `aws-cli` and no `bash`, so the upload runs from a separate sidecar rather than a wrapper script.
 - **`engineer-service-account` is namespace-admin** in `eng-<alias>` (RoleBinding to built-in `admin` ClusterRole). Grants `pods/log get` (used by the sidecar) and S3 write via Pod Identity (`aws_iam_policy.engineer`, scoped to `harbor-validation-results/eng-<alias>/*`).
 - **Per-engineer Flux Kustomization SA has `update`+`patch` on `batch/jobs`** (sei-protocol/platform/clusters/harbor/engineers/base/rbac.yaml). Without those verbs, Flux's server-side apply fails on the second reconcile of any Job.
-- **Profile JSON has live placeholders** — `__SEI_CHAIN_ID__` and `__RPC_ENDPOINTS__` in `clusters/harbor/nightly/harness/profiles/*.json`. The agent must substitute both at render time. `__RPC_ENDPOINTS__` is the fleet of per-follower RPC URLs read across the network's `rpc` SeiNodes. Read it with:
+- **Profile JSON has live placeholders** — `__SEI_CHAIN_ID__` and `__RPC_ENDPOINTS__` in `clusters/harbor/nightly/harness/profiles/*.json`, and `__RECEIPT_ENDPOINT__` in `nightly_evm_transfer.json` and `nightly_steady_state.json`. The agent must substitute every one present at render time. A left `__RECEIPT_ENDPOINT__` validates, and then the run fails when the tracker dials it. `__RPC_ENDPOINTS__` is the fleet of per-follower RPC URLs read across the network's `rpc` SeiNodes. Read it with:
 
   ```sh
   seictl node list -n eng-<alias> -l sei.io/seinetwork=<id>,sei.io/role=node -o json | jq -r '[.items[].status.endpoint.evmJsonRpc | select(.)]'
@@ -36,7 +36,7 @@ Before writing any manifest:
 
 ## Workload surface — what a profile can say
 
-Source of truth is the `seiload` binary itself (verbs introduced in sei-protocol/sei-load `main` at `4398610`; probe the image, do not compare SHAs). Ask it before writing or editing a profile; do not write a knob from memory.
+Source of truth is the `seiload` binary itself (`validate` and `explain` came in sei-load #96, `mcp` in #108; probe the image, do not compare SHAs). Ask it before writing or editing a profile; do not write a knob from memory.
 
 ### Discovery verbs (run from the resolved image, no checkout, no chain)
 
@@ -62,7 +62,7 @@ kubectl delete configmap seiload-validate-<RUN_ID> -n eng-<alias> --context=harb
 
 Both objects are one-offs in your own namespace, never committed. `--rm` deletes the Pod on exit, so the verdict is what the attached `-i` stream prints — there is no `kubectl logs` afterwards; capture the output in the same command. Neither path available → the strict decoder at Job start is the first check; say so in the plan echo and do not call the profile validated.
 
-**Capability gate.** `docker run --rm $IMG validate --help` exits 0 when the verbs exist and non-zero when they do not; that exit code is the gate, not a commit comparison (`4398610` is the commit that introduced them — provenance, not a version to order against). Fall back to the `jq -e .` syntax gate and say so in the plan echo. The strict decoder at Job start is then the first real check. Never call a profile "validated" on an image that could not validate it.
+**Capability gate.** `docker run --rm $IMG validate --help` exits 0 when the verbs exist and non-zero when they do not; that exit code is the gate, not a commit comparison (#96 introduced them; that is provenance, not a version to order against). Fall back to the `jq -e .` syntax gate and say so in the plan echo. The strict decoder at Job start is then the first real check. Never call a profile "validated" on an image that could not validate it.
 
 ### `seiload mcp` — the scenario surface as MCP tools
 
@@ -189,24 +189,38 @@ data:
     <PROFILE_JSON_SUBSTITUTED>
 ```
 
-`<PROFILE_JSON_SUBSTITUTED>` is the content of `clusters/harbor/nightly/harness/profiles/<profile>.json` with `seiChainID` set to the chain-id and `endpoints` set to the per-pod RPC URLs. The raw profile is deliberately **not valid JSON** — `"endpoints": [__RPC_ENDPOINTS__]` carries a bare placeholder inside the brackets — so jq cannot parse it as input. Substitute textually, then hard-validate the result with jq before it lands in the ConfigMap:
+`<PROFILE_JSON_SUBSTITUTED>` is the content of `clusters/harbor/nightly/harness/profiles/<profile>.json` with `seiChainID` set to the chain-id and `endpoints` set to the per-pod RPC URLs. Where the profile has `receiptEndpoint`, it names a follower that takes no sends. The raw profile is deliberately **not valid JSON** — `"endpoints": [__RPC_ENDPOINTS__]` carries a bare placeholder inside the brackets — so jq cannot parse it as input. Substitute textually, then hard-validate the result with jq before it lands in the ConfigMap:
 
 ```sh
 RPC_ENDPOINTS=$(seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-id>,sei.io/role=node -o json \
   | jq -c '[.items[].status.endpoint.evmJsonRpc | select(.)]')
 
+PROFILE_RAW=$(gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/harness/profiles/<profile>.json \
+  --jq .content | base64 -d)
+
+# __RECEIPT_ENDPOINT__ names the node the inclusion tracker reads. When the
+# profile has it, give it the last follower and send to the rest, so receipt
+# reads do not load a node that takes sends. With one follower it must do
+# both; say so in the plan echo. A profile without it keeps every follower.
+RECEIPT_ENDPOINT=$(printf '%s' "${RPC_ENDPOINTS}" | jq -r '.[-1]')
+if printf '%s' "${PROFILE_RAW}" | grep -q '__RECEIPT_ENDPOINT__' \
+   && [ "$(printf '%s' "${RPC_ENDPOINTS}" | jq length)" -ge 2 ]; then
+  RPC_ENDPOINTS=$(printf '%s' "${RPC_ENDPOINTS}" | jq -c '.[:-1]')
+fi
+
 # __RPC_ENDPOINTS__ sits INSIDE existing [ ] in the profile — insert
 # comma-joined quoted URLs, no outer brackets.
 EPS_INNER=$(printf '%s' "${RPC_ENDPOINTS}" | jq -r 'map(@json) | join(", ")')
 
-PROFILE_RAW=$(gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/harness/profiles/<profile>.json \
-  --jq .content | base64 -d)
-
 PROFILE_SUBSTITUTED=$(printf '%s' "${PROFILE_RAW}" \
-  | sed -e "s|__SEI_CHAIN_ID__|<chain-id>|" -e "s|__RPC_ENDPOINTS__|${EPS_INNER}|")
+  | sed -e "s|__SEI_CHAIN_ID__|<chain-id>|" -e "s|__RPC_ENDPOINTS__|${EPS_INNER}|" \
+        -e "s|__RECEIPT_ENDPOINT__|${RECEIPT_ENDPOINT}|")
 
-# Hard gate: the substituted profile must be valid JSON.
+# Hard gate: the substituted profile must be valid JSON with no placeholder left.
 printf '%s' "${PROFILE_SUBSTITUTED}" | jq -e . >/dev/null
+if printf '%s' "${PROFILE_SUBSTITUTED}" | grep -q '__[A-Z_]*__'; then
+  echo 'a placeholder is left in the profile; halt'; exit 1
+fi
 ```
 
 Indent `<PROFILE_JSON_SUBSTITUTED>` four spaces in the rendered ConfigMap (block scalar `|` syntax).
