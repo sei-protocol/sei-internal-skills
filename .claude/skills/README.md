@@ -18,6 +18,8 @@ Every directory here that holds a `SKILL.md` is a skill, and `make update` insta
 
   It is read-only by default. It never suspends a cell-wide Flux Kustomization or wipes a validator. It releases a load pin only when all 40 validators pass the gate. NOT for an engineer's own chain on harbor (`/harbor-dev`).
 
+- **`grafana/`**: read-only queries of prod Grafana for an agent, with no port-forward. It reads Prometheus through Thanos (every cell, harbor included), every Loki store and the alert state. The skill connects the `sei-grafana` MCP server, which runs mcp-grafana with `--disable-write`. It reads the token of the `agent-viewer` service account (Grafana Viewer role) from the prod cluster at each start, so no token sits on disk. `/harbor-dev` and `/giga-dev` use it for their queries. NOT for writing alert rules or dashboards (the `sre-engineer` agent).
+
 - **`kubernetes/`**: design and review Kubernetes **operator and controller** code (CRDs, reconcilers, controller-runtime and kubebuilder). It rests on the upstream canon (K8s API conventions, controller-runtime, CRD versioning) and an **always-first Sei-controller profile**. The profile holds the enforced conventions of sei-k8s-controller:
   - plan-driven reconcile, optimistic-lock single-patch status;
   - always-present conditions and reason-as-API, CEL immutability one-way doors, the `kubectl wait` latch.
