@@ -121,7 +121,7 @@ if ! docker manifest inspect "${IMAGE}" >/dev/null 2>&1; then
   # from a search index that can lag a run created seconds ago.
   list_runs() {
     gh run list -R sei-protocol/sei-load --workflow=containerize.yaml \
-      --json databaseId,headBranch,event --limit 30 \
+      --json databaseId,headBranch,event --limit 100 \
       | jq -c --arg b "${BRANCH}" '[.[] | select(.event == "workflow_dispatch" and .headBranch == $b)]'
   }
   BEFORE=$(list_runs | jq -c '[.[].databaseId]')
