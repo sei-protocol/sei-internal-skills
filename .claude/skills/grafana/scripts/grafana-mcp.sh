@@ -84,12 +84,11 @@ fetch_token() {
   [ -n "$TOKEN" ] || die 4 "Secret $TOKEN_NAMESPACE/$TOKEN_SECRET on $TOKEN_CLUSTER has no token key"
 }
 
-# Sends one Prometheus query through Grafana. The header goes through a file, so the
-# token never appears in a process argument list.
+# Sends one Prometheus query through Grafana. curl reads the header from stdin, so the
+# token appears in no process argument list and no file.
 probe_grafana() {
-  local url="$1" header="$WORKDIR/auth-header" body="$WORKDIR/probe" code
-  printf 'Authorization: Bearer %s\n' "$TOKEN" >"$header"
-  code="$(curl -sS -o "$body" -w '%{http_code}' -H "@$header" \
+  local url="$1" body="$WORKDIR/probe" code
+  code="$(printf 'Authorization: Bearer %s\n' "$TOKEN" | curl -sS -o "$body" -w '%{http_code}' -H @- \
     "$url/api/datasources/proxy/uid/prometheus-prod/api/v1/query?query=vector(1)")" ||
     die 5 "cannot reach $url"
   case "$code" in
@@ -136,9 +135,16 @@ install_binary() {
   got="$(sha256_of "$WORKDIR/$asset")"
   [ "$got" = "$want" ] || die 6 "checksum mismatch for $asset: got $got, want $want"
   tar -xzf "$WORKDIR/$asset" -C "$WORKDIR" mcp-grafana || die 6 "cannot unpack $asset"
+  # Copy to a private name in the cache directory, then rename. The rename stays on
+  # one filesystem, so it is atomic: an interrupted or concurrent install never
+  # leaves a partial binary at the path that later starts trust.
+  local stage
   mkdir -p "$(dirname "$bin")"
-  chmod 0755 "$WORKDIR/mcp-grafana"
-  mv "$WORKDIR/mcp-grafana" "$bin"
+  stage="$(mktemp "$(dirname "$bin")/.mcp-grafana.XXXXXX")"
+  if ! { cp "$WORKDIR/mcp-grafana" "$stage" && chmod 0755 "$stage" && mv -f "$stage" "$bin"; }; then
+    rm -f "$stage"
+    die 6 "cannot install mcp-grafana to $bin"
+  fi
 }
 
 ensure_binary() {

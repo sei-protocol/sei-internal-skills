@@ -32,8 +32,8 @@ This skill reads prod Grafana only. It acts as the `agent-viewer` service accoun
 ## Procedure
 
 1. **Use the tools if the session has them.** Look for tools named `mcp__sei-grafana__*`. If they exist, call `mcp__sei-grafana__list_datasources` and go to step 4. Success: the call returns the datasources in the table below.
-2. **Prove access.** Run `scripts/grafana-mcp.sh --check --aws-profile <profile>`. If `AWS_PROFILE` is unset and the user named no profile, ask for one. Success: exit 0, and the last line starts with `ok:`. Any other exit code is a halt condition.
-3. **Register the server.** Run `scripts/grafana-mcp.sh --register --dry-run --aws-profile <profile>` and show the user the line it prints. After "confirm", run it again without `--dry-run`. Tell the user to restart Claude Code, or to reconnect `sei-grafana` from the Claude Code MCP menu. Success: the `mcp__sei-grafana__*` tools appear in the next session.
+2. **Prove access.** Run `bash scripts/grafana-mcp.sh --check --aws-profile <profile>`. If `AWS_PROFILE` is unset and the user named no profile, ask for one. Success: exit 0, and the last line starts with `ok:`. Any other exit code is a halt condition.
+3. **Register the server.** Run `bash scripts/grafana-mcp.sh --register --dry-run --aws-profile <profile>` and show the user the line it prints. After "confirm", run it again without `--dry-run`. Tell the user to restart Claude Code, or to reconnect `sei-grafana` from the Claude Code MCP menu. Success: the `mcp__sei-grafana__*` tools appear in the next session.
 4. **Pick the datasource.** Use the table in [Datasources](#datasources). Success: you can name the datasource uid for the question before you query.
 5. **Query.** Use the tools in [Queries](#queries). Count before you pull log lines. Success: each result carries its query, its datasource uid and its time range.
 6. **Report.** Give each number or log excerpt with its query, its datasource uid and its absolute time range in UTC. When a result is empty, say so, and say what the empty result means.
