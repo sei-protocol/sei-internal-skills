@@ -116,16 +116,19 @@ if ! docker manifest inspect "${IMAGE}" >/dev/null 2>&1; then
 
   # Name this dispatch's run by elimination: the dispatch runs on ${BRANCH}
   # that existed before it are listed first, so another engineer's dispatch
-  # elsewhere, or an older run here, is never the one watched.
+  # elsewhere, or an older run here, is never the one watched. Branch and
+  # event are matched in jq: GitHub serves the --branch and --event filters
+  # from a search index that can lag a run created seconds ago.
   list_runs() {
     gh run list -R sei-protocol/sei-load --workflow=containerize.yaml \
-      --event=workflow_dispatch --branch "${BRANCH}" --json databaseId --limit 20
+      --json databaseId,headBranch,event --limit 30 \
+      | jq -c --arg b "${BRANCH}" '[.[] | select(.event == "workflow_dispatch" and .headBranch == $b)]'
   }
   BEFORE=$(list_runs | jq -c '[.[].databaseId]')
   gh workflow run containerize.yaml -R sei-protocol/sei-load --ref "${BRANCH}" -f sha="${SHA}"
   RUN_ID=
-  for _ in 1 2 3 4 5 6; do
-    sleep 5
+  for _ in $(seq 1 12); do
+    sleep 10
     RUN_ID=$(list_runs | jq -r --argjson before "${BEFORE}" \
       '[.[].databaseId | select(. as $id | $before | index($id) | not)] | .[0] // empty')
     [ -n "${RUN_ID}" ] && break
