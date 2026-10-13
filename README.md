@@ -30,14 +30,15 @@ The output names each skill and agent in the tables below. Start a new Claude Co
 
 | | What it holds | Who gets it |
 |---|---|---|
-| **`.claude/`** — the catalog | 4 skills, 3 agents | Everyone, via `make update` |
+| **`.claude/`** — the catalog | 5 skills, 3 agents | Everyone, via `make update` |
 
 | Skill | Use it for | It needs |
 |---|---|---|
 | `/harbor-dev` | Your own ephemeral Sei chain in `eng-<alias>` on the harbor dev cluster. Spin it up, add RPC nodes, bench it and tear it down. Start with `/harbor-dev onboard me`. | `seictl` v0.0.72 or newer, `yq`, the `flux` CLI, the AWS CLI v2 with an SSO profile, and `kubectl` with the `harbor` kube context. Also `gh`, with write access to two private repositories. The section below gives each item. |
 | `/giga-dev` | The shared giga testnet, `giga-testnet-0`, on the prod cells: how it works, where its logs and metrics are, and why it is slow. It is read-only by default. | Read access to the `prod-use2`, `prod`, `prod-euw1` and `prod-apne1` kube contexts, and to Grafana |
+| `/platform-dev` | The Sei platform: the `sei-protocol/platform` repository and its six EKS cells. How a change reaches a cell, where everything lives, how to read its health, and the common procedures. It is read-only by default. | A checkout of sei-protocol/platform, read access to the kube contexts of the cells you work on, and `/grafana` |
 | `/kubernetes` | Design and review of sei-k8s-controller code: CRDs, reconcilers, status and conditions. | The code or the diff to review |
-| `/grafana` | Prod metrics, logs and alert state through Grafana, read-only, with no port-forward. `/harbor-dev` and `/giga-dev` use it. | The AWS CLI v2 with an SSO profile that has EKS access to `prod`, plus `kubectl` and `curl`. The section below gives the setup. |
+| `/grafana` | Prod metrics, logs and alert state through Grafana, read-only, with no port-forward. `/harbor-dev`, `/giga-dev` and `/platform-dev` use it. | The AWS CLI v2 with an SSO profile that has EKS access to `prod`, plus `kubectl` and `curl`. The section below gives the setup. |
 
 ### Your own chain: /harbor-dev
 
@@ -59,6 +60,12 @@ The skill works through pull requests in two private repositories. Onboarding op
 Ask a question, for example `/giga-dev why is giga slow`. The skill reads the `prod-use2`, `prod`, `prod-euw1` and `prod-apne1` kube contexts. It also reads Grafana at `https://grafana.prod.platform.sei.io`, with the datasources `prometheus-prod` and `Loki-fleet`. It writes to the shared cells only when you ask for one specific change and confirm it.
 
 To get the four contexts and Grafana access, follow section 1 of [`observability.md`](.claude/skills/giga-dev/references/observability.md#1-access). If you have no EKS access to a cell, ask the platform team, which runs giga-testnet-0.
+
+### The platform: /platform-dev
+
+Ask a question, for example `/platform-dev how does a change reach a cell` or `/platform-dev is the platform healthy`. The skill reads a sei-protocol/platform checkout, the kube contexts of the cells (`prod`, `prod-use2`, `prod-euw1`, `prod-apne1`, `harbor` and `dev`), and Grafana through `/grafana`. It writes to a cell only when you ask for one specific change and confirm it.
+
+The skill keeps a check for each fact that drifts. To refresh it, ask `/platform-dev refresh the skill`. It runs the checks and proposes one pull request with the fixes.
 
 ### Metrics, logs and alerts: /grafana
 
