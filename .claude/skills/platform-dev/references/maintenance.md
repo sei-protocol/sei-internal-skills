@@ -113,6 +113,6 @@ A rule whose metric has no series never fires ([FM14](diagnosis.md#fm14-an-alert
 
 | Date | Platform `main` | Result |
 |---|---|---|
-| 2026-10-13 | `6da7be91` | First release of the skill. Every named query and log selector returned data. The rule-metric sweep found rules to fix, and the user received the list. |
+| 2026-10-13 | `6da7be91` | First release of the skill. Every named query and log selector returned data. The rule-metric sweep found seven rules that could not fire, and platform#2214 fixed them. |
 
 A record older than about one month means the skill has not had a full check for a while. Tell the user, and offer the sweep before you rely on a drift-prone fact.

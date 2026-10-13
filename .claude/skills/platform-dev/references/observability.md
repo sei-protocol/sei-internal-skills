@@ -110,6 +110,6 @@ Dashboards are GrafanaDashboard objects in git. grafana-operator syncs them into
 - **A dead rule is silent.** A rule whose metric has no series never fires. Metric names change when an exporter upgrades, and a component can lose its scrape target. The [rule-metric sweep](maintenance.md#4-rule-metric-sweep) finds these.
 - **A cell whose own alerting stops is silent.** If a cell's Prometheus or Alertmanager stops, that cell pages nobody, and no external heartbeat watches `Watchdog`. A break in the sidecar or the hub path is different: the cell still pages, but the fleet view loses it. Check **cells-reporting** at the start of any health question.
 - **A suspended Kustomization is silent.** Check **flux-suspended**.
-- **DNS failures are silent.** external-dns writes an `AccessDenied` only to its log.
+- **Only the log names a failed DNS record.** `ExternalDNSRegistryErrors` reports that external-dns failed. The external-dns log names the record and the `AccessDenied`.
 - **Some exporters run on one cell only.** Istio request metrics and cert-manager metrics come from prod only. Read the other cells with `kubectl`.
 - **The phase gauge keeps deleted nodes.** `sei_controller_seinode_phase` keeps a series for a deleted SeiNode. Count SeiNodes with `kubectl`.

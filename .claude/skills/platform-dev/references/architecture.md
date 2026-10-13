@@ -133,7 +133,7 @@ P2P traffic does not use the gateway. Each node has its own `<node>-p2p` LoadBal
 Three properties of the edge need care:
 
 - **Listener pinning.** A route with no `sectionName` attaches to every listener, port 80 included, and then answers in plain HTTP. A new route pins `sectionName` ([procedure F](procedures.md#f-expose-a-service)).
-- **Upsert-only DNS.** external-dns runs with `upsert-only`, so it never deletes a record. A retired route leaves its records until someone deletes them. A name outside the external-dns IAM allowlist fails with `AccessDenied` in its logs, and nothing else shows the failure.
+- **Upsert-only DNS.** external-dns runs with `upsert-only`, so it never deletes a record. A retired route leaves its records until someone deletes them. A name outside the external-dns IAM allowlist fails with `AccessDenied`. The external-dns log names the record, and `ExternalDNSRegistryErrors` fires on the error count.
 - **Harbor tenants.** Each engineer cell has its own Gateway and NLB on `*.eng-<alias>.harbor.platform.sei.io`. Admission policies keep tenant hostnames and chaos experiments inside the tenant's namespace. The shared gateway does not accept routes from tenant namespaces.
 
 ## 7. Secrets

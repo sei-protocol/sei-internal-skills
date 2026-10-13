@@ -49,9 +49,9 @@ Contents:
 
 ## FM5: a hostname does not resolve
 
-- **Mechanism.** external-dns publishes records from HTTPRoutes. It fails with `AccessDenied` for a name outside its IAM allowlist, and it writes that only to its log. It runs `upsert-only`, so it never deletes a record, and a stale record can point to a retired load balancer.
+- **Mechanism.** external-dns publishes records from HTTPRoutes. It fails with `AccessDenied` for a name outside its IAM allowlist. Its log names the record, and `ExternalDNSRegistryErrors` fires on the error count. It runs `upsert-only`, so it never deletes a record, and a stale record can point to a retired load balancer.
 - **Symptom.** `dig` returns no answer, or an address that no longer serves.
-- **Check.** Read the HTTPRoute's hostnames and its status. Search the external-dns log of the cell for the hostname and for `AccessDenied` ([logs](observability.md#3-logs)). Check that the hostname sits under a zone that the cell may write: `<cell>.platform.sei.io`, or a chain zone on prod.
+- **Check.** Read the HTTPRoute's hostnames and its status. Run **firing** for `ExternalDNS*` alerts. Search the external-dns log of the cell for the hostname and for `AccessDenied` ([logs](observability.md#3-logs)). Check that the hostname sits under a zone that the cell may write: `<cell>.platform.sei.io`, or a chain zone on prod.
 - **Safe response.** Fix the hostname or the IAM allowlist in a pull request. Delete stale records and their `extdns` TXT records in Route53 only on an explicit request.
 
 ## FM6: a certificate does not renew
