@@ -25,7 +25,16 @@ No writes. Run the steps in this order and report each result with its source.
 4. **Alerts.** Run **firing** and **pending**.
 5. **Edge.** Run **gateway-replicas** and **cert-days-left**. On each cell, run `kubectl --context <cell> get certificates -A` and look for `READY` other than `True`.
 6. **Capacity.** Run **pvc-fill**, **nodepool-usage**, **node-not-ready** and **crashloop**.
-7. **Dev.** Dev is not federated. Run `kubectl --context dev get kustomizations,helmreleases -A` and `kubectl --context dev get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded`.
+7. **Dev.** Dev is not in Thanos, so step 4 does not see its alerts. Run `kubectl --context dev get kustomizations,helmreleases -A` and `kubectl --context dev get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded`. Then read dev's alerts from its own Prometheus:
+
+   ```sh
+   kubectl --context dev -n monitoring port-forward svc/prometheus-operated 9090:9090 &
+   curl -s -G http://127.0.0.1:9090/api/v1/query \
+     --data-urlencode 'query=count by (alertname, severity) (ALERTS{alertstate="firing", alertname!="Watchdog"})'
+   kill %1
+   ```
+
+   If you cannot read dev's Prometheus, say in the report that dev's alert state was not checked.
 
 ## B: Add a cell
 

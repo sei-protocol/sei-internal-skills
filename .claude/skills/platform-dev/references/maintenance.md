@@ -26,7 +26,7 @@ Run a row's check before a fact from it decides an action. Run every row for a f
 | No Terraform state lock | `SKILL.md` guardrail 7, procedure C | `grep -rn 'use_lockfile' terraform/` returns nothing |
 | The gateway shape | architecture 6 | **gateway-replicas**, and `kubectl --context <cell> -n gateway get pdb` |
 | external-dns runs upsert-only | architecture 6, FM5 | `kubectl --context <cell> -n external-dns get deploy external-dns -o jsonpath='{.spec.template.spec.containers[0].args}'` |
-| The federated cells | `SKILL.md` access, observability 1 | **cells-reporting** |
+| The federated cells | `SKILL.md` access, observability 1, procedure A | **cells-reporting** |
 | The datasource uids | `SKILL.md` access, observability 1 | `mcp__sei-grafana__list_datasources` |
 | Exporters that run on prod only | observability 2 and 6 | **metric-exists** on `istio_requests_total` and `certmanager_certificate_expiration_timestamp_seconds` |
 | Every named query returns data | observability 2 | Run each one. A query that returns nothing on a healthy fleet, where the text says it should, is stale. |
