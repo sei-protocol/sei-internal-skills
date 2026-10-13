@@ -43,7 +43,7 @@ Writes: `terraform apply`, only on an explicit request. A plan reads state and A
 
 1. Sign in with the engineer's AWS SSO profile. A harbor apply also needs the AWS CLI, and a root that manages Flux needs GitHub credentials.
 2. Tell the team which root you are about to apply. Nothing stops two applies on one root, and two at once can corrupt its state. Only S3 versioning can restore it.
-3. Run `terraform plan -out=tfplan` in the root's directory, and put the plan in the pull request.
+3. Run `terraform plan -out=tfplan` in the root's directory, and put the plan in the pull request. An engineer onboarding is the one exception ([G](#g-review-an-engineer-onboarding)).
 4. After the merge, run `terraform apply tfplan` from the same directory.
 5. If the change alters an output that another root reads, apply that root first. The hub reads every spoke, and every spoke reads the hub.
 6. Do not run `terraform init -upgrade` as a side effect. The lock files pin providers but not modules.
@@ -106,20 +106,21 @@ With `sectionName: https`, plain HTTP on that hostname gets the shared redirect 
 3. `terraform/aws/189176372795/eu-central-1/harbor/engineers/<alias>.tf`, the Pod Identity associations;
 4. `clusters/harbor/monitoring/podmonitor-seiload-eng.yaml`, so that Prometheus scrapes the cell's load jobs.
 
-A sibling pull request in `harbor-engineering-workspace` adds the workspace. It merges first or together. After the merge, an engineer runs `terraform plan -target=module.engineers -out=tfplan` from the harbor root, then `terraform apply tfplan` ([C](#c-run-terraform-safely)). Offboarding removes the same four entries, and Flux deletes the tenant cell, because tenant Namespaces stay prunable.
+A sibling pull request in `harbor-engineering-workspace` adds the workspace. It merges first or together. The onboarding is the one Terraform change whose plan runs after the merge, as `/harbor-dev` does it. After the merge, an engineer runs `terraform plan -target=module.engineers -out=tfplan` from the harbor root. The plan must add only the new engineer's Pod Identity resources, and change or destroy nothing. Only then does the engineer run `terraform apply tfplan` ([C](#c-run-terraform-safely)). Offboarding removes the same four entries, and Flux deletes the tenant cell, because tenant Namespaces stay prunable.
 
 ## H: Retire a SeiNode
 
 Writes: a pull request, then deletes in the cell. Most SeiNodes and their external objects carry `prune: disabled`, so a merge that removes them deletes nothing.
 
-1. Merge the removal from git.
-2. Sync the cell: `flux --context <cell> reconcile kustomization flux-system -n flux-system --with-source`. If you delete before the merge reaches the cell, Flux recreates the objects.
-3. Delete the SeiNode, and wait for its pod to go. The finalizer deletes the data PVC, and its storage class deletes the volume.
-4. Delete its HTTPRoutes and Services. A LoadBalancer Service delete also deletes its NLB.
-5. If the node imports a static volume, as archive and frozen nodes do, the PV is `Retain`. Delete the PVC, check that the PV shows `Released`, then delete the PV. Then delete the EBS volume in AWS, because a `Retain` volume outlives its PV and keeps billing.
-6. Delete the Route53 records and their `extdns` TXT records by hand, because external-dns runs `upsert-only`.
+1. Before the pull request merges, confirm with the user that the node is the right one and that nothing needs its data. Then read its guard: `kubectl --context <cell> -n <ns> get seinode <name> -o jsonpath='{.metadata.annotations.kustomize\.toolkit\.fluxcd\.io/prune}'`. An empty result means that the merge itself deletes the node and its data volume.
+2. Merge the removal from git.
+3. Sync the cell: `flux --context <cell> reconcile kustomization flux-system -n flux-system --with-source`. If you delete before the merge reaches the cell, Flux recreates the objects.
+4. Delete the SeiNode, and wait for its pod to go. The finalizer deletes the data PVC, and its storage class deletes the volume.
+5. Delete its HTTPRoutes and Services. A LoadBalancer Service delete also deletes its NLB.
+6. If the node imports a static volume, as archive and frozen nodes do, the PV is `Retain`. Delete the PVC, check that the PV shows `Released`, then delete the PV. Then delete the EBS volume in AWS, because a `Retain` volume outlives its PV and keeps billing.
+7. Delete the Route53 records and their `extdns` TXT records by hand, because external-dns runs `upsert-only`.
 
-A SeiNode without `prune: disabled` skips steps 2 and 3, because Flux deletes it as soon as the merge reaches the cell. Before step 3, confirm with the user that the node is the right one and that nothing needs its data.
+A SeiNode without `prune: disabled` skips steps 3 and 4. Flux deletes it as soon as the merge reaches the cell, and the finalizer then deletes its data volume. That is why step 1 comes before the merge for every SeiNode.
 
 ## I: Roll a chain release
 

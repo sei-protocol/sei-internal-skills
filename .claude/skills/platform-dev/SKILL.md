@@ -22,7 +22,7 @@ The six cells run production chains, the CI fleet and other teams' workloads. A 
 4. **Never weaken a prune guard.** Never remove `kustomize.toolkit.fluxcd.io/prune: disabled` from a CRD, a SeiNode, a P2P Service or a platform Namespace. Never add `kustomize.toolkit.fluxcd.io/force: enabled` to a SeiNode, because the SeiNode finalizer deletes the node's data volume. A Namespace delete or a SeiNode delete destroys data.
 5. **A one-way door needs the owner's approval.** The [one-way doors](references/procedures.md#j-one-way-doors) include the Cilium cluster ID, the Prometheus `externalLabels`, the P2P NLB hostnames, the seed NodeIDs and the KMS keys. Describe the change and its consequence, then halt.
 6. **Never decrypt, print or paste a secret.** Do not run `sops --decrypt`, do not print a Secret's data, and do not read a decrypted file. `kubectl describe secret` shows the key names and sizes, which is enough to report. The engineer edits secrets ([edit a SOPS secret](references/procedures.md#d-edit-a-sops-secret)).
-7. **Terraform applies only on request, one root at a time.** A plan goes in the pull request before the merge. An apply runs after the merge, only on an explicit request. Nothing locks the state, so tell the team which root you apply before you start. Apply the root that produces an output before the root that reads it.
+7. **Terraform applies only on request, one root at a time.** A plan goes in the pull request before the merge. An apply runs after the merge, only on an explicit request. Nothing locks the state, so tell the team which root you apply before you start. Apply the root that produces an output before the root that reads it. An engineer onboarding is the one exception to the plan rule. Its targeted plan runs after the merge and must show only that engineer's additions ([procedure G](references/procedures.md#g-review-an-engineer-onboarding)).
 8. **Report data with its source.** Get metrics, logs and alert state through `/grafana`. Give each number, log excerpt or alert state with its query, its datasource uid or command, the cell, and the absolute time in UTC. Never present a fact from this skill as live state.
 
 Refuse and redirect when:
@@ -127,7 +127,7 @@ Four traps:
 Ask these in order. Each answer decides the next step. [The diagnosis reference](references/diagnosis.md) has the failure modes as mechanism, symptom, check and safe response.
 
 - **Q0. Is someone already acting?** Look for open platform pull requests on the path, a suspended Kustomization, a Terraform apply, a release roll or a load pin. Do not stack a second change on theirs.
-- **Q1. Does every federated cell report?** A cell missing from **cells-reporting** means its Prometheus, its sidecar or the hub path is down. Its alerts are then silent too.
+- **Q1. Does every federated cell report?** A cell missing from **cells-reporting** has left the hub's view, so **firing** no longer shows its alerts. If only the sidecar or the hub path broke, the cell's own Prometheus and Alertmanager still page. If the cell's Prometheus or Alertmanager stopped, the cell pages nobody. Run `kubectl --context <cell> -n monitoring get pods` to tell the two apart.
 - **Q2. Does every cell run `main`?** Compare **flux-revision** with `git rev-parse origin/main`. A gap of more than about 6 minutes points to a source or build failure.
 - **Q3. Is every Flux object Ready?** Read **flux-not-ready** and **flux-suspended**, then the condition message from `flux get`.
 - **Q4. What fires?** Read **firing**, split by `cluster`, `severity` and `team`. Read the rule and its `runbook_url`.
@@ -166,7 +166,7 @@ Stop and report to the user when:
 - the change removes a prune guard or adds force to a SeiNode.
 - the change deletes a Namespace, a SeiNode, a PVC or a PV outside [the retirement procedure](references/procedures.md#h-retire-a-seinode).
 - the next step would print or decrypt a secret.
-- a Terraform apply has no plan in a merged pull request, or another apply may be running on the root.
+- a Terraform apply has no reviewed plan, or another apply may be running on the root. A reviewed plan sits in the merged pull request. For an engineer onboarding, it is the targeted plan with only that engineer's additions.
 - the apply order between Terraform roots is not clear.
 - a chain has halted or lost validators. Escalate to the chain's on-call. Do not change nodes to recover consensus.
 - your access fails: expired SSO, a missing context, or a `/grafana` error. Say what failed; do not guess from stale data.

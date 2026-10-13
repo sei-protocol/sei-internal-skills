@@ -39,7 +39,7 @@ Run each query on `prometheus-prod` with `query_prometheus`, `instant` unless th
 
 ### Fleet and Flux
 
-- **cells-reporting**: `count by (cluster) (up == 1)`. Each federated cell returns one row. A missing cell means its Prometheus, its sidecar or the hub path is down, and its alerts are also silent.
+- **cells-reporting**: `count by (cluster) (up == 1)`. Each federated cell returns one row. A missing cell has left the hub's view, and **firing** no longer shows its alerts. Whether the cell still pages depends on the cause ([FM8](diagnosis.md#fm8-a-cell-leaves-the-hubs-view)).
 - **scrape-down**: `count by (cluster, job) (up == 0)`. prod carries legacy static scrape jobs that read down at all times. Compare with the same query at `offset 1d` before you call a target new.
 - **flux-revision**: `count by (cluster, revision) (gotk_resource_info{customresource_kind="Kustomization", exported_namespace="flux-system", name="flux-system"})`. Each cell shows the `main` commit that it applied. prod-apne1 writes the ref as `refs/heads/main@sha1:...`. Compare the sha with `git rev-parse origin/main`.
 - **flux-not-ready**: `max by (cluster, customresource_kind, exported_namespace, name) (gotk_resource_info{customresource_kind=~"Kustomization|HelmRelease|GitRepository|HelmRepository|OCIRepository", ready=~"False|Unknown", suspended!="true"})`. An object that shows for a few minutes during an apply is normal. `FluxObjectNotReady` fires after 30 minutes.
@@ -108,7 +108,7 @@ Dashboards are GrafanaDashboard objects in git. grafana-operator syncs them into
 ## 6. Blind spots
 
 - **A dead rule is silent.** A rule whose metric has no series never fires. Metric names change when an exporter upgrades, and a component can lose its scrape target. The [rule-metric sweep](maintenance.md#4-rule-metric-sweep) finds these.
-- **A cell that stops reporting is silent.** If a cell's Prometheus or Alertmanager stops, that cell pages nobody, and no external heartbeat watches `Watchdog`. Check **cells-reporting** at the start of any health question.
+- **A cell whose own alerting stops is silent.** If a cell's Prometheus or Alertmanager stops, that cell pages nobody, and no external heartbeat watches `Watchdog`. A break in the sidecar or the hub path is different: the cell still pages, but the fleet view loses it. Check **cells-reporting** at the start of any health question.
 - **A suspended Kustomization is silent.** Check **flux-suspended**.
 - **DNS failures are silent.** external-dns writes an `AccessDenied` only to its log.
 - **Some exporters run on one cell only.** Istio request metrics and cert-manager metrics come from prod only. Read the other cells with `kubectl`.

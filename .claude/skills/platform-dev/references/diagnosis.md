@@ -71,8 +71,8 @@ Contents:
 ## FM8: a cell leaves the hub's view
 
 - **Mechanism.** The hub reads each spoke's sidecar and store gateway on port 10901 through an internal NLB and VPC peering. A change to the kube-prometheus-stack `fullnameOverride` breaks the NLB's selector. A broken peering route or a stopped Prometheus has the same effect.
-- **Symptom.** The cell is missing from **cells-reporting**, Grafana panels for it go blank, and its alerts stop.
-- **Check.** Run **cells-reporting**, **thanos-stores** and **thanos-store-errors**. Then `kubectl --context <cell> -n monitoring get pods` and the sidecar NLB Service.
+- **Symptom.** The cell is missing from **cells-reporting**, its Grafana panels go blank, and **firing** no longer shows its alerts. Paging depends on the cause. A sidecar, NLB or peering break leaves the cell's own Prometheus and Alertmanager paging. A stopped Prometheus or Alertmanager pages nobody.
+- **Check.** Run **cells-reporting**, **thanos-stores** and **thanos-store-errors**. Then run `kubectl --context <cell> -n monitoring get pods` to see whether the cell's Prometheus and Alertmanager run, and read the sidecar NLB Service.
 - **Safe response.** Restore the cell's Prometheus or the path through a pull request. While the cell is dark, check its health directly with `kubectl`.
 
 ## FM9: logs stop

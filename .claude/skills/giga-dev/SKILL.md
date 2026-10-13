@@ -27,7 +27,7 @@ This skill covers the `giga-testnet-0` namespace on the prod cells prod-use2, pr
 Refuse and redirect when:
 - the target is not `giga-testnet-0` on the four prod cells. An engineer's harbor chain goes to `/harbor-dev`. arctic-1, pacific-1 and other chains are out of scope.
 - the request is a chain reset or a data wipe without an explicit go-ahead for that reset. Describe the design and its gates ([fresh start](references/diagnosis.md#4-fresh-start-design)), then halt.
-- the request is controller or CRD code (`/kubernetes`) or general platform GitOps work. A change to the scaler formula, its thresholds or the load Deployment goes through a sei-protocol/platform PR that the testnet's owner reviews. Explain the design here.
+- the request is controller or CRD code (`/kubernetes`) or general platform GitOps work (`/platform-dev`). A change to the scaler formula, its thresholds or the load Deployment goes through a sei-protocol/platform PR that the testnet's owner reviews. Explain the design here.
 
 ## Mental Model
 
@@ -152,6 +152,6 @@ Stop and report to the user when:
 
 - `/harbor-dev`: an engineer's own Autobahn or giga chain on harbor.
 - `/kubernetes`: sei-k8s-controller, SeiNode CRDs and reconcile code.
-- A sei-protocol/platform PR: platform manifests, Flux, Kustomize and cloud auth.
+- `/platform-dev`: platform manifests, Flux, Kustomize and cloud auth, through a sei-protocol/platform PR.
 - `sre-engineer`: a structured incident review, alert tuning and runbook gaps.
 - Runbooks repo: `platform/giga-validators/`, `platform/keda/`, `platform/sei-load/`, `giga-testnet-runbook.md`.
