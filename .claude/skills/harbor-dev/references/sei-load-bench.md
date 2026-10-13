@@ -218,7 +218,9 @@ PROFILE_SUBSTITUTED=$(printf '%s' "${PROFILE_RAW}" \
 
 # Hard gate: the substituted profile must be valid JSON with no placeholder left.
 printf '%s' "${PROFILE_SUBSTITUTED}" | jq -e . >/dev/null
-! printf '%s' "${PROFILE_SUBSTITUTED}" | grep -q '__[A-Z_]*__'
+if printf '%s' "${PROFILE_SUBSTITUTED}" | grep -q '__[A-Z_]*__'; then
+  echo 'a placeholder is left in the profile; halt'; exit 1
+fi
 ```
 
 Indent `<PROFILE_JSON_SUBSTITUTED>` four spaces in the rendered ConfigMap (block scalar `|` syntax).

@@ -246,7 +246,9 @@ PROFILE_A=$(printf '%s' "${PROFILE_RAW}" \
   | sed -e "s|__SEI_CHAIN_ID__|<chain-tag>-a|" -e "s|__RPC_ENDPOINTS__|${EPS_INNER_A}|" \
         -e "s|__RECEIPT_ENDPOINT__|${RECEIPT_ENDPOINT_A}|")
 printf '%s' "${PROFILE_A}" | jq -e . >/dev/null   # hard gate: valid JSON
-! printf '%s' "${PROFILE_A}" | grep -q '__[A-Z_]*__'   # hard gate: no placeholder left
+if printf '%s' "${PROFILE_A}" | grep -q '__[A-Z_]*__'; then   # hard gate: no placeholder left
+  echo 'a placeholder is left in the side A profile; halt'; exit 1
+fi
 
 # Side B mirrors with -b
 ```

@@ -102,27 +102,43 @@ SHA=$(gh api repos/sei-protocol/sei-load/commits/<branch> --jq .sha)
 
 IMAGE="ghcr.io/sei-protocol/sei-load:sha-${SHA}"
 
-# --- Probe ---
+# --- Probe, and build only if the image is absent ---
 # GHCR public image — anonymous HEAD on the manifest works.
-docker manifest inspect "${IMAGE}" >/dev/null 2>&1
+if ! docker manifest inspect "${IMAGE}" >/dev/null 2>&1; then
+  # A pull request run builds the image but never publishes it, so there is no
+  # run to wait for. Dispatch on the branch whose head is ${SHA}.
+  # containerize.yaml requires a `sha` input and ignores it: it builds the head
+  # of the --ref branch and tags it sha-<that head>. Check the head first, or the
+  # image carries other code under a tag the engineer did not ask for.
+  BRANCH=<the branch whose head is SHA, e.g. the PR's headRefName>
+  [ "$(gh api repos/sei-protocol/sei-load/commits/${BRANCH} --jq .sha)" = "${SHA}" ] \
+    || { echo "${BRANCH} head is not ${SHA}; halt"; exit 1; }
 
-# --- Build if the probe found nothing ---
-# A pull request run builds the image but never publishes it, so there is no
-# run to wait for. Dispatch on the branch whose head is ${SHA}.
-# containerize.yaml requires a `sha` input and ignores it: it builds the head
-# of the --ref branch and tags it sha-<that head>. Check the head first, or the
-# image carries other code under a tag the engineer did not ask for.
-BRANCH=<the branch whose head is SHA, e.g. the PR's headRefName>
-[ "$(gh api repos/sei-protocol/sei-load/commits/${BRANCH} --jq .sha)" = "${SHA}" ] \
-  || { echo "${BRANCH} head is not ${SHA}; halt"; exit 1; }
-gh workflow run containerize.yaml -R sei-protocol/sei-load --ref "${BRANCH}" -f sha="${SHA}"
-sleep 3
-RUN_ID=$(gh run list -R sei-protocol/sei-load --workflow=containerize.yaml \
-  --event=workflow_dispatch --json databaseId,createdAt --limit 5 \
-  | jq -r 'sort_by(.createdAt) | reverse | .[0].databaseId')
+  # Name this dispatch's run by elimination: the dispatch runs on ${BRANCH}
+  # that existed before it are listed first, so another engineer's dispatch
+  # elsewhere, or an older run here, is never the one watched.
+  list_runs() {
+    gh run list -R sei-protocol/sei-load --workflow=containerize.yaml \
+      --event=workflow_dispatch --branch "${BRANCH}" --json databaseId --limit 20
+  }
+  BEFORE=$(list_runs | jq -c '[.[].databaseId]')
+  gh workflow run containerize.yaml -R sei-protocol/sei-load --ref "${BRANCH}" -f sha="${SHA}"
+  RUN_ID=
+  for _ in 1 2 3 4 5 6; do
+    sleep 5
+    RUN_ID=$(list_runs | jq -r --argjson before "${BEFORE}" \
+      '[.[].databaseId | select(. as $id | $before | index($id) | not)] | .[0] // empty')
+    [ -n "${RUN_ID}" ] && break
+  done
+  [ -n "${RUN_ID}" ] || { echo "no new dispatch run on ${BRANCH}; halt"; exit 1; }
 
-# --- Watch ---
-gh run watch ${RUN_ID} -R sei-protocol/sei-load --exit-status
+  gh run watch "${RUN_ID}" -R sei-protocol/sei-load --exit-status
+
+  # The branch can move between the head check and the build, and the image is
+  # then sha-<new head>. Probe again, so that case halts here and not at render.
+  docker manifest inspect "${IMAGE}" >/dev/null 2>&1 \
+    || { echo "${IMAGE} is still absent; ${BRANCH} may have moved; halt"; exit 1; }
+fi
 ```
 
 Only a push to `main` or a `v*` tag publishes an image without a dispatch. For a sei-load PR, the image exists only after someone dispatches `containerize.yaml` on the PR's branch, which takes a few minutes. The dispatch also publishes `:<branch-slug>` into the shared package.
