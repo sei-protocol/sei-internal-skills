@@ -106,7 +106,11 @@ With `sectionName: https`, plain HTTP on that hostname gets the shared redirect 
 3. `terraform/aws/189176372795/eu-central-1/harbor/engineers/<alias>.tf`, the Pod Identity associations;
 4. `clusters/harbor/monitoring/podmonitor-seiload-eng.yaml`, so that Prometheus scrapes the cell's load jobs.
 
-A sibling pull request in `harbor-engineering-workspace` adds the workspace. It merges first or together. The onboarding is the one Terraform change whose plan runs after the merge, as `/harbor-dev` does it. After the merge, an engineer runs `terraform plan -target=module.engineers -out=tfplan` from the harbor root. The plan must add only the new engineer's Pod Identity resources, and change or destroy nothing. Only then does the engineer run `terraform apply tfplan` ([C](#c-run-terraform-safely)). Offboarding removes the same four entries, and Flux deletes the tenant cell, because tenant Namespaces stay prunable.
+A sibling pull request in `harbor-engineering-workspace` adds the workspace. It merges first or together.
+
+The onboarding is the one Terraform change whose plan runs after the merge, as `/harbor-dev` does it. After the merge, an engineer runs `terraform plan -target=module.engineers -out=tfplan` from the harbor root. The plan must add only the new engineer's Pod Identity resources, and change or destroy nothing. Only then does the engineer run `terraform apply tfplan` ([C](#c-run-terraform-safely)).
+
+Offboarding removes the same four entries, and Flux deletes the tenant cell, because tenant Namespaces stay prunable.
 
 ## H: Retire a SeiNode
 
