@@ -70,7 +70,7 @@ A change in a sibling skill can also move this skill's routing. Check the descri
 
 ## 4. Rule-metric sweep
 
-A rule whose metric has no series never fires ([FM14](diagnosis.md#fm14-an-alert-never-fires)). This sweep finds a rule whose metric is missing in every cell, and a rule whose metric is missing in some of the cells that run it.
+A rule whose metric has no series never fires ([FM14](diagnosis.md#fm14-an-alert-never-fires)). This sweep finds these rules. It also finds a rule whose metric is missing in only some of the cells that run it.
 
 1. List the metric names that each rule reads. In a platform checkout, run:
 
