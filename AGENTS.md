@@ -54,6 +54,7 @@ This package uses Claude Code skills and specialist agents from Sei's sei-intern
 
 - **`/harbor-dev`**: run your own ephemeral Sei chain in `eng-<alias>` on the harbor dev cluster. Spin it up, bench it, inspect it, tear it down. Start with "onboard me".
 - **`/giga-dev`**: operate and diagnose the shared giga testnet, `giga-testnet-0`, on the prod cells. Read-only by default.
+- **`/grafana`**: query prod metrics, logs and alert state through Grafana, read-only, with no port-forward.
 - **`/kubernetes`**: design or review sei-k8s-controller code (CRDs, reconcilers, status and conditions).
 
 For a single-expert consult, use the Agent tool with the agent name as `subagent_type`. The agents live in `.claude/agents/`.

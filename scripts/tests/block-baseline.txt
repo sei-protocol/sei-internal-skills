@@ -12,5 +12,6 @@
 # one, so the baseline shrinks deliberately.
 
 giga-dev           -
+grafana            -
 harbor-dev         -
 kubernetes         -

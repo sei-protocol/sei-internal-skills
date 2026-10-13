@@ -35,21 +35,14 @@ store. EVM-only nodes serve no CometBFT RPC: nothing listens on 26657. Read heig
 
 ### Grafana
 
-`https://grafana.prod.platform.sei.io`, Google login. `@seinetwork.io` accounts get Editor.
+`https://grafana.prod.platform.sei.io`. An agent queries it through `/grafana`, with a read-only
+token and no port-forward. A person uses Google login: `@seinetwork.io` accounts get Editor, and
 `@sei.io` and `@seifdn.org` accounts get Viewer, which is enough here.
 
-| Datasource | uid | Holds |
-|---|---|---|
-| `Prometheus` (default) | `prometheus-prod` | Thanos: the metrics of every cell, harbor included |
-| `Loki-fleet` | `loki-fleet` | The logs of every cell |
-| `Loki` | `loki` | `prod` cell logs only |
-| `Loki-prod-use2`, `Loki-prod-euw1`, `Loki-prod-apne1` | the name in lowercase | That cell's logs only |
-| `Alertmanager` | `alertmanager` | The `prod` Alertmanager only |
-
-The runbooks call the metrics datasource `prometheus-prod`; Grafana shows it as `Prometheus`.
-Each cell writes every log line to its own Loki and to `Loki-fleet`. Start with `Loki-fleet`.
-Use a per-cell datasource for break-glass, or for history older than the fleet store. Both keep 90
-days and return at most 10,000 lines per query, so count with `count_over_time` first.
+The datasources and their uids are in the
+[`/grafana` datasource table](../../grafana/SKILL.md#datasources). The runbooks call the metrics
+datasource `prometheus-prod`; Grafana shows it as `Prometheus`. Start logs with `Loki-fleet`. Each
+Loki store returns at most 10,000 lines per query, so count with `count_over_time` first.
 
 ### Thanos, the cell Prometheus and the `cluster` label
 
@@ -65,21 +58,12 @@ returns nothing.
 | Head, lag, alerts or any cross-cell comparison | Thanos. Add `cluster` to `by (...)` to split by cell |
 | The exact value that a scaler trigger reads | That cell's Prometheus, with the trigger's own query |
 
-Port-forward to the Service, not a pod. Pod names change on a rollout.
+Read Thanos and every Loki store through `/grafana`. Grafana has no datasource for one cell's own
+Prometheus, so the exact value of a scaler trigger still needs a port-forward. Port-forward to the
+Service, not a pod. Pod names change on a rollout.
 
 ```sh
-kubectl --context prod -n monitoring port-forward svc/thanos-query 19090:9090
-curl -s 'http://localhost:19090/api/v1/query' \
-  --data-urlencode 'query=count by (cluster, job) (up{namespace="giga-testnet-0"})'
 kubectl --context prod-use2 -n monitoring port-forward svc/prometheus-operated 19092:9090
-```
-
-Loki needs the tenant header `X-Scope-OrgID: 1`. A cell's own Loki is `svc/loki-gateway`.
-
-```sh
-kubectl --context prod -n monitoring port-forward svc/loki-fleet-gateway 13100:80
-curl -s -G -H 'X-Scope-OrgID: 1' 'http://localhost:13100/loki/api/v1/query_range' \
-  --data-urlencode 'query=sum by (cluster, container) (count_over_time({namespace="giga-testnet-0"}[1h]))'
 ```
 
 ### What a read-only operator needs
@@ -87,8 +71,9 @@ curl -s -G -H 'X-Scope-OrgID: 1' 'http://localhost:13100/loki/api/v1/query_range
 | Task | Needs |
 |---|---|
 | Dashboards, Explore, alert history | Grafana Viewer |
+| Thanos, Loki and alert state from an agent | `/grafana`. It needs EKS access to `prod`, where it reads the `agent-viewer` token |
 | `kubectl get`, `describe`, `logs` | EKS access to the cell. A view policy covers it |
-| Port-forward to Thanos, Prometheus or Loki | `create` on `pods/portforward` in `monitoring`. A view role lacks it; use Grafana |
+| Port-forward to one cell's Prometheus | `create` on `pods/portforward` in `monitoring`. A view role lacks it |
 
 The checks used most, per cell:
 

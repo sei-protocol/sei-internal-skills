@@ -91,8 +91,9 @@ Every check below is read-only.
 | Need | Path |
 |---|---|
 | Cluster objects | `kubectl --context <cell> -n giga-testnet-0 get ...` for `prod-use2`, `prod`, `prod-euw1`, `prod-apne1` |
-| Metrics, all cells | Grafana `https://grafana.prod.platform.sei.io`, datasource `prometheus-prod` (Thanos). Or `kubectl --context prod -n monitoring port-forward svc/thanos-query 19090:9090`. The `cluster` label selects the cell. |
-| Logs, all cells | Grafana datasource `Loki-fleet`. Or `kubectl --context prod -n monitoring port-forward svc/loki-fleet-gateway 13100:80`. |
+| Metrics, all cells | `/grafana`, datasource `prometheus-prod` (Thanos), with no port-forward. The `cluster` label selects the cell. |
+| Logs, all cells | `/grafana`, datasource `Loki-fleet`. |
+| Alert state | `/grafana`: `ALERTS{alertstate="firing"}` on `prometheus-prod`, the state of each rule, and the `alertmanager` datasource. |
 | Dashboards | Autobahn E2E, with `namespace` and `chain_id` set to `giga-testnet-0`. Load Test Client, with `ChainID=giga-testnet-0`. |
 | Runbooks | `https://github.com/sei-protocol/runbooks/tree/main/platform/giga-validators` (lag alerts), `platform/keda`, `platform/sei-load`, and `giga-testnet-runbook.md` (logs) |
 
