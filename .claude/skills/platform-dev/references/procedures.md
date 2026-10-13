@@ -120,7 +120,7 @@ Writes: a pull request, then deletes in the cell. Most SeiNodes and their extern
 6. If the node imports a static volume, as archive and frozen nodes do, the PV is `Retain`. Delete the PVC, check that the PV shows `Released`, then delete the PV. Then delete the EBS volume in AWS, because a `Retain` volume outlives its PV and keeps billing.
 7. Delete the Route53 records and their `extdns` TXT records by hand, because external-dns runs `upsert-only`.
 
-A SeiNode without `prune: disabled` skips steps 3 and 4. Flux deletes it as soon as the merge reaches the cell, and the finalizer then deletes its data volume. That is why step 1 comes before the merge for every SeiNode.
+A SeiNode without `prune: disabled` skips step 4. Flux deletes it as soon as the merge reaches the cell, and the finalizer then deletes its data volume. For that reason, step 1 comes before the merge for every SeiNode. Step 3 applies to every SeiNode. A manual delete in step 5 that runs before Flux applies the merge comes back at the next apply.
 
 ## I: Roll a chain release
 

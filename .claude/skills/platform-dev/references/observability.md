@@ -49,7 +49,7 @@ Run each query on `prometheus-prod` with `query_prometheus`, `instant` unless th
 
 - **firing**: `count by (alertname, cluster, severity, team) (ALERTS{alertstate="firing", alertname!="Watchdog"})`. `Watchdog` fires in every cell at all times by design.
 - **pending**: `count by (alertname, cluster) (ALERTS{alertstate="pending"})`. A pending alert has met its expression but not its `for` duration yet.
-- **metric-exists**: `count by (cluster) ({__name__="<metric>"})`. An empty result means no cell has the metric, so a rule built on it never fires. Some metrics exist only while a job runs or after a first error, so read the rule before you call it dead.
+- **metric-exists**: `count by (cluster) ({__name__="<metric>"})`. A cell missing from the result has no series, so a rule built on the metric never fires in that cell. An empty result means that the rule fires nowhere. Some metrics exist only while a job runs or after a first error, so read the rule before you call it dead.
 
 ### Hub and pipeline
 

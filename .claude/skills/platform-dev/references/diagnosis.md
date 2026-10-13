@@ -114,5 +114,5 @@ Contents:
 
 - **Mechanism.** A rule whose metric has no series evaluates to nothing. An exporter upgrade renames a metric, or a component loses its scrape target. A rule on dev reads dev's own Prometheus only.
 - **Symptom.** A fault that the rule describes happens and nothing pages.
-- **Check.** Run **metric-exists** on each metric in the rule. Check that the component has a scrape target: `count by (cluster, job) (up{job=~".*<component>.*"})`.
+- **Check.** Run **metric-exists** on each metric in the rule, and compare the cells that it returns with the cells that run the rule. Check that the component has a scrape target: `count by (cluster, job) (up{job=~".*<component>.*"})`.
 - **Safe response.** Fix the rule or the scrape target in a pull request. The `sre-engineer` agent reviews the expression. The [rule-metric sweep](maintenance.md#4-rule-metric-sweep) finds every such rule at once.

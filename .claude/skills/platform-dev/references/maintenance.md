@@ -70,7 +70,7 @@ A change in a sibling skill can also move this skill's routing. Check the descri
 
 ## 4. Rule-metric sweep
 
-A rule whose metric has no series never fires ([FM14](diagnosis.md#fm14-an-alert-never-fires)). This sweep finds every such rule.
+A rule whose metric has no series never fires ([FM14](diagnosis.md#fm14-an-alert-never-fires)). This sweep finds a rule whose metric is missing in every cell, and a rule whose metric is missing in some of the cells that run it.
 
 1. List the metric names that each rule reads. In a platform checkout, run:
 
@@ -102,8 +102,8 @@ A rule whose metric has no series never fires ([FM14](diagnosis.md#fm14-an-alert
    EOF
    ```
 
-2. For each distinct metric name, run **metric-exists** through `/grafana`. Keep the names with an empty result.
-3. Sort each empty name into one of four causes:
+2. For each distinct metric name, run **metric-exists** through `/grafana`. Compare the cells that it returns with the cells that run the rule. A rule under `manifests/base/` runs in each cell whose build lists it. A rule under `clusters/<cell>/` runs in that cell only. Keep each pair of a metric and a cell that has no series for it. Thanos does not hold dev, so check a dev rule on dev's own Prometheus.
+3. Sort each pair into one of four causes:
    - **Event-only.** The metric appears only while a job runs or after a first error, such as the nightly run metrics or a discard counter. Keep the rule.
    - **Renamed.** An exporter upgrade changed the name. Search with `list_prometheus_metric_names` for a close name. Fix the rule.
    - **Not scraped.** The component has no scrape target in a cell. Check `up{job=~".*<component>.*"}`. Fix the scrape configuration.
