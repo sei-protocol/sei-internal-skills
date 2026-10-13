@@ -28,11 +28,15 @@ No writes. Run the steps in this order and report each result with its source.
 7. **Dev.** Dev is not in Thanos, so step 4 does not see its alerts. Run `kubectl --context dev get kustomizations,helmreleases -A` and `kubectl --context dev get pods -A --field-selector=status.phase!=Running,status.phase!=Succeeded`. Then read dev's alerts from its own Prometheus:
 
    ```sh
-   kubectl --context dev -n monitoring port-forward svc/prometheus-operated 9090:9090 &
-   curl -s -G http://127.0.0.1:9090/api/v1/query \
+   kubectl --context dev -n monitoring port-forward svc/prometheus-operated 19093:9090 >/dev/null 2>&1 &
+   pf=$!
+   curl -sS --fail --max-time 10 --retry 5 --retry-delay 1 --retry-connrefused \
+     -G http://127.0.0.1:19093/api/v1/query \
      --data-urlencode 'query=count by (alertname, severity) (ALERTS{alertstate="firing", alertname!="Watchdog"})'
-   kill %1
+   kill "$pf"
    ```
+
+   The retries wait for the port-forward to accept connections. An empty `result` list means that nothing fires on dev. A `curl` error or a non-zero exit means that the read failed.
 
    If you cannot read dev's Prometheus, say in the report that dev's alert state was not checked.
 
