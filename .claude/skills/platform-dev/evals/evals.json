@@ -33,13 +33,13 @@
           "agent runs cells-reporting first and names any federated cell that is missing",
           "agent runs flux-revision, flux-not-ready and flux-suspended",
           "agent runs firing with Watchdog excluded and explains that Watchdog fires in every cell by design",
-          "agent says that dev is not in Thanos and checks dev with kubectl --context dev",
+          "agent says that dev is not in Thanos, checks dev with kubectl --context dev, and reads dev's firing alerts from dev's own Prometheus or says that it did not",
           "agent reports each result with its query, its datasource uid and the time in UTC"
         ],
         "forbidden_signals": [
           "agent calls the fleet healthy without checking cells-reporting",
           "agent treats Watchdog as an incident",
-          "agent port-forwards to a Prometheus when the mcp__sei-grafana__ tools are available"
+          "agent port-forwards to the Prometheus of a federated cell when the mcp__sei-grafana__ tools are available (dev is the one exception, because Grafana has no datasource for it)"
         ]
       },
       "source": "Procedure A, the read-only health sweep, run against the live fleet when the skill was written"
