@@ -7,9 +7,9 @@ Canonical recipes for translating an engineer's request — "PR 3399", "commit a
 | Repo | Used for | Registry | Tag format | Auto-built on |
 |---|---|---|---|---|
 | `sei-protocol/sei-chain` | `seid` (chain pods) | `189176372795.dkr.ecr.us-east-2.amazonaws.com/sei/sei-chain` | `<ref-or-sha>`, `mock-<ref-or-sha>` | push to `main`, `release/**` |
-| `sei-protocol/sei-load` | sei-load (bench Job) | `ghcr.io/sei-protocol/sei-load` | `sha-<full-commit-sha>` | push to `main`, every PR push, `v*` tags |
+| `sei-protocol/sei-load` | sei-load (bench Job) | `ghcr.io/sei-protocol/sei-load` | `sha-<full-commit-sha>` | push to `main`, `v*` tags. A pull request builds the image but does not publish it. |
 
-Both workflows accept `workflow_dispatch` for unpushed commits or in-flight CI. Both **need** an image input — never silently default to nightly's pin. A silent default makes the engineer believe they are testing their change when they are actually running unrelated code. "Just use the latest" maps to `--branch main`, resolved at render time.
+Both workflows accept `workflow_dispatch`. sei-chain's builds the ref you name. sei-load's builds the head of the branch it runs on, whatever `sha` says. Both **need** an image input — never silently default to nightly's pin. A silent default makes the engineer believe they are testing their change when they are actually running unrelated code. "Just use the latest" maps to `--branch main`, resolved at render time.
 
 ## sei-chain image conventions
 
@@ -106,26 +106,26 @@ IMAGE="ghcr.io/sei-protocol/sei-load:sha-${SHA}"
 # GHCR public image — anonymous HEAD on the manifest works.
 docker manifest inspect "${IMAGE}" >/dev/null 2>&1
 
-# --- Find existing run for this SHA (auto-built on PR push) ---
+# --- Build if the probe found nothing ---
+# A pull request run builds the image but never publishes it, so there is no
+# run to wait for. Dispatch on the branch whose head is ${SHA}.
+# containerize.yaml requires a `sha` input and ignores it: it builds the head
+# of the --ref branch and tags it sha-<that head>. Check the head first, or the
+# image carries other code under a tag the engineer did not ask for.
+BRANCH=<the branch whose head is SHA, e.g. the PR's headRefName>
+[ "$(gh api repos/sei-protocol/sei-load/commits/${BRANCH} --jq .sha)" = "${SHA}" ] \
+  || { echo "${BRANCH} head is not ${SHA}; halt"; exit 1; }
+gh workflow run containerize.yaml -R sei-protocol/sei-load --ref "${BRANCH}" -f sha="${SHA}"
+sleep 3
 RUN_ID=$(gh run list -R sei-protocol/sei-load --workflow=containerize.yaml \
-  --json databaseId,headSha --limit 20 \
-  | jq -r --arg sha "${SHA}" '.[] | select(.headSha == $sha) | .databaseId' \
-  | head -1)
-
-# --- Trigger if no run exists ---
-if [ -z "${RUN_ID}" ]; then
-  gh workflow run containerize.yaml -R sei-protocol/sei-load -f sha=${SHA}
-  sleep 3
-  RUN_ID=$(gh run list -R sei-protocol/sei-load --workflow=containerize.yaml \
-    --event=workflow_dispatch --json databaseId,createdAt --limit 5 \
-    | jq -r 'sort_by(.createdAt) | reverse | .[0].databaseId')
-fi
+  --event=workflow_dispatch --json databaseId,createdAt --limit 5 \
+  | jq -r 'sort_by(.createdAt) | reverse | .[0].databaseId')
 
 # --- Watch ---
 gh run watch ${RUN_ID} -R sei-protocol/sei-load --exit-status
 ```
 
-Sei-load auto-builds on every PR push (in addition to `main` and `v*` tags). For an engineer testing a sei-load PR, the image typically already exists by the time they invoke the bench. The auto-build runs on PR push and the `containerize.yaml` workflow finishes in a couple minutes.
+Only a push to `main` or a `v*` tag publishes an image without a dispatch. For a sei-load PR, the image exists only after someone dispatches `containerize.yaml` on the PR's branch, which takes a few minutes. The dispatch also publishes `:<branch-slug>` into the shared package.
 
 ## Branch and tag inputs
 
@@ -160,4 +160,4 @@ That is a comparison input — not a default. Always prompt the engineer for an 
 - **`gh workflow run` errors with permissions.** Engineer's `gh auth status` does not grant `workflow` scope. Surface `gh auth refresh -h github.com -s workflow` and halt.
 - **`aws ecr describe-images` returns `AccessDenied`.** The engineer's SSO role lacks `ecr:DescribeImages` on `arn:aws:ecr:us-east-2:189176372795:repository/sei/sei-chain`. Surface the path: contact the platform team to add the permission to the engineer's SSO permission set.
 - **`docker manifest inspect` fails on `ghcr.io/sei-protocol/sei-load`** with auth required. The package may have gone private — surface and halt.
-- **PR is on a fork.** Head SHA exists but auto-build did not run (a gate blocks fork-PR builds). Manual dispatch on the head SHA still works.
+- **PR is on a fork.** A dispatch runs only on a branch of `sei-protocol/sei-load`, so it cannot build a fork's head. Halt, and ask a maintainer to push the branch to the repository.

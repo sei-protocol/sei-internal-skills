@@ -230,14 +230,23 @@ Profile substitution per side (same textual-substitution + jq-validate recipe as
 # Side A
 RPC_ENDPOINTS_A=$(seictl node list -n eng-<alias> -l sei.io/seinetwork=<chain-tag>-a,sei.io/role=node -o json \
   | jq -c '[.items[].status.endpoint.evmJsonRpc | select(.)]')
-EPS_INNER_A=$(printf '%s' "${RPC_ENDPOINTS_A}" | jq -r 'map(@json) | join(", ")')
 
 PROFILE_RAW=$(gh api repos/sei-protocol/platform/contents/clusters/harbor/nightly/harness/profiles/<profile>.json \
   --jq .content | base64 -d)
 
+# Split off the receipt follower exactly as sei-load-bench.md does.
+RECEIPT_ENDPOINT_A=$(printf '%s' "${RPC_ENDPOINTS_A}" | jq -r '.[-1]')
+if printf '%s' "${PROFILE_RAW}" | grep -q '__RECEIPT_ENDPOINT__' \
+   && [ "$(printf '%s' "${RPC_ENDPOINTS_A}" | jq length)" -ge 2 ]; then
+  RPC_ENDPOINTS_A=$(printf '%s' "${RPC_ENDPOINTS_A}" | jq -c '.[:-1]')
+fi
+EPS_INNER_A=$(printf '%s' "${RPC_ENDPOINTS_A}" | jq -r 'map(@json) | join(", ")')
+
 PROFILE_A=$(printf '%s' "${PROFILE_RAW}" \
-  | sed -e "s|__SEI_CHAIN_ID__|<chain-tag>-a|" -e "s|__RPC_ENDPOINTS__|${EPS_INNER_A}|")
+  | sed -e "s|__SEI_CHAIN_ID__|<chain-tag>-a|" -e "s|__RPC_ENDPOINTS__|${EPS_INNER_A}|" \
+        -e "s|__RECEIPT_ENDPOINT__|${RECEIPT_ENDPOINT_A}|")
 printf '%s' "${PROFILE_A}" | jq -e . >/dev/null   # hard gate: valid JSON
+! printf '%s' "${PROFILE_A}" | grep -q '__[A-Z_]*__'   # hard gate: no placeholder left
 
 # Side B mirrors with -b
 ```
