@@ -7,7 +7,7 @@ description: "Use when an agent needs Sei metrics, logs or alert state from prod
 
 Read-only access to prod Grafana for an agent, with no port-forward. The skill connects the `sei-grafana` MCP server, and it says which datasource answers which question. One Grafana at `https://grafana.prod.platform.sei.io` holds the metrics of every cell, the logs of every cell, and the alert state.
 
-`/harbor-dev` and `/giga-dev` use this skill for their metric, log and alert queries. Any other skill that needs prod metrics, logs or alerts uses it the same way.
+`/harbor-dev`, `/giga-dev` and `/platform-dev` use this skill for their metric, log and alert queries. Any other skill that needs prod metrics, logs or alerts uses it the same way.
 
 ## Guardrails
 
