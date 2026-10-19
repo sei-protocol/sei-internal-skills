@@ -2,15 +2,15 @@
 
 A new engineer's onboarding is one PR against `sei-protocol/platform` touching four files plus a sibling PR against `sei-protocol/harbor-engineering-workspace` adding one file. After both PRs merge, run a targeted `terraform apply`. Both pieces complete in under five minutes.
 
-**Partial reference PR:** [sei-protocol/platform#587](https://github.com/sei-protocol/platform/pull/587) — the fromtherain re-onboard.
+**Reference PR:** [sei-protocol/platform#1623](https://github.com/sei-protocol/platform/pull/1623) — the alex, kollegian and masih onboarding.
 
-Read that PR for the shape of File 1 only. It is a two-file diff, and it predates both the per-engineer terraform (File 3) and the seiload PodMonitor roster (File 4). It is not a complete onboarding diff. Take the full file list from the table below, and the literal shapes from [`onboarding-pr-template.md`](./onboarding-pr-template.md).
+That PR holds all four platform-repo files, for three engineers at once. Take the full file list from the table below, and the literal shapes from [`onboarding-pr-template.md`](./onboarding-pr-template.md).
 
 The base template it renders against is still current, including the templated rbac-proxy ClusterRoleBinding and the controller `node-configmaps-writer` Role + `controller-configmaps-writer` RoleBinding. Copying the most recently onboarded engineer's files gives the same result with less reading.
 
 Literal file shapes live in [`onboarding-pr-template.md`](./onboarding-pr-template.md).
 
-Substitute `fromtherain` → `<alias>` throughout Files 1, 3 and 5. Files 2 and 4 work differently: they are **append-only** edits to rosters that already list every onboarded engineer. Add the new entry and leave every existing one alone. A blanket replace on those two files renames another engineer's entry instead of adding yours.
+Substitute `amir` → `<alias>` throughout Files 1, 3 and 5. Files 2 and 4 work differently: they are **append-only** edits to rosters that already list every onboarded engineer. Add the new entry and leave every existing one alone. A blanket replace on those two files renames another engineer's entry instead of adding yours.
 
 ## Files in the PR
 
@@ -33,7 +33,7 @@ References `../base`, sets `alias=<alias>` via `configMapGenerator`, runs `repla
 
 A second `replacements:` block substitutes `eng-tenant` → `eng-<alias>` (delimiter `-`, index 1) for namespace fields, and `engineers/tenant` → `engineers/<alias>` (delimiter `/`, index 2) for the Flux Kustomization's `spec.path`. The RoleBinding `subjects.0.namespace` aliasing rejects `controller-configmaps-writer`: that binding's subject is the controller SA in `sei-k8s-controller-system`, which must stay literal. Aliasing it would point the grant at a non-existent namespace.
 
-Literal content in [`onboarding-pr-template.md`](./onboarding-pr-template.md) → File 1. Substring-replace `fromtherain` → `<alias>`.
+Literal content in [`onboarding-pr-template.md`](./onboarding-pr-template.md) → File 1. Substring-replace `amir` → `<alias>`.
 
 ## Aggregator update (file 2)
 
@@ -62,7 +62,7 @@ Two `module "eng_<alias>_seid_node_pod_identity"` and `module "eng_<alias>_engin
 - `associations.this = { cluster_name = var.cluster_name, namespace = "eng-<alias>", service_account = "<sa-name>" }`.
 - `tags = var.tags`.
 
-Literal content in [`onboarding-pr-template.md`](./onboarding-pr-template.md) → File 3. Substring-replace `fromtherain` → `<alias>`.
+Literal content in [`onboarding-pr-template.md`](./onboarding-pr-template.md) → File 3. Substring-replace `amir` → `<alias>`.
 
 The wrapper `terraform/.../harbor/engineers.tf` and the submodule's `engineers/variables.tf` already exist; this PR does not touch them.
 
@@ -154,7 +154,7 @@ Pods running as `engineer-service-account` see `aws:PrincipalTag/kubernetes-name
 1. **Prompt for the alias.** Default the prompt to `$USER` lowercased — do not silently use it. Validate the response against `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`. **Then check uniqueness** with `kubectl get namespace eng-<alias> --context harbor`: if the namespace already exists, another engineer holds the alias. Halt with "pick another, or contact the platform team if it is yours." Do not attempt partial-state recovery (separate runbook). Continue only when the alias is free.
 2. **Render the four platform-repo files** from [`onboarding-pr-template.md`](./onboarding-pr-template.md) (Files 1–4) in a fresh clone of `sei-protocol/platform`, branched from `main` — never from a local working branch. Branch: `feat/engineers-<alias>-onboard`.
 
-   Substring-replace `fromtherain` → `<alias>` in **Files 1 and 3** only. **Files 2 and 4 are append-only**: both are rosters that already name every onboarded engineer, so add one entry and leave the rest untouched. File 4's block shows `- eng-fromtherain` as a live entry, not a placeholder. Replace it and you drop that engineer's seiload scraping. That is the same failure this roster exists to prevent.
+   Substring-replace `amir` → `<alias>` in **Files 1 and 3** only. **Files 2 and 4 are append-only**: both are rosters that already name every onboarded engineer, so add one entry and leave the rest untouched. File 4's block shows `- eng-amir` as a live entry, not a placeholder. Replace it and you drop that engineer's seiload scraping. That is the same failure this roster exists to prevent.
 
    Then **verify the render before opening the PR**, because every alias substitution in File 1 is index-based string surgery on the base template:
 
