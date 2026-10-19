@@ -357,7 +357,7 @@ For a literal "fresh laptop" engineer, the first session looks like:
 6. Gate 4 fails (no kubeconfig). Run `aws eks update-kubeconfig --name harbor --region eu-central-1 --profile <chosen> --alias harbor` directly (using the gate-3 profile). Continue.
 7. Gate 5 fails (no access entry). Surface "ask platform team in #harbor-onboarding," halt.
 8. Engineer pings the channel, gets the access entry. Comes back, says "ok try again." Gate 5 now passes, so run its resource-CRD sub-gate here. This is the first point in the ramp that can reach the cluster.
-9. Gate 6 fails (namespace does not exist). Enter First Run: prompt for alias (default from `$USER`), validate the regex, generate the PR body following the fromtherain pattern, open the PR via `gh pr create`. Surface the PR URL and halt. "Merge this; ping me when done."
+9. Gate 6 fails (namespace does not exist). Enter First Run: prompt for alias (default from `$USER`), validate the regex, generate the PR body following the masih pattern, open the PR via `gh pr create`. Surface the PR URL and halt. "Merge this; ping me when done."
 10. Engineer merges, says "merged."
 11. Poll gate 6 — namespace + RBAC + workload SA + Flux watcher all reconcile from the same merge (~60s). Once `kubectl get namespace eng-<alias>` returns 0, gate 6 passes.
 12. All gates pass. "You are on the rails. Try `spin up a chain of 4 validators with image X`."

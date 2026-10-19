@@ -1,17 +1,17 @@
 # Onboarding PR file shapes
 
-Concrete file contents for the platform-repo and workspace-repo onboarding PRs, taken from the canonical fromtherain onboarding.
+Concrete file contents for the platform-repo and workspace-repo onboarding PRs, taken from the canonical masih onboarding.
 
-**Substitute `fromtherain` → `<alias>`** when rendering for a new engineer (lowercase, regex `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`).
+**Substitute `masih` → `<alias>`** when rendering for a new engineer (lowercase, regex `^[a-z]([a-z0-9-]{0,28}[a-z0-9])?$`).
 
-That substitution is file-wide for Files 1, 3 and 5, which are new files. Files 2 and 4 are **append-only** edits to existing rosters: each already lists every onboarded engineer, including `fromtherain`. Add one entry there and change nothing else. A blanket replace on a roster renames another engineer's entry instead of adding yours.
+That substitution is file-wide for Files 1, 3 and 5, which are new files. Files 2 and 4 are **append-only** edits to existing rosters: each already lists every onboarded engineer, including `masih`. Add one entry there and change nothing else. A blanket replace on a roster renames another engineer's entry instead of adding yours.
 
 ## File 1: `clusters/harbor/engineers/<alias>/kustomization.yaml` (platform repo, new)
 
 ```yaml
-# fromtherain engineer cell on Harbor.
+# masih engineer cell on Harbor.
 # Composes the shared engineers/base template, propagating the alias
-# `fromtherain` into Namespace, ServiceAccount, Role, RoleBinding, and
+# `masih` into Namespace, ServiceAccount, Role, RoleBinding, and
 # Flux Kustomization names via the replacements below. The tenant-info
 # ConfigMap is local-config (used as the alias source, not emitted) and
 # is namespaced so the parent harbor build can compose multiple cells
@@ -24,9 +24,9 @@ resources:
 
 configMapGenerator:
   - name: tenant-info
-    namespace: eng-fromtherain
+    namespace: eng-masih
     literals:
-      - alias=fromtherain
+      - alias=masih
     options:
       annotations:
         config.kubernetes.io/local-config: "true"
@@ -165,22 +165,22 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
+  - alex
   - amir
-  - brandon
-  - fromtherain
+  - dakai
 ```
 
 ## File 3: `terraform/aws/189176372795/eu-central-1/harbor/engineers/<alias>.tf` (platform repo, new)
 
 ```hcl
-# Pairs with clusters/harbor/engineers/fromtherain/ — the SAs bound below
+# Pairs with clusters/harbor/engineers/masih/ — the SAs bound below
 # are Flux-managed there.
 
-module "eng_fromtherain_seid_node_pod_identity" {
+module "eng_masih_seid_node_pod_identity" {
   source  = "registry.terraform.io/terraform-aws-modules/eks-pod-identity/aws"
   version = ">= 2.4"
 
-  name = "${var.name_prefix}-eng-fromtherain-seid-node"
+  name = "${var.name_prefix}-eng-masih-seid-node"
 
   additional_policy_arns = {
     seid_node = var.iam_policy_seid_node_engineer_arn
@@ -189,7 +189,7 @@ module "eng_fromtherain_seid_node_pod_identity" {
   associations = {
     this = {
       cluster_name    = var.cluster_name
-      namespace       = "eng-fromtherain"
+      namespace       = "eng-masih"
       service_account = "seid-node"
     }
   }
@@ -197,11 +197,11 @@ module "eng_fromtherain_seid_node_pod_identity" {
   tags = var.tags
 }
 
-module "eng_fromtherain_engineer_pod_identity" {
+module "eng_masih_engineer_pod_identity" {
   source  = "registry.terraform.io/terraform-aws-modules/eks-pod-identity/aws"
   version = ">= 2.4"
 
-  name = "${var.name_prefix}-eng-fromtherain-engineer"
+  name = "${var.name_prefix}-eng-masih-engineer"
 
   additional_policy_arns = {
     engineer = var.iam_policy_engineer_arn
@@ -210,7 +210,7 @@ module "eng_fromtherain_engineer_pod_identity" {
   associations = {
     this = {
       cluster_name    = var.cluster_name
-      namespace       = "eng-fromtherain"
+      namespace       = "eng-masih"
       service_account = "engineer-service-account"
     }
   }
@@ -247,11 +247,11 @@ cell without this edit and seiload runs, but no loadgen metrics arrive.
 ## File 5: `engineers/<alias>/kustomization.yaml` (workspace repo: `sei-protocol/harbor-engineering-workspace`, new)
 
 ```yaml
-# fromtherain's Harbor workspace.
+# masih's Harbor workspace.
 # Engineer-rendered tasks (chains, RPC fleets, benchmarks via the
 # harbor-dev skill) commit to sub-paths under this directory
 # and reference them in `resources`. Flux on harbor reconciles whatever
-# lands here into eng-fromtherain.
+# lands here into eng-masih.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources: []
