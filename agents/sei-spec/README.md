@@ -243,7 +243,6 @@ than leaving them for a later engineer to rediscover.
 ## Lineage
 
 - Ticket: PLT-872.
-- Design: `bdchatham-designs`, `designs/sei-agentic-mesh/25-omnigent-speckit-agent.md`.
-- The prior decision this reopens: `designs/sei-agentic-mesh/sdd-thin-layer.md`,
-  which evaluated and rejected adopting Spec Kit. Its thin-layer work on `/design`
+- The prior decision this reopens: the thin-layer SDD design, which evaluated
+  and rejected adopting Spec Kit. Its thin-layer work on `/design`
   and `/workstream` is untouched and still stands.
