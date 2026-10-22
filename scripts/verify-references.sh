@@ -248,10 +248,10 @@ for l in "${findings[@]:-}"; do
 done
 
 if $INSTALLED; then
-  # Skills from elsewhere, such as the speckit family and brandon-*. This
-  # repository cannot close a finding in one of them, and a report that can never
-  # reach zero is a report nobody reads. They are counted separately so the
-  # number this repository owns stays legible.
+  # Skills from elsewhere, such as the speckit family. This repository cannot
+  # close a finding in one of them, and a report that can never reach zero is a
+  # report nobody reads. They are counted separately so the number this
+  # repository owns stays legible.
   own=0; foreign=0
   for l in "${findings[@]:-}"; do
     [ -n "$l" ] || continue

@@ -118,7 +118,7 @@ caller publishes:
 
 ```sh
 writing/scripts/build-spec-artifact.sh --repo ~/sei-load \
-  --ref brandon2/spec-contract-deployment-registry \
+  --ref <spec-branch> \
   --out /tmp/artifacts contract-deployment-registry
 ```
 

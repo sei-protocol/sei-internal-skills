@@ -1,6 +1,6 @@
 # Closing the spec loop
 
-**Status**: Draft · 2026-08-24 · Author: Brandon Chatham
+**Status**: Draft · 2026-08-24 · Owner: Platform team
 
 ## Background
 

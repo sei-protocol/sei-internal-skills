@@ -48,7 +48,7 @@ The orchestrator runs the loop. Specialists do their domain work. The Five Rules
 
 State the observable in measurable terms. Required:
 
-- **What is happening** — the literal symptom, observable. Not "things are slow". Instead: "p99 latency on `eth_call` rose from 80ms to 2.1s starting at 14:32 UTC on the four-validator chain in eng-bdchatham."
+- **What is happening** — the literal symptom, observable. Not "things are slow". Instead: "p99 latency on `eth_call` rose from 80ms to 2.1s starting at 14:32 UTC on the four-validator chain in eng-amir."
 - **When it started** — wall-clock onset, scoped to the smallest window you can defend.
 - **Baseline** — what was true before. If the system has no baseline, you do not know there is an incident; you have a feeling.
 - **Blast radius** — which replicas, namespaces, regions, users. Localizes the search.
