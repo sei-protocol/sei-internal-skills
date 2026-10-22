@@ -5,7 +5,7 @@
     {
       "id": "happy-path-cross-component",
       "purpose": "Verify the skill runs its full procedure on a cross-component Sei-platform incident — establishes the effect, dispatches parallel blinded experts, retrieves real signals, and produces a multi-cause conclusion with falsification records.",
-      "scenario": "User invokes /root-cause: \"Help me understand why eth_call p99 latency on the four-validator chain in eng-bdchatham spiked from 80ms to 2.1s starting at 14:32 UTC. The chain is still serving requests but slowly. Logs and prometheus are available for the last 24h.\"",
+      "scenario": "User invokes /root-cause: \"Help me understand why eth_call p99 latency on the four-validator chain in eng-amir spiked from 80ms to 2.1s starting at 14:32 UTC. The chain is still serving requests but slowly. Logs and prometheus are available for the last 24h.\"",
       "expected_behavior": [
         "Step 1: Restates the effect in measurable terms (signal, onset, baseline, blast radius). Does not skip to hypotheses.",
         "Step 2: Reads .claude/agents/ in the calling repo and selects a multi-expert slate (kubernetes-specialist + sei-network-specialist + sre-engineer at minimum). Names which agent is assigned red-team.",

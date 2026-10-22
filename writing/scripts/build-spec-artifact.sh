@@ -27,7 +27,7 @@
 #
 # Example:
 #   writing/scripts/build-spec-artifact.sh \
-#     --repo ~/sei-load --ref brandon2/spec-contract-deployment-registry \
+#     --repo ~/sei-load --ref <spec-branch> \
 #     --out /tmp/artifacts contract-deployment-registry transaction-outcome-tracking
 set -euo pipefail
 

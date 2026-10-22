@@ -1,6 +1,6 @@
 # The V2 artifact pipeline
 
-**Status**: Draft · 2026-08-19 · Author: Brandon Chatham
+**Status**: Draft · 2026-08-19 · Owner: Platform team
 
 ## Background
 
