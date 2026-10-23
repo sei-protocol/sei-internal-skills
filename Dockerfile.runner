@@ -24,6 +24,14 @@ FROM ${BASE_IMAGE}
 # could surprise the sandbox launchers that supply their own command.
 USER root
 
+# Node 22.23.4 fixes CVE-2026-111497, a Brotli decoder RCE that the harness CLIs
+# reach through fetch(). The base ships an older 22.x. The first RUN fails the build
+# once the base ships 22.23.4 or later, so the override is dropped, not a downgrade.
+RUN node -e 'const [a, b, c] = process.versions.node.split(".").map(Number); if (a !== 22 || b > 23 || (b === 23 && c >= 4)) { console.error(`base ships Node ${process.version}; drop the 22.23.4 override`); process.exit(1); }'
+COPY --from=public.ecr.aws/docker/library/node:22.23.4-trixie-slim@sha256:8eb619e402eaede1748a3c8173bffab391592812e85136452f781741c7242ddf \
+  /usr/local/bin/node /usr/local/bin/node
+RUN [ "$(node --version)" = v22.23.4 ]
+
 # GitHub credential bridge. Platform's inject-git-creds admission policy mounts a
 # rotating GitHub App installation token at /mnt/secrets/git/token in seidroid
 # sandbox Pods. The base image's own git helper reads GIT_TOKEN from the
