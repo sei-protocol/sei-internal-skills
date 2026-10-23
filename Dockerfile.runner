@@ -25,8 +25,9 @@ FROM ${BASE_IMAGE}
 USER root
 
 # Node 22.23.4 fixes CVE-2026-111497, a Brotli decoder RCE that the harness CLIs
-# reach through fetch(). The base ships an older 22.x; drop this once the base
-# release ships 22.23.4 or later.
+# reach through fetch(). The base ships an older 22.x. The first RUN fails the build
+# once the base ships 22.23.4 or later, so the override is dropped, not a downgrade.
+RUN node -e 'const [a, b, c] = process.versions.node.split(".").map(Number); if (a !== 22 || b > 23 || (b === 23 && c >= 4)) { console.error(`base ships Node ${process.version}; drop the 22.23.4 override`); process.exit(1); }'
 COPY --from=public.ecr.aws/docker/library/node:22.23.4-trixie-slim@sha256:8eb619e402eaede1748a3c8173bffab391592812e85136452f781741c7242ddf \
   /usr/local/bin/node /usr/local/bin/node
 RUN [ "$(node --version)" = v22.23.4 ]
