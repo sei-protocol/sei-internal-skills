@@ -32,6 +32,14 @@ COPY --from=public.ecr.aws/docker/library/node:22.23.4-trixie-slim@sha256:8eb619
   /usr/local/bin/node /usr/local/bin/node
 RUN [ "$(node --version)" = v22.23.4 ]
 
+# libbrotli1 1.1.0-2+deb13u1 (DSA-6582-1) fixes the same CVE in Debian's system
+# library, which curl links and the base ships at 1.1.0-2+b7. A no-op once the base
+# carries the fix.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends --only-upgrade libbrotli1 \
+ && rm -rf /var/lib/apt/lists/* \
+ && dpkg --compare-versions "$(dpkg-query -W -f='${Version}' libbrotli1)" ge 1.1.0-2+deb13u1
+
 # GitHub credential bridge. Platform's inject-git-creds admission policy mounts a
 # rotating GitHub App installation token at /mnt/secrets/git/token in seidroid
 # sandbox Pods. The base image's own git helper reads GIT_TOKEN from the
