@@ -147,11 +147,10 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 		// again would hang.
 		if t.anchor == "" {
 			if t.attempted {
-				// A send went out and its acknowledgement never arrived, so whether the
-				// server took the prompt is unknowable from here. Sending again would
-				// put a second prompt to a runtime that may already be answering the
-				// first, and this run has no anchor, so it could not attribute either
-				// reply. Every later run that adopts the session ends here too.
+				// The acknowledgement never arrived, so the prompt's fate is unknown: a resend
+				// could double-prompt a runtime already answering, and with no anchor neither
+				// reply could be attributed. Marked unusable because deleting costs only the
+				// history, while keeping it left every observed retry failing (PLT-1320).
 				t.fail(fmt.Errorf(
 					"%w: %w: the prompt was sent without a usable acknowledgement, so it can "+
 						"neither be sent again nor attributed",
