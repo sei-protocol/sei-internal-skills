@@ -122,6 +122,39 @@ func TestRunCarriesAReplyReadBeforeAFailure(t *testing.T) {
 	}
 }
 
+// TestRunDiscardsOnlyASessionThatCanNeverRunATurn pins which failed turns delete
+// their session. A retry that adopts an unusable one fails without trying; any other
+// failed turn keeps its conversation for the retry.
+func TestRunDiscardsOnlyASessionThatCanNeverRunATurn(t *testing.T) {
+	t.Parallel()
+
+	for _, c := range []struct {
+		name string
+		err  error
+		want int
+	}{
+		{"a sandbox that never launched",
+			fmt.Errorf("%w: %w: the sandbox never launched", ErrTurnFailed, ErrSessionUnusable), 1},
+		{"any other failed turn", wrapped(ErrTurnFailed, "the response failed"), 0},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			t.Parallel()
+
+			conv := &fakeConversation{sessionID: "conv_1", turnErr: c.err}
+			d := New(Config{RunDeadline: time.Minute}, &fakeHost{conv: conv}, quietLogger())
+
+			result := d.Run(t.Context(), testWork{Repo: "sei-protocol/sandbox", PR: 22})
+
+			if result.ExitCode != ExitTurnFailed {
+				t.Errorf("ExitCode = %d, want ExitTurnFailed (%d)", result.ExitCode, ExitTurnFailed)
+			}
+			if conv.discarded != c.want {
+				t.Errorf("discarded = %d, want %d", conv.discarded, c.want)
+			}
+		})
+	}
+}
+
 // TestRunMapsEveryFailureOntoItsExitCode pins the contract a calling workflow
 // branches on. The numbers only ever widen, so each of these is load-bearing.
 func TestRunMapsEveryFailureOntoItsExitCode(t *testing.T) {

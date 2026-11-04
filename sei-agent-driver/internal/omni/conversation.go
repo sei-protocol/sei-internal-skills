@@ -151,10 +151,11 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 				// server took the prompt is unknowable from here. Sending again would
 				// put a second prompt to a runtime that may already be answering the
 				// first, and this run has no anchor, so it could not attribute either
-				// reply. Reporting it costs the run and nothing else.
+				// reply. Every later run that adopts the session ends here too.
 				t.fail(fmt.Errorf(
-					"%w: the prompt was sent without a usable acknowledgement, so it can "+
-						"neither be sent again nor attributed", driver.ErrTurnFailed))
+					"%w: %w: the prompt was sent without a usable acknowledgement, so it can "+
+						"neither be sent again nor attributed",
+					driver.ErrTurnFailed, driver.ErrSessionUnusable))
 				return reply, t.failure
 			}
 			if c.host.sessionIsLive(ctx, c.client, c.sessionID) {
@@ -437,7 +438,8 @@ func (c *conversation) sendWhenLaunched(
 		if e.Error != nil && *e.Error != "" {
 			reason = *e.Error
 		}
-		return fmt.Errorf("%w: the sandbox never launched: %s", driver.ErrTurnFailed, reason)
+		return fmt.Errorf("%w: %w: the sandbox never launched: %s",
+			driver.ErrTurnFailed, driver.ErrSessionUnusable, reason)
 
 	default:
 		// provisioning, cloning, starting, connecting: progress, not an outcome.

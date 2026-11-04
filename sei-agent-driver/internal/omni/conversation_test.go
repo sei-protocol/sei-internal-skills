@@ -1854,6 +1854,10 @@ func TestDriverReportsASandboxThatNeverLaunched(t *testing.T) {
 	if got := driverPrompts(fs.EventReqs()); len(got) != 0 {
 		t.Errorf("prompt posts = %d, want 0: a failed launch is not sent to", len(got))
 	}
+	if got := fs.DeletedIDs(); len(got) != 1 || got[0] != "conv_failed" {
+		t.Errorf("deleted = %v, want [conv_failed]: a retry that adopts a session whose "+
+			"sandbox never launched fails without trying", got)
+	}
 }
 
 // TestDriverResubscribesWhileThePromptIsStillWaiting covers the cold start.
@@ -2607,6 +2611,10 @@ func TestAnAttemptedSendIsNeverRepeated(t *testing.T) {
 	}
 	if result.ExitCode != driver.ExitTurnFailed {
 		t.Errorf("ExitCode = %d, want ExitTurnFailed (%d)", result.ExitCode, driver.ExitTurnFailed)
+	}
+	if got := fs.DeletedIDs(); len(got) != 1 || got[0] != "conv_1" {
+		t.Errorf("deleted = %v, want [conv_1]: a retry that adopts a session holding an "+
+			"unacknowledged prompt fails the same way", got)
 	}
 }
 

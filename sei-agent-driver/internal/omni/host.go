@@ -516,7 +516,7 @@ func (h *Host) createOrAdopt(
 		return nil, adoption{}, fmt.Errorf("looking for an existing session: %w", err)
 	}
 	if existing != nil {
-		if live, revivable := reachability(existing); live || revivable {
+		if live, revivable := reachability(existing); (live || revivable) && !launchFailed(existing) {
 			h.log.Info("adopting the session an earlier dispatch created",
 				"run_key", w.RunKey, "session_id", existing.ID,
 				"live", live, "revivable", revivable)
@@ -592,6 +592,12 @@ func reachability(s *omnigent.SessionResponse) (live, revivable bool) {
 		return true, false
 	}
 	return false, s.HostResumable != nil && *s.HostResumable
+}
+
+// launchFailed reports a managed session whose sandbox never launched. The server
+// can still report such a session live, so reachability alone adopts it.
+func launchFailed(s *omnigent.SessionResponse) bool {
+	return s.SandboxStatus != nil && s.SandboxStatus.Stage == omnigent.SandboxStatusStageFailed
 }
 
 // sessionIsLive reports whether a runner is registered for this session right now,
