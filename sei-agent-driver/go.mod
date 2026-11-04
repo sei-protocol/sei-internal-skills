@@ -2,7 +2,7 @@ module github.com/sei-protocol/sei-internal-skills/sei-agent-driver
 
 go 1.26.0
 
-toolchain go1.26.9
+toolchain go1.26.10
 
 require (
 	github.com/sei-protocol/omnigent-go-sdk v0.3.0
