@@ -147,14 +147,14 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 		// again would hang.
 		if t.anchor == "" {
 			if t.attempted {
-				// A send went out and its acknowledgement never arrived, so whether the
-				// server took the prompt is unknowable from here. Sending again would
-				// put a second prompt to a runtime that may already be answering the
-				// first, and this run has no anchor, so it could not attribute either
-				// reply. Reporting it costs the run and nothing else.
+				// The acknowledgement never arrived, so the prompt's fate is unknown: a resend
+				// could double-prompt a runtime already answering, and with no anchor neither
+				// reply could be attributed. Marked unusable because deleting costs only the
+				// history, while keeping it left every observed retry failing (PLT-1320).
 				t.fail(fmt.Errorf(
-					"%w: the prompt was sent without a usable acknowledgement, so it can "+
-						"neither be sent again nor attributed", driver.ErrTurnFailed))
+					"%w: %w: the prompt was sent without a usable acknowledgement, so it can "+
+						"neither be sent again nor attributed",
+					driver.ErrTurnFailed, driver.ErrSessionUnusable))
 				return reply, t.failure
 			}
 			if c.host.sessionIsLive(ctx, c.client, c.sessionID) {
@@ -437,7 +437,8 @@ func (c *conversation) sendWhenLaunched(
 		if e.Error != nil && *e.Error != "" {
 			reason = *e.Error
 		}
-		return fmt.Errorf("%w: the sandbox never launched: %s", driver.ErrTurnFailed, reason)
+		return fmt.Errorf("%w: %w: the sandbox never launched: %s",
+			driver.ErrTurnFailed, driver.ErrSessionUnusable, reason)
 
 	default:
 		// provisioning, cloning, starting, connecting: progress, not an outcome.

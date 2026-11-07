@@ -369,6 +369,52 @@ func TestDriverReplacesASessionThatCannotRunATurn(t *testing.T) {
 	}
 }
 
+// TestDriverReplacesASessionWhoseSandboxNeverLaunched covers a server that reports
+// such a session live, as it did on sei-protocol/platform#2333. Reachability alone
+// adopts it, and every retry then fails on a prompt nothing acknowledges.
+func TestDriverReplacesASessionWhoseSandboxNeverLaunched(t *testing.T) {
+	t.Parallel()
+
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 23, Trigger: "trigger-launch-failed"}
+	runKey := testRunKey(req.Repo, req.PR)
+
+	fs := newDriverFakeServer(t, driverFakeServerConfig{
+		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
+		CreateResp: driverSessionResp("conv_fresh", "ag_1"),
+		SessionListResp: `{"data":[{"id":"conv_failed","agent_id":"ag_1",` +
+			`"labels":{"` + RunKeyLabel + `":"` + runKey + `"}}],"has_more":false}`,
+		StreamFrames: []string{
+			driverAckFrame(),
+			driverConsumedFrame("item_1"),
+			driverIdleFrame("resp_claude_a"),
+			driverDoneFrame(),
+		},
+		SessionResps: []string{
+			`{"id":"conv_failed","agent_id":"ag_1","created_at":1,"status":"idle","items":[],` +
+				`"runner_online":true,"sandbox_status":{"stage":"failed",` +
+				`"error":"internal error during managed sandbox launch"}}`,
+			driverSessionWithItems("conv_fresh", "ag_1",
+				driverReplyItem("item_reply", "resp_claude_a",
+					driverVerdict("Reviewed on a working session.", "comment"))),
+		},
+	})
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), req)
+
+	if created := fs.CreateReqs(); len(created) != 1 {
+		t.Fatalf("created %d sessions, want 1: a session whose launch failed must be "+
+			"replaced even when it reads live", len(created))
+	}
+	if got := fs.DeletedIDs(); len(got) != 1 || got[0] != "conv_failed" {
+		t.Errorf("deleted = %v, want [conv_failed]", got)
+	}
+	if result.SessionID != "conv_fresh" {
+		t.Errorf("SessionID = %q, want conv_fresh: the run must drive the replacement",
+			result.SessionID)
+	}
+}
+
 // TestDriverKeepsASessionWhoseHostCanBeWoken separates the two false cases. A
 // dormant host the provider can resume wakes when it is sent a message, so
 // deleting it would throw away the conversation this feature exists to keep.

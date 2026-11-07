@@ -80,7 +80,7 @@ func New(cfg Config, host Host, log *slog.Logger) *Driver {
 // It tears nothing down itself. The session outlives the run, for the reasons in
 // the package doc, and [Driver.Close] is what ends it -- though opening will delete
 // a session it finds unable to run a turn at all, and [Driver.discard] deletes one
-// whose reply was refused.
+// whose reply was refused or whose turn failed with [ErrSessionUnusable].
 //
 // What that leaves behind is a turn still running when a run ends early, on a
 // cancelled context or an expired deadline. The next invocation's prompt queues
@@ -126,7 +126,11 @@ func (d *Driver) answer(ctx context.Context, work Work, w Workload) Result {
 				"session_id", result.SessionID, "turn_id", reply.TurnID,
 				"chars", len(reply.Text), "reason", reply.Reason)
 		}
-		return d.classify(ctx, result, err)
+		result = d.classify(ctx, result, err)
+		if errors.Is(err, ErrSessionUnusable) {
+			d.discard(ctx, work, conv)
+		}
+		return result
 	}
 
 	if !w.Complete(reply.Text) {
@@ -146,8 +150,9 @@ func (d *Driver) answer(ctx context.Context, work Work, w Workload) Result {
 	return result
 }
 
-// discard deletes the session of a turn whose reply was refused. A retry that
-// adopts it sees that reply and repeats it, so the next dispatch must start fresh.
+// discard deletes the session of a turn whose reply was refused, or whose session
+// can never run a turn. A retry that adopts either fails the same way, so the next
+// dispatch must start fresh.
 // Best-effort and bounded by the run's own deadline: a failed delete only costs the
 // next run the same outcome.
 func (d *Driver) discard(ctx context.Context, work Work, conv Conversation) {

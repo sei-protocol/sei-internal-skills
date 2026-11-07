@@ -93,6 +93,11 @@ var (
 	// ErrTurnFailed is the session reporting a failed turn.
 	ErrTurnFailed = errors.New("turn failed")
 
+	// ErrSessionUnusable marks a failed turn whose session a retry must not reuse: its
+	// sandbox never launched, or its prompt went unacknowledged. It always travels
+	// with [ErrTurnFailed], and [Driver.Run] deletes the session so a retry starts fresh.
+	ErrSessionUnusable = errors.New("session unusable")
+
 	// ErrMint is a failure to exchange machine credentials for an access token.
 	ErrMint = errors.New("token exchange")
 
