@@ -389,10 +389,8 @@ type adoption struct {
 	// live reports that a runner is registered right now.
 	live bool
 
-	// revivable reports a session whose host is dormant but can be woken. It takes
-	// the prompt on subscribe like a live one, because sending is what wakes it --
-	// waiting for a launch that only a send would trigger is a run that never asks
-	// its question and spends its whole budget not asking.
+	// revivable reports a session whose host is dormant but can be woken. The turn
+	// wakes it before sending, then takes the prompt on subscribe like a live one.
 	revivable bool
 }
 
