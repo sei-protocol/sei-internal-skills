@@ -512,11 +512,13 @@ func (c *conversation) wakeOutcome(ctx context.Context) (bool, error) {
 }
 
 // cannotWake reports an error that sending the wake again will not change: the
-// session is gone, or this caller may not touch it.
+// session is gone, this caller may not touch it, or its agent has no usable
+// harness.
 func cannotWake(err error) bool {
 	return errors.Is(err, omnigent.ErrNotFound) ||
 		errors.Is(err, omnigent.ErrUnauthorized) ||
 		errors.Is(err, omnigent.ErrForbidden) ||
+		errors.Is(err, omnigent.ErrHarnessNotConfigured) ||
 		errors.Is(err, omnigent.ErrInvalidArgument) ||
 		errors.Is(err, omnigent.ErrInvalidInput) ||
 		errors.Is(err, omnigent.ErrValidation)

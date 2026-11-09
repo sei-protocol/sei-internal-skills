@@ -579,6 +579,37 @@ func TestDriverReplacesASessionWhoseWakeFailed(t *testing.T) {
 	}
 }
 
+// TestDriverStopsWakingOnAnErrorRetryingCannotFix covers a wake the server
+// refuses with a status that names a fixed cause. A 412 says the agent has no
+// usable harness, so the run fails on the first answer with the server's reason
+// rather than re-posting until the deadline and reporting a timeout.
+func TestDriverStopsWakingOnAnErrorRetryingCannotFix(t *testing.T) {
+	t.Parallel()
+
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 26, Trigger: "trigger-asleep"}
+	cfg := dormantSessionConfig(req,
+		driverLivenessResp("conv_asleep", "ag_1", false, true),
+		driverLivenessResp("conv_asleep", "ag_1", true, false),
+		wokenReply(),
+	)
+	cfg.RetrySessionStatuses = []int{http.StatusPreconditionFailed}
+	fs := newDriverFakeServer(t, cfg)
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), req)
+	if result.ExitCode != driver.ExitTransport {
+		t.Errorf("ExitCode = %d, want driver.ExitTransport (%d): a 412 fails at once",
+			result.ExitCode, driver.ExitTransport)
+	}
+	wakes, _ := promptAfterWake(fs.EventReqs())
+	if wakes != 1 {
+		t.Errorf("retry_session inputs = %d, want 1: a 412 is not retried", wakes)
+	}
+	if len(fs.EventReqs()) != wakes {
+		t.Errorf("events = %+v, want no prompt into a session that never woke", fs.EventReqs())
+	}
+}
+
 // TestDriverAsksForAFirstReviewUntilTheConversationHoldsOne pins which prompt a
 // session gets, which is decided by what the conversation holds rather than by how
 // the session was found.
