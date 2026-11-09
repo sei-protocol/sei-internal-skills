@@ -84,20 +84,16 @@ func (c *conversation) Turn(ctx context.Context, ask driver.Ask) (driver.Reply, 
 	c.host.log.Info("turn starting", "session_id", c.sessionID,
 		"answered", answered, "harness", c.harness, "prompt_chars", len(prompt))
 
-	// Whether the session can take a prompt now decides when it goes in, and only a
-	// session this run created cannot. One still launching would accept the prompt
-	// without queueing it, leaving no anchor, so it waits for the ready edge. A live
-	// session takes it as soon as the stream is up, and so does a dormant one that
-	// can be woken -- sending is what wakes it, and its launch pipeline does not
-	// re-fire for a host that is already provisioned, so waiting there waits for
-	// something only a send would cause. See [conversation.sendOnSubscribe] and
-	// [conversation.sendWhenLaunched], the two arms of this.
-	//
-	// The revivable half is reasoned from the documented wake behaviour and is not
-	// covered by a test: the fake server answers liveness from a queue, so a fixture
-	// cannot hold a host dormant across the reads this path makes, and every attempt
-	// passed with the condition removed. Treat it as unproven until a dormant
-	// adoption is observed against a real deployment.
+	// Whether the session can take a prompt now decides when it goes in. A session
+	// this run created waits for the sandbox-ready edge; a live one takes the prompt
+	// as soon as the stream is up; a dormant one is woken first and then taken as
+	// live. See [conversation.wake], [conversation.sendOnSubscribe] and
+	// [conversation.sendWhenLaunched].
+	if c.from.revivable {
+		if err := c.wake(ctx); err != nil {
+			return driver.Reply{}, err
+		}
+	}
 	opts := omnigent.StreamOptions{}
 	if c.from.live || c.from.revivable {
 		opts.OnSubscribed = c.sendOnSubscribe(prompt, t)
@@ -445,6 +441,87 @@ func (c *conversation) sendWhenLaunched(
 		c.host.log.Info("sandbox launching", "session_id", c.sessionID, "stage", string(e.Stage))
 		return nil
 	}
+}
+
+// inputTypeRetrySession asks the server to bring a session's runner online without
+// adding anything to the conversation.
+const inputTypeRetrySession = "retry_session"
+
+// wake brings a dormant session's runner online before the prompt goes in, and
+// returns once the session reads live.
+//
+// A prompt sent into a dormant session is held open while the server restarts its
+// sandbox, which routinely outlasts the transport's response-header timeout and
+// leaves a prompt that can be neither resent nor attributed. A retry_session input
+// persists nothing, so one cut off the same way is simply sent again.
+//
+// It fails with [driver.ErrSessionUnusable] when the restart reports a failed
+// launch, with the server's own error when the session cannot be woken at all,
+// and with the run context's error when the deadline expires first.
+func (c *conversation) wake(ctx context.Context) error {
+	c.host.log.Info("waking the dormant session before sending the prompt",
+		"session_id", c.sessionID)
+	for attempt := 1; ; attempt++ {
+		accepted, err := c.client.Sessions().PostEvent(ctx, c.sessionID,
+			omnigent.SessionEventInput{Type: inputTypeRetrySession})
+		if err == nil && accepted.Denied {
+			return fmt.Errorf("%w: the server refused to wake the session: %s",
+				driver.ErrTurnFailed, accepted.Reason)
+		}
+		if cannotWake(err) {
+			return fmt.Errorf("waking the dormant session: %w", err)
+		}
+
+		live, readErr := c.wakeOutcome(ctx)
+		if readErr != nil {
+			return readErr
+		}
+		if live {
+			c.host.log.Info("the dormant session is awake", "session_id", c.sessionID,
+				"attempts", attempt)
+			return nil
+		}
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		c.host.log.Info("the dormant session is still waking", "session_id", c.sessionID,
+			"attempt", attempt, "error", err)
+		c.backoff(ctx, attempt)
+	}
+}
+
+// wakeOutcome reads whether a session being woken is live yet. A read that fails
+// transiently reads as not yet live.
+func (c *conversation) wakeOutcome(ctx context.Context) (bool, error) {
+	readCtx, cancel := context.WithTimeout(ctx, c.host.cfg.RequestTimeout)
+	defer cancel()
+
+	session, err := c.client.Sessions().Get(readCtx, c.sessionID, omnigent.GetSessionOptions{})
+	switch {
+	case cannotWake(err):
+		return false, fmt.Errorf("reading the session being woken: %w", err)
+	case err != nil:
+		c.host.log.Warn("could not read the session being woken",
+			"session_id", c.sessionID, "error", err)
+		return false, nil
+	case launchFailed(session):
+		return false, fmt.Errorf("%w: %w: the dormant session's sandbox failed to relaunch",
+			driver.ErrTurnFailed, driver.ErrSessionUnusable)
+	}
+	return session.RunnerOnline != nil && *session.RunnerOnline, nil
+}
+
+// cannotWake reports an error that sending the wake again will not change: the
+// session is gone, this caller may not touch it, or its agent has no usable
+// harness.
+func cannotWake(err error) bool {
+	return errors.Is(err, omnigent.ErrNotFound) ||
+		errors.Is(err, omnigent.ErrUnauthorized) ||
+		errors.Is(err, omnigent.ErrForbidden) ||
+		errors.Is(err, omnigent.ErrHarnessNotConfigured) ||
+		errors.Is(err, omnigent.ErrInvalidArgument) ||
+		errors.Is(err, omnigent.ErrInvalidInput) ||
+		errors.Is(err, omnigent.ErrValidation)
 }
 
 // replyFor resolves what the observed turn produced.

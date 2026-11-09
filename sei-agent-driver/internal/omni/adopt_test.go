@@ -415,16 +415,11 @@ func TestDriverReplacesASessionWhoseSandboxNeverLaunched(t *testing.T) {
 	}
 }
 
-// TestDriverKeepsASessionWhoseHostCanBeWoken separates the two false cases. A
-// dormant host the provider can resume wakes when it is sent a message, so
-// deleting it would throw away the conversation this feature exists to keep.
-func TestDriverKeepsASessionWhoseHostCanBeWoken(t *testing.T) {
-	t.Parallel()
-
-	req := testWork{Repo: "sei-protocol/sandbox", PR: 22, Trigger: "trigger-asleep"}
-	runKey := testRunKey(req.Repo, req.PR)
-
-	fs := newDriverFakeServer(t, driverFakeServerConfig{
+// dormantSessionConfig is a server holding one dormant, resumable session for work,
+// whose snapshot reads answer from sessionResps in order.
+func dormantSessionConfig(work testWork, sessionResps ...string) driverFakeServerConfig {
+	runKey := testRunKey(work.Repo, work.PR)
+	return driverFakeServerConfig{
 		AgentPages: []string{driverAgentPage("ag_1", "seidroid", "", false)},
 		CreateResp: driverSessionResp("conv_new", "ag_1"),
 		SessionListResp: `{"data":[{"id":"conv_asleep","agent_id":"ag_1","runner_online":false,` +
@@ -436,23 +431,182 @@ func TestDriverKeepsASessionWhoseHostCanBeWoken(t *testing.T) {
 			driverIdleFrame("resp_claude_a"),
 			driverDoneFrame(),
 		},
-		SessionResps: []string{
-			driverLivenessResp("conv_asleep", "ag_1", false, true),
-			driverSessionResp("conv_asleep", "ag_1"),
-			driverSessionWithItems("conv_asleep", "ag_1",
-				driverReplyItem("item_reply", "resp_claude_a",
-					driverVerdict("Woke and reviewed.", "comment"))),
-		},
-	})
+		SessionResps: sessionResps,
+	}
+}
 
-	newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+// wokenReply is the snapshot of conv_asleep once it is awake and has answered.
+func wokenReply() string {
+	return driverSessionWithItems("conv_asleep", "ag_1",
+		driverReplyItem("item_reply", "resp_claude_a",
+			driverVerdict("Woke and reviewed.", "comment")))
+}
+
+// promptAfterWake reports whether every retry_session input precedes the first
+// prompt, and how many there were.
+func promptAfterWake(reqs []driverEventReq) (wakes int, ordered bool) {
+	prompted := false
+	for _, r := range reqs {
+		switch r.Type {
+		case inputTypeRetrySession:
+			if prompted {
+				return wakes, false
+			}
+			wakes++
+		case "message":
+			prompted = true
+		}
+	}
+	return wakes, prompted
+}
+
+// TestDriverKeepsASessionWhoseHostCanBeWoken separates the two false cases. A
+// dormant host the provider can resume is woken in place, so deleting it would
+// throw away the conversation this feature exists to keep.
+func TestDriverKeepsASessionWhoseHostCanBeWoken(t *testing.T) {
+	t.Parallel()
+
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 22, Trigger: "trigger-asleep"}
+	fs := newDriverFakeServer(t, dormantSessionConfig(req,
+		driverLivenessResp("conv_asleep", "ag_1", false, true),
+		driverLivenessResp("conv_asleep", "ag_1", true, false),
+		wokenReply(),
+	))
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
 		Run(t.Context(), req)
+	if result.ExitCode != driver.ExitOK {
+		t.Errorf("ExitCode = %d, want driver.ExitOK", result.ExitCode)
+	}
 	if created := fs.CreateReqs(); len(created) != 0 {
 		t.Errorf("created %d sessions, want 0: a resumable host is woken, not replaced", len(created))
 	}
 	if got := fs.DeleteHits(); got != 0 {
 		t.Errorf("DELETE calls = %d, want 0: deleting a resumable session discards the "+
 			"conversation it exists to keep", got)
+	}
+}
+
+// TestDriverWakesADormantSessionBeforeSendingThePrompt pins the order. A prompt
+// sent into a dormant session is held open while its sandbox restarts, and one cut
+// off by the transport can be neither resent nor attributed, so the prompt goes in
+// only after the session reads live.
+func TestDriverWakesADormantSessionBeforeSendingThePrompt(t *testing.T) {
+	t.Parallel()
+
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 23, Trigger: "trigger-asleep"}
+	fs := newDriverFakeServer(t, dormantSessionConfig(req,
+		driverLivenessResp("conv_asleep", "ag_1", false, true),
+		driverLivenessResp("conv_asleep", "ag_1", false, true),
+		driverLivenessResp("conv_asleep", "ag_1", true, false),
+		wokenReply(),
+	))
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), req)
+	if result.ExitCode != driver.ExitOK {
+		t.Fatalf("ExitCode = %d, want driver.ExitOK", result.ExitCode)
+	}
+	wakes, ordered := promptAfterWake(fs.EventReqs())
+	if !ordered {
+		t.Errorf("events = %+v, want every retry_session before the prompt", fs.EventReqs())
+	}
+	if wakes != 2 {
+		t.Errorf("retry_session inputs = %d, want 2: one per read that found the "+
+			"session still dormant", wakes)
+	}
+	if got := len(driverPrompts(fs.EventReqs())) - wakes; got != 1 {
+		t.Errorf("prompts = %d, want 1", got)
+	}
+}
+
+// TestDriverKeepsWakingThroughAnUnfinishedWake covers the server answering a wake
+// still in progress with a 503. The wake persists nothing, so the driver sends it
+// again rather than failing the run.
+func TestDriverKeepsWakingThroughAnUnfinishedWake(t *testing.T) {
+	t.Parallel()
+
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 24, Trigger: "trigger-asleep"}
+	cfg := dormantSessionConfig(req,
+		driverLivenessResp("conv_asleep", "ag_1", false, true),
+		driverLivenessResp("conv_asleep", "ag_1", false, true),
+		driverLivenessResp("conv_asleep", "ag_1", true, false),
+		wokenReply(),
+	)
+	cfg.RetrySessionStatuses = []int{http.StatusServiceUnavailable}
+	fs := newDriverFakeServer(t, cfg)
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), req)
+	if result.ExitCode != driver.ExitOK {
+		t.Errorf("ExitCode = %d, want driver.ExitOK: an unfinished wake is retried", result.ExitCode)
+	}
+	wakes, ordered := promptAfterWake(fs.EventReqs())
+	if !ordered {
+		t.Errorf("events = %+v, want every retry_session before the prompt", fs.EventReqs())
+	}
+	if wakes != 2 {
+		t.Errorf("retry_session inputs = %d, want 2: the one the server answered 503 "+
+			"and the one that woke the session", wakes)
+	}
+}
+
+// TestDriverReplacesASessionWhoseWakeFailed covers a restart that reports a failed
+// launch. No prompt goes in, and the session is deleted so the next run creates
+// one instead of adopting it again.
+func TestDriverReplacesASessionWhoseWakeFailed(t *testing.T) {
+	t.Parallel()
+
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 25, Trigger: "trigger-asleep"}
+	fs := newDriverFakeServer(t, dormantSessionConfig(req,
+		driverLivenessResp("conv_asleep", "ag_1", false, true),
+		`{"id":"conv_asleep","agent_id":"ag_1","created_at":1,"status":"idle","items":[],`+
+			`"runner_online":false,"host_resumable":true,"sandbox_status":{"stage":"failed",`+
+			`"error":"pod never became ready"}}`,
+	))
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), req)
+	if result.ExitCode != driver.ExitTurnFailed {
+		t.Errorf("ExitCode = %d, want driver.ExitTurnFailed (%d)",
+			result.ExitCode, driver.ExitTurnFailed)
+	}
+	if wakes, _ := promptAfterWake(fs.EventReqs()); len(fs.EventReqs()) != wakes {
+		t.Errorf("events = %+v, want no prompt into a session that never woke", fs.EventReqs())
+	}
+	if got := fs.DeletedIDs(); len(got) != 1 || got[0] != "conv_asleep" {
+		t.Errorf("deleted = %v, want [conv_asleep]", got)
+	}
+}
+
+// TestDriverStopsWakingOnAnErrorRetryingCannotFix covers a wake the server
+// refuses with a status that names a fixed cause. A 412 says the agent has no
+// usable harness, so the run fails on the first answer with the server's reason
+// rather than re-posting until the deadline and reporting a timeout.
+func TestDriverStopsWakingOnAnErrorRetryingCannotFix(t *testing.T) {
+	t.Parallel()
+
+	req := testWork{Repo: "sei-protocol/sandbox", PR: 26, Trigger: "trigger-asleep"}
+	cfg := dormantSessionConfig(req,
+		driverLivenessResp("conv_asleep", "ag_1", false, true),
+		driverLivenessResp("conv_asleep", "ag_1", true, false),
+		wokenReply(),
+	)
+	cfg.RetrySessionStatuses = []int{http.StatusPreconditionFailed}
+	fs := newDriverFakeServer(t, cfg)
+
+	result := newTestDriver(driverTestConfig(t, fs.URL), driver.Policy{}, driverTestLogger()).
+		Run(t.Context(), req)
+	if result.ExitCode != driver.ExitTransport {
+		t.Errorf("ExitCode = %d, want driver.ExitTransport (%d): a 412 fails at once",
+			result.ExitCode, driver.ExitTransport)
+	}
+	wakes, _ := promptAfterWake(fs.EventReqs())
+	if wakes != 1 {
+		t.Errorf("retry_session inputs = %d, want 1: a 412 is not retried", wakes)
+	}
+	if len(fs.EventReqs()) != wakes {
+		t.Errorf("events = %+v, want no prompt into a session that never woke", fs.EventReqs())
 	}
 }
 

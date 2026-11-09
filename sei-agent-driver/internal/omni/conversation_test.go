@@ -190,6 +190,11 @@ type driverFakeServerConfig struct {
 	// server's real 202. Lets a test fail answering a permission prompt without
 	// touching the prompt path, which is a separate route.
 	ApprovalStatus int
+
+	// RetrySessionStatuses fails the retry_session post at each position with that
+	// status, the way the server answers a wake still in progress. Zero, or a post
+	// past its end, answers normally. Prompt posts are unaffected.
+	RetrySessionStatuses []int
 }
 
 // driverFakeServer is an httptest server speaking the wire shapes the SDK
@@ -207,6 +212,8 @@ type driverFakeServerConfig struct {
 type driverFakeServer struct {
 	approvalStatus         int
 	eventStatus            int
+	retrySessionStatuses   []int
+	retrySessionHits       atomic.Int64
 	sessionList            string
 	sessionLists           []string
 	itemsResp              string
@@ -299,6 +306,7 @@ func newDriverFakeServer(t *testing.T, cfg driverFakeServerConfig) *driverFakeSe
 		sessionStatuses:        cfg.SessionStatuses,
 		approvalStatus:         cfg.ApprovalStatus,
 		eventStatus:            cfg.EventStatus,
+		retrySessionStatuses:   cfg.RetrySessionStatuses,
 		eventResp:              cfg.EventResp,
 		eventResps:             cfg.EventResps,
 		deleteStatus:           cfg.DeleteStatus,
@@ -652,6 +660,15 @@ func (fs *driverFakeServer) handleEvents(w http.ResponseWriter, r *http.Request)
 	fs.eventReqs = append(fs.eventReqs, req)
 	fs.mu.Unlock()
 
+	if req.Type == inputTypeRetrySession {
+		n := int(fs.retrySessionHits.Add(1)) - 1
+		if n < len(fs.retrySessionStatuses) && fs.retrySessionStatuses[n] != 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(fs.retrySessionStatuses[n])
+			_, _ = io.WriteString(w, `{"detail":"The session's managed sandbox is still provisioning; try again shortly"}`)
+			return
+		}
+	}
 	if fs.eventStatus != 0 {
 		w.WriteHeader(fs.eventStatus)
 		return
