@@ -52,7 +52,7 @@ jobs:
 
       # v7 reads the `toolchain` directive. v5 matched only `go`, leaving the pinned toolchain
       # to a run-time re-exec.
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: sei-agent-driver/go.mod
           # The Makefile pins the scanner version, so it belongs in the key: a bump
